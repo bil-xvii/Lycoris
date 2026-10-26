@@ -6,12 +6,20 @@ using Monolith.UI;
 
 namespace Monolith.Modules.Services;
 
-/// <summary>ЗАДАЧИ ПЛАНИРОВЩИКА: telemetry tasks from research §4.1, disabled through the journal.</summary>
+/// <summary>
+/// ЗАДАЧИ: Microsoft data-collection tasks from research §4.1, disabled through the journal. The tab also shows
+/// third-party logon tasks of the hosted <see cref="Startup"/> page (toggled there, journaled by StartupChanges).
+/// </summary>
 public sealed partial class ServicesViewModel
 {
     private bool _bulkTaskSelect;
 
-    [ObservableProperty] private ObservableCollection<TaskItem> _taskItems = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AllTaskCount))]
+    private ObservableCollection<TaskItem> _taskItems = [];
+
+    /// <summary>Tab badge: Microsoft tasks + third-party logon tasks.</summary>
+    public int AllTaskCount => TaskItems.Count + Startup.TaskCount;
     [ObservableProperty] private string _missingTasksText = "";
     [ObservableProperty] private int _taskEnabledCount;
     [ObservableProperty] private int _taskDisabledCount;
