@@ -15,9 +15,6 @@ public sealed partial class DriversViewModel
 
     public ObservableCollection<ProblemDeviceItem> Problems { get; } = [];
 
-    /// <summary>Reference shown when there are no problems: the codes users meet most often.</summary>
-    public IReadOnlyList<ProblemCodeHint> CommonProblemCodes { get; } =
-        new[] { 28, 43, 10, 22, 52, 48 }.Select(c => new ProblemCodeHint(DeviceProblemCodes.Describe(c))).ToList();
     [ObservableProperty] private string? _problemsError;
     [ObservableProperty] private bool _hasProblems;
 

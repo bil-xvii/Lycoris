@@ -1,7 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
@@ -18,8 +17,8 @@ public sealed partial class DriversViewModel : PageViewModel
 {
     public override string Key => "drivers";
     public override string Index => "05";
-    public override string Title => "ЖЕЛЕЗО И ДРАЙВЕРЫ";
-    public override string Subtitle => "MONOLITH изучает комплектующие ПК и подбирает под них драйверы, утилиты и библиотеки — только из официальных источников.";
+    public override string Title => "ДРАЙВЕРЫ";
+    public override string Subtitle => "Драйверы и утилиты производителей — только из официальных источников.";
     public override string Glyph => Glyphs.Devices;
 
     private const string Source = "drivers";
@@ -28,21 +27,9 @@ public sealed partial class DriversViewModel : PageViewModel
     private List<UninstallEntry> _apps = [];
     private readonly CancellationTokenSource _lifetime = new();
 
-    [ObservableProperty] private DriversTab _selectedTab = DriversTab.Hardware;
+    [ObservableProperty] private DriversTab _selectedTab = DriversTab.Overview;
     [ObservableProperty] private bool _inventoryLoaded;
     [ObservableProperty] private string _inventoryTime = "";
-
-    // ── Overview stats ──
-    [ObservableProperty] private string _driversStat = "—";
-    [ObservableProperty] private string _driversCaption = "загрузка…";
-    [ObservableProperty] private string _problemsStat = "—";
-    [ObservableProperty] private string _problemsCaption = "загрузка…";
-    [ObservableProperty] private string _updatesStat = "—";
-    [ObservableProperty] private string _updatesCaption = "ещё не проверялось";
-    [ObservableProperty] private string _gpuStat = "—";
-    [ObservableProperty] private string _gpuCaption = "загрузка…";
-    [ObservableProperty] private string _backupsStat = "—";
-    [ObservableProperty] private string _backupsCaption = "загрузка…";
 
     // ── Tab badges ──
     [ObservableProperty] private string _updatesBadge = "";
@@ -75,16 +62,6 @@ public sealed partial class DriversViewModel : PageViewModel
     public string IntelSupportUrl => DriverSources.IntelDetectPage;
     public string DduUrl => DriverSources.DduPage;
 
-    /// <summary>Safe clean-install order for DDU (research §6) — information only, MONOLITH never runs it.</summary>
-    public IReadOnlyList<StepItem> DduSteps { get; } =
-    [
-        new("01", "Создайте точку восстановления системы."),
-        new("02", "Заранее скачайте новый драйвер с сайта производителя."),
-        new("03", "Отключите интернет, чтобы Windows Update не поставил свой драйвер."),
-        new("04", "Загрузитесь в безопасном режиме и запустите DDU."),
-        new("05", "Установите скачанный драйвер и снова подключите интернет."),
-    ];
-
     public DriversViewModel()
     {
         Updates.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasUpdates));
@@ -93,7 +70,7 @@ public sealed partial class DriversViewModel : PageViewModel
 
     protected override async Task LoadAsync()
     {
-        // Hardware analysis ("ПОДБОР ДЛЯ ВАШЕГО ПК") and the Windows Update search run on their own and do not block the page.
+        // The Windows Update search (and the hardware-analysis hook, hidden tab) run on their own and do not block the page.
         _ = StartHardwareScanAsync();
         _ = SearchUpdatesAsync();
         await RunBusyAsync("Сбор сведений о драйверах…", LoadInventoryAsync);
@@ -238,67 +215,23 @@ public sealed partial class DriversViewModel : PageViewModel
         UpdateStats();
     }
 
+    /// <summary>Counts shown in the tab badges.</summary>
     private void UpdateStats()
     {
-        // Drivers
         if (InventoryLoaded || _signedDrivers.Count > 0)
         {
-            var oem = _signedDrivers.Count(d => !d.IsMicrosoft);
-            DriversStat = _signedDrivers.Count.ToString();
-            DriversCaption = $"от производителей: {oem}";
             InstalledBadge = _signedDrivers.Count.ToString();
-
-            ProblemsStat = Problems.Count.ToString();
-            ProblemsCaption = Problems.Count == 0 ? "все устройства работают" : $"{DriverFormat.Plural(Problems.Count, "требует", "требуют", "требуют")} внимания";
             ProblemsBadge = Problems.Count > 0 ? Problems.Count.ToString() : "";
-
-            var main = Gpus.FirstOrDefault();
-            if (main is null)
-            {
-                GpuStat = "—";
-                GpuCaption = "видеоадаптер не найден";
-            }
-            else
-            {
-                GpuStat = main.VersionText;
-                GpuCaption = main.UpdateAvailable ? $"{main.VendorText} · доступен {main.LatestVersion}" : $"{main.VendorText} · возраст {main.AgeText}";
-            }
-
-            BackupsStat = Backups.Count.ToString();
-            BackupsCaption = Backups.Count == 0 ? "ещё не создавались" : $"последняя {Backups[0].DateText}";
             BackupsBadge = Backups.Count > 0 ? Backups.Count.ToString() : "";
         }
 
-        // Windows Update
-        switch (UpdatesState)
+        UpdatesBadge = UpdatesState switch
         {
-            case UpdatesState.Searching:
-                UpdatesStat = "…";
-                UpdatesCaption = "поиск в Windows Update";
-                UpdatesBadge = "…";
-                break;
-            case UpdatesState.Error:
-                UpdatesStat = "—";
-                UpdatesCaption = _lastSearchHResult == WuText.ServiceDisabled ? "служба отключена"
-                    : WuText.IsNetworkError(_lastSearchHResult) ? "нет связи" : "ошибка поиска";
-                UpdatesBadge = "!";
-                break;
-            case UpdatesState.Ready:
-                var recommended = Updates.Count(u => !u.IsOptional && !u.IsFirmware);
-                var optional = Updates.Count - recommended;
-                UpdatesStat = Updates.Count.ToString();
-                UpdatesCaption = Updates.Count == 0 ? "новых драйверов нет"
-                    : optional == 0 ? $"рекомендуемых: {recommended}"
-                    : recommended == 0 ? $"необязательных: {optional}"
-                    : $"{recommended} рекомендуемых, {optional} необяз.";
-                UpdatesBadge = Updates.Count > 0 ? Updates.Count.ToString() : "";
-                break;
-            default:
-                UpdatesStat = "—";
-                UpdatesCaption = "ещё не проверялось";
-                UpdatesBadge = "";
-                break;
-        }
+            UpdatesState.Searching => "…",
+            UpdatesState.Error => "!",
+            UpdatesState.Ready when Updates.Count > 0 => Updates.Count.ToString(),
+            _ => "",
+        };
     }
 
     // ───────────────────────────── Navigation & shell helpers ─────────────────────────────
@@ -330,13 +263,6 @@ public sealed partial class DriversViewModel : PageViewModel
         // would otherwise run elevated without a UAC prompt).
         if (!await UnelevatedShell.OpenAsync(url))
             Ui.Toast($"Не удалось открыть страницу без прав администратора. Откройте её в браузере вручную: {url}", ToastKind.Warning);
-    }
-
-    [RelayCommand]
-    private void RestartAsAdmin()
-    {
-        if (Elevation.TryRelaunchElevated(["--page", Key]))
-            Application.Current.Shutdown();
     }
 
     private static void ShellOpen(string target, string what)

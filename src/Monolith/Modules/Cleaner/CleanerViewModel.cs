@@ -10,11 +10,8 @@ using Monolith.UI;
 
 namespace Monolith.Modules.Cleaner;
 
-/// <summary>A line of the "never deleted" card.</summary>
+/// <summary>A line of the collapsed «ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ» block.</summary>
 public sealed record GuaranteeLine(string Title, string Reason);
-
-/// <summary>A step of the "how it works" card.</summary>
-public sealed record StepLine(string Index, string Title, string Text);
 
 public sealed partial class CleanerViewModel : PageViewModel
 {
@@ -46,17 +43,6 @@ public sealed partial class CleanerViewModel : PageViewModel
         new("Windows.old и установочные файлы обновления Windows", "Удаляются только через «Параметры → Память» самой Windows. Скачанные пакеты Центра обновления и кэш оптимизации доставки — только отдельными пунктами, Windows при необходимости скачает их заново."),
     ];
 
-    public IReadOnlyList<StepLine> Steps { get; } =
-    [
-        new("01", "АНАЛИЗ", "Только подсчёт: ничего не удаляется."),
-        new("02", "ПОДТВЕРЖДЕНИЕ", "Перед удалением — список мест и размеров."),
-        new("03", "ОЧИСТКА", "Занятые файлы пропускаются, по ссылкам (junction, symlink) MONOLITH не переходит. Удалённое не восстановить."),
-    ];
-
-    public string ReadOnlyText =>
-        "Без прав администратора можно очистить пользовательские кэши: временные файлы, браузеры, игры и приложения. " +
-        "Системные пункты показаны для оценки — чтобы очистить их, перезапустите MONOLITH с правами администратора.";
-
     // ───────────────────────────── State ─────────────────────────────
 
     [ObservableProperty]
@@ -82,8 +68,6 @@ public sealed partial class CleanerViewModel : PageViewModel
 
     [ObservableProperty] private string? _servicingText;
     [ObservableProperty] private string? _foreignUserText;
-    [ObservableProperty] private string _storageSenseText = "";
-    [ObservableProperty] private string _storageSenseState = "";
 
     // ───────────────────────────── Lifecycle ─────────────────────────────
 
@@ -223,20 +207,6 @@ public sealed partial class CleanerViewModel : PageViewModel
         RecalcSummary();
     }
 
-    [RelayCommand]
-    private void OpenStorageSense()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("ms-settings:storagesense") { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Не удалось открыть «Параметры → Память»", ex);
-            Ui.Toast("Не удалось открыть параметры памяти Windows.", ToastKind.Error);
-        }
-    }
-
     // ───────────────────────────── Work wrapper ─────────────────────────────
 
     /// <summary>Runs one analysis or cleaning job with the shell busy indicator; items are locked meanwhile.</summary>
@@ -288,8 +258,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     private void ApplyEnvironment(CleanEnvironment env)
     {
         ForeignUserText = env.ForeignSessionUser is { } user
-            ? $"MONOLITH запущен от имени другой учётной записи ({user}). Пользовательские кэши относятся к ней, поэтому их очистка отключена. " +
-              "Запустите MONOLITH под своей учётной записью, чтобы очистить их."
+            ? $"MONOLITH запущен от имени другой учётной записи ({user}) — очистка пользовательских кэшей отключена, запустите его под своей."
             : null;
         ServicingText = env.Servicing.Any
             ? $"{Capitalize(env.Servicing.Describe())}. Системные временные папки, журналы и очистка WinSxS будут пропущены, " +
@@ -703,7 +672,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     {
         try
         {
-            var (drives, storageSenseOn) = await Task.Run(() =>
+            var drives = await Task.Run(() =>
             {
                 var sys = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? "C:\\";
                 var list = new List<DriveCard>();
@@ -726,16 +695,11 @@ public sealed partial class CleanerViewModel : PageViewModel
                         // A drive that disappears or refuses queries is simply not shown.
                     }
                 }
-                var on = RegistryHelper.ReadInt(RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy", "01") == 1;
-                return (list.OrderByDescending(x => x.IsSystem).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList(), on);
+                return list.OrderByDescending(x => x.IsSystem).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
             });
 
             Drives.Clear();
             foreach (var d in drives) Drives.Add(d);
-            StorageSenseState = storageSenseOn ? "ВКЛ" : "ВЫКЛ";
-            StorageSenseText = storageSenseOn
-                ? "Windows сама периодически удаляет временные файлы. Там же — Windows.old и файлы обновлений."
-                : "Автоочистка Windows выключена. Там же удаляются Windows.old и файлы обновлений.";
         }
         catch (Exception ex)
         {
