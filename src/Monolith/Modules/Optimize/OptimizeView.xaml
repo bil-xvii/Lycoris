@@ -4,14 +4,643 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Optimize"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:OptimizeViewModel}">
+
+    <UserControl.Resources>
+
+        <!-- ═══════════════ Local styles (built only from theme brushes/fonts) ═══════════════ -->
+
+        <!-- One tweak row; rows of a section share borders and read as one card -->
+        <Style x:Key="Opt.RowCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource B.Surface}" />
+            <Setter Property="BorderBrush" Value="{StaticResource B.Line2}" />
+            <Setter Property="BorderThickness" Value="1,0,1,1" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsFirstInGroup}" Value="True">
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource B.Surface2}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- "› ПОДРОБНЕЕ" toggle, same look as the theme Expander header -->
+        <Style x:Key="Opt.DetailsToggle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
+            <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <TextBlock x:Name="Chev" Text="&#xE76C;" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" RenderTransformOrigin="0.5,0.5">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform Angle="0" />
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                            <TextBlock x:Name="Tx" Text="ПОДРОБНЕЕ" Margin="7,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
+                                       FontWeight="SemiBold" FontStretch="SemiCondensed" FontSize="11" Foreground="{TemplateBinding Foreground}" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chev" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="90" />
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="Tx" Property="Text" Value="СКРЫТЬ" />
+                                <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Compact outline button for row actions -->
+        <Style x:Key="Opt.SmallBtn" TargetType="Button" BasedOn="{StaticResource Btn}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="11.5" />
+        </Style>
+
+        <!-- State marker: ■ applied, □ not applied, hatched = partial, dashed = n/a or unknown -->
+        <Style x:Key="Opt.StateMark" TargetType="Rectangle">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Stroke" Value="{StaticResource B.Text3}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StateKey}" Value="Applied">
+                    <Setter Property="Fill" Value="{StaticResource B.White}" />
+                    <Setter Property="Stroke" Value="{StaticResource B.White}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKey}" Value="Partial">
+                    <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                    <Setter Property="Stroke" Value="{StaticResource B.Text2}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKey}" Value="NotApplicable">
+                    <Setter Property="Stroke" Value="{StaticResource B.Text4}" />
+                    <Setter Property="StrokeDashArray" Value="2 2" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKey}" Value="Unknown">
+                    <Setter Property="StrokeDashArray" Value="2 2" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKey}" Value="Checking">
+                    <Setter Property="Stroke" Value="{StaticResource B.Text4}" />
+                    <Setter Property="StrokeDashArray" Value="1 2" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Opt.StateText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontStretch" Value="SemiCondensed" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StateKey}" Value="Applied">
+                    <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKey}" Value="Partial">
+                    <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKey}" Value="NotApplicable">
+                    <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StateKey}" Value="Checking">
+                    <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Big tabular number used in tiles -->
+        <Style x:Key="Opt.TileNumber" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontStretch" Value="Condensed" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+        </Style>
+
+        <Style x:Key="Opt.TileLabel" TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Margin" Value="6,0,0,4" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+        </Style>
+
+        <!-- ═══════════════ Row templates (picked by type) ═══════════════ -->
+
+        <!-- Profile tiles -->
+        <DataTemplate DataType="{x:Type local:ProfilesRow}">
+            <StackPanel Margin="0,0,16,0">
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="ПРОФИЛЬ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                    <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="12,0" />
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource T.Label}">
+                        <Run Text="СЕЙЧАС ПРИМЕНЕНО" /><Run Text="  " /><Run Text="{Binding Page.AppliedSummary, Mode=OneWay}" FontFamily="{StaticResource F.Mono}"
+                             Foreground="{StaticResource B.Text}" />
+                    </TextBlock>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Page.Profiles}" Margin="-6,0" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <RadioButton Style="{StaticResource Tile}" Margin="6,0" Padding="18,15,18,13" GroupName="OptimizeProfile"
+                                         IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding SelectCommand}" ToolTip="{Binding Hint}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,24,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Index}" FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                                                       VerticalAlignment="Center" />
+                                            <Border Style="{StaticResource Tag.Muted}" Margin="8,0,0,0" Padding="5,0,5,1"
+                                                    Visibility="{Binding Badge, Converter={StaticResource NullToVis}}">
+                                                <TextBlock Text="{Binding Badge}" FontSize="9.5" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding TotalText}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   FontFamily="{StaticResource F.Mono}" FontSize="10.5" Foreground="{StaticResource B.Text4}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding Title}" Margin="0,8,0,0" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
+                                               FontStretch="Condensed" FontSize="25" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
+                                               Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                    <Rectangle Height="1" Fill="{StaticResource B.Line2}" Margin="0,11,0,7" />
+                                    <WrapPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                                            <TextBlock Text="{Binding ToChangeText}" Style="{StaticResource Opt.TileNumber}" />
+                                            <TextBlock Text="К ИЗМЕНЕНИЮ" Style="{StaticResource Opt.TileLabel}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding AppliedText}" Style="{StaticResource Opt.TileNumber}" Foreground="{StaticResource B.Text2}" />
+                                            <TextBlock Text="ПРИМЕНЕНО" Style="{StaticResource Opt.TileLabel}" />
+                                        </StackPanel>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </RadioButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Category segments + search -->
+        <DataTemplate DataType="{x:Type local:FilterRow}">
+            <StackPanel Margin="0,26,16,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center" Style="{StaticResource T.Label}">
+                        <Run Text="ИЗМЕНЕНИЯ" /><Run Text="  " /><Run Text="{Binding Page.VisibleCount, Mode=OneWay}" FontFamily="{StaticResource F.Mono}"
+                             Foreground="{StaticResource B.Text}" /><Run Text=" / " FontFamily="{StaticResource F.Mono}" /><Run
+                             Text="{Binding Page.TotalCount, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" />
+                    </TextBlock>
+                    <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="12,0" />
+                    <Grid Grid.Column="2" Width="320">
+                        <TextBox Text="{Binding Page.SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="Поиск по названию, описанию, id"
+                                 Padding="10,0,36,0" />
+                        <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" IsHitTestVisible="False"
+                                   Visibility="{Binding Page.HasSearch, Converter={StaticResource InverseBoolToVis}}" />
+                        <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" FontSize="10" Content="{x:Static ui:Glyphs.Close}"
+                                HorizontalAlignment="Right" Margin="0,0,3,0" ToolTip="Очистить поиск" Command="{Binding Page.ClearSearchCommand}"
+                                Visibility="{Binding Page.HasSearch, Converter={StaticResource BoolToVis}}" />
+                    </Grid>
+                </Grid>
+                <Grid Margin="0,12,0,0">
+                    <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
+                    <ItemsControl ItemsSource="{Binding Page.Categories}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton Style="{StaticResource Segment}" Padding="12,0" GroupName="OptimizeCategory"
+                                             IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding SelectCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Count}" Margin="6,1,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}"
+                                                   FontWeight="Normal" FontSize="10.5" Opacity="0.55" />
+                                    </StackPanel>
+                                </RadioButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Category section header -->
+        <DataTemplate DataType="{x:Type local:SectionRow}">
+            <Grid Margin="0,30,16,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="51" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox Margin="17,0,0,0" VerticalAlignment="Center" IsChecked="{Binding CheckState, Mode=OneWay}" Command="{Binding ToggleAllCommand}"
+                          IsEnabled="{Binding HasSelectable}" ToolTip="Отметить или снять все пункты раздела" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" Style="{StaticResource T.H1}" FontSize="22" />
+                    <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Margin="0,1,0,0" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding CountText}" VerticalAlignment="Bottom" Margin="16,0,0,1" Style="{StaticResource T.Mono}"
+                           FontSize="11" Foreground="{StaticResource B.Text3}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- Expert section header: hatched warning band -->
+        <DataTemplate DataType="{x:Type local:ExpertRow}">
+            <StackPanel Margin="0,40,16,12">
+                <Button Command="{Binding ToggleCommand}" Cursor="Hand" FocusVisualStyle="{StaticResource FocusVisual.Mono}" Height="Auto"
+                        Padding="0" HorizontalContentAlignment="Stretch" ToolTip="Показать или скрыть экспертные настройки">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Background="{StaticResource B.Base}">
+                                <Grid Height="60">
+                                    <Border x:Name="Hatch" Background="{StaticResource B.HatchStrong}" Opacity="0.45" />
+                                    <Grid Margin="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Padding="14,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Static ui:Glyphs.Warning}" FontFamily="{StaticResource F.Icons}" FontSize="15"
+                                                           Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                                                <TextBlock Text="ЭКСПЕРТНЫЕ НАСТРОЙКИ" Margin="10,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
+                                                           FontWeight="Bold" FontStretch="Condensed" FontSize="20" Foreground="{StaticResource B.Text}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="2" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1"
+                                                Padding="14,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding CountText}" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}" FontSize="11"
+                                                           Foreground="{StaticResource B.Text2}" />
+                                                <Rectangle Width="1" Height="14" Fill="{StaticResource B.Line3}" Margin="12,0" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="Chev" Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="10" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource B.Text}" />
+                                                <TextBlock x:Name="Tx" Text="ПОКАЗАТЬ" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
+                                                           FontWeight="SemiBold" FontStretch="SemiCondensed" FontSize="12" Foreground="{StaticResource B.Text}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                                    <Setter TargetName="Chev" Property="Text" Value="&#xE70E;" />
+                                    <Setter TargetName="Tx" Property="Text" Value="СКРЫТЬ" />
+                                </DataTrigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                                    <Setter TargetName="Hatch" Property="Opacity" Value="0.7" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+                <TextBlock Margin="0,10,0,0" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
+                           Text="Реальные компромиссы: безопасность, совместимость, античиты. Не входят ни в один профиль, каждый пункт требует отдельного подтверждения." />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Nothing matches the filter (or the catalog is empty) -->
+        <DataTemplate DataType="{x:Type local:EmptyRow}">
+            <Border Margin="0,24,16,0" Background="{StaticResource B.DotGrid}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Padding="28,34">
+                <StackPanel HorizontalAlignment="Left">
+                    <TextBlock x:Name="Head" Text="НИЧЕГО НЕ НАЙДЕНО" Style="{StaticResource T.H1}" />
+                    <TextBlock x:Name="Body" Text="Под этот запрос не подходит ни один пункт. Измените запрос или выберите раздел «ВСЕ»." Style="{StaticResource T.Body}"
+                               Margin="0,6,0,0" />
+                    <Button x:Name="Reset" Content="СБРОСИТЬ ФИЛЬТР" Command="{Binding Page.ClearFilterCommand}" HorizontalAlignment="Left" Margin="0,18,0,0" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Page.TotalCount}" Value="0">
+                    <Setter TargetName="Head" Property="Text" Value="КАТАЛОГ ПУСТ" />
+                    <Setter TargetName="Body" Property="Text" Value="В этой сборке MONOLITH нет ни одной оптимизации. Обновите приложение." />
+                    <Setter TargetName="Reset" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- One tweak -->
+        <DataTemplate DataType="{x:Type local:TweakItemViewModel}">
+            <Border Style="{StaticResource Opt.RowCard}" Margin="0,0,16,0">
+                <Grid>
+                    <Rectangle Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
+                               Visibility="{Binding IsChecked, Converter={StaticResource BoolToVis}}" />
+                    <Grid Margin="16,15,16,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="34" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="168" />
+                            <ColumnDefinition Width="116" />
+                        </Grid.ColumnDefinitions>
+
+                        <CheckBox Margin="0,1,0,0" VerticalAlignment="Top" IsChecked="{Binding IsChecked}" IsEnabled="{Binding IsApplicable}"
+                                  ToolTip="Включить пункт в применение" />
+
+                        <StackPanel Grid.Column="1" Margin="0,0,24,0">
+                            <TextBlock x:Name="TitleText" Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="15"
+                                       Foreground="{StaticResource B.Text}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" Margin="0,3,0,0" />
+
+                            <Grid Margin="0,7,0,0" Visibility="{Binding NotApplicableText, Converter={StaticResource NullToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{x:Static ui:Glyphs.Info}" FontFamily="{StaticResource F.Icons}" FontSize="11" Margin="0,2,7,0"
+                                           Foreground="{StaticResource B.Text3}" VerticalAlignment="Top" />
+                                <TextBlock Grid.Column="1" Text="{Binding NotApplicableText}" Style="{StaticResource T.Caption}" />
+                            </Grid>
+
+                            <WrapPanel Margin="0,11,0,0">
+                                <Border Style="{StaticResource Tag}" Margin="0,0,6,0"
+                                        Visibility="{Binding RiskKey, Converter={StaticResource EqualsToVis}, ConverterParameter=Safe}">
+                                    <TextBlock Text="{Binding RiskText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0"
+                                        Visibility="{Binding RiskKey, Converter={StaticResource EqualsToVis}, ConverterParameter=Optional}">
+                                    <TextBlock Text="{Binding RiskText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag.Hatch}" Margin="0,0,6,0"
+                                        Visibility="{Binding RiskKey, Converter={StaticResource EqualsToVis}, ConverterParameter=Advanced}">
+                                    <TextBlock Text="{Binding RiskText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag}" Margin="0,0,6,0" Visibility="{Binding HasRestart, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Sync}" FontFamily="{StaticResource F.Icons}" FontSize="9.5" VerticalAlignment="Center"
+                                                   Margin="0,1,5,0" />
+                                        <TextBlock Text="{Binding RestartTag}" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="{Binding CategoryText}" Style="{StaticResource T.Label}" FontSize="10.5" Foreground="{StaticResource B.Text4}"
+                                           VerticalAlignment="Center" Margin="6,0,0,0" />
+                                <ToggleButton Style="{StaticResource Opt.DetailsToggle}" IsChecked="{Binding IsExpanded}" Margin="18,0,0,0"
+                                              ToolTip="Что именно изменится, риски и как откатить" />
+                            </WrapPanel>
+
+                            <!-- Expanded details -->
+                            <Border Margin="0,14,0,2" Padding="16,14" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1"
+                                    Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Details}" Style="{StaticResource T.Body}" Margin="0,0,0,14"
+                                               Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}" />
+                                    <TextBlock Text="ЧТО ИЗМЕНИТСЯ" Style="{StaticResource T.Label}" />
+                                    <ItemsControl ItemsSource="{Binding Changes}" Margin="0,8,0,0" Focusable="False"
+                                                  Visibility="{Binding HasPlannedChanges, Converter={StaticResource BoolToVis}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,0,9">
+                                                    <TextBlock Text="{Binding Target}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text}"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Margin="0,3,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11.5" TextWrapping="Wrap">
+                                                        <Run Text="сейчас " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Current, Mode=OneWay}"
+                                                             Foreground="{StaticResource B.Text2}" /><Run Text="  →  " Foreground="{StaticResource B.Text3}" /><Run
+                                                             Text="станет " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding New, Mode=OneWay}"
+                                                             Foreground="{StaticResource B.Text}" FontWeight="Bold" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0"
+                                               Visibility="{Binding HasPlannedChanges, Converter={StaticResource InverseBoolToVis}}"
+                                               Text="Особая процедура: каждый её шаг записывается в журнал при применении и откатывается из него." />
+
+                                    <Border Margin="0,10,0,0" BorderBrush="{StaticResource B.Text3}" BorderThickness="1"
+                                            Visibility="{Binding IsAdvanced, Converter={StaticResource BoolToVis}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Background="{StaticResource B.HatchStrong}" />
+                                            <StackPanel Grid.Column="1" Margin="12,10">
+                                                <TextBlock Text="РИСК" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                                <TextBlock Text="{Binding WarningText}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" Margin="0,3,0,0" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock Text="КАК ОТКАТИТЬ" Style="{StaticResource T.Label}" Margin="0,14,0,0" />
+                                    <TextBlock Text="{Binding UndoText}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Current state + "will change" preview mark -->
+                        <StackPanel Grid.Column="2" Margin="0,3,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Rectangle Style="{StaticResource Opt.StateMark}" />
+                                <TextBlock Text="{Binding StateText}" Style="{StaticResource Opt.StateText}" Margin="9,0,0,0" />
+                            </StackPanel>
+                            <Grid Margin="0,9,0,0" HorizontalAlignment="Left" Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
+                                <Rectangle Stroke="{StaticResource B.Text2}" StrokeThickness="1" StrokeDashArray="3 2" SnapsToDevicePixels="True" />
+                                <StackPanel Orientation="Horizontal" Margin="7,2,8,3">
+                                    <TextBlock Text="&#xE72A;" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center" Margin="0,1,5,0"
+                                               Foreground="{StaticResource B.Text}" />
+                                    <TextBlock Text="БУДЕТ ИЗМЕНЕНО" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5"
+                                               Foreground="{StaticResource B.Text}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Per-row undo -->
+                        <Button Grid.Column="3" Style="{StaticResource Opt.SmallBtn}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Command="{Binding RevertCommand}" Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Вернуть значения, которые были до применения">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center"
+                                           Margin="0,0,7,0" />
+                                <TextBlock Text="ОТКАТИТЬ" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsApplicable}" Value="False">
+                    <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource B.Text3}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!-- ═══════════════ Page ═══════════════ -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
-        <TextBlock Grid.Row="1" Margin="0,28,0,0" Style="{StaticResource T.Caption}" Text="Модуль в разработке." />
+
+        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+            <c:PageHeader.Actions>
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Command="{Binding OpenJournalCommand}"
+                            ToolTip="Все изменения MONOLITH: откат по одному, по сеансу или целиком">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.History}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="ЖУРНАЛ ИЗМЕНЕНИЙ" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding RecheckCommand}" ToolTip="Заново прочитать текущее состояние всех пунктов">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="ПРОВЕРИТЬ СНОВА" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </c:PageHeader.Actions>
+        </c:PageHeader>
+
+        <!-- Read-only explanation -->
+        <Border Grid.Row="1" Style="{StaticResource Callout}" Padding="0" Margin="0,20,0,0"
+                Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Background="{StaticResource B.HatchStrong}" />
+                <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Lock}" Style="{StaticResource T.Icon}" FontSize="16" Margin="18,0,14,0" />
+                <TextBlock Grid.Column="2" Margin="0,11,16,11" VerticalAlignment="Center" TextWrapping="Wrap" Style="{StaticResource T.Caption}"
+                           FontSize="12" Foreground="{StaticResource B.Text2}">
+                    <Run Text="РЕЖИМ ПРОСМОТРА" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="13.5"
+                         Foreground="{StaticResource B.Text}" /><Run Text="   " /><Run
+                         Text="Список и состояние видны полностью; применять и откатывать можно только с правами администратора." />
+                </TextBlock>
+                <Button Grid.Column="3" Margin="0,0,10,0" Height="32" VerticalAlignment="Center" Command="{Binding RestartElevatedCommand}"
+                        ToolTip="Перезапустить MONOLITH с правами администратора (появится запрос Windows)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Admin}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="ПЕРЕЗАПУСТИТЬ С ПРАВАМИ" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Profiles, filter and the grouped tweak list: one virtualized, pixel-scrolled list -->
+        <ItemsControl Grid.Row="2" Margin="0,20,-16,0" ItemsSource="{Binding Rows}" Focusable="False"
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Standard"
+                      VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True">
+            <ItemsControl.Template>
+                <ControlTemplate TargetType="ItemsControl">
+                    <ScrollViewer CanContentScroll="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <ItemsPresenter Margin="0,0,0,24" />
+                    </ScrollViewer>
+                </ControlTemplate>
+            </ItemsControl.Template>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+        <!-- Soft edge where the list scrolls under the action bar -->
+        <Rectangle Grid.Row="2" Height="26" VerticalAlignment="Bottom" IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#00090909" Offset="0" />
+                    <GradientStop Color="{StaticResource C.Base}" Offset="1" />
+                </LinearGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <!-- Sticky summary / action bar -->
+        <Border Grid.Row="3" Margin="0,12,0,0" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1">
+            <Grid>
+                <ProgressBar VerticalAlignment="Top" Height="2" IsIndeterminate="True"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                <Grid Margin="22,12,12,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
+                        <TextBlock FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontStretch="SemiCondensed" FontSize="15"
+                                   Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis" Typography.NumeralAlignment="Tabular">
+                            <Run Text="ВЫБРАНО: " /><Run Text="{Binding SelectedCount, Mode=OneWay}" FontWeight="Bold" FontStretch="Condensed" FontSize="24"
+                                 Foreground="{StaticResource B.Text}" /><Run Text="   ·   " Foreground="{StaticResource B.Text4}" /><Run Text="БУДЕТ ИЗМЕНЕНО: " /><Run
+                                 Text="{Binding ChangeCount, Mode=OneWay}" FontWeight="Bold" FontStretch="Condensed" FontSize="24" Foreground="{StaticResource B.Text}" />
+                        </TextBlock>
+                        <TextBlock Margin="0,3,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+                                    <Setter Property="Text" Value="{Binding BarNote}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                            <Setter Property="Text" Value="{Binding BusyText}" />
+                                            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource Btn.Ghost}" Height="52" Margin="0,0,8,0" Command="{Binding ResumePendingRestartCommand}"
+                                Visibility="{Binding HasPendingRestart, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Часть применённых изменений ещё не вступила в силу">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Power}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding PendingRestartText}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Height="52" Padding="20,0" Margin="0,0,10,0" Command="{Binding RevertSelectedCommand}"
+                                ToolTip="Вернуть исходные значения выбранных пунктов, изменённых MONOLITH">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding RevertButtonText}" Margin="9,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource Btn.Hero}" MinWidth="230" Command="{Binding ApplyCommand}"
+                                ToolTip="Показать полный список изменений и применить их">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="15" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ApplyButtonText}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>
