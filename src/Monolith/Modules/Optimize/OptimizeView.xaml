@@ -25,6 +25,12 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{StaticResource B.Surface2}" />
                 </Trigger>
+                <!-- Opened from the command palette / Dashboard: white frame for a moment -->
+                <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="Background" Value="{StaticResource B.Surface2}" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -283,7 +289,8 @@
         <DataTemplate DataType="{x:Type local:ExpertRow}">
             <StackPanel Margin="0,40,16,12">
                 <Button Command="{Binding ToggleCommand}" Cursor="Hand" FocusVisualStyle="{StaticResource FocusVisual.Mono}" Height="Auto"
-                        Padding="0" HorizontalContentAlignment="Stretch" ToolTip="Показать или скрыть экспертные настройки">
+                        Padding="0" HorizontalContentAlignment="Stretch"
+                        ToolTip="Реальные компромиссы: безопасность, совместимость, античиты. Не входят ни в один профиль, каждый пункт требует отдельного подтверждения.">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="Bd" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Background="{StaticResource B.Base}">
@@ -331,8 +338,6 @@
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
-                <TextBlock Margin="0,10,0,0" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
-                           Text="Реальные компромиссы: безопасность, совместимость, античиты. Не входят ни в один профиль, каждый пункт требует отдельного подтверждения." />
             </StackPanel>
         </DataTemplate>
 
@@ -359,7 +364,7 @@
         <DataTemplate DataType="{x:Type local:TweakItemViewModel}">
             <Border Style="{StaticResource Opt.RowCard}" Margin="0,0,16,0">
                 <Grid>
-                    <Rectangle Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
+                    <Rectangle x:Name="Bar" Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
                                Visibility="{Binding IsChecked, Converter={StaticResource BoolToVis}}" />
                     <Grid Margin="16,15,16,15">
                         <Grid.ColumnDefinitions>
@@ -496,6 +501,10 @@
                 <DataTrigger Binding="{Binding IsApplicable}" Value="False">
                     <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource B.Text3}" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                    <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Bar" Property="Width" Value="5" />
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
     </UserControl.Resources>
@@ -504,12 +513,11 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
                     <!-- Export / import of the selection: one compact control, menu with two items -->
@@ -537,13 +545,6 @@
                             <TextBlock Text="ПРОФИЛЬ…" Margin="8,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Command="{Binding OpenJournalCommand}"
-                            ToolTip="Все изменения MONOLITH: откат по одному, по сеансу или целиком">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.History}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
-                            <TextBlock Text="ЖУРНАЛ ИЗМЕНЕНИЙ" Margin="8,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
                     <Button Command="{Binding RecheckCommand}" ToolTip="Заново прочитать текущее состояние всех пунктов">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
@@ -554,36 +555,8 @@
             </c:PageHeader.Actions>
         </c:PageHeader>
 
-        <!-- Read-only explanation -->
-        <Border Grid.Row="1" Style="{StaticResource Callout}" Padding="0" Margin="0,20,0,0"
-                Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Border Background="{StaticResource B.HatchStrong}" />
-                <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Lock}" Style="{StaticResource T.Icon}" FontSize="16" Margin="18,0,14,0" />
-                <TextBlock Grid.Column="2" Margin="0,11,16,11" VerticalAlignment="Center" TextWrapping="Wrap" Style="{StaticResource T.Caption}"
-                           FontSize="12" Foreground="{StaticResource B.Text2}">
-                    <Run Text="РЕЖИМ ПРОСМОТРА" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="13.5"
-                         Foreground="{StaticResource B.Text}" /><Run Text="   " /><Run
-                         Text="Список и состояние видны полностью; применять и откатывать можно только с правами администратора." />
-                </TextBlock>
-                <Button Grid.Column="3" Margin="0,0,10,0" Height="32" VerticalAlignment="Center" Command="{Binding RestartElevatedCommand}"
-                        ToolTip="Перезапустить MONOLITH с правами администратора (появится запрос Windows)">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{x:Static ui:Glyphs.Admin}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
-                        <TextBlock Text="ПЕРЕЗАПУСТИТЬ С ПРАВАМИ" Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </Grid>
-        </Border>
-
         <!-- Profiles, filter and the grouped tweak list: one virtualized, pixel-scrolled list -->
-        <ItemsControl Grid.Row="2" Margin="0,20,-16,0" ItemsSource="{Binding Rows}" Focusable="False"
+        <ItemsControl x:Name="RowsList" Grid.Row="1" Margin="0,20,-16,0" ItemsSource="{Binding Rows}" Focusable="False"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Standard"
                       VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True">
             <ItemsControl.Template>
@@ -600,7 +573,7 @@
             </ItemsControl.ItemsPanel>
         </ItemsControl>
         <!-- Soft edge where the list scrolls under the action bar -->
-        <Rectangle Grid.Row="2" Height="26" VerticalAlignment="Bottom" IsHitTestVisible="False">
+        <Rectangle Grid.Row="1" Height="26" VerticalAlignment="Bottom" IsHitTestVisible="False">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                     <GradientStop Color="#00090909" Offset="0" />
@@ -610,7 +583,7 @@
         </Rectangle>
 
         <!-- Sticky summary / action bar -->
-        <Border Grid.Row="3" Margin="0,12,0,0" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1">
+        <Border Grid.Row="2" Margin="0,12,0,0" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1">
             <Grid>
                 <ProgressBar VerticalAlignment="Top" Height="2" IsIndeterminate="True"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
@@ -649,15 +622,8 @@
                                 <TextBlock Text="{Binding PendingRestartText}" Margin="8,0,0,0" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Height="52" Padding="20,0" Margin="0,0,10,0" Command="{Binding RevertSelectedCommand}"
-                                ToolTip="Вернуть исходные значения выбранных пунктов, изменённых MONOLITH">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding RevertButtonText}" Margin="9,0,0,0" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
                         <Button Style="{StaticResource Btn.Hero}" MinWidth="230" Command="{Binding ApplyCommand}"
-                                ToolTip="Показать полный список изменений и применить их">
+                                ToolTip="{Binding ApplyTooltip}" ToolTipService.ShowOnDisabled="True">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="15" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding ApplyButtonText}" Margin="10,0,0,0" VerticalAlignment="Center" />
