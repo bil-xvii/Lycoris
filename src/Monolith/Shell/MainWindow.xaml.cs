@@ -19,6 +19,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
+        FitToWorkArea();
 
         StateChanged += (_, _) => ApplyWindowState();
         SourceInitialized += (_, _) => ApplyDwmStyle();
@@ -31,6 +32,17 @@ public partial class MainWindow : Window
             if (e.Action == NotifyCollectionChangedAction.Add && ConsoleList.Items.Count > 0)
                 ConsoleList.ScrollIntoView(ConsoleList.Items[^1]);
         };
+    }
+
+    /// <summary>Laptops with 125–150 % scaling have ~1536×816 usable: never open larger than the screen.</summary>
+    private void FitToWorkArea()
+    {
+        var wa = SystemParameters.WorkArea;
+        if (wa.Width <= 0 || wa.Height <= 0) return;
+        Width = Math.Min(Width, wa.Width - 32);
+        Height = Math.Min(Height, wa.Height - 32);
+        MinWidth = Math.Min(MinWidth, Width);
+        MinHeight = Math.Min(MinHeight, Height);
     }
 
     private void PlayPageEnter()
