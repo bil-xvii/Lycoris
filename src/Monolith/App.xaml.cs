@@ -43,6 +43,12 @@ public partial class App : Application
         var args = e.Args;
         var snapshotDir = ArgValue(args, "--snapshot");
         var selfTestDir = ArgValue(args, "--selftest");
+        var e2eDir = ArgValue(args, "--e2e");
+        if (e2eDir is not null)
+        {
+            RunEndToEnd(args, e2eDir);
+            return;
+        }
         var snapshot = snapshotDir is not null || selfTestDir is not null;
         var noElevate = snapshot || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
         if (selfTestDir is not null)
@@ -155,6 +161,39 @@ public partial class App : Application
 
         window.Show();
         _ = vm.RunStartupChecksAsync();
+    }
+
+    /// <summary>"--e2e &lt;dir&gt;": headless real-system apply/revert test (asks for admin rights once).</summary>
+    private void RunEndToEnd(string[] args, string dir)
+    {
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        if (!Elevation.IsElevated)
+        {
+            if (!HasArg(args, "--elevated") && Elevation.TryRelaunchElevated())
+            {
+                Shutdown(0);
+                return;
+            }
+        }
+        AppSettings.Load();
+        var full = Path.GetFullPath(dir);
+        Dispatcher.InvokeAsync(async () =>
+        {
+            var failures = 99;
+            try
+            {
+                failures = await EndToEndTest.RunAsync(full);
+            }
+            catch (Exception ex)
+            {
+                Directory.CreateDirectory(full);
+                File.WriteAllText(Path.Combine(full, "e2e-crash.txt"), ex.ToString());
+            }
+            finally
+            {
+                Shutdown(failures);
+            }
+        });
     }
 
     protected override void OnExit(ExitEventArgs e)
