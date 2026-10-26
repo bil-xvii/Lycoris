@@ -4,9 +4,16 @@ using Monolith.Core;
 namespace Monolith.Modules.Restore;
 
 /// <summary>One journal record as shown in the undo center.</summary>
-public sealed class RecordItem(ChangeRecord record)
+public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null)
 {
     public ChangeRecord Record { get; } = record;
+    /// <summary>Set when the live value no longer equals what MONOLITH set (changed by Windows or another program).</summary>
+    public DriftItem? Drift { get; } = drift;
+    public bool IsDrifted => Drift is not null && !Record.Reverted;
+    public string DriftText => Drift is null ? "" : DriftDetector.RowText(Drift);
+    public bool CanReapply => IsDrifted && DriftReapply.CanReapply(Drift!);
+    /// <summary>No direct re-apply, but the owning page can show it.</summary>
+    public bool CanShowOwner => IsDrifted && !CanReapply && Drift!.OwnerPage is not null;
     public string Title => Record.Title.Length > 0 ? Record.Title : "Без названия";
     public string KindLabel => RestoreFormat.KindLabel(Record.Kind);
     public string Target => RestoreFormat.DescribeTarget(Record.Target);
@@ -24,13 +31,13 @@ public sealed class RecordItem(ChangeRecord record)
 }
 
 /// <summary>A batch ("пакет") of changes made by one action.</summary>
-public sealed class BatchItem(JournalGroup group)
+public sealed class BatchItem(JournalGroup group, IReadOnlyDictionary<Guid, DriftItem>? drift = null)
 {
     public JournalGroup Group { get; } = group;
     public Guid Id => Group.Batch.Id;
     public string Title => Group.Batch.Title.Length > 0 ? Group.Batch.Title : "Без названия";
     public string DateText => RestoreFormat.FormatDate(Group.Batch.Timestamp);
-    public IReadOnlyList<RecordItem> Records { get; } = group.Records.Select(r => new RecordItem(r)).ToList();
+    public IReadOnlyList<RecordItem> Records { get; } = group.Records.Select(r => new RecordItem(r, drift?.GetValueOrDefault(r.Id))).ToList();
     public int ActiveCount => Group.ActiveCount;
     public int TotalCount => Group.TotalCount;
     public bool CanRevert => ActiveCount > 0;

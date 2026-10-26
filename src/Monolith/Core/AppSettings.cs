@@ -54,6 +54,15 @@ public sealed partial class AppSettings : ObservableObject
 
     [ObservableProperty] private bool _firstRunCompleted;
 
+    /// <summary>Windows build ("26100.2314") seen at the last start — drift notice names a build change.</summary>
+    [ObservableProperty] private string _lastWindowsBuild = "";
+
+    /// <summary>
+    /// Drift the user accepted («ЗАБЫТЬ» on the Restore page): "recordId|live value". Not reported again until the
+    /// value changes once more. Journal records stay untouched (still revertable to the original).
+    /// </summary>
+    [ObservableProperty] private List<string> _driftAccepted = [];
+
     public static void Load()
     {
         try

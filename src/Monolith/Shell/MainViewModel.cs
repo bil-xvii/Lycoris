@@ -152,6 +152,33 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                     result.Success ? ToastKind.Success : ToastKind.Error);
             }
         }
+
+        // 4. Drift: settings MONOLITH applied were changed afterwards (Windows feature update, another program).
+        await CheckDriftAsync();
+    }
+
+    /// <summary>One non-blocking toast when active records no longer match the live system; details on the Restore page.</summary>
+    private async Task CheckDriftAsync()
+    {
+        try
+        {
+            var sp = await SystemProfile.LoadAsync();
+            var build = DriftDetector.BuildText(sp.OsBuild, sp.OsUbr);
+            var previous = AppSettings.Current.LastWindowsBuild;
+            var accepted = AppSettings.Current.DriftAccepted.ToList();
+            var drift = ChangeJournal.Instance.UnavailableReason is null
+                ? await Task.Run(() => DriftDetector.DetectLive(accepted))
+                : [];
+            if (build.Length > 0 && build != previous) AppSettings.Current.LastWindowsBuild = build;
+            if (drift.Count == 0) return;
+
+            Log.Warn($"Изменено вне MONOLITH: {drift.Count} (сборка Windows {previous} → {build}).");
+            Ui.Toast(DriftDetector.NoticeText(drift.Count, previous, build), ToastKind.Warning, "ИЗМЕНЕНО ВНЕ MONOLITH");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Проверка изменений вне MONOLITH не выполнена: {ex.Message}");
+        }
     }
 
     private void RefreshJournalCount() => ActiveChanges = ChangeJournal.Instance.ActiveRecords.Count;
