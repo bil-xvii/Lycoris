@@ -21,11 +21,12 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool _rebuildQueued;
     private IReadOnlyDictionary<Guid, DriftItem> _drift = new Dictionary<Guid, DriftItem>();
     private bool _driftRunning, _driftPending;
+    private bool _confirmingRestorePoints;
 
     public override string Key => "restore";
     public override string Index => "10";
     public override string Title => "ВОССТАНОВЛЕНИЕ";
-    public override string Subtitle => "Журнал всех изменений MONOLITH, откат и точки восстановления Windows.";
+    public override string Subtitle => "Журнал изменений MONOLITH, откат и точки восстановления Windows.";
     public override string Glyph => Glyphs.History;
 
     public ObservableCollection<BatchItem> Batches { get; } = new();
@@ -35,13 +36,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private JournalFilter _filter = JournalFilter.All;
     [ObservableProperty] private int _activeCount;
     [ObservableProperty] private int _revertedCount;
-    [ObservableProperty] private int _batchCount;
     [ObservableProperty] private int _totalCount;
-    [ObservableProperty] private string _activeCaption = "";
-    [ObservableProperty] private string _revertedCaption = "";
-    [ObservableProperty] private string _batchCaption = "";
-    [ObservableProperty] private bool _journalLoaded;
-    [ObservableProperty] private bool _isJournalEmpty;
     [ObservableProperty] private bool _isFilterEmpty;
     [ObservableProperty] private string _filterEmptyText = "";
 
@@ -60,7 +55,6 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private bool _pointsLoading;
     [ObservableProperty] private string _pointsMessage = "";
     [ObservableProperty] private string _pointsCountText = "";
-    [ObservableProperty] private string _autoPointsText = "";
 
     public string BackupsPath => AppPaths.BackupsDir;
 
@@ -68,7 +62,6 @@ public sealed partial class RestoreViewModel : PageViewModel
     {
         PropertyChanged += OnSelfPropertyChanged;
         AppSettings.Current.PropertyChanged += OnSettingsChanged;
-        UpdateAutoPointsText();
     }
 
     protected override async Task LoadAsync()
@@ -94,12 +87,9 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AppSettings.CreateRestorePoints)) Ui.Post(UpdateAutoPointsText);
+        if (e.PropertyName == nameof(AppSettings.CreateRestorePoints) && !_confirmingRestorePoints)
+            Ui.Post(() => OnPropertyChanged(nameof(CreateRestorePoints)));
     }
-
-    private void UpdateAutoPointsText() => AutoPointsText = AppSettings.Current.CreateRestorePoints
-        ? "MONOLITH создаёт точку перед каждым пакетом изменений."
-        : "Автоматические точки MONOLITH выключены в настройках.";
 
     partial void OnFilterChanged(JournalFilter value) => Rebuild();
 
@@ -130,24 +120,19 @@ public sealed partial class RestoreViewModel : PageViewModel
         ActiveCount = records.Count(r => !r.Reverted);
         RevertedCount = records.Count(r => r.Reverted);
         TotalCount = records.Count;
-        BatchCount = batches.Count;
-        ActiveCaption = ActiveCount == 0 ? "нечего откатывать" : RestoreFormat.Plural(ActiveCount, "изменение можно откатить", "изменения можно откатить", "изменений можно откатить");
-        RevertedCaption = RevertedCount == 0 ? "откатов не было" : "возвращено к исходному";
-        BatchCaption = BatchCount == 0 ? "действий не было" : RestoreFormat.Plural(BatchCount, "действие MONOLITH", "действия MONOLITH", "действий MONOLITH");
 
         var groups = RestoreFormat.Group(batches, records, Filter, _drift.Keys.ToHashSet());
         Batches.Clear();
         foreach (var g in groups) Batches.Add(new BatchItem(g, _drift));
 
-        IsJournalEmpty = batches.Count == 0 && records.Count == 0;
-        IsFilterEmpty = !IsJournalEmpty && Batches.Count == 0;
-        FilterEmptyText = Filter switch
+        var journalEmpty = batches.Count == 0 && records.Count == 0;
+        IsFilterEmpty = Batches.Count == 0;
+        FilterEmptyText = journalEmpty ? "Журнал пуст — MONOLITH ещё ничего не менял в системе." : Filter switch
         {
             JournalFilter.Active => "Активных изменений нет — система в исходном состоянии относительно MONOLITH.",
             JournalFilter.Drifted => "Все настройки MONOLITH на месте — вне MONOLITH ничего не изменено.",
             _ => "Откаченных изменений пока нет.",
         };
-        JournalLoaded = true;
         NotifyCommands();
     }
 
@@ -186,7 +171,7 @@ public sealed partial class RestoreViewModel : PageViewModel
                 HasDrift = list.Count > 0;
                 HasReapplicableDrift = list.Any(DriftReapply.CanReapply);
                 DriftLine = list.Count == 0 ? "" :
-                    $"Windows или другая программа изменила {list.Count} {RestoreFormat.Plural(list.Count, "настройку", "настройки", "настроек")} после MONOLITH. Такие записи отмечены в журнале.";
+                    "Windows или другая программа изменила эти настройки после MONOLITH.";
                 if (!HasDrift && Filter == JournalFilter.Drifted) Filter = JournalFilter.All; // rebuilds
                 else Rebuild();
             } while (_driftPending);
@@ -268,7 +253,6 @@ public sealed partial class RestoreViewModel : PageViewModel
             _ => ("ВЫКЛЮЧЕНА", $"Точки восстановления для диска {drive} не создаются. Изменения MONOLITH всё равно откатываются через журнал, но страховки на уровне Windows нет."),
         };
         NotifyCommands();
-        if (Ui.Host is MainViewModel main) main.RestoreEnabled = enabled;
         await LoadPointsAsync();
     }
 
@@ -370,8 +354,57 @@ public sealed partial class RestoreViewModel : PageViewModel
     [RelayCommand]
     private Task RefreshPointsAsync() => RefreshProtectionAsync();
 
-    [RelayCommand]
-    private void OpenSettings() => Ui.Navigate("settings");
+    /// <summary>
+    /// «Точка перед изменениями» (AppSettings.CreateRestorePoints, per user): turning it off asks first; turning it on is immediate.
+    /// </summary>
+    public bool CreateRestorePoints
+    {
+        get => AppSettings.Current.CreateRestorePoints;
+        set
+        {
+            if (value == AppSettings.Current.CreateRestorePoints) return;
+            if (value)
+            {
+                AppSettings.Current.CreateRestorePoints = true;
+                return;
+            }
+            // Keep the toggle on until the user confirms (re-raised after the binding finishes its update).
+            Application.Current?.Dispatcher.BeginInvoke(async () =>
+            {
+                OnPropertyChanged(nameof(CreateRestorePoints));
+                await ConfirmDisableRestorePointsAsync();
+            });
+        }
+    }
+
+    private async Task ConfirmDisableRestorePointsAsync()
+    {
+        if (_confirmingRestorePoints) return;
+        _confirmingRestorePoints = true;
+        try
+        {
+            var ok = await Ui.ConfirmAsync(
+                "Не создавать точки восстановления?",
+                "MONOLITH перестанет создавать точку восстановления Windows перед пакетами изменений.",
+                [
+                    "Журнал отката продолжит работать: каждое изменение по-прежнему можно откатить на этой странице",
+                    "Пропадёт вторая страховка: если система не загрузится, вернуться будет не к чему",
+                    "Пакеты изменений будут применяться быстрее — без паузы на создание точки",
+                    "Включить обратно можно здесь же в любой момент",
+                ],
+                confirmText: "ВЫКЛЮЧИТЬ", danger: true);
+            if (ok)
+            {
+                AppSettings.Current.CreateRestorePoints = false;
+                Log.Warn("Создание точек восстановления перед изменениями выключено.");
+            }
+        }
+        finally
+        {
+            _confirmingRestorePoints = false;
+            OnPropertyChanged(nameof(CreateRestorePoints));
+        }
+    }
 
     // ═════════════════════════════ Revert ═════════════════════════════
 

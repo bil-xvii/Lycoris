@@ -1,9 +1,7 @@
-﻿using System.ComponentModel;
-using System.IO;
+﻿using System.IO;
 using System.Management;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
@@ -17,13 +15,10 @@ namespace Monolith.Modules.Settings;
 /// <summary>Preferences (stored per user in settings.json), data locations and "about".</summary>
 public sealed partial class SettingsViewModel : PageViewModel
 {
-    private bool _confirmingRestorePoints;
-    private bool _confirmingExpertMode;
-
     public override string Key => "settings";
     public override string Index => "11";
     public override string Title => "НАСТРОЙКИ";
-    public override string Subtitle => "Поведение программы, безопасность и сведения о MONOLITH.";
+    public override string Subtitle => "Поведение программы, данные и сведения о MONOLITH.";
     public override string Glyph => Glyphs.Settings;
 
     /// <summary>Bound directly for simple toggles; every change is saved by AppSettings itself.</summary>
@@ -48,32 +43,28 @@ public sealed partial class SettingsViewModel : PageViewModel
         new DataPathItem { Title = "ЖУРНАЛЫ РАБОТЫ", Path = AppPaths.LogsDir,
             Description = "Ежедневные логи консоли и отчёты; хранятся 14 дней." },
         new DataPathItem { Title = "НАСТРОЙКИ", Path = AppPaths.SettingsFile, IsFile = true,
-            Description = "Параметры с этой страницы для текущего пользователя Windows." },
+            Description = "Параметры MONOLITH для текущего пользователя Windows." },
     ];
 
     public IReadOnlyList<PrincipleItem> Principles { get; } =
     [
-        new("01", "ЖУРНАЛ ДО ИЗМЕНЕНИЯ", "Исходное значение записывается в журнал раньше, чем меняется система. Любое изменение настроек (реестр, службы, задачи, схемы питания) откатывается — по одному, пакетом или все сразу."),
-        new("02", "ТОЧКА ВОССТАНОВЛЕНИЯ", "Перед каждым пакетом изменений создаётся точка восстановления Windows (если защита системы включена), а затронутые разделы реестра копируются в .reg."),
-        new("03", "ТОЛЬКО ДОКАЗАННОЕ", "Каждый пункт честно описывает свой эффект — даже если он близок к нулю. Приёмы без работающего механизма и «ускорители» не включены."),
-        new("04", "ЗАЩИЩЁННЫЕ СЛУЖБЫ", "Центр обновления, Защитник, брандмауэр, сеть, звук и другие критичные службы не изменяются никогда."),
-        new("05", "БЕЗ ЧИСТКИ РЕЕСТРА", "Реестр не «чистится»: Microsoft не поддерживает такие программы, пользы нет, а риск сломать систему реален."),
-        new("06", "НЕОБРАТИМОЕ — ТОЛЬКО С ПОДТВЕРЖДЕНИЕМ", "Удаление файлов, установка драйверов и программ, сброс сети не откатываются из журнала — поэтому перед ними всегда показывается подтверждение со списком последствий."),
+        new("ЖУРНАЛ ДО ИЗМЕНЕНИЯ", "Исходное значение записывается в журнал раньше, чем меняется система. Любое изменение настроек (реестр, службы, задачи, схемы питания) откатывается — по одному, пакетом или все сразу."),
+        new("ТОЧКА ВОССТАНОВЛЕНИЯ", "Перед каждым пакетом изменений создаётся точка восстановления Windows (если защита системы включена), а затронутые разделы реестра копируются в .reg."),
+        new("ТОЛЬКО ДОКАЗАННОЕ", "Каждый пункт честно описывает свой эффект — даже если он близок к нулю. Приёмы без работающего механизма и «ускорители» не включены."),
+        new("ЗАЩИЩЁННЫЕ СЛУЖБЫ", "Центр обновления, Защитник, брандмауэр, сеть, звук и другие критичные службы не изменяются никогда."),
+        new("БЕЗ ЧИСТКИ РЕЕСТРА", "Реестр не «чистится»: Microsoft не поддерживает такие программы, пользы нет, а риск сломать систему реален."),
+        new("НЕОБРАТИМОЕ — ТОЛЬКО С ПОДТВЕРЖДЕНИЕМ", "Удаление файлов, установка драйверов и программ, сброс сети не откатываются из журнала — поэтому перед ними всегда показывается подтверждение со списком последствий."),
     ];
 
     public IReadOnlyList<LicenseItem> Licenses { get; }
 
-    public string VersionText { get; }
-    public string BuildText { get; }
-    public string RuntimeText { get; } = $"{RuntimeInformation.FrameworkDescription} · {RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
-    [ObservableProperty] private string _osText = SystemProfile.Current.OsText;
-    public string ModeText => Elevation.IsElevated ? "Администратор — изменения разрешены" : "Просмотр — без прав администратора";
+    /// <summary>One line: version · build date · runtime.</summary>
+    public string VersionLine { get; }
 
     public SettingsViewModel()
     {
         var app = Assembly.GetExecutingAssembly();
-        VersionText = SettingsDefaults.VersionOf(app);
-        BuildText = BuildDate();
+        VersionLine = $"MONOLITH {SettingsDefaults.VersionOf(app)} · сборка {BuildDate()} · {RuntimeInformation.FrameworkDescription} · {RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
 
         const string netFoundation = "© .NET Foundation and Contributors";
         Licenses =
@@ -84,15 +75,13 @@ public sealed partial class SettingsViewModel : PageViewModel
             new LicenseItem(".NET и WPF", Environment.Version.ToString(3), "MIT", netFoundation, "Среда выполнения и интерфейс"),
         ];
 
-        AppSettings.Current.PropertyChanged += OnSettingsChanged;
+        AppSettings.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AppSettings.MonitorIntervalMs)) Ui.Post(() => OnPropertyChanged(nameof(SelectedInterval)));
+        };
     }
 
-    protected override async Task LoadAsync()
-    {
-        var profile = await SystemProfile.LoadAsync();
-        OsText = profile.OsText;
-        await RefreshPathsAsync();
-    }
+    protected override Task LoadAsync() => RefreshPathsAsync();
 
     protected override Task OnReturnAsync()
     {
@@ -113,141 +102,13 @@ public sealed partial class SettingsViewModel : PageViewModel
         }
     }
 
-    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e) => Ui.Post(() =>
-    {
-        switch (e.PropertyName)
-        {
-            case nameof(AppSettings.CreateRestorePoints):
-                if (!_confirmingRestorePoints) OnPropertyChanged(nameof(CreateRestorePoints));
-                break;
-            case nameof(AppSettings.ServicesExpertMode):
-                if (!_confirmingExpertMode) OnPropertyChanged(nameof(ServicesExpertMode));
-                break;
-            case nameof(AppSettings.MonitorIntervalMs):
-                OnPropertyChanged(nameof(SelectedInterval));
-                break;
-            case nameof(AppSettings.ShowConsole):
-                // The shell reads ShowConsole at start; keep the open console in sync right away.
-                if (Ui.Host is MainViewModel main && main.ConsoleExpanded != AppSettings.Current.ShowConsole)
-                    main.ConsoleExpanded = AppSettings.Current.ShowConsole;
-                break;
-        }
-    });
-
     private void RaiseSettingProperties()
     {
-        OnPropertyChanged(nameof(CreateRestorePoints));
-        OnPropertyChanged(nameof(ServicesExpertMode));
         OnPropertyChanged(nameof(SelectedInterval));
         OnPropertyChanged(nameof(Settings));
     }
 
-    // ═════════════════════════════ Safety ═════════════════════════════
-
-    /// <summary>Turning restore points off asks first; turning them on is immediate.</summary>
-    public bool CreateRestorePoints
-    {
-        get => AppSettings.Current.CreateRestorePoints;
-        set
-        {
-            if (value == AppSettings.Current.CreateRestorePoints) return;
-            if (value)
-            {
-                AppSettings.Current.CreateRestorePoints = true;
-                return;
-            }
-            // Keep the toggle on until the user confirms (re-raised after the binding finishes its update).
-            Application.Current?.Dispatcher.BeginInvoke(async () =>
-            {
-                OnPropertyChanged(nameof(CreateRestorePoints));
-                await ConfirmDisableRestorePointsAsync();
-            });
-        }
-    }
-
-    private async Task ConfirmDisableRestorePointsAsync()
-    {
-        if (_confirmingRestorePoints) return;
-        _confirmingRestorePoints = true;
-        try
-        {
-            var ok = await Ui.ConfirmAsync(
-                "Не создавать точки восстановления?",
-                "MONOLITH перестанет создавать точку восстановления Windows перед пакетами изменений.",
-                [
-                    "Журнал отката продолжит работать: каждое изменение по-прежнему можно откатить из «Восстановления»",
-                    "Пропадёт вторая страховка: если система не загрузится, вернуться будет не к чему",
-                    "Пакеты изменений будут применяться быстрее — без паузы на создание точки",
-                    "Включить обратно можно здесь же в любой момент",
-                ],
-                confirmText: "ВЫКЛЮЧИТЬ", danger: true);
-            if (ok)
-            {
-                AppSettings.Current.CreateRestorePoints = false;
-                Log.Warn("Создание точек восстановления перед изменениями выключено в настройках.");
-            }
-        }
-        finally
-        {
-            _confirmingRestorePoints = false;
-            OnPropertyChanged(nameof(CreateRestorePoints));
-        }
-    }
-
-    /// <summary>
-    /// Expert mode of ВСЕ СЛУЖБЫ (services.md §0.4): turning it on asks first (danger); turning it off is immediate.
-    /// </summary>
-    public bool ServicesExpertMode
-    {
-        get => AppSettings.Current.ServicesExpertMode;
-        set
-        {
-            if (value == AppSettings.Current.ServicesExpertMode) return;
-            if (!value)
-            {
-                AppSettings.Current.ServicesExpertMode = false;
-                Log.Info("Экспертный режим служб выключен: службы вне списка MONOLITH снова только для просмотра.");
-                return;
-            }
-            // Keep the toggle off until the user confirms (re-raised after the binding finishes its update).
-            Application.Current?.Dispatcher.BeginInvoke(async () =>
-            {
-                OnPropertyChanged(nameof(ServicesExpertMode));
-                await ConfirmEnableExpertModeAsync();
-            });
-        }
-    }
-
-    private async Task ConfirmEnableExpertModeAsync()
-    {
-        if (_confirmingExpertMode) return;
-        _confirmingExpertMode = true;
-        try
-        {
-            var ok = await Ui.ConfirmAsync(
-                "Включить экспертный режим служб?",
-                "На вкладке «Все службы» станет можно менять тип запуска, запускать и останавливать службы, которых нет в проверенном списке MONOLITH.",
-                [
-                    "Эти службы MONOLITH не проверял: отключение может сломать Wi-Fi с корпоративным входом (802.1X), режим «в самолёте», синхронизацию времени, VPN, резервное копирование и программы сторонних производителей",
-                    "Критичные службы Windows, драйверы, защищённые и пользовательские службы остаются заблокированными и в этом режиме",
-                    "Каждое изменение типа запуска по-прежнему записывается в журнал и откатывается из «Восстановления»",
-                    "Выключить режим можно здесь же в любой момент — уже сделанные изменения при этом не откатываются",
-                ],
-                confirmText: "ВКЛЮЧИТЬ", danger: true);
-            if (ok)
-            {
-                AppSettings.Current.ServicesExpertMode = true;
-                Log.Warn("Экспертный режим служб включён: службы вне списка MONOLITH можно менять на свой риск.");
-            }
-        }
-        finally
-        {
-            _confirmingExpertMode = false;
-            OnPropertyChanged(nameof(ServicesExpertMode));
-        }
-    }
-
-    // ═════════════════════════════ Interface ═════════════════════════════
+    // ═════════════════════════════ Monitoring ═════════════════════════════
 
     public IntervalOption? SelectedInterval
     {
@@ -262,9 +123,6 @@ public sealed partial class SettingsViewModel : PageViewModel
             AppSettings.Current.MonitorIntervalMs = value.Milliseconds;
         }
     }
-
-    [RelayCommand]
-    private void OpenGames() => Ui.Navigate("games");
 
     // ═════════════════════════════ Data ═════════════════════════════
 
