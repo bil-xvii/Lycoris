@@ -1,7 +1,12 @@
+using System.Globalization;
 using System.IO;
 using System.ServiceProcess;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
+using Monolith.Modules.Services;
+using Monolith.Tweaks;
 
 namespace Monolith.Core;
 
@@ -97,6 +102,17 @@ public sealed class ChangeJournal
     /// <summary>Set when the journal had to be quarantined because its folder was writable by non-admins.</summary>
     public string? QuarantinedFile { get; private set; }
 
+    /// <summary>
+    /// Set when the journal cannot be trusted or read (journal.json and its .bak are both damaged, or the data
+    /// folder could not be locked down). No new changes are allowed until the user starts a new journal
+    /// (<see cref="StartNewJournal"/>); the damaged files are never overwritten.
+    /// </summary>
+    public string? UnavailableReason { get; private set; }
+    public bool IsUnavailable => UnavailableReason is not null;
+
+    private const string UnavailableMessage =
+        "Журнал изменений недоступен, поэтому MONOLITH не вносит новые изменения: без журнала их нельзя было бы отменить.";
+
     public ChangeJournal(string path)
     {
         _path = path;
@@ -104,23 +120,66 @@ public sealed class ChangeJournal
         Load();
     }
 
-    private bool CanWrite => !_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests;
+    private bool CanWrite => !IsUnavailable && (!_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests);
 
     public IReadOnlyList<ChangeRecord> Records { get { lock (_lock) return _data.Records.ToList(); } }
     public IReadOnlyList<ChangeBatch> Batches { get { lock (_lock) return _data.Batches.ToList(); } }
     public IReadOnlyList<ChangeRecord> ActiveRecords { get { lock (_lock) return _data.Records.Where(r => !r.Reverted).ToList(); } }
 
+    /// <summary>Starts a batch. Throws when the journal cannot be written: no change may be made without it.</summary>
     public ChangeBatch BeginBatch(string title)
     {
         var batch = new ChangeBatch { Title = title };
-        lock (_lock) _data.Batches.Add(batch);
-        Save();
+        lock (_lock)
+        {
+            if (UnavailableReason is { } reason) throw new InvalidOperationException($"{UnavailableMessage} {reason}");
+            _data.Batches.Add(batch);
+            if (!SaveLocked())
+            {
+                _data.Batches.Remove(batch);
+                throw new InvalidOperationException("Не удалось записать журнал изменений на диск — изменение не выполнено.");
+            }
+        }
         return batch;
     }
 
     public void UpdateBatch(ChangeBatch batch)
     {
         Save();
+    }
+
+    /// <summary>
+    /// After the journal was found damaged or untrusted: sets the old files aside (never deletes them) and
+    /// starts an empty journal so changes can be made again. Elevated only. Returns false when that failed.
+    /// </summary>
+    public bool StartNewJournal()
+    {
+        lock (_lock)
+        {
+            if (!IsUnavailable) return true;
+            if (_protected && !Elevation.IsElevated && !ChangeSession.BypassElevationForTests) return false;
+            if (_protected && Elevation.IsElevated)
+            {
+                AppPaths.SecureMachineDir();
+                if (!AppPaths.MachineDirSecured) return false;
+            }
+            var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+            try
+            {
+                if (File.Exists(_path)) File.Move(_path, _path + $".unavailable-{stamp}");
+                if (File.Exists(_path + ".bak")) File.Move(_path + ".bak", _path + $".bak.unavailable-{stamp}");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Не удалось отложить старый журнал изменений", ex);
+                return false;
+            }
+            _data = new JournalFile();
+            UnavailableReason = null;
+            Log.Warn($"Начат новый журнал изменений; старые файлы сохранены с отметкой {stamp}.");
+        }
+        Changed?.Invoke();
+        return true;
     }
 
     public ChangeRecord? FindActive(string target)
@@ -139,6 +198,8 @@ public sealed class ChangeJournal
     /// the FIRST record is kept untouched, because it holds the true original value — call
     /// <see cref="MergeInto"/> after the new change succeeded to note the new value and source.
     /// Returns the record that represents the target, and whether it is new.
+    /// Throws (and keeps nothing) when a new record could not be written to disk: the caller must then not
+    /// make the change — no change without an on-disk undo record.
     /// </summary>
     public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record)
     {
@@ -154,10 +215,15 @@ public sealed class ChangeJournal
             }
             else
             {
+                if (UnavailableReason is { } reason) throw new InvalidOperationException($"{UnavailableMessage} {reason}");
                 _data.Records.Add(record);
+                if (!SaveLocked())
+                {
+                    _data.Records.Remove(record);
+                    throw new InvalidOperationException("Не удалось записать журнал изменений на диск — изменение не выполнено.");
+                }
                 result = record;
                 isNew = true;
-                SaveLocked();
             }
         }
         if (isNew) Changed?.Invoke();
@@ -270,6 +336,10 @@ public sealed class ChangeJournal
 
     private static async Task RevertOneAsync(ChangeRecord r)
     {
+        // The journal file is input, not authority: refuse anything MONOLITH's own code could not have recorded.
+        if (JournalTrust.Check(r) is { } refusal)
+            throw new InvalidOperationException($"Отказано: {refusal}. Такую запись MONOLITH создать не мог.");
+
         switch (r.Kind)
         {
             case ChangeKind.Registry when r.Registry is not null:
@@ -284,7 +354,7 @@ public sealed class ChangeJournal
                     Log.Info($"Откат пропущен: службы {r.Service.Name} больше нет в системе.");
                     break;
                 }
-                // Never allowProtected: no legitimate record can target a protected service.
+                // Never allowProtected: no legitimate record can target a protected service (JournalTrust refuses it too).
                 ServiceControl.SetStartMode(r.Service.Name, r.Service.StartMode, r.Service.DelayedAutoStart);
                 break;
 
@@ -314,7 +384,10 @@ public sealed class ChangeJournal
                 if (encoded) Log.Command($"powershell: откат «{r.Title}»");
                 var result = await ProcessRunner.RunAsync(r.RevertFile!, r.RevertArgs ?? "",
                     new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
-                if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
+                var rebootPending = result is { ExitCode: ProcessExit.RebootRequired, TimedOut: false, Cancelled: false }
+                                    && string.Equals(r.RevertFile, ProcessRunner.Sys("pnputil.exe"), StringComparison.OrdinalIgnoreCase);
+                if (rebootPending) Log.Warn($"Откат «{r.Title}» вступит в силу после перезагрузки.");
+                else if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
                 break;
 
             default:
@@ -327,13 +400,30 @@ public sealed class ChangeJournal
         if (_protected && Elevation.IsElevated)
         {
             AppPaths.SecureMachineDir();
+            if (!AppPaths.MachineDirSecured)
+            {
+                // Could not lock the folder down: anyone might still be able to edit the journal. Never replay it.
+                UnavailableReason = "Не удалось защитить папку данных MONOLITH от записи обычными пользователями.";
+                Log.Error("Журнал изменений не загружен: папка данных не защищена.");
+                return;
+            }
             if (AppPaths.MachineDirWasInsecure && (File.Exists(_path) || File.Exists(_path + ".bak")))
             {
                 // Someone without admin rights could have edited it: never replay it. Keep it for inspection.
                 var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-                QuarantinedFile = _path + $".untrusted-{stamp}";
-                try { if (File.Exists(_path)) File.Move(_path, QuarantinedFile); } catch { }
-                try { if (File.Exists(_path + ".bak")) File.Move(_path + ".bak", QuarantinedFile + ".bak"); } catch { }
+                var quarantined = _path + $".untrusted-{stamp}";
+                try
+                {
+                    if (File.Exists(_path)) File.Move(_path, quarantined);
+                    if (File.Exists(_path + ".bak")) File.Move(_path + ".bak", quarantined + ".bak");
+                }
+                catch (Exception ex)
+                {
+                    UnavailableReason = "Журнал хранился в незащищённой папке, и его не удалось отложить.";
+                    Log.Error("Не удалось отложить недоверенный журнал изменений", ex);
+                    return;
+                }
+                QuarantinedFile = quarantined;
                 Log.Warn($"Журнал изменений хранился в незащищённой папке и отложен как недоверенный: {QuarantinedFile}");
                 return;
             }
@@ -344,25 +434,36 @@ public sealed class ChangeJournal
             _data = data;
             return;
         }
-        if (error is null) return; // no journal yet
+        var backupPath = _path + ".bak";
+        if (error is null)
+        {
+            // No journal.json. A surviving .bak still holds undo records (e.g. a crash during a save).
+            if (TryRead(backupPath, out var orphan, out _))
+            {
+                _data = orphan;
+                Log.Warn("Журнал изменений не найден — загружена резервная копия.");
+            }
+            return;
+        }
 
         // Damaged: keep a copy, then fall back to the last good version.
         try { File.Copy(_path, _path + $".broken-{DateTime.Now:yyyyMMddHHmmss}", true); } catch { }
-        if (TryRead(_path + ".bak", out var backup, out _))
+        if (TryRead(backupPath, out var backup, out _))
         {
             _data = backup;
             Log.Warn("Журнал изменений был повреждён — восстановлен из резервной копии.");
+            // Move the damaged file away so the next save does not rotate it into .bak over the good copy.
+            if (CanWrite)
+            {
+                try { File.Delete(_path); } catch { }
+            }
+            return;
         }
-        else
-        {
-            _data = new JournalFile();
-            Log.Error("Журнал изменений повреждён — создана копия, начат новый журнал", error);
-        }
-        // Move the damaged file away so the next save does not rotate it into .bak over the good copy.
-        if (CanWrite)
-        {
-            try { File.Delete(_path); } catch { }
-        }
+
+        // Both copies are unreadable: keep every file untouched and refuse new changes (their undo would be lost).
+        _data = new JournalFile();
+        UnavailableReason = "Файл журнала и его резервная копия повреждены.";
+        Log.Error("Журнал изменений и его резервная копия повреждены — новые изменения заблокированы", error);
     }
 
     private static bool TryRead(string path, out JournalFile data, out Exception? error)
@@ -382,19 +483,24 @@ public sealed class ChangeJournal
         }
     }
 
-    public void Save()
+    /// <summary>Writes the journal to disk. Returns false when nothing was written (the error is logged).</summary>
+    public bool Save()
     {
-        lock (_lock) SaveLocked();
+        lock (_lock) return SaveLocked();
     }
 
-    private void SaveLocked()
+    private bool SaveLocked()
     {
-        // A non-elevated MONOLITH never creates or touches the machine journal.
-        if (!CanWrite) return;
+        // A non-elevated MONOLITH never creates or touches the machine journal; an unavailable one is never overwritten.
+        if (!CanWrite) return false;
         try
         {
             var dir = Path.GetDirectoryName(_path)!;
-            if (!AppPaths.TryEnsureDir(dir)) return;
+            if (!AppPaths.TryEnsureDir(dir))
+            {
+                Log.Error($"Не удалось сохранить журнал изменений: папка {dir} недоступна.");
+                return false;
+            }
             var tmp = _path + ".tmp";
             try { File.Delete(tmp); } catch { }
             var bytes = JsonSerializer.SerializeToUtf8Bytes(_data, JsonOptions);
@@ -407,10 +513,211 @@ public sealed class ChangeJournal
                 File.Replace(tmp, _path, _path + ".bak", ignoreMetadataErrors: true);
             else
                 File.Move(tmp, _path);
+            return true;
         }
         catch (Exception ex)
         {
             Log.Error("Не удалось сохранить журнал изменений", ex);
+            return false;
         }
+    }
+}
+
+/// <summary>Well-known exit codes of Windows tools.</summary>
+public static class ProcessExit
+{
+    /// <summary>ERROR_SUCCESS_REBOOT_REQUIRED: done, takes effect after a restart (pnputil, msiexec, DISM).</summary>
+    public const int RebootRequired = 3010;
+}
+
+/// <summary>
+/// Validates journal records before they are replayed with admin rights. The journal is untrusted input
+/// (CLAUDE.md §7): a record is accepted only when it has exactly the shape MONOLITH's own code writes —
+/// a known source, the kind and target that source writes, no protected or hard-blocked service, and for
+/// commands an undo command line that is rebuilt from the same code and compared character for character.
+/// </summary>
+internal static class JournalTrust
+{
+    private static readonly HashSet<string> ModuleSources = new(StringComparer.Ordinal)
+    {
+        "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers",
+    };
+
+    private static readonly Regex TweakSource = new(@"^tweak:[a-z0-9][a-z0-9-]{0,80}$", RegexOptions.CultureInvariant);
+
+    internal static bool IsKnownSource(string source) => ModuleSources.Contains(source) || TweakSource.IsMatch(source);
+
+    /// <summary>Null when the record may be reverted; otherwise a short Russian reason.</summary>
+    internal static string? Check(ChangeRecord r)
+    {
+        if (!IsKnownSource(r.Source)) return $"неизвестный источник записи «{r.Source}»";
+        foreach (var s in r.AlsoSources)
+            if (!IsKnownSource(s)) return $"неизвестный источник записи «{s}»";
+        var isTweak = r.Source.StartsWith("tweak:", StringComparison.Ordinal);
+
+        // Each module writes exactly one kind of record; tweaks may write any kind.
+        ChangeKind? expected = r.Source switch
+        {
+            "services" => ChangeKind.Service,
+            "services-tasks" or "startup-tasks" => ChangeKind.ScheduledTask,
+            "startup" => ChangeKind.Registry,
+            "gameboost" => ChangeKind.PowerScheme,
+            "drivers" => ChangeKind.Command,
+            _ => null,
+        };
+        if (expected is { } kind && r.Kind != kind) return $"источник «{r.Source}» не создаёт записи типа {r.Kind}";
+
+        switch (r.Kind)
+        {
+            case ChangeKind.Registry when r.Registry is { } reg:
+                if (!string.Equals(r.Target, $@"reg:{reg.Hive}\{reg.Path}\{reg.Name}", StringComparison.OrdinalIgnoreCase))
+                    return "цель записи не совпадает с параметром реестра";
+                if (reg.Hive == RegHive.HKCR) return $"раздел {reg.Hive} MONOLITH не меняет";
+                if (ChangeJournal.IsForbiddenRestoreTarget(reg)) return $"{reg.FullName} — защищённое место реестра";
+                if (r.Source == "startup" && !IsStartupApproved(reg)) return $"{reg.FullName} — не отметка автозагрузки StartupApproved";
+                return null;
+
+            case ChangeKind.Service when r.Service is { } svc:
+                if (!string.Equals(r.Target, "svc:" + svc.Name, StringComparison.OrdinalIgnoreCase)) return "цель записи не совпадает со службой";
+                if (ServiceControl.IsProtected(svc.Name)) return $"служба {svc.Name} защищена от изменений";
+                if (ServiceGuard.IsHardBlocked(svc.Name)) return $"службу {svc.Name} MONOLITH никогда не меняет";
+                return null;
+
+            case ChangeKind.ScheduledTask when r.TaskPath is { } task:
+                if (!string.Equals(r.Target, "task:" + task, StringComparison.OrdinalIgnoreCase)) return "цель записи не совпадает с задачей";
+                if (!task.StartsWith('\\') || task.Any(char.IsControl)) return "некорректный путь задачи";
+                return null;
+
+            case ChangeKind.PowerScheme:
+                if (r.Target != "power:active") return "некорректная цель записи плана питания";
+                if (r.PowerSchemeCreated is not null && !isTweak) return "план питания на удаление указан не твиком";
+                return null;
+
+            case ChangeKind.Command:
+                return CheckCommand(r, isTweak);
+
+            default:
+                return null; // no data to revert: RevertOneAsync reports that itself
+        }
+    }
+
+    private static bool IsStartupApproved(RegistryValueSnapshot reg)
+    {
+        const string root = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\";
+        var p = reg.Path.TrimEnd('\\');
+        return new[] { "Run", "Run32", "StartupFolder" }.Any(sub => string.Equals(p, root + sub, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ───────────────────────────── Undo commands ─────────────────────────────
+
+    private const string GuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+    private const string PsPrefix = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ";
+    private const string CmdHead = "/d /s /c \"";
+    private const string Unknown = "команда отката не совпадает ни с одной командой MONOLITH";
+
+    private static string Quoted(string exe) => "\"" + ProcessRunner.Sys(exe) + "\"";
+    private static bool SameFile(string? a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    private static string? CheckCommand(ChangeRecord r, bool isTweak)
+    {
+        var file = r.RevertFile ?? "";
+        var args = r.RevertArgs ?? "";
+        if (!r.Target.StartsWith("cmd:", StringComparison.Ordinal)) return "некорректная цель команды";
+        var target = r.Target[4..];
+
+        // Drivers → enable a device; its undo is pnputil /disable-device "<the same instance ID>".
+        if (target.StartsWith("device-enable:", StringComparison.Ordinal))
+        {
+            var id = target["device-enable:".Length..];
+            if (r.Source != "drivers" || id.Length == 0 || id.Contains('"') || id.Any(char.IsControl)) return Unknown;
+            return SameFile(file, ProcessRunner.Sys("pnputil.exe")) && args == $"/disable-device \"{id}\"" ? null : Unknown;
+        }
+        if (!isTweak) return Unknown;
+
+        // PowerShell undo scripts: decode, read the original value back out, rebuild with the catalog code, compare.
+        if (target.StartsWith("dx:", StringComparison.Ordinal) || target == "spi:visual-effects")
+        {
+            if (!SameFile(file, TweakCatalog.PowerShellExe) || PsScript(args) is not { } script) return Unknown;
+            var rebuilt = target == "spi:visual-effects" ? RebuildSpi(script) : RebuildDx(target[3..], script);
+            return rebuilt == args ? null : Unknown;
+        }
+
+        // cmd.exe undo lines: only the exact powercfg / netsh lines the catalog writes.
+        if (!SameFile(file, ProcessRunner.Sys("cmd.exe"))) return Unknown;
+        if (!args.StartsWith(CmdHead, StringComparison.Ordinal) || !args.EndsWith('"') || args.Length <= CmdHead.Length) return Unknown;
+        var inner = args[CmdHead.Length..^1];
+        var powercfg = Quoted("powercfg.exe");
+
+        if (target == "hibernate")
+            return inner == $"{powercfg} /hibernate on" || inner == $"{powercfg} /hibernate on && {powercfg} /hibernate /type reduced"
+                ? null : Unknown;
+
+        var pc = Regex.Match(target, $"^powercfg:({GuidPattern}):({GuidPattern}):ac$");
+        if (pc.Success)
+        {
+            var exe = Regex.Escape(powercfg);
+            var m = Regex.Match(inner,
+                $"^{exe} /setacvalueindex ({GuidPattern}) ({GuidPattern}) ({GuidPattern}) ([0-9]{{1,10}}) && {exe} /setactive SCHEME_CURRENT$");
+            return m.Success
+                   && string.Equals(m.Groups[1].Value, pc.Groups[1].Value, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(m.Groups[3].Value, pc.Groups[2].Value, StringComparison.OrdinalIgnoreCase)
+                ? null : Unknown;
+        }
+
+        var dns = Regex.Match(target, $@"^dns([46]):\{{?{GuidPattern}\}}?$");
+        if (dns.Success)
+            return RebuildDns(dns.Groups[1].Value == "6" ? "ipv6" : "ipv4", inner) == inner ? null : Unknown;
+
+        return Unknown;
+    }
+
+    private static string? PsScript(string args)
+    {
+        if (!args.StartsWith(PsPrefix, StringComparison.Ordinal)) return null;
+        try { return Encoding.Unicode.GetString(Convert.FromBase64String(args[PsPrefix.Length..])); }
+        catch (FormatException) { return null; }
+    }
+
+    /// <summary>Reads the server list back out of a netsh restore line and rebuilds it with the catalog code.</summary>
+    private static string? RebuildDns(string family, string inner)
+    {
+        var flush = " && " + Quoted("ipconfig.exe") + " /flushdns";
+        if (!inner.EndsWith(flush, StringComparison.Ordinal)) return null;
+        var body = inner[..^flush.Length];
+        var first = Regex.Match(body,
+            $@"interface {family} set dnsservers name=([0-9]{{1,9}}) source=(?:dhcp|static address=([0-9A-Fa-f:.%]+) register=primary)");
+        if (!first.Success) return null;
+        var index = int.Parse(first.Groups[1].Value, CultureInfo.InvariantCulture);
+        var servers = new List<string>();
+        if (first.Groups[2].Success) servers.Add(first.Groups[2].Value);
+        foreach (Match m in Regex.Matches(body, "add dnsservers name=[0-9]{1,9} address=([0-9A-Fa-f:.%]+) index="))
+            servers.Add(m.Groups[1].Value);
+        try { return TweakCatalog.DnsCommand(family, index, servers) + flush; }
+        catch (InvalidOperationException) { return null; }
+    }
+
+    private static string? RebuildDx(string token, string script)
+    {
+        if (!Regex.IsMatch(token, "^[A-Za-z0-9_]{1,64}$")) return null;
+        var m = Regex.Match(script, @"\$v=(\$null|'(?:[^']|'')*');");
+        if (!m.Success) return null;
+        var raw = m.Groups[1].Value;
+        var value = raw == "$null" ? null : raw[1..^1].Replace("''", "'");
+        return TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript(token, value));
+    }
+
+    private static string? RebuildSpi(string script)
+    {
+        var states = new List<(uint SetAction, bool On)>();
+        foreach (var f in TweakCatalog.VisualEffectFlags)
+        {
+            var m = Regex.Match(script, $@"\[Monolith\.Spi\]::Set\(0x{f.Set:X},0,\[IntPtr\]([01]),3\)");
+            if (!m.Success) return null;
+            states.Add((f.Set, m.Groups[1].Value == "1"));
+        }
+        var anim = Regex.Match(script, @"SetAnimation\(0x49,8,\[int\[\]\]@\(8,([0-9]{1,6})\),3\)");
+        if (!anim.Success) return null;
+        var minAnimate = int.Parse(anim.Groups[1].Value, CultureInfo.InvariantCulture);
+        return TweakCatalog.PowerShellArgs(TweakCatalog.SpiScript(states, minAnimate));
     }
 }
