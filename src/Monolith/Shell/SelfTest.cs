@@ -9,6 +9,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Monolith.Core;
+using Monolith.Modules.Maintenance;
 using Monolith.UI;
 
 namespace Monolith.Shell;
@@ -101,24 +102,24 @@ public sealed class SelfTestRunner
         var total = Stopwatch.StartNew();
         var startMem = Process.GetCurrentProcess().WorkingSet64;
 
+        var n = 0;
         foreach (var page in _vm.Pages)
         {
-            var r = new PageReport { Key = page.Key, Title = page.Title };
-            Drain();
-            var sw = Stopwatch.StartNew();
-            _vm.CurrentPage = page;
-            await WaitIdleAsync(page, TimeSpan.FromSeconds(60));
-            r.LoadMs = sw.ElapsedMilliseconds;
-
-            await ExerciseAsync(page, r);
-            await WaitIdleAsync(page, TimeSpan.FromSeconds(90));
-            r.StillBusy = page.IsBusy;
-
-            try { MainWindow.SaveVisual(_window.RootBorder, Path.Combine(_outDir, $"{page.Index}-{page.Key}.png")); }
-            catch (Exception ex) { r.Warnings.Add("screenshot: " + ex.Message); }
-
-            Collect(r);
-            reports.Add(r);
+            n++;
+            // A host page is tested once per tab, so every hosted view is opened and exercised.
+            if (page is MaintenanceViewModel host)
+            {
+                foreach (var tab in host.Tabs)
+                {
+                    host.SelectTab(tab.Key);
+                    reports.Add(await TestPageAsync(page, $"{page.Key}/{tab.Key}", $"{page.Title} · {tab.Title}", $"{n:00}-{page.Key}-{tab.Key}.png"));
+                }
+                host.SelectTab(MaintenanceViewModel.CleanerTab);
+            }
+            else
+            {
+                reports.Add(await TestPageAsync(page, page.Key, page.Title, $"{n:00}-{page.Key}.png"));
+            }
         }
 
         // Stress: fast navigation back and forth (catches races between page loads)
@@ -130,6 +131,12 @@ public sealed class SelfTestRunner
             {
                 _vm.CurrentPage = page;
                 await Task.Delay(120);
+                if (page is MaintenanceViewModel host)
+                    foreach (var tab in host.Tabs.Reverse())
+                    {
+                        host.SelectTab(tab.Key);
+                        await Task.Delay(120);
+                    }
             }
         }
         _vm.CurrentPage = _vm.Pages[0];
@@ -153,6 +160,26 @@ public sealed class SelfTestRunner
         }
         IsRunning = false;
         return reports.Count(r => r.Status == "FAIL");
+    }
+
+    private async Task<PageReport> TestPageAsync(PageViewModel page, string key, string title, string screenshot)
+    {
+        var r = new PageReport { Key = key, Title = title };
+        Drain();
+        var sw = Stopwatch.StartNew();
+        _vm.CurrentPage = page;
+        await WaitIdleAsync(page, TimeSpan.FromSeconds(60));
+        r.LoadMs = sw.ElapsedMilliseconds;
+
+        await ExerciseAsync(page, r);
+        await WaitIdleAsync(page, TimeSpan.FromSeconds(90));
+        r.StillBusy = page.IsBusy;
+
+        try { MainWindow.SaveVisual(_window.RootBorder, Path.Combine(_outDir, screenshot)); }
+        catch (Exception ex) { r.Warnings.Add("screenshot: " + ex.Message); }
+
+        Collect(r);
+        return r;
     }
 
     private void OnLog(LogEntry e)
@@ -245,7 +272,8 @@ public sealed class SelfTestRunner
     private async Task ExerciseSurfaceAsync(PageViewModel page, PageReport r)
     {
         // Radio buttons (filters, profile tiles): click each, then restore the original choice.
-        var radios = Find<RadioButton>().Where(x => x.IsVisible && x.IsEnabled).ToList();
+        // The host page's own tab buttons are skipped: each tab is tested separately.
+        var radios = Find<RadioButton>().Where(x => x.IsVisible && x.IsEnabled && x.GroupName != MaintenanceViewModel.TabGroup).ToList();
         var originallyChecked = radios.Where(x => x.IsChecked == true).ToList();
         foreach (var rb in radios)
         {

@@ -26,6 +26,8 @@ public sealed class PaletteEntry
     public required string PageKey { get; init; }
     /// <summary>Item the target page should scroll to and highlight (tweak id, service name), or null.</summary>
     public string? FocusId { get; init; }
+    /// <summary>A part of a page (a tab), found by search but not listed with the pages for an empty query.</summary>
+    public bool IsSection { get; init; }
 
     public string KindText => Kind switch
     {
@@ -85,13 +87,13 @@ public static class CommandPaletteSearch
 
     /// <summary>
     /// Every query word must match the title, keywords or description. Title matches rank above keyword matches,
-    /// which rank above description matches; a word start beats a match inside a word. Empty query = the pages.
+    /// which rank above description matches; a word start beats a match inside a word. Empty query = the pages (no sections).
     /// </summary>
     public static IReadOnlyList<PaletteEntry> Search(IReadOnlyList<PaletteEntry> index, string? query, int max = DefaultMax)
     {
         var tokens = Tokenize(query);
         if (tokens.Length == 0)
-            return index.Where(e => e.Kind == PaletteKind.Page).Take(max).ToList();
+            return index.Where(e => e.Kind == PaletteKind.Page && !e.IsSection).Take(max).ToList();
 
         var phrase = string.Join(' ', tokens);
         var scored = new List<(PaletteEntry Entry, int Score, int Order)>();

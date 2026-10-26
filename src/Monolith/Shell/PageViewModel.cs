@@ -15,7 +15,7 @@ public abstract partial class PageViewModel : ObservableObject
 
     /// <summary>Stable id used for navigation ("dashboard", "optimize", ...).</summary>
     public abstract string Key { get; }
-    /// <summary>Two-digit index shown in the sidebar and header ("01").</summary>
+    /// <summary>Two-digit order index ("01"); no longer displayed.</summary>
     public abstract string Index { get; }
     /// <summary>Uppercase Russian title ("ПАНЕЛЬ").</summary>
     public abstract string Title { get; }
@@ -82,7 +82,7 @@ public abstract partial class PageViewModel : ObservableObject
     protected static bool RequireAdmin(string action)
     {
         if (Elevation.IsElevated) return true;
-        Ui.Toast($"Для действия «{action}» нужны права администратора. Нажмите «ПРАВА АДМИНИСТРАТОРА» внизу слева.", ToastKind.Warning);
+        Ui.Toast($"Для действия «{action}» нужны права администратора. Нажмите «ПЕРЕЗАПУСТИТЬ С ПРАВАМИ» вверху окна.", ToastKind.Warning);
         return false;
     }
 }
