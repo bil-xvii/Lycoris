@@ -16,7 +16,12 @@ public static class TweakEngine
         {
             try
             {
-                result[t.Id] = t.IsApplicable(sp) ? t.Detect() : TweakState.NotApplicable;
+                result[t.Id] = Applicability(t, sp) switch
+                {
+                    true => t.Detect(),
+                    false => TweakState.NotApplicable,
+                    null => TweakState.Unknown, // hardware facts missing: never judge by the defaults
+                };
             }
             catch
             {
@@ -36,8 +41,10 @@ public static class TweakEngine
             var restart = RestartRequirement.None;
             foreach (var t in tweaks)
             {
-                if (!t.IsApplicable(sp))
+                if (Applicability(t, sp) is not true)
                 {
+                    if (!sp.HardwareFactsKnown && t.AppliesTo is not null)
+                        Log.Warn($"{t.Title} — пропущено: не удалось определить характеристики компьютера.");
                     skipped++;
                     continue;
                 }
@@ -57,6 +64,18 @@ public static class TweakEngine
             session.Complete();
             return new TweakRunResult(session.Applied, skipped, session.Errors, session.Batch.RestorePoint, restart);
         }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="t"/> applies to this PC: null = cannot tell, because the tweak has an
+    /// applicability rule and the hardware facts (laptop/battery/chassis, CPU, GPUs) could not be read.
+    /// The profile defaults (e.g. IsLaptop = false) are never used to decide.
+    /// </summary>
+    public static bool? Applicability(Tweak t, SystemProfile sp)
+    {
+        if (t.AppliesTo is null) return true;
+        if (!sp.HardwareFactsKnown) return null;
+        return t.IsApplicable(sp);
     }
 
     /// <summary>Reverts everything a tweak changed (from the journal), restoring the original values.</summary>

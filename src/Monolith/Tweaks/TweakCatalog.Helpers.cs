@@ -472,13 +472,40 @@ public static partial class TweakCatalog
     /// PowerShell that sets the UI-effect flags and the window animation (SPI_SETANIMATION) with
     /// SPIF_UPDATEINIFILE | SPIF_SENDCHANGE, exactly as the Performance Options dialog does.
     /// </summary>
-    internal static string SpiScript(IReadOnlyList<(uint SetAction, bool On)> flags, int minAnimate)
+    /// <remarks>
+    /// With <paramref name="rollback"/>, a failure part-way puts every flag back to the rollback state (best effort,
+    /// each flag on its own) and then rethrows, so a failed apply leaves nothing changed without a journal record.
+    /// </remarks>
+    internal static string SpiScript(IReadOnlyList<(uint SetAction, bool On)> flags, int minAnimate,
+        IReadOnlyList<(uint SetAction, bool On)>? rollback = null, int rollbackMinAnimate = 0)
     {
         var sb = new StringBuilder(SpiTypeDefinition);
-        foreach (var (action, on) in flags)
-            sb.Append($"if(-not [Monolith.Spi]::Set(0x{action:X},0,[IntPtr]{(on ? 1 : 0)},3)){{throw 'Windows отклонила изменение эффекта 0x{action:X}'}};");
-        sb.Append($"if(-not [Monolith.Spi]::SetAnimation(0x49,8,[int[]]@(8,{minAnimate}),3)){{throw 'Windows отклонила изменение анимации окон'}};");
+        if (rollback is null)
+        {
+            AppendSpi(sb, flags, minAnimate, strict: true);
+            return sb.ToString();
+        }
+        sb.Append("try{");
+        AppendSpi(sb, flags, minAnimate, strict: true);
+        sb.Append("}catch{$e=$_;");
+        AppendSpi(sb, rollback, rollbackMinAnimate, strict: false);
+        sb.Append("throw $e};");
         return sb.ToString();
+    }
+
+    private static void AppendSpi(StringBuilder sb, IReadOnlyList<(uint SetAction, bool On)> flags, int minAnimate, bool strict)
+    {
+        foreach (var (action, on) in flags)
+        {
+            var call = $"[Monolith.Spi]::Set(0x{action:X},0,[IntPtr]{(on ? 1 : 0)},3)";
+            sb.Append(strict
+                ? $"if(-not {call}){{throw 'Windows отклонила изменение эффекта 0x{action:X}'}};"
+                : $"try{{[void]{call}}}catch{{}};");
+        }
+        var anim = $"[Monolith.Spi]::SetAnimation(0x49,8,[int[]]@(8,{minAnimate}),3)";
+        sb.Append(strict
+            ? $"if(-not {anim}){{throw 'Windows отклонила изменение анимации окон'}};"
+            : $"try{{[void]{anim}}}catch{{}};");
     }
 
     // ───────────────────────────── Power plan helpers ─────────────────────────────
@@ -497,6 +524,20 @@ public static partial class TweakCatalog
         if (active == Guid.Empty) return TweakState.Unknown;
         if (active == scheme) return TweakState.Applied;
         return PowerSchemes.Exists(scheme) ? TweakState.NotApplied : TweakState.NotApplicable;
+    }
+
+    /// <summary>
+    /// powercfg command line that writes the AC value and re-applies the active scheme. With <paramref name="rollbackTo"/>,
+    /// any failure (e.g. /setactive refused after the value was written) writes the original value back and exits 1,
+    /// so a failed apply never leaves the plan changed without a journal record.
+    /// </summary>
+    internal static string PowerSettingCommand(Guid scheme, Guid subgroup, Guid setting, uint value, uint? rollbackTo = null)
+    {
+        var powercfg = SysTool("powercfg.exe");
+        string Set(uint v) => $"{powercfg} /setacvalueindex {scheme:D} {subgroup:D} {setting:D} {v} && {powercfg} /setactive SCHEME_CURRENT";
+        if (rollbackTo is not { } original) return Set(value);
+        return $"({Set(value)}) || ({powercfg} /setacvalueindex {scheme:D} {subgroup:D} {setting:D} {original} & " +
+               $"{powercfg} /setactive SCHEME_CURRENT & exit /b 1)";
     }
 
     /// <summary>
@@ -534,10 +575,10 @@ public static partial class TweakCatalog
                           ?? throw new InvalidOperationException("параметр отсутствует в текущей схеме питания");
             if (current == target) return;
 
-            var powercfg = SysTool("powercfg.exe");
-            string Set(uint v) => $"{powercfg} /setacvalueindex {scheme:D} {subgroup:D} {setting:D} {v} && {powercfg} /setactive SCHEME_CURRENT";
             var plan = PowerSchemes.GetName(scheme);
-            RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac", CmdExe, CmdArgs(Set(target)), CmdExe, CmdArgs(Set(current)),
+            RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac",
+                CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, target, rollbackTo: current)),
+                CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, current)),
                 $"{plan}, от сети: {describe(current)}", $"{plan}, от сети: {describe(target)}");
         },
     };

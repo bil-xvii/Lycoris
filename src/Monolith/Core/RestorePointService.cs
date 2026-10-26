@@ -19,6 +19,13 @@ public static class RestorePointService
     private const string SrKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore";
     private const string SrPolicyKey = @"SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore";
     private static readonly SemaphoreSlim Gate = new(1, 1);
+    /// <summary>Upper bound for one WMI CreateRestorePoint call (a stuck VSS must not hold <see cref="Gate"/> forever).</summary>
+    private static readonly TimeSpan CreateTimeout = TimeSpan.FromMinutes(5);
+    private static readonly object PendingLock = new();
+    /// <summary>Original SystemRestorePointCreationFrequency while the 24-hour limit is lifted; null otherwise.</summary>
+    private static RegistryValueSnapshot? _pendingFreq;
+    /// <summary>The last CreateCore worker; may still run after a timeout.</summary>
+    private static Task<RestorePointResult>? _inFlight;
 
     /// <summary>True when System Restore is turned on for at least one drive and not blocked by policy.</summary>
     public static bool IsEnabled()
@@ -101,11 +108,50 @@ public static class RestorePointService
         await Gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            return await Task.Run(() => CreateCore(description)).ConfigureAwait(false);
+            // A previous call timed out but its WMI call is still running (and still owns the lifted limit):
+            // do not start a second one, it would snapshot the lifted value as the "original".
+            if (_inFlight is { IsCompleted: false })
+                return new(RestorePointOutcome.Failed,
+                    "Предыдущее создание точки восстановления ещё не завершилось — новая точка не создана.");
+            var work = Task.Run(() => CreateCore(description));
+            _inFlight = work;
+            try
+            {
+                return await work.WaitAsync(CreateTimeout + TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                // The worker keeps running on its own and puts the limit back in its finally when WMI returns.
+                Log.Warn("Создание точки восстановления не завершилось вовремя — продолжаем без неё.");
+                return new(RestorePointOutcome.Failed, "Windows слишком долго создаёт точку восстановления — операция прервана по времени.");
+            }
         }
         finally
         {
             Gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Puts the original 24-hour restore point limit back if it is still lifted (synchronous; safe to call
+    /// more than once). Called by the worker when it finishes and by App.OnExit when the window is closed mid-call.
+    /// </summary>
+    public static void RestoreThrottleIfPending()
+    {
+        lock (PendingLock)
+        {
+            if (_pendingFreq is not { } snap) return;
+            try
+            {
+                RegistryHelper.Restore(snap);
+                _pendingFreq = null;
+                try { System.IO.File.Delete(PendingFrequencyFile); } catch { }
+            }
+            catch (Exception ex)
+            {
+                // Keep the pending file: the next elevated start retries (RecoverPendingFrequency).
+                Log.Warn($"Не удалось вернуть ограничение частоты точек восстановления: {ex.Message}");
+            }
         }
     }
 
@@ -139,16 +185,23 @@ public static class RestorePointService
     private static RestorePointResult CreateCore(string description)
     {
         var before = MaxSequence();
-        RegistryValueSnapshot? freq = null;
         try
         {
-            freq = RegistryHelper.Snapshot(RegHive.HKLM, SrKey, "SystemRestorePointCreationFrequency");
-            // Write the original down first, so a crash between here and "finally" can be repaired at next start.
-            if (AppPaths.TryEnsureDir(AppPaths.MachineDir))
-                System.IO.File.WriteAllText(PendingFrequencyFile, System.Text.Json.JsonSerializer.Serialize(freq));
-            RegistryHelper.Write(RegHive.HKLM, SrKey, "SystemRestorePointCreationFrequency", RegistryValueKind.DWord, 0);
+            lock (PendingLock)
+            {
+                var freq = RegistryHelper.Snapshot(RegHive.HKLM, SrKey, "SystemRestorePointCreationFrequency");
+                // Write the original down first, so a crash between here and "finally" can be repaired at next start.
+                if (AppPaths.TryEnsureDir(AppPaths.MachineDir))
+                    System.IO.File.WriteAllText(PendingFrequencyFile, System.Text.Json.JsonSerializer.Serialize(freq));
+                _pendingFreq = freq;
+                RegistryHelper.Write(RegHive.HKLM, SrKey, "SystemRestorePointCreationFrequency", RegistryValueKind.DWord, 0);
+            }
         }
-        catch { freq = null; }
+        catch
+        {
+            // Could not lift the limit (or record the original): put back whatever was recorded and go on with the limit.
+            RestoreThrottleIfPending();
+        }
 
         try
         {
@@ -159,7 +212,7 @@ public static class RestorePointService
             inParams["Description"] = description;
             inParams["RestorePointType"] = 12u;  // MODIFY_SETTINGS
             inParams["EventType"] = 100u;        // BEGIN_SYSTEM_CHANGE
-            using var outParams = cls.InvokeMethod("CreateRestorePoint", inParams, null);
+            using var outParams = cls.InvokeMethod("CreateRestorePoint", inParams, new InvokeMethodOptions(null, CreateTimeout));
             var rc = Convert.ToUInt32(outParams?["ReturnValue"] ?? 1u);
 
             var after = MaxSequence();
@@ -180,15 +233,7 @@ public static class RestorePointService
         }
         finally
         {
-            if (freq is not null)
-            {
-                try
-                {
-                    RegistryHelper.Restore(freq);
-                    System.IO.File.Delete(PendingFrequencyFile);
-                }
-                catch { }
-            }
+            RestoreThrottleIfPending();
         }
     }
 
