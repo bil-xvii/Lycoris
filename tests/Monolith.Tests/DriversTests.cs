@@ -265,7 +265,11 @@ public sealed class DriversTests
 
         Assert.True(new WuUpdateItem(U(optional: false)).IsSelected);
         Assert.False(new WuUpdateItem(U(optional: true)).IsSelected);
-        Assert.True(new WuUpdateItem(U(optional: true, problem: 28)).IsSelected);
+        var fixesProblem = new WuUpdateItem(U(optional: true, problem: 28));
+        Assert.False(fixesProblem.IsSelected); // optional drivers are never pre-checked, only hinted
+        Assert.True(fixesProblem.ShowFixesProblemHint);
+        Assert.False(new WuUpdateItem(U(optional: true)).ShowFixesProblemHint);
+        Assert.False(new WuUpdateItem(U(optional: false, problem: 28)).ShowFixesProblemHint);
 
         var firmware = new WuUpdateItem(U(optional: false, cls: "Firmware"));
         Assert.False(firmware.IsSelected);
@@ -368,6 +372,53 @@ public sealed class DriversTests
         Assert.False(DriverBackupService.DescribeExit(259, export: true).Success);
         Assert.Contains("администратора", DriverBackupService.DescribeExit(5, export: true).Message);
         Assert.Contains("87", DriverBackupService.DescribeExit(87, export: false).Message);
+    }
+
+    private static BackupPackage Pkg(string folder, string inf) => new(folder, inf, "P", "System", "1.0", null);
+    private static string Rel(params string[] parts) => Path.Combine(parts);
+
+    [Fact]
+    public void Restore_installs_only_manifest_infs()
+    {
+        var manifest = new[] { Pkg("a.inf_amd64_1", "a.inf"), Pkg("b.inf_amd64_2", "b.inf") };
+        var disk = new[] { Rel("a.inf_amd64_1", "a.inf"), Rel("b.inf_amd64_2", "b.inf"), Rel("b.inf_amd64_2", "sub", "nested.inf") };
+        Assert.Null(DriverBackupService.CheckAgainstManifest(manifest, disk, out var install));
+        Assert.Equal([Rel("a.inf_amd64_1", "a.inf"), Rel("b.inf_amd64_2", "b.inf")], install);
+    }
+
+    [Fact]
+    public void Restore_refuses_extra_missing_or_malformed_entries()
+    {
+        var manifest = new[] { Pkg("a.inf_amd64_1", "a.inf") };
+        // Extra package folder planted next to the exported one.
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest(manifest,
+            [Rel("a.inf_amd64_1", "a.inf"), Rel("evil.inf_amd64_9", "evil.inf")], out var i1));
+        Assert.Empty(i1);
+        // Extra INF inside an exported package folder, and one in the backup root.
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest(manifest, [Rel("a.inf_amd64_1", "a.inf"), Rel("a.inf_amd64_1", "x.inf")], out _));
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest(manifest, [Rel("a.inf_amd64_1", "a.inf"), "root.inf"], out _));
+        // Listed but missing.
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest(manifest, [], out _));
+        // Empty manifest, path tricks in the manifest.
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest([], [], out _));
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest([Pkg("..", "a.inf")], [], out _));
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest([Pkg(Rel("x", "y"), "a.inf")], [], out _));
+        Assert.NotNull(DriverBackupService.CheckAgainstManifest([Pkg("a", "a.exe")], [], out _));
+    }
+
+    [Fact]
+    public void Restore_outcomes_are_combined_per_package()
+    {
+        Assert.True(DriverBackupService.CombineRestore([0, 259]).Success);
+        Assert.False(DriverBackupService.CombineRestore([0, 259]).RebootRequired);
+        var reboot = DriverBackupService.CombineRestore([0, 3010]);
+        Assert.True(reboot.Success);
+        Assert.True(reboot.RebootRequired);
+        Assert.Equal(DriverBackupService.ExitNothingToUpdate, DriverBackupService.CombineRestore([259, 259]).ExitCode);
+        var partial = DriverBackupService.CombineRestore([0, 5]);
+        Assert.False(partial.Success);
+        Assert.Contains("1 из 2", partial.Message);
+        Assert.False(DriverBackupService.CombineRestore([]).Success);
     }
 
     [Fact]
