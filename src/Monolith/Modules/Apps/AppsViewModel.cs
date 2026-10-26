@@ -29,7 +29,7 @@ public sealed partial class AppsViewModel : PageViewModel
     public override string Key => "apps";
     public override string Index => "08";
     public override string Title => "ПРИЛОЖЕНИЯ";
-    public override string Subtitle => "Лаунчеры, игровые библиотеки и программы — установка и обновление в один клик через winget.";
+    public override string Subtitle => "Установка и обновление программ через winget и Microsoft Store.";
     public override string Glyph => Glyphs.Download;
 
     public AppsViewModel()
@@ -38,12 +38,11 @@ public sealed partial class AppsViewModel : PageViewModel
         _items = AppCatalog.ForBuild(build).Select(e => new AppItemViewModel(e)).ToList();
         foreach (var item in _items) item.PropertyChanged += OnItemPropertyChanged;
 
-        var index = 1;
         foreach (var info in AppCatalog.Categories)
         {
             var members = _items.Where(i => i.Entry.Category == info.Category).ToList();
             if (members.Count == 0) continue;
-            Groups.Add(new AppGroupViewModel(info, index++, members));
+            Groups.Add(new AppGroupViewModel(info, members));
         }
 
         Categories.Add(new CategoryFilterViewModel(null, "ВСЕ") { IsSelected = true });
@@ -85,12 +84,10 @@ public sealed partial class AppsViewModel : PageViewModel
 
     [ObservableProperty] private string _wingetVersionText = "—";
     [ObservableProperty] private bool _wingetOutdated;
-    [ObservableProperty] private bool _isDetecting;
     [ObservableProperty] private string _detectionText = "Проверка ещё не выполнялась";
     [ObservableProperty] private bool _hasDetection;
 
     [ObservableProperty] private int _kitInstalled;
-    [ObservableProperty] private double _kitPercent;
     [ObservableProperty] private bool _kitComplete;
     [ObservableProperty] private string _kitStatusText = "";
     [ObservableProperty] private string _kitButtonText = "УСТАНОВИТЬ НАБОР";
@@ -228,13 +225,13 @@ public sealed partial class AppsViewModel : PageViewModel
             if (version is null)
             {
                 WingetState = WingetState.Missing;
-                WingetVersionText = "НЕ НАЙДЕН";
+                WingetVersionText = "winget не найден";
                 DetectionText = "winget не найден — установка недоступна";
                 Log.Warn("Приложения: winget (Установщик приложений) не найден.");
                 return;
             }
 
-            WingetVersionText = "v" + version;
+            WingetVersionText = $"winget v{version} · источники winget и msstore";
             WingetOutdated = WingetClient.IsClientOutdated(version);
             WingetState = WingetState.Available;
 
@@ -257,7 +254,6 @@ public sealed partial class AppsViewModel : PageViewModel
     /// <summary>Re-reads installed packages (used after the queue and by CheckWingetAndDetectAsync).</summary>
     private async Task DetectCoreAsync()
     {
-        IsDetecting = true;
         DetectionText = "Проверяем установленные программы…";
         try
         {
@@ -271,10 +267,6 @@ public sealed partial class AppsViewModel : PageViewModel
             Log.Error("Приложения: проверка установленных программ", ex);
             DetectionText = "Не удалось проверить установленные программы";
             Ui.Toast(ex.Message, ToastKind.Error, "Проверка установленных программ");
-        }
-        finally
-        {
-            IsDetecting = false;
         }
     }
 
@@ -318,7 +310,6 @@ public sealed partial class AppsViewModel : PageViewModel
     private void UpdateKit()
     {
         KitInstalled = KitItems.Count(i => i.IsInstalled);
-        KitPercent = KitTotal == 0 ? 0 : KitInstalled * 100.0 / KitTotal;
         KitComplete = KitTotal > 0 && KitInstalled == KitTotal;
         var left = KitTotal - KitInstalled;
         KitStatusText = KitComplete ? "Все библиотеки на месте" : $"Не хватает: {AppTexts.Packages(left)}";
@@ -534,7 +525,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
         string footnote;
         if (!Elevation.IsElevated) footnote = "Без прав администратора точка восстановления не создаётся.";
-        else if (!AppSettings.Current.CreateRestorePoints) footnote = "Точки восстановления отключены в настройках.";
+        else if (!AppSettings.Current.CreateRestorePoints) footnote = "Точки восстановления перед изменениями выключены (раздел «Восстановление»).";
         else if (!await Task.Run(RestorePointService.IsEnabled))
             footnote = "Защита системы отключена — точка восстановления создана не будет.";
         else footnote = "Перед началом будет создана точка восстановления.";

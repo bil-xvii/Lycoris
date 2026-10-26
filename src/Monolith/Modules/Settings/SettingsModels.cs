@@ -17,4 +17,4 @@ public sealed partial class DataPathItem : ObservableObject
 
 public sealed record LicenseItem(string Name, string Version, string License, string Copyright, string Use);
 
-public sealed record PrincipleItem(string Number, string Title, string Text);
+public sealed record PrincipleItem(string Title, string Text);
