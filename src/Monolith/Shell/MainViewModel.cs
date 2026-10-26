@@ -1,45 +1,45 @@
 using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
 using Monolith.Modules.Apps;
-using Monolith.Modules.Cleaner;
 using Monolith.Modules.Dashboard;
 using Monolith.Modules.Drivers;
 using Monolith.Modules.Games;
+using Monolith.Modules.Maintenance;
 using Monolith.Modules.Optimize;
 using Monolith.Modules.Restore;
 using Monolith.Modules.Services;
 using Monolith.Modules.Settings;
-using Monolith.Modules.Startup;
-using Monolith.Modules.Tools;
 using Monolith.UI;
 
 namespace Monolith.Shell;
 
 public sealed partial class MainViewModel : ObservableObject, IUiHost
 {
-    private readonly DispatcherTimer _clock;
-
+    /// <summary>Every top-level page (the self-test and snapshots walk this list).</summary>
     public ObservableCollection<PageViewModel> Pages { get; }
+    /// <summary>Pages in the sidebar list: all but Settings, which opens from the gear in the sidebar footer.</summary>
+    public IReadOnlyList<PageViewModel> NavPages { get; }
+    public MaintenanceViewModel Maintenance { get; }
     public ObservableCollection<ToastItem> Toasts { get; } = new();
     public ObservableCollection<LogEntry> LogEntries => Log.Entries;
 
     [ObservableProperty] private PageViewModel? _currentPage;
     [ObservableProperty] private DialogViewModel? _dialog;
     [ObservableProperty] private bool _consoleExpanded;
-    [ObservableProperty] private string _clockText = DateTime.Now.ToString("HH:mm");
     [ObservableProperty] private int _activeChanges;
-    [ObservableProperty] private string _systemLine1 = "";
-    [ObservableProperty] private string _systemLine2 = "";
-    [ObservableProperty] private string _systemLine3 = "";
-    [ObservableProperty] private bool _restoreEnabled;
+
+    /// <summary>
+    /// Last known System Restore state, pushed by the Restore page. Nothing in the shell displays or polls it any more;
+    /// kept only so RestoreViewModel still compiles (remove together with its setter there).
+    /// </summary>
+    public bool RestoreEnabled { get; set; }
 
     public bool IsElevated => Elevation.IsElevated;
-    public string ModeText => IsElevated ? "ADMIN" : "ПРОСМОТР";
+    public bool IsReadOnly => !Elevation.IsElevated;
     public string Version { get; } = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
 
     public MainViewModel()
@@ -49,15 +49,14 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             new DashboardViewModel(),
             new OptimizeViewModel(),
             new GamesViewModel(),
-            new CleanerViewModel(),
-            new DriversViewModel(),
             new ServicesViewModel(),
-            new StartupViewModel(),
+            Maintenance = new MaintenanceViewModel(),
+            new DriversViewModel(),
             new AppsViewModel(),
-            new ToolsViewModel(),
             new RestoreViewModel(),
             new SettingsViewModel(),
         ];
+        NavPages = Pages.Where(p => p.Key != SettingsKey).ToList();
 
         _consoleExpanded = AppSettings.Current.ShowConsole;
         Ui.Host = this;
@@ -69,31 +68,6 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
         ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournalCount);
         RefreshJournalCount();
-
-        _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        _clock.Tick += async (_, _) =>
-        {
-            ClockText = DateTime.Now.ToString("HH:mm");
-            await RefreshRestoreStatusAsync();
-        };
-        _clock.Start();
-
-        _ = LoadSystemAsync();
-    }
-
-    private async Task LoadSystemAsync()
-    {
-        var sp = await SystemProfile.LoadAsync();
-        SystemLine1 = sp.CpuName;
-        SystemLine2 = sp.PrimaryGpu?.Name ?? "";
-        SystemLine3 = $"{sp.RamText} RAM · {sp.OsName} {sp.OsDisplayVersion}".Trim();
-        await RefreshRestoreStatusAsync();
-    }
-
-    public async Task RefreshRestoreStatusAsync()
-    {
-        try { RestoreEnabled = await Task.Run(RestorePointService.IsEnabled); }
-        catch { }
     }
 
     /// <summary>Startup safety checks, run once after the window is shown (skipped in QA modes).</summary>
@@ -183,18 +157,55 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     private void RefreshJournalCount() => ActiveChanges = ChangeJournal.Instance.ActiveRecords.Count;
 
+    private const string SettingsKey = "settings";
+
+    /// <summary>Sidebar selection: the current page when it is in the list, otherwise none (Settings).</summary>
+    public PageViewModel? NavSelection
+    {
+        get => CurrentPage is { } p && NavPages.Contains(p) ? p : null;
+        set { if (value is not null) CurrentPage = value; } // the list clears its selection for Settings: ignore that null
+    }
+
+    public bool IsSettingsOpen => CurrentPage?.Key == SettingsKey;
+
     partial void OnCurrentPageChanged(PageViewModel? oldValue, PageViewModel? newValue)
     {
         oldValue?.Deactivate();
         if (newValue is not null) _ = newValue.ActivateAsync();
+        OnPropertyChanged(nameof(NavSelection));
+        OnPropertyChanged(nameof(IsSettingsOpen));
     }
 
     partial void OnConsoleExpandedChanged(bool value) => AppSettings.Current.ShowConsole = value;
 
+    /// <summary>
+    /// Opens a page by key. Old keys keep working: "cleaner" / "tools" open the matching maintenance tab,
+    /// "startup" opens the АВТОЗАПУСК tab of the services page.
+    /// </summary>
     public void NavigateTo(string pageKey)
     {
-        var page = Pages.FirstOrDefault(p => p.Key == pageKey);
+        var target = ResolvePageKey(pageKey);
+        if (MaintenanceViewModel.IsTabKey(pageKey)) Maintenance.SelectTab(pageKey);
+        else if (pageKey == StartupAlias) Ui.RequestFocus("services", StartupFocusId);
+        var page = Pages.FirstOrDefault(p => p.Key == target);
         if (page is not null) CurrentPage = page;
+    }
+
+    public const string StartupAlias = "startup";
+    public const string StartupFocusId = "tab:startup";
+
+    /// <summary>Maps a navigation key (including the old page keys) to the key of a top-level page.</summary>
+    public static string ResolvePageKey(string pageKey) => pageKey switch
+    {
+        MaintenanceViewModel.CleanerTab or MaintenanceViewModel.ToolsTab => "maintenance",
+        StartupAlias => "services",
+        _ => pageKey,
+    };
+
+    [RelayCommand]
+    private void Navigate(string? pageKey)
+    {
+        if (!string.IsNullOrEmpty(pageKey)) NavigateTo(pageKey);
     }
 
     [RelayCommand]
