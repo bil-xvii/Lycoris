@@ -55,8 +55,23 @@ docs/research/           research reports (competitors, tweaks, cleaner, drivers
 tools/                   autosave.ps1, make-icon.ps1, extract-research.ps1
 ```
 
-Pages (key → folder): dashboard, optimize, games, cleaner, drivers, services, startup, apps, tools, restore, settings.
-Navigation: `Ui.Navigate("optimize")`.
+Pages (sidebar order): dashboard, optimize, games, services («АВТОЗАПУСК И СЛУЖБЫ»: tabs АВТОЗАПУСК | СЛУЖБЫ |
+ВСЕ СЛУЖБЫ | ЗАДАЧИ; hosts Modules/Startup), maintenance («ОБСЛУЖИВАНИЕ»: tabs ОЧИСТКА | РЕМОНТ И ДИСКИ; hosts
+Modules/Cleaner + Modules/Tools), drivers, apps, restore; settings opens from the gear in the sidebar footer.
+Navigation: `Ui.Navigate("optimize")`. Aliases: "startup" → services tab, "cleaner"/"tools" → maintenance tab.
+Deep links: `Ui.RequestFocus(pageKey, id)` (optimize: tweak id; services: "tab:…" or service name). Ctrl+K = command palette.
+
+## Minimal UI (owner rule)
+
+The UI is minimal but functional: every function lives in exactly ONE place; no duplicates across pages.
+- Bulk undo and restore points (incl. the auto-point toggle) → Restore only; per-row ОТКАТИТЬ stays on its row.
+- Game-boost options → Games; gaming readiness checks → Dashboard; Windows settings as tweaks → Optimize only
+  (Dashboard fix buttons are shortcuts into the same tweaks); DiagTrack → Optimize; vendor driver tools → Drivers;
+  hardware facts → Dashboard; services expert mode → ВСЕ СЛУЖБЫ toolbar.
+- Read-only mode: one global strip under the title bar — no per-page read-only callouts.
+- No explanatory hero blocks, numbered section captions or "how it works" panels on pages; one muted line or a
+  tooltip instead. The full safety explanation lives once in Settings → О ПРОГРАММЕ.
+Before adding UI, check whether the function already exists elsewhere and extend that place instead.
 
 ## Conventions
 
@@ -100,7 +115,7 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   `c:Meter` (segmented bar 0–100), `c:Sparkline` (Values = ObservableCollection<double>), `c:ArcGauge` (0–100).
 - Square corners everywhere (no CornerRadius). Generous spacing (cards 20 px padding, 16–24 px gaps).
   Risk shown as tags: БЕЗОПАСНО (`Tag`), ПО ЖЕЛАНИЮ (`Tag.Muted`), ЭКСПЕРТ (`Tag.Hatch`).
-- Page root: `Grid` with `c:PageHeader` on top (bind Index/Title/Subtitle from the VM), content below with
+- Page root: `Grid` with `c:PageHeader` on top (bind Title/Subtitle; Index is no longer shown), content below with
   its own `ScrollViewer` when needed. The shell already adds 40/30 px margins.
 
 ## Build, run, verify
@@ -127,6 +142,8 @@ Never apply real tweaks on the dev machine during automated testing — use read
 
 ## Status
 
-- Done: core (journal/undo, restore points, services, power plans, tasks, registry, process runner, winget),
-  theme, shell, page stubs, research.
-- In progress: module implementations (one folder each), full tweak catalog.
+- Done: core (journal/undo with record validation, restore points, services, power plans, tasks, registry, process
+  runner, winget), theme, shell, all modules, tweak catalog, review findings in docs/review-findings.md,
+  minimal-UI redesign, command palette, profile export/import, drift detection.
+- Not built: Drivers «ПОДБОР ДЛЯ ВАШЕГО ПК» hardware analysis (tab hidden; DriversHardwarePanel stub kept).
+- Never run on Windows since the redesign: run `dotnet test` and `--selftest` before trusting the UI.
