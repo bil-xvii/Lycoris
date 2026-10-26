@@ -70,7 +70,7 @@
                                             </Border>
                                         </StackPanel>
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="Перед каждым пакетом изменений MONOLITH создаёт точку восстановления Windows. Если система перестанет загружаться, её можно вернуть из среды восстановления. Выключение ускоряет применение, но убирает эту страховку." />
+                                                   Text="Перед каждым пакетом изменений MONOLITH создаёт точку восстановления Windows (если защита системы включена). Если система перестанет загружаться, её можно вернуть из среды восстановления. Выключение ускоряет применение, но убирает эту страховку." />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding CreateRestorePoints}" />
                                 </Grid>
@@ -160,9 +160,9 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,28,0">
                         <TextBlock Text="03" Style="{StaticResource SectionNumber}" />
-                        <TextBlock Text="ИГРОВОЙ РЕЖИМ" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="ИГРОВОЙ СЕАНС" Style="{StaticResource SectionTitle}" />
                         <TextBlock Style="{StaticResource SectionCaption}"
-                                   Text="Что делает игровой режим MONOLITH на время игры. Всё временное и возвращается при выходе из игры." />
+                                   Text="Что делает игровой сеанс MONOLITH на время игры. Схема питания и приоритет возвращаются при выходе из игры; закрытые программы заново не открываются." />
                         <Button Content="ОТКРЫТЬ «ИГРЫ»" Margin="0,16,0,0" HorizontalAlignment="Left" Command="{Binding OpenGamesCommand}" />
                     </StackPanel>
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">

@@ -90,7 +90,7 @@ public sealed partial class DriversViewModel
         if (free > 0 && free < LowSpaceBytes) details.Add("Внимание: на системном диске меньше 5 ГБ — копия может не поместиться");
 
         var confirmed = await Ui.ConfirmAsync("СОЗДАТЬ РЕЗЕРВНУЮ КОПИЮ ДРАЙВЕРОВ?",
-            "Копия пригодится после переустановки Windows или неудачного обновления: драйверы из неё возвращаются одной кнопкой.",
+            "Копия пригодится после переустановки Windows: драйверы из неё возвращаются одной кнопкой. Более новую версию драйвера копия не заменяет.",
             details, confirmText: "СОЗДАТЬ");
         if (!confirmed) return;
 

@@ -211,7 +211,7 @@ public sealed partial class DriversViewModel
             $"Драйверы будут загружены с серверов Windows Update (около {DriverFormat.Size(totalSize)}) и установлены. " +
             "Во время установки экран может мигнуть, а устройство — ненадолго отключиться.",
             details, confirmText: "УСТАНОВИТЬ",
-            footnote: "Откат: точка восстановления, резервная копия или «Откатить драйвер» в диспетчере устройств.");
+            footnote: "Откат: точка восстановления или «Откатить драйвер» в диспетчере устройств.");
         if (!confirmed) return;
 
         var ids = selected.Select(u => u.Id).ToList();
