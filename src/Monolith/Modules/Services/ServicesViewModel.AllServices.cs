@@ -11,8 +11,9 @@ namespace Monolith.Modules.Services;
 
 /// <summary>
 /// ВСЕ СЛУЖБЫ: every Win32 service, read-only for locked ones (Core protected list, research hard-block list,
-/// per-user services, drivers, PPL, DriverStore). Outside expert mode (AppSettings.ServicesExpertMode) every
-/// non-curated service is locked too (research §0.4/§2B). Start-type changes are journaled; start/stop are not.
+/// per-user services, drivers, PPL, DriverStore, services owned by an Optimize tweak). Outside expert mode
+/// (AppSettings.ServicesExpertMode, toggle on this tab) every non-curated service is locked too (research §0.4/§2B).
+/// Start-type changes are journaled; start/stop are not.
 /// </summary>
 public sealed partial class ServicesViewModel
 {
@@ -57,7 +58,8 @@ public sealed partial class ServicesViewModel
         var can = CanModify;
         var items = infos
             .OrderBy(i => i.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-            .Select(i => i.LockReason is null && ServiceGuard.NotCuratedLockReason(i.Name, i.IsThirdParty, expert) is { } why
+            .Select(i => i.LockReason is null &&
+                         (ServiceGuard.OptimizeOwnedLockReason(i.Name) ?? ServiceGuard.NotCuratedLockReason(i.Name, i.IsThirdParty, expert)) is { } why
                 ? i with { LockReason = why }
                 : i)
             .Select(i => new ServiceItem(i) { CanModify = can })
