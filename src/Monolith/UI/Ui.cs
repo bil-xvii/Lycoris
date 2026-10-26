@@ -13,6 +13,8 @@ public sealed partial class ToastItem : ObservableObject
     public required string Message { get; init; }
     public string? Title { get; init; }
     public ToastKind Kind { get; init; }
+    /// <summary>Page key opened by the toast's «ОТКРЫТЬ» link; null = no link.</summary>
+    public string? NavigateTo { get; init; }
     public string Glyph => Kind switch
     {
         ToastKind.Success => Glyphs.Check,
@@ -138,13 +140,13 @@ public static class Ui
         });
     }
 
-    public static void Toast(string message, ToastKind kind = ToastKind.Info, string? title = null)
+    public static void Toast(string message, ToastKind kind = ToastKind.Info, string? title = null, string? navigateTo = null)
     {
         var d = Dispatcher;
         if (d is null || Host is null) return;
         d.BeginInvoke(() =>
         {
-            var item = new ToastItem { Message = message, Kind = kind, Title = title };
+            var item = new ToastItem { Message = message, Kind = kind, Title = title, NavigateTo = navigateTo };
             Host.Toasts.Add(item);
             while (Host.Toasts.Count > 4) Host.Toasts.RemoveAt(0);
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(kind is ToastKind.Error or ToastKind.Warning ? 7 : 4.5) };

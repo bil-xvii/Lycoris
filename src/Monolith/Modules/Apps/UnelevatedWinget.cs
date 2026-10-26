@@ -39,6 +39,19 @@ public static partial class UnelevatedWinget
     public static Task<UnelevatedResult> RunAsync(IReadOnlyList<string> wingetArgs, Action<string>? output, CancellationToken ct) =>
         WingetClient.RunExclusiveAsync(token => RunCoreAsync(wingetArgs, output, token), ct);
 
+    /// <summary>Deletes log/exit files left by runs that were still going when MONOLITH stopped waiting (older than a day).</summary>
+    private static void SweepStale(string temp)
+    {
+        try
+        {
+            foreach (var f in new DirectoryInfo(temp).EnumerateFiles(FilePrefix + "*"))
+                if (f.Extension is ".log" or ".exit" && !f.Attributes.HasFlag(FileAttributes.ReparsePoint)
+                    && DateTime.UtcNow - f.LastWriteTimeUtc > TimeSpan.FromDays(1))
+                    TryDelete(f.FullName);
+        }
+        catch { /* best effort */ }
+    }
+
     private static async Task<UnelevatedResult> RunCoreAsync(IReadOnlyList<string> wingetArgs, Action<string>? output, CancellationToken ct)
     {
         if (SafetyLock.IsLocked && WingetClient.IsModifying(wingetArgs))
@@ -49,6 +62,8 @@ public static partial class UnelevatedWinget
         var temp = Environment.GetEnvironmentVariable("TEMP") is { Length: > 0 } t ? t : Path.GetTempPath();
         var logPath = Path.Combine(temp, logName);
         var exitPath = Path.Combine(temp, exitName);
+        SweepStale(temp);
+        var stillRunning = false;
 
         string cmdLine;
         try
@@ -106,6 +121,7 @@ public static partial class UnelevatedWinget
                     // Never kill on timeout: that would also kill the installer and can leave a half-installed program.
                     tail.Pump(final: true);
                     Log.Warn("winget без прав администратора: идёт дольше 30 минут — MONOLITH перестал ждать, процесс не прерывался.");
+                    stillRunning = true;
                     return new UnelevatedResult(UnelevatedOutcome.Untracked, -1, all.ToString()) { StillRunning = true };
                 }
 
@@ -115,8 +131,12 @@ public static partial class UnelevatedWinget
         }
         finally
         {
-            TryDelete(logPath);
-            TryDelete(exitPath);
+            // Still running: cmd keeps the log open and writes the exit file later; stale files are swept next time.
+            if (!stillRunning)
+            {
+                TryDelete(logPath);
+                TryDelete(exitPath);
+            }
         }
     }
 

@@ -580,7 +580,10 @@ internal static class JournalTrust
             case ChangeKind.Service when r.Service is { } svc:
                 if (!string.Equals(r.Target, "svc:" + svc.Name, StringComparison.OrdinalIgnoreCase)) return "цель записи не совпадает со службой";
                 if (ServiceControl.IsProtected(svc.Name)) return $"служба {svc.Name} защищена от изменений";
-                if (ServiceGuard.IsHardBlocked(svc.Name)) return $"службу {svc.Name} MONOLITH никогда не меняет";
+                // Older builds could change some services that are hard-blocked now; putting back a start type that
+                // lets the service run is always the safe direction, so only a revert TO Disabled is refused.
+                if (ServiceGuard.IsHardBlocked(svc.Name) && svc.StartMode == System.ServiceProcess.ServiceStartMode.Disabled)
+                    return $"службу {svc.Name} MONOLITH никогда не отключает";
                 return null;
 
             case ChangeKind.ScheduledTask when r.TaskPath is { } task:

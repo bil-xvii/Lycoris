@@ -61,8 +61,8 @@ internal static class OptimizeLogic
     public static string SourceLabel(string source) => source switch
     {
         "services" or "services-tasks" => "Службы",
-        "startup" or "startup-tasks" => "Автозагрузка",
-        "gameboost" => "Игровой режим",
+        "startup" or "startup-tasks" => "Автозапуск",
+        "gameboost" => "Игровой сеанс",
         "drivers" => "Драйверы",
         _ => source,
     };

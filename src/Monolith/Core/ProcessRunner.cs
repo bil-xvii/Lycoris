@@ -145,7 +145,10 @@ public static class ProcessRunner
 
         var stdout = new StringBuilder();
         var stderr = new StringBuilder();
-        using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        var keepAlive = false;
+        try
+        {
 
         process.OutputDataReceived += (_, e) =>
         {
@@ -216,7 +219,18 @@ public static class ProcessRunner
         string o, e2;
         lock (stdout) o = stdout.ToString();
         lock (stderr) e2 = stderr.ToString();
+        keepAlive = stillRunning;
         return new ProcessResult(exit, o, e2, timedOut, cancelled) { StillRunning = stillRunning };
+        }
+        finally
+        {
+            // A process left running keeps its output pipes open until it exits: closing them early could make
+            // DISM or an installer fail on its next write.
+            if (keepAlive)
+                _ = process.WaitForExitAsync(CancellationToken.None).ContinueWith(_ => process.Dispose(), TaskScheduler.Default);
+            else
+                process.Dispose();
+        }
     }
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetOEMCP();
