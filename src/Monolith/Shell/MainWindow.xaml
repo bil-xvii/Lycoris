@@ -11,7 +11,6 @@
         xmlns:maint="clr-namespace:Monolith.Modules.Maintenance"
         xmlns:drv="clr-namespace:Monolith.Modules.Drivers"
         xmlns:svc="clr-namespace:Monolith.Modules.Services"
-        xmlns:start="clr-namespace:Monolith.Modules.Startup"
         xmlns:apps="clr-namespace:Monolith.Modules.Apps"
         xmlns:rest="clr-namespace:Monolith.Modules.Restore"
         xmlns:set="clr-namespace:Monolith.Modules.Settings"
@@ -36,8 +35,6 @@
         <DataTemplate DataType="{x:Type maint:MaintenanceViewModel}"><maint:MaintenanceView /></DataTemplate>
         <DataTemplate DataType="{x:Type drv:DriversViewModel}"><drv:DriversView /></DataTemplate>
         <DataTemplate DataType="{x:Type svc:ServicesViewModel}"><svc:ServicesView /></DataTemplate>
-        <!-- Startup is no longer a top-level page; the template stays for a host (services) that shows StartupViewModel. -->
-        <DataTemplate DataType="{x:Type start:StartupViewModel}"><start:StartupView /></DataTemplate>
         <DataTemplate DataType="{x:Type apps:AppsViewModel}"><apps:AppsView /></DataTemplate>
         <DataTemplate DataType="{x:Type rest:RestoreViewModel}"><rest:RestoreView /></DataTemplate>
         <DataTemplate DataType="{x:Type set:SettingsViewModel}"><set:SettingsView /></DataTemplate>
