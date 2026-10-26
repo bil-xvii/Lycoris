@@ -19,6 +19,8 @@ public sealed partial class RestoreViewModel : PageViewModel
 {
     private ChangeJournal? _journal;
     private bool _rebuildQueued;
+    private IReadOnlyDictionary<Guid, DriftItem> _drift = new Dictionary<Guid, DriftItem>();
+    private bool _driftRunning, _driftPending;
 
     public override string Key => "restore";
     public override string Index => "10";
@@ -42,6 +44,12 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private bool _isJournalEmpty;
     [ObservableProperty] private bool _isFilterEmpty;
     [ObservableProperty] private string _filterEmptyText = "";
+
+    // ── drift: active records changed outside MONOLITH (competitors.md §3 must-have #5) ──
+    [ObservableProperty] private int _driftCount;
+    [ObservableProperty] private bool _hasDrift;
+    [ObservableProperty] private bool _hasReapplicableDrift;
+    [ObservableProperty] private string _driftLine = "";
 
     // ── system restore ──
     [ObservableProperty] private bool _protectionEnabled;
@@ -68,12 +76,14 @@ public sealed partial class RestoreViewModel : PageViewModel
         _journal = await Task.Run(() => ChangeJournal.Instance);
         _journal.Changed += OnJournalChanged;
         Rebuild();
+        _ = RefreshDriftAsync();
         await RefreshProtectionAsync();
     }
 
     protected override async Task OnReturnAsync()
     {
         Rebuild();
+        _ = RefreshDriftAsync();
         await RefreshProtectionAsync();
     }
 
@@ -106,6 +116,7 @@ public sealed partial class RestoreViewModel : PageViewModel
             {
                 _rebuildQueued = false;
                 Rebuild();
+                _ = RefreshDriftAsync();
             }, DispatcherPriority.Background);
         });
     }
@@ -124,15 +135,18 @@ public sealed partial class RestoreViewModel : PageViewModel
         RevertedCaption = RevertedCount == 0 ? "откатов не было" : "возвращено к исходному";
         BatchCaption = BatchCount == 0 ? "действий не было" : RestoreFormat.Plural(BatchCount, "действие MONOLITH", "действия MONOLITH", "действий MONOLITH");
 
-        var groups = RestoreFormat.Group(batches, records, Filter);
+        var groups = RestoreFormat.Group(batches, records, Filter, _drift.Keys.ToHashSet());
         Batches.Clear();
-        foreach (var g in groups) Batches.Add(new BatchItem(g));
+        foreach (var g in groups) Batches.Add(new BatchItem(g, _drift));
 
         IsJournalEmpty = batches.Count == 0 && records.Count == 0;
         IsFilterEmpty = !IsJournalEmpty && Batches.Count == 0;
-        FilterEmptyText = Filter == JournalFilter.Active
-            ? "Активных изменений нет — система в исходном состоянии относительно MONOLITH."
-            : "Откаченных изменений пока нет.";
+        FilterEmptyText = Filter switch
+        {
+            JournalFilter.Active => "Активных изменений нет — система в исходном состоянии относительно MONOLITH.",
+            JournalFilter.Drifted => "Все настройки MONOLITH на месте — вне MONOLITH ничего не изменено.",
+            _ => "Откаченных изменений пока нет.",
+        };
         JournalLoaded = true;
         NotifyCommands();
     }
@@ -143,7 +157,99 @@ public sealed partial class RestoreViewModel : PageViewModel
         RevertBatchCommand.NotifyCanExecuteChanged();
         RevertAllCommand.NotifyCanExecuteChanged();
         CreateRestorePointCommand.NotifyCanExecuteChanged();
+        ReapplyDriftCommand.NotifyCanExecuteChanged();
+        ReapplyAllDriftCommand.NotifyCanExecuteChanged();
         EnableProtectionCommand.NotifyCanExecuteChanged();
+    }
+
+    // ═════════════════════════════ Drift ═════════════════════════════
+
+    /// <summary>Live read of every active record off the UI thread; bursts of journal changes coalesce into one more run.</summary>
+    private async Task RefreshDriftAsync()
+    {
+        if (_journal is null) return;
+        if (_driftRunning)
+        {
+            _driftPending = true;
+            return;
+        }
+        _driftRunning = true;
+        try
+        {
+            do
+            {
+                _driftPending = false;
+                var accepted = AppSettings.Current.DriftAccepted.ToList();
+                var list = await Task.Run(() => DriftDetector.DetectLive(accepted));
+                _drift = list.ToDictionary(d => d.Record.Id);
+                DriftCount = list.Count;
+                HasDrift = list.Count > 0;
+                HasReapplicableDrift = list.Any(DriftReapply.CanReapply);
+                DriftLine = list.Count == 0 ? "" :
+                    $"Windows или другая программа изменила {list.Count} {RestoreFormat.Plural(list.Count, "настройку", "настройки", "настроек")} после MONOLITH. Такие записи отмечены в журнале.";
+                if (!HasDrift && Filter == JournalFilter.Drifted) Filter = JournalFilter.All; // rebuilds
+                else Rebuild();
+            } while (_driftPending);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Проверка изменений вне MONOLITH не выполнена: {ex.Message}");
+        }
+        finally
+        {
+            _driftRunning = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ShowDrifted() => Filter = JournalFilter.Drifted;
+
+    [RelayCommand]
+    private void ShowDriftOwner(RecordItem? item)
+    {
+        if (item?.Drift?.OwnerPage is { } page) Ui.Navigate(page);
+    }
+
+    private bool CanReapplyDrift(RecordItem? item) => item is { CanReapply: true } && CanAdmin();
+
+    [RelayCommand(CanExecute = nameof(CanReapplyDrift))]
+    private Task ReapplyDriftAsync(RecordItem? item) =>
+        item?.Drift is { } d ? ReapplyAsync([d]) : Task.CompletedTask;
+
+    private bool CanReapplyAllDrift() => HasReapplicableDrift && CanAdmin();
+
+    [RelayCommand(CanExecute = nameof(CanReapplyAllDrift))]
+    private Task ReapplyAllDriftAsync() => ReapplyAsync(_drift.Values.Where(DriftReapply.CanReapply).ToList());
+
+    private Task ReapplyAsync(IReadOnlyList<DriftItem> items) => RunBusyAsync("Повторное применение…", async () =>
+    {
+        if (items.Count == 0 || !RequireAdmin("Повторное применение настроек")) return;
+        var lines = DriftReapply.DescribeForConfirm(items, id => Monolith.Tweaks.TweakCatalog.Find(id)?.Title);
+        if (!await Ui.ConfirmAsync("ПРИМЕНИТЬ СНОВА?",
+                "MONOLITH снова запишет значения, которые он ставил раньше. Запись в журнале сохраняет исходное значение (до MONOLITH), поэтому откат по-прежнему вернёт его.",
+                lines, confirmText: "ПРИМЕНИТЬ СНОВА",
+                footnote: "Если Windows снова сбросит настройку после обновления, MONOLITH покажет это при следующем запуске."))
+            return;
+
+        var result = await Task.Run(() => DriftReapply.ApplyAsync(items));
+        if (result.Errors.Count == 0)
+            Ui.Toast($"Применено снова: {result.Applied}.", ToastKind.Success);
+        else
+            await Ui.AlertAsync("Часть настроек не применена", "Остальные записаны; ошибки — ниже и в консоли.", result.Errors);
+        await RefreshDriftAsync();
+    });
+
+    /// <summary>«ЗАБЫТЬ»: accept the new value. Only a per-user note; the journal record (and its revert) stays as is.</summary>
+    [RelayCommand]
+    private async Task ForgetDriftAsync(RecordItem? item)
+    {
+        if (item?.Drift is not { } d || _journal is null) return;
+        var journal = _journal;
+        var kept = await Task.Run(() => DriftDetector.PruneIgnored(AppSettings.Current.DriftAccepted, journal.ActiveRecords));
+        kept.Add(d.IgnoreKey);
+        AppSettings.Current.DriftAccepted = kept; // new list → PropertyChanged → saved
+        Ui.Toast($"«{item.Title}»: новое значение принято. Откат по-прежнему вернёт исходное значение (до MONOLITH).", ToastKind.Info);
+        await RefreshDriftAsync();
     }
 
     // ═════════════════════════════ System Restore ═════════════════════════════
