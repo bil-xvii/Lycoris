@@ -173,7 +173,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             if (drift.Count == 0) return;
 
             Log.Warn($"Изменено вне MONOLITH: {drift.Count} (сборка Windows {previous} → {build}).");
-            Ui.Toast(DriftDetector.NoticeText(drift.Count, previous, build), ToastKind.Warning, "ИЗМЕНЕНО ВНЕ MONOLITH");
+            Ui.Toast(DriftDetector.NoticeText(drift.Count, previous, build), ToastKind.Warning, "ИЗМЕНЕНО ВНЕ MONOLITH", navigateTo: "restore");
         }
         catch (Exception ex)
         {
@@ -202,6 +202,14 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     [RelayCommand]
     private void ClearConsole() => Log.Entries.Clear();
+
+    [RelayCommand]
+    private void OpenToastTarget(ToastItem? item)
+    {
+        if (item?.NavigateTo is not { } key) return;
+        Toasts.Remove(item);
+        NavigateTo(key);
+    }
 
     [RelayCommand]
     private void DismissToast(ToastItem? item)

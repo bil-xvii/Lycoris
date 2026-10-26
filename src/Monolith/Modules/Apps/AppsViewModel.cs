@@ -563,7 +563,7 @@ public sealed partial class AppsViewModel : PageViewModel
                 SetBusyText("Создание точки восстановления…");
                 var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
                 AppendLog(rp.Message);
-                if (!rp.Created && !await Ui.ConfirmAsync(
+                if (rp.Outcome == RestorePointOutcome.Failed && !await Ui.ConfirmAsync(
                         "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
                         $"{rp.Message} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?",
                         confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true))

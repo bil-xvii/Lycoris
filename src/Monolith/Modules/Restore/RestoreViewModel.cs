@@ -386,7 +386,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         var lines = new List<string>
         {
             $"{item.KindLabel}: {item.Target}",
-            $"Сейчас: {live.Text}",
+            live.Drifted is null && item.NewValue is { Length: > 0 } applied ? $"Установлено MONOLITH: {applied}" : $"Сейчас: {live.Text}",
             $"Станет: {item.OldValue}",
         };
         if (live.IsDrifted)

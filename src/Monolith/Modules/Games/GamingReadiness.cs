@@ -107,7 +107,9 @@ public static class GamingReadiness
             return new ReadinessCheck(title, name, ReadinessState.Info, "Ноутбук работает от батареи — для игр подключите зарядку.");
         if (active == PowerSchemes.Balanced)
             return new ReadinessCheck(title, name, ReadinessState.Info,
-                "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. Игровой сеанс MONOLITH переключает схему на время игры.");
+                sp.IsLaptop
+                    ? "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. На ноутбуке игровой сеанс схему не меняет — выберите режим питания «Максимальная производительность» в параметрах Windows."
+                    : "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. Игровой сеанс MONOLITH переключает схему на время игры.");
         return new ReadinessCheck(title, name, ReadinessState.Info,
             "Максимальные частоты процессора; в простое компьютер потребляет больше энергии.");
     }

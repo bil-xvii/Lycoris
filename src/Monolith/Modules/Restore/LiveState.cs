@@ -30,7 +30,9 @@ public static class LiveState
             {
                 ChangeKind.Service => ReadService(r),
                 ChangeKind.Registry => ReadRegistry(r),
-                ChangeKind.PowerScheme => Compare(r, PowerSchemes.GetName(PowerSchemes.GetActive())),
+                ChangeKind.PowerScheme => PowerSchemes.GetActive() is var active && active != Guid.Empty
+                    ? Compare(r, PowerSchemes.GetName(active))
+                    : new LiveValue(Unknown, null),
                 ChangeKind.ScheduledTask => ReadTask(r),
                 _ => new LiveValue(Unknown, null),
             };

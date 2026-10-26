@@ -69,7 +69,7 @@ public sealed partial class GameBoostService : ObservableObject
             enabled,
             BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores),
             GamesNative.IsOnBattery(),
-            sp.IsLaptop,
+            sp.IsLaptop || !sp.HardwareFactsKnown,
             GamesNative.IsModernStandby(),
             managedElsewhere,
             enabled && PowerSchemes.Exists(PowerSchemes.HighPerformance),

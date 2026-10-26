@@ -349,6 +349,9 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="{Binding Message}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" FontSize="12.5" />
+                                    <Button Content="ОТКРЫТЬ" Style="{StaticResource Btn.Link}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                            Visibility="{Binding NavigateTo, Converter={StaticResource NullToVis}}"
+                                            Command="{Binding DataContext.OpenToastTargetCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
                                 </StackPanel>
                                 <Button Grid.Column="3" Style="{StaticResource Btn.Icon}" Width="30" Height="30" FontSize="9" Content="&#xE8BB;" VerticalAlignment="Top" Margin="0,6,6,0"
                                         Command="{Binding DataContext.DismissToastCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
