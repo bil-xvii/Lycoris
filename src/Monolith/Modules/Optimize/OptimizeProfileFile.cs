@@ -139,7 +139,7 @@ internal static partial class OptimizeProfileFile
     }
 
     public static string Summary(ProfileImportPlan plan) =>
-        $"Выбрано {plan.Selected.Count} {OptimizeLogic.Plural(plan.Selected.Count, "настройка", "настройки", "настроек")}. " +
+        $"{OptimizeLogic.Plural(plan.Selected.Count, "Выбрана", "Выбраны", "Выбрано")} {plan.Selected.Count} {OptimizeLogic.Plural(plan.Selected.Count, "настройка", "настройки", "настроек")}. " +
         $"Пропущено: неизвестные — {plan.Unknown.Count}, не подходят этому ПК — {plan.NotApplicable.Count}, " +
         $"требуют ручного выбора — {plan.Manual.Count}.";
 

@@ -298,12 +298,14 @@ public sealed partial class DashboardViewModel : PageViewModel
         switch (action.Kind)
         {
             case CheckActionKind.Navigate when action.Target is { } page:
+                _lastCheck = DateTime.MinValue; // the user may fix it there: re-check on return
                 Ui.Navigate(page);
                 break;
             case CheckActionKind.OpenUri when action.Target is { } uri:
                 await OpenShellAsync(uri, null, "параметры Windows");
                 break;
             case CheckActionKind.FocusTweak when action.Target is { } tweakId:
+                _lastCheck = DateTime.MinValue;
                 Ui.RequestFocus("optimize", tweakId);
                 Ui.Navigate("optimize");
                 break;

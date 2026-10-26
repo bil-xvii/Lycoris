@@ -39,7 +39,7 @@ public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEn
 
     public void Open()
     {
-        _index ??= buildIndex();
+        _index = buildIndex(); // cheap, and the Tools tab adds cards (battery report) after it loads
         if (Query.Length > 0) Query = ""; // refreshes
         else Refresh();
         IsOpen = true;

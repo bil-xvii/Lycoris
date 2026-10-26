@@ -337,7 +337,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (skippedLocked > 0)
             details.Add($"Пропущено защитных записей: {skippedLocked} (Безопасность Windows и антивирусы MONOLITH не отключает).");
         if (items.Count > 1)
-            details.Add("Перед изменением MONOLITH создаст точку восстановления (если это включено в настройках).");
+            details.Add("Перед изменением MONOLITH создаст точку восстановления (если это включено в разделе «Восстановление»).");
 
         var subject = items.Count == 1 ? $"«{items[0].DisplayName}»" : $"{items.Count} {Plural(items.Count, "запись", "записи", "записей")}";
         var message = enable

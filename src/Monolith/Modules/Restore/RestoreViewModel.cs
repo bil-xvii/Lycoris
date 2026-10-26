@@ -274,7 +274,7 @@ public sealed partial class RestoreViewModel : PageViewModel
             foreach (var p in list) RestorePoints.Add(new RestorePointItem(p));
             PointsCountText = list.Count.ToString();
             PointsMessage = list.Count > 0 ? "" : ProtectionEnabled
-                ? "Точек восстановления пока нет. Создайте первую кнопкой «Создать точку восстановления»."
+                ? "Точек восстановления пока нет. Создайте первую кнопкой «СОЗДАТЬ ТОЧКУ» вверху страницы."
                 : "Точек восстановления нет — защита системы выключена.";
         }
         finally

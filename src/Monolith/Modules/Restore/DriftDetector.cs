@@ -59,7 +59,7 @@ public static class DriftDetector
             var live = read(r);
             var drifted = IsStartupEntry(r) ? StartupDrift(r.NewValue, live.Text) : live.Drifted;
             if (drifted != true) continue;
-            if (skip.Contains(IgnoreKey(r, live.Text))) continue;
+            if (skip.Contains(IgnoreKey(r, DisplayValue(r, live.Text)))) continue; // same form as DriftItem.IgnoreKey
             var tweakId = TweakIdOf(r);
             var fix = ClassifyFix(r, tweakId is not null && tweakExists(tweakId));
             result.Add(new DriftItem(r, DisplayValue(r, r.NewValue), DisplayValue(r, live.Text), fix,

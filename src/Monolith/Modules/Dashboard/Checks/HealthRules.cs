@@ -202,7 +202,7 @@ public static partial class HealthRules
             return new("disk-space", "МЕСТА НА СИСТЕМНОМ ДИСКЕ ДОСТАТОЧНО", text, CheckSeverity.Ok, 15);
         return new("disk-space", "НА СИСТЕМНОМ ДИСКЕ МАЛО МЕСТА",
             text + " Когда места мало, Windows не может установить обновления, а кэш шейдеров и файл подкачки работают хуже. " +
-            "Удалите временные файлы в разделе «Очистка» — перед удалением он покажет, что именно будет удалено.",
+            "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением MONOLITH покажет, что именно будет удалено.",
             CheckSeverity.Warning, IsCriticalSpace(free, total) ? 25 : 15,
             new CheckAction(CheckActionKind.Navigate, "К ОЧИСТКЕ", "cleaner"));
     }
@@ -476,7 +476,7 @@ public static partial class HealthRules
             return new("startup", "АВТОЗАПУСК В НОРМЕ", $"Вместе с Windows запускается {count}.", CheckSeverity.Ok, 6);
         return new("startup", "МНОГО ПРОГРАММ В АВТОЗАПУСКЕ",
             $"Вместе с Windows запускается {count}. Каждая замедляет вход в систему и работает в фоне. Отключите лишние " +
-            "в разделе «Автозапуск» — это обратимо, программы не удаляются.",
+            "в разделе «Автозапуск и службы» — это обратимо, программы не удаляются.",
             CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К АВТОЗАПУСКУ", "startup"));
     }
 

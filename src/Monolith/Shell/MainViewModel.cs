@@ -225,7 +225,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     [RelayCommand]
     private void RestartAsAdmin()
     {
-        if (Elevation.TryRelaunchElevated())
+        if (Elevation.TryRelaunchElevated(CurrentPage is { } p ? ["--page", p.Key] : null))
             Application.Current.Shutdown();
     }
 
