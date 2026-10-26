@@ -365,7 +365,12 @@ public sealed partial class DashboardViewModel : PageViewModel
         if (!RequireAdmin(tweak.Title)) return;
 
         var profile = await SystemProfile.LoadAsync();
-        if (!tweak.IsApplicable(profile))
+        if (TweakEngine.Applicability(tweak, profile) is null)
+        {
+            Ui.Toast("Не удалось определить характеристики компьютера — настройку пока нельзя проверить. Попробуйте позже.", ToastKind.Warning, tweak.Title);
+            return;
+        }
+        if (TweakEngine.Applicability(tweak, profile) is not true)
         {
             // The check looks at the primary GPU, the catalog at every GPU: use the HAGS item that fits this PC.
             var sibling = id switch
@@ -374,7 +379,7 @@ public sealed partial class DashboardViewModel : PageViewModel
                 HealthRules.TweakHagsOther => TweakCatalog.Find(HealthRules.TweakHags),
                 _ => null,
             };
-            if (sibling is not null && sibling.Risk != TweakRisk.Advanced && sibling.IsApplicable(profile))
+            if (sibling is not null && sibling.Risk != TweakRisk.Advanced && TweakEngine.Applicability(sibling, profile) == true)
                 tweak = sibling;
             else
             {

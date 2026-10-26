@@ -53,7 +53,7 @@ public static class EndToEndTest
         var rows = new List<Row>();
         var journal = ChangeJournal.Instance;
         var tweaks = TweakCatalog.All
-            .Where(t => t.Risk != TweakRisk.Advanced && !Skip.Contains(t.Id) && t.IsApplicable(sp))
+            .Where(t => t.Risk != TweakRisk.Advanced && !Skip.Contains(t.Id) && TweakEngine.Applicability(t, sp) == true)
             .ToList();
 
         foreach (var t in tweaks)
