@@ -35,12 +35,11 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     [ObservableProperty] private IReadOnlyList<ToolSection> _sections = [];
     public IReadOnlyList<QuickLink> QuickLinks { get; }
-    public ObservableCollection<VolumeItem> Volumes { get; } = new();
     public ObservableCollection<ConsoleLine> ConsoleLines { get; } = new();
 
     // ── console state ──
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowNoCancelHint))]
-    [NotifyCanExecuteChangedFor(nameof(RunCommand), nameof(DefragVolumeCommand), nameof(CancelRunCommand), nameof(ClearConsoleCommand), nameof(RefreshVolumesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunCommand), nameof(CancelRunCommand), nameof(ClearConsoleCommand))]
     private bool _isRunning;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowNoCancelHint)), NotifyCanExecuteChangedFor(nameof(CancelRunCommand))]
     private bool _canCancelRun;
@@ -59,13 +58,15 @@ public sealed partial class ToolsViewModel : PageViewModel
     [ObservableProperty] private bool _hasConsoleLines;
 
     // ── disks ──
-    [ObservableProperty] private bool _volumesLoading = true;
+    /// <summary>Fixed volumes for the defrag card (one button per drive; free space is shown on the cleaning tab).</summary>
+    private IReadOnlyList<VolumeInfo> _volumes = [];
+    private bool _hasBattery;
     [ObservableProperty] private string _bootCheckText = "Чтение параметров загрузки…";
     [ObservableProperty] private bool _bootCheckScheduled;
 
     public ToolsViewModel()
     {
-        Sections = BuildSections(hasBattery: false);
+        Sections = BuildSections();
         QuickLinks = BuildQuickLinks();
 
         _flushTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(100) };
@@ -77,29 +78,28 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     protected override async Task LoadAsync()
     {
-        var volumesTask = ReloadVolumesAsync();
+        var volumesTask = VolumeScanner.ScanAsync();
         var bootTask = ReadBootCheckAsync();
         var profile = await SystemProfile.LoadAsync();
-        if (profile.HasBattery) Sections = BuildSections(hasBattery: true);
-        await Task.WhenAll(volumesTask, bootTask);
+        _hasBattery = profile.HasBattery;
+        _volumes = await volumesTask;
+        Sections = BuildSections();
+        await bootTask;
     }
 
-    protected override Task OnReturnAsync() => IsRunning ? Task.CompletedTask : ReadBootCheckAsync();
-
-    private async Task ReloadVolumesAsync()
+    protected override async Task OnReturnAsync()
     {
-        VolumesLoading = true;
-        try
-        {
-            var list = await VolumeScanner.ScanAsync();
-            Volumes.Clear();
-            foreach (var v in list) Volumes.Add(new VolumeItem(v));
-        }
-        finally
-        {
-            VolumesLoading = false;
-        }
+        if (IsRunning) return;
+        await ReadBootCheckAsync();
+        // Drives may have been attached or removed meanwhile; rebuild the cards only when the set changed.
+        var volumes = await VolumeScanner.ScanAsync();
+        if (IsRunning || SameVolumes(volumes, _volumes)) return;
+        _volumes = volumes;
+        Sections = BuildSections();
     }
+
+    internal static bool SameVolumes(IReadOnlyList<VolumeInfo> a, IReadOnlyList<VolumeInfo> b) =>
+        a.Select(v => (v.Letter, v.MediaType)).SequenceEqual(b.Select(v => (v.Letter, v.MediaType)));
 
     /// <summary>Reads HKLM\…\Session Manager\BootExecute (read-only) to tell whether autochk will run at the next boot.</summary>
     private async Task ReadBootCheckAsync()
@@ -135,7 +135,8 @@ public sealed partial class ToolsViewModel : PageViewModel
             case ToolOp.ChkdskScan: await RunChkdskAsync(); break;
             case ToolOp.ChkntfsQuery: await RunChkntfsAsync(); break;
             case ToolOp.CopyChkdskCommand: CopyToClipboard(ChkdskCommandText, "Команда скопирована"); break;
-            case ToolOp.DefragAll: await RunDefragAsync(Volumes.Select(v => v.Info).ToList()); break;
+            case ToolOp.DefragAll: await RunDefragAsync(_volumes); break;
+            case ToolOp.DefragVolume when action.Volume is { } volume: await RunDefragAsync([volume]); break;
             case ToolOp.FlushDns: await RunFlushDnsAsync(); break;
             case ToolOp.NetworkReset: await RunNetworkResetAsync(); break;
             case ToolOp.StoreReset: await RunStoreResetAsync(); break;
@@ -143,15 +144,6 @@ public sealed partial class ToolsViewModel : PageViewModel
             case ToolOp.BatteryReport: await RunBatteryReportAsync(); break;
             case ToolOp.MemoryDiagnostic: await RunMemoryDiagnosticAsync(); break;
         }
-    }
-
-    private bool CanDefragVolume(VolumeItem? volume) => volume is not null && !IsRunning && Elevation.IsElevated;
-
-    [RelayCommand(CanExecute = nameof(CanDefragVolume))]
-    private async Task DefragVolumeAsync(VolumeItem? volume)
-    {
-        if (volume is null || !RequireAdmin("Оптимизация дисков")) return;
-        await RunDefragAsync([volume.Info]);
     }
 
     private bool CanCancel() => IsRunning && CanCancelRun && !CancelRequested;
@@ -203,11 +195,6 @@ public sealed partial class ToolsViewModel : PageViewModel
         if (link is null) return;
         ShellLauncher.Open(link.Target, link.Arguments, link.Title);
     }
-
-    private bool CanRefreshVolumes() => !IsRunning;
-
-    [RelayCommand(CanExecute = nameof(CanRefreshVolumes))]
-    private Task RefreshVolumesAsync() => ReloadVolumesAsync();
 
     // ═════════════════════════════ Tools ═════════════════════════════
 
@@ -633,10 +620,16 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     // ═════════════════════════════ Catalog ═════════════════════════════
 
-    private IReadOnlyList<ToolSection> BuildSections(bool hasBattery)
+    private IReadOnlyList<ToolSection> BuildSections()
     {
+        var defragActions = new List<ToolCardAction>
+        {
+            new() { Op = ToolOp.DefragAll, Label = "ВСЕ ДИСКИ", IsPrimary = true, RequiresAdmin = true },
+        };
+        defragActions.AddRange(_volumes.Select(DefragAction));
+
         var diagnostics = new List<ToolCard>();
-        if (hasBattery)
+        if (_hasBattery)
         {
             diagnostics.Add(new ToolCard
             {
@@ -666,7 +659,6 @@ public sealed partial class ToolsViewModel : PageViewModel
         [
             new ToolSection
             {
-                Number = "01",
                 Title = "ЦЕЛОСТНОСТЬ WINDOWS",
                 Caption = "Порядок важен: сначала DISM восстанавливает хранилище компонентов, затем SFC берёт из него исправные копии системных файлов.",
                 Cards =
@@ -702,7 +694,6 @@ public sealed partial class ToolsViewModel : PageViewModel
             },
             new ToolSection
             {
-                Number = "02",
                 Title = "ДИСКИ",
                 Caption = "Проверка файловой системы и оптимизация накопителей — теми же средствами, что использует сама Windows.",
                 Cards =
@@ -733,14 +724,12 @@ public sealed partial class ToolsViewModel : PageViewModel
                         Note = "SSD не дефрагментируется — ключ /O это исключает. Операцию можно прервать в любой момент без вреда для данных.",
                         Duration = "SSD < 1 МИН · HDD ДО 1 Ч",
                         RequiresAdmin = true,
-                        Actions = [new ToolCardAction { Op = ToolOp.DefragAll, Label = "ВСЕ ДИСКИ", IsPrimary = true, RequiresAdmin = true }],
-                        Extra = ToolExtra.Volumes,
+                        Actions = defragActions,
                     },
                 ],
             },
             new ToolSection
             {
-                Number = "03",
                 Title = "СЕТЬ",
                 Caption = "От безопасного к радикальному: начните со сброса DNS-кэша, полный сброс — только если сеть не работает.",
                 Cards =
@@ -772,7 +761,6 @@ public sealed partial class ToolsViewModel : PageViewModel
             },
             new ToolSection
             {
-                Number = "04",
                 Title = "КЭШИ",
                 Caption = "Точечное лечение частых неполадок интерфейса без удаления данных.",
                 Cards =
@@ -801,7 +789,6 @@ public sealed partial class ToolsViewModel : PageViewModel
             },
             new ToolSection
             {
-                Number = "05",
                 Title = "ДИАГНОСТИКА",
                 Caption = "Встроенные средства Windows для поиска аппаратных проблем.",
                 Cards = diagnostics,
@@ -809,25 +796,26 @@ public sealed partial class ToolsViewModel : PageViewModel
         ];
     }
 
-    private static IReadOnlyList<QuickLink> BuildQuickLinks()
+    /// <summary>Per-drive button of the defrag card: "C: · TRIM", details (name, media, free space) in the tooltip.</summary>
+    internal static ToolCardAction DefragAction(VolumeInfo v) => new()
     {
-        var control = ProcessRunner.Sys("control.exe");
-        return
+        Op = ToolOp.DefragVolume,
+        Label = $"{v.Letter} · {v.OperationText}",
+        RequiresAdmin = true,
+        Volume = v,
+        Hint = $"{v.DisplayName} · {v.MediaText} · {v.SpaceText}",
+    };
+
+    /// <summary>
+    /// Only Windows tools that no MONOLITH page covers: services, updates, devices, storage, power, game settings,
+    /// programs and restore points have their own pages.
+    /// </summary>
+    internal static IReadOnlyList<QuickLink> BuildQuickLinks() =>
         [
-            new QuickLink { Glyph = Glyphs.Devices, Title = "ДИСПЕТЧЕР УСТРОЙСТВ", Command = "devmgmt.msc", Target = ProcessRunner.Sys("devmgmt.msc") },
             new QuickLink { Glyph = ToolGlyphs.HardDrive, Title = "УПРАВЛЕНИЕ ДИСКАМИ", Command = "diskmgmt.msc", Target = ProcessRunner.Sys("diskmgmt.msc") },
-            new QuickLink { Glyph = Glyphs.Services, Title = "СЛУЖБЫ", Command = "services.msc", Target = ProcessRunner.Sys("services.msc") },
             new QuickLink { Glyph = ToolGlyphs.List, Title = "ПРОСМОТР СОБЫТИЙ", Command = "eventvwr.msc", Target = ProcessRunner.Sys("eventvwr.msc") },
             new QuickLink { Glyph = Glyphs.Chart, Title = "МОНИТОР РЕСУРСОВ", Command = "resmon.exe", Target = ProcessRunner.Sys("resmon.exe") },
             new QuickLink { Glyph = Glyphs.Processing, Title = "ДИСПЕТЧЕР ЗАДАЧ", Command = "taskmgr.exe", Target = ProcessRunner.Sys("taskmgr.exe") },
-            new QuickLink { Glyph = Glyphs.Shield, Title = "ЗАЩИТА СИСТЕМЫ", Command = "SystemPropertiesProtection", Target = ProcessRunner.Sys("SystemPropertiesProtection.exe") },
-            new QuickLink { Glyph = Glyphs.Power, Title = "ЭЛЕКТРОПИТАНИЕ", Command = "powercfg.cpl", Target = control, Arguments = "powercfg.cpl" },
-            new QuickLink { Glyph = Glyphs.Game, Title = "ПАРАМЕТРЫ ИГР", Command = "ms-settings:gaming-gamemode", Target = "ms-settings:gaming-gamemode" },
-            new QuickLink { Glyph = Glyphs.Monitor, Title = "ДИСПЛЕЙ", Command = "ms-settings:display", Target = "ms-settings:display" },
-            new QuickLink { Glyph = Glyphs.Sync, Title = "ЦЕНТР ОБНОВЛЕНИЯ", Command = "ms-settings:windowsupdate", Target = "ms-settings:windowsupdate" },
-            new QuickLink { Glyph = Glyphs.Save, Title = "ХРАНИЛИЩЕ", Command = "ms-settings:storagesense", Target = "ms-settings:storagesense" },
-            new QuickLink { Glyph = ToolGlyphs.AllApps, Title = "ПРОГРАММЫ И КОМПОНЕНТЫ", Command = "appwiz.cpl", Target = control, Arguments = "appwiz.cpl" },
             new QuickLink { Glyph = Glyphs.Info, Title = "СВЕДЕНИЯ О СИСТЕМЕ", Command = "msinfo32.exe", Target = ProcessRunner.Sys("msinfo32.exe") },
         ];
-    }
 }

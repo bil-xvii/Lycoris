@@ -8,9 +8,6 @@ namespace Monolith.Modules.Drivers;
 
 public enum DriversTab { Hardware, Overview, Updates, Problems, Installed, Backup }
 
-/// <summary>A numbered instruction line.</summary>
-public sealed record StepItem(string Number, string Text);
-
 public enum UpdatesState { NotSearched, Searching, Ready, Error }
 
 internal static class DriverFormat
@@ -365,20 +362,6 @@ public sealed class ProblemDeviceItem
     public bool IsSevere { get; }
     public bool CanEnable => Code == DeviceProblemCodes.Disabled && DeviceId.Length > 0;
     public bool SuggestsWindowsUpdate => Remedy is ProblemRemedy.InstallDriver or ProblemRemedy.UpdateDriver or ProblemRemedy.ReinstallDriver or ProblemRemedy.Hardware;
-}
-
-public sealed class ProblemCodeHint
-{
-    internal ProblemCodeHint(DeviceProblemInfo info)
-    {
-        Code = info.Code;
-        Title = info.Title;
-        Action = info.Action;
-    }
-
-    public int Code { get; }
-    public string Title { get; }
-    public string Action { get; }
 }
 
 // ───────────────────────────── Installed drivers ─────────────────────────────
