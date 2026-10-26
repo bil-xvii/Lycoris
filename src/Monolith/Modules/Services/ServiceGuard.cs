@@ -125,7 +125,24 @@ public static class ServiceGuard
     }
 
     /// <summary>
-    /// Research §0.4/§2B "not in the curated allowlist": outside expert mode (Settings → ЭКСПЕРТНЫЙ РЕЖИМ СЛУЖБ)
+    /// Services whose start type has exactly one place in MONOLITH: an Optimize tweak (service name → tweak id).
+    /// They are read-only here even in expert mode, so the same value is never changed from two pages.
+    /// </summary>
+    private static readonly Dictionary<string, string> OptimizeOwned = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["DiagTrack"] = "diagtrack-manual",
+    };
+
+    /// <summary>The Optimize tweak id that owns this service, or null.</summary>
+    public static string? OptimizeTweakFor(string name) => OptimizeOwned.GetValueOrDefault(name);
+
+    /// <summary>Lock reason for a service owned by an Optimize tweak (applies in expert mode too), or null.</summary>
+    public static string? OptimizeOwnedLockReason(string name) => OptimizeTweakFor(name) is null
+        ? null
+        : "Эта служба настраивается только в разделе «Оптимизация» — там объяснён риск и там же откат.";
+
+    /// <summary>
+    /// Research §0.4/§2B "not in the curated allowlist": outside expert mode (ЭКСПЕРТНЫЙ РЕЖИМ on the ВСЕ СЛУЖБЫ tab)
     /// every non-curated service — other Microsoft services and all third-party ones — is read-only.
     /// Returns null when the service is curated or expert mode is on.
     /// </summary>
@@ -136,7 +153,7 @@ public static class ServiceGuard
             ? "Служба стороннего производителя: MONOLITH не знает, какие функции её программы от неё зависят."
             : "Этой службы нет в проверенном списке MONOLITH: последствия её изменения не изучены.";
         return what + " Здесь она только для просмотра. Менять такие службы на свой риск можно после включения " +
-               "«Экспертного режима служб» в разделе «Настройки».";
+               "«Экспертного режима служб» над списком.";
     }
 
     public static bool IsDriverStorePath(string? imagePath) =>
