@@ -19,7 +19,9 @@ public enum UnelevatedOutcome
 
 public sealed record UnelevatedResult(UnelevatedOutcome Outcome, int ExitCode, string Output)
 {
-    public WingetResult ToWinget() => new(ExitCode, Output, Outcome == UnelevatedOutcome.Cancelled);
+    /// <summary>Untracked because winget exceeded the wait time; it was left running, not killed.</summary>
+    public bool StillRunning { get; init; }
+    public WingetResult ToWinget() => new(ExitCode, Output, Outcome == UnelevatedOutcome.Cancelled) { StillRunning = StillRunning };
 }
 
 /// <summary>
@@ -101,10 +103,10 @@ public static partial class UnelevatedWinget
                 }
                 if (elapsed > RunTimeout)
                 {
-                    await KillAsync(token).ConfigureAwait(false);
+                    // Never kill on timeout: that would also kill the installer and can leave a half-installed program.
                     tail.Pump(final: true);
-                    Log.Warn("winget без прав администратора: превышено время ожидания (30 мин).");
-                    return new UnelevatedResult(UnelevatedOutcome.Untracked, -1, all.ToString());
+                    Log.Warn("winget без прав администратора: идёт дольше 30 минут — MONOLITH перестал ждать, процесс не прерывался.");
+                    return new UnelevatedResult(UnelevatedOutcome.Untracked, -1, all.ToString()) { StillRunning = true };
                 }
 
                 try { await Task.Delay(400, ct).ConfigureAwait(false); }

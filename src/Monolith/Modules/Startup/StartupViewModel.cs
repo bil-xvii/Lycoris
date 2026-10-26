@@ -379,7 +379,7 @@ public sealed partial class StartupViewModel : PageViewModel
         var subject = items.Count == 1 ? $"«{items[0].DisplayName}»" : $"{items.Count} {Plural(items.Count, "запись", "записи", "записей")}";
         var message = enable
             ? $"{subject} снова {(items.Count == 1 ? "будет" : "будут")} запускаться при входе в Windows."
-            : $"{subject} перестанет запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач. " +
+            : $"{subject} {Plural(items.Count, "перестанет", "перестанут", "перестанут")} запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач. " +
               "Уже запущенные программы продолжат работать до перезагрузки.";
 
         return Ui.ConfirmAsync(

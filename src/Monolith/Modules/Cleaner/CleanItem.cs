@@ -140,6 +140,14 @@ public sealed partial class CleanItem : ObservableObject
 
     public bool WasCleaned { get; private set; }
 
+    /// <summary>Frees the per-file lists of the current analysis; the counters shown in the UI stay.</summary>
+    internal void ReleaseManifests()
+    {
+        if (Analysis is not { } a || a.Manifests.Count == 0) return;
+        a.Manifests.Clear();
+        a.Manifests.TrimExcess();
+    }
+
     partial void OnIsCheckedChanged(bool value)
     {
         if (_ready) UpdateReadyStatus();
@@ -305,6 +313,9 @@ public sealed partial class CleanItem : ObservableObject
             a.CleanableFiles = 0;
             a.CleanableDirs = 0;
             if (Definition.Method == CleanMethod.RecycleBin && r.ToolItems > 0) a.Items = 0;
+            // The file lists are never used again (WasCleaned forces a new analysis): free them.
+            a.Manifests.Clear();
+            a.Manifests.TrimExcess();
             SizeText = Definition.Method is CleanMethod.ComponentStore ? (freed > 0 ? CleanFormat.Bytes(freed) : "—") : CleanFormat.Bytes(left);
             CountText = Definition.Method switch
             {

@@ -734,4 +734,13 @@ public sealed class CleanerTests : IDisposable
         Assert.Equal("5", value);
         Assert.Equal("ГБ", unit);
     }
+
+    [Theory]
+    [InlineData(3L, 2000L, 3L, 2000L, false)]   // unchanged
+    [InlineData(3L, 2000L, 2L, 1500L, false)]   // the user restored something: still within what was approved
+    [InlineData(3L, 2000L, 4L, 2000L, true)]    // a new item appeared
+    [InlineData(3L, 2000L, 3L, 2001L, true)]    // more bytes
+    [InlineData(null, 2000L, 1L, 10L, true)]    // no approved count: never empty blindly
+    public void Recycle_bin_is_not_emptied_when_it_grew_after_analysis(long? items, long bytes, long nowItems, long nowBytes, bool grew) =>
+        Assert.Equal(grew, CleanRunner.RecycleBinGrew(items, bytes, nowItems, nowBytes));
 }

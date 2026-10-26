@@ -506,7 +506,7 @@ public sealed partial class AppsViewModel : PageViewModel
         await RunQueueAsync();
     }
 
-    private static Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
+    private static async Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
     {
         var details = plan.Select(p => AppTexts.QueueLine(p.Item.Entry, p.Item.PackageId, p.Op, p.Item.InstalledVersion)).ToList();
         details.AddRange(AppTexts.Warnings(plan.Select(p => p.Item)));
@@ -526,7 +526,7 @@ public sealed partial class AppsViewModel : PageViewModel
                                    "Программы, которые обновляются сами (Discord, Edge, WebView2), и «Установщик приложений» MONOLITH не трогает. ",
             _ => $"По очереди будет обработано: {AppTexts.Packages(plan.Count)}. ",
         };
-        var how = "Установщики скачиваются с серверов разработчиков и проверяются по SHA256 из манифеста winget. ";
+        var how = AppTexts.VerificationText(plan.Select(p => p.Item.Entry)) + " ";
         var elevation = Elevation.IsElevated
             ? "Программы для всех пользователей ставятся с правами администратора, пакеты для текущего пользователя и из Microsoft Store — без них. "
             : "MONOLITH работает без прав администратора: установщик каждой программы для всех пользователей сам покажет запрос UAC. ";
@@ -535,11 +535,15 @@ public sealed partial class AppsViewModel : PageViewModel
         string footnote;
         if (!Elevation.IsElevated) footnote = "Без прав администратора точка восстановления не создаётся.";
         else if (!AppSettings.Current.CreateRestorePoints) footnote = "Точки восстановления отключены в настройках.";
+        else if (!await Task.Run(RestorePointService.IsEnabled))
+            footnote = "Защита системы отключена — точка восстановления создана не будет.";
         else footnote = "Перед началом будет создана точка восстановления.";
 
         var danger = plan.Any(p => AppTexts.IsRisky(p.Item.Entry));
         var confirm = upgradeOnly ? "ОБНОВИТЬ" : "УСТАНОВИТЬ";
-        return Ui.ConfirmAsync(title, lead + how + elevation + undo, details, confirm, "ОТМЕНА", danger, footnote);
+        // winget gets --accept-package-agreements / --accept-source-agreements: say so before the user agrees.
+        var license = " " + AppTexts.LicenseText(plan.Select(p => p.Item.Entry), upgradeOnly ? "Обновить" : "Установить");
+        return await Ui.ConfirmAsync(title, lead + how + elevation + undo + license, details, confirm, "ОТМЕНА", danger, footnote);
     }
 
     private async Task RunQueueAsync()
@@ -559,6 +563,15 @@ public sealed partial class AppsViewModel : PageViewModel
                 SetBusyText("Создание точки восстановления…");
                 var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
                 AppendLog(rp.Message);
+                if (!rp.Created && !await Ui.ConfirmAsync(
+                        "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
+                        $"{rp.Message} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?",
+                        confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true))
+                {
+                    AppendLog("Очередь отменена: точка восстановления не создана.");
+                    CancelRemaining();
+                    return;
+                }
             }
 
             for (var i = 0; i < total; i++)
@@ -662,7 +675,9 @@ public sealed partial class AppsViewModel : PageViewModel
             var r = await Task.Run(() => UnelevatedWinget.RunAsync(args, Output, ct), CancellationToken.None);
             return new RunOutcome(r.Outcome, r.ToWinget());
         }
-        return new RunOutcome(result.Cancelled ? UnelevatedOutcome.Cancelled : UnelevatedOutcome.Completed, result);
+        return new RunOutcome(result.Cancelled ? UnelevatedOutcome.Cancelled
+            : result.StillRunning ? UnelevatedOutcome.Untracked
+            : UnelevatedOutcome.Completed, result);
     }
 
     private void ApplyOutcome(QueueItemViewModel job, RunOutcome outcome)
@@ -675,6 +690,21 @@ public sealed partial class AppsViewModel : PageViewModel
                 job.Detail = "Рабочий стол Windows недоступен для запуска. Откройте сайт программы (кнопка «САЙТ») " +
                              "или запустите MONOLITH без прав администратора и повторите.";
                 AppendLog(job.Detail);
+                return;
+            case UnelevatedOutcome.Untracked when outcome.Result.StillRunning:
+                job.State = QueueState.Unknown;
+                job.StatusText = "ЕЩЁ ИДЁТ: результат проверим заново";
+                job.Detail = "Установка идёт дольше 30 минут. MONOLITH перестал ждать, но не прерывал её, чтобы программа не осталась " +
+                             "установленной наполовину. Список установленного будет перечитан после очереди; если программа не появится, " +
+                             "проверьте её позже или установите заново.";
+                AppendLog(job.Detail);
+                if (Queue.Any(q => q.State == QueueState.Queued))
+                {
+                    // Starting the next installer while this one still runs would make them collide.
+                    StopRequested = true;
+                    CancelRemaining();
+                    AppendLog("Остальные пакеты отменены, чтобы не запускать установки одновременно. Повторите их позже.");
+                }
                 return;
             case UnelevatedOutcome.Untracked:
                 job.State = QueueState.Unknown;

@@ -275,7 +275,14 @@ public static class CleanRunner
         return r;
     }
 
-    public static async Task<ItemCleanResult> CleanRecycleBinAsync(CleanDefinition def, CleanEnvironment env)
+    /// <summary>
+    /// True when the bin now holds more items or more bytes than the analysis the user approved — then emptying
+    /// it would also destroy things the confirmation did not list.
+    /// </summary>
+    public static bool RecycleBinGrew(long? approvedItems, long approvedBytes, long nowItems, long nowBytes) =>
+        approvedItems is not { } items || nowItems > items || nowBytes > approvedBytes;
+
+    public static async Task<ItemCleanResult> CleanRecycleBinAsync(CleanDefinition def, ItemAnalysis approved, CleanEnvironment env)
     {
         var r = new ItemCleanResult();
         if (PreCheck(def, env) is { } reason)
@@ -290,6 +297,12 @@ public static class CleanRunner
             if (q is null || q.Value.Items == 0)
             {
                 r.Notes.Add("Корзина уже пуста.");
+                return;
+            }
+            // SHEmptyRecycleBinW empties everything: refuse if anything was added after the user confirmed.
+            if (RecycleBinGrew(approved.Items, approved.CleanableBytes, q.Value.Items, q.Value.Bytes))
+            {
+                r.Skipped = "Корзина изменилась после анализа — проверьте и подтвердите заново.";
                 return;
             }
             var hr = SystemCleanup.RunSta(NativeCleaner.EmptyRecycleBin);
@@ -443,13 +456,17 @@ public static class SystemCleanup
         var drive = SystemProfile.SystemDrive;
         var before = FreeSpace(drive);
         progress("DISM очищает хранилище компонентов — не выключайте ПК…", null);
+        // Servicing is never killed: after the wait limit MONOLITH stops waiting and leaves DISM to finish.
         var run = await ProcessRunner.RunAsync(dism, "/Online /English /Cleanup-Image /StartComponentCleanup",
             new ProcessRunOptions
             {
-                Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromHours(3),
+                Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromHours(3), KillOnTimeout = false,
                 OnOutput = l => { if (DismOutput.ParsePercent(l) is { } p) progress("DISM очищает хранилище компонентов — не выключайте ПК…", p); },
             }, CancellationToken.None).ConfigureAwait(false);
         var after = FreeSpace(drive);
+        if (run.StillRunning)
+            return new(0, "DISM работает дольше 3 часов. MONOLITH перестал ждать, но не прерывал очистку — " +
+                          "не выключайте и не перезагружайте ПК, пока процесс Dism.exe не завершится (видно в диспетчере задач).", null);
         if (!run.Success)
             return new(0, null, run.TimedOut ? "DISM: превышено время очистки." : $"DISM /StartComponentCleanup завершился с кодом {run.ExitCode}.");
         return new(Math.Max(0, after - before), "Хранилище компонентов очищено.", null);

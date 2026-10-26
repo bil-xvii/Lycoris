@@ -44,7 +44,12 @@ public sealed partial class TweakItemViewModel : ObservableObject
     public string WarningText => string.IsNullOrWhiteSpace(Tweak.Warning)
         ? "Это настройка с реальным компромиссом (безопасность или совместимость). Она не входит ни в один профиль."
         : Tweak.Warning!;
-    public string UndoText => Tweak.Restart == RestartRequirement.None
+    /// <summary>Irreversible user-data loss caused by applying this tweak, or null.</summary>
+    public string? DataLossNote => OptimizeLogic.DataLossNote(Tweak.Id);
+    public bool HasDataLoss => DataLossNote != null;
+    public string UndoText => DataLossNote is { } loss
+        ? $"Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление» вернут настройку. {loss}"
+        : Tweak.Restart == RestartRequirement.None
         ? "Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Перед изменением MONOLITH сохраняет исходные значения и возвращает их точно такими, какими они были."
         : $"Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Исходные значения сохраняются перед изменением. После отката тоже {Tweak.RestartText}.";
 

@@ -586,4 +586,32 @@ public sealed class AppsTests
         Assert.Equal("RiotGames.LeagueOfLegends.NA", lol.PackageId);
         Assert.Equal("NA", lol.SelectedVariant!.ToString());
     }
+
+    // ─────────────────────────── confirmation texts ───────────────────────────
+
+    [Fact]
+    public void Sha256_claim_is_made_only_for_winget_entries()
+    {
+        var winget = AppCatalog.All.First(e => e.Source == PackageSource.Winget);
+        var store = AppCatalog.All.First(e => e.Source == PackageSource.MsStore);
+
+        Assert.Equal(AppTexts.WingetVerification, AppTexts.VerificationText([winget]));
+        Assert.Equal(AppTexts.StoreVerification, AppTexts.VerificationText([store]));
+        var mixed = AppTexts.VerificationText([winget, store]);
+        Assert.Contains("SHA256", mixed);
+        Assert.Contains("Microsoft Store", mixed);
+        Assert.DoesNotContain("SHA256", AppTexts.VerificationText([store]));
+    }
+
+    [Fact]
+    public void License_text_mentions_store_terms_only_for_store_packages()
+    {
+        var winget = AppCatalog.All.First(e => e.Source == PackageSource.Winget);
+        var store = AppCatalog.All.First(e => e.Source == PackageSource.MsStore);
+
+        Assert.Contains("лицензии издателей", AppTexts.LicenseText([winget], "Установить"));
+        Assert.DoesNotContain("Microsoft Store", AppTexts.LicenseText([winget], "Установить"));
+        Assert.Contains("условия Microsoft Store", AppTexts.LicenseText([winget, store], "Обновить"));
+        Assert.Contains("«Обновить»", AppTexts.LicenseText([store], "Обновить"));
+    }
 }
