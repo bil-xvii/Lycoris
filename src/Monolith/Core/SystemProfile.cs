@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Management;
 using Microsoft.Win32;
@@ -26,7 +27,21 @@ public sealed record DiskInfo(string Model, string MediaType, ulong SizeBytes, s
 public sealed class SystemProfile
 {
     public static SystemProfile Current { get; private set; } = new();
+    private static readonly object LoadLock = new();
     private static Task<SystemProfile>? _loading;
+    /// <summary>The Collect worker of the last load; it may outlive <see cref="CollectLimit"/> when WMI hangs.</summary>
+    private static Task? _collecting;
+    private static DateTime _loadedAtUtc;
+    /// <summary>Overall bound for one collection (each WMI query also has its own timeout).</summary>
+    private static readonly TimeSpan CollectLimit = TimeSpan.FromSeconds(45);
+    /// <summary>An incomplete profile is collected again on a later request, at most this often.</summary>
+    private static readonly TimeSpan RetryIncompleteAfter = TimeSpan.FromSeconds(60);
+
+    /// <summary>Sections of <see cref="Collect"/>: os, cpu, memory, gpu, disks, chassis, board, battery → true = read without errors.</summary>
+    private readonly ConcurrentDictionary<string, bool> _sections = new();
+    private static readonly string[] AllSections = ["os", "cpu", "memory", "gpu", "disks", "chassis", "board", "battery"];
+    /// <summary>Sections that tweak applicability rules depend on (laptop/battery/chassis, CPU model, GPUs).</summary>
+    private static readonly string[] HardwareSections = ["cpu", "gpu", "chassis", "battery"];
 
     public string OsName { get; private set; } = "Windows";
     public string OsDisplayVersion { get; private set; } = "";
@@ -74,6 +89,16 @@ public sealed class SystemProfile
     public DateTime BootTime { get; private set; } = DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
     public bool IsLoaded { get; private set; }
 
+    /// <summary>Sections that failed, timed out or were not read yet (empty when everything was collected).</summary>
+    public IReadOnlyList<string> MissingFacts => AllSections.Where(x => !_sections.TryGetValue(x, out var ok) || !ok).ToList();
+    /// <summary>True when every section was read without errors.</summary>
+    public bool IsComplete => MissingFacts.Count == 0;
+    /// <summary>
+    /// True when the facts that tweak applicability depends on (laptop/battery/chassis, CPU, GPUs) are known.
+    /// When false, the defaults (e.g. IsLaptop = false) must not be used to decide whether a tweak applies.
+    /// </summary>
+    public bool HardwareFactsKnown => HardwareSections.All(x => _sections.TryGetValue(x, out var ok) && ok);
+
     /// <summary>Sum of installed modules (what the user bought); RamTotalBytes is what Windows can use.</summary>
     public ulong RamInstalledBytes { get; private set; }
 
@@ -87,26 +112,54 @@ public sealed class SystemProfile
     }
     public string OsText => $"{OsName} {OsDisplayVersion} (сборка {OsBuild}{(OsUbr > 0 ? "." + OsUbr : "")})".Trim();
 
+    /// <summary>
+    /// Collects the profile once and caches it. A failed, timed-out or incomplete collection is retried on a
+    /// later call (incomplete ones at most once a minute), but never while the previous worker is still stuck.
+    /// </summary>
     public static Task<SystemProfile> LoadAsync()
     {
-        return _loading ??= Task.Run(() =>
+        lock (LoadLock)
         {
-            var p = new SystemProfile();
-            p.Collect();
+            if (_loading is { } t && !NeedsReload(t)) return t;
+            return _loading = LoadCoreAsync();
+        }
+    }
+
+    private static bool NeedsReload(Task<SystemProfile> t)
+    {
+        if (!t.IsCompleted) return false;
+        if (_collecting is { IsCompleted: false }) return false; // a stuck WMI call: don't pile up workers
+        if (!t.IsCompletedSuccessfully) return true;
+        return !t.Result.IsComplete && DateTime.UtcNow - _loadedAtUtc >= RetryIncompleteAfter;
+    }
+
+    /// <summary>Runs synchronously up to the first await, i.e. inside <see cref="LoadLock"/>.</summary>
+    private static async Task<SystemProfile> LoadCoreAsync()
+    {
+        var p = new SystemProfile();
+        var work = Task.Run(p.Collect);
+        _collecting = work;
+        var finished = await Task.WhenAny(work, Task.Delay(CollectLimit)).ConfigureAwait(false) == work;
+        if (!finished)
+            Log.Warn($"Сбор сведений о системе не завершился за {CollectLimit.TotalSeconds:0} с — часть данных неизвестна: {string.Join(", ", p.MissingFacts)}.");
+        else if (!p.IsComplete)
+            Log.Warn($"Сбор сведений о системе: не удалось прочитать {string.Join(", ", p.MissingFacts)}.");
+        _loadedAtUtc = DateTime.UtcNow;
+        // Keep the richer profile: a retry that got less than the previous one does not replace it.
+        if (!Current.IsLoaded || p.MissingFacts.Count <= Current.MissingFacts.Count)
             Current = p;
-            return p;
-        });
+        return p;
     }
 
     private void Collect()
     {
-        Safe(ReadOs);
-        Safe(ReadCpu);
-        Safe(ReadMemory);
-        Safe(ReadGpus);
-        Safe(ReadDisks);
-        Safe(ReadBoard);
-        Safe(ReadBattery);
+        Safe("os", ReadOs);
+        Safe("cpu", ReadCpu);
+        Safe("memory", ReadMemory);
+        Safe("gpu", ReadGpus);
+        Safe("disks", ReadDisks);
+        Safe("board", ReadBoard);
+        Safe("battery", ReadBattery);
         IsLoaded = true;
     }
 
@@ -120,7 +173,7 @@ public sealed class SystemProfile
         var installation = RegistryHelper.ReadString(RegHive.HKLM, cv, "InstallationType") ?? "";
         IsServer = installation.Contains("Server", StringComparison.OrdinalIgnoreCase);
 
-        foreach (var mo in Query("SELECT Caption, LastBootUpTime FROM Win32_OperatingSystem"))
+        foreach (var mo in Query("os", "SELECT Caption, LastBootUpTime FROM Win32_OperatingSystem"))
         {
             var caption = mo["Caption"]?.ToString() ?? "Windows";
             caption = caption.Replace("Майкрософт ", "").Replace("Microsoft ", "");
@@ -133,7 +186,7 @@ public sealed class SystemProfile
 
     private void ReadCpu()
     {
-        foreach (var mo in Query("SELECT Name, Manufacturer, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed FROM Win32_Processor"))
+        foreach (var mo in Query("cpu", "SELECT Name, Manufacturer, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed FROM Win32_Processor"))
         {
             CpuName = (mo["Name"]?.ToString() ?? "").Trim();
             while (CpuName.Contains("  ")) CpuName = CpuName.Replace("  ", " ");
@@ -147,12 +200,12 @@ public sealed class SystemProfile
 
     private void ReadMemory()
     {
-        foreach (var mo in Query("SELECT TotalPhysicalMemory FROM Win32_ComputerSystem"))
+        foreach (var mo in Query("memory", "SELECT TotalPhysicalMemory FROM Win32_ComputerSystem"))
             RamTotalBytes = Convert.ToUInt64(mo["TotalPhysicalMemory"] ?? 0UL);
 
         int rated = 0, configured = 0, count = 0;
         ulong installed = 0;
-        foreach (var mo in Query("SELECT Speed, ConfiguredClockSpeed, Capacity FROM Win32_PhysicalMemory"))
+        foreach (var mo in Query("memory", "SELECT Speed, ConfiguredClockSpeed, Capacity FROM Win32_PhysicalMemory"))
         {
             count++;
             installed += Convert.ToUInt64(mo["Capacity"] ?? 0UL);
@@ -169,7 +222,7 @@ public sealed class SystemProfile
     private void ReadGpus()
     {
         var list = new List<GpuInfo>();
-        foreach (var mo in Query("SELECT Name, DriverVersion, DriverDate, PNPDeviceID, AdapterRAM FROM Win32_VideoController"))
+        foreach (var mo in Query("gpu", "SELECT Name, DriverVersion, DriverDate, PNPDeviceID, AdapterRAM FROM Win32_VideoController"))
         {
             var name = mo["Name"]?.ToString() ?? "GPU";
             var pnp = mo["PNPDeviceID"]?.ToString() ?? "";
@@ -238,7 +291,7 @@ public sealed class SystemProfile
                 }
             }
         }
-        catch { }
+        catch { _sections["disks"] = false; }
         Disks = list;
 
         // System drive media type
@@ -258,29 +311,31 @@ public sealed class SystemProfile
                 }
             }
         }
-        catch { }
+        catch { _sections["disks"] = false; }
     }
 
     private void ReadBoard()
     {
-        foreach (var mo in Query("SELECT Manufacturer, Model, PCSystemType FROM Win32_ComputerSystem"))
+        foreach (var mo in Query("board", "SELECT Manufacturer, Model, PCSystemType FROM Win32_ComputerSystem"))
         {
             Manufacturer = mo["Manufacturer"]?.ToString() ?? "";
             Model = mo["Model"]?.ToString() ?? "";
             ChassisIsPortable = Convert.ToUInt16(mo["PCSystemType"] ?? 0) == 2; // Mobile
         }
-        foreach (var mo in Query("SELECT Manufacturer, Product FROM Win32_BaseBoard"))
+        _sections.TryAdd("chassis", true); // stays false when the query above failed
+        foreach (var mo in Query("board", "SELECT Manufacturer, Product FROM Win32_BaseBoard"))
             Motherboard = $"{mo["Manufacturer"]} {mo["Product"]}".Trim();
-        foreach (var mo in Query("SELECT SMBIOSBIOSVersion FROM Win32_BIOS"))
+        foreach (var mo in Query("board", "SELECT SMBIOSBIOSVersion FROM Win32_BIOS"))
             BiosVersion = mo["SMBIOSBIOSVersion"]?.ToString() ?? "";
     }
 
     private void ReadBattery()
     {
-        HasBattery = Query("SELECT Name FROM Win32_Battery").Any();
+        HasBattery = Query("battery", "SELECT Name FROM Win32_Battery").Any();
     }
 
-    private static List<ManagementBaseObject> Query(string wql, string scope = @"\\.\root\cimv2")
+    /// <summary>WMI query; a failure (incl. timeout) marks <paramref name="section"/> as unknown and returns what was read.</summary>
+    private List<ManagementBaseObject> Query(string section, string wql, string scope = @"\\.\root\cimv2")
     {
         var list = new List<ManagementBaseObject>();
         try
@@ -288,7 +343,10 @@ public sealed class SystemProfile
             using var searcher = Searcher(scope, wql);
             foreach (var mo in searcher.Get()) list.Add(mo);
         }
-        catch { }
+        catch
+        {
+            _sections[section] = false;
+        }
         return list;
     }
 
@@ -300,9 +358,18 @@ public sealed class SystemProfile
             new System.Management.EnumerationOptions { Timeout = TimeSpan.FromSeconds(15), ReturnImmediately = true, Rewindable = false });
     }
 
-    private static void Safe(Action a)
+    private void Safe(string section, Action a)
     {
-        try { a(); } catch (Exception ex) { Log.Warn($"Сбор сведений о системе: {ex.Message}"); }
+        try
+        {
+            a();
+            _sections.TryAdd(section, true); // stays false if a query of this section failed
+        }
+        catch (Exception ex)
+        {
+            _sections[section] = false;
+            Log.Warn($"Сбор сведений о системе: {ex.Message}");
+        }
     }
 
     public static string FormatBytes(double bytes)

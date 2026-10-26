@@ -60,12 +60,24 @@ public partial class App : Application
         }
 
         // Already running? Bring that window up instead of asking for admin rights again.
-        if (!snapshot && !HasArg(args, "--elevated") && Mutex.TryOpenExisting(SingleInstanceName, out var existing))
+        if (!snapshot && !HasArg(args, "--elevated"))
         {
-            existing.Dispose();
-            ActivateExistingInstance();
-            Shutdown();
-            return;
+            bool running;
+            try
+            {
+                running = Mutex.TryOpenExisting(SingleInstanceName, out var existing);
+                existing?.Dispose();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                running = true; // exists, but belongs to an elevated instance we may not open
+            }
+            if (running)
+            {
+                ActivateExistingInstance();
+                Shutdown();
+                return;
+            }
         }
 
         if (!Elevation.IsElevated && !noElevate)
@@ -80,19 +92,29 @@ public partial class App : Application
         if (!snapshot)
         {
             // When relaunched with admin rights the previous (non-elevated) copy is still closing: wait for it.
-            _singleInstance = new Mutex(false, SingleInstanceName);
+            if (HasArg(args, "--elevated")) WaitForParentExit(ArgValue(args, "--parent"));
             bool acquired;
             try
             {
-                acquired = _singleInstance.WaitOne(HasArg(args, "--elevated") ? TimeSpan.FromSeconds(20) : TimeSpan.Zero);
+                _singleInstance = new Mutex(false, SingleInstanceName);
+                acquired = _singleInstance.WaitOne(TimeSpan.Zero);
             }
             catch (AbandonedMutexException)
             {
                 acquired = true; // previous instance crashed — we own it now
             }
+            catch (Exception ex)
+            {
+                Log.Error("Не удалось проверить, запущен ли MONOLITH", ex);
+                _singleInstance?.Dispose();
+                _singleInstance = null;
+                ActivateExistingInstance();
+                Shutdown();
+                return;
+            }
             if (!acquired)
             {
-                _singleInstance.Dispose();
+                _singleInstance?.Dispose();
                 _singleInstance = null;
                 ActivateExistingInstance();
                 Shutdown();
@@ -222,6 +244,8 @@ public partial class App : Application
         // Only an elevated MONOLITH writes the machine journal (Save is a no-op otherwise).
         if (Elevation.IsElevated)
         {
+            // Closed while a restore point was being created: put the lifted 24-hour limit back now.
+            try { RestorePointService.RestoreThrottleIfPending(); } catch { }
             try { ChangeJournal.Instance.Save(); } catch { }
         }
         if (_ownsMutex)
@@ -239,6 +263,23 @@ public partial class App : Application
         Log.Error("Ошибка интерфейса", e.Exception);
         Ui.Toast(e.Exception.Message, ToastKind.Error, "Непредвиденная ошибка");
         e.Handled = true;
+    }
+
+    /// <summary>"--parent &lt;pid&gt;": wait (up to 20 s) for the copy that relaunched us to close.</summary>
+    private static void WaitForParentExit(string? pidArg)
+    {
+        if (!int.TryParse(pidArg, out var pid) || pid <= 0) return;
+        try
+        {
+            using var parent = Process.GetProcessById(pid);
+            using var self = Process.GetCurrentProcess();
+            // The pid may already have been reused by an unrelated process.
+            if (!string.Equals(parent.ProcessName, self.ProcessName, StringComparison.OrdinalIgnoreCase)) return;
+            parent.WaitForExit(20000);
+        }
+        catch (ArgumentException) { }          // already gone
+        catch (InvalidOperationException) { }  // exited meanwhile
+        catch (System.ComponentModel.Win32Exception) { }
     }
 
     private static void ActivateExistingInstance()

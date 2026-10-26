@@ -122,6 +122,24 @@ public sealed class TweakCatalogTests : IDisposable
     }
 
     [Fact]
+    public void Delivery_optimization_is_recommended_but_not_a_gaming_default()
+    {
+        // gaming_tweaks.md: SAFE-OPTIONAL for gaming (default DownloadMode=1 only uploads to the LAN).
+        Assert.DoesNotContain(TweakCatalog.DefaultsFor(ProfileKind.Gaming), t => t.Id == "delivery-optimization-local");
+        Assert.Contains(TweakCatalog.DefaultsFor(ProfileKind.Recommended), t => t.Id == "delivery-optimization-local");
+    }
+
+    [Fact]
+    public void Hardware_rules_are_not_judged_when_the_profile_facts_are_missing()
+    {
+        var unknown = new SystemProfile(); // nothing collected: IsLaptop etc. are only defaults
+        Assert.False(unknown.HardwareFactsKnown);
+        Assert.False(unknown.IsComplete);
+        Assert.All(TweakCatalog.All, t =>
+            Assert.Equal(t.AppliesTo is null ? true : null, TweakEngine.Applicability(t, unknown)));
+    }
+
+    [Fact]
     public void Profiles_never_preselect_two_different_power_plans_for_the_same_hardware()
     {
         // Balanced (non-X3D) and Balanced-X3D are mutually exclusive by CPU; High performance never shares a profile with Balanced.
@@ -289,6 +307,10 @@ public sealed class TweakCatalogTests : IDisposable
         [
             TweakCatalog.SpiScript(flagsOff, 0),
             TweakCatalog.SpiScript(flagsOn, 1),
+            TweakCatalog.SpiScript(flagsOff, 0, rollback: flagsOn, rollbackMinAnimate: 1),
+            TweakCatalog.DnsScript("ipv4", DnsGuid, ["1.1.1.1", "1.0.0.1"], rollbackTo: []),
+            TweakCatalog.DnsScript("ipv6", DnsGuid, [], rollbackTo: ["2606:4700:4700::1111"]),
+            TweakCatalog.DnsScript("ipv4", DnsGuid, ["192.168.1.1"]),
             TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", "1"),
             TweakCatalog.DxTokenScript("VRROptimizeEnable", null),
         ];
@@ -310,6 +332,10 @@ public sealed class TweakCatalogTests : IDisposable
     {
         var flags = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, true)).ToList();
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.SpiScript(flags, 1)).Length < 8000);
+        var off = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, false)).ToList();
+        Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.SpiScript(off, 0, rollback: flags, rollbackMinAnimate: 1)).Length < 8000);
+        Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv6", DnsGuid,
+            ["2606:4700:4700::1111", "2606:4700:4700::1001"], rollbackTo: ["fd00::1", "fd00::2", "fd00::3"])).Length < 8000);
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", "1")).Length < 8000);
     }
 
@@ -338,6 +364,39 @@ public sealed class TweakCatalogTests : IDisposable
         foreach (var f in TweakCatalog.VisualEffectFlags) Assert.Contains($"0x{f.Set:X},0,[IntPtr]0,3", script);
         Assert.Contains("SetAnimation(0x49,8,[int[]]@(8,0),3)", script);
         Assert.DoesNotContain("0x1003,0,[IntPtr]1", script);
+    }
+
+    [Fact]
+    public void Spi_script_with_rollback_restores_the_original_flags_and_rethrows()
+    {
+        var off = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, false)).ToList();
+        var on = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, true)).ToList();
+        var script = TweakCatalog.SpiScript(off, 0, rollback: on, rollbackMinAnimate: 1);
+        var catchAt = script.IndexOf("}catch{$e=$_;", StringComparison.Ordinal);
+        Assert.True(catchAt > 0);
+        var rollback = script[catchAt..];
+        foreach (var f in TweakCatalog.VisualEffectFlags) Assert.Contains($"0x{f.Set:X},0,[IntPtr]1,3", rollback);
+        Assert.Contains("SetAnimation(0x49,8,[int[]]@(8,1),3)", rollback);
+        Assert.Contains("throw $e", rollback);
+    }
+
+    [Fact]
+    public void Power_setting_command_rolls_itself_back_on_failure()
+    {
+        var scheme = Guid.Parse("381b4222-f694-41f0-9685-ff5bb260df2e");
+        var sub = Guid.Parse("2a737441-1930-4402-8d77-b2bebba308a3");
+        var setting = Guid.Parse("48e6b7a6-50f5-4782-a5d4-53bb8f07e226");
+        var plain = TweakCatalog.PowerSettingCommand(scheme, sub, setting, 1);
+        Assert.Contains($"/setacvalueindex {scheme:D} {sub:D} {setting:D} 1 && ", plain);
+        Assert.EndsWith("/setactive SCHEME_CURRENT", plain);
+        Assert.DoesNotContain("||", plain);
+
+        var forward = TweakCatalog.PowerSettingCommand(scheme, sub, setting, 0, rollbackTo: 1);
+        var parts = forward.Split(" || ");
+        Assert.Equal(2, parts.Length);
+        Assert.Contains($"{setting:D} 0 && ", parts[0]);
+        Assert.Contains($"{setting:D} 1 & ", parts[1]);
+        Assert.EndsWith("exit /b 1)", parts[1]);
     }
 
     [Fact]
@@ -387,22 +446,43 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.True(TweakCatalog.SameServers([], []));
     }
 
-    [Fact]
-    public void Dns_commands_set_static_lists_or_return_to_dhcp()
-    {
-        var dhcp = TweakCatalog.DnsCommand("ipv4", 12, []);
-        Assert.EndsWith("interface ipv4 set dnsservers name=12 source=dhcp", dhcp);
+    private const string DnsGuid = "{2D0A3F57-7F0E-4C2B-9B1D-6F3C4E5A6B7C}";
 
-        var stat = TweakCatalog.DnsCommand("ipv6", 7, ["2606:4700:4700::1111", "2606:4700:4700::1001"]);
-        Assert.Contains("interface ipv6 set dnsservers name=7 source=static address=2606:4700:4700::1111 register=primary validate=no", stat);
-        Assert.Contains("interface ipv6 add dnsservers name=7 address=2606:4700:4700::1001 index=2 validate=no", stat);
-        Assert.Contains("netsh.exe\"", stat);
+    [Fact]
+    public void Dns_scripts_resolve_the_adapter_by_guid_at_run_time()
+    {
+        var dhcp = TweakCatalog.DnsScript("ipv4", DnsGuid, []);
+        Assert.Contains("Get-NetAdapter -IncludeHidden", dhcp);
+        Assert.Contains("$_.InterfaceGuid -eq '{2d0a3f57-7f0e-4c2b-9b1d-6f3c4e5a6b7c}'", dhcp);
+        Assert.Contains("throw 'сетевой адаптер не найден", dhcp);
+        Assert.Contains("Invoke-Netsh @('interface','ipv4','set','dnsservers',\"name=$i\",'source=dhcp');", dhcp);
+        Assert.Contains("$LASTEXITCODE -ne 0", dhcp);
+        Assert.DoesNotContain("catch", dhcp);
+
+        var stat = TweakCatalog.DnsScript("ipv6", DnsGuid, ["2606:4700:4700::1111", "2606:4700:4700::1001"]);
+        Assert.Contains("'set','dnsservers',\"name=$i\",'source=static','address=2606:4700:4700::1111','register=primary','validate=no'", stat);
+        Assert.Contains("'add','dnsservers',\"name=$i\",'address=2606:4700:4700::1001','index=2','validate=no'", stat);
+        Assert.Contains("netsh.exe'", stat);
+        Assert.Contains("/flushdns", stat);
     }
 
     [Fact]
-    public void Dns_commands_reject_anything_that_is_not_an_ip_address()
+    public void Dns_script_with_rollback_puts_the_previous_list_back_and_rethrows()
     {
-        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsCommand("ipv4", 3, ["1.1.1.1 & calc"]));
+        var script = TweakCatalog.DnsScript("ipv4", DnsGuid, ["1.1.1.1"], rollbackTo: []);
+        var catchAt = script.IndexOf("}catch{$e=$_;", StringComparison.Ordinal);
+        Assert.True(catchAt > 0);
+        Assert.Contains("'address=1.1.1.1'", script[..catchAt]);
+        Assert.Contains("'source=dhcp'", script[catchAt..]);
+        Assert.Contains("throw $e", script[catchAt..]);
+    }
+
+    [Fact]
+    public void Dns_scripts_reject_anything_that_is_not_an_ip_address_or_a_guid()
+    {
+        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsScript("ipv4", DnsGuid, ["1.1.1.1' ; calc ; '"]));
+        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsScript("ipv4", "{x'; calc}", ["1.1.1.1"]));
+        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsScript("ipv4", DnsGuid, ["8.8.8.8"], rollbackTo: ["evil"]));
     }
 
     // ───────────────────────────── Background apps ─────────────────────────────
