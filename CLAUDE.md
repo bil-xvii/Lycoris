@@ -133,6 +133,8 @@ dotnet publish src/Monolith/Monolith.csproj -c Release -r win-x64 --self-contain
 # exit code = number of failed pages. Run after every change set.
 MONOLITH.exe --selftest snapshots/selftest
 ```
+On Linux (cloud sessions): build with `-p:EnableWindowsTargeting=true`; `tools/test-on-linux.sh` runs the unit tests
+(~170 Windows-only tests fail there by design — judge only failures that don't involve registry/P/Invoke/paths/processes).
 Unit tests include `TweakApplyRevertTests`: every RegistryTweak is applied and reverted against a redirected
 registry (`RegistryHelper.Redirect`, tests only) and must restore every value exactly.
 
