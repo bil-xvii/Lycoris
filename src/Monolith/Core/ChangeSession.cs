@@ -18,6 +18,8 @@ public sealed class ChangeSession
     public ChangeBatch Batch { get; }
     public string BackupDir { get; }
     public int Applied { get; private set; }
+    /// <summary>Set when a command reported "done, restart required" (e.g. pnputil exit code 3010).</summary>
+    public bool RebootRequired { get; private set; }
     public List<string> Errors { get; } = [];
 
     private ChangeSession(ChangeJournal journal, ChangeBatch batch)
@@ -116,6 +118,9 @@ public sealed class ChangeSession
             }
             if (ServiceControl.IsProtected(service))
                 throw new InvalidOperationException($"служба {service} защищена от изменений");
+            // The journal refuses to replay such records, so they are never created either.
+            if (Monolith.Modules.Services.ServiceGuard.IsHardBlocked(service))
+                throw new InvalidOperationException($"служба {service} в списке служб, которые MONOLITH не меняет");
 
             var incoming = new ChangeRecord
             {
@@ -208,9 +213,12 @@ public sealed class ChangeSession
     /// <summary>
     /// Runs a command whose effect is undone by another command (e.g. fsutil / bcdedit style settings).
     /// <paramref name="target"/> identifies the setting so repeated applies keep the first original.
+    /// <paramref name="successCodes"/> lists the exit codes that mean "applied" (default: only 0). An applied
+    /// non-zero code keeps the journal record; 3010 also sets <see cref="RebootRequired"/>.
     /// </summary>
     public async Task<bool> RunCommandAsync(string target, string file, string args, string revertFile, string revertArgs,
-        string oldValue, string newValue, string source, string title, OutputEncoding encoding = OutputEncoding.Oem)
+        string oldValue, string newValue, string source, string title, OutputEncoding encoding = OutputEncoding.Oem,
+        IReadOnlySet<int>? successCodes = null)
     {
         ChangeRecord? rec = null;
         bool isNew = false;
@@ -226,7 +234,13 @@ public sealed class ChangeSession
             var encoded = args.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
             if (encoded) Log.Command($"powershell: {title} ({newValue})");
             var r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
-            if (!r.Success) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
+            var applied = r.Success || (!r.TimedOut && !r.Cancelled && successCodes?.Contains(r.ExitCode) == true);
+            if (!applied) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
+            if (r.ExitCode == ProcessExit.RebootRequired)
+            {
+                RebootRequired = true;
+                Log.Warn($"{title}: изменение вступит в силу после перезагрузки.");
+            }
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
             return true;

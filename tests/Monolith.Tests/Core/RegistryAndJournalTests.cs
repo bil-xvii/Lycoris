@@ -96,7 +96,7 @@ public sealed class RegistryAndJournalTests : IDisposable
         var first = RegistryHelper.Snapshot(RegHive.HKCU, _key, "Mode");
         var (rec1, isNew1) = journal.Add(new ChangeRecord
         {
-            BatchId = batch.Id, Source = "test", Title = "Mode", Kind = ChangeKind.Registry,
+            BatchId = batch.Id, Source = "tweak:test", Title = "Mode", Kind = ChangeKind.Registry,
             Target = $"reg:HKCU\\{_key}\\Mode", OldValue = first.Describe(), NewValue = "1", Registry = first,
         });
         RegistryHelper.Write(RegHive.HKCU, _key, "Mode", RegistryValueKind.DWord, 1);
@@ -105,7 +105,7 @@ public sealed class RegistryAndJournalTests : IDisposable
         var second = RegistryHelper.Snapshot(RegHive.HKCU, _key, "Mode");
         var (rec2, isNew2) = journal.Add(new ChangeRecord
         {
-            BatchId = batch.Id, Source = "test", Title = "Mode", Kind = ChangeKind.Registry,
+            BatchId = batch.Id, Source = "tweak:test", Title = "Mode", Kind = ChangeKind.Registry,
             Target = $"reg:HKCU\\{_key}\\Mode", OldValue = second.Describe(), NewValue = "2", Registry = second,
         });
         RegistryHelper.Write(RegHive.HKCU, _key, "Mode", RegistryValueKind.DWord, 2);
@@ -115,7 +115,7 @@ public sealed class RegistryAndJournalTests : IDisposable
         Assert.Same(rec1, rec2);
         Assert.Single(journal.ActiveRecords);
 
-        var result = await journal.RevertSourceAsync("test");
+        var result = await journal.RevertSourceAsync("tweak:test");
         Assert.True(result.Success);
         Assert.Equal(1, result.Reverted);
         Assert.Equal(7, RegistryHelper.ReadInt(RegHive.HKCU, _key, "Mode"));
@@ -131,7 +131,7 @@ public sealed class RegistryAndJournalTests : IDisposable
         var snap = RegistryHelper.Snapshot(RegHive.HKCU, _key, "Persist");
         journal.Add(new ChangeRecord
         {
-            BatchId = batch.Id, Source = "persist", Title = "Persist", Kind = ChangeKind.Registry,
+            BatchId = batch.Id, Source = "tweak:persist", Title = "Persist", Kind = ChangeKind.Registry,
             Target = $"reg:HKCU\\{_key}\\Persist", OldValue = snap.Describe(), NewValue = "changed", Registry = snap,
         });
         RegistryHelper.Write(RegHive.HKCU, _key, "Persist", RegistryValueKind.String, "changed");
@@ -147,14 +147,25 @@ public sealed class RegistryAndJournalTests : IDisposable
     }
 
     [Fact]
-    public void Damaged_journal_is_kept_as_a_copy_and_a_new_one_starts()
+    public void Damaged_journal_without_backup_blocks_changes_until_a_new_one_is_started()
     {
         File.WriteAllText(_journalPath, "{ this is not json");
         var journal = new ChangeJournal(_journalPath);
         Assert.Empty(journal.Records);
-        var copies = Directory.GetFiles(Path.GetDirectoryName(_journalPath)!, Path.GetFileName(_journalPath) + ".broken-*");
+        Assert.True(journal.IsUnavailable);
+        Assert.Throws<InvalidOperationException>(() => journal.BeginBatch("blocked"));
+        Assert.Equal("{ this is not json", File.ReadAllText(_journalPath)); // never overwritten
+
+        Assert.True(journal.StartNewJournal());
+        Assert.False(journal.IsUnavailable);
+        journal.BeginBatch("fresh");
+        Assert.Single(new ChangeJournal(_journalPath).Batches);
+
+        var dir = Path.GetDirectoryName(_journalPath)!;
+        var name = Path.GetFileName(_journalPath);
+        var copies = Directory.GetFiles(dir, name + ".broken-*");
         Assert.NotEmpty(copies);
-        foreach (var c in copies) File.Delete(c);
+        foreach (var c in copies.Concat(Directory.GetFiles(dir, name + ".unavailable-*"))) File.Delete(c);
     }
 
     [Fact]
@@ -164,7 +175,7 @@ public sealed class RegistryAndJournalTests : IDisposable
         var batch = journal.BeginBatch("x");
         var (rec, _) = journal.Add(new ChangeRecord
         {
-            BatchId = batch.Id, Source = "x", Title = "x", Kind = ChangeKind.Registry, Target = "reg:x",
+            BatchId = batch.Id, Source = "tweak:x", Title = "x", Kind = ChangeKind.Registry, Target = "reg:x",
             Registry = new RegistryValueSnapshot { Hive = RegHive.HKCU, Path = _key, Name = "x" },
         });
         journal.Remove(rec);
