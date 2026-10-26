@@ -128,6 +128,7 @@ public partial class App : Application
         {
             // Lock down %ProgramData%\MONOLITH before the journal is read, then repair an interrupted restore point.
             AppPaths.SecureMachineDir();
+            Monolith.Modules.Drivers.DriverBackupService.QuarantineIfInsecure();
             RestorePointService.RecoverPendingFrequency();
         }
         AppSettings.Load();

@@ -316,7 +316,7 @@ public sealed class SystemProfile
 
     private void ReadBoard()
     {
-        foreach (var mo in Query("board", "SELECT Manufacturer, Model, PCSystemType FROM Win32_ComputerSystem"))
+        foreach (var mo in Query("chassis", "SELECT Manufacturer, Model, PCSystemType FROM Win32_ComputerSystem"))
         {
             Manufacturer = mo["Manufacturer"]?.ToString() ?? "";
             Model = mo["Model"]?.ToString() ?? "";

@@ -60,6 +60,28 @@ internal static partial class DriverBackupService
 
     public static string Root => AppPaths.DriverBackupsDir;
 
+    /// <summary>
+    /// Called at elevated startup. When the machine folder was writable by other users, existing backups may have
+    /// been planted: they are renamed to "untrusted-…" (never deleted), so they no longer parse as backups and can
+    /// never be restored, even in later runs after the folder ACL was repaired.
+    /// </summary>
+    public static void QuarantineIfInsecure()
+    {
+        if (!AppPaths.MachineDirWasInsecure || !Directory.Exists(Root)) return;
+        var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+        foreach (var dir in Directory.EnumerateDirectories(Root))
+        {
+            var name = Path.GetFileName(dir);
+            if (!BackupFolders.TryParse(name, out _, out _)) continue;
+            try
+            {
+                Directory.Move(dir, Path.Combine(Root, $"untrusted-{stamp}-{name}"));
+                Log.Warn($"Резервная копия драйверов {name} отложена: папка данных была доступна другим пользователям.");
+            }
+            catch (Exception ex) { Log.Warn($"Не удалось отложить резервную копию {name}: {ex.Message}"); }
+        }
+    }
+
     private static string Pnputil => ProcessRunner.Sys("pnputil.exe");
 
     [GeneratedRegex(@"oem\d+\.inf", RegexOptions.IgnoreCase)]
@@ -130,8 +152,10 @@ internal static partial class DriverBackupService
                 if (new DirectoryInfo(folder).Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
                 foreach (var inf in Directory.EnumerateFiles(folder, "*.inf"))
                 {
-                    var v = InfParser.Parse(ReadInfText(inf));
-                    list.Add(new BackupPackage(Path.GetFileName(folder), Path.GetFileName(inf), v.Provider, v.Class, v.Version, v.Date));
+                    // An INF that can't be read or parsed is still listed: otherwise restore would refuse the backup.
+                    InfVersionInfo? v = null;
+                    try { v = InfParser.Parse(ReadInfText(inf)); } catch { }
+                    list.Add(new BackupPackage(Path.GetFileName(folder), Path.GetFileName(inf), v?.Provider, v?.Class, v?.Version, v?.Date));
                 }
             }
             catch { }

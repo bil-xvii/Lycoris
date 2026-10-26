@@ -378,11 +378,14 @@ public sealed class ChangeJournal
 
             case ChangeKind.Command when !string.IsNullOrWhiteSpace(r.RevertFile):
                 SafetyLock.ThrowIfLocked("откат команды");
-                if (!AllowedRevertPrograms.Contains(r.RevertFile, StringComparer.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"Отказано: команда отката «{r.RevertFile}» не из списка системных утилит.");
-                var encoded = (r.RevertArgs ?? "").Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
+                // DNS records from older builds name the adapter by its (non-persistent) index: run the current
+                // GUID-based script with the same servers instead.
+                var (revertFile, revertArgs) = JournalTrust.UpgradeLegacyDns(r) ?? (r.RevertFile!, r.RevertArgs ?? "");
+                if (!AllowedRevertPrograms.Contains(revertFile, StringComparer.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Отказано: команда отката «{revertFile}» не из списка системных утилит.");
+                var encoded = revertArgs.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
                 if (encoded) Log.Command($"powershell: откат «{r.Title}»");
-                var result = await ProcessRunner.RunAsync(r.RevertFile!, r.RevertArgs ?? "",
+                var result = await ProcessRunner.RunAsync(revertFile, revertArgs,
                     new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
                 var rebootPending = result is { ExitCode: ProcessExit.RebootRequired, TimedOut: false, Cancelled: false }
                                     && string.Equals(r.RevertFile, ProcessRunner.Sys("pnputil.exe"), StringComparison.OrdinalIgnoreCase);
@@ -593,7 +596,8 @@ internal static class JournalTrust
 
             case ChangeKind.PowerScheme:
                 if (r.Target != "power:active") return "некорректная цель записи плана питания";
-                if (r.PowerSchemeCreated is not null && !isTweak) return "план питания на удаление указан не твиком";
+                if (r.PowerSchemeCreated is not null && !isTweak && !r.AlsoSources.Any(s => s.StartsWith("tweak:", StringComparison.Ordinal)))
+                    return "план питания на удаление указан не твиком";
                 return null;
 
             case ChangeKind.Command:
@@ -648,6 +652,7 @@ internal static class JournalTrust
         var dns = Regex.Match(target, $@"^dns([46]):(\{{?{GuidPattern}\}}?)$");
         if (dns.Success)
         {
+            if (UpgradeLegacyDns(r) is not null) return null;
             if (!SameFile(file, TweakCatalog.PowerShellExe) || PsScript(args) is not { } dnsScript) return Unknown;
             var rebuilt = RebuildDns(dns.Groups[1].Value == "6" ? "ipv6" : "ipv4", dns.Groups[2].Value, dnsScript);
             return rebuilt == args ? null : Unknown;
@@ -683,6 +688,51 @@ internal static class JournalTrust
         if (!args.StartsWith(PsPrefix, StringComparison.Ordinal)) return null;
         try { return Encoding.Unicode.GetString(Convert.FromBase64String(args[PsPrefix.Length..])); }
         catch (FormatException) { return null; }
+    }
+
+    /// <summary>
+    /// A DNS undo record written by an older build (cmd.exe + netsh by interface index), rebuilt character for
+    /// character with that build's code to prove it is genuine. Returns the equivalent current command (PowerShell,
+    /// adapter found by GUID at run time), or null when the record is not such a legacy record.
+    /// </summary>
+    internal static (string File, string Args)? UpgradeLegacyDns(ChangeRecord r)
+    {
+        if (r.Kind != ChangeKind.Command || !r.Target.StartsWith("cmd:", StringComparison.Ordinal)) return null;
+        var dns = Regex.Match(r.Target[4..], $@"^dns([46]):(\{{?{GuidPattern}\}}?)$");
+        if (!dns.Success || !SameFile(r.RevertFile, ProcessRunner.Sys("cmd.exe"))) return null;
+        var args = r.RevertArgs ?? "";
+        if (!args.StartsWith(CmdHead, StringComparison.Ordinal) || !args.EndsWith('"') || args.Length <= CmdHead.Length) return null;
+        var inner = args[CmdHead.Length..^1];
+        var family = dns.Groups[1].Value == "6" ? "ipv6" : "ipv4";
+        var flush = " && " + Quoted("ipconfig.exe") + " /flushdns";
+        if (!inner.EndsWith(flush, StringComparison.Ordinal)) return null;
+        var body = inner[..^flush.Length];
+        var first = Regex.Match(body, $@"interface {family} set dnsservers name=([0-9]{{1,9}}) source=(?:dhcp|static address=([0-9A-Fa-f:.%]+) register=primary)");
+        if (!first.Success) return null;
+        var index = int.Parse(first.Groups[1].Value, CultureInfo.InvariantCulture);
+        var servers = new List<string>();
+        if (first.Groups[2].Success) servers.Add(first.Groups[2].Value);
+        foreach (Match m in Regex.Matches(body, "add dnsservers name=[0-9]{1,9} address=([0-9A-Fa-f:.%]+) index="))
+            servers.Add(m.Groups[1].Value);
+        try
+        {
+            if (LegacyDnsCommand(family, index, servers) != body) return null;
+            return (TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript(family, dns.Groups[2].Value, servers)));
+        }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException) { return null; }
+    }
+
+    /// <summary>The netsh line older builds wrote (TweakCatalog.DnsCommand before the GUID-based script).</summary>
+    private static string LegacyDnsCommand(string family, int index, IReadOnlyList<string> servers)
+    {
+        var netsh = Quoted("netsh.exe");
+        if (servers.Count == 0) return $"{netsh} interface {family} set dnsservers name={index} source=dhcp";
+        var addresses = servers.Select(s => System.Net.IPAddress.TryParse(s, out var ip)
+            ? ip.ToString()
+            : throw new InvalidOperationException($"некорректный адрес DNS-сервера: {s}")).ToList();
+        return string.Join(" && ", addresses.Select((s, i) => i == 0
+            ? $"{netsh} interface {family} set dnsservers name={index} source=static address={s} register=primary validate=no"
+            : $"{netsh} interface {family} add dnsservers name={index} address={s} index={i + 1} validate=no"));
     }
 
     /// <summary>Reads the server list back out of a DNS undo script and rebuilds it with the catalog code.</summary>
