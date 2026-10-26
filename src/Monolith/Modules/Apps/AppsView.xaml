@@ -4,14 +4,687 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Apps"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:AppsViewModel}">
+
+    <UserControl.Resources>
+        <!-- Tag badge: look chosen by Kind (Normal / Solid / Hatch / Muted) -->
+        <DataTemplate x:Key="TagTemplate" DataType="{x:Type local:AppTagInfo}">
+            <Border Margin="0,0,6,6" ToolTip="{Binding ToolTip}" ToolTipService.ShowDuration="30000" ToolTipService.InitialShowDelay="250">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource Tag}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Kind}" Value="Solid">
+                                <Setter Property="Background" Value="{StaticResource B.White}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
+                                <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Kind}" Value="Hatch">
+                                <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                                <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Kind}" Value="Muted">
+                                <Setter Property="BorderBrush" Value="{StaticResource B.Line2}" />
+                                <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding Text}" />
+            </Border>
+        </DataTemplate>
+
+        <!-- Visibility of an ItemsControl container follows the item's IsVisible -->
+        <Style x:Key="VisibleContainer" TargetType="ContentPresenter">
+            <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVis}}" />
+        </Style>
+
+        <!-- ═══════════════ Catalog card ═══════════════ -->
+        <DataTemplate x:Key="CardTemplate" DataType="{x:Type local:AppItemViewModel}">
+            <Border>
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource Card.Hover}">
+                        <Setter Property="Padding" Value="0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                                <Setter Property="Background" Value="{StaticResource B.Surface2}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- installed marker -->
+                    <Rectangle Grid.RowSpan="2" Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
+                               Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}" />
+
+                    <StackPanel Margin="18,16,18,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Top" Margin="0,2,12,0"
+                                      ToolTip="Отметить для пакетной установки или обновления" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource T.H2}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                <TextBlock Text="{Binding PackageId}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}"
+                                           Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" FontSize="12.5" LineHeight="18" Margin="0,10,0,0"
+                                   MaxHeight="36" TextTrimming="CharacterEllipsis" ToolTip="{Binding Description}" />
+                        <ItemsControl ItemsSource="{Binding DisplayTags}" ItemTemplate="{StaticResource TagTemplate}" Margin="0,12,0,0" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- action bar -->
+                    <Grid Grid.Row="1" Margin="18,8,12,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- main action: primary block for install / website, outline for the rest -->
+                        <Grid Visibility="{Binding HasActiveJob, Converter={StaticResource InverseBoolToVis}}">
+                            <Button Style="{StaticResource Btn.Primary}" Content="{Binding ActionText}" MinWidth="118"
+                                    Command="{Binding DataContext.RunActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" IsEnabled="{Binding CanRunAction}" ToolTip="{Binding ActionToolTip}"
+                                    ToolTipService.ShowOnDisabled="True"
+                                    Visibility="{Binding IsPrimaryAction, Converter={StaticResource BoolToVis}}" />
+                            <Button Style="{StaticResource Btn}" Content="{Binding ActionText}" MinWidth="118"
+                                    Command="{Binding DataContext.RunActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" IsEnabled="{Binding CanRunAction}" ToolTip="{Binding ActionToolTip}"
+                                    ToolTipService.ShowOnDisabled="True"
+                                    Visibility="{Binding IsPrimaryAction, Converter={StaticResource InverseBoolToVis}}" />
+                        </Grid>
+
+                        <!-- queued / running -->
+                        <Border Height="36" MinWidth="118" Padding="12,0" BorderBrush="{StaticResource B.Line3}" BorderThickness="1"
+                                Background="{StaticResource B.Surface3}"
+                                Visibility="{Binding HasActiveJob, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Static ui:Glyphs.Sync}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center"
+                                           Foreground="{StaticResource B.Text2}" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding Job.StatusText, FallbackValue=''}" Style="{StaticResource T.Label}" FontSize="11.5"
+                                           Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <ComboBox Grid.Column="1" Width="92" MinWidth="0" Margin="8,0,0,0" ItemsSource="{Binding Variants}"
+                                  SelectedItem="{Binding SelectedVariant}"
+                                  ToolTip="Регион игры: от него зависят сервер и пакет winget"
+                                  Visibility="{Binding HasVariantPicker, Converter={StaticResource BoolToVis}}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:AppVariant}">
+                                    <TextBlock Text="{Binding Label}" FontFamily="{StaticResource F.Mono}" FontSize="12" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <!-- result of the last queue run -->
+                        <TextBlock Grid.Column="2" Margin="12,0,8,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}" FontSize="10.5"
+                                   Text="{Binding Job.StatusText, FallbackValue=''}" ToolTip="{Binding Job.Detail, FallbackValue={x:Null}}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding Job.IsFinished, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
+
+                        <Button Grid.Column="3" Style="{StaticResource Btn.Ghost}" ToolTip="{Binding SiteToolTip}"
+                                Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="САЙТ" VerticalAlignment="Center" />
+                                <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="11"
+                                           Margin="7,1,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <ProgressBar Grid.Row="1" VerticalAlignment="Bottom" Height="2" IsIndeterminate="True"
+                                 Visibility="{Binding Job.IsRunning, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- ═══════════════ Queue row ═══════════════ -->
+        <DataTemplate x:Key="QueueRowTemplate" DataType="{x:Type local:QueueItemViewModel}">
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource B.Surface3}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Rectangle Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
+                           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" />
+                <Grid Margin="20,9,20,9">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="24" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="&#xE915;" />
+                                <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding State}" Value="Running">
+                                        <Setter Property="Text" Value="{x:Static ui:Glyphs.Sync}" />
+                                        <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Done">
+                                        <Setter Property="Text" Value="{x:Static ui:Glyphs.Check}" />
+                                        <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Skipped">
+                                        <Setter Property="Text" Value="{x:Static ui:Glyphs.ChevronRight}" />
+                                        <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Failed">
+                                        <Setter Property="Text" Value="{x:Static ui:Glyphs.Error}" />
+                                        <Setter Property="Foreground" Value="{StaticResource B.White}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Cancelled">
+                                        <Setter Property="Text" Value="{x:Static ui:Glyphs.Cancel}" />
+                                        <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Unknown">
+                                        <Setter Property="Text" Value="{x:Static ui:Glyphs.Info}" />
+                                        <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                        <TextBlock FontSize="10.5" Margin="0,2,0,0" TextWrapping="Wrap" ToolTip="{Binding Detail}">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0} · {1}">
+                                    <Binding Path="StatusText" />
+                                    <Binding Path="OperationText" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
+                                    <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding State}" Value="Failed">
+                                            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding State}" Value="Running">
+                                            <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
-        <TextBlock Grid.Row="1" Margin="0,28,0,0" Style="{StaticResource T.Caption}" Text="Модуль в разработке." />
+
+        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+            <c:PageHeader.Actions>
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource Btn}" Command="{Binding RefreshCommand}" Margin="0,0,10,0"
+                            ToolTip="Заново проверить winget и установленные программы">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="ПРОВЕРИТЬ" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn}" Command="{Binding UpdateAllCommand}"
+                            ToolTip="Обновить через winget все установленные программы из каталога (кроме обновляющихся самостоятельно)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="ОБНОВИТЬ ВСЁ" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </c:PageHeader.Actions>
+        </c:PageHeader>
+
+        <Grid Grid.Row="1" Margin="0,24,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ScrollViewer x:Name="MainScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel Margin="0,0,14,28">
+
+                    <!-- ═══════════════ Read-only notice ═══════════════ -->
+                    <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,16"
+                            Visibility="{Binding ShowReadOnlyNotice, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{StaticResource B.HatchStrong}" />
+                            <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Shield}" Style="{StaticResource T.Icon}" FontSize="18" Margin="18,0,16,0" />
+                            <StackPanel Grid.Column="2" Margin="0,12,18,13">
+                                <TextBlock Text="БЕЗ ПРАВ АДМИНИСТРАТОРА — УСТАНОВКА ВСЁ РАВНО РАБОТАЕТ" Style="{StaticResource T.H3}" />
+                                <TextBlock Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,3,0,0"
+                                           Text="Установщики программ для всех пользователей сами покажут запрос UAC. Точка восстановления в этом режиме не создаётся." />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ═══════════════ Outdated winget ═══════════════ -->
+                    <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,16"
+                            Visibility="{Binding WingetOutdated, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{StaticResource B.HatchStrong}" />
+                            <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Warning}" Style="{StaticResource T.Icon}" FontSize="18" Margin="18,0,16,0" />
+                            <StackPanel Grid.Column="2" Margin="0,12,18,13">
+                                <TextBlock Text="УСТАРЕВШИЙ WINGET" Style="{StaticResource T.H3}" />
+                                <TextBlock Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,3,0,0"
+                                           Text="Эта версия «Установщика приложений» слишком старая: часть пакетов может не ставиться. Обновите его в Microsoft Store." />
+                            </StackPanel>
+                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="ОБНОВИТЬ В STORE" Margin="0,0,16,0"
+                                    Command="{Binding OpenAppInstallerStoreCommand}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ═══════════════ winget missing ═══════════════ -->
+                    <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,28"
+                            Visibility="{Binding WingetMissing, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{StaticResource B.HatchStrong}" />
+                            <StackPanel Grid.Column="1" Margin="28,24,24,26">
+                                <TextBlock Text="WINGET · УСТАНОВЩИК ПРИЛОЖЕНИЙ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="WINGET НЕ НАЙДЕН" Style="{StaticResource T.H1}" FontSize="30" Margin="0,6,0,0" />
+                                <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="620" HorizontalAlignment="Left"
+                                           Text="MONOLITH ставит программы через winget — официальный менеджер пакетов Windows из «Установщика приложений» (App Installer). Установите или обновите его в Microsoft Store, затем нажмите «Проверить снова». Каталог ниже остаётся доступен: у каждой программы есть ссылка на официальный сайт." />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,24,0" VerticalAlignment="Center">
+                                <Button Style="{StaticResource Btn.Primary}" Command="{Binding OpenAppInstallerStoreCommand}" Height="40">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="ОТКРЫТЬ MICROSOFT STORE" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="11" Margin="8,1,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource Btn}" Content="ПРОВЕРИТЬ СНОВА" Margin="0,10,0,0" Command="{Binding RefreshCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ═══════════════ Gamer kit + catalog summary ═══════════════ -->
+                    <DockPanel Margin="0,0,0,30" LastChildFill="True"
+                               Visibility="{Binding WingetMissing, Converter={StaticResource InverseBoolToVis}}">
+                        <!-- summary -->
+                        <Border DockPanel.Dock="Right" Width="272" Margin="16,0,0,0" Style="{StaticResource Card}" Padding="22,20"
+                                Visibility="{Binding HasQueue, Converter={StaticResource InverseBoolToVis}}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="КАТАЛОГ" Style="{StaticResource T.Label}" />
+                                <Grid DockPanel.Dock="Top" Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding InstalledCount}" Style="{StaticResource T.Stat}" />
+                                        <TextBlock Text="УСТАНОВЛЕНО" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding TotalCount}" Style="{StaticResource T.Stat}" Foreground="{StaticResource B.Text3}" />
+                                        <TextBlock Text="ПАКЕТОВ" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                                <Rectangle DockPanel.Dock="Top" Style="{StaticResource Divider}" Margin="0,18,0,14" />
+                                <Grid DockPanel.Dock="Top">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="WINGET" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding WingetVersionText}" Style="{StaticResource T.Mono}" FontSize="11.5"
+                                               Foreground="{StaticResource B.Text}" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Row="1" Text="ИСТОЧНИКИ" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,8,0,0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="winget · msstore" Style="{StaticResource T.Mono}" FontSize="11.5"
+                                               HorizontalAlignment="Right" Margin="0,8,0,0" />
+                                </Grid>
+                                <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0" VerticalAlignment="Bottom">
+                                    <ProgressBar IsIndeterminate="True" Height="2" Margin="0,0,0,8"
+                                                 Visibility="{Binding IsDetecting, Converter={StaticResource BoolToVis}}" />
+                                    <TextBlock Text="{Binding DetectionText}" Style="{StaticResource T.Caption}" />
+                                </StackPanel>
+                                <Border />
+                            </DockPanel>
+                        </Border>
+
+                        <!-- hero -->
+                        <Border Style="{StaticResource Card}" Padding="0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="{StaticResource B.HatchStrong}" />
+                                <StackPanel Grid.Column="1" Margin="28,22,24,24">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Style="{StaticResource Tag.Solid}">
+                                            <TextBlock Text="НАЧНИТЕ С ЭТОГО" />
+                                        </Border>
+                                        <TextBlock Style="{StaticResource T.Label}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                   Text="VISUAL C++ 2005–2022 · DIRECTX · .NET DESKTOP" />
+                                    </StackPanel>
+                                    <TextBlock Text="НАБОР ГЕЙМЕРА" Style="{StaticResource T.Display}" FontSize="34" LineHeight="36" Margin="0,12,0,0" />
+                                    <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="580" HorizontalAlignment="Left"
+                                               Text="Библиотеки, без которых игры не запускаются или падают с ошибками вроде «MSVCP140.dll не найден» и «d3dx9_43.dll отсутствует»: все Visual C++ (x86 и x64), DirectX June 2010 и .NET Desktop Runtime. Уже установленное пропускается." />
+                                </StackPanel>
+                                <Grid Grid.Column="2" Width="236" Margin="0,22,24,24">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="УСТАНОВЛЕНО" Style="{StaticResource T.Label}" />
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,2,0,0">
+                                        <TextBlock Text="{Binding KitInstalled}" Style="{StaticResource T.Stat}" />
+                                        <TextBlock Style="{StaticResource T.StatUnit}" Text="{Binding KitTotal, StringFormat='/ {0}'}" />
+                                    </StackPanel>
+                                    <c:Meter Grid.Row="2" Value="{Binding KitPercent}" Segments="17" Gap="3" Height="8" Margin="0,8,0,0" />
+                                    <TextBlock Grid.Row="3" Text="{Binding KitStatusText}" Style="{StaticResource T.Caption}" Margin="0,8,0,0" />
+                                    <Button Grid.Row="4" Style="{StaticResource Btn.Primary}" Height="40" Margin="0,16,0,0"
+                                            Content="{Binding KitButtonText}" Command="{Binding InstallKitCommand}"
+                                            ToolTip="Показать список пакетов и установить недостающие" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DockPanel>
+
+                    <!-- ═══════════════ Category tabs ═══════════════ -->
+                    <Grid>
+                        <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
+                        <ItemsControl ItemsSource="{Binding Categories}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:CategoryFilterViewModel}">
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="AppsCategory" Padding="12,0"
+                                                 IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                 Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                 CommandParameter="{Binding}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Count}" FontFamily="{StaticResource F.Mono}" FontSize="10.5" FontWeight="Normal"
+                                                       Margin="7,1,0,0" Opacity="0.55" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+
+                    <!-- ═══════════════ Search + selection ═══════════════ -->
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="200" MaxWidth="340" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid>
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,36,0"
+                                     Tag="Поиск по названию или ID" />
+                            <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12"
+                                       Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,13,0"
+                                       IsHitTestVisible="False" Visibility="{Binding HasSearch, Converter={StaticResource InverseBoolToVis}}" />
+                            <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" FontSize="10" Content="{x:Static ui:Glyphs.Close}"
+                                    HorizontalAlignment="Right" Margin="0,0,3,0" Command="{Binding ClearSearchCommand}" ToolTip="Сбросить поиск"
+                                    Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+                        <TextBlock Grid.Column="1" Text="{Binding VisibleText}" Style="{StaticResource T.Mono}" FontSize="11.5"
+                                   Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding SelectedText}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <Button Style="{StaticResource Btn.Ghost}" Content="СНЯТЬ ВЫБОР" Margin="0,0,8,0" Command="{Binding ClearSelectionCommand}"
+                                    Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}" />
+                            <Button Style="{StaticResource Btn.Primary}" Command="{Binding InstallSelectedCommand}"
+                                    ToolTip="Поставить в очередь все отмеченные программы: неустановленные — установить, установленные — обновить">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="УСТАНОВИТЬ ВЫБРАННОЕ" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ═══════════════ Catalog ═══════════════ -->
+                    <ItemsControl ItemsSource="{Binding Groups}" ItemContainerStyle="{StaticResource VisibleContainer}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:AppGroupViewModel}">
+                                <StackPanel Margin="0,30,0,0">
+                                    <Grid Margin="0,0,0,14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="{StaticResource B.Surface4}" Padding="6,1,6,2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Index}" FontFamily="{StaticResource F.Mono}" FontSize="11" FontWeight="Bold"
+                                                       Foreground="{StaticResource B.Text2}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" Style="{StaticResource T.H1}" FontSize="22" Margin="12,0,0,0"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Description}" Style="{StaticResource T.Caption}" Margin="16,3,0,0"
+                                                   VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                        <Rectangle Grid.Column="3" Height="1" Fill="{StaticResource B.Line2}" Margin="16,2,16,0" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="4" Style="{StaticResource T.Mono}" FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource B.Text3}">
+                                            <Run Text="УСТАНОВЛЕНО" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5" />
+                                            <Run Text="{Binding InstalledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
+                                            <Run Text="/" />
+                                            <Run Text="{Binding VisibleCount, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource CardTemplate}"
+                                                  ItemContainerStyle="{StaticResource VisibleContainer}" Focusable="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <local:CardGrid MinColumnWidth="318" Gap="12" MaxColumns="4" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- ═══════════════ No results ═══════════════ -->
+                    <Border Style="{StaticResource Card}" Margin="0,30,0,0" Padding="28,26"
+                            Visibility="{Binding HasNoResults, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Static ui:Glyphs.Search}" Style="{StaticResource T.Icon}" FontSize="26" Foreground="{StaticResource B.Text3}" Margin="0,0,22,0" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="НИЧЕГО НЕ НАЙДЕНО" Style="{StaticResource T.H2}" />
+                                <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0"
+                                           Text="Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store." />
+                            </StackPanel>
+                            <Button Grid.Column="2" Style="{StaticResource Btn}" Content="СБРОСИТЬ ПОИСК" VerticalAlignment="Center" Margin="20,0,0,0"
+                                    Command="{Binding ClearSearchCommand}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ═══════════════ Trust footer ═══════════════ -->
+                    <Grid Margin="0,36,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{x:Static ui:Glyphs.Lock}" Style="{StaticResource T.Icon}" FontSize="13" Foreground="{StaticResource B.Text3}"
+                                   VerticalAlignment="Top" Margin="0,1,12,0" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" MaxWidth="860" HorizontalAlignment="Left"
+                                   Text="Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком, установщик скачивается с его сервера, а SHA256 сверяется с манифестом. MONOLITH никогда не передаёт winget флаги --force, --ignore-security-hash и --allow-reboot. Удалить программу можно в «Параметры → Приложения»." />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ═══════════════ Install queue ═══════════════ -->
+            <Border x:Name="QueuePanel" Grid.Column="1" Width="372" Margin="20,0,0,0" Background="{StaticResource B.Surface}"
+                    BorderBrush="{StaticResource B.Line2}" BorderThickness="1" SizeChanged="QueuePanel_SizeChanged"
+                    Visibility="{Binding HasQueue, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Rectangle Height="3" VerticalAlignment="Top">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsQueueRunning}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <StackPanel Margin="20,20,20,0">
+                        <Grid>
+                            <TextBlock>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
+                                        <Setter Property="Text" Value="ОЧЕРЕДЬ · ЗАВЕРШЕНО" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsQueueRunning}" Value="True">
+                                                <Setter Property="Text" Value="ОЧЕРЕДЬ · ВЫПОЛНЯЕТСЯ" />
+                                                <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding QueueCounter}" Style="{StaticResource T.Mono}" FontSize="11.5" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource B.Text}" />
+                        </Grid>
+                        <TextBlock Text="{Binding QueueTitle}" Style="{StaticResource T.H1}" FontSize="24" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <ProgressBar Grid.Row="1" Margin="20,14,20,0" Height="3" Minimum="0" Maximum="100" Value="{Binding QueueProgress}" />
+
+                    <ScrollViewer x:Name="QueueScroll" Grid.Row="2" MaxHeight="290" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <ItemsControl ItemsSource="{Binding Queue}" ItemTemplate="{StaticResource QueueRowTemplate}" Focusable="False" />
+                    </ScrollViewer>
+
+                    <Grid Grid.Row="3" Margin="20,14,20,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="ВЫВОД WINGET" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                        <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" Margin="10,1,0,0" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Border Grid.Row="4" Margin="20,0,20,0" MinHeight="72" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line}" BorderThickness="1">
+                        <ListBox x:Name="LogList" Style="{StaticResource List.Plain}" ItemsSource="{Binding QueueLog}" Padding="10,8"
+                                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource T.Mono}" FontSize="11" TextWrapping="Wrap" Margin="0,1" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <Grid Grid.Row="5" Margin="20,14,20,18">
+                        <!-- running: stop after the current package -->
+                        <Button Style="{StaticResource Btn}" Command="{Binding StopQueueCommand}"
+                                ToolTip="Текущий пакет будет доведён до конца, остальные — отменены">
+                            <Button.Visibility>
+                                <MultiBinding Converter="{x:Static local:AppsView.AllTrueToVisibility}">
+                                    <Binding Path="IsQueueRunning" />
+                                    <Binding Path="StopRequested" Converter="{StaticResource InverseBool}" />
+                                </MultiBinding>
+                            </Button.Visibility>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="ОСТАНОВИТЬ ПОСЛЕ ТЕКУЩЕГО" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <!-- stopping: hard abort -->
+                        <Button Style="{StaticResource Btn.Danger}" Command="{Binding AbortQueueCommand}"
+                                ToolTip="Принудительно завершить winget и текущий установщик">
+                            <Button.Visibility>
+                                <MultiBinding Converter="{x:Static local:AppsView.AllTrueToVisibility}">
+                                    <Binding Path="IsQueueRunning" />
+                                    <Binding Path="StopRequested" />
+                                </MultiBinding>
+                            </Button.Visibility>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="ПРЕРВАТЬ СЕЙЧАС" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <!-- finished -->
+                        <Button Style="{StaticResource Btn.Primary}" Content="ЗАКРЫТЬ" Command="{Binding CloseQueueCommand}"
+                                Visibility="{Binding IsQueueRunning, Converter={StaticResource InverseBoolToVis}}" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
