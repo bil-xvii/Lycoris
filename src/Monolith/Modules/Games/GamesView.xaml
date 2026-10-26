@@ -4,14 +4,832 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Games"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:GamesViewModel}">
+
+    <UserControl.Resources>
+        <!-- Small square status marker: white = OK, hatched = needs attention, outline = info -->
+        <Style x:Key="Games.Marker" TargetType="Rectangle">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Stroke" Value="{StaticResource B.Text3}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <!-- Section caption: LABEL ───────── meta -->
+        <Style x:Key="Games.SectionLabel" TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
+            <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Option title inside the boost card -->
+        <Style x:Key="Games.OptionTitle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontStretch" Value="SemiCondensed" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+        </Style>
+
+        <!-- ═══════════════ Game card ═══════════════ -->
+        <DataTemplate x:Key="Games.Card" DataType="{x:Type local:GameCardViewModel}">
+            <Border x:Name="Card" Margin="0,0,12,12" Padding="0" Style="{StaticResource Card.Hover}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="132" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Typographic cover -->
+                    <Grid x:Name="Cover" ClipToBounds="True" Background="{StaticResource B.Surface2}">
+                        <Border x:Name="Pattern" Background="{StaticResource B.DotGrid}" />
+                        <TextBlock x:Name="Monogram" Text="{Binding Initials}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
+                                   FontStretch="Condensed" FontSize="112" Foreground="{StaticResource B.Text}" TextOptions.TextFormattingMode="Ideal"
+                                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,-30" IsHitTestVisible="False" />
+                        <Grid VerticalAlignment="Top" Margin="12,12,10,0">
+                            <Border Style="{StaticResource Tag.Solid}" Padding="6,1,6,2">
+                                <TextBlock Text="{Binding PlatformLabel}" FontSize="9.5" />
+                            </Border>
+                            <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,2,0"
+                                       Style="{StaticResource T.Mono}" FontSize="10.5" Foreground="{StaticResource B.Text2}"
+                                       Visibility="{Binding HasSize, Converter={StaticResource BoolToVis}}" />
+                            <Button Style="{StaticResource Btn.Icon}" Width="26" Height="26" FontSize="10" HorizontalAlignment="Right" Margin="0,-5,-4,0"
+                                    Content="{x:Static ui:Glyphs.Cancel}" ToolTip="Убрать из библиотеки (файлы игры не удаляются)"
+                                    Visibility="{Binding IsCustom, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding DataContext.RemoveGameCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                        <!-- Missing exe band -->
+                        <Border VerticalAlignment="Bottom" Height="26" Background="{StaticResource B.HatchStrong}"
+                                Visibility="{Binding IsMissing, Converter={StaticResource BoolToVis}}">
+                            <Border Background="{StaticResource B.Ink}" HorizontalAlignment="Left" Margin="10,4" Padding="6,0">
+                                <TextBlock Text="ФАЙЛ НЕ НАЙДЕН" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                            </Border>
+                        </Border>
+                        <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
+                    </Grid>
+
+                    <!-- Body -->
+                    <StackPanel Grid.Row="1" Margin="14,12,14,14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource T.H2}" FontSize="15.5" TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Name}" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Style="{StaticResource Btn.Icon}" Width="26" Height="24" FontSize="12" Margin="6,0,-6,0"
+                                    Content="{x:Static ui:Glyphs.Folder}" ToolTip="Открыть папку игры"
+                                    Command="{Binding DataContext.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                        <TextBlock Text="{Binding PathText}" Style="{StaticResource T.Mono}" FontSize="10.5" Foreground="{StaticResource B.Text4}"
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding PathText}" Margin="0,2,0,0" />
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Style="{StaticResource Btn.Primary}" Height="32" Padding="10,0" FontSize="11.5" IsEnabled="{Binding IsAvailable}"
+                                    Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                    CommandParameter="{Binding}" ToolTip="Обычный запуск, без изменений в системе">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="9.5" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="ИГРАТЬ" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="2" Height="32" Padding="10,0" FontSize="11.5" ToolTipService.ShowOnDisabled="True"
+                                    Command="{Binding DataContext.PlayBoostedCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                    CommandParameter="{Binding}">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static local:AllTrueConverter.Instance}">
+                                        <Binding Path="IsAvailable" />
+                                        <Binding Path="DataContext.CanLaunchBoosted" RelativeSource="{RelativeSource AncestorType=local:GamesView}" />
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                <Button.ToolTip>
+                                    <TextBlock Text="{Binding DataContext.BoostTooltip, RelativeSource={RelativeSource AncestorType=local:GamesView}}" />
+                                </Button.ToolTip>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="С УСКОРЕНИЕМ" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding CoverVariant}" Value="1">
+                    <Setter TargetName="Pattern" Property="Background" Value="{StaticResource B.Hatch}" />
+                    <Setter TargetName="Cover" Property="Background" Value="{StaticResource B.Surface}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CoverVariant}" Value="2">
+                    <Setter TargetName="Pattern" Property="Background" Value="Transparent" />
+                    <Setter TargetName="Cover" Property="Background" Value="{StaticResource B.Surface3}" />
+                    <Setter TargetName="Monogram" Property="Foreground" Value="{StaticResource B.Text2}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                    <Setter TargetName="Monogram" Property="Foreground" Value="{StaticResource B.Text4}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ═══════════════ Readiness row ═══════════════ -->
+        <DataTemplate x:Key="Games.ReadinessRow" DataType="{x:Type local:ReadinessCheck}">
+            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,10,0,10" Background="Transparent">
+                <Border.ToolTip>
+                    <TextBlock Text="{Binding Hint}" />
+                </Border.ToolTip>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Rectangle x:Name="Mark" Style="{StaticResource Games.Marker}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding Title}" Style="{StaticResource T.Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="2" Text="{Binding Value}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" MaxWidth="196" Margin="10,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Detail}" Style="{StaticResource T.Mono}" FontSize="10.5"
+                               Foreground="{StaticResource B.Text3}" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding Detail, Converter={StaticResource NullToVis}}" />
+                    <TextBlock x:Name="Hint" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Hint}" Style="{StaticResource T.Caption}"
+                               Foreground="{StaticResource B.Text2}" Margin="0,5,0,0" LineHeight="16" Visibility="Collapsed" />
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="Ok">
+                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.White}" />
+                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.White}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="Attention">
+                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.Text}" />
+                    <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ═══════════════ Boost change row ═══════════════ -->
+        <DataTemplate x:Key="Games.ChangeRow" DataType="{x:Type local:BoostChange}">
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Rectangle x:Name="Mark" Style="{StaticResource Games.Marker}" Margin="0,4,0,0" />
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" />
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" LineHeight="16" />
+                </StackPanel>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="Changed">
+                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.White}" />
+                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.White}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="Skipped">
+                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.Text2}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ═══════════════ Launcher source cell (empty state) ═══════════════ -->
+        <DataTemplate x:Key="Games.SourceCell" DataType="{x:Type local:SourceStatus}">
+            <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,1,0,0" Padding="0,9,18,9">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Rectangle x:Name="Mark" Style="{StaticResource Games.Marker}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" VerticalAlignment="Center" />
+                    <TextBlock x:Name="Status" Grid.Column="2" Text="{Binding StatusText}" Style="{StaticResource T.Mono}" FontSize="10.5"
+                               Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Installed}" Value="True">
+                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.Text2}" />
+                    <Setter TargetName="Status" Property="Foreground" Value="{StaticResource B.Text2}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasGames}" Value="True">
+                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.White}" />
+                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.White}" />
+                    <Setter TargetName="Status" Property="Foreground" Value="{StaticResource B.Text}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
-        <TextBlock Grid.Row="1" Margin="0,28,0,0" Style="{StaticResource T.Caption}" Text="Модуль в разработке." />
+
+        <!-- ═══════════════ Header ═══════════════ -->
+        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+            <c:PageHeader.Actions>
+                <StackPanel Orientation="Horizontal">
+                    <Button Command="{Binding RefreshCommand}" Margin="0,0,10,0" ToolTip="Заново найти игры во всех лаунчерах и обновить проверки">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="ОБНОВИТЬ" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn.Primary}" Command="{Binding AddGameCommand}" ToolTip="Добавить игру вручную: укажите её .exe файл">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Add}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="ДОБАВИТЬ ИГРУ" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </c:PageHeader.Actions>
+        </c:PageHeader>
+
+        <Grid Grid.Row="1" Margin="0,26,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="344" />
+                </Grid.ColumnDefinitions>
+
+                <!-- ═══════════════ LIBRARY (toolbar fixed, cards scroll) ═══════════════ -->
+                <Grid x:Name="LibraryHost">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid Margin="0,0,12,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="БИБЛИОТЕКА" Style="{StaticResource Games.SectionLabel}" />
+                        <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" Margin="12,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{Binding ScanText}" Style="{StaticResource T.Mono}" FontSize="10.5"
+                                   Foreground="{StaticResource B.Text4}" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Count + search + platform filter (only when there are games) -->
+                    <StackPanel Grid.Row="1" Margin="0,0,12,0" Visibility="{Binding HasGames, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" MinWidth="20" />
+                                <ColumnDefinition Width="12*" MaxWidth="280" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <TextBlock Text="{Binding TotalCount}" Style="{StaticResource T.Stat}" FontSize="44" />
+                                <TextBlock Text="{Binding CountUnit}" Style="{StaticResource T.StatUnit}" Margin="10,0,0,8" />
+                            </StackPanel>
+                            <Grid Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,0,4">
+                                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="Поиск по названию" Padding="10,0,34,0" />
+                                <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text3}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,13,0" IsHitTestVisible="False"
+                                           Visibility="{Binding SearchText, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
+                                <Button Style="{StaticResource Btn.Icon}" Width="28" Height="28" FontSize="9" HorizontalAlignment="Right" Margin="0,0,4,0"
+                                        Content="{x:Static ui:Glyphs.Cancel}" ToolTip="Очистить поиск" Command="{Binding ClearSearchCommand}"
+                                        Visibility="{Binding SearchText, Converter={StaticResource NullToVis}}" />
+                            </Grid>
+                        </Grid>
+                        <Grid Margin="0,12,0,18">
+                            <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
+                            <ItemsControl ItemsSource="{Binding Platforms}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:PlatformFilterItem}">
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="GamesPlatformFilter" Padding="14,0"
+                                                     IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Count}" FontFamily="{StaticResource F.Mono}" FontSize="10.5" Opacity="0.55"
+                                                           VerticalAlignment="Center" Margin="7,1,0,0" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- First scan (no cache yet) -->
+                    <Border Grid.Row="2" BorderBrush="{StaticResource B.Line}" BorderThickness="1" Background="{StaticResource B.Surface}" Height="220"
+                            Margin="0,0,12,0" VerticalAlignment="Top" Visibility="{Binding ShowFirstScan, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Border Background="{StaticResource B.DotGrid}" />
+                            <StackPanel VerticalAlignment="Center" Margin="32,0">
+                                <TextBlock Text="ПОИСК ИГР" Style="{StaticResource T.H1}" />
+                                <TextBlock Text="Steam, Epic Games, GOG Galaxy, EA app, Ubisoft Connect, Battle.net, Riot Client…" Style="{StaticResource T.Body}" Margin="0,6,0,14" />
+                                <ProgressBar IsIndeterminate="True" Height="2" Width="260" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Game grid -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
+                                  SizeChanged="CardsScroll_SizeChanged" Visibility="{Binding HasVisibleGames, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding VisibleGames}" ItemTemplate="{StaticResource Games.Card}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid VerticalAlignment="Top"
+                                                 Columns="{Binding CardColumns, RelativeSource={RelativeSource AncestorType=local:GamesView}}" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Filter matched nothing -->
+                    <Border Grid.Row="2" BorderBrush="{StaticResource B.Line}" BorderThickness="1" Background="{StaticResource B.Surface}" Padding="28,26"
+                            Margin="0,0,12,0" VerticalAlignment="Top" Visibility="{Binding IsFilterEmpty, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="НИЧЕГО НЕ НАЙДЕНО" Style="{StaticResource T.H1}" FontSize="22" />
+                                <TextBlock Text="Ни одна игра не подходит под запрос и выбранный лаунчер." Style="{StaticResource T.Body}" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="СБРОСИТЬ ПОИСК" Command="{Binding ClearSearchCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Empty library -->
+                    <Border Grid.Row="2" BorderBrush="{StaticResource B.Line}" BorderThickness="1" Background="{StaticResource B.Surface}" ClipToBounds="True"
+                            Margin="0,0,12,0" Visibility="{Binding IsLibraryEmpty, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Border Background="{StaticResource B.DotGrid}" />
+                            <TextBlock Text="0" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="300"
+                                       Foreground="{StaticResource B.Surface3}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                       Margin="0,0,30,-80" IsHitTestVisible="False" TextOptions.TextFormattingMode="Ideal" />
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                                <StackPanel Margin="30,28,30,26">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="40" Height="40" Background="{StaticResource B.White}" VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Static ui:Glyphs.Game}" FontFamily="{StaticResource F.Icons}" FontSize="19"
+                                                       Foreground="{StaticResource B.Ink}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="ИГРЫ НЕ НАЙДЕНЫ" Style="{StaticResource T.Display}" FontSize="34" LineHeight="36" Margin="16,2,0,0"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource T.Body}" Margin="0,16,0,0" MaxWidth="540" HorizontalAlignment="Left"
+                                               Text="MONOLITH проверил лаунчеры ниже и не нашёл установленных игр. Если игра стоит отдельно от лаунчера — добавьте её вручную: укажите .exe файл, и у неё появятся кнопки запуска и игрового режима." />
+                                    <TextBlock Text="ПРОВЕРЕННЫЕ ЛАУНЧЕРЫ" Style="{StaticResource T.Label}" Margin="0,22,0,8" />
+                                    <ItemsControl ItemsSource="{Binding Sources}" ItemTemplate="{StaticResource Games.SourceCell}"
+                                                  MaxWidth="560" HorizontalAlignment="Left" Focusable="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="2" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                    <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                                        <Button Style="{StaticResource Btn.Primary}" Command="{Binding AddGameCommand}" Margin="0,0,10,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{x:Static ui:Glyphs.Add}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                <TextBlock Text="ДОБАВИТЬ ИГРУ" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Content="ИСКАТЬ СНОВА" Command="{Binding RefreshCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <!-- Footer: which launchers were checked -->
+                    <TextBlock Grid.Row="3" Text="{Binding SourcesFooter}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text4}" Margin="0,8,12,0"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding SourcesFooter}"
+                               Visibility="{Binding HasGames, Converter={StaticResource BoolToVis}}" />
+                </Grid>
+
+                <!-- ═══════════════ RIGHT RAIL (own scroll; scrollbar sits in the page margin) ═══════════════ -->
+                <ScrollViewer Grid.Column="2" Margin="0,0,-14,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel Margin="0,0,14,12">
+
+                    <!-- ─────────── GAME BOOST ─────────── -->
+                    <Border Style="{StaticResource Card.Flush}">
+                        <StackPanel>
+                            <Rectangle Height="4" Fill="{StaticResource B.HatchStrong}" />
+                            <Grid Margin="20,18,20,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="40" Height="40" Background="{StaticResource B.White}" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="18"
+                                               Foreground="{StaticResource B.Ink}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="GAME BOOST" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="ИГРОВОЙ РЕЖИМ" Style="{StaticResource T.H1}" FontSize="22" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <Border Grid.Column="2" VerticalAlignment="Top" Margin="8,2,0,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsReadOnly}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                                                    <Setter Property="BorderBrush" Value="{StaticResource B.Text3}" />
+                                                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Boost.IsActive}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource B.White}" />
+                                                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
+                                                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding BoostStatus}" />
+                                </Border>
+                            </Grid>
+
+                            <!-- Active session: inverted block -->
+                            <StackPanel Visibility="{Binding Boost.IsActive, Converter={StaticResource BoolToVis}}">
+                                <Border Margin="20,18,20,0" Background="{StaticResource B.White}" Padding="18,14,18,16">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Text="{Binding Boost.PhaseText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="11"
+                                                       Foreground="{StaticResource B.Ink}" />
+                                            <TextBlock Text="ВРЕМЯ СЕАНСА" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5"
+                                                       Foreground="{StaticResource B.Ink}" Opacity="0.55" HorizontalAlignment="Right" />
+                                        </Grid>
+                                        <TextBlock Text="{Binding ElapsedText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
+                                                   FontSize="48" Foreground="{StaticResource B.Ink}" Typography.NumeralAlignment="Tabular" Margin="0,2,0,0" />
+                                        <Rectangle Height="1" Fill="{StaticResource B.Ink}" Opacity="0.18" Margin="0,8,0,10" />
+                                        <TextBlock Text="{Binding Boost.GameName}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
+                                                   FontSize="19" Foreground="{StaticResource B.Ink}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Boost.ProcessText}" FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Ink}"
+                                                   Opacity="0.6" Margin="0,3,0,0" Visibility="{Binding Boost.ProcessText, Converter={StaticResource NullToVis}}" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="ЧТО ИЗМЕНЕНО" Style="{StaticResource T.Label}" Margin="20,18,20,10" />
+                                <ItemsControl ItemsSource="{Binding Boost.Changes}" ItemTemplate="{StaticResource Games.ChangeRow}" Margin="20,0,20,0" Focusable="False" />
+                            </StackPanel>
+
+                            <!-- Idle: what it does + options -->
+                            <StackPanel Margin="20,14,20,0" Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource T.Body}"
+                                           Text="На время игры: схема питания, приоритет игры и закрытие лишних программ. После выхода из игры всё возвращается само." />
+
+                                <!-- Read-only explanation -->
+                                <Border Style="{StaticResource Callout}" Padding="0" Margin="0,14,0,0"
+                                        Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Rectangle Fill="{StaticResource B.HatchStrong}" />
+                                        <StackPanel Grid.Column="1" Margin="14,11,14,12">
+                                            <TextBlock Text="НУЖНЫ ПРАВА АДМИНИСТРАТОРА" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                            <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,0" LineHeight="16"
+                                                       Text="Игровой режим меняет схему питания Windows, поэтому без прав администратора выключен. Библиотека и обычный запуск игр работают." />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Leftovers of a crashed session -->
+                                <Border Style="{StaticResource Callout}" Padding="0" Margin="0,14,0,0"
+                                        Visibility="{Binding HasStaleBoost, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Rectangle Fill="{StaticResource B.White}" />
+                                        <StackPanel Grid.Column="1" Margin="14,11,14,12">
+                                            <TextBlock Text="НЕЗАВЕРШЁННЫЙ СЕАНС" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                            <TextBlock Text="{Binding StaleText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,10" LineHeight="16" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Style="{StaticResource Btn.Primary}" Height="30" FontSize="11.5" Padding="12,0" Content="ВЕРНУТЬ НАСТРОЙКИ"
+                                                        Command="{Binding RestoreStaleCommand}" IsEnabled="{Binding IsElevated}" Margin="0,0,8,0" />
+                                                <Button Height="30" FontSize="11.5" Padding="12,0" Content="ЦЕНТР ОТКАТА" Command="{Binding GoRestoreCommand}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Options -->
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
+                                    <StackPanel Margin="0,14,12,0">
+                                        <TextBlock Text="СХЕМА ПИТАНИЯ" Style="{StaticResource Games.OptionTitle}" />
+                                        <TextBlock Text="{Binding PowerNote}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding Settings.GameBoostPowerPlan}"
+                                              VerticalAlignment="Top" Margin="0,14,0,0" ToolTip="«Высокая производительность» на время игры" />
+                                </Grid>
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
+                                    <StackPanel Margin="0,14,12,0">
+                                        <TextBlock Text="ПРИОРИТЕТ ИГРЫ" Style="{StaticResource Games.OptionTitle}" />
+                                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16"
+                                                   Text="«Высокий» на время игры — никогда «Реального времени». Эффект небольшой, риск минимальный." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding Settings.GameBoostPriority}"
+                                              VerticalAlignment="Top" Margin="0,14,0,0" />
+                                </Grid>
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
+                                    <StackPanel Margin="0,14,12,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ОЧИСТКА ПАМЯТИ" Style="{StaticResource Games.OptionTitle}" VerticalAlignment="Center" />
+                                            <Border Style="{StaticResource Tag.Muted}" Margin="8,0,0,0" Padding="5,1,5,2">
+                                                <TextBlock Text="ПО ЖЕЛАНИЮ" FontSize="9.5" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16"
+                                                   Text="Однократно очищает список ожидания (standby). Честно: на FPS обычно не влияет, а загрузки могут стать дольше." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding Settings.GameBoostPurgeStandby}"
+                                              VerticalAlignment="Top" Margin="0,14,0,0" />
+                                </Grid>
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
+                                    <StackPanel Margin="0,14,12,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ЗАКРЫТИЕ ПРОГРАММ" Style="{StaticResource Games.OptionTitle}" VerticalAlignment="Center" />
+                                            <Border Style="{StaticResource Tag}" Margin="8,0,0,0" Padding="5,1,5,2">
+                                                <TextBlock Text="{Binding CloseListCount}" FontFamily="{StaticResource F.Mono}" FontSize="10" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding CloseListSummary}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="НАСТРОИТЬ" Height="30" FontSize="11.5" Padding="12,0" VerticalAlignment="Top" Margin="0,12,0,0"
+                                            Command="{Binding OpenEditorCommand}" />
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Start / stop -->
+                            <Grid Margin="20,20,20,0">
+                                <Button Style="{StaticResource Btn.Hero}" Height="48" HorizontalAlignment="Stretch" Command="{Binding StartBoostCommand}"
+                                        IsEnabled="{Binding CanStartBoost}" Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}"
+                                        ToolTipService.ShowOnDisabled="True" ToolTip="{Binding BoostTooltip}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="СТАРТ" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource Btn.Danger}" Height="48" FontSize="15" HorizontalAlignment="Stretch" Command="{Binding StopBoostCommand}"
+                                        IsEnabled="{Binding Boost.IsTransitioning, Converter={StaticResource InverseBool}}"
+                                        Visibility="{Binding Boost.IsActive, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="СТОП И ВЕРНУТЬ ВСЁ" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <TextBlock Margin="20,10,20,20" LineHeight="16">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+                                        <Setter Property="Text" Value="Или нажмите «С УСКОРЕНИЕМ» на карточке игры: режим включится вместе с игрой и выключится, когда вы из неё выйдете." />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Boost.IsActive}" Value="True">
+                                                <Setter Property="Text" Value="Схема питания вернётся к прежней, приоритет игры — к обычному. Закрытые программы откройте сами, если они нужны." />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ─────────── READINESS ─────────── -->
+                    <Border Style="{StaticResource Card}" Margin="0,16,0,0" Padding="20,18,20,16">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Bottom">
+                                    <TextBlock Text="ПРОВЕРКА" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="ГОТОВНОСТЬ К ИГРАМ" Style="{StaticResource T.H1}" FontSize="22" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom"
+                                            Visibility="{Binding ReadinessLoaded, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding ReadinessPassed}" Style="{StaticResource T.Stat}" FontSize="40" />
+                                    <TextBlock Style="{StaticResource T.StatUnit}" FontSize="18" Margin="2,0,0,5">
+                                        <Run Text="/" /><Run Text="{Binding ReadinessTotal, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+                            <c:Meter Value="{Binding ReadinessPercent}" Segments="{Binding ReadinessTotal}" Gap="4" Height="6" Margin="0,12,0,14"
+                                     Visibility="{Binding ReadinessLoaded, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="Проверяем настройки…" Style="{StaticResource T.Caption}" Margin="0,12,0,12"
+                                       Visibility="{Binding ReadinessLoaded, Converter={StaticResource InverseBoolToVis}}" />
+                            <ItemsControl ItemsSource="{Binding Readiness}" ItemTemplate="{StaticResource Games.ReadinessRow}" Focusable="False" />
+                            <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text4}" Margin="0,2,0,12" LineHeight="16"
+                                       Text="Только чтение: здесь ничего не меняется. Исправить — в разделах «Оптимизация» и «Драйверы»." />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Command="{Binding GoOptimizeCommand}" Padding="8,0" FontSize="11.5">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="ОПТИМИЗАЦИЯ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center" Margin="8,1,0,0" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2" Command="{Binding GoDriversCommand}" Padding="8,0" FontSize="11.5">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="ДРАЙВЕРЫ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center" Margin="8,1,0,0" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                </ScrollViewer>
+        </Grid>
+
+        <!-- ═══════════════ Close-list editor (overlay) ═══════════════ -->
+        <Grid Grid.RowSpan="2" Margin="-40,-30,-40,-24" Background="{StaticResource B.Scrim}" Panel.ZIndex="10"
+              Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolToVis}}" PreviewKeyDown="Editor_PreviewKeyDown">
+            <Border Width="880" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{StaticResource B.Surface2}"
+                    BorderBrush="{StaticResource B.Line3}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="40" ShadowDepth="10" Opacity="0.8" Color="Black" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Rectangle Height="6" VerticalAlignment="Top" Fill="{StaticResource B.White}" />
+                    <StackPanel Margin="28,28,28,0">
+                        <TextBlock Text="ЗАКРЫВАТЬ ПЕРЕД ИГРОЙ" Style="{StaticResource T.H1}" />
+                        <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="760" HorizontalAlignment="Left"
+                                   Text="Отметьте программы, которые игровой режим закроет перед запуском игры: браузеры, мессенджеры, облачные клиенты. Системные процессы, драйверы, античиты и лаунчеры сюда не попадают. Закрытые программы после игры сами не откроются." />
+                    </StackPanel>
+
+                    <Grid Grid.Row="1" Margin="28,20,28,0" Height="330">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="290" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Running now -->
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,8">
+                                <TextBlock Text="ЗАПУЩЕНО СЕЙЧАС" Style="{StaticResource Games.SectionLabel}" />
+                                <Button Style="{StaticResource Btn.Ghost}" Height="24" FontSize="11" Padding="8,0" HorizontalAlignment="Right"
+                                        Command="{Binding RefreshRunningCommand}" ToolTip="Обновить список запущенных программ">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="ОБНОВИТЬ" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <Border Grid.Row="1" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}">
+                                <Grid>
+                                    <ListBox Style="{StaticResource List.Plain}" ItemsSource="{Binding RunningApps}" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                             VirtualizingPanel.IsVirtualizing="True">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type local:RunningAppItem}">
+                                                <Border Style="{StaticResource Row}" Padding="14,8,14,8">
+                                                    <CheckBox IsChecked="{Binding IsInList, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Meta}" Style="{StaticResource T.Mono}" FontSize="10.5"
+                                                                       Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                                        </Grid>
+                                                    </CheckBox>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <TextBlock Text="Загрузка списка процессов…" Style="{StaticResource T.Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Visibility="{Binding IsLoadingRunning, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <!-- The list -->
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,8" Height="24">
+                                <TextBlock Text="СПИСОК ЗАКРЫТИЯ" Style="{StaticResource Games.SectionLabel}" />
+                                <TextBlock Text="{Binding EditorList.Count}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid Grid.Row="1" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding NewProcessName, UpdateSourceTrigger=PropertyChanged}" Tag="Имя процесса, напр. Discord">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding AddManualCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                                <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Width="36" Padding="0" Margin="6,0,0,0" Command="{Binding AddManualCommand}"
+                                        ToolTip="Добавить в список" FontFamily="{StaticResource F.Icons}" FontSize="12" Content="{x:Static ui:Glyphs.Add}" />
+                            </Grid>
+                            <Border Grid.Row="2" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}">
+                                <Grid>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding EditorList}" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="14,6,6,6">
+                                                        <Grid>
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <Rectangle Width="6" Height="6" Fill="{StaticResource B.White}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                                <TextBlock Text="{Binding}" Style="{StaticResource T.Mono}" FontSize="12.5" Foreground="{StaticResource B.Text}" />
+                                                            </StackPanel>
+                                                            <Button Style="{StaticResource Btn.Icon}" Width="28" Height="28" FontSize="9" HorizontalAlignment="Right"
+                                                                    Content="{x:Static ui:Glyphs.Cancel}" ToolTip="Убрать из списка"
+                                                                    Command="{Binding DataContext.RemoveFromListCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <StackPanel VerticalAlignment="Center" Margin="20,0" Visibility="{Binding EditorListEmpty, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="СПИСОК ПУСТ" Style="{StaticResource T.Label}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="Перед игрой ничего не закрывается. Отметьте программы слева или впишите имя процесса." Style="{StaticResource T.Caption}"
+                                                   TextAlignment="Center" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <Grid Grid.Row="2" Margin="28,22,28,26">
+                        <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center" MaxWidth="460" HorizontalAlignment="Left" LineHeight="16"
+                                   Text="Перед закрытием MONOLITH покажет список и спросит подтверждение. Принудительное завершение — только после отдельного вопроса." />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="ОТМЕНА" Command="{Binding CancelEditorCommand}" MinWidth="110" Margin="0,0,10,0" />
+                            <Button Style="{StaticResource Btn.Primary}" Content="СОХРАНИТЬ" Command="{Binding SaveEditorCommand}" MinWidth="140" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
