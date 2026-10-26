@@ -318,4 +318,19 @@ public sealed class ToolsTests
     [InlineData(null, "2.1.0")]
     public void Component_versions_are_cleaned(string? informational, string expected) =>
         Assert.Equal(expected, SettingsDefaults.CleanVersion(informational, new Version(2, 1, 0, 7)));
+
+    // ─────────────────────────── local report opening ───────────────────────────
+
+    [Theory]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\battery-report.html", true)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\sub\r.HTM", true)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\..\evil.html", false)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\LogsX\r.html", false)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\run.exe", false)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\r.html.lnk", false)]
+    [InlineData(@"Logs\r.html", false)]
+    [InlineData(@"\\server\share\r.html", false)]
+    [InlineData("", false)]
+    public void Only_html_reports_inside_the_logs_folder_may_be_opened(string path, bool allowed) =>
+        Assert.Equal(allowed, UnelevatedShell.IsAllowedLocalReport(path, @"C:\Users\u\AppData\Local\MONOLITH\Logs"));
 }

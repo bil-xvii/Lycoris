@@ -28,6 +28,45 @@ internal static class OptimizeLogic
         _ => null,
     };
 
+    /// <summary>
+    /// Tweaks whose apply deletes user data that undo cannot bring back (local list: Tweak has no such property yet).
+    /// They are never bulk-selected and always get a danger confirmation, even with ConfirmBeforeApply off.
+    /// </summary>
+    private static readonly Dictionary<string, string> DataLossNotes = new(StringComparer.Ordinal)
+    {
+        ["recall-snapshots-off"] = "Уже сохранённые снимки Recall будут удалены — откат их не вернёт, он только снова разрешит сохранение.",
+    };
+
+    /// <summary>The irreversible data-loss note of a tweak, or null when everything it does can be undone.</summary>
+    public static string? DataLossNote(string tweakId) => DataLossNotes.GetValueOrDefault(tweakId);
+
+    /// <summary>
+    /// Tweak ids (without <paramref name="prefix"/>) among <paramref name="sources"/> other than <paramref name="ids"/>,
+    /// distinct, in first-seen order. Non-tweak sources (other modules) are kept by their full source name.
+    /// </summary>
+    public static List<string> OtherTweakSources(IEnumerable<string> sources, string prefix, IReadOnlyCollection<string> ids)
+    {
+        var result = new List<string>();
+        foreach (var src in sources)
+        {
+            if (string.IsNullOrEmpty(src)) continue;
+            var id = src.StartsWith(prefix, StringComparison.Ordinal) ? src[prefix.Length..] : src;
+            if (ids.Contains(id) || result.Contains(id)) continue;
+            result.Add(id);
+        }
+        return result;
+    }
+
+    /// <summary>Readable name of a non-tweak journal source (another MONOLITH page).</summary>
+    public static string SourceLabel(string source) => source switch
+    {
+        "services" or "services-tasks" => "Службы",
+        "startup" or "startup-tasks" => "Автозагрузка",
+        "gameboost" => "Игровой режим",
+        "drivers" => "Драйверы",
+        _ => source,
+    };
+
     /// <summary>States in which "apply" would actually change something.</summary>
     public static bool WillChange(TweakState state) => state is TweakState.NotApplied or TweakState.Partial or TweakState.Unknown;
 

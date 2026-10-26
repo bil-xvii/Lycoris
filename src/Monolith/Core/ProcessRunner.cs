@@ -24,6 +24,13 @@ public sealed class ProcessRunOptions
     /// <summary>Receives every output line (stdout and stderr) as it arrives. Called on a background thread.</summary>
     public Action<string>? OnOutput { get; init; }
     public TimeSpan? Timeout { get; init; }
+    /// <summary>
+    /// When <see cref="Timeout"/> expires: true (default) kills the whole process tree; false only stops waiting and
+    /// leaves the process running (installers, DISM servicing — killing them half-way is worse than waiting). The
+    /// result then has <see cref="ProcessResult.TimedOut"/> = true and <see cref="ProcessResult.StillRunning"/> = true.
+    /// Cancellation through the token always kills.
+    /// </summary>
+    public bool KillOnTimeout { get; init; } = true;
     public string? WorkingDirectory { get; init; }
     /// <summary>Write the command line into the app log.</summary>
     public bool LogCommand { get; init; } = true;
@@ -32,6 +39,9 @@ public sealed class ProcessRunOptions
 
 public sealed record ProcessResult(int ExitCode, string StdOut, string StdErr, bool TimedOut, bool Cancelled)
 {
+    /// <summary>Timed out with <see cref="ProcessRunOptions.KillOnTimeout"/> = false: the process was left running.</summary>
+    public bool StillRunning { get; init; }
+
     public bool Success => ExitCode == 0 && !TimedOut && !Cancelled;
     public string Combined => string.IsNullOrWhiteSpace(StdErr) ? StdOut : StdOut + System.Environment.NewLine + StdErr;
 
@@ -99,6 +109,7 @@ public static class ProcessRunner
             Encoding = OutputEncoding.Utf8,
             OnOutput = options?.OnOutput,
             Timeout = options?.Timeout,
+            KillOnTimeout = options?.KillOnTimeout ?? true,
             WorkingDirectory = options?.WorkingDirectory,
             LogCommand = false,
             Environment = options?.Environment,
@@ -169,10 +180,26 @@ public static class ProcessRunner
         using var timeoutCts = options.Timeout is { } t ? new CancellationTokenSource(t) : new CancellationTokenSource();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-        bool timedOut = false, cancelled = false;
+        bool timedOut = false, cancelled = false, stillRunning = false;
         try
         {
             await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested && !options.KillOnTimeout)
+        {
+            // Stop waiting, but never kill: the process keeps running on its own.
+            stillRunning = true;
+            try { stillRunning = !process.HasExited; } catch { }
+            if (stillRunning)
+            {
+                timedOut = true;
+                Log.Warn($"Превышено время ожидания, процесс оставлен работать: {display}");
+            }
+            else
+            {
+                // It finished right at the deadline: collect the real exit code and output.
+                try { await process.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch { }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -189,7 +216,7 @@ public static class ProcessRunner
         string o, e2;
         lock (stdout) o = stdout.ToString();
         lock (stderr) e2 = stderr.ToString();
-        return new ProcessResult(exit, o, e2, timedOut, cancelled);
+        return new ProcessResult(exit, o, e2, timedOut, cancelled) { StillRunning = stillRunning };
     }
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetOEMCP();

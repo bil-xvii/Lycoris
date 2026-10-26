@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -102,6 +103,60 @@ public static class UnelevatedShell
         catch (Exception ex)
         {
             Log.Error($"Не удалось открыть {uri.AbsoluteUri}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// True for an existing-looking local .html/.htm file path that lies inside <paramref name="root"/>
+    /// (after normalization, so "..\" tricks are refused). Pure check; does not touch the disk.
+    /// </summary>
+    public static bool IsAllowedLocalReport(string? path, string root)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root)) return false;
+        try
+        {
+            if (!Path.IsPathFullyQualified(path) || path.StartsWith(@"\\", StringComparison.Ordinal)) return false;
+            var full = Path.GetFullPath(path);
+            var dir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)) + Path.DirectorySeparatorChar;
+            var ext = Path.GetExtension(full);
+            return full.StartsWith(dir, StringComparison.OrdinalIgnoreCase)
+                   && (ext.Equals(".html", StringComparison.OrdinalIgnoreCase) || ext.Equals(".htm", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Opens a local HTML report (e.g. powercfg /batteryreport output) in the default browser. Only existing
+    /// .html files under <see cref="AppPaths.LogsDir"/> are accepted. When MONOLITH is elevated the browser is started
+    /// through the desktop shell, so it never runs as administrator; there is no elevated fallback.
+    /// </summary>
+    public static async Task<bool> OpenFileAsync(string path)
+    {
+        if (!IsAllowedLocalReport(path, AppPaths.LogsDir) || !File.Exists(path))
+        {
+            Log.Warn($"Отклонено открытие файла: {path}");
+            return false;
+        }
+        var full = Path.GetFullPath(path);
+        if (Elevation.IsElevated)
+        {
+            if (await ShellExecuteAsync(full, "", Path.GetDirectoryName(full) ?? "", SwShowNormal).ConfigureAwait(false))
+                return true;
+            Log.Warn($"Не удалось открыть файл без прав администратора: {full}");
+            return false;
+        }
+        try
+        {
+            using var _ = Process.Start(new ProcessStartInfo(full) { UseShellExecute = true });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Не удалось открыть {full}", ex);
             return false;
         }
     }
