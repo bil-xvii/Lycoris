@@ -88,6 +88,10 @@ public sealed partial class GamesViewModel : PageViewModel
         : Boost.IsActive
             ? "Игровой сеанс уже идёт — сначала остановите его."
             : "Запустить игру и на время игры начать игровой сеанс.";
+    public string StartTooltip => !IsElevated
+        ? "Игровой сеанс меняет схему питания — нужны права администратора."
+        : "На время игры: схема питания, приоритет игры и закрытие лишних программ. Схема питания и приоритет возвращаются сами; " +
+          "закрытые программы MONOLITH заново не открывает.";
     public bool IsBoostIdle => !Boost.IsActive;
     public string BoostStatus => Boost.IsTransitioning && !Boost.IsActive ? "ЗАПУСК"
         : Boost.IsActive ? (string.IsNullOrEmpty(Boost.PhaseText) ? "АКТИВЕН" : Boost.PhaseText)
@@ -95,10 +99,7 @@ public sealed partial class GamesViewModel : PageViewModel
 
     // ───────────────────────────── Readiness state ─────────────────────────────
 
-    public ObservableCollection<ReadinessCheck> Readiness { get; } = [];
-    [ObservableProperty] private int _readinessPassed;
-    [ObservableProperty] private int _readinessTotal;
-    [ObservableProperty] private double _readinessPercent;
+    [ObservableProperty] private string _readinessText = "";
     [ObservableProperty] private bool _readinessLoaded;
 
     // ───────────────────────────── Close-list editor state ─────────────────────────────
@@ -499,12 +500,8 @@ public sealed partial class GamesViewModel : PageViewModel
         {
             var sp = await SystemProfile.LoadAsync();
             var checks = await Task.Run(() => GamingReadiness.Collect(sp));
-            Readiness.Clear();
-            foreach (var c in checks) Readiness.Add(c);
             var (passed, total) = GamingReadiness.Score(checks);
-            ReadinessPassed = passed;
-            ReadinessTotal = total;
-            ReadinessPercent = total == 0 ? 0 : passed * 100.0 / total;
+            ReadinessText = GamingReadiness.SummaryLine(passed, total);
             ReadinessLoaded = true;
         }
         catch (Exception ex)
@@ -514,13 +511,7 @@ public sealed partial class GamesViewModel : PageViewModel
     }
 
     [RelayCommand]
-    private void GoOptimize() => Ui.Navigate("optimize");
-
-    [RelayCommand]
-    private void GoDrivers() => Ui.Navigate("drivers");
-
-    [RelayCommand]
-    private void GoRestore() => Ui.Navigate("restore");
+    private void GoDashboard() => Ui.Navigate("dashboard");
 
     // ───────────────────────────── Close-list editor ─────────────────────────────
 

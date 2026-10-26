@@ -64,6 +64,9 @@ public sealed partial class TweakItemViewModel : ObservableObject
 
     [ObservableProperty] private bool _isExpanded;
 
+    /// <summary>Briefly framed after a focus request (command palette, Dashboard check).</summary>
+    [ObservableProperty] private bool _isHighlighted;
+
     /// <summary>First visible row of its section (draws the top border of the card).</summary>
     [ObservableProperty] private bool _isFirstInGroup;
 

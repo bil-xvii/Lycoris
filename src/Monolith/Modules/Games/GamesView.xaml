@@ -141,47 +141,6 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
-        <!-- ═══════════════ Readiness row ═══════════════ -->
-        <DataTemplate x:Key="Games.ReadinessRow" DataType="{x:Type local:ReadinessCheck}">
-            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,10,0,10" Background="Transparent">
-                <Border.ToolTip>
-                    <TextBlock Text="{Binding Hint}" />
-                </Border.ToolTip>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="18" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Rectangle x:Name="Mark" Style="{StaticResource Games.Marker}" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="{Binding Title}" Style="{StaticResource T.Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="2" Text="{Binding Value}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" TextWrapping="NoWrap"
-                               TextTrimming="CharacterEllipsis" MaxWidth="196" Margin="10,0,0,0" VerticalAlignment="Center" />
-                    <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Detail}" Style="{StaticResource T.Mono}" FontSize="10.5"
-                               Foreground="{StaticResource B.Text3}" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"
-                               Visibility="{Binding Detail, Converter={StaticResource NullToVis}}" />
-                    <TextBlock x:Name="Hint" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Hint}" Style="{StaticResource T.Caption}"
-                               Foreground="{StaticResource B.Text2}" Margin="0,5,0,0" LineHeight="16" Visibility="Collapsed" />
-                </Grid>
-            </Border>
-            <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding State}" Value="Ok">
-                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.White}" />
-                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.White}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding State}" Value="Attention">
-                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.HatchStrong}" />
-                    <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.Text}" />
-                    <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
-                </DataTrigger>
-            </DataTemplate.Triggers>
-        </DataTemplate>
-
         <!-- ═══════════════ Boost change row ═══════════════ -->
         <DataTemplate x:Key="Games.ChangeRow" DataType="{x:Type local:BoostChange}">
             <Grid Margin="0,0,0,10">
@@ -243,7 +202,7 @@
         </Grid.RowDefinitions>
 
         <!-- ═══════════════ Header ═══════════════ -->
-        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
                     <Button Command="{Binding RefreshCommand}" Margin="0,0,10,0" ToolTip="Заново найти игры во всех лаунчерах и обновить проверки">
@@ -493,27 +452,7 @@
                             </StackPanel>
 
                             <!-- Idle: what it does + options -->
-                            <StackPanel Margin="20,14,20,0" Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Style="{StaticResource T.Body}"
-                                           Text="На время игры: схема питания, приоритет игры и закрытие лишних программ. Схема питания и приоритет возвращаются сами; закрытые программы MONOLITH заново не открывает." />
-
-                                <!-- Read-only explanation -->
-                                <Border Style="{StaticResource Callout}" Padding="0" Margin="0,14,0,0"
-                                        Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="6" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Rectangle Fill="{StaticResource B.HatchStrong}" />
-                                        <StackPanel Grid.Column="1" Margin="14,11,14,12">
-                                            <TextBlock Text="НУЖНЫ ПРАВА АДМИНИСТРАТОРА" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
-                                            <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,0" LineHeight="16"
-                                                       Text="Игровой сеанс меняет схему питания Windows, поэтому без прав администратора выключен. Библиотека и обычный запуск игр работают." />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
+                            <StackPanel Margin="20,0,20,0" Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
                                 <!-- Leftovers of a crashed session -->
                                 <Border Style="{StaticResource Callout}" Padding="0" Margin="0,14,0,0"
                                         Visibility="{Binding HasStaleBoost, Converter={StaticResource BoolToVis}}">
@@ -528,8 +467,7 @@
                                             <TextBlock Text="{Binding StaleText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,10" LineHeight="16" />
                                             <StackPanel Orientation="Horizontal">
                                                 <Button Style="{StaticResource Btn.Primary}" Height="30" FontSize="11.5" Padding="12,0" Content="ВЕРНУТЬ НАСТРОЙКИ"
-                                                        Command="{Binding RestoreStaleCommand}" IsEnabled="{Binding IsElevated}" Margin="0,0,8,0" />
-                                                <Button Height="30" FontSize="11.5" Padding="12,0" Content="ВОССТАНОВЛЕНИЕ" Command="{Binding GoRestoreCommand}" />
+                                                        Command="{Binding RestoreStaleCommand}" IsEnabled="{Binding IsElevated}" />
                                             </StackPanel>
                                         </StackPanel>
                                     </Grid>
@@ -606,7 +544,7 @@
                             <Grid Margin="20,20,20,0">
                                 <Button Style="{StaticResource Btn.Hero}" Height="48" HorizontalAlignment="Stretch" Command="{Binding StartBoostCommand}"
                                         IsEnabled="{Binding CanStartBoost}" Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}"
-                                        ToolTipService.ShowOnDisabled="True" ToolTip="{Binding BoostTooltip}">
+                                        ToolTipService.ShowOnDisabled="True" ToolTip="{Binding StartTooltip}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />
                                         <TextBlock Text="СТАРТ" VerticalAlignment="Center" />
@@ -636,54 +574,11 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- ─────────── READINESS ─────────── -->
-                    <Border Style="{StaticResource Card}" Margin="0,16,0,0" Padding="20,18,20,16">
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Bottom">
-                                    <TextBlock Text="ПРОВЕРКА" Style="{StaticResource T.Label}" />
-                                    <TextBlock Text="ГОТОВНОСТЬ К ИГРАМ" Style="{StaticResource T.H1}" FontSize="22" Margin="0,1,0,0" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom"
-                                            Visibility="{Binding ReadinessLoaded, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="{Binding ReadinessPassed}" Style="{StaticResource T.Stat}" FontSize="40" />
-                                    <TextBlock Style="{StaticResource T.StatUnit}" FontSize="18" Margin="2,0,0,5">
-                                        <Run Text="/" /><Run Text="{Binding ReadinessTotal, Mode=OneWay}" />
-                                    </TextBlock>
-                                </StackPanel>
-                            </Grid>
-                            <c:Meter Value="{Binding ReadinessPercent}" Segments="{Binding ReadinessTotal}" Gap="4" Height="6" Margin="0,12,0,14"
-                                     Visibility="{Binding ReadinessLoaded, Converter={StaticResource BoolToVis}}" />
-                            <TextBlock Text="Проверяем настройки…" Style="{StaticResource T.Caption}" Margin="0,12,0,12"
-                                       Visibility="{Binding ReadinessLoaded, Converter={StaticResource InverseBoolToVis}}" />
-                            <ItemsControl ItemsSource="{Binding Readiness}" ItemTemplate="{StaticResource Games.ReadinessRow}" Focusable="False" />
-                            <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text4}" Margin="0,2,0,12" LineHeight="16"
-                                       Text="Только чтение: здесь ничего не меняется. Исправить — в разделах «Оптимизация» и «Драйверы»." />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="10" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Button Command="{Binding GoOptimizeCommand}" Padding="8,0" FontSize="11.5">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="ОПТИМИЗАЦИЯ" VerticalAlignment="Center" />
-                                        <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center" Margin="8,1,0,0" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Grid.Column="2" Command="{Binding GoDriversCommand}" Padding="8,0" FontSize="11.5">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="ДРАЙВЕРЫ" VerticalAlignment="Center" />
-                                        <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center" Margin="8,1,0,0" />
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
+                    <!-- Readiness: the checks themselves live on the Dashboard (with fix buttons) -->
+                    <Button Style="{StaticResource Btn.Link}" Content="{Binding ReadinessText}" Command="{Binding GoDashboardCommand}"
+                            Foreground="{StaticResource B.Text3}" HorizontalAlignment="Left" Margin="2,14,0,0"
+                            ToolTip="Проверки игровых настроек с кнопками исправления — на Панели"
+                            Visibility="{Binding ReadinessLoaded, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
                 </ScrollViewer>
         </Grid>

@@ -474,12 +474,14 @@ public sealed class DashboardRulesTests
     }
 
     [Fact]
-    public void Restore_off_offers_an_admin_action_and_policy_is_respected()
+    public void Restore_off_points_to_the_restore_page_and_policy_is_respected()
     {
         var off = HealthRules.CheckRestore(new SystemSnapshot { RestoreEnabled = false })!;
         Assert.Equal(CheckSeverity.Warning, off.Severity);
-        Assert.Equal(CheckActionKind.EnableRestore, off.Action!.Kind);
-        Assert.True(off.Action.RequiresAdmin);
+        // System protection is managed in one place only: the Restore page.
+        Assert.Equal(CheckActionKind.Navigate, off.Action!.Kind);
+        Assert.Equal("restore", off.Action.Target);
+        Assert.False(off.Action.RequiresAdmin);
 
         var policy = HealthRules.CheckRestore(new SystemSnapshot { RestoreEnabled = false, RestoreBlockedByPolicy = true })!;
         Assert.Equal(CheckSeverity.Info, policy.Severity);
@@ -528,7 +530,9 @@ public sealed class DashboardRulesTests
             PowerPlan = PowerPlanKind.HighPerformance, PowerPlanName = "Высокая производительность",
         })!;
         Assert.Equal(CheckSeverity.Info, dual.Severity);
-        Assert.Equal(CheckActionKind.OpenPowerOptions, dual.Action!.Kind);
+        // The button only shows the matching plan item in «Оптимизация»; it changes nothing by itself.
+        Assert.Equal(CheckActionKind.FocusTweak, dual.Action!.Kind);
+        Assert.Equal(HealthRules.TweakBalancedPlanX3D, dual.Action.Target);
         Assert.False(dual.Action.RequiresAdmin);
 
         var single = HealthRules.CheckPowerPlan(new SystemSnapshot
@@ -537,12 +541,27 @@ public sealed class DashboardRulesTests
         })!;
         Assert.Equal(CheckSeverity.Info, single.Severity);
         Assert.Equal(0, single.Weight); // no score penalty: AMD says the plan barely matters here
+        Assert.Equal(CheckActionKind.FocusTweak, single.Action!.Kind);
+        Assert.Equal(HealthRules.TweakBalancedPlan, single.Action.Target);
+
+        var saver = HealthRules.CheckPowerPlan(new SystemSnapshot { CpuName = "Intel Core i5-12400", CpuCores = 6, PowerPlan = PowerPlanKind.PowerSaver })!;
+        Assert.Equal(HealthRules.TweakBalancedPlan, saver.Action!.Target);
 
         var desktop = HealthRules.CheckPowerPlan(new SystemSnapshot { CpuName = "Intel Core i7-14700K", CpuCores = 20, PowerPlan = PowerPlanKind.Balanced })!;
         Assert.Equal(CheckSeverity.Ok, desktop.Severity);
 
+        Assert.Null(desktop.Action);
+
         var results = new[] { dual, single, desktop };
         Assert.DoesNotContain(results, r => r.Severity == CheckSeverity.Warning);
+    }
+
+    [Fact]
+    public void Power_plan_targets_exist_in_the_catalog()
+    {
+        // A focus request with an unknown id is silently ignored by «Оптимизация» — keep the ids in sync.
+        Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakBalancedPlan));
+        Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakBalancedPlanX3D));
     }
 
     [Fact]

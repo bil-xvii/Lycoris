@@ -630,4 +630,8 @@ public sealed class GamesTests
         Assert.Equal(2, passed);
         Assert.Equal(3, total);
     }
+
+    [Fact]
+    public void Readiness_summary_is_one_line_pointing_to_the_dashboard() =>
+        Assert.Equal("Готовность к играм: 2/3 — на Панели", GamingReadiness.SummaryLine(2, 3));
 }
