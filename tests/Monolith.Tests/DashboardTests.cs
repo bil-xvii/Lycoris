@@ -443,6 +443,7 @@ public sealed class DashboardRulesTests
     [InlineData("NVIDIA GeForce RTX 5070 Ti", true)]
     [InlineData("NVIDIA GeForce RTX 4090", true)]
     [InlineData("NVIDIA GeForce RTX 3080", false)]
+    [InlineData("NVIDIA RTX 4000 Ada Generation", false)]
     [InlineData("AMD Radeon RX 7900 XTX", false)]
     [InlineData(null, false)]
     public void Rtx_40_50(string? name, bool expected) => Assert.Equal(expected, HealthRules.IsRtx40Or50(name));
@@ -508,7 +509,12 @@ public sealed class DashboardRulesTests
         var rtx30 = HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.Off, PrimaryGpu = Gpu("NVIDIA GeForce RTX 3070") })!;
         Assert.Equal(CheckSeverity.Warning, rtx50.Severity);
         Assert.Equal(CheckSeverity.Info, rtx30.Severity);
-        Assert.Equal("hags", rtx30.Action!.Target);
+        Assert.Equal("hags", rtx50.Action!.Target);
+        // Other GPUs get the optional item: the «hags» tweak applies only to RTX 40/50, so its button would do nothing.
+        Assert.Equal(HealthRules.TweakHagsOther, rtx30.Action!.Target);
+        var ada = HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.Off, PrimaryGpu = Gpu("NVIDIA RTX 4000 Ada Generation") })!;
+        Assert.Equal(CheckSeverity.Info, ada.Severity);
+        Assert.Equal(HealthRules.TweakHagsOther, ada.Action!.Target);
         Assert.Null(HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.Unsupported }));
         Assert.Equal(CheckSeverity.Ok, HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.On })!.Severity);
     }

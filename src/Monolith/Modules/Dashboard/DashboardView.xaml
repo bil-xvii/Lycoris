@@ -523,14 +523,14 @@
                                     </Button>
 
                                     <Button Grid.Row="2" Style="{StaticResource Dash.QuickButton}" Command="{Binding GoCommand}" CommandParameter="games"
-                                            ToolTip="Раздел «Игры»: библиотека и игровой режим MONOLITH">
+                                            ToolTip="Раздел «Игры»: библиотека и игровой сеанс MONOLITH">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="ИГРОВОЙ РЕЖИМ" FontSize="13.5" />
+                                                <TextBlock Text="ИГРОВОЙ СЕАНС" FontSize="13.5" />
                                                 <TextBlock Text="Игры и ускорение" FontFamily="{StaticResource F.Body}" FontWeight="Normal" FontStretch="Normal"
                                                            FontSize="11.5" Foreground="{StaticResource B.Text3}" Margin="0,3,0,0" />
                                             </StackPanel>
