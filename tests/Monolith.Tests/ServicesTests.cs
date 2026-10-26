@@ -50,7 +50,6 @@ public sealed class ServicesTests
     }
 
     [Theory]
-    [InlineData("DiagTrack")]
     [InlineData("MapsBroker")]
     [InlineData("TrkWks")]
     [InlineData("PcaSvc")]
@@ -249,13 +248,36 @@ public sealed class ServicesTests
     public void Services_expert_mode_is_off_by_default() => Assert.False(new AppSettings().ServicesExpertMode);
 
     [Fact]
-    public void DiagTrack_is_expert_and_opt_in_like_on_optimize()
+    public void DiagTrack_has_one_place_optimize()
     {
-        var s = ServiceCatalog.Find("DiagTrack")!;
-        Assert.Equal(TweakRisk.Advanced, s.Risk);
-        Assert.True(s.Conditional);
-        foreach (var p in Profiles) Assert.False(s.IsPreselectedIn(p));
+        // DiagTrack is changed only by Optimize's ADVANCED diagtrack-manual tweak, never from Services.
+        Assert.False(ServiceCatalog.IsCurated("DiagTrack"));
+        Assert.Equal("diagtrack-manual", ServiceGuard.OptimizeTweakFor("DiagTrack"));
+        var tweak = TweakCatalog.All.Single(t => t.Id == "diagtrack-manual");
+        Assert.Equal(TweakRisk.Advanced, tweak.Risk);
+        // Locked on ВСЕ СЛУЖБЫ even in expert mode.
+        Assert.NotNull(ServiceGuard.OptimizeOwnedLockReason("diagtrack"));
+        Assert.Null(ServiceGuard.OptimizeOwnedLockReason("Spooler"));
     }
+
+    [Fact]
+    public void Curated_services_are_not_owned_by_optimize()
+    {
+        foreach (var s in ServiceCatalog.Services)
+            Assert.Null(ServiceGuard.OptimizeTweakFor(s.Name));
+    }
+
+    [Theory]
+    [InlineData("tab:startup", ServicesViewModel.TabStartup)]
+    [InlineData("tab:services", ServicesViewModel.TabRecommendations)]
+    [InlineData("tab:all", ServicesViewModel.TabAll)]
+    [InlineData("tab:tasks", ServicesViewModel.TabTasks)]
+    public void Focus_ids_select_tabs(string id, int tab) => Assert.Equal(tab, ServicesViewModel.FocusTab(id));
+
+    [Theory]
+    [InlineData("Spooler")]
+    [InlineData("tab:unknown")]
+    public void Other_focus_ids_are_service_names(string id) => Assert.Null(ServicesViewModel.FocusTab(id));
 
     [Fact]
     public void Remote_registry_must_stay_disabled()

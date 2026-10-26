@@ -15,6 +15,8 @@ namespace Monolith.Modules.Startup;
 /// <summary>
 /// АВТОЗАПУСК: Run / Run32 / Startup-folder entries (enabled or disabled exactly like Task Manager, never deleted)
 /// and third-party scheduled tasks that start at sign-in or boot.
+/// Not a top-level page: <see cref="Services.ServicesViewModel"/> owns it (АВТОЗАПУСК tab; logon tasks on the ЗАДАЧИ tab)
+/// and forwards activation. Key/Title are only used for logs.
 /// </summary>
 public sealed partial class StartupViewModel : PageViewModel
 {
@@ -39,11 +41,8 @@ public sealed partial class StartupViewModel : PageViewModel
     [ObservableProperty] private int _disabledCount;
     [ObservableProperty] private int _missingCount;
     [ObservableProperty] private int _visibleCount;
-    [ObservableProperty] private double _enabledShare;
     [ObservableProperty] private int _taskCount;
-    [ObservableProperty] private int _taskEnabledCount;
     [ObservableProperty] private int _selectedCount;
-    [ObservableProperty] private int _journalCount;
     [ObservableProperty] private bool _allSelected;
     [ObservableProperty] private bool _isLoaded;
     [ObservableProperty] private string _scanText = "Сканирование…";
@@ -55,9 +54,9 @@ public sealed partial class StartupViewModel : PageViewModel
         ChangeJournal.Instance.Changed += () => Ui.Post(UpdateJournalState);
     }
 
-    public string TotalCaption => MissingCount > 0 ? $"без файла: {MissingCount}" : "Run, Run32 и папки";
-    public string TaskCaption => TaskCount == 0 ? "сторонних не найдено" : $"включено: {TaskEnabledCount}";
-    public string ItemsCountText => $"{TotalCount} {Plural(TotalCount, "ЗАПИСЬ", "ЗАПИСИ", "ЗАПИСЕЙ")}";
+    /// <summary>The host page is busy with its own work (changes must not overlap).</summary>
+    public Func<bool>? IsHostBusy { get; set; }
+
     public string TasksCountText => $"{TaskCount} {Plural(TaskCount, "ЗАДАЧА", "ЗАДАЧИ", "ЗАДАЧ")}";
     public bool HasItems => TotalCount > 0;
     public bool HasTasks => TaskCount > 0;
@@ -65,14 +64,11 @@ public sealed partial class StartupViewModel : PageViewModel
     public bool ShowNoItems => IsLoaded && TotalCount == 0;
     public bool ShowNoTasks => IsLoaded && TaskCount == 0;
     public bool HasSelection => SelectedCount > 0;
-    public bool HasJournal => JournalCount > 0;
 
     partial void OnFilterChanged(string value) => RefreshView();
     partial void OnSearchChanged(string value) => RefreshView();
-    partial void OnMissingCountChanged(int value) => OnPropertyChanged(nameof(TotalCaption));
     partial void OnTotalCountChanged(int value)
     {
-        OnPropertyChanged(nameof(ItemsCountText));
         OnPropertyChanged(nameof(HasItems));
         OnPropertyChanged(nameof(ShowNoItems));
         OnPropertyChanged(nameof(ShowNoMatches));
@@ -83,11 +79,8 @@ public sealed partial class StartupViewModel : PageViewModel
         OnPropertyChanged(nameof(TasksCountText));
         OnPropertyChanged(nameof(HasTasks));
         OnPropertyChanged(nameof(ShowNoTasks));
-        OnPropertyChanged(nameof(TaskCaption));
     }
-    partial void OnTaskEnabledCountChanged(int value) => OnPropertyChanged(nameof(TaskCaption));
     partial void OnSelectedCountChanged(int value) => OnPropertyChanged(nameof(HasSelection));
-    partial void OnJournalCountChanged(int value) => OnPropertyChanged(nameof(HasJournal));
     partial void OnIsLoadedChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowNoItems));
@@ -258,36 +251,6 @@ public sealed partial class StartupViewModel : PageViewModel
             _syncingSelection = false;
         }
         UpdateSelection();
-    }
-
-    [RelayCommand]
-    private async Task RevertAllAsync()
-    {
-        if (!EnsureIdle() || !RequireAdmin("откат изменений автозапуска")) return;
-        var records = StartupChanges.ActiveRecords();
-        if (records.Count == 0)
-        {
-            Ui.Toast("Изменений автозапуска в журнале нет.", ToastKind.Info);
-            return;
-        }
-
-        var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЯ АВТОЗАПУСКА?",
-            $"MONOLITH вернёт исходное состояние {records.Count} {Plural(records.Count, "записи", "записей", "записей")}: " +
-            "отметки StartupApproved и состояние задач планировщика станут такими, какими были до первого изменения.",
-            records.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}"),
-            confirmText: "ОТКАТИТЬ",
-            footnote: "Ничего не удаляется. Изменения вступят в силу при следующем входе в Windows.");
-        if (!ok) return;
-
-        await RunBusyAsync("Откат изменений автозапуска…", async () =>
-        {
-            var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(records));
-            if (result.Success)
-                Ui.Toast($"Возвращено исходное состояние: {result.Reverted}.", ToastKind.Success, "АВТОЗАПУСК");
-            else
-                Ui.Toast($"Откачено {result.Reverted}, ошибок {result.Failed}: {result.Errors.FirstOrDefault()}", ToastKind.Error, "АВТОЗАПУСК");
-            await ScanAsync();
-        });
     }
 
     private async Task ApplyEntriesAsync(IReadOnlyList<StartupItem> items, bool enable, bool createRestorePoint)
@@ -507,7 +470,7 @@ public sealed partial class StartupViewModel : PageViewModel
 
     private bool EnsureIdle()
     {
-        if (!IsBusy) return true;
+        if (!IsBusy && IsHostBusy?.Invoke() != true) return true;
         Ui.Toast("Дождитесь окончания текущей операции: " + (BusyText ?? "идёт работа"), ToastKind.Info);
         return false;
     }
@@ -535,7 +498,6 @@ public sealed partial class StartupViewModel : PageViewModel
     private void UpdateJournalState()
     {
         var records = StartupChanges.ActiveRecords();
-        JournalCount = records.Count;
         var targets = records.Select(r => r.Target).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var i in Items) i.IsJournaled = targets.Contains(StartupLocations.JournalTarget(i.Entry.Source, i.Entry.Name));
         foreach (var t in Tasks) t.IsJournaled = targets.Contains($"task:{t.Path}");
@@ -547,9 +509,7 @@ public sealed partial class StartupViewModel : PageViewModel
         EnabledCount = Items.Count(i => i.IsEnabled);
         DisabledCount = TotalCount - EnabledCount;
         MissingCount = Items.Count(i => !i.TargetExists);
-        EnabledShare = TotalCount == 0 ? 0 : EnabledCount * 100.0 / TotalCount;
         TaskCount = Tasks.Count;
-        TaskEnabledCount = Tasks.Count(t => t.IsEnabled);
         UpdateSelection();
     }
 

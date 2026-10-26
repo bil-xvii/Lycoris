@@ -142,6 +142,9 @@ public sealed partial class ServiceItem : ObservableObject
     public bool IsLocked => Info.LockReason is not null;
     public string? LockReason => Info.LockReason;
     public bool IsCurated => ServiceCatalog.IsCurated(Info.Name);
+    /// <summary>Optimize tweak that owns this service (DiagTrack → diagtrack-manual), or null.</summary>
+    public string? OptimizeTweakId => ServiceGuard.OptimizeTweakFor(Info.Name);
+    public bool IsOptimizeOwned => OptimizeTweakId is not null;
     public bool MustStayDisabled => ServiceGuard.MustStayDisabled(Info.Name);
     public IReadOnlyList<StartOption> StartOptions => MustStayDisabled ? DisabledOnly : StartOption.All;
 

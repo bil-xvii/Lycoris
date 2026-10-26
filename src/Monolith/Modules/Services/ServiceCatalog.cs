@@ -80,16 +80,7 @@ public static class ServiceCatalog
     public static IReadOnlyList<CuratedService> Services { get; } =
     [
         // ───────────── ТЕЛЕМЕТРИЯ ─────────────
-        new()
-        {
-            Name = "DiagTrack", Title = "Телеметрия Windows", Group = ServiceGroup.Telemetry,
-            Description = "Собирает и отправляет в Microsoft диагностические данные. По умолчанию работает постоянно с момента загрузки.",
-            Condition = "ПК не участвует в программе Windows Insider и не управляется организацией (Intune, Autopatch).",
-            Impact = "Часть функций Центра отзывов и средств диагностики может работать хуже; используйте вместе с «Только обязательная диагностика».",
-            // Same journal target (svc:DiagTrack) as Optimize's diagtrack-manual, which general_tweaks.md rates ADVANCED:
-            // the stricter classification wins, so no profile pre-selects it.
-            Target = ServiceStartMode.Manual, Profiles = RG, Conditional = true, Risk = TweakRisk.Advanced, Gate = ServiceGate.NotInsider,
-        },
+        // DiagTrack is not here on purpose: its only place is Optimize (diagtrack-manual, ADVANCED) — see ServiceGuard.OptimizeTweakFor.
         new()
         {
             Name = "dmwappushservice", Title = "Push-сообщения MDM", Group = ServiceGroup.Telemetry,
