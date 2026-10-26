@@ -87,10 +87,12 @@ public sealed class JournalSecurityTests : IDisposable
 
         Assert.Null(JournalTrust.Check(Command("tweak:hibernate-off", "hibernate", Cmd, TweakCatalog.CmdArgs($"{pc} /hibernate on"))));
 
-        var dns = TweakCatalog.DnsCommand("ipv4", 12, ["1.1.1.1", "8.8.8.8"]) + " && " + Q("ipconfig.exe") + " /flushdns";
-        Assert.Null(JournalTrust.Check(Command("tweak:dns", $"dns4:{{{Guid.NewGuid().ToString().ToUpperInvariant()}}}", Cmd, TweakCatalog.CmdArgs(dns))));
-        var dhcp = TweakCatalog.DnsCommand("ipv6", 3, []) + " && " + Q("ipconfig.exe") + " /flushdns";
-        Assert.Null(JournalTrust.Check(Command("tweak:dns", $"dns6:{{{Guid.NewGuid()}}}", Cmd, TweakCatalog.CmdArgs(dhcp))));
+        var g4 = $"{{{Guid.NewGuid().ToString().ToUpperInvariant()}}}";
+        Assert.Null(JournalTrust.Check(Command("tweak:dns", $"dns4:{g4}", TweakCatalog.PowerShellExe,
+            TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv4", g4, ["1.1.1.1", "8.8.8.8"])))));
+        var g6 = $"{{{Guid.NewGuid()}}}";
+        Assert.Null(JournalTrust.Check(Command("tweak:dns", $"dns6:{g6}", TweakCatalog.PowerShellExe,
+            TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv6", g6, [])))));
 
         foreach (var value in new[] { null, "0", "it's;odd" })
             Assert.Null(JournalTrust.Check(Command("tweak:dx", "dx:VRROptimizeEnable", TweakCatalog.PowerShellExe,
@@ -120,9 +122,12 @@ public sealed class JournalSecurityTests : IDisposable
         // A dx script with something added after the catalog script.
         Assert.NotNull(JournalTrust.Check(Command("tweak:dx", "dx:VRROptimizeEnable", TweakCatalog.PowerShellExe,
             TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("VRROptimizeEnable", "0") + ";Start-Process x.exe"))));
-        // DNS restore line with an extra command.
-        var dns = TweakCatalog.DnsCommand("ipv4", 12, ["1.1.1.1"]) + " && calc.exe && " + Q("ipconfig.exe") + " /flushdns";
-        Assert.NotNull(JournalTrust.Check(Command("tweak:dns", $"dns4:{{{Guid.NewGuid()}}}", Cmd, TweakCatalog.CmdArgs(dns))));
+        // DNS undo script with an extra command, or one aimed at another adapter.
+        var g = $"{{{Guid.NewGuid()}}}";
+        Assert.NotNull(JournalTrust.Check(Command("tweak:dns", $"dns4:{g}", TweakCatalog.PowerShellExe,
+            TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv4", g, ["1.1.1.1"]) + ";Start-Process calc.exe"))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:dns", $"dns4:{g}", TweakCatalog.PowerShellExe,
+            TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv4", $"{{{Guid.NewGuid()}}}", ["1.1.1.1"])))));
         // Device ID that breaks out of the quotes.
         var pnputil = ProcessRunner.Sys("pnputil.exe");
         Assert.NotNull(JournalTrust.Check(Command("drivers", "device-enable:X\" /restart", pnputil, "/disable-device \"X\" /restart\"")));

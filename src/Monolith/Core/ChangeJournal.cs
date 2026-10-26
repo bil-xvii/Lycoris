@@ -642,7 +642,15 @@ internal static class JournalTrust
             return rebuilt == args ? null : Unknown;
         }
 
-        // cmd.exe undo lines: only the exact powercfg / netsh lines the catalog writes.
+        var dns = Regex.Match(target, $@"^dns([46]):(\{{?{GuidPattern}\}}?)$");
+        if (dns.Success)
+        {
+            if (!SameFile(file, TweakCatalog.PowerShellExe) || PsScript(args) is not { } dnsScript) return Unknown;
+            var rebuilt = RebuildDns(dns.Groups[1].Value == "6" ? "ipv6" : "ipv4", dns.Groups[2].Value, dnsScript);
+            return rebuilt == args ? null : Unknown;
+        }
+
+        // cmd.exe undo lines: only the exact powercfg / hibernate lines the catalog writes.
         if (!SameFile(file, ProcessRunner.Sys("cmd.exe"))) return Unknown;
         if (!args.StartsWith(CmdHead, StringComparison.Ordinal) || !args.EndsWith('"') || args.Length <= CmdHead.Length) return Unknown;
         var inner = args[CmdHead.Length..^1];
@@ -664,10 +672,6 @@ internal static class JournalTrust
                 ? null : Unknown;
         }
 
-        var dns = Regex.Match(target, $@"^dns([46]):\{{?{GuidPattern}\}}?$");
-        if (dns.Success)
-            return RebuildDns(dns.Groups[1].Value == "6" ? "ipv6" : "ipv4", inner) == inner ? null : Unknown;
-
         return Unknown;
     }
 
@@ -678,22 +682,14 @@ internal static class JournalTrust
         catch (FormatException) { return null; }
     }
 
-    /// <summary>Reads the server list back out of a netsh restore line and rebuilds it with the catalog code.</summary>
-    private static string? RebuildDns(string family, string inner)
+    /// <summary>Reads the server list back out of a DNS undo script and rebuilds it with the catalog code.</summary>
+    private static string? RebuildDns(string family, string guid, string script)
     {
-        var flush = " && " + Quoted("ipconfig.exe") + " /flushdns";
-        if (!inner.EndsWith(flush, StringComparison.Ordinal)) return null;
-        var body = inner[..^flush.Length];
-        var first = Regex.Match(body,
-            $@"interface {family} set dnsservers name=([0-9]{{1,9}}) source=(?:dhcp|static address=([0-9A-Fa-f:.%]+) register=primary)");
-        if (!first.Success) return null;
-        var index = int.Parse(first.Groups[1].Value, CultureInfo.InvariantCulture);
         var servers = new List<string>();
-        if (first.Groups[2].Success) servers.Add(first.Groups[2].Value);
-        foreach (Match m in Regex.Matches(body, "add dnsservers name=[0-9]{1,9} address=([0-9A-Fa-f:.%]+) index="))
+        foreach (Match m in Regex.Matches(script, "'address=([0-9A-Fa-f:.%]+)'"))
             servers.Add(m.Groups[1].Value);
-        try { return TweakCatalog.DnsCommand(family, index, servers) + flush; }
-        catch (InvalidOperationException) { return null; }
+        try { return TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript(family, guid, servers)); }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException) { return null; }
     }
 
     private static string? RebuildDx(string token, string script)
