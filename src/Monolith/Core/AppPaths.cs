@@ -33,6 +33,12 @@ public static class AppPaths
     /// <summary>True when the machine folder was writable by non-administrators before it was secured in this run.</summary>
     public static bool MachineDirWasInsecure { get; private set; }
 
+    /// <summary>
+    /// True once <see cref="SecureMachineDir"/> has fully locked the folder down in this (elevated) run.
+    /// False when securing failed part-way: the folder (and the journal in it) must then not be trusted.
+    /// </summary>
+    public static bool MachineDirSecured => _secured;
+
     /// <summary>True for paths inside %ProgramData%\MONOLITH (only an elevated process may write there).</summary>
     public static bool IsUnderMachineDir(string path) =>
         Path.GetFullPath(path).StartsWith(MachineDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
@@ -48,6 +54,7 @@ public static class AppPaths
             {
                 if (!Elevation.IsElevated) return Directory.Exists(dir);
                 SecureMachineDir();
+                if (!MachineDirSecured) return false; // never write into a folder we could not lock down
             }
             Directory.CreateDirectory(dir);
             return true;
@@ -71,7 +78,8 @@ public static class AppPaths
     /// Administrators full control, Users read-only, inheritance from ProgramData cut (ProgramData lets every
     /// user create files). Removes reparse points (junctions/symlinks) inside and resets child ACLs.
     /// If the folder was writable by non-admins, <see cref="MachineDirWasInsecure"/> is set — the caller must
-    /// then treat the existing journal as untrusted.
+    /// then treat the existing journal as untrusted. If securing fails, <see cref="MachineDirSecured"/> stays
+    /// false (the next call retries) and the journal must not be used at all.
     /// </summary>
     public static void SecureMachineDir()
     {
@@ -101,7 +109,13 @@ public static class AppPaths
                     dir.SetAccessControl(security);
                 }
 
-                ResetChildren(dir, 0);
+                var childFailures = ResetChildren(dir, 0);
+                if (childFailures > 0)
+                {
+                    // journal.json / .bak or a planted link could not be fixed: refuse to trust the folder this run.
+                    Log.Error($"Не удалось исправить права для {childFailures} файлов в папке данных MONOLITH — журнал изменений не будет использоваться.");
+                    return;
+                }
                 _secured = true;
                 if (MachineDirWasInsecure)
                     Log.Warn("Папка данных MONOLITH была доступна для записи обычным пользователям — права исправлены.");
@@ -146,15 +160,22 @@ public static class AppPaths
         return false;
     }
 
-    /// <summary>Children inherit the locked-down parent ACL; links inside are removed, never followed.</summary>
-    private static void ResetChildren(DirectoryInfo dir, int depth)
+    /// <summary>
+    /// Children inherit the locked-down parent ACL; links inside are removed, never followed.
+    /// Returns how many critical entries could not be fixed (a link that stays, or a top-level file such as
+    /// journal.json whose ACL could not be reset).
+    /// </summary>
+    private static int ResetChildren(DirectoryInfo dir, int depth)
     {
-        if (depth > 8) return;
+        if (depth > 8) return 0;
+        var failures = 0;
         foreach (var entry in dir.EnumerateFileSystemInfos("*", new EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = true }))
         {
+            var isLink = false;
             try
             {
-                if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                isLink = entry.Attributes.HasFlag(FileAttributes.ReparsePoint);
+                if (isLink)
                 {
                     MachineDirWasInsecure = true;
                     entry.Delete(); // removes the link only
@@ -167,7 +188,7 @@ public static class AppPaths
                     ds.SetAccessRuleProtection(false, false);
                     if (IsInsecure(sub.GetAccessControl())) MachineDirWasInsecure = true;
                     sub.SetAccessControl(ds);
-                    ResetChildren(sub, depth + 1);
+                    failures += ResetChildren(sub, depth + 1);
                 }
                 else if (entry is FileInfo file)
                 {
@@ -181,7 +202,9 @@ public static class AppPaths
             catch (Exception ex)
             {
                 Log.Warn($"Права {entry.FullName}: {ex.Message}");
+                if (isLink || (depth == 0 && entry is FileInfo)) failures++;
             }
         }
+        return failures;
     }
 }

@@ -84,9 +84,12 @@ public sealed partial class DriversViewModel
                 file: pnputil, args: $"/enable-device \"{device.DeviceId}\"",
                 revertFile: pnputil, revertArgs: $"/disable-device \"{device.DeviceId}\"",
                 oldValue: "Отключено", newValue: "Включено",
-                source: Source, title: $"Включение устройства «{device.Name}»");
+                source: Source, title: $"Включение устройства «{device.Name}»",
+                successCodes: new HashSet<int> { 0, ProcessExit.RebootRequired });
             session.Complete();
-            if (ok) Ui.Toast($"Устройство «{device.Name}» включено.", ToastKind.Success);
+            if (ok && session.RebootRequired)
+                Ui.Toast($"Устройство «{device.Name}» будет включено после перезагрузки.", ToastKind.Success);
+            else if (ok) Ui.Toast($"Устройство «{device.Name}» включено.", ToastKind.Success);
             else Ui.Toast(session.Errors.FirstOrDefault() ?? "Не удалось включить устройство.", ToastKind.Error);
             await LoadInventoryAsync();
         });
