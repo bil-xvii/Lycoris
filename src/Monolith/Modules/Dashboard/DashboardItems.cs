@@ -49,8 +49,8 @@ public sealed partial class CheckItemViewModel : ObservableObject
     {
         CheckActionKind.Navigate => "Открыть раздел MONOLITH",
         CheckActionKind.OpenUri => "Открыть параметры Windows — сама по себе кнопка ничего не меняет",
-        CheckActionKind.OpenPowerOptions => "Открыть «Электропитание» Windows — сама по себе кнопка ничего не меняет",
-        _ when ShowAdminHint => "Нужны права администратора: перезапустите MONOLITH кнопкой «Права администратора»",
+        CheckActionKind.FocusTweak => "Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет",
+        _ when ShowAdminHint => "Нужны права администратора",
         _ => "Перед изменением MONOLITH покажет, что именно будет сделано",
     };
 

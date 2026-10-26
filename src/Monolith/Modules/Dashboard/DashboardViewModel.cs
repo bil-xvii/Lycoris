@@ -303,11 +303,9 @@ public sealed partial class DashboardViewModel : PageViewModel
             case CheckActionKind.OpenUri when action.Target is { } uri:
                 await OpenShellAsync(uri, null, "параметры Windows");
                 break;
-            case CheckActionKind.OpenPowerOptions:
-                await OpenShellAsync(ProcessRunner.Sys("control.exe"), "/name Microsoft.PowerOptions", "«Электропитание»");
-                break;
-            case CheckActionKind.EnableRestore:
-                await EnableRestoreAsync();
+            case CheckActionKind.FocusTweak when action.Target is { } tweakId:
+                Ui.RequestFocus("optimize", tweakId);
+                Ui.Navigate("optimize");
                 break;
             case CheckActionKind.ApplyTweak when action.Target is { } id:
                 await ApplyTweakAsync(id);
@@ -329,29 +327,6 @@ public sealed partial class DashboardViewModel : PageViewModel
             Ui.Toast($"Не удалось открыть {what}: {ex.Message}", ToastKind.Error);
         }
     });
-
-    private async Task EnableRestoreAsync()
-    {
-        if (!RequireAdmin("Включить защиту системы")) return;
-        var confirmed = await Ui.ConfirmAsync(
-            "ВКЛЮЧИТЬ ЗАЩИТУ СИСТЕМЫ?",
-            "MONOLITH включит защиту системы для системного диска — так же, как кнопка «Настроить → Включить защиту системы» в свойствах системы.",
-            [
-                $"Windows начнёт создавать точки восстановления для диска {SystemProfile.SystemDrive.TrimEnd('\\')}",
-                "Под точки будет выделена часть диска; старые точки Windows удаляет сама",
-                "Файлы, программы и настройки не затрагиваются",
-                "Выключить можно в «Свойства системы → Защита системы → Настроить»",
-            ],
-            confirmText: "ВКЛЮЧИТЬ");
-        if (!confirmed) return;
-
-        var ok = false;
-        await RunBusyAsync("Включение защиты системы…", async () => ok = await RestorePointService.EnableAsync());
-        Ui.Toast(ok ? "Защита системы включена — Windows будет создавать точки восстановления."
-                    : "Не удалось включить защиту системы. Подробности — в консоли.",
-            ok ? ToastKind.Success : ToastKind.Error, "Защита системы");
-        await RefreshAsync(showBusy: false);
-    }
 
     private async Task ApplyTweakAsync(string id)
     {
@@ -417,13 +392,5 @@ public sealed partial class DashboardViewModel : PageViewModel
                 Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
         }
         await RefreshAsync(showBusy: false);
-    }
-
-    // ───────────────────────────── Quick actions ─────────────────────────────
-
-    [RelayCommand]
-    private void Go(string? page)
-    {
-        if (!string.IsNullOrEmpty(page)) Ui.Navigate(page);
     }
 }
