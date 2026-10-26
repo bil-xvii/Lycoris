@@ -517,21 +517,30 @@ public sealed class GamesTests
     [Fact]
     public void Power_plan_switches_only_when_every_rule_allows_it()
     {
-        Assert.Equal(PowerPlanAction.Switch, BoostPolicy.DecidePowerPlan(true, false, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipDisabled, BoostPolicy.DecidePowerPlan(false, false, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(true, false, true, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipModernStandby, BoostPolicy.DecidePowerPlan(true, false, false, true, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipAlreadyFast, BoostPolicy.DecidePowerPlan(true, false, false, false, false, true, true));
-        Assert.Equal(PowerPlanAction.SkipManagedElsewhere, BoostPolicy.DecidePowerPlan(true, false, false, false, true, true, false));
-        Assert.Equal(PowerPlanAction.SkipUnavailable, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, false));
+        Assert.Equal(PowerPlanAction.Switch, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, true, false));
+        Assert.Equal(PowerPlanAction.SkipDisabled, BoostPolicy.DecidePowerPlan(false, false, false, false, false, false, true, false));
+        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, false, false, false, false, true, false));
+        Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(true, false, true, false, false, false, true, false));
+        Assert.Equal(PowerPlanAction.SkipModernStandby, BoostPolicy.DecidePowerPlan(true, false, false, false, true, false, true, false));
+        Assert.Equal(PowerPlanAction.SkipAlreadyFast, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, true, true));
+        Assert.Equal(PowerPlanAction.SkipManagedElsewhere, BoostPolicy.DecidePowerPlan(true, false, false, false, false, true, true, false));
+        Assert.Equal(PowerPlanAction.SkipUnavailable, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, false, false));
+    }
+
+    [Fact]
+    public void Laptop_on_ac_is_never_switched_to_high_performance()
+    {
+        Assert.Equal(PowerPlanAction.SkipLaptop, BoostPolicy.DecidePowerPlan(true, false, false, true, false, false, true, false));
+        // On battery the more specific reason is reported.
+        Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(true, false, true, true, false, false, true, false));
+        Assert.Contains("ноутбук", BoostPolicy.Describe(PowerPlanAction.SkipLaptop, "x", ""));
     }
 
     [Fact]
     public void Dual_ccd_x3d_wins_over_every_other_reason()
     {
         // Even on battery and with the setting on, the X3D rule is the one reported.
-        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, true, true, true, false, true));
+        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, true, true, true, true, false, true));
     }
 
     [Fact]

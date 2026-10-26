@@ -96,9 +96,9 @@ public static class GamingReadiness
         {
             return active == PowerSchemes.Balanced
                 ? new ReadinessCheck(title, name, ReadinessState.Ok,
-                    "Для Ryzen X3D с двумя кристаллами AMD рекомендует именно эту схему.")
+                    "Для Ryzen X3D с двумя CCD AMD рекомендует именно эту схему.")
                 : new ReadinessCheck(title, name, ReadinessState.Attention,
-                    "Для Ryzen X3D с двумя кристаллами AMD рекомендует «Сбалансированную»: иначе игра может попасть не на тот кристалл.");
+                    "Для Ryzen X3D с двумя CCD AMD рекомендует «Сбалансированную»: иначе игра может попасть не на тот CCD.");
         }
         if (active == PowerSchemes.PowerSaver)
             return new ReadinessCheck(title, name, ReadinessState.Attention,
@@ -107,7 +107,7 @@ public static class GamingReadiness
             return new ReadinessCheck(title, name, ReadinessState.Info, "Ноутбук работает от батареи — для игр подключите зарядку.");
         if (active == PowerSchemes.Balanced)
             return new ReadinessCheck(title, name, ReadinessState.Info,
-                "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. Игровой режим MONOLITH переключает схему на время игры.");
+                "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. Игровой сеанс MONOLITH переключает схему на время игры.");
         return new ReadinessCheck(title, name, ReadinessState.Info,
             "Максимальные частоты процессора; в простое компьютер потребляет больше энергии.");
     }

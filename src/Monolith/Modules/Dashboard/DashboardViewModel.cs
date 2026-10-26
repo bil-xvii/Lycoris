@@ -367,12 +367,26 @@ public sealed partial class DashboardViewModel : PageViewModel
         var profile = await SystemProfile.LoadAsync();
         if (!tweak.IsApplicable(profile))
         {
-            Ui.Toast(tweak.NotApplicableReason ?? "Эта настройка не подходит для этого компьютера.", ToastKind.Warning, tweak.Title);
-            return;
+            // The check looks at the primary GPU, the catalog at every GPU: use the HAGS item that fits this PC.
+            var sibling = id switch
+            {
+                HealthRules.TweakHags => TweakCatalog.Find(HealthRules.TweakHagsOther),
+                HealthRules.TweakHagsOther => TweakCatalog.Find(HealthRules.TweakHags),
+                _ => null,
+            };
+            if (sibling is not null && sibling.Risk != TweakRisk.Advanced && sibling.IsApplicable(profile))
+                tweak = sibling;
+            else
+            {
+                // Never a dead button: explain and show the full list where the user can pick a fitting item.
+                Ui.Toast(tweak.NotApplicableReason ?? "Эта настройка не подходит для этого компьютера.", ToastKind.Warning, tweak.Title);
+                Ui.Navigate("optimize");
+                return;
+            }
         }
 
         var details = new List<string> { $"{tweak.Title}: {tweak.Description}" };
-        if (tweak.Restart != RestartRequirement.None) details.Add($"Вступит в силу после действия: {tweak.RestartText}");
+        if (tweak.Restart != RestartRequirement.None) details.Add($"Вступит в силу {tweak.RestartWhen}");
         details.Add(AppSettings.Current.CreateRestorePoints
             ? "Перед изменением будет создана точка восстановления (если защита системы включена)"
             : "Точка восстановления не создаётся — это выключено в настройках");
@@ -392,7 +406,7 @@ public sealed partial class DashboardViewModel : PageViewModel
             else if (r.Applied > 0)
                 Ui.Toast(r.Restart == RestartRequirement.None
                         ? "Готово. Отменить можно в разделе «Восстановление»."
-                        : $"Готово. Изменение вступит в силу: {tweak.RestartText}.",
+                        : $"Готово. Изменение вступит в силу {tweak.RestartWhen}.",
                     ToastKind.Success, tweak.Title);
             else
                 Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
