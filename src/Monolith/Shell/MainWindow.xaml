@@ -6,9 +6,7 @@
         xmlns:shell="clr-namespace:Monolith.Shell"
         xmlns:ui="clr-namespace:Monolith.UI"
         xmlns:dash="clr-namespace:Monolith.Modules.Dashboard"
-        xmlns:opt="clr-namespace:Monolith.Modules.Optimize"
-        xmlns:hw="clr-namespace:Monolith.Modules.Hardware"
-        xmlns:games="clr-namespace:Monolith.Modules.Games"
+        xmlns:opt="clr-namespace:Monolith.Modules.Optimize"        xmlns:games="clr-namespace:Monolith.Modules.Games"
         xmlns:clean="clr-namespace:Monolith.Modules.Cleaner"
         xmlns:drv="clr-namespace:Monolith.Modules.Drivers"
         xmlns:svc="clr-namespace:Monolith.Modules.Services"
@@ -33,7 +31,6 @@
 
         <!-- Page view-model → view -->
         <DataTemplate DataType="{x:Type dash:DashboardViewModel}"><dash:DashboardView /></DataTemplate>
-        <DataTemplate DataType="{x:Type hw:HardwareViewModel}"><hw:HardwareView /></DataTemplate>
         <DataTemplate DataType="{x:Type opt:OptimizeViewModel}"><opt:OptimizeView /></DataTemplate>
         <DataTemplate DataType="{x:Type games:GamesViewModel}"><games:GamesView /></DataTemplate>
         <DataTemplate DataType="{x:Type clean:CleanerViewModel}"><clean:CleanerView /></DataTemplate>

@@ -17,9 +17,9 @@ namespace Monolith.Modules.Drivers;
 public sealed partial class DriversViewModel : PageViewModel
 {
     public override string Key => "drivers";
-    public override string Index => "06";
-    public override string Title => "ДРАЙВЕРЫ";
-    public override string Subtitle => "Устройства, обновления драйверов через Windows Update и официальные утилиты производителей.";
+    public override string Index => "05";
+    public override string Title => "ЖЕЛЕЗО И ДРАЙВЕРЫ";
+    public override string Subtitle => "MONOLITH изучает комплектующие ПК и подбирает под них драйверы, утилиты и библиотеки — только из официальных источников.";
     public override string Glyph => Glyphs.Devices;
 
     private const string Source = "drivers";
@@ -28,7 +28,7 @@ public sealed partial class DriversViewModel : PageViewModel
     private List<UninstallEntry> _apps = [];
     private readonly CancellationTokenSource _lifetime = new();
 
-    [ObservableProperty] private DriversTab _selectedTab = DriversTab.Overview;
+    [ObservableProperty] private DriversTab _selectedTab = DriversTab.Hardware;
     [ObservableProperty] private bool _inventoryLoaded;
     [ObservableProperty] private string _inventoryTime = "";
 

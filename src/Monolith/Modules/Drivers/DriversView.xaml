@@ -58,8 +58,12 @@
             <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
             <StackPanel Orientation="Horizontal">
                 <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
+                             IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Hardware}">
+                    <TextBlock Text="ПОДБОР ДЛЯ ВАШЕГО ПК" />
+                </RadioButton>
+                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Overview}">
-                    <TextBlock Text="ОБЗОР" />
+                    <TextBlock Text="ВИДЕОКАРТЫ И ЧИПСЕТ" />
                 </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Updates}">
@@ -131,6 +135,7 @@
 
         <!-- ═══════════ Tab content ═══════════ -->
         <Grid Grid.Row="3" Margin="0,18,0,0">
+            <local:DriversHardwarePanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Hardware}" />
             <local:DriversOverviewPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Overview}" />
             <local:DriversUpdatesPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Updates}" />
             <local:DriversProblemsPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Problems}" />

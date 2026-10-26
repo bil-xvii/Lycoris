@@ -20,7 +20,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     private bool _confirmingRestorePoints;
 
     public override string Key => "settings";
-    public override string Index => "12";
+    public override string Index => "11";
     public override string Title => "НАСТРОЙКИ";
     public override string Subtitle => "Поведение программы, безопасность и сведения о MONOLITH.";
     public override string Glyph => Glyphs.Settings;

@@ -21,7 +21,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool _rebuildQueued;
 
     public override string Key => "restore";
-    public override string Index => "11";
+    public override string Index => "10";
     public override string Title => "ВОССТАНОВЛЕНИЕ";
     public override string Subtitle => "Журнал всех изменений MONOLITH, откат и точки восстановления Windows.";
     public override string Glyph => Glyphs.History;

@@ -6,7 +6,7 @@ using Monolith.UI;
 
 namespace Monolith.Modules.Drivers;
 
-public enum DriversTab { Overview, Updates, Problems, Installed, Backup }
+public enum DriversTab { Hardware, Overview, Updates, Problems, Installed, Backup }
 
 /// <summary>A numbered instruction line.</summary>
 public sealed record StepItem(string Number, string Text);

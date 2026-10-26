@@ -27,7 +27,7 @@ public sealed partial class AppsViewModel : PageViewModel
     private bool _detecting;
 
     public override string Key => "apps";
-    public override string Index => "09";
+    public override string Index => "08";
     public override string Title => "ПРИЛОЖЕНИЯ";
     public override string Subtitle => "Лаунчеры, игровые библиотеки и программы — установка и обновление в один клик через winget.";
     public override string Glyph => Glyphs.Download;

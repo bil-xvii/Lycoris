@@ -10,7 +10,6 @@ using Monolith.Modules.Cleaner;
 using Monolith.Modules.Dashboard;
 using Monolith.Modules.Drivers;
 using Monolith.Modules.Games;
-using Monolith.Modules.Hardware;
 using Monolith.Modules.Optimize;
 using Monolith.Modules.Restore;
 using Monolith.Modules.Services;
@@ -48,7 +47,6 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         Pages =
         [
             new DashboardViewModel(),
-            new HardwareViewModel(),
             new OptimizeViewModel(),
             new GamesViewModel(),
             new CleanerViewModel(),
