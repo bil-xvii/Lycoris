@@ -28,7 +28,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -37,13 +36,7 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding InventoryTime}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}"
                                VerticalAlignment="Center" Margin="0,0,16,0" />
-                    <Button Command="{Binding OpenDeviceManagerCommand}" ToolTip="Открыть стандартный диспетчер устройств Windows">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE772;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="ДИСПЕТЧЕР УСТРОЙСТВ" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button Command="{Binding RefreshCommand}" Margin="8,0,0,0" ToolTip="Заново прочитать драйверы, устройства и резервные копии">
+                    <Button Command="{Binding RefreshCommand}" ToolTip="Заново прочитать драйверы, устройства и резервные копии">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="ОБНОВИТЬ" VerticalAlignment="Center" />
@@ -57,10 +50,6 @@
         <Grid Grid.Row="1" Margin="0,20,0,0">
             <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
             <StackPanel Orientation="Horizontal">
-                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
-                             IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Hardware}">
-                    <TextBlock Text="ПОДБОР ДЛЯ ВАШЕГО ПК" />
-                </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Overview}">
                     <TextBlock Text="ВИДЕОКАРТЫ И ЧИПСЕТ" />
@@ -104,38 +93,9 @@
             </StackPanel>
         </Grid>
 
-        <!-- ═══════════ Read-only notice ═══════════ -->
-        <Border Grid.Row="2" Margin="0,14,0,0" Padding="0" Style="{StaticResource Callout}"
-                Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="6" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Border Background="{StaticResource B.HatchStrong}" />
-                <TextBlock Grid.Column="1" Text="&#xE72E;" FontFamily="{StaticResource F.Icons}" FontSize="14" Foreground="{StaticResource B.Text}"
-                           VerticalAlignment="Center" Margin="16,0,0,0" />
-                <TextBlock Grid.Column="2" Text="РЕЖИМ ПРОСМОТРА" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" FontSize="12"
-                           VerticalAlignment="Center" Margin="12,0,0,0" />
-                <TextBlock Grid.Column="3" Style="{StaticResource T.Body}" FontSize="12.5" VerticalAlignment="Center" Margin="14,10,16,10"
-                           TextWrapping="Wrap" ToolTip="Просмотр драйверов и поиск обновлений работают и без прав администратора."
-                           Text="Установка, резервное копирование и восстановление драйверов требуют прав администратора." />
-                <Button Grid.Column="4" Height="30" Margin="0,0,10,0" FontSize="11.5" Command="{Binding RestartAsAdminCommand}"
-                        ToolTip="Перезапустить MONOLITH с правами администратора (появится запрос UAC)">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="ПЕРЕЗАПУСТИТЬ С ПРАВАМИ" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </Grid>
-        </Border>
-
         <!-- ═══════════ Tab content ═══════════ -->
-        <Grid Grid.Row="3" Margin="0,18,0,0">
-            <local:DriversHardwarePanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Hardware}" />
+        <!-- The «ПОДБОР ДЛЯ ВАШЕГО ПК» tab (DriversHardwarePanel) is hidden until the hardware analysis exists. -->
+        <Grid Grid.Row="2" Margin="0,18,0,0">
             <local:DriversOverviewPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Overview}" />
             <local:DriversUpdatesPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Updates}" />
             <local:DriversProblemsPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Problems}" />

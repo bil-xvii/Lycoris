@@ -6,23 +6,6 @@
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
-        <!-- Stat cell of the summary strip (a flat button that opens the matching tab) -->
-        <Style x:Key="Drv.StatCell" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
-            <Setter Property="Height" Value="Auto" />
-            <Setter Property="Padding" Value="20,16,16,16" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Top" />
-        </Style>
-        <Style x:Key="Drv.StatValue" TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
-            <Setter Property="FontSize" Value="34" />
-            <Setter Property="Margin" Value="0,8,0,0" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        </Style>
-        <Style x:Key="Drv.StatCaption" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
-            <Setter Property="TextWrapping" Value="NoWrap" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="Margin" Value="0,2,0,0" />
-        </Style>
         <!-- Section heading: TITLE ───────────── note -->
         <Style x:Key="Drv.SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H2}">
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -48,81 +31,8 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,12,28">
 
-            <!-- ═══════════ Summary strip ═══════════ -->
-            <Border Style="{StaticResource Card.Flush}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <Button Style="{StaticResource Drv.StatCell}" Command="{Binding GoToTabCommand}" CommandParameter="Installed"
-                            ToolTip="Все драйверы устройств этого компьютера">
-                        <StackPanel>
-                            <TextBlock Text="ДРАЙВЕРЫ" Style="{StaticResource T.Label}" />
-                            <TextBlock Text="{Binding DriversStat}" Style="{StaticResource Drv.StatValue}" />
-                            <TextBlock Text="{Binding DriversCaption}" Style="{StaticResource Drv.StatCaption}" />
-                        </StackPanel>
-                    </Button>
-                    <Rectangle Grid.Column="1" Style="{StaticResource DividerV}" />
-
-                    <Grid Grid.Column="2">
-                        <Rectangle Height="3" VerticalAlignment="Top" Fill="{StaticResource B.HatchStrong}"
-                                   Visibility="{Binding HasProblems, Converter={StaticResource BoolToVis}}" />
-                        <Button Style="{StaticResource Drv.StatCell}" Command="{Binding GoToTabCommand}" CommandParameter="Problems"
-                                ToolTip="Устройства, о которых Windows сообщает ошибку">
-                            <StackPanel>
-                                <TextBlock Text="ПРОБЛЕМНЫЕ УСТРОЙСТВА" Style="{StaticResource T.Label}" />
-                                <TextBlock Text="{Binding ProblemsStat}" Style="{StaticResource Drv.StatValue}" />
-                                <TextBlock Text="{Binding ProblemsCaption}" Style="{StaticResource Drv.StatCaption}" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-                    <Rectangle Grid.Column="3" Style="{StaticResource DividerV}" />
-
-                    <Grid Grid.Column="4">
-                        <Rectangle Height="3" VerticalAlignment="Top" Fill="{StaticResource B.White}"
-                                   Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVis}}" />
-                        <Button Style="{StaticResource Drv.StatCell}" Command="{Binding GoToTabCommand}" CommandParameter="Updates"
-                                ToolTip="Драйверы, которые предлагает Windows Update">
-                            <StackPanel>
-                                <TextBlock Text="ОБНОВЛЕНИЯ WINDOWS" Style="{StaticResource T.Label}" />
-                                <TextBlock Text="{Binding UpdatesStat}" Style="{StaticResource Drv.StatValue}" />
-                                <TextBlock Text="{Binding UpdatesCaption}" Style="{StaticResource Drv.StatCaption}" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-                    <Rectangle Grid.Column="5" Style="{StaticResource DividerV}" />
-
-                    <Border Grid.Column="6" Padding="20,16,16,16" ToolTip="Версия драйвера основной видеокарты">
-                        <StackPanel>
-                            <TextBlock Text="ВИДЕОДРАЙВЕР" Style="{StaticResource T.Label}" />
-                            <TextBlock Text="{Binding GpuStat}" Style="{StaticResource Drv.StatValue}" />
-                            <TextBlock Text="{Binding GpuCaption}" Style="{StaticResource Drv.StatCaption}" />
-                        </StackPanel>
-                    </Border>
-                    <Rectangle Grid.Column="7" Style="{StaticResource DividerV}" />
-
-                    <Button Grid.Column="8" Style="{StaticResource Drv.StatCell}" Command="{Binding GoToTabCommand}" CommandParameter="Backup"
-                            ToolTip="Резервные копии драйверов">
-                        <StackPanel>
-                            <TextBlock Text="РЕЗЕРВНЫЕ КОПИИ" Style="{StaticResource T.Label}" />
-                            <TextBlock Text="{Binding BackupsStat}" Style="{StaticResource Drv.StatValue}" />
-                            <TextBlock Text="{Binding BackupsCaption}" Style="{StaticResource Drv.StatCaption}" />
-                        </StackPanel>
-                    </Button>
-                </Grid>
-            </Border>
-
             <!-- ═══════════ GPUs ═══════════ -->
-            <Grid Margin="0,30,0,14">
+            <Grid Margin="0,0,0,14">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -286,13 +196,7 @@
                 <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="14,0,0,0" />
             </Grid>
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*" />
-                    <ColumnDefinition Width="16" />
-                    <ColumnDefinition Width="2*" />
-                </Grid.ColumnDefinitions>
-
+            <StackPanel>
                 <!-- Chipset -->
                 <Border Style="{StaticResource Card}" Padding="0">
                     <StackPanel>
@@ -429,58 +333,23 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Clean install (DDU) — information only -->
-                <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <StackPanel Margin="22,22,22,0">
-                            <DockPanel LastChildFill="False">
-                                <TextBlock Text="ЧИСТАЯ ПЕРЕУСТАНОВКА" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
-                                <Border Style="{StaticResource Tag.Hatch}" DockPanel.Dock="Right">
-                                    <TextBlock Text="ТОЛЬКО ВРУЧНУЮ" />
-                                </Border>
-                            </DockPanel>
-                            <TextBlock Text="DISPLAY DRIVER UNINSTALLER" Style="{StaticResource T.H1}" FontSize="22" Margin="0,12,0,0"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0"
-                                       Text="Если видеодрайвер повреждён и обычная переустановка не помогает, его полностью удаляют утилитой DDU и ставят начисто. MONOLITH не запускает DDU — только подсказывает безопасный порядок." />
-
-                            <ItemsControl Margin="0,14,0,0" Focusable="False">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,7">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="30" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Number}" Style="{StaticResource T.Mono}" FontSize="11" FontWeight="Bold"
-                                                       Foreground="{StaticResource B.Text}" Margin="0,2,0,0" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Text}" Style="{StaticResource T.Body}" FontSize="12.5"
-                                                       Foreground="{StaticResource B.Text}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                                <ItemsControl.ItemsSource>
-                                    <Binding Path="DduSteps" />
-                                </ItemsControl.ItemsSource>
-                            </ItemsControl>
-                            <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0"
-                                       Text="Опция DDU «запретить Windows Update загружать драйверы» меняет параметры установки устройств — после установки драйвера верните её обратно." />
+                <!-- Clean install (DDU) — information only, MONOLITH never runs it -->
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="0,0,16,0"
+                               Text="Повреждённый видеодрайвер переустанавливают начисто утилитой DDU — вручную, в безопасном режиме, после точки восстановления и с отключённым интернетом. MONOLITH её не запускает."
+                               ToolTip="Порядок: точка восстановления → скачать новый драйвер → отключить интернет → безопасный режим и DDU → установить драйвер и подключить интернет. Опцию DDU «запретить Windows Update загружать драйверы» после установки верните обратно." />
+                    <Button Grid.Column="1" Style="{StaticResource Btn.Link}" Command="{Binding OpenUrlCommand}" CommandParameter="{Binding DduUrl}" ToolTip="{Binding DduUrl}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="DDU · WAGNARDSOFT" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
-                        <Border Grid.Row="1" Style="{StaticResource Drv.CardFooter}">
-                            <Button HorizontalAlignment="Left" Command="{Binding OpenUrlCommand}" CommandParameter="{Binding DduUrl}" ToolTip="{Binding DduUrl}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="САЙТ WAGNARDSOFT" VerticalAlignment="Center" />
-                                    <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                </StackPanel>
-                            </Button>
-                        </Border>
-                    </Grid>
-                </Border>
-            </Grid>
+                    </Button>
+                </Grid>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
