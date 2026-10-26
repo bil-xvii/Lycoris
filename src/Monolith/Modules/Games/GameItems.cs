@@ -1,0 +1,89 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using Monolith.Core;
+
+namespace Monolith.Modules.Games;
+
+/// <summary>A game card in the library grid.</summary>
+public sealed class GameCardViewModel
+{
+    public GameCardViewModel(GameEntry entry)
+    {
+        Entry = entry;
+        Initials = GameText.Initials(entry.Name);
+        CoverVariant = (int)(StableHash(entry.Id) % 3);
+    }
+
+    public GameEntry Entry { get; }
+    public string Name => Entry.Name;
+    public string Initials { get; }
+    public string PlatformLabel => GameText.PlatformLabel(Entry.Platform);
+    public string SizeText => Entry.SizeBytes > 0 ? SystemProfile.FormatBytes(Entry.SizeBytes) : "";
+    public bool HasSize => Entry.SizeBytes > 0;
+    public string PathText => Entry.Platform == GamePlatform.Custom && Entry.ExePath is { } exe ? exe : Entry.InstallDir.TrimEnd('\\');
+    public bool IsCustom => Entry.Platform == GamePlatform.Custom;
+    public bool IsAvailable => Entry.IsAvailable;
+    public bool IsMissing => !Entry.IsAvailable;
+
+    /// <summary>0 = dot grid, 1 = diagonal hatch, 2 = plain raised block (deterministic per game).</summary>
+    public int CoverVariant { get; }
+
+    /// <summary>FNV-1a — stable across runs (string.GetHashCode is randomized per process).</summary>
+    private static uint StableHash(string s)
+    {
+        var h = 2166136261u;
+        foreach (var c in s.ToLowerInvariant())
+        {
+            h ^= c;
+            h *= 16777619u;
+        }
+        return h;
+    }
+}
+
+/// <summary>Platform filter segment ("ВСЕ", "STEAM"…).</summary>
+public sealed partial class PlatformFilterItem : ObservableObject
+{
+    private readonly Action<PlatformFilterItem> _onSelected;
+
+    public PlatformFilterItem(GamePlatform? platform, int count, Action<PlatformFilterItem> onSelected, bool selected)
+    {
+        Platform = platform;
+        Count = count;
+        _onSelected = onSelected;
+        _isSelected = selected;
+    }
+
+    public GamePlatform? Platform { get; }
+    public int Count { get; }
+    public string Label => Platform is { } p ? GameText.PlatformLabel(p) : "ВСЕ";
+
+    [ObservableProperty] private bool _isSelected;
+
+    partial void OnIsSelectedChanged(bool value)
+    {
+        if (value) _onSelected(this);
+    }
+}
+
+/// <summary>A running app in the close-list editor.</summary>
+public sealed partial class RunningAppItem : ObservableObject
+{
+    private readonly Action<RunningAppItem, bool> _onToggled;
+
+    public RunningAppItem(RunningApp app, bool inList, Action<RunningAppItem, bool> onToggled)
+    {
+        App = app;
+        _isInList = inList;
+        _onToggled = onToggled;
+    }
+
+    partial void OnIsInListChanged(bool value) => _onToggled(this, value);
+
+    public RunningApp App { get; }
+    public string Name => App.Name;
+    public string Description => string.IsNullOrWhiteSpace(App.Description) ? "Без описания" : App.Description;
+    public string Meta => $"{App.Count} {GameText.Plural(App.Count, "ПРОЦЕСС", "ПРОЦЕССА", "ПРОЦЕССОВ")} · {SystemProfile.FormatBytes(App.MemoryBytes)}";
+    public bool HasWindow => App.HasWindow;
+
+    [ObservableProperty] private bool _isInList;
+}
