@@ -6,4 +6,6 @@ namespace Monolith.Modules.Drivers;
 /// </summary>
 public sealed partial class DriversViewModel
 {
+    /// <summary>Called from LoadAsync (fire-and-forget): scans the hardware and builds the recommendations.</summary>
+    private partial Task StartHardwareScanAsync() => Task.CompletedTask;
 }

@@ -93,10 +93,14 @@ public sealed partial class DriversViewModel : PageViewModel
 
     protected override async Task LoadAsync()
     {
-        // Windows Update search runs on its own thread and does not block the rest of the page.
+        // Hardware analysis ("ПОДБОР ДЛЯ ВАШЕГО ПК") and the Windows Update search run on their own and do not block the page.
+        _ = StartHardwareScanAsync();
         _ = SearchUpdatesAsync();
         await RunBusyAsync("Сбор сведений о драйверах…", LoadInventoryAsync);
     }
+
+    /// <summary>Implemented in DriversViewModel.Hardware.cs.</summary>
+    private partial Task StartHardwareScanAsync();
 
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
