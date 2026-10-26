@@ -17,6 +17,8 @@ public static partial class HealthRules
     public const string TweakHags = "hags";
     public const string TweakHagsOther = "hags-other-gpu";
     public const string TweakGameDvr = "gamedvr-off";
+    public const string TweakBalancedPlan = "power-plan-balanced";
+    public const string TweakBalancedPlanX3D = "power-plan-balanced-x3d";
 
     /// <summary>Free space is "low" below this share of the system drive…</summary>
     public const double LowSpaceShare = 0.15;
@@ -178,8 +180,8 @@ public static partial class HealthRules
         return new("restore", "ЗАЩИТА СИСТЕМЫ ВЫКЛЮЧЕНА",
             "Windows не создаёт точки восстановления: после неудачного обновления или драйвера откатиться будет не к чему, " +
             "а MONOLITH не сможет сделать точку перед своими изменениями. Защита займёт часть диска C: (старые точки удаляются " +
-            "автоматически). Выключить её можно в «Свойства системы → Защита системы».",
-            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.EnableRestore, "ВКЛЮЧИТЬ"));
+            "автоматически). Включить её можно в разделе «Восстановление».",
+            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, "К ВОССТАНОВЛЕНИЮ", "restore"));
     }
 
     // ───────────────────────────── Free space ─────────────────────────────
@@ -307,17 +309,19 @@ public static partial class HealthRules
         if (s.PowerPlan == PowerPlanKind.Unknown) return null;
         var name = string.IsNullOrWhiteSpace(s.PowerPlanName) ? "—" : s.PowerPlanName;
         var title = $"ПЛАН ПИТАНИЯ «{name.ToUpperInvariant()}»";
-        var open = new CheckAction(CheckActionKind.OpenPowerOptions, "ЭЛЕКТРОПИТАНИЕ");
         var isX3D = s.CpuName.Contains("X3D", StringComparison.OrdinalIgnoreCase);
         var balanced = s.PowerPlan == PowerPlanKind.Balanced;
+        // Every suggestion here is the balanced plan; the button only opens its item in «Оптимизация».
+        var open = new CheckAction(CheckActionKind.FocusTweak, "СХЕМА ПИТАНИЯ", TweakBalancedPlan);
 
         if (isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores))
         {
+            open = new CheckAction(CheckActionKind.FocusTweak, "СХЕМА ПИТАНИЯ", TweakBalancedPlanX3D);
             return balanced
                 ? new("power-plan", title, "Рекомендация AMD для Ryzen X3D с двумя CCD: драйвер правильно переносит игры на CCD с 3D V-Cache.", CheckSeverity.Ok, 8)
                 : new("power-plan", title,
                     "На Ryzen X3D с двумя CCD драйвер AMD переносит игры на CCD с 3D V-Cache только в «Сбалансированном» " +
-                    "плане — так рекомендует AMD. В текущем плане эта логика может не срабатывать. Выберите «Сбалансированный» в «Электропитании».",
+                    "плане — так рекомендует AMD. В текущем плане эта логика может не срабатывать. Включить его можно в разделе «Оптимизация».",
                     CheckSeverity.Info, 8, open);
         }
         if (isX3D)

@@ -1,5 +1,4 @@
 ﻿using System.Collections.ObjectModel;
-using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,14 +11,14 @@ namespace Monolith.Modules.Optimize;
 
 /// <summary>
 /// The Optimize page: profile tiles → filterable, grouped tweak list with detected states → apply with a full
-/// preview, per-row and bulk undo. Every system change goes through <see cref="TweakEngine"/> (journal + restore point).
+/// preview and per-row undo (bulk undo lives in «Восстановление»). Every system change goes through <see cref="TweakEngine"/> (journal + restore point).
 /// </summary>
 public sealed partial class OptimizeViewModel : PageViewModel
 {
     public override string Key => "optimize";
     public override string Index => "02";
     public override string Title => "ОПТИМИЗАЦИЯ";
-    public override string Subtitle => "Выберите профиль, проверьте изменения и примените. Изменённые настройки откатываются в один клик.";
+    public override string Subtitle => "Выберите профиль, проверьте изменения и примените — каждое из них обратимо.";
     public override string Glyph => Glyphs.Bolt;
 
     private const string SourcePrefix = "tweak:";
@@ -34,6 +33,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private readonly ExpertRow _expertRow;
     private readonly DispatcherTimer _searchTimer;
     private readonly DispatcherTimer _saveTimer;
+    private readonly DispatcherTimer _highlightTimer;
+    private TweakItemViewModel? _highlighted;
     private HashSet<string>? _customSelection;
     private bool _expertOpen;
     private bool _expertHiddenInSearch;
@@ -78,6 +79,19 @@ public sealed partial class OptimizeViewModel : PageViewModel
         };
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
         _saveTimer.Tick += (_, _) => FlushCustomSelection();
+        _highlightTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+        _highlightTimer.Tick += (_, _) =>
+        {
+            _highlightTimer.Stop();
+            if (_highlighted is not null) _highlighted.IsHighlighted = false;
+            _highlighted = null;
+        };
+        // Already on the page (or loaded) when the request arrives: handle it now. Before the first load
+        // the catalog is empty and LoadAsync takes the request instead.
+        Ui.FocusRequested += r =>
+        {
+            if (r.PageKey == Key && TotalCount > 0) ApplyFocus(Ui.TakeFocusRequest(Key));
+        };
 
         PropertyChanged += (_, e) =>
         {
@@ -99,11 +113,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
     [ObservableProperty] private int _selectedCount;
     [ObservableProperty] private int _changeCount;
     [ObservableProperty] private int _restartCount;
-    [ObservableProperty] private int _revertableCount;
     [ObservableProperty] private int _appliedTotal;
     [ObservableProperty] private int _applicableTotal;
     [ObservableProperty] private int _visibleCount;
     [ObservableProperty] private string _barNote = "Загрузка каталога…";
+    /// <summary>The row the view should scroll into view (set by <see cref="ApplyFocus"/>).</summary>
+    [ObservableProperty] private TweakItemViewModel? _focusedItem;
     /// <summary>A restart the user postponed ("ПОЗЖЕ"): shown as a reminder button in the action bar.</summary>
     [ObservableProperty] private RestartRequirement _pendingRestart;
 
@@ -120,7 +135,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     };
     public string AppliedSummary => _detected ? $"{AppliedTotal} ИЗ {ApplicableTotal}" : "—";
     public string ApplyButtonText => ChangeCount > 0 ? $"ПРИМЕНИТЬ · {ChangeCount}" : "ПРИМЕНИТЬ";
-    public string RevertButtonText => RevertableCount > 0 ? $"ОТКАТИТЬ ВЫБРАННОЕ · {RevertableCount}" : "ОТКАТИТЬ ВЫБРАННОЕ";
+    public string ApplyTooltip => IsReadOnly ? "Нужны права администратора" : "Показать полный список изменений и применить их";
 
     private ProfileTileViewModel CurrentTile => Profiles.First(p => p.Kind == Profile);
 
@@ -147,7 +162,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
     }
 
     partial void OnChangeCountChanged(int value) => OnPropertyChanged(nameof(ApplyButtonText));
-    partial void OnRevertableCountChanged(int value) => OnPropertyChanged(nameof(RevertButtonText));
 
     // ───────────────────────────── Lifecycle ─────────────────────────────
 
@@ -165,10 +179,46 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
         RebuildRows();
         UpdateCounts();
+        ApplyFocus(Ui.TakeFocusRequest(Key));
         await RefreshStatesAsync();
     }
 
-    protected override Task OnReturnAsync() => RefreshStatesAsync();
+    protected override Task OnReturnAsync()
+    {
+        ApplyFocus(Ui.TakeFocusRequest(Key));
+        return RefreshStatesAsync();
+    }
+
+    /// <summary>
+    /// Shows one tweak: clears the search and category filter, opens the expert section if needed, expands the row and
+    /// frames it for a moment. Only changes what is shown — never the selection or the system.
+    /// </summary>
+    private void ApplyFocus(string? id)
+    {
+        if (id is null) return;
+        var item = _items.FirstOrDefault(i => i.Id == id);
+        if (item is null) return;
+        _searchTimer.Stop();
+        SearchText = "";
+        _searchTimer.Stop(); // the setter restarted the debounce; rebuild right away instead
+        SelectCategory(null);
+        if (item.IsAdvanced)
+        {
+            _expertOpen = true;
+            _expertHiddenInSearch = false;
+        }
+        RebuildRows();
+        item.IsExpanded = true;
+
+        if (_highlighted is not null && !ReferenceEquals(_highlighted, item)) _highlighted.IsHighlighted = false;
+        _highlighted = item;
+        item.IsHighlighted = true;
+        _highlightTimer.Stop();
+        _highlightTimer.Start();
+
+        FocusedItem = null; // re-raise even when the same item is requested twice
+        FocusedItem = item;
+    }
 
     public override void Deactivate()
     {
@@ -425,7 +475,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
         SelectedCount = _items.Count(i => i.IsChecked);
         ChangeCount = _items.Count(i => i.IsPending);
         RestartCount = _items.Count(i => i.IsPending && i.HasRestart);
-        RevertableCount = _items.Count(i => i.IsChecked && i.CanRevert);
         AppliedTotal = _items.Count(i => i.IsApplied);
         ApplicableTotal = _items.Count(i => i.State is not null && i.IsApplicable);
         OnPropertyChanged(nameof(AppliedSummary));
@@ -480,7 +529,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
     // ───────────────────────────── Commands: state ─────────────────────────────
 
     private bool CanApply() => CanModify && !IsDetecting && ChangeCount > 0;
-    private bool CanRevertSelected() => CanModify && !IsDetecting && RevertableCount > 0;
 
     private void OnBusyChanged()
     {
@@ -492,23 +540,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private void RefreshCommandStates()
     {
         ApplyCommand.NotifyCanExecuteChanged();
-        RevertSelectedCommand.NotifyCanExecuteChanged();
         ExportProfileCommand.NotifyCanExecuteChanged();
         ImportProfileCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
     private Task RecheckAsync() => RefreshStatesAsync();
-
-    [RelayCommand]
-    private void OpenJournal() => Ui.Navigate("restore");
-
-    [RelayCommand]
-    private void RestartElevated()
-    {
-        if (Elevation.TryRelaunchElevated(["--page", "optimize"]))
-            Application.Current.Shutdown();
-    }
 
     [RelayCommand]
     private Task ResumePendingRestartAsync() => OfferRestartAsync(PendingRestart);
@@ -634,38 +671,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
         await RunBusyAsync($"Откат: {item.Title}…", async () => result = await TweakEngine.RevertAsync(item.Tweak));
         await RefreshStatesAsync();
         await ReportRevertAsync(result, [item]);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanRevertSelected))]
-    private async Task RevertSelectedAsync()
-    {
-        if (!RequireAdmin("Откат изменений")) return;
-        var targets = _items.Where(i => i.IsChecked && i.CanRevert).ToList();
-        if (targets.Count == 0)
-        {
-            Ui.Toast("Среди выбранных пунктов нет изменений MONOLITH, которые можно откатить.", ToastKind.Info);
-            return;
-        }
-
-        var active = ChangeJournal.Instance.ActiveRecords;
-        var details = targets.Select(t =>
-        {
-            var n = active.Count(r => r.TouchedBy(SourcePrefix + t.Id));
-            return $"{t.Title} — {n} {OptimizeLogic.Plural(n, "параметр", "параметра", "параметров")}";
-        }).ToList();
-        var touched = active.Where(r => targets.Any(t => r.TouchedBy(SourcePrefix + t.Id))).ToList();
-        if (AlsoRevertsLine(touched, targets.Select(t => t.Id).ToList()) is { } also) details.Add(also);
-        var restartNote = targets.Any(t => t.HasRestart) ? " Для части пунктов после отката понадобится перезапуск." : "";
-        var ok = await Ui.ConfirmAsync(
-            $"ОТКАТИТЬ {targets.Count} {OptimizeLogic.Plural(targets.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")}?",
-            "MONOLITH вернёт значения, сохранённые в журнале перед применением." + restartNote,
-            details, confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА");
-        if (!ok) return;
-
-        RevertResult? result = null;
-        await RunBusyAsync("Откат выбранных изменений…", async () => result = await TweakEngine.RevertAsync(targets.Select(t => t.Tweak)));
-        await RefreshStatesAsync();
-        await ReportRevertAsync(result, targets);
     }
 
     /// <summary>

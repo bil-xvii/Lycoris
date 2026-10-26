@@ -149,6 +149,9 @@ public static class GamingReadiness
         return n;
     }
 
+    /// <summary>The one muted line on the Games page; the full checklist (with fix buttons) is on the Dashboard.</summary>
+    public static string SummaryLine(int passed, int total) => $"Готовность к играм: {passed}/{total} — на Панели";
+
     /// <summary>(passed, counted): Info checks are not counted.</summary>
     public static (int Passed, int Total) Score(IEnumerable<ReadinessCheck> checks)
     {
