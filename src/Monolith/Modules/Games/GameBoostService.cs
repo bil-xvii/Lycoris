@@ -19,7 +19,7 @@ public sealed record BoostChange(string Title, string Detail, BoostChangeKind Ki
 
 /// <summary>
 /// Game Boost session. Temporary changes only:
-///  • power plan → High performance (journaled under source "gameboost" so the Restore center can undo it after a crash);
+///  • power plan → High performance (journaled under source "gameboost" so the Restore page can undo it after a crash);
 ///  • close the user's chosen background apps (window close first, kill only after explicit confirmation);
 ///  • game process priority → High (never Realtime), restored when the session ends;
 ///  • optional one-time standby-list purge (opt-in, honest explanation).
@@ -29,7 +29,7 @@ public sealed record BoostChange(string Title, string Detail, BoostChangeKind Ki
 public sealed partial class GameBoostService : ObservableObject
 {
     public const string Source = "gameboost";
-    private const string SessionTitle = "Игровой режим (сессия)";
+    private const string SessionTitle = "Игровой сеанс";
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan DetectTimeout = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(8);
@@ -69,6 +69,7 @@ public sealed partial class GameBoostService : ObservableObject
             enabled,
             BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores),
             GamesNative.IsOnBattery(),
+            sp.IsLaptop,
             GamesNative.IsModernStandby(),
             managedElsewhere,
             enabled && PowerSchemes.Exists(PowerSchemes.HighPerformance),
@@ -110,7 +111,7 @@ public sealed partial class GameBoostService : ObservableObject
     public async Task<bool> StartAsync(GameEntry? game, BoostPlan plan)
     {
         if (IsActive || IsTransitioning) return false;
-        Elevation.Demand("Игровой режим");
+        Elevation.Demand("Игровой сеанс");
         IsTransitioning = true;
         Changes.Clear();
         _closedApps.Clear();
@@ -129,7 +130,7 @@ public sealed partial class GameBoostService : ObservableObject
 
             IsActive = true;
             StartedAt = DateTime.Now;
-            Log.Success($"Игровой режим включён{(game is null ? "" : $" для «{game.Name}»")}.");
+            Log.Success($"Игровой сеанс начат{(game is null ? "" : $" для «{game.Name}»")}.");
 
             if (game is null)
             {
@@ -140,7 +141,7 @@ public sealed partial class GameBoostService : ObservableObject
             int? pid;
             try
             {
-                pid = await Task.Run(() => GameLauncher.Launch(game));
+                pid = await Task.Run(() => GameLauncher.LaunchAsync(game));
             }
             catch (Exception ex)
             {
@@ -157,10 +158,10 @@ public sealed partial class GameBoostService : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Error("Игровой режим: ошибка запуска", ex);
-            Ui.Toast(ex.Message, ToastKind.Error, "ИГРОВОЙ РЕЖИМ");
+            Log.Error("Игровой сеанс: ошибка запуска", ex);
+            Ui.Toast(ex.Message, ToastKind.Error, "ИГРОВОЙ СЕАНС");
             if (IsActive || ChangeJournal.Instance.HasActiveSource(Source))
-                await StopCoreAsync("Запуск игрового режима прерван — изменения отменены.", ToastKind.Warning);
+                await StopCoreAsync("Запуск игрового сеанса прерван — изменения отменены.", ToastKind.Warning);
             return false;
         }
         finally
@@ -175,7 +176,7 @@ public sealed partial class GameBoostService : ObservableObject
         {
             var fromName = PowerSchemes.GetName(PowerSchemes.GetActive());
             var session = await ChangeSession.BeginAsync(SessionTitle, createRestorePoint: false).ConfigureAwait(false);
-            var r = session.SetPowerScheme(PowerSchemes.HighPerformance, Source, "Игровой режим: план питания");
+            var r = session.SetPowerScheme(PowerSchemes.HighPerformance, Source, "Игровой сеанс: план питания");
             session.Complete();
             return (r, fromName, PowerSchemes.GetName(PowerSchemes.HighPerformance), session.Errors.FirstOrDefault());
         });
@@ -220,7 +221,7 @@ public sealed partial class GameBoostService : ObservableObject
                     "Эти приложения не закрылись за 8 секунд — многие программы при закрытии окна сворачиваются в трей. " +
                     "Завершить их принудительно? Несохранённые данные в них будут потеряны.",
                     details, "ЗАВЕРШИТЬ", "ОСТАВИТЬ ОТКРЫТЫМИ", danger: true,
-                    footnote: "Игровой режим продолжит работу при любом выборе.");
+                    footnote: "Игровой сеанс продолжится при любом выборе.");
                 if (kill)
                 {
                     await Task.Run(() =>
@@ -244,7 +245,7 @@ public sealed partial class GameBoostService : ObservableObject
             if (closed.Count > 0)
             {
                 Changes.Add(new BoostChange("Закрыто приложений: " + closed.Count, string.Join(", ", closed) + ". После игры MONOLITH их не открывает.", BoostChangeKind.Changed));
-                Log.Info("Игровой режим: закрыты " + string.Join(", ", closed));
+                Log.Info("Игровой сеанс: закрыты " + string.Join(", ", closed));
             }
             if (open.Count > 0)
                 Changes.Add(new BoostChange("Остались открыты", string.Join(", ", open), BoostChangeKind.Skipped));
@@ -260,13 +261,13 @@ public sealed partial class GameBoostService : ObservableObject
         var (ok, message) = await Task.Run(GamesNative.PurgeStandbyList);
         if (ok)
         {
-            Log.Info("Игровой режим: список ожидания памяти очищен.");
+            Log.Info("Игровой сеанс: список ожидания памяти очищен.");
             Changes.Add(new BoostChange("Память: список ожидания очищен",
                 "Однократно. Свободной памяти стало больше, но «доступной» — столько же: Windows и так отдаёт её играм.", BoostChangeKind.Changed));
         }
         else
         {
-            Log.Warn($"Игровой режим: очистка списка ожидания не выполнена — {message}");
+            Log.Warn($"Игровой сеанс: очистка списка ожидания не выполнена — {message}");
             Changes.Add(new BoostChange("Очистка памяти не выполнена", message, BoostChangeKind.Skipped));
         }
     }
@@ -295,7 +296,7 @@ public sealed partial class GameBoostService : ObservableObject
                     }
                     else if (DateTime.UtcNow - started > DetectTimeout)
                     {
-                        await StopAsync($"«{game.Name}» не запустилась за 3 минуты — игровой режим выключен, изменения отменены.", ToastKind.Warning);
+                        await StopAsync($"«{game.Name}» не запустилась за 3 минуты — игровой сеанс завершён, изменения отменены.", ToastKind.Warning);
                         return;
                     }
                     continue;
@@ -305,7 +306,7 @@ public sealed partial class GameBoostService : ObservableObject
                 {
                     if (++missing >= 2)
                     {
-                        await StopAsync($"«{game.Name}» закрыта — игровой режим выключен, изменения отменены.", ToastKind.Success);
+                        await StopAsync($"«{game.Name}» закрыта — игровой сеанс завершён, изменения отменены.", ToastKind.Success);
                         return;
                     }
                     continue;
@@ -326,7 +327,7 @@ public sealed partial class GameBoostService : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Error("Игровой режим: ошибка слежения за игрой", ex);
+            Log.Error("Игровой сеанс: ошибка слежения за игрой", ex);
         }
     }
 
@@ -334,7 +335,7 @@ public sealed partial class GameBoostService : ObservableObject
     {
         PhaseText = "ИГРА ЗАПУЩЕНА";
         ProcessText = $"{GameProcessFinder.ExeName(gp)} · PID {gp.Pid}";
-        Log.Info($"Игровой режим: процесс игры {GameProcessFinder.ExeName(gp)} (PID {gp.Pid})");
+        Log.Info($"Игровой сеанс: процесс игры {GameProcessFinder.ExeName(gp)} (PID {gp.Pid})");
         if (!AppSettings.Current.GameBoostPriority || _raised.ContainsKey(gp.Pid)) return;
 
         var r = await Task.Run(() => RaisePriority(gp.Pid));
@@ -343,12 +344,12 @@ public sealed partial class GameBoostService : ObservableObject
             _raised[gp.Pid] = (r.Handle, r.Original);
             Changes.Add(new BoostChange("Приоритет игры",
                 $"{GameProcessFinder.ExeName(gp)}: {GamesNative.PriorityName(r.Original)} → Высокий. Сбросится вместе с игрой.", BoostChangeKind.Changed));
-            Log.Info($"Игровой режим: приоритет {GameProcessFinder.ExeName(gp)} → Высокий");
+            Log.Info($"Игровой сеанс: приоритет {GameProcessFinder.ExeName(gp)} → Высокий");
         }
         else
         {
             Changes.Add(new BoostChange("Приоритет игры не изменён", r.Message, BoostChangeKind.Skipped));
-            Log.Warn($"Игровой режим: приоритет {GameProcessFinder.ExeName(gp)} не изменён — {r.Message}");
+            Log.Warn($"Игровой сеанс: приоритет {GameProcessFinder.ExeName(gp)} не изменён — {r.Message}");
         }
     }
 
@@ -412,7 +413,7 @@ public sealed partial class GameBoostService : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Error("Игровой режим: ошибка отката", ex);
+            Log.Error("Игровой сеанс: ошибка отката", ex);
             result = new RevertResult(0, 1, [ex.Message]);
         }
 
@@ -422,11 +423,11 @@ public sealed partial class GameBoostService : ObservableObject
 
         var msg = reason;
         if (restoredPriority > 0) msg += " Приоритет игры возвращён.";
-        if (result.Failed > 0) msg += $" Не удалось отменить изменений: {result.Failed} — откройте «Центр отката».";
+        if (result.Failed > 0) msg += $" Не удалось отменить изменений: {result.Failed} — откройте раздел «Восстановление».";
         if (_closedApps.Count > 0)
             msg += $" Закрытые приложения ({string.Join(", ", _closedApps)}) MONOLITH не перезапускает — откройте их сами, если нужны.";
-        Log.Info("Игровой режим выключен. " + msg);
-        Ui.Toast(msg, result.Failed > 0 ? ToastKind.Warning : kind, "ИГРОВОЙ РЕЖИМ ВЫКЛЮЧЕН");
+        Log.Info("Игровой сеанс завершён. " + msg);
+        Ui.Toast(msg, result.Failed > 0 ? ToastKind.Warning : kind, "ИГРОВОЙ СЕАНС ЗАВЕРШЁН");
         Ended?.Invoke();
     }
 
@@ -461,11 +462,11 @@ public sealed partial class GameBoostService : ObservableObject
             _watchCts?.Cancel();
             RestorePriorities();
             Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source)).Wait(TimeSpan.FromSeconds(5));
-            Log.Info("Игровой режим: MONOLITH закрыт во время сеанса — изменения отменены.");
+            Log.Info("Игровой сеанс: MONOLITH закрыт во время сеанса — изменения отменены.");
         }
         catch (Exception ex)
         {
-            Log.Error("Игровой режим: не удалось отменить изменения при выходе", ex);
+            Log.Error("Игровой сеанс: не удалось отменить изменения при выходе", ex);
         }
         IsActive = false;
     }

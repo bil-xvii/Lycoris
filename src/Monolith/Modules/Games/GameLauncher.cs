@@ -14,21 +14,34 @@ public static class GameLauncher
     public static bool IsAllowedUri(string? uri) =>
         !string.IsNullOrEmpty(uri) && AllowedSchemes.Any(s => uri.StartsWith(s, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Launches the game. Returns the PID when an exe was started directly, null for launcher URLs.</summary>
-    public static int? Launch(GameEntry game)
+    /// <summary>
+    /// Launches the game as the signed-in user, never with MONOLITH's administrator token (tech.md §3): when MONOLITH is
+    /// elevated the start goes through the desktop shell (<see cref="UnelevatedShell"/>), and if that is impossible the
+    /// game is not started at all. Returns the PID only for a direct (non-elevated) exe start; otherwise null, and
+    /// <see cref="GameProcessFinder"/> finds the game by its exe / install folder.
+    /// </summary>
+    public static async Task<int?> LaunchAsync(GameEntry game)
     {
         if (!string.IsNullOrEmpty(game.LaunchUri))
         {
             if (!IsAllowedUri(game.LaunchUri))
                 throw new InvalidOperationException("Неизвестный способ запуска игры.");
-            try
+            if (Elevation.IsElevated)
             {
-                using var _ = Process.Start(new ProcessStartInfo(game.LaunchUri) { UseShellExecute = true });
+                if (!await UnelevatedShell.ShellExecuteAsync(game.LaunchUri, "", "", UnelevatedShell.SwShowNormal).ConfigureAwait(false))
+                    throw new InvalidOperationException(NoUnelevatedShell(GameText.SourceName(game.Platform)));
             }
-            catch (Win32Exception ex)
+            else
             {
-                throw new InvalidOperationException(
-                    $"Не удалось открыть {GameText.SourceName(game.Platform)}: лаунчер не установлен или не отвечает ({ex.Message}).", ex);
+                try
+                {
+                    using var _ = Process.Start(new ProcessStartInfo(game.LaunchUri) { UseShellExecute = true });
+                }
+                catch (Win32Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        $"Не удалось открыть {GameText.SourceName(game.Platform)}: лаунчер не установлен или не отвечает ({ex.Message}).", ex);
+                }
             }
             Log.Info($"Запуск «{game.Name}» через {GameText.SourceName(game.Platform)}");
             return null;
@@ -37,13 +50,20 @@ public static class GameLauncher
         if (string.IsNullOrEmpty(game.ExePath) || !File.Exists(game.ExePath))
             throw new FileNotFoundException($"Файл игры не найден: {game.ExePath}");
 
-        var psi = new ProcessStartInfo(game.ExePath)
+        var workingDir = !string.IsNullOrEmpty(game.WorkingDir) && Directory.Exists(game.WorkingDir)
+            ? game.WorkingDir
+            : Path.GetDirectoryName(game.ExePath) ?? "";
+
+        if (Elevation.IsElevated)
         {
-            UseShellExecute = true,
-            WorkingDirectory = !string.IsNullOrEmpty(game.WorkingDir) && Directory.Exists(game.WorkingDir)
-                ? game.WorkingDir
-                : Path.GetDirectoryName(game.ExePath) ?? "",
-        };
+            // Never fall back to an elevated Process.Start: the exe path and the game folder are user-writable.
+            if (!await UnelevatedShell.ShellExecuteAsync(game.ExePath, game.Arguments ?? "", workingDir, UnelevatedShell.SwShowNormal).ConfigureAwait(false))
+                throw new InvalidOperationException(NoUnelevatedShell($"«{game.Name}»"));
+            Log.Info($"Запуск «{game.Name}» без прав администратора: {game.ExePath}");
+            return null;
+        }
+
+        var psi = new ProcessStartInfo(game.ExePath) { UseShellExecute = true, WorkingDirectory = workingDir };
         if (!string.IsNullOrWhiteSpace(game.Arguments)) psi.Arguments = game.Arguments;
         try
         {
@@ -56,6 +76,10 @@ public static class GameLauncher
             throw new OperationCanceledException("Запуск отменён в окне контроля учётных записей.", ex);
         }
     }
+
+    private static string NoUnelevatedShell(string what) =>
+        $"Не удалось запустить {what} без прав администратора: рабочий стол Windows (Проводник) не отвечает. " +
+        "С правами MONOLITH игры не запускаются — запустите игру обычным способом или повторите, когда Проводник перезапустится.";
 
     /// <summary>Opens the install folder in Explorer.</summary>
     public static void OpenFolder(GameEntry game)

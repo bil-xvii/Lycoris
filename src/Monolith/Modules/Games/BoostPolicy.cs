@@ -11,6 +11,7 @@ public enum PowerPlanAction
     SkipDisabled,
     SkipDualCcdX3D,
     SkipOnBattery,
+    SkipLaptop,
     SkipModernStandby,
     SkipManagedElsewhere,
     SkipAlreadyFast,
@@ -27,12 +28,17 @@ public static class BoostPolicy
     public static bool IsDualCcdX3D(string? cpuName, int cores) =>
         !string.IsNullOrEmpty(cpuName) && cpuName.Contains("X3D", StringComparison.OrdinalIgnoreCase) && cores >= 12;
 
-    public static PowerPlanAction DecidePowerPlan(bool enabled, bool dualCcdX3D, bool onBattery, bool modernStandby,
+    /// <remarks>
+    /// Laptops are never switched (gaming_tweaks.md: «Высокая производительность» is SAFE-OPTIONAL for desktops only,
+    /// the same rule as the Optimize tweak's AppliesTo): the plan would also stay on after unplugging mid-game.
+    /// </remarks>
+    public static PowerPlanAction DecidePowerPlan(bool enabled, bool dualCcdX3D, bool onBattery, bool laptop, bool modernStandby,
         bool managedByOtherChange, bool highPerformanceExists, bool alreadyFast)
     {
         if (!enabled) return PowerPlanAction.SkipDisabled;
         if (dualCcdX3D) return PowerPlanAction.SkipDualCcdX3D;
         if (onBattery) return PowerPlanAction.SkipOnBattery;
+        if (laptop) return PowerPlanAction.SkipLaptop;
         if (modernStandby) return PowerPlanAction.SkipModernStandby;
         if (alreadyFast) return PowerPlanAction.SkipAlreadyFast;
         if (managedByOtherChange) return PowerPlanAction.SkipManagedElsewhere;
@@ -45,8 +51,10 @@ public static class BoostPolicy
     {
         PowerPlanAction.Switch => $"План питания: «{currentName}» → «Высокая производительность». Возвращается после игры.",
         PowerPlanAction.SkipDisabled => "План питания не меняется (выключено).",
-        PowerPlanAction.SkipDualCcdX3D => $"План питания не меняется: {Short(cpuName)} — X3D с двумя кристаллами, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.",
+        PowerPlanAction.SkipDualCcdX3D => $"План питания не меняется: {Short(cpuName)} — X3D с двумя CCD, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.",
         PowerPlanAction.SkipOnBattery => "План питания не меняется: ноутбук работает от батареи.",
+        PowerPlanAction.SkipLaptop => "План питания не меняется: на ноутбуке «Высокая производительность» сильнее греет и быстрее разряжает батарею. " +
+                                      "Для игр выберите режим питания «Максимальная производительность» в параметрах Windows (Система › Питание).",
         PowerPlanAction.SkipModernStandby => "План питания не меняется: на ПК с Modern Standby доступна только «Сбалансированная» схема.",
         PowerPlanAction.SkipManagedElsewhere => "План питания не меняется: он уже изменён MONOLITH в разделе «Оптимизация».",
         PowerPlanAction.SkipAlreadyFast => $"План питания не меняется: «{currentName}» уже включена.",
