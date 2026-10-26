@@ -272,6 +272,7 @@ public sealed class ToolsTests
         var d = new AppSettings();
         Assert.Equal(d.CreateRestorePoints, s.CreateRestorePoints);
         Assert.Equal(d.ConfirmBeforeApply, s.ConfirmBeforeApply);
+        Assert.Equal(d.ServicesExpertMode, s.ServicesExpertMode);
         Assert.Equal(d.ShowConsole, s.ShowConsole);
         Assert.Equal(d.MonitorIntervalMs, s.MonitorIntervalMs);
         Assert.Equal(d.LastProfile, s.LastProfile);
