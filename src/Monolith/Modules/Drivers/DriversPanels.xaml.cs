@@ -1,0 +1,38 @@
+using System.Collections.Specialized;
+using System.Windows.Controls;
+
+namespace Monolith.Modules.Drivers;
+
+public partial class DriversOverviewPanel : UserControl
+{
+    public DriversOverviewPanel() => InitializeComponent();
+}
+
+public partial class DriversUpdatesPanel : UserControl
+{
+    public DriversUpdatesPanel() => InitializeComponent();
+}
+
+public partial class DriversProblemsPanel : UserControl
+{
+    public DriversProblemsPanel() => InitializeComponent();
+}
+
+public partial class DriversInstalledPanel : UserControl
+{
+    public DriversInstalledPanel() => InitializeComponent();
+}
+
+public partial class DriversBackupPanel : UserControl
+{
+    public DriversBackupPanel()
+    {
+        InitializeComponent();
+        // Keep the newest pnputil line in view while output streams in.
+        ((INotifyCollectionChanged)OutputList.Items).CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Add && OutputList.Items.Count > 0)
+                OutputList.ScrollIntoView(OutputList.Items[^1]);
+        };
+    }
+}

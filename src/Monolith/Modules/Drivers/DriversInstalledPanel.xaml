@@ -1,0 +1,166 @@
+<UserControl x:Class="Monolith.Modules.Drivers.DriversInstalledPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:Monolith.Modules.Drivers"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
+    <UserControl.Resources>
+        <Style x:Key="Drv.Head" TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="Drv.Cell" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+        </Style>
+        <Style x:Key="Drv.MonoCell" TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════ Toolbar ═══════════ -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="420" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid>
+                <TextBox Text="{Binding InstalledSearch, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,36,0"
+                         Tag="Поиск: устройство, производитель, версия, INF, ID" />
+                <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
+                           VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,13,0" IsHitTestVisible="False"
+                           Visibility="{Binding InstalledSearch, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
+                <Button Style="{StaticResource Btn.Icon}" Content="&#xE711;" FontSize="10" Width="30" Height="30" HorizontalAlignment="Right" Margin="0,0,3,0"
+                        Command="{Binding ClearInstalledSearchCommand}" ToolTip="Очистить поиск"
+                        Visibility="{Binding InstalledSearch, Converter={StaticResource NullToVis}}" />
+            </Grid>
+            <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding HideMicrosoft}" Margin="24,0,0,0" VerticalAlignment="Center"
+                      ToolTip="Скрыть драйверы, которые входят в состав Windows или поставляются Microsoft">
+                <StackPanel>
+                    <TextBlock Text="СКРЫТЬ ДРАЙВЕРЫ MICROSOFT" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontStretch="SemiCondensed" FontSize="12.5" />
+                    <TextBlock Text="встроенные в Windows" Style="{StaticResource T.Caption}" />
+                </StackPanel>
+            </CheckBox>
+            <TextBlock Grid.Column="2" Text="{Binding InstalledSummary}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+
+        <Border Grid.Row="1" Style="{StaticResource Callout}" Margin="0,14,0,0" Visibility="{Binding InstalledError, Converter={StaticResource NullToVis}}">
+            <TextBlock Text="{Binding InstalledError}" Style="{StaticResource T.Body}" />
+        </Border>
+
+        <!-- ═══════════ Table ═══════════ -->
+        <Border Grid.Row="2" Style="{StaticResource Card.Flush}" Margin="0,14,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,0,0,1" Padding="16,11,20,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="190" />
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="92" />
+                            <ColumnDefinition Width="104" />
+                            <ColumnDefinition Width="86" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="УСТРОЙСТВО" Style="{StaticResource Drv.Head}" />
+                        <TextBlock Grid.Column="1" Text="КЛАСС" Style="{StaticResource Drv.Head}" />
+                        <TextBlock Grid.Column="2" Text="ПОСТАВЩИК" Style="{StaticResource Drv.Head}" />
+                        <TextBlock Grid.Column="3" Text="ВЕРСИЯ" Style="{StaticResource Drv.Head}" />
+                        <TextBlock Grid.Column="4" Text="ДАТА" Style="{StaticResource Drv.Head}" />
+                        <TextBlock Grid.Column="5" Text="ПОДПИСЬ" Style="{StaticResource Drv.Head}" />
+                        <TextBlock Grid.Column="6" Text="INF" Style="{StaticResource Drv.Head}" />
+                    </Grid>
+                </Border>
+
+                <ListBox Grid.Row="1" Style="{StaticResource List.Plain}" ItemsSource="{Binding InstalledView}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:InstalledDriverItem}">
+                            <Border Style="{StaticResource Row}" Padding="16,9,20,9" ToolTip="{Binding Tooltip}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="92" />
+                                        <ColumnDefinition Width="104" />
+                                        <ColumnDefinition Width="86" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Margin="0,0,16,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding DeviceName}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" Style="{StaticResource Tag.Muted}" Margin="8,0,0,0" Padding="5,0,5,1"
+                                                Visibility="{Binding HasDuplicates, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding CountText}" FontFamily="{StaticResource F.Mono}" FontSize="10" />
+                                        </Border>
+                                        <Border Grid.Column="2" Style="{StaticResource Tag.Muted}" Margin="8,0,0,0" Padding="5,0,5,1"
+                                                Visibility="{Binding IsInbox, Converter={StaticResource BoolToVis}}"
+                                                ToolTip="Драйвер входит в состав Windows. Дата 2006/2009 у таких драйверов — норма, они не «устаревшие».">
+                                            <TextBlock Text="ВСТРОЕННЫЙ" FontSize="9.5" />
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Grid.Column="1" Text="{Binding ClassText}" Style="{StaticResource Drv.Cell}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Provider}" Style="{StaticResource Drv.Cell}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Version}" Style="{StaticResource Drv.MonoCell}" Foreground="{StaticResource B.Text}" />
+                                    <TextBlock Grid.Column="4" Text="{Binding DateText}" Style="{StaticResource Drv.MonoCell}" />
+                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Signer}">
+                                        <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="&#xE73E;" />
+                                                    <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSigned}" Value="False">
+                                                            <Setter Property="Text" Value="&#xE7BA;" />
+                                                            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding SignedText}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5"
+                                                   Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="6" Text="{Binding InfName}" Style="{StaticResource Drv.MonoCell}" Margin="0" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Visibility="{Binding InstalledEmpty, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="НИЧЕГО НЕ НАЙДЕНО" Style="{StaticResource T.H2}" HorizontalAlignment="Center" />
+                    <TextBlock Style="{StaticResource T.Caption}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                               Text="Измените запрос или выключите «Скрыть драйверы Microsoft»." />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
