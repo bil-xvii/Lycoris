@@ -6,13 +6,13 @@
         xmlns:shell="clr-namespace:Monolith.Shell"
         xmlns:ui="clr-namespace:Monolith.UI"
         xmlns:dash="clr-namespace:Monolith.Modules.Dashboard"
-        xmlns:opt="clr-namespace:Monolith.Modules.Optimize"        xmlns:games="clr-namespace:Monolith.Modules.Games"
-        xmlns:clean="clr-namespace:Monolith.Modules.Cleaner"
+        xmlns:opt="clr-namespace:Monolith.Modules.Optimize"
+        xmlns:games="clr-namespace:Monolith.Modules.Games"
+        xmlns:maint="clr-namespace:Monolith.Modules.Maintenance"
         xmlns:drv="clr-namespace:Monolith.Modules.Drivers"
         xmlns:svc="clr-namespace:Monolith.Modules.Services"
         xmlns:start="clr-namespace:Monolith.Modules.Startup"
         xmlns:apps="clr-namespace:Monolith.Modules.Apps"
-        xmlns:tools="clr-namespace:Monolith.Modules.Tools"
         xmlns:rest="clr-namespace:Monolith.Modules.Restore"
         xmlns:set="clr-namespace:Monolith.Modules.Settings"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=shell:MainViewModel}"
@@ -33,12 +33,12 @@
         <DataTemplate DataType="{x:Type dash:DashboardViewModel}"><dash:DashboardView /></DataTemplate>
         <DataTemplate DataType="{x:Type opt:OptimizeViewModel}"><opt:OptimizeView /></DataTemplate>
         <DataTemplate DataType="{x:Type games:GamesViewModel}"><games:GamesView /></DataTemplate>
-        <DataTemplate DataType="{x:Type clean:CleanerViewModel}"><clean:CleanerView /></DataTemplate>
+        <DataTemplate DataType="{x:Type maint:MaintenanceViewModel}"><maint:MaintenanceView /></DataTemplate>
         <DataTemplate DataType="{x:Type drv:DriversViewModel}"><drv:DriversView /></DataTemplate>
         <DataTemplate DataType="{x:Type svc:ServicesViewModel}"><svc:ServicesView /></DataTemplate>
+        <!-- Startup is no longer a top-level page; the template stays for a host (services) that shows StartupViewModel. -->
         <DataTemplate DataType="{x:Type start:StartupViewModel}"><start:StartupView /></DataTemplate>
         <DataTemplate DataType="{x:Type apps:AppsViewModel}"><apps:AppsView /></DataTemplate>
-        <DataTemplate DataType="{x:Type tools:ToolsViewModel}"><tools:ToolsView /></DataTemplate>
         <DataTemplate DataType="{x:Type rest:RestoreViewModel}"><rest:RestoreView /></DataTemplate>
         <DataTemplate DataType="{x:Type set:SettingsViewModel}"><set:SettingsView /></DataTemplate>
 
@@ -57,6 +57,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="44" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="28" />
@@ -80,19 +81,10 @@
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <!-- Mode chip -->
-                    <Border VerticalAlignment="Center" Margin="0,0,8,0" Padding="8,3" WindowChrome.IsHitTestVisibleInChrome="True">
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource Tag.Hatch}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsElevated}" Value="True">
-                                        <Setter Property="Background" Value="{StaticResource B.White}" />
-                                        <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
-                                        <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="{Binding ModeText}" />
+                    <!-- Mode chip: only in read-only mode -->
+                    <Border Style="{StaticResource Tag.Hatch}" VerticalAlignment="Center" Margin="0,0,8,0" Padding="8,3"
+                            Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="ПРОСМОТР" />
                     </Border>
                     <Button Style="{StaticResource Btn.Ghost}" Height="28" Margin="0,0,6,0" Command="{Binding OpenRestoreCenterCommand}"
                             WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Журнал изменений и откат">
@@ -110,73 +102,63 @@
                 </StackPanel>
             </Grid>
 
+            <!-- ═══════════════ Read-only strip (the one place that explains read-only mode) ═══════════════ -->
+            <Grid Grid.Row="1" Grid.ColumnSpan="2" Background="{StaticResource B.Surface2}"
+                  Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
+                <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line}" />
+                <Grid Margin="20,7,20,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="28" Height="10" Background="{StaticResource B.HatchStrong}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Margin="12,0,16,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                        <Run Text="РЕЖИМ ПРОСМОТРА" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="13" Foreground="{StaticResource B.Text}" />
+                        <Run Text=" — изменения отключены: нужны права администратора." FontSize="12.5" Foreground="{StaticResource B.Text2}" />
+                    </TextBlock>
+                    <Button Grid.Column="2" Style="{StaticResource Btn.Primary}" Height="28" FontSize="11.5" Command="{Binding RestartAsAdminCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="ПЕРЕЗАПУСТИТЬ С ПРАВАМИ" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Grid>
+
             <!-- ═══════════════ Sidebar ═══════════════ -->
-            <Grid Grid.Row="1" Grid.RowSpan="2" Background="{StaticResource B.Surface}">
+            <Grid Grid.Row="2" Grid.RowSpan="2" Background="{StaticResource B.Surface}">
                 <Rectangle Width="1" HorizontalAlignment="Right" Fill="{StaticResource B.Line}" />
                 <DockPanel Margin="0,18,1,0">
-                    <!-- Bottom: system card -->
-                    <StackPanel DockPanel.Dock="Bottom" Margin="20,0,20,18">
-                        <Button Style="{StaticResource Btn.Primary}" Margin="0,0,0,14" Command="{Binding RestartAsAdminCommand}"
-                                Visibility="{Binding IsElevated, Converter={StaticResource InverseBoolToVis}}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock Text="ПРАВА АДМИНИСТРАТОРА" VerticalAlignment="Center" />
-                            </StackPanel>
+                    <!-- Footer: settings -->
+                    <Grid DockPanel.Dock="Bottom" Margin="0,0,0,14">
+                        <!-- Same marker as a selected nav item while Settings is open -->
+                        <Rectangle Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
+                                   Visibility="{Binding IsSettingsOpen, Converter={StaticResource BoolToVis}}" />
+                        <Button Command="{Binding NavigateCommand}" CommandParameter="settings" Content="&#xE713;" ToolTip="Настройки"
+                                HorizontalAlignment="Left" Margin="12,0,0,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Btn.Icon}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSettingsOpen}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
                         </Button>
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="СИСТЕМА" Style="{StaticResource T.Label}" />
-                            <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0,0,0" />
-                        </Grid>
-                        <TextBlock Text="{Binding SystemLine1}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                        <TextBlock Text="{Binding SystemLine2}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,3,0,0" />
-                        <TextBlock Text="{Binding SystemLine3}" Style="{StaticResource T.Caption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,3,0,0" />
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Rectangle Width="8" Height="8" VerticalAlignment="Center">
-                                <Rectangle.Style>
-                                    <Style TargetType="Rectangle">
-                                        <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
-                                        <Setter Property="Stroke" Value="{StaticResource B.Text3}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding RestoreEnabled}" Value="True">
-                                                <Setter Property="Fill" Value="{StaticResource B.White}" />
-                                                <Setter Property="Stroke" Value="{x:Null}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Rectangle.Style>
-                            </Rectangle>
-                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
-                                        <Setter Property="Text" Value="Защита системы выключена" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding RestoreEnabled}" Value="True">
-                                                <Setter Property="Text" Value="Защита системы включена" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                    </StackPanel>
+                    </Grid>
 
-                    <TextBlock DockPanel.Dock="Top" Text="НАВИГАЦИЯ" Style="{StaticResource T.Label}" Margin="20,0,0,10" Foreground="{StaticResource B.Text4}" />
-                    <ListBox x:Name="NavList" Style="{StaticResource Nav.List}" ItemsSource="{Binding Pages}" SelectedItem="{Binding CurrentPage}">
+                    <ListBox x:Name="NavList" Style="{StaticResource Nav.List}" ItemsSource="{Binding NavPages}" SelectedItem="{Binding NavSelection}">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="26" />
                                         <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Index}" FontFamily="{StaticResource F.Mono}" FontSize="10.5" Opacity="0.6" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2" Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold"
+                                    <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold"
                                                FontStretch="SemiCondensed" FontSize="13.5" VerticalAlignment="Center" />
                                 </Grid>
                             </DataTemplate>
@@ -186,7 +168,7 @@
             </Grid>
 
             <!-- ═══════════════ Content ═══════════════ -->
-            <Grid Grid.Row="1" Grid.Column="1" ClipToBounds="True">
+            <Grid Grid.Row="2" Grid.Column="1" ClipToBounds="True">
                 <ProgressBar VerticalAlignment="Top" IsIndeterminate="True" Height="2" Panel.ZIndex="5"
                              Visibility="{Binding CurrentPage.IsBusy, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
                 <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" Margin="40,30,40,24" Focusable="False">
@@ -197,7 +179,7 @@
             </Grid>
 
             <!-- ═══════════════ Console ═══════════════ -->
-            <Grid Grid.Row="2" Grid.Column="1" Background="{StaticResource B.Surface}">
+            <Grid Grid.Row="3" Grid.Column="1" Background="{StaticResource B.Surface}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="32" />
                     <RowDefinition Height="Auto" />
@@ -269,7 +251,7 @@
             </Grid>
 
             <!-- ═══════════════ Status bar ═══════════════ -->
-            <Grid Grid.Row="3" Grid.ColumnSpan="2" Background="{StaticResource B.Base}">
+            <Grid Grid.Row="4" Grid.ColumnSpan="2" Background="{StaticResource B.Base}">
                 <Rectangle Height="1" VerticalAlignment="Top" Fill="{StaticResource B.Line}" />
                 <StackPanel Orientation="Horizontal" Margin="20,0,0,0" VerticalAlignment="Center">
                     <Border Width="6" Height="6" VerticalAlignment="Center">
@@ -300,15 +282,11 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,20,0" VerticalAlignment="Center">
                     <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" Text="CTRL+K — ПОИСК" />
-                    <Rectangle Width="1" Height="12" Fill="{StaticResource B.Line2}" Margin="14,0" />
-                    <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}" Text="НАСТРОЙКИ — С ЖУРНАЛОМ И ОТКАТОМ · НЕОБРАТИМОЕ — ТОЛЬКО ПОСЛЕ ПОДТВЕРЖДЕНИЯ" />
-                    <Rectangle Width="1" Height="12" Fill="{StaticResource B.Line2}" Margin="14,0" />
-                    <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Text="{Binding ClockText}" />
                 </StackPanel>
             </Grid>
 
             <!-- ═══════════════ Toasts ═══════════════ -->
-            <ItemsControl Grid.Row="1" Grid.RowSpan="2" Grid.Column="1" ItemsSource="{Binding Toasts}" HorizontalAlignment="Right"
+            <ItemsControl Grid.Row="2" Grid.RowSpan="2" Grid.Column="1" ItemsSource="{Binding Toasts}" HorizontalAlignment="Right"
                           VerticalAlignment="Bottom" Margin="0,0,24,20" Panel.ZIndex="20">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -362,7 +340,7 @@
             </ItemsControl>
 
             <!-- ═══════════════ Command palette (Ctrl+K) — navigates only, never applies ═══════════════ -->
-            <Grid x:Name="PaletteOverlay" Grid.Row="1" Grid.RowSpan="3" Grid.ColumnSpan="2" Panel.ZIndex="25" Background="{StaticResource B.Scrim}"
+            <Grid x:Name="PaletteOverlay" Grid.Row="1" Grid.RowSpan="4" Grid.ColumnSpan="2" Panel.ZIndex="25" Background="{StaticResource B.Scrim}"
                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}" MouseLeftButtonDown="PaletteOverlay_MouseDown"
                   d:DataContext="{d:DesignInstance Type=shell:CommandPaletteViewModel}">
                 <Border Width="620" Margin="0,64,0,0" VerticalAlignment="Top" HorizontalAlignment="Center" Background="{StaticResource B.Surface2}"
@@ -430,7 +408,7 @@
             </Grid>
 
             <!-- ═══════════════ Dialog ═══════════════ -->
-            <Grid Grid.Row="1" Grid.RowSpan="3" Grid.ColumnSpan="2" Panel.ZIndex="30" Background="{StaticResource B.Scrim}"
+            <Grid Grid.Row="1" Grid.RowSpan="4" Grid.ColumnSpan="2" Panel.ZIndex="30" Background="{StaticResource B.Scrim}"
                   Visibility="{Binding Dialog, Converter={StaticResource NullToVis}}">
                 <Border Width="560" MaxHeight="640" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{StaticResource B.Surface2}"
                         BorderBrush="{StaticResource B.Line3}" BorderThickness="1" DataContext="{Binding Dialog}">
