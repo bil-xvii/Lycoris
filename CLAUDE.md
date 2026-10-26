@@ -6,6 +6,11 @@ by `tools/autosave.ps1` (Claude Code Stop hook in `.claude/settings.json`).
 
 ## Prime directive: never damage the system
 
+Goal (owner): MONOLITH must be the best PC-optimizer on the market — more effective, more honest and better
+designed than every competitor — while never breaking or damaging the system. When effectiveness and safety
+conflict, safety wins; the advantage comes from evidence-backed tweaks, exact undo and honest explanations,
+not from riskier changes.
+
 1. **Every system change goes through `Core/ChangeSession`** (`SetRegistry`, `SetServiceStart`, `SetPowerScheme`,
    `SetTaskEnabled`, `RunCommandAsync`). It records the original value in the undo journal
    (`%ProgramData%\MONOLITH\journal.json`) *before* changing anything, exports touched registry keys to `.reg`
