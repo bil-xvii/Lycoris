@@ -39,7 +39,7 @@ public static class SettingsDefaults
             $"Экспертный режим служб — {OnOff(d.ServicesExpertMode)}",
             $"Консоль операций — {(d.ShowConsole ? "показана" : "скрыта")}",
             $"Интервал обновления мониторинга — {FormatInterval(d.MonitorIntervalMs)}",
-            $"Игровой режим: план питания — {OnOff(d.GameBoostPowerPlan)}, приоритет игры — {OnOff(d.GameBoostPriority)}, очистка памяти ожидания — {OnOff(d.GameBoostPurgeStandby)}",
+            $"Игровой сеанс: план питания — {OnOff(d.GameBoostPowerPlan)}, приоритет игры — {OnOff(d.GameBoostPriority)}, очистка памяти ожидания — {OnOff(d.GameBoostPurgeStandby)}",
             "Последний выбранный профиль оптимизации — «Рекомендуемый»",
             "Сохраняются: добавленные папки с играми и список программ для игрового режима",
             "Изменения системы и журнал отката не затрагиваются",
