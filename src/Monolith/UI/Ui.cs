@@ -47,6 +47,9 @@ public sealed partial class DialogViewModel : ObservableObject
     private void Cancel() => _tcs.TrySetResult(false);
 }
 
+/// <summary>A request for a page to scroll to and highlight one of its items (see <see cref="Ui.RequestFocus"/>).</summary>
+public sealed record FocusRequest(string PageKey, string ItemId);
+
 /// <summary>Implemented by the main window view-model.</summary>
 public interface IUiHost
 {
@@ -157,6 +160,41 @@ public static class Ui
     public static void Navigate(string pageKey)
     {
         Dispatcher?.BeginInvoke(() => Host?.NavigateTo(pageKey));
+    }
+
+    // ───────────── Focus requests (command palette → page) ─────────────
+
+    private static readonly object FocusLock = new();
+    private static FocusRequest? _pendingFocus;
+
+    /// <summary>
+    /// Raised on the UI thread after <see cref="RequestFocus"/>, once the navigation queued with it has run.
+    /// Handlers call <see cref="TakeFocusRequest"/> (only one consumer gets the request).
+    /// </summary>
+    public static event Action<FocusRequest>? FocusRequested;
+
+    /// <summary>
+    /// Asks <paramref name="pageKey"/> to scroll to and highlight <paramref name="itemId"/> (a tweak id on «optimize»,
+    /// a service name on «services»). Only a hint for the UI: it never applies anything. A newer request replaces an older one.
+    /// Call before <see cref="Navigate"/>.
+    /// </summary>
+    public static void RequestFocus(string pageKey, string itemId)
+    {
+        var request = new FocusRequest(pageKey, itemId);
+        lock (FocusLock) _pendingFocus = request;
+        // Background priority: runs after the Normal-priority navigation queued by Navigate().
+        Dispatcher?.BeginInvoke(DispatcherPriority.Background, () => FocusRequested?.Invoke(request));
+    }
+
+    /// <summary>Returns and clears the pending item id for <paramref name="pageKey"/>, or null.</summary>
+    public static string? TakeFocusRequest(string pageKey)
+    {
+        lock (FocusLock)
+        {
+            if (_pendingFocus is not { } r || r.PageKey != pageKey) return null;
+            _pendingFocus = null;
+            return r.ItemId;
+        }
     }
 
     /// <summary>Runs an action on the UI thread.</summary>

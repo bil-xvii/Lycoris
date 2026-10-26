@@ -299,6 +299,8 @@
                     </TextBlock>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,20,0" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" Text="CTRL+K — ПОИСК" />
+                    <Rectangle Width="1" Height="12" Fill="{StaticResource B.Line2}" Margin="14,0" />
                     <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}" Text="НАСТРОЙКИ — С ЖУРНАЛОМ И ОТКАТОМ · НЕОБРАТИМОЕ — ТОЛЬКО ПОСЛЕ ПОДТВЕРЖДЕНИЯ" />
                     <Rectangle Width="1" Height="12" Fill="{StaticResource B.Line2}" Margin="14,0" />
                     <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Text="{Binding ClockText}" />
@@ -355,6 +357,74 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!-- ═══════════════ Command palette (Ctrl+K) — navigates only, never applies ═══════════════ -->
+            <Grid x:Name="PaletteOverlay" Grid.Row="1" Grid.RowSpan="3" Grid.ColumnSpan="2" Panel.ZIndex="25" Background="{StaticResource B.Scrim}"
+                  Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}" MouseLeftButtonDown="PaletteOverlay_MouseDown"
+                  d:DataContext="{d:DesignInstance Type=shell:CommandPaletteViewModel}">
+                <Border Width="620" Margin="0,64,0,0" VerticalAlignment="Top" HorizontalAlignment="Center" Background="{StaticResource B.Surface2}"
+                        BorderBrush="{StaticResource B.Line3}" BorderThickness="1">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="40" ShadowDepth="10" Opacity="0.8" Color="Black" />
+                    </Border.Effect>
+                    <StackPanel>
+                        <Rectangle Height="4" Fill="{StaticResource B.White}" />
+                        <TextBox x:Name="PaletteBox" Margin="16,16,16,12" Height="40" FontSize="14" Tag="ПОИСК НАСТРОЕК, РАЗДЕЛОВ, ИНСТРУМЕНТОВ"
+                                 Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" />
+                        <ScrollViewer x:Name="PaletteScroll" MaxHeight="420" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                            <ItemsControl x:Name="PaletteList" ItemsSource="{Binding Results}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type shell:PaletteResultItem}">
+                                        <Border x:Name="Rw" Padding="16,9" Background="Transparent" Cursor="Hand"
+                                                MouseLeftButtonUp="PaletteRow_MouseUp">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="3" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="96" />
+                                                </Grid.ColumnDefinitions>
+                                                <Rectangle x:Name="Bar" Fill="{StaticResource B.White}" Visibility="Hidden" Margin="-16,-9,0,-9" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Entry.Title}" Margin="10,0,12,0" VerticalAlignment="Center"
+                                                           FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="14"
+                                                           Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" />
+                                                <Border x:Name="Risk" Grid.Column="2" Margin="0,0,12,0" Style="{StaticResource Tag}"
+                                                        Visibility="{Binding Entry.HasRisk, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding Entry.RiskText}" />
+                                                </Border>
+                                                <TextBlock Grid.Column="3" Text="{Binding Entry.KindText}" Style="{StaticResource T.Label}" FontSize="10.5"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding Entry.Risk}" Value="Optional">
+                                                <Setter TargetName="Risk" Property="Style" Value="{StaticResource Tag.Muted}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Entry.Risk}" Value="Advanced">
+                                                <Setter TargetName="Risk" Property="Style" Value="{StaticResource Tag.Hatch}" />
+                                            </DataTrigger>
+                                            <Trigger SourceName="Rw" Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Rw" Property="Background" Value="{StaticResource B.Surface3}" />
+                                            </Trigger>
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter TargetName="Rw" Property="Background" Value="{StaticResource B.Surface3}" />
+                                                <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="НИЧЕГО НЕ НАЙДЕНО" Style="{StaticResource T.Label}" Margin="16,6,16,10"
+                                   Visibility="{Binding HasNoResults, Converter={StaticResource BoolToVis}}" />
+                        <Rectangle Height="1" Fill="{StaticResource B.Line2}" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding SelectedDescription}" Style="{StaticResource T.Caption}" TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" Margin="16,9,16,8" ToolTip="{Binding SelectedDescription}" />
+                        <TextBlock Text="↑↓ ВЫБОР · ENTER ОТКРЫТЬ · ESC ЗАКРЫТЬ — ПОИСК ТОЛЬКО ОТКРЫВАЕТ, НИЧЕГО НЕ ПРИМЕНЯЕТ" Style="{StaticResource T.Mono}"
+                                   FontSize="10.5" Foreground="{StaticResource B.Text4}" Margin="16,0,16,12" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <!-- ═══════════════ Dialog ═══════════════ -->
             <Grid Grid.Row="1" Grid.RowSpan="3" Grid.ColumnSpan="2" Panel.ZIndex="30" Background="{StaticResource B.Scrim}"

@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -13,6 +14,7 @@ namespace Monolith.Shell;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
+    private readonly CommandPaletteViewModel _palette;
 
     public MainWindow(MainViewModel vm)
     {
@@ -20,6 +22,14 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         FitToWorkArea();
+
+        _palette = new CommandPaletteViewModel(() => CommandPaletteIndex.Build(_vm.Pages));
+        PaletteOverlay.DataContext = _palette;
+        _palette.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CommandPaletteViewModel.Selected)) ScrollPaletteSelectionIntoView();
+        };
+        PreviewKeyDown += OnPreviewKeyDown;
 
         StateChanged += (_, _) => ApplyWindowState();
         SourceInitialized += (_, _) => ApplyDwmStyle();
@@ -87,6 +97,66 @@ public partial class MainWindow : Window
         catch
         {
             // Older Windows: ignore.
+        }
+    }
+
+    // ───────────── Command palette ─────────────
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            if (_palette.IsOpen) ClosePalette();
+            else if (_vm.Dialog is null) OpenPalette(); // a confirmation dialog always wins
+            return;
+        }
+        if (!_palette.IsOpen || _vm.Dialog is not null) return;
+        switch (e.Key)
+        {
+            case Key.Escape: ClosePalette(); e.Handled = true; break;
+            case Key.Down: _palette.Move(1); e.Handled = true; break;
+            case Key.Up: _palette.Move(-1); e.Handled = true; break;
+            case Key.Enter: _palette.OpenSelected(); e.Handled = true; break;
+            case Key.Tab: e.Handled = true; break; // keep focus in the search box
+        }
+    }
+
+    private void OpenPalette()
+    {
+        _palette.Open();
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            PaletteBox.Focus();
+            Keyboard.Focus(PaletteBox);
+        });
+    }
+
+    private void ClosePalette() => _palette.Close();
+
+    private void ScrollPaletteSelectionIntoView()
+    {
+        if (_palette.Selected is not { } item) return;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (PaletteList.ItemContainerGenerator.ContainerFromItem(item) is FrameworkElement fe) fe.BringIntoView();
+            else if (_palette.Results.IndexOf(item) == 0) PaletteScroll.ScrollToTop();
+        });
+    }
+
+    /// <summary>Click on the dimmed backdrop closes the palette.</summary>
+    private void PaletteOverlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, PaletteOverlay)) ClosePalette();
+    }
+
+    private void PaletteRow_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is PaletteResultItem item)
+        {
+            _palette.Selected = item;
+            _palette.OpenSelected();
+            e.Handled = true;
         }
     }
 
