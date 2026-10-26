@@ -1,13 +1,779 @@
-﻿using Monolith.Shell;
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Monolith.Core;
+using Monolith.Shell;
 using Monolith.UI;
 
 namespace Monolith.Modules.Apps;
 
+public enum WingetState { Checking, Available, Missing }
+
+/// <summary>
+/// "ПРИЛОЖЕНИЯ": one-click install / update of launchers, game runtimes and programs through winget.
+/// Installed state comes from "winget export" (+ documented read-only cross-checks); installs run one at a time
+/// in a queue with live output. Packages that must not run elevated are started de-elevated via the desktop shell.
+/// </summary>
 public sealed partial class AppsViewModel : PageViewModel
 {
+    private const int MaxLogLines = 800;
+
+    private readonly List<AppItemViewModel> _items;
+    private CancellationTokenSource? _queueCts;
+    private int _busyDepth;
+    private DateTime _lastCheck = DateTime.MinValue;
+    private bool _detecting;
+
     public override string Key => "apps";
     public override string Index => "08";
     public override string Title => "ПРИЛОЖЕНИЯ";
     public override string Subtitle => "Лаунчеры, игровые библиотеки и программы — установка и обновление в один клик через winget.";
     public override string Glyph => Glyphs.Download;
+
+    public AppsViewModel()
+    {
+        var build = SystemProfile.Current.OsBuild;
+        _items = AppCatalog.ForBuild(build).Select(e => new AppItemViewModel(e)).ToList();
+        foreach (var item in _items) item.PropertyChanged += OnItemPropertyChanged;
+
+        var index = 1;
+        foreach (var info in AppCatalog.Categories)
+        {
+            var members = _items.Where(i => i.Entry.Category == info.Category).ToList();
+            if (members.Count == 0) continue;
+            Groups.Add(new AppGroupViewModel(info, index++, members));
+        }
+
+        Categories.Add(new CategoryFilterViewModel(null, "ВСЕ") { IsSelected = true });
+        foreach (var g in Groups) Categories.Add(new CategoryFilterViewModel(g.Info.Category, g.Info.Title));
+        _selectedCategory = Categories[0];
+
+        KitItems = AppCatalog.GamerKitIds
+            .Select(id => _items.FirstOrDefault(i => string.Equals(i.Entry.Id, id, StringComparison.OrdinalIgnoreCase)))
+            .OfType<AppItemViewModel>()
+            .ToList();
+        TotalCount = _items.Count;
+        ApplyFilter();
+        UpdateKit();
+    }
+
+    // ─────────────────────────── collections ───────────────────────────
+
+    public ObservableCollection<AppGroupViewModel> Groups { get; } = new();
+    public ObservableCollection<CategoryFilterViewModel> Categories { get; } = new();
+    public ObservableCollection<QueueItemViewModel> Queue { get; } = new();
+    public ObservableCollection<string> QueueLog { get; } = new();
+    public IReadOnlyList<AppItemViewModel> KitItems { get; }
+
+    // ─────────────────────────── state ───────────────────────────
+
+    public int TotalCount { get; }
+    public bool ShowReadOnlyNotice => IsReadOnly;
+    public int KitTotal => KitItems.Count;
+
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private CategoryFilterViewModel? _selectedCategory;
+    [ObservableProperty] private int _visibleCount;
+    [ObservableProperty] private int _installedCount;
+    [ObservableProperty] private int _selectedCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WingetMissing), nameof(WingetReady), nameof(WingetChecking))]
+    private WingetState _wingetState = WingetState.Checking;
+
+    [ObservableProperty] private string _wingetVersionText = "—";
+    [ObservableProperty] private bool _wingetOutdated;
+    [ObservableProperty] private bool _isDetecting;
+    [ObservableProperty] private string _detectionText = "Проверка ещё не выполнялась";
+    [ObservableProperty] private bool _hasDetection;
+
+    [ObservableProperty] private int _kitInstalled;
+    [ObservableProperty] private double _kitPercent;
+    [ObservableProperty] private bool _kitComplete;
+    [ObservableProperty] private string _kitStatusText = "";
+    [ObservableProperty] private string _kitButtonText = "УСТАНОВИТЬ НАБОР";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartQueue), nameof(CanCloseQueue))]
+    private bool _isQueueRunning;
+
+    [ObservableProperty] private bool _hasQueue;
+    [ObservableProperty] private double _queueProgress;
+    [ObservableProperty] private string _queueTitle = "";
+    [ObservableProperty] private string _queueCounter = "";
+    [ObservableProperty] private bool _stopRequested;
+
+    public bool WingetMissing => WingetState == WingetState.Missing;
+    public bool WingetReady => WingetState == WingetState.Available;
+    public bool WingetChecking => WingetState == WingetState.Checking;
+    public bool CanStartQueue => !IsQueueRunning;
+    public bool CanCloseQueue => !IsQueueRunning;
+    public bool HasSelection => SelectedCount > 0;
+    public bool HasNoResults => VisibleCount == 0;
+    public bool HasSearch => SearchText.Trim().Length > 0;
+    public string VisibleText => VisibleCount == TotalCount ? AppTexts.Programs(TotalCount) : $"{VisibleCount} из {TotalCount}";
+    public string SelectedText => SelectedCount == 0 ? "НИЧЕГО НЕ ВЫБРАНО" : $"ВЫБРАНО: {SelectedCount}";
+
+    partial void OnSearchTextChanged(string value)
+    {
+        ApplyFilter();
+        OnPropertyChanged(nameof(HasSearch));
+    }
+
+    partial void OnVisibleCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasNoResults));
+        OnPropertyChanged(nameof(VisibleText));
+    }
+
+    partial void OnSelectedCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectedText));
+        InstallSelectedCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnWingetStateChanged(WingetState value)
+    {
+        foreach (var item in _items) item.WingetReady = value == WingetState.Available;
+        RefreshCommandStates();
+    }
+
+    partial void OnIsQueueRunningChanged(bool value)
+    {
+        foreach (var item in _items) item.QueueBusy = value;
+        RefreshCommandStates();
+    }
+
+    private void RefreshCommandStates()
+    {
+        InstallSelectedCommand.NotifyCanExecuteChanged();
+        InstallKitCommand.NotifyCanExecuteChanged();
+        UpdateAllCommand.NotifyCanExecuteChanged();
+        RefreshCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppItemViewModel.IsSelected))
+            SelectedCount = _items.Count(i => i.IsSelected);
+    }
+
+    // ─────────────────────────── lifecycle ───────────────────────────
+
+    protected override async Task LoadAsync()
+    {
+        var cache = await Task.Run(InstalledDetector.LoadCache);
+        if (cache is not null) ApplySnapshot(cache, partial: false);
+        _ = MarkMissingNvidiaAsync();
+        await CheckWingetAndDetectAsync();
+    }
+
+    protected override async Task OnReturnAsync()
+    {
+        if (IsQueueRunning || _detecting || WingetState == WingetState.Checking) return;
+        if (DateTime.Now - _lastCheck > TimeSpan.FromMinutes(3))
+            await CheckWingetAndDetectAsync();
+    }
+
+    private async Task MarkMissingNvidiaAsync()
+    {
+        try
+        {
+            var profile = await SystemProfile.LoadAsync();
+            if (profile.Gpus.Count == 0 || profile.HasNvidia) return;
+            foreach (var item in _items.Where(i => i.Entry.Has(AppFlags.NvidiaOnly))) item.NvidiaMissing = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Приложения: не удалось определить видеокарту ({ex.Message})");
+        }
+    }
+
+    // ─────────────────────────── busy indicator ───────────────────────────
+
+    private void BeginBusy(string text)
+    {
+        _busyDepth++;
+        IsBusy = true;
+        BusyText = text;
+    }
+
+    private void SetBusyText(string text)
+    {
+        if (_busyDepth > 0) BusyText = text;
+    }
+
+    private void EndBusy()
+    {
+        _busyDepth = Math.Max(0, _busyDepth - 1);
+        if (_busyDepth != 0) return;
+        IsBusy = false;
+        BusyText = null;
+    }
+
+    // ─────────────────────────── detection ───────────────────────────
+
+    private async Task CheckWingetAndDetectAsync()
+    {
+        if (_detecting) return;
+        _detecting = true;
+        BeginBusy("Проверка winget…");
+        try
+        {
+            // A re-check keeps the current state (and the user's selection) until the answer is known.
+            var version = await Task.Run(WingetClient.GetVersionAsync);
+            if (version is null)
+            {
+                WingetState = WingetState.Missing;
+                WingetVersionText = "НЕ НАЙДЕН";
+                DetectionText = "winget не найден — установка недоступна";
+                Log.Warn("Приложения: winget (Установщик приложений) не найден.");
+                return;
+            }
+
+            WingetVersionText = "v" + version;
+            WingetOutdated = WingetClient.IsClientOutdated(version);
+            WingetState = WingetState.Available;
+
+            SetBusyText("Проверка установленных программ…");
+            await DetectCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Приложения: проверка winget", ex);
+            Ui.Toast(ex.Message, ToastKind.Error, "Проверка установленных программ");
+            if (WingetState == WingetState.Checking) WingetState = WingetState.Missing;
+        }
+        finally
+        {
+            _detecting = false;
+            EndBusy();
+        }
+    }
+
+    /// <summary>Re-reads installed packages (used after the queue and by CheckWingetAndDetectAsync).</summary>
+    private async Task DetectCoreAsync()
+    {
+        IsDetecting = true;
+        DetectionText = "Проверяем установленные программы…";
+        try
+        {
+            var catalog = _items.Select(i => i.Entry).ToList();
+            var snapshot = await Task.Run(() => InstalledDetector.DetectAsync(catalog,
+                partial => Ui.Post(() => ApplySnapshot(partial, partial: true)), CancellationToken.None));
+            ApplySnapshot(snapshot, partial: false);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Приложения: проверка установленных программ", ex);
+            DetectionText = "Не удалось проверить установленные программы";
+            Ui.Toast(ex.Message, ToastKind.Error, "Проверка установленных программ");
+        }
+        finally
+        {
+            IsDetecting = false;
+        }
+    }
+
+    /// <summary>Applies a detection result. Partial results skip Store entries (they are checked one by one later).</summary>
+    private void ApplySnapshot(InstalledSnapshot snapshot, bool partial)
+    {
+        foreach (var item in _items)
+        {
+            if (partial && item.Entry.Source == PackageSource.MsStore && item.IsKnown) continue;
+
+            string? found = null;
+            AppVariant? variant = null;
+            foreach (var id in item.Entry.AllIds)
+            {
+                if (!snapshot.Packages.TryGetValue(id, out var version)) continue;
+                found = InstalledDetector.CleanVersion(version);
+                variant = item.Variants.FirstOrDefault(v => string.Equals(v.Id, id, StringComparison.OrdinalIgnoreCase));
+                break;
+            }
+            item.InstalledVersion = found;
+            if (variant is not null) item.SelectedVariant = variant;
+            item.IsKnown = true;
+        }
+
+        foreach (var g in Groups) g.InstalledCount = g.Items.Count(i => i.IsVisible && i.IsInstalled);
+        InstalledCount = _items.Count(i => i.IsInstalled);
+        SelectedCount = _items.Count(i => i.IsSelected);
+        HasDetection = true;
+        UpdateKit();
+
+        if (!partial)
+        {
+            _lastCheck = snapshot.FromCache ? DateTime.MinValue : snapshot.CheckedAt;
+            DetectionText = snapshot.FromCache
+                ? $"По данным проверки {snapshot.CheckedAt:dd.MM HH:mm} · обновляется"
+                : $"Проверено в {snapshot.CheckedAt:HH:mm}";
+        }
+        RefreshCommandStates();
+    }
+
+    private void UpdateKit()
+    {
+        KitInstalled = KitItems.Count(i => i.IsInstalled);
+        KitPercent = KitTotal == 0 ? 0 : KitInstalled * 100.0 / KitTotal;
+        KitComplete = KitTotal > 0 && KitInstalled == KitTotal;
+        var left = KitTotal - KitInstalled;
+        KitStatusText = KitComplete ? "Все библиотеки на месте" : $"Не хватает: {AppTexts.Packages(left)}";
+        KitButtonText = KitComplete ? "НАБОР УСТАНОВЛЕН" : $"УСТАНОВИТЬ НАБОР · {left}";
+        InstallKitCommand.NotifyCanExecuteChanged();
+    }
+
+    // ─────────────────────────── filtering ───────────────────────────
+
+    [RelayCommand]
+    private void SelectCategory(CategoryFilterViewModel? filter)
+    {
+        if (filter is null) return;
+        foreach (var c in Categories) c.IsSelected = ReferenceEquals(c, filter);
+        SelectedCategory = filter;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ClearSearch() => SearchText = "";
+
+    private void ApplyFilter()
+    {
+        var query = SearchText;
+        var category = SelectedCategory?.Category;
+        var total = 0;
+        foreach (var g in Groups)
+        {
+            var inCategory = category is null || g.Info.Category == category;
+            var visible = 0;
+            foreach (var item in g.Items)
+            {
+                item.IsVisible = inCategory && AppTexts.Matches(item.Entry, query);
+                if (item.IsVisible) visible++;
+            }
+            g.VisibleCount = visible;
+            g.InstalledCount = g.Items.Count(i => i.IsVisible && i.IsInstalled);
+            g.IsVisible = visible > 0;
+            total += visible;
+        }
+        VisibleCount = total;
+
+        foreach (var c in Categories)
+            c.Count = _items.Count(i => (c.Category is null || i.Entry.Category == c.Category) && AppTexts.Matches(i.Entry, query));
+    }
+
+    // ─────────────────────────── selection ───────────────────────────
+
+    [RelayCommand]
+    private void ClearSelection()
+    {
+        foreach (var item in _items) item.IsSelected = false;
+    }
+
+    // ─────────────────────────── actions ───────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
+    private Task Refresh() => CheckWingetAndDetectAsync();
+
+    private bool CanRefresh() => !IsQueueRunning;
+
+    [RelayCommand]
+    private async Task RunAction(AppItemViewModel? item)
+    {
+        if (item is null) return;
+        switch (item.Action)
+        {
+            case AppAction.Website:
+                await OpenSite(item);
+                return;
+            case AppAction.Install:
+                await StartQueueAsync([(item, QueueOperation.Install)], QueueKind.Single);
+                return;
+            case AppAction.Upgrade:
+                await StartQueueAsync([(item, QueueOperation.Upgrade)], QueueKind.Single);
+                return;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanInstallSelected))]
+    private async Task InstallSelected()
+    {
+        var picked = _items.Where(i => i.IsSelected && i.CanSelect)
+            .Select(i => (i, i.IsInstalled ? QueueOperation.Upgrade : QueueOperation.Install))
+            .ToList();
+        await StartQueueAsync(picked, QueueKind.Selection);
+    }
+
+    private bool CanInstallSelected() => SelectedCount > 0 && WingetReady && !IsQueueRunning;
+
+    [RelayCommand(CanExecute = nameof(CanInstallKit))]
+    private async Task InstallKit()
+    {
+        var missing = KitItems.Where(i => !i.IsInstalled && i.Entry.CanInstall).Select(i => (i, QueueOperation.Install)).ToList();
+        if (missing.Count == 0)
+        {
+            Ui.Toast("Все библиотеки набора уже установлены.", ToastKind.Success, "НАБОР ГЕЙМЕРА");
+            return;
+        }
+        await StartQueueAsync(missing, QueueKind.Kit);
+    }
+
+    private bool CanInstallKit() => WingetReady && !IsQueueRunning && HasDetection && !KitComplete;
+
+    [RelayCommand(CanExecute = nameof(CanUpdateAll))]
+    private async Task UpdateAll()
+    {
+        var candidates = _items
+            .Where(i => i.IsInstalled && i.Entry.CanUpgrade
+                        && !string.Equals(i.PackageId, AppCatalog.AppInstallerId, StringComparison.OrdinalIgnoreCase))
+            .Select(i => (i, QueueOperation.Upgrade))
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            Ui.Toast("Из каталога не установлено ни одной программы, которую можно обновить через winget.", ToastKind.Info, "ОБНОВИТЬ ВСЁ");
+            return;
+        }
+        await StartQueueAsync(candidates, QueueKind.UpdateAll);
+    }
+
+    private bool CanUpdateAll() => WingetReady && !IsQueueRunning && HasDetection;
+
+    [RelayCommand]
+    private async Task OpenSite(AppItemViewModel? item)
+    {
+        if (item is null) return;
+        await OpenLinkAsync(item.Entry.Website);
+    }
+
+    [RelayCommand]
+    private Task OpenAppInstallerStore() => OpenLinkAsync(AppCatalog.AppInstallerStoreUri);
+
+    private static async Task OpenLinkAsync(string link)
+    {
+        if (await UnelevatedShell.OpenAsync(link)) return;
+        try
+        {
+            Clipboard.SetText(link);
+            Ui.Toast($"Не удалось открыть ссылку без прав администратора. Адрес скопирован в буфер обмена: {link}", ToastKind.Warning);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Буфер обмена недоступен: {ex.Message}");
+            Ui.Toast($"Не удалось открыть ссылку: {link}", ToastKind.Warning);
+        }
+    }
+
+    // ─────────────────────────── queue ───────────────────────────
+
+    private enum QueueKind { Single, Selection, Kit, UpdateAll }
+
+    private async Task StartQueueAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
+    {
+        if (plan.Count == 0) return;
+        if (IsQueueRunning)
+        {
+            Ui.Toast("Дождитесь окончания текущей очереди установки.", ToastKind.Warning);
+            return;
+        }
+        if (!WingetReady)
+        {
+            Ui.Toast("winget недоступен — установите «Установщик приложений» из Microsoft Store.", ToastKind.Warning);
+            return;
+        }
+
+        if (!await ConfirmAsync(plan, kind)) return;
+
+        foreach (var old in Queue) if (ReferenceEquals(old.App.Job, old)) old.App.Job = null;
+        Queue.Clear();
+        QueueLog.Clear();
+        foreach (var (item, op) in plan)
+        {
+            var job = new QueueItemViewModel(item, op);
+            item.Job = job;
+            item.IsSelected = false;
+            Queue.Add(job);
+        }
+        HasQueue = true;
+        QueueTitle = kind switch
+        {
+            QueueKind.Kit => "НАБОР ГЕЙМЕРА",
+            QueueKind.UpdateAll => "ОБНОВЛЕНИЕ ВСЕГО",
+            _ => plan.All(p => p.Op == QueueOperation.Upgrade) ? "ОБНОВЛЕНИЕ" : "УСТАНОВКА",
+        };
+        await RunQueueAsync();
+    }
+
+    private static Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
+    {
+        var details = plan.Select(p => AppTexts.QueueLine(p.Item.Entry, p.Item.PackageId, p.Op, p.Item.InstalledVersion)).ToList();
+        details.AddRange(AppTexts.Warnings(plan.Select(p => p.Item)));
+
+        var upgradeOnly = plan.All(p => p.Op == QueueOperation.Upgrade);
+        var title = kind switch
+        {
+            QueueKind.Kit => "НАБОР ГЕЙМЕРА",
+            QueueKind.UpdateAll => "ОБНОВИТЬ ВСЁ",
+            _ => upgradeOnly ? "ОБНОВЛЕНИЕ ПРОГРАММ" : "УСТАНОВКА ПРОГРАММ",
+        };
+
+        var lead = kind switch
+        {
+            QueueKind.Kit => $"Будут установлены недостающие библиотеки ({AppTexts.Packages(plan.Count)}). Уже установленные пропускаются. ",
+            QueueKind.UpdateAll => $"winget проверит обновления установленных программ из каталога ({plan.Count}) и поставит новые версии. " +
+                                   "Программы, которые обновляются сами (Discord, Edge, WebView2), и «Установщик приложений» MONOLITH не трогает. ",
+            _ => $"По очереди будет обработано: {AppTexts.Packages(plan.Count)}. ",
+        };
+        var how = "Установщики скачиваются с серверов разработчиков и проверяются по SHA256 из манифеста winget. ";
+        var elevation = Elevation.IsElevated
+            ? "Программы для всех пользователей ставятся с правами администратора, пакеты для текущего пользователя и из Microsoft Store — без них. "
+            : "MONOLITH работает без прав администратора: установщик каждой программы для всех пользователей сам покажет запрос UAC. ";
+        var undo = "Удалить программу можно в «Параметры → Приложения».";
+
+        string footnote;
+        if (!Elevation.IsElevated) footnote = "Без прав администратора точка восстановления не создаётся.";
+        else if (!AppSettings.Current.CreateRestorePoints) footnote = "Точки восстановления отключены в настройках.";
+        else footnote = "Перед началом будет создана точка восстановления.";
+
+        var danger = plan.Any(p => AppTexts.IsRisky(p.Item.Entry));
+        var confirm = upgradeOnly ? "ОБНОВИТЬ" : "УСТАНОВИТЬ";
+        return Ui.ConfirmAsync(title, lead + how + elevation + undo, details, confirm, "ОТМЕНА", danger, footnote);
+    }
+
+    private async Task RunQueueAsync()
+    {
+        IsQueueRunning = true;
+        StopRequested = false;
+        QueueProgress = 0;
+        _queueCts = new CancellationTokenSource();
+        var ct = _queueCts.Token;
+        BeginBusy($"{QueueTitle}: подготовка…");
+        var total = Queue.Count;
+        try
+        {
+            if (Elevation.IsElevated && AppSettings.Current.CreateRestorePoints)
+            {
+                AppendLog("Создание точки восстановления…");
+                SetBusyText("Создание точки восстановления…");
+                var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
+                AppendLog(rp.Message);
+            }
+
+            for (var i = 0; i < total; i++)
+            {
+                var job = Queue[i];
+                if (StopRequested || ct.IsCancellationRequested)
+                {
+                    CancelRemaining();
+                    break;
+                }
+
+                QueueCounter = $"{i + 1} / {total}";
+                var verb = job.Operation == QueueOperation.Install ? "УСТАНОВКА" : "ОБНОВЛЕНИЕ";
+                job.State = QueueState.Running;
+                job.StatusText = $"{verb}…";
+                SetBusyText($"{(job.Operation == QueueOperation.Install ? "Установка" : "Обновление")} {i + 1}/{total}: {job.Name}");
+                AppendLog("");
+                AppendLog($"▌ {job.Name} · {job.PackageId} · {job.SourceName}");
+
+                var outcome = await ExecuteAsync(job, ct);
+                ApplyOutcome(job, outcome);
+                QueueProgress = (i + 1) * 100.0 / total;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Приложения: очередь установки", ex);
+            AppendLog("Ошибка очереди: " + ex.Message);
+            Ui.Toast(ex.Message, ToastKind.Error, "Очередь установки");
+            CancelRemaining();
+        }
+        finally
+        {
+            QueueCounter = $"{Queue.Count(q => q.IsFinished)} / {total}";
+            QueueProgress = 100;
+            IsQueueRunning = false;
+            _queueCts.Dispose();
+            _queueCts = null;
+            EndBusy();
+        }
+
+        AppendLog("");
+        AppendLog("Проверка установленных программ…");
+        BeginBusy("Проверка установленных программ…");
+        try
+        {
+            await DetectCoreAsync();
+        }
+        finally
+        {
+            EndBusy();
+        }
+        VerifyDirectX();
+        Summarize();
+    }
+
+    private void CancelRemaining()
+    {
+        foreach (var q in Queue.Where(q => q.State == QueueState.Queued))
+        {
+            q.State = QueueState.Cancelled;
+            q.StatusText = "ОТМЕНЕНО";
+        }
+    }
+
+    private sealed record RunOutcome(UnelevatedOutcome Outcome, WingetResult Result);
+
+    private async Task<RunOutcome> ExecuteAsync(QueueItemViewModel job, CancellationToken ct)
+    {
+        try
+        {
+            return await ExecuteCoreAsync(job, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return new RunOutcome(UnelevatedOutcome.Cancelled, new WingetResult(-1, "", Cancelled: true));
+        }
+    }
+
+    private async Task<RunOutcome> ExecuteCoreAsync(QueueItemViewModel job, CancellationToken ct)
+    {
+        var entry = job.App.Entry;
+        var request = entry.CreateRequest(job.PackageId);
+        var args = job.Operation == QueueOperation.Install ? WingetClient.BuildInstallArgs(request) : WingetClient.BuildUpgradeArgs(request);
+        void Output(string line) => Ui.Post(() => AppendLog(line));
+
+        if (Elevation.IsElevated && entry.RunsUnelevated)
+        {
+            AppendLog("Запуск без прав администратора — пакет ставится в профиль текущего пользователя.");
+            var r = await Task.Run(() => UnelevatedWinget.RunAsync(args, Output, ct), CancellationToken.None);
+            return new RunOutcome(r.Outcome, r.ToWinget());
+        }
+
+        var result = await Task.Run(() => job.Operation == QueueOperation.Install
+            ? WingetClient.InstallPackageAsync(request, Output, ct)
+            : WingetClient.UpgradePackageAsync(request, Output, ct), CancellationToken.None);
+
+        if (result.ExitCode == WingetClient.ElevationProhibited && Elevation.IsElevated && !ct.IsCancellationRequested)
+        {
+            AppendLog("Установщик запрещает запуск от администратора — повтор без прав администратора…");
+            var r = await Task.Run(() => UnelevatedWinget.RunAsync(args, Output, ct), CancellationToken.None);
+            return new RunOutcome(r.Outcome, r.ToWinget());
+        }
+        return new RunOutcome(result.Cancelled ? UnelevatedOutcome.Cancelled : UnelevatedOutcome.Completed, result);
+    }
+
+    private void ApplyOutcome(QueueItemViewModel job, RunOutcome outcome)
+    {
+        switch (outcome.Outcome)
+        {
+            case UnelevatedOutcome.LaunchFailed:
+                job.State = QueueState.Failed;
+                job.StatusText = "ОШИБКА: не удалось запустить без прав администратора";
+                job.Detail = "Рабочий стол Windows недоступен для запуска. Откройте сайт программы (кнопка «САЙТ») " +
+                             "или запустите MONOLITH без прав администратора и повторите.";
+                AppendLog(job.Detail);
+                return;
+            case UnelevatedOutcome.Untracked:
+                job.State = QueueState.Unknown;
+                job.StatusText = "ЗАПУЩЕНО: результат проверим заново";
+                job.Detail = "winget запущен отдельно, но его ход отследить не удалось. Список установленного будет перечитан после очереди.";
+                AppendLog(job.Detail);
+                return;
+            case UnelevatedOutcome.Cancelled:
+                job.State = QueueState.Cancelled;
+                job.StatusText = "ПРЕРВАНО";
+                AppendLog("Прервано пользователем.");
+                return;
+        }
+
+        var (state, text, reboot) = AppTexts.DescribeResult(outcome.Result.ExitCode, job.Operation);
+        job.State = state;
+        job.StatusText = text;
+        job.NeedsReboot = reboot || (state == QueueState.Done && job.Operation == QueueOperation.Install && job.App.Entry.Has(AppFlags.Reboot));
+        AppendLog(state == QueueState.Done ? $"Готово: {WingetClient.Describe(outcome.Result.ExitCode)}." : $"Итог: {WingetClient.Describe(outcome.Result.ExitCode)}.");
+        if (state == QueueState.Failed)
+            job.Detail = outcome.Result.ExitCode == WingetClient.NoApplicableInstaller
+                ? "Для этой системы нет подходящего установщика (архитектура или версия Windows)."
+                : WingetClient.Describe(outcome.Result.ExitCode);
+    }
+
+    /// <summary>
+    /// winget may report Microsoft.DirectX as present because of the MSIX "DirectXRuntime" framework;
+    /// only the classic D3DX9 / XAudio 2.7 files prove the June 2010 runtime is installed.
+    /// </summary>
+    private void VerifyDirectX()
+    {
+        var job = Queue.FirstOrDefault(q => q.App.Entry.Has(AppFlags.ForceExe) && q.State == QueueState.Done);
+        if (job is null || job.App.IsInstalled) return;
+        job.State = QueueState.Failed;
+        job.StatusText = "ОШИБКА: библиотеки D3DX9 не появились";
+        job.Detail = "winget сообщил об успехе, но классических файлов DirectX (d3dx9_43.dll, xaudio2_7.dll) нет. " +
+                     "Скачайте установщик с сайта Microsoft (кнопка «САЙТ» у DirectX).";
+        AppendLog(job.Detail);
+    }
+
+    private void Summarize()
+    {
+        var done = Queue.Count(q => q.State == QueueState.Done);
+        var failed = Queue.Count(q => q.State == QueueState.Failed);
+        var skipped = Queue.Count(q => q.State == QueueState.Skipped);
+        var cancelled = Queue.Count(q => q.State == QueueState.Cancelled);
+        var unknown = Queue.Count(q => q.State == QueueState.Unknown);
+        var reboot = Queue.Any(q => q.NeedsReboot);
+
+        var parts = new List<string> { $"готово: {done}" };
+        if (failed > 0) parts.Add($"ошибок: {failed}");
+        if (skipped > 0) parts.Add($"пропущено: {skipped}");
+        if (cancelled > 0) parts.Add($"отменено: {cancelled}");
+        if (unknown > 0) parts.Add($"без отчёта: {unknown}");
+        var message = string.Join(" · ", parts) + (reboot ? ". Для завершения нужна перезагрузка." : ".");
+        AppendLog(message);
+        Ui.Toast(message, failed > 0 ? ToastKind.Warning : ToastKind.Success, $"{QueueTitle}: ОЧЕРЕДЬ ЗАВЕРШЕНА");
+    }
+
+    [RelayCommand]
+    private void StopQueue()
+    {
+        if (!IsQueueRunning || StopRequested) return;
+        StopRequested = true;
+        CancelRemaining();
+        AppendLog("Остановка: текущий пакет будет доведён до конца, остальные отменены.");
+    }
+
+    [RelayCommand]
+    private async Task AbortQueue()
+    {
+        if (!IsQueueRunning || _queueCts is null) return;
+        var ok = await Ui.ConfirmAsync("ПРЕРВАТЬ СЕЙЧАС?",
+            "Процесс winget и запущенный им установщик будут принудительно завершены. Программа может остаться " +
+            "установленной не полностью — тогда установите её заново или удалите в «Параметры → Приложения».",
+            null, "ПРЕРВАТЬ", "ПРОДОЛЖИТЬ УСТАНОВКУ", danger: true);
+        if (!ok || _queueCts is null) return;
+        StopRequested = true;
+        CancelRemaining();
+        AppendLog("Прерывание текущей установки…");
+        _queueCts.Cancel();
+    }
+
+    [RelayCommand]
+    private void CloseQueue()
+    {
+        if (IsQueueRunning) return;
+        foreach (var q in Queue) if (ReferenceEquals(q.App.Job, q)) q.App.Job = null;
+        Queue.Clear();
+        QueueLog.Clear();
+        HasQueue = false;
+        QueueProgress = 0;
+        QueueCounter = "";
+    }
+
+    private void AppendLog(string line)
+    {
+        if (QueueLog.Count > 0 && line.Length > 0 && QueueLog[^1] == line) return;
+        QueueLog.Add(line);
+        while (QueueLog.Count > MaxLogLines) QueueLog.RemoveAt(0);
+    }
 }
