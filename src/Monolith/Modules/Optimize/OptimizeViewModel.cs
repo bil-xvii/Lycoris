@@ -517,7 +517,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             ? $" · {RestartCount} {OptimizeLogic.Plural(RestartCount, "требует", "требуют", "требуют")} перезапуска"
             : "";
         var rp = !AppSettings.Current.CreateRestorePoints
-            ? " · точка восстановления отключена в настройках"
+            ? " · точка восстановления отключена в «Восстановлении»"
             : _protectionOn == false
                 ? " · защита системы выключена — точки восстановления не будет, откат через журнал"
                 : _protectionOn == true
@@ -610,7 +610,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private static async Task<string> RestorePointFootnoteAsync()
     {
         if (!AppSettings.Current.CreateRestorePoints)
-            return "Точка восстановления отключена в настройках. Откат — через журнал MONOLITH.";
+            return "Точка восстановления отключена в разделе «Восстановление». Откат — через журнал MONOLITH.";
         var enabled = await Task.Run(RestorePointService.IsEnabled);
         return enabled
             ? "Перед изменениями будет создана точка восстановления Windows."
@@ -622,7 +622,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var lines = new List<string>
         {
             string.IsNullOrWhiteSpace(result.RestorePoint)
-                ? "Точка восстановления не создавалась (отключено в настройках). Откат — через журнал MONOLITH."
+                ? "Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал MONOLITH."
                 : result.RestorePoint!,
         };
         foreach (var t in targets)

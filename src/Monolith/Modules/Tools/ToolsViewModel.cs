@@ -315,7 +315,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     {
         var restoreNote = AppSettings.Current.CreateRestorePoints
             ? "Перед сбросом будет создана точка восстановления Windows — только через неё можно вернуть прежние сетевые параметры"
-            : "Создание точек восстановления выключено в настройках — вернуть прежние параметры будет нельзя";
+            : "Создание точек восстановления выключено в разделе «Восстановление» — вернуть прежние параметры будет нельзя";
         if (!await Ui.ConfirmAsync(
                 "Сбросить сетевые настройки?",
                 "Каталог Winsock и стек TCP/IP вернутся к состоянию чистой установки Windows. Это крайняя мера, когда сеть не работает и другие способы не помогли.",
@@ -346,7 +346,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             }
 
             var session = await ChangeSession.BeginAsync("Сброс сетевых настроек", createRestorePoint: false);
-            session.Batch.RestorePoint = rp?.Message ?? "Создание точек восстановления выключено в настройках.";
+            session.Batch.RestorePoint = rp?.Message ?? "Создание точек восстановления выключено в разделе «Восстановление».";
             ChangeJournal.Instance.UpdateBatch(session.Batch);
 
             AppPaths.TryEnsureDir(session.BackupDir);
