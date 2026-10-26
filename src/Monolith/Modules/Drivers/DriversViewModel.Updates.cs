@@ -159,8 +159,8 @@ public sealed partial class DriversViewModel
     }
 
     [RelayCommand]
-    private void OpenOptionalUpdates() =>
-        OpenUrl(SystemProfile.Current.IsWindows11 ? DriverSources.OptionalUpdatesUri : DriverSources.WindowsUpdateUri);
+    private Task OpenOptionalUpdatesAsync() =>
+        OpenUrlAsync(SystemProfile.Current.IsWindows11 ? DriverSources.OptionalUpdatesUri : DriverSources.WindowsUpdateUri);
 
     [RelayCommand]
     private void OpenServices() => Ui.Navigate("services");
@@ -250,12 +250,17 @@ public sealed partial class DriversViewModel
                 // 3. Download + install.
                 var progress = new Progress<WuProgress>(OnInstallProgress);
                 attempted = true;
+                // On cancel this await keeps going until Windows Update has really stopped (IsInstalling stays true),
+                // then the result shows what was installed before the abort.
                 var result = await WindowsUpdateDrivers.InstallAsync(ids, eulaApproved, ServerSelection, progress, ct);
                 ApplyInstallResult(selected, result);
             }
             catch (Exception ex) when (ex is OperationCanceledException && ct.IsCancellationRequested)
             {
-                InstallSummary = "Установка отменена. Уже установленные драйверы остались на месте.";
+                // Cancelled before the install step, or Windows Update did not report per-driver results.
+                InstallSummary = attempted
+                    ? "Установка отменена. Драйверы, которые Windows Update успела поставить, остались на месте — список обновится."
+                    : "Установка отменена. Драйверы не устанавливались.";
                 Ui.Toast(InstallSummary, ToastKind.Warning);
                 Log.Warn(InstallSummary);
             }
@@ -281,12 +286,13 @@ public sealed partial class DriversViewModel
     private void CancelInstall()
     {
         if (_installCts is null || _installCts.IsCancellationRequested) return;
-        InstallDetail = "Отмена… Windows Update завершает текущий шаг.";
+        InstallDetail = "Отмена… ждём, пока Windows Update завершит текущий драйвер. Это может занять до пары минут.";
         _installCts.Cancel();
     }
 
     private void OnInstallProgress(WuProgress p)
     {
+        if (_installCts is { IsCancellationRequested: true }) return; // keep the "Отмена…" message while WUA winds down
         switch (p.Stage)
         {
             case WuStage.Searching:

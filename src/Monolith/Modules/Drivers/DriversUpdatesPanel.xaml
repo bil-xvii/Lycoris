@@ -304,9 +304,14 @@
                                                             <TextBlock Text="{Binding KindText}" />
                                                         </Border>
                                                         <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0"
-                                                                Visibility="{Binding FixesProblem, Converter={StaticResource BoolToVis}}"
+                                                                Visibility="{Binding ShowProblemDeviceTag, Converter={StaticResource BoolToVis}}"
                                                                 ToolTip="Драйвер предназначен для устройства, о котором Windows сообщает ошибку">
                                                             <TextBlock Text="ДЛЯ ПРОБЛЕМНОГО УСТРОЙСТВА" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Tag}" Margin="0,0,6,0"
+                                                                Visibility="{Binding ShowFixesProblemHint, Converter={StaticResource BoolToVis}}"
+                                                                ToolTip="Необязательный драйвер для устройства, о котором Windows сообщает ошибку. Он не отмечен заранее — отметьте его сами, если хотите попробовать исправить проблему">
+                                                            <TextBlock Text="МОЖЕТ ИСПРАВИТЬ ПРОБЛЕМУ УСТРОЙСТВА" />
                                                         </Border>
                                                         <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" Visibility="{Binding NeedsEula, Converter={StaticResource BoolToVis}}">
                                                             <TextBlock Text="НУЖНО ПРИНЯТЬ ЛИЦЕНЗИЮ" />
