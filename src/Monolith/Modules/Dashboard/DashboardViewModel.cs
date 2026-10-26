@@ -369,7 +369,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         if (tweak.Restart != RestartRequirement.None) details.Add($"Вступит в силу {tweak.RestartWhen}");
         details.Add(AppSettings.Current.CreateRestorePoints
             ? "Перед изменением будет создана точка восстановления (если защита системы включена)"
-            : "Точка восстановления не создаётся — это выключено в настройках");
+            : "Точка восстановления не создаётся — это выключено в разделе «Восстановление»");
         details.Add("Исходное значение сохраняется в журнале — отменить можно в разделе «Восстановление»");
 
         var confirmed = await Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",

@@ -32,12 +32,6 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     [ObservableProperty] private bool _consoleExpanded;
     [ObservableProperty] private int _activeChanges;
 
-    /// <summary>
-    /// Last known System Restore state, pushed by the Restore page. Nothing in the shell displays or polls it any more;
-    /// kept only so RestoreViewModel still compiles (remove together with its setter there).
-    /// </summary>
-    public bool RestoreEnabled { get; set; }
-
     public bool IsElevated => Elevation.IsElevated;
     public bool IsReadOnly => !Elevation.IsElevated;
     public string Version { get; } = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
