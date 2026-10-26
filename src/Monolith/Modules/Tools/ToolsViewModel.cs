@@ -414,8 +414,10 @@ public sealed partial class ToolsViewModel : PageViewModel
             if (r.Cancelled) return null;
             if (r.ExitCode != 0 || !File.Exists(file)) return ToolOutcome.Fail($"Отчёт не создан (код {r.ExitCode}).");
             Emit("Отчёт: " + file, ConsoleLineKind.Info);
-            ShellLauncher.Open(file, displayName: "Отчёт о батарее");
-            return ToolOutcome.Ok("Отчёт о батарее создан и открыт в браузере.");
+            // The browser must never inherit MONOLITH's administrator rights.
+            if (await UnelevatedShell.OpenFileAsync(file))
+                return ToolOutcome.Ok("Отчёт о батарее создан и открыт в браузере.");
+            return ToolOutcome.Warn("Отчёт о батарее создан, но открыть его без прав администратора не удалось. Откройте файл вручную: " + file);
         });
 
     private async Task RunMemoryDiagnosticAsync()

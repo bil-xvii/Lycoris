@@ -79,8 +79,33 @@ public static class AppTexts
             return "Установка через winget без прав администратора — в профиль текущего пользователя.";
         if (!Elevation.IsElevated && e.Scope is InstallScope.Machine)
             return "Установка через winget. Установщик для всех пользователей сам покажет запрос UAC.";
+        if (e.Source == PackageSource.MsStore)
+            return "Установка через winget из Microsoft Store. " + StoreVerification;
         return "Установка через winget. Установщик скачивается с сервера разработчика и проверяется по SHA256.";
     }
+
+    public const string WingetVerification = "Установщики скачиваются с серверов разработчиков и проверяются по SHA256 из манифеста winget.";
+    public const string StoreVerification = "Пакеты Microsoft Store скачиваются из Store и проверяются его подписью.";
+
+    /// <summary>How the packages are verified: the SHA256 claim only for winget-source entries.</summary>
+    public static string VerificationText(IEnumerable<CatalogEntry> entries)
+    {
+        var list = entries.ToList();
+        var store = list.Any(e => e.Source == PackageSource.MsStore);
+        var winget = list.Any(e => e.Source != PackageSource.MsStore);
+        return winget && store ? $"{WingetVerification} {StoreVerification}"
+            : store ? StoreVerification
+            : WingetVerification;
+    }
+
+    /// <summary>
+    /// winget is always called with --accept-package-agreements and --accept-source-agreements, so the confirmation
+    /// must say that the user accepts the publisher licenses (and the Microsoft Store terms for msstore packages).
+    /// </summary>
+    public static string LicenseText(IEnumerable<CatalogEntry> entries, string confirmText) =>
+        entries.Any(e => e.Source == PackageSource.MsStore)
+            ? $"Нажимая «{confirmText}», вы принимаете лицензии издателей программ и условия Microsoft Store."
+            : $"Нажимая «{confirmText}», вы принимаете лицензии издателей программ.";
 
     /// <summary>"Steam — Valve.Steam · winget · установка".</summary>
     public static string QueueLine(CatalogEntry e, string packageId, QueueOperation op, string? installedVersion = null)
