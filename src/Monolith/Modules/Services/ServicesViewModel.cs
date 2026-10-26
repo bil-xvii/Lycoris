@@ -81,8 +81,8 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     public string ManagedText => Machine switch
     {
-        { IsDomainJoined: true } => "Компьютер входит в домен: групповые политики организации вернут изменения служб. Чтобы не спорить с администратором, раздел работает только для просмотра.",
-        { IsMdmEnrolled: true } => "Компьютер управляется организацией через MDM (Intune): политики вернут изменения служб. Раздел работает только для просмотра.",
+        { IsDomainJoined: true } => "Компьютер входит в домен: групповые политики организации вернут изменения служб. Чтобы не спорить с администратором, службы и задачи Microsoft здесь только для просмотра; автозапуск программ менять можно.",
+        { IsMdmEnrolled: true } => "Компьютер управляется организацией через MDM (Intune): политики вернут изменения служб. Службы и задачи Microsoft здесь только для просмотра; автозапуск программ менять можно.",
         _ => "",
     };
 
@@ -96,7 +96,9 @@ public sealed partial class ServicesViewModel : PageViewModel
         // Start the service scan first: it marks the page busy before the autostart scan (and a focused tab) begins.
         var services = ReloadAsync();
         ApplyFocus(Ui.TakeFocusRequest(Key));
-        await Task.WhenAll(services, StartupTabShown ? EnsureStartupAsync() : Task.CompletedTask);
+        // The autostart scan always runs on the first visit (read-only and quick): the АВТОЗАПУСК and ЗАДАЧИ tab
+        // badges count its results even when the page opens on another tab.
+        await Task.WhenAll(services, EnsureStartupAsync());
     }
 
     /// <summary>Changes made elsewhere (Restore center, other pages) show up when the user comes back.</summary>
@@ -121,16 +123,19 @@ public sealed partial class ServicesViewModel : PageViewModel
     private bool _startupShown;
     private bool _startupStale;
     private bool _mirroringStartup;
+    private Task? _startupTask;
 
     private bool StartupTabShown => SelectedTab is TabStartup or TabTasks;
 
     /// <summary>Loads the autostart scan on first show, rescans when the page is shown again.</summary>
     private Task EnsureStartupAsync()
     {
+        // A scan already running (e.g. started by a tab switch a moment ago) is awaited, not skipped.
+        if (_startupTask is { IsCompleted: false } running) return running;
         if (_startupShown && !_startupStale) return Task.CompletedTask;
         _startupShown = true;
         _startupStale = false;
-        return Startup.ActivateAsync();
+        return _startupTask = Startup.ActivateAsync();
     }
 
     partial void OnSelectedTabChanged(int value)

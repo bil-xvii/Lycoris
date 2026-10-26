@@ -18,7 +18,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     public override string Key => "optimize";
     public override string Index => "02";
     public override string Title => "ОПТИМИЗАЦИЯ";
-    public override string Subtitle => "Выберите профиль, проверьте изменения и примените — каждое из них обратимо.";
+    public override string Subtitle => "Выберите профиль, проверьте изменения и примените — изменённые настройки можно откатить.";
     public override string Glyph => Glyphs.Bolt;
 
     private const string SourcePrefix = "tweak:";

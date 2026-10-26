@@ -65,7 +65,7 @@ public static class CommandPaletteIndex
     [
         (MaintenanceViewModel.CleanerTab, "ОЧИСТКА", "Временные файлы, кэши и мусор — раздел «Обслуживание».", "обслуживание мусор"),
         (MaintenanceViewModel.ToolsTab, "РЕМОНТ И ДИСКИ", "Проверка и восстановление Windows, диски и сеть — раздел «Обслуживание».", "инструменты обслуживание"),
-        (MainViewModel.StartupAlias, "АВТОЗАПУСК", "Программы и задачи, которые запускаются вместе с Windows, — раздел «Службы».", "службы"),
+        (MainViewModel.StartupAlias, "АВТОЗАПУСК", "Программы, которые запускаются вместе с Windows, — раздел «Автозапуск и службы».", "службы задачи"),
     ];
 
     /// <summary>The index for the running app: pages from the shell, tools from the live Tools tab.</summary>

@@ -163,7 +163,12 @@ public sealed partial class DriversViewModel
         OpenUrlAsync(SystemProfile.Current.IsWindows11 ? DriverSources.OptionalUpdatesUri : DriverSources.WindowsUpdateUri);
 
     [RelayCommand]
-    private void OpenServices() => Ui.Navigate("services");
+    private void OpenServices()
+    {
+        // Straight to the Windows Update service in ВСЕ СЛУЖБЫ (the page opens on АВТОЗАПУСК otherwise).
+        Ui.RequestFocus("services", "wuauserv");
+        Ui.Navigate("services");
+    }
 
     partial void OnUseMicrosoftServersChanged(bool value)
     {

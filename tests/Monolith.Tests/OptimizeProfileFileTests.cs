@@ -135,7 +135,7 @@ public sealed class OptimizeProfileFileTests
         Assert.Equal(3, plan.Unknown.Count);
         Assert.Equal("ghost", plan.Unknown[0]);
 
-        Assert.Equal("Выбрано 1 настройка. Пропущено: неизвестные — 3, не подходят этому ПК — 2, требуют ручного выбора — 1.",
+        Assert.Equal("Выбрана 1 настройка. Пропущено: неизвестные — 3, не подходят этому ПК — 2, требуют ручного выбора — 1.",
             OptimizeProfileFile.Summary(plan));
     }
 

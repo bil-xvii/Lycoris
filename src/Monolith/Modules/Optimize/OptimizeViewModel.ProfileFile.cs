@@ -48,7 +48,7 @@ public sealed partial class OptimizeViewModel
             // The user picked the folder, so the file inherits that folder's permissions and stays readable for them.
             await Task.Run(() => File.WriteAllText(path, json, new UTF8Encoding(false)));
             Log.Success($"Оптимизация: профиль сохранён ({ids.Count} пунктов) — {path}");
-            Ui.Toast($"Сохранено {ids.Count} {OptimizeLogic.Plural(ids.Count, "настройка", "настройки", "настроек")}: {Path.GetFileName(path)}.",
+            Ui.Toast($"{OptimizeLogic.Plural(ids.Count, "Сохранена", "Сохранены", "Сохранено")} {ids.Count} {OptimizeLogic.Plural(ids.Count, "настройка", "настройки", "настроек")}: {Path.GetFileName(path)}.",
                 ToastKind.Success, "ЭКСПОРТ");
         }
         catch (Exception ex)

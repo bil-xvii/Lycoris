@@ -534,6 +534,9 @@ public sealed class GamesTests
         // On battery the more specific reason is reported.
         Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(true, false, true, true, false, false, true, false));
         Assert.Contains("ноутбук", BoostPolicy.Describe(PowerPlanAction.SkipLaptop, "x", ""));
+        // Unknown hardware has its own honest reason (never "на ноутбуке" on a desktop).
+        Assert.DoesNotContain("на ноутбуке", BoostPolicy.Describe(PowerPlanAction.SkipUnknownHardware, "x", ""));
+        Assert.Contains("не удалось определить", BoostPolicy.Describe(PowerPlanAction.SkipUnknownHardware, "x", ""));
     }
 
     [Fact]

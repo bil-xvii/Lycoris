@@ -65,11 +65,12 @@ public sealed partial class GameBoostService : ObservableObject
         var alreadyFast = active == PowerSchemes.HighPerformance || (ultimate is { } u && u == active);
         var journaled = ChangeJournal.Instance.FindActive("power:active");
         var managedElsewhere = journaled is not null && journaled.Source != Source;
-        var action = BoostPolicy.DecidePowerPlan(
+        // Unknown hardware (a WMI query failed): never switch blindly — it could be a laptop or a dual-CCD X3D.
+        var action = enabled && !sp.HardwareFactsKnown ? PowerPlanAction.SkipUnknownHardware : BoostPolicy.DecidePowerPlan(
             enabled,
             BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores),
             GamesNative.IsOnBattery(),
-            sp.IsLaptop || !sp.HardwareFactsKnown,
+            sp.IsLaptop,
             GamesNative.IsModernStandby(),
             managedElsewhere,
             enabled && PowerSchemes.Exists(PowerSchemes.HighPerformance),

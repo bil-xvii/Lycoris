@@ -44,6 +44,7 @@ public partial class OptimizeView : UserControl
     private void ScrollToFocused() => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
     {
         if (_vm?.FocusedItem is not { } item) return;
+        _vm.FocusedItem = null; // one-shot: later plain visits to the page must not jump to this row again
         var index = _vm.Rows.IndexOf(item);
         if (index < 0) return;
         if (FindChild<VirtualizingStackPanel>(RowsList) is { } panel) panel.BringIndexIntoViewPublic(index);

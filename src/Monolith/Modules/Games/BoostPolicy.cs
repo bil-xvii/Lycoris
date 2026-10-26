@@ -16,6 +16,7 @@ public enum PowerPlanAction
     SkipManagedElsewhere,
     SkipAlreadyFast,
     SkipUnavailable,
+    SkipUnknownHardware,
 }
 
 /// <summary>Pure decision rules from docs/research/gaming_tweaks.md §1 and §C (unit-tested).</summary>
@@ -58,6 +59,7 @@ public static class BoostPolicy
         PowerPlanAction.SkipModernStandby => "План питания не меняется: на ПК с Modern Standby доступна только «Сбалансированная» схема.",
         PowerPlanAction.SkipManagedElsewhere => "План питания не меняется: он уже изменён MONOLITH в разделе «Оптимизация».",
         PowerPlanAction.SkipAlreadyFast => $"План питания не меняется: «{currentName}» уже включена.",
+        PowerPlanAction.SkipUnknownHardware => "План питания не меняется: не удалось определить, ноутбук это или ПК. Нажмите «ОБНОВИТЬ» позже.",
         _ => "План питания не меняется: схемы «Высокая производительность» на этом ПК нет.",
     };
 
