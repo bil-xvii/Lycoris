@@ -46,6 +46,11 @@
                             <Border Style="{StaticResource Tag.Muted}" Margin="10,0,0,0" Padding="5,1,5,2">
                                 <TextBlock Text="{Binding KindLabel}" FontSize="9.5" />
                             </Border>
+                            <Border Style="{StaticResource Tag.Hatch}" Margin="6,0,0,0" Padding="5,1,5,2"
+                                    Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="После MONOLITH значение изменили Windows (например, обновление), политика или другая программа.">
+                                <TextBlock Text="ИЗМЕНЕНО ВНЕ MONOLITH" FontSize="9.5" />
+                            </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding Target}" ToolTip="{Binding RawTarget}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
                                    Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
@@ -59,6 +64,8 @@
                             <Run Text="  ·  " Foreground="{StaticResource B.Text4}" />
                             <Run Text="{Binding TimeText, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="10.5" />
                         </TextBlock>
+                        <TextBlock Text="{Binding DriftText}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text}" Margin="0,6,0,0"
                                    Visibility="{Binding IsFailed, Converter={StaticResource BoolToVis}}">
                             <Run Text="Ошибка отката:" FontWeight="SemiBold" />
@@ -88,6 +95,21 @@
                         <Button Content="ОТКАТИТЬ" Height="30" MinWidth="110" Margin="0,10,0,0" HorizontalAlignment="Right" FontSize="11.5"
                                 Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}"
                                 Command="{Binding DataContext.RevertRecordCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+                        <Button Style="{StaticResource Btn.Primary}" Content="ПРИМЕНИТЬ СНОВА" Height="30" MinWidth="110" Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="11.5"
+                                Visibility="{Binding CanReapply, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Снова записать значение, которое ставил MONOLITH. Исходное значение в журнале сохраняется."
+                                Command="{Binding DataContext.ReapplyDriftCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+                        <Button Content="ПОКАЗАТЬ" Height="30" MinWidth="110" Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="11.5"
+                                Visibility="{Binding CanShowOwner, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Открыть раздел, где эта настройка меняется."
+                                Command="{Binding DataContext.ShowDriftOwnerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" />
+                        <Button Style="{StaticResource Btn.Link}" Content="ЗАБЫТЬ" Margin="0,8,0,0" HorizontalAlignment="Right"
+                                Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Оставить новое значение и больше не напоминать. Запись в журнале остаётся: откат вернёт значение, которое было до MONOLITH."
+                                Command="{Binding DataContext.ForgetDriftCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 CommandParameter="{Binding}" />
                     </StackPanel>
                 </Grid>
@@ -266,6 +288,30 @@
                             </StackPanel>
                         </Grid>
                         <Rectangle Height="1" Fill="{StaticResource B.Line2}" Margin="0,0,0,16" />
+
+                        <!-- Drift: one compact line; the records themselves are tagged in the list below -->
+                        <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,16"
+                                Visibility="{Binding HasDrift, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Rectangle Fill="{StaticResource B.HatchStrong}" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="18,12,14,12"
+                                           Text="{Binding DriftCount, StringFormat=ИЗМЕНЕНО ВНЕ MONOLITH · {0}}" />
+                                <TextBlock Grid.Column="2" Text="{Binding DriftLine}" Style="{StaticResource T.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                           Margin="0,12,14,12" />
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,14,8">
+                                    <Button Content="ПОКАЗАТЬ" Height="30" FontSize="11.5" Margin="0,0,8,0" Command="{Binding ShowDriftedCommand}" />
+                                    <Button Style="{StaticResource Btn.Primary}" Content="ПРИМЕНИТЬ СНОВА ВСЁ" Height="30" FontSize="11.5"
+                                            Visibility="{Binding HasReapplicableDrift, Converter={StaticResource BoolToVis}}"
+                                            Command="{Binding ReapplyAllDriftCommand}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
                         <!-- Empty journal -->
                         <Border Style="{StaticResource Card.Flush}" Visibility="{Binding IsJournalEmpty, Converter={StaticResource BoolToVis}}">

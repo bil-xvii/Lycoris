@@ -3,7 +3,7 @@ using Monolith.Core;
 
 namespace Monolith.Modules.Restore;
 
-public enum JournalFilter { All, Active, Reverted }
+public enum JournalFilter { All, Active, Reverted, Drifted }
 
 public enum RecordState { Active, Reverted, Failed }
 
@@ -81,8 +81,10 @@ public static class RestoreFormat
     /// Groups journal records by batch, newest batch first, records inside a batch in the order they were made.
     /// Records whose batch is missing are collected into a synthetic batch (Id = Guid.Empty).
     /// "All" keeps empty batches (e.g. an irreversible action that only has a restore point); the other filters drop them.
+    /// "Drifted" keeps the active records whose id is in <paramref name="drifted"/>.
     /// </summary>
-    public static IReadOnlyList<JournalGroup> Group(IEnumerable<ChangeBatch> batches, IEnumerable<ChangeRecord> records, JournalFilter filter)
+    public static IReadOnlyList<JournalGroup> Group(IEnumerable<ChangeBatch> batches, IEnumerable<ChangeRecord> records, JournalFilter filter,
+        IReadOnlySet<Guid>? drifted = null)
     {
         var batchList = batches.ToList();
         var known = batchList.Select(b => b.Id).ToHashSet();
@@ -100,6 +102,7 @@ public static class RestoreFormat
             {
                 JournalFilter.Active => all.Where(r => !r.Reverted).ToList(),
                 JournalFilter.Reverted => all.Where(r => r.Reverted).ToList(),
+                JournalFilter.Drifted => all.Where(r => !r.Reverted && drifted?.Contains(r.Id) == true).ToList(),
                 _ => all,
             };
             if (filter != JournalFilter.All && visible.Count == 0) continue;
