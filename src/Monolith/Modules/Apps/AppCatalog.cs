@@ -1,4 +1,4 @@
-using Monolith.Core;
+﻿using Monolith.Core;
 
 namespace Monolith.Modules.Apps;
 
@@ -95,6 +95,7 @@ public sealed record CatalogEntry(
 /// The verified package catalog from docs/research/apps_catalog.md (JSON block, §8). Only entries the research
 /// verified with "winget show" are listed; excluded items (Vesktop, Chromium, AMD "Cloud Edition", Oracle Java,
 /// BleachBit, PC Manager, Skype, Vulkan RT…) are deliberately absent.
+/// Vendor driver tools (NVIDIA App, Intel DSA) are offered only on the Drivers page (DriverSources), not here.
 /// </summary>
 public static class AppCatalog
 {
@@ -261,8 +262,6 @@ public static class AppCatalog
         W("Geeks3D.FurMark.2", "FurMark 2", G, "Стресс-тест видеокарты", "https://geeks3d.com/furmark/", Both, AppFlags.Expert),
         W("BitSum.ProcessLasso", "Process Lasso", G, "Автоматическое управление приоритетами процессов", "https://bitsum.com/", Machine, AppFlags.Expert),
         W("Rufus.Rufus", "Rufus", G, "Создание загрузочных USB-флешек", "https://rufus.ie/", Both, AppFlags.Portable),
-        W("Intel.IntelDriverAndSupportAssistant", "Intel Driver & Support Assistant", G, "Обновление драйверов Intel", "https://www.intel.com/content/www/us/en/support/detect.html", Machine),
-        Store("XP8CLZL93F5Z4P", "NVIDIA App", G, "Драйверы, настройки, DLSS и запись для видеокарт NVIDIA", "https://apps.microsoft.com/detail/XP8CLZL93F5Z4P", Any, AppFlags.NvidiaOnly),
         Store("9NF8H0H7WMLT", "NVIDIA Control Panel", G, "Панель управления NVIDIA (если её нет после установки драйвера)", "https://apps.microsoft.com/detail/9NF8H0H7WMLT", User, AppFlags.NvidiaOnly),
         W("Microsoft.Sysinternals.ProcessExplorer", "Process Explorer", G, "Расширенный диспетчер процессов от Microsoft", "https://learn.microsoft.com/sysinternals/downloads/process-explorer", Both, AppFlags.Portable),
         W("Microsoft.Sysinternals.Autoruns", "Autoruns", G, "Полный контроль автозагрузки", "https://learn.microsoft.com/sysinternals/downloads/autoruns", Both, AppFlags.Portable | AppFlags.Expert),
