@@ -279,6 +279,11 @@ public sealed class ChangeJournal
                 break;
 
             case ChangeKind.Service when r.Service is not null:
+                if (ServiceControl.Query(r.Service.Name) is null)
+                {
+                    Log.Info($"Откат пропущен: службы {r.Service.Name} больше нет в системе.");
+                    break;
+                }
                 // Never allowProtected: no legitimate record can target a protected service.
                 ServiceControl.SetStartMode(r.Service.Name, r.Service.StartMode, r.Service.DelayedAutoStart);
                 break;
@@ -293,6 +298,11 @@ public sealed class ChangeJournal
                 break;
 
             case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
+                if (!ScheduledTasks.Query(r.TaskPath).Exists)
+                {
+                    Log.Info($"Откат пропущен: задачи {r.TaskPath} больше нет в планировщике.");
+                    break;
+                }
                 ScheduledTasks.SetEnabled(r.TaskPath, wasEnabled);
                 break;
 

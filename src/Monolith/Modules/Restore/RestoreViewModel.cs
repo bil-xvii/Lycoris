@@ -322,7 +322,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (active.Count == 0) return;
 
         if (!await Ui.ConfirmAsync("Откатить все изменения?",
-                $"Все {active.Count} {RestoreFormat.Plural(active.Count, "активное изменение", "активных изменения", "активных изменений")} MONOLITH вернутся к исходным значениям — от последнего к первому. Система вернётся к состоянию до MONOLITH.",
+                $"Все {active.Count} {RestoreFormat.Plural(active.Count, "активное изменение", "активных изменения", "активных изменений")} MONOLITH вернутся к исходным значениям — от последнего к первому. Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются.",
                 active.Select(Describe),
                 confirmText: "ОТКАТИТЬ ВСЁ", danger: true,
                 footnote: "Для некоторых изменений нужна перезагрузка."))
