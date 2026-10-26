@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Monolith.Core;
 using Monolith.Modules.Apps;
 
@@ -12,8 +12,19 @@ public sealed class AppsTests
     [Fact]
     public void Catalog_contains_every_verified_research_entry()
     {
-        // docs/research/apps_catalog.md §8 lists 124 verified packages.
-        Assert.Equal(124, AppCatalog.All.Count);
+        // docs/research/apps_catalog.md §8 lists 124 verified packages; the two vendor driver tools
+        // (NVIDIA App, Intel DSA) are offered only on the Drivers page.
+        Assert.Equal(122, AppCatalog.All.Count);
+    }
+
+    [Theory]
+    [InlineData("XP8CLZL93F5Z4P")]
+    [InlineData("Intel.IntelDriverAndSupportAssistant")]
+    public void Vendor_driver_tools_live_only_on_the_drivers_page(string id)
+    {
+        Assert.Null(AppCatalog.Find(id));
+        Assert.Contains(new[] { GpuVendor.Nvidia, GpuVendor.Intel },
+            v => Monolith.Modules.Drivers.DriverSources.ToolFor(v)?.WingetId == id);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Monolith.Modules.Apps;
@@ -148,18 +148,16 @@ public sealed partial class AppItemViewModel : ObservableObject
     }
 }
 
-/// <summary>One catalog section ("01 ЛАУНЧЕРЫ").</summary>
+/// <summary>One catalog section ("ЛАУНЧЕРЫ").</summary>
 public sealed partial class AppGroupViewModel : ObservableObject
 {
-    public AppGroupViewModel(CategoryInfo info, int index, IEnumerable<AppItemViewModel> items)
+    public AppGroupViewModel(CategoryInfo info, IEnumerable<AppItemViewModel> items)
     {
         Info = info;
-        Index = index.ToString("00");
         Items = new ObservableCollection<AppItemViewModel>(items);
     }
 
     public CategoryInfo Info { get; }
-    public string Index { get; }
     public string Title => Info.Title;
     public string Description => Info.Description;
     public ObservableCollection<AppItemViewModel> Items { get; }
