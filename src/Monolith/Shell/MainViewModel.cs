@@ -10,6 +10,7 @@ using Monolith.Modules.Cleaner;
 using Monolith.Modules.Dashboard;
 using Monolith.Modules.Drivers;
 using Monolith.Modules.Games;
+using Monolith.Modules.Hardware;
 using Monolith.Modules.Optimize;
 using Monolith.Modules.Restore;
 using Monolith.Modules.Services;
@@ -47,6 +48,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         Pages =
         [
             new DashboardViewModel(),
+            new HardwareViewModel(),
             new OptimizeViewModel(),
             new GamesViewModel(),
             new CleanerViewModel(),
@@ -111,7 +113,16 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                 "Чтобы настроить свой профиль, войдите в Windows под учётной записью администратора и запустите MONOLITH оттуда.");
         }
 
-        // 2. Game Boost changes left active (e.g. MONOLITH or the PC crashed during a game).
+        // 2. The journal folder was writable by non-admins: its contents were set aside, never replayed.
+        if (ChangeJournal.Instance.QuarantinedFile is { } quarantined)
+        {
+            await Ui.AlertAsync("ЖУРНАЛ ОТЛОЖЕН",
+                "Папка данных MONOLITH была доступна для записи обычным пользователям, поэтому старый журнал изменений нельзя считать надёжным. " +
+                "Он сохранён отдельно и не будет выполняться; права на папку исправлены. Изменения, сделанные раньше, можно отменить точкой восстановления Windows.",
+                [quarantined]);
+        }
+
+        // 3. Game Boost changes left active (e.g. MONOLITH or the PC crashed during a game).
         var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
         {

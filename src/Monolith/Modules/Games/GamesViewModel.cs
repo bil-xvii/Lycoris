@@ -21,7 +21,7 @@ public sealed partial class GamesViewModel : PageViewModel
     private DateTime _lastScan = DateTime.MinValue;
 
     public override string Key => "games";
-    public override string Index => "03";
+    public override string Index => "04";
     public override string Title => "ИГРЫ";
     public override string Subtitle => "Библиотека игр и игровой режим: максимум ресурсов игре, пока она запущена.";
     public override string Glyph => Glyphs.Game;

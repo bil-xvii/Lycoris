@@ -47,6 +47,7 @@ public static class Glyphs
     public const string Filter = "";
     public const string Error = "";
     public const string Completed = "";
+    public const string Component = "";
 
     public const string Minimize = "";
     public const string Maximize = "";

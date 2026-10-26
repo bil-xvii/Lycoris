@@ -10,12 +10,17 @@ namespace Monolith.Modules.Drivers;
 
 internal sealed record NvidiaProduct(int Psid, int Pfid, string Name);
 
-internal sealed record NvidiaRelease(string Version, DateTime? Released, bool IsWhql, bool IsBeta, string? DetailsUrl, string? Name, string? FileSize);
+internal sealed record NvidiaRelease(string Version, DateTime? Released, bool IsWhql, bool IsBeta, string? DetailsUrl, string? Name, string? FileSize)
+{
+    /// <summary>Official installer on NVIDIA's download server (validated by DriverDownloads before use).</summary>
+    public string? DownloadUrl { get; init; }
+}
 
 /// <summary>
 /// "Update available" hint for NVIDIA GPUs. The endpoints are hosted by NVIDIA but undocumented
 /// (research §3: "unofficial — use only for a hint"): any error or schema change silently returns null,
-/// and the UI falls back to "check in NVIDIA App / on nvidia.com". Nothing is downloaded or installed here.
+/// and the UI falls back to "check in NVIDIA App / on nvidia.com". Downloading itself is done by DriverDownloads,
+/// which only accepts NVIDIA's download servers and a valid NVIDIA signature.
 /// </summary>
 internal static partial class NvidiaLookup
 {
@@ -89,7 +94,13 @@ internal static partial class NvidiaLookup
             try { name = Uri.UnescapeDataString(name); } catch { }
         }
 
-        return new NvidiaRelease(version, released, Str(info, "IsWHQL") == "1", Str(info, "IsBeta") == "1", details, name, Str(info, "DownloadURLFileSize"));
+        var download = Str(info, "DownloadURL");
+        if (!Uri.TryCreate(download, UriKind.Absolute, out var dl) || !DriverDownloads.IsAllowedDownload(dl)) download = null;
+
+        return new NvidiaRelease(version, released, Str(info, "IsWHQL") == "1", Str(info, "IsBeta") == "1", details, name, Str(info, "DownloadURLFileSize"))
+        {
+            DownloadUrl = download,
+        };
     }
 
     private static string? Str(JsonElement e, string prop) =>

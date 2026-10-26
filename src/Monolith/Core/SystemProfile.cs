@@ -223,8 +223,7 @@ public sealed class SystemProfile
         var list = new List<DiskInfo>();
         try
         {
-            using var searcher = new ManagementObjectSearcher(new ManagementScope(@"\\.\root\Microsoft\Windows\Storage"),
-                new ObjectQuery("SELECT FriendlyName, MediaType, Size, BusType FROM MSFT_PhysicalDisk"));
+            using var searcher = Searcher(@"\\.\root\Microsoft\Windows\Storage", "SELECT FriendlyName, MediaType, Size, BusType FROM MSFT_PhysicalDisk");
             foreach (ManagementObject mo in searcher.Get())
             {
                 using (mo)
@@ -246,15 +245,13 @@ public sealed class SystemProfile
         try
         {
             var sysLetter = (Environment.GetEnvironmentVariable("SystemDrive") ?? "C:").TrimEnd(':', '\\');
-            using var searcher = new ManagementObjectSearcher(new ManagementScope(@"\\.\root\Microsoft\Windows\Storage"),
-                new ObjectQuery($"SELECT DiskNumber FROM MSFT_Partition WHERE DriveLetter = '{sysLetter}'"));
+            using var searcher = Searcher(@"\\.\root\Microsoft\Windows\Storage", $"SELECT DiskNumber FROM MSFT_Partition WHERE DriveLetter = '{sysLetter}'");
             foreach (ManagementObject part in searcher.Get())
             {
                 using (part)
                 {
                     var num = Convert.ToUInt32(part["DiskNumber"] ?? 0u);
-                    using var ds = new ManagementObjectSearcher(new ManagementScope(@"\\.\root\Microsoft\Windows\Storage"),
-                        new ObjectQuery($"SELECT MediaType, BusType FROM MSFT_PhysicalDisk WHERE DeviceId = '{num}'"));
+                    using var ds = Searcher(@"\\.\root\Microsoft\Windows\Storage", $"SELECT MediaType, BusType FROM MSFT_PhysicalDisk WHERE DeviceId = '{num}'");
                     foreach (ManagementObject d in ds.Get())
                         using (d)
                             SystemDriveIsSsd = Convert.ToUInt16(d["MediaType"] ?? 0) != 3;
@@ -288,11 +285,19 @@ public sealed class SystemProfile
         var list = new List<ManagementBaseObject>();
         try
         {
-            using var searcher = new ManagementObjectSearcher(new ManagementScope(scope), new ObjectQuery(wql));
+            using var searcher = Searcher(scope, wql);
             foreach (var mo in searcher.Get()) list.Add(mo);
         }
         catch { }
         return list;
+    }
+
+    /// <summary>WMI query with timeouts: a hung provider must not stall the app.</summary>
+    internal static ManagementObjectSearcher Searcher(string scope, string wql)
+    {
+        var s = new ManagementScope(scope, new ConnectionOptions { Timeout = TimeSpan.FromSeconds(10) });
+        return new ManagementObjectSearcher(s, new ObjectQuery(wql),
+            new System.Management.EnumerationOptions { Timeout = TimeSpan.FromSeconds(15), ReturnImmediately = true, Rewindable = false });
     }
 
     private static void Safe(Action a)

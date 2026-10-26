@@ -1,11 +1,14 @@
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace Monolith.Core;
 
 /// <summary>
 /// Where MONOLITH keeps its files.
-/// Machine-wide state (undo journal, registry backups) lives in %ProgramData%\MONOLITH,
-/// per-user state (settings, logs) in %LocalAppData%\MONOLITH.
+/// Machine-wide state (undo journal, registry backups, driver backups/downloads) lives in %ProgramData%\MONOLITH
+/// and is locked down to Administrators/SYSTEM (see <see cref="SecureMachineDir"/>);
+/// per-user state (settings, logs, cache) in %LocalAppData%\MONOLITH.
 /// </summary>
 public static class AppPaths
 {
@@ -27,17 +30,158 @@ public static class AppPaths
     public static string ExecutablePath => Environment.ProcessPath
         ?? Path.Combine(AppContext.BaseDirectory, AppName + ".exe");
 
+    /// <summary>True when the machine folder was writable by non-administrators before it was secured in this run.</summary>
+    public static bool MachineDirWasInsecure { get; private set; }
+
+    /// <summary>True for paths inside %ProgramData%\MONOLITH (only an elevated process may write there).</summary>
+    public static bool IsUnderMachineDir(string path) =>
+        Path.GetFullPath(path).StartsWith(MachineDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetFullPath(path).TrimEnd('\\'), MachineDir, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Creates a directory if possible. Returns false instead of throwing (e.g. no admin rights).</summary>
     public static bool TryEnsureDir(string dir)
     {
         try
         {
+            // The machine folder is created only by an elevated process, with a locked-down ACL.
+            if (IsUnderMachineDir(dir))
+            {
+                if (!Elevation.IsElevated) return Directory.Exists(dir);
+                SecureMachineDir();
+            }
             Directory.CreateDirectory(dir);
             return true;
         }
         catch
         {
             return false;
+        }
+    }
+
+    private static readonly SecurityIdentifier SystemSid = new(WellKnownSidType.LocalSystemSid, null);
+    private static readonly SecurityIdentifier AdminsSid = new(WellKnownSidType.BuiltinAdministratorsSid, null);
+    private static readonly SecurityIdentifier UsersSid = new(WellKnownSidType.BuiltinUsersSid, null);
+    private static readonly SecurityIdentifier TrustedInstallerSid =
+        new("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464");
+    private static bool _secured;
+    private static readonly object SecureLock = new();
+
+    /// <summary>
+    /// Elevated only. Makes %ProgramData%\MONOLITH safe to trust: owner = Administrators, SYSTEM and
+    /// Administrators full control, Users read-only, inheritance from ProgramData cut (ProgramData lets every
+    /// user create files). Removes reparse points (junctions/symlinks) inside and resets child ACLs.
+    /// If the folder was writable by non-admins, <see cref="MachineDirWasInsecure"/> is set — the caller must
+    /// then treat the existing journal as untrusted.
+    /// </summary>
+    public static void SecureMachineDir()
+    {
+        if (!Elevation.IsElevated) return;
+        lock (SecureLock)
+        {
+            if (_secured) return;
+            try
+            {
+                var dir = new DirectoryInfo(MachineDir);
+                if (dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    // A link planted where our folder should be: remove the link itself (not its target).
+                    MachineDirWasInsecure = true;
+                    dir.Delete();
+                    dir.Refresh();
+                }
+
+                var security = BuildSecurity();
+                if (!dir.Exists)
+                {
+                    dir.Create(security);
+                }
+                else
+                {
+                    if (IsInsecure(dir.GetAccessControl())) MachineDirWasInsecure = true;
+                    dir.SetAccessControl(security);
+                }
+
+                ResetChildren(dir, 0);
+                _secured = true;
+                if (MachineDirWasInsecure)
+                    Log.Warn("Папка данных MONOLITH была доступна для записи обычным пользователям — права исправлены.");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Не удалось защитить папку данных MONOLITH", ex);
+            }
+        }
+    }
+
+    private static DirectorySecurity BuildSecurity()
+    {
+        var s = new DirectorySecurity();
+        s.SetOwner(AdminsSid);
+        s.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        const InheritanceFlags inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+        s.AddAccessRule(new FileSystemAccessRule(SystemSid, FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
+        s.AddAccessRule(new FileSystemAccessRule(AdminsSid, FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
+        s.AddAccessRule(new FileSystemAccessRule(UsersSid, FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None, AccessControlType.Allow));
+        return s;
+    }
+
+    private const FileSystemRights WriteLike =
+        FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.WriteExtendedAttributes |
+        FileSystemRights.WriteAttributes | FileSystemRights.Delete | FileSystemRights.DeleteSubdirectoriesAndFiles |
+        FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
+
+    private static bool IsTrusted(SecurityIdentifier? sid) =>
+        sid is not null && (sid.Equals(SystemSid) || sid.Equals(AdminsSid) || sid.Equals(TrustedInstallerSid));
+
+    private static bool IsInsecure(FileSystemSecurity acl)
+    {
+        if (!IsTrusted(acl.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier)) return true;
+        foreach (FileSystemAccessRule rule in acl.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+        {
+            if (rule.AccessControlType != AccessControlType.Allow) continue;
+            if (rule.PropagationFlags.HasFlag(PropagationFlags.InheritOnly)) continue; // e.g. CREATOR OWNER template
+            if (IsTrusted(rule.IdentityReference as SecurityIdentifier)) continue;
+            if ((rule.FileSystemRights & WriteLike) != 0) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Children inherit the locked-down parent ACL; links inside are removed, never followed.</summary>
+    private static void ResetChildren(DirectoryInfo dir, int depth)
+    {
+        if (depth > 8) return;
+        foreach (var entry in dir.EnumerateFileSystemInfos("*", new EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = true }))
+        {
+            try
+            {
+                if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    MachineDirWasInsecure = true;
+                    entry.Delete(); // removes the link only
+                    continue;
+                }
+                if (entry is DirectoryInfo sub)
+                {
+                    var ds = new DirectorySecurity();
+                    ds.SetOwner(AdminsSid);
+                    ds.SetAccessRuleProtection(false, false);
+                    if (IsInsecure(sub.GetAccessControl())) MachineDirWasInsecure = true;
+                    sub.SetAccessControl(ds);
+                    ResetChildren(sub, depth + 1);
+                }
+                else if (entry is FileInfo file)
+                {
+                    if (IsInsecure(file.GetAccessControl())) MachineDirWasInsecure = true;
+                    var fs = new FileSecurity();
+                    fs.SetOwner(AdminsSid);
+                    fs.SetAccessRuleProtection(false, false);
+                    file.SetAccessControl(fs);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Права {entry.FullName}: {ex.Message}");
+            }
         }
     }
 }

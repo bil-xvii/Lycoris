@@ -20,7 +20,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     private bool _confirmingRestorePoints;
 
     public override string Key => "settings";
-    public override string Index => "11";
+    public override string Index => "12";
     public override string Title => "НАСТРОЙКИ";
     public override string Subtitle => "Поведение программы, безопасность и сведения о MONOLITH.";
     public override string Glyph => Glyphs.Settings;
@@ -57,7 +57,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         new("03", "ТОЛЬКО ДОКАЗАННОЕ", "Только задокументированные настройки с подтверждённым эффектом. Мифы и «ускорители» не включены — даже скрыто."),
         new("04", "ЗАЩИЩЁННЫЕ СЛУЖБЫ", "Центр обновления, Защитник, брандмауэр, сеть, звук и другие критичные службы не изменяются никогда."),
         new("05", "БЕЗ ЧИСТКИ РЕЕСТРА", "Реестр не «чистится»: Microsoft не поддерживает такие программы, пользы нет, а риск сломать систему реален."),
-        new("06", "ВСЁ ОБРАТИМО", "Необратимые действия — удаление, установка драйверов, сброс сети — всегда показывают подтверждение со списком последствий."),
+        new("06", "НЕОБРАТИМОЕ — ТОЛЬКО С ПОДТВЕРЖДЕНИЕМ", "Удаление файлов, установка драйверов и программ, сброс сети не откатываются из журнала — поэтому перед ними всегда показывается подтверждение со списком последствий."),
     ];
 
     public IReadOnlyList<LicenseItem> Licenses { get; }

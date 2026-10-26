@@ -71,6 +71,7 @@ public static class Ui
     public static List<string> AutoAnswered { get; } = [];
 
     private static Dispatcher? Dispatcher => Application.Current?.Dispatcher;
+    private static readonly SemaphoreSlim DialogGate = new(1, 1);
 
     /// <summary>Asks the user to confirm. Returns true on confirm.</summary>
     public static Task<bool> ConfirmAsync(string title, string message, IEnumerable<string>? details = null,
@@ -84,14 +85,23 @@ public static class Ui
         return OnUi(async () =>
         {
             if (Host is null) return false;
-            var vm = new DialogViewModel
+            // One dialog at a time: a second request waits instead of replacing (and orphaning) the first.
+            await DialogGate.WaitAsync();
+            try
             {
-                Title = title, Message = message, Details = details?.ToList() ?? [],
-                ConfirmText = confirmText, CancelText = cancelText, IsDanger = danger, Footnote = footnote,
-            };
-            Host.Dialog = vm;
-            try { return await vm.Result; }
-            finally { if (Host.Dialog == vm) Host.Dialog = null; }
+                var vm = new DialogViewModel
+                {
+                    Title = title, Message = message, Details = details?.ToList() ?? [],
+                    ConfirmText = confirmText, CancelText = cancelText, IsDanger = danger, Footnote = footnote,
+                };
+                Host.Dialog = vm;
+                try { return await vm.Result; }
+                finally { if (Host.Dialog == vm) Host.Dialog = null; }
+            }
+            finally
+            {
+                DialogGate.Release();
+            }
         });
     }
 
@@ -106,14 +116,22 @@ public static class Ui
         return OnUi(async () =>
         {
             if (Host is null) return true;
-            var vm = new DialogViewModel
+            await DialogGate.WaitAsync();
+            try
             {
-                Title = title, Message = message, Details = details?.ToList() ?? [],
-                ConfirmText = "ПОНЯТНО", ShowCancel = false,
-            };
-            Host.Dialog = vm;
-            try { return await vm.Result; }
-            finally { if (Host.Dialog == vm) Host.Dialog = null; }
+                var vm = new DialogViewModel
+                {
+                    Title = title, Message = message, Details = details?.ToList() ?? [],
+                    ConfirmText = "ПОНЯТНО", ShowCancel = false,
+                };
+                Host.Dialog = vm;
+                try { return await vm.Result; }
+                finally { if (Host.Dialog == vm) Host.Dialog = null; }
+            }
+            finally
+            {
+                DialogGate.Release();
+            }
         });
     }
 

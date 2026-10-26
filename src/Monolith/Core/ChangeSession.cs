@@ -77,15 +77,17 @@ public sealed class ChangeSession
 
             var snapshot = RegistryHelper.Snapshot(hive, path, name);
             var newText = value is null ? "удалено" : $"{kind}: {FormatValue(kind, value)}";
-            (rec, isNew) = _journal.Add(new ChangeRecord
+            var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Registry, Target = target,
                 OldValue = snapshot.Describe(), NewValue = newText, Registry = snapshot,
-            });
+            };
+            (rec, isNew) = _journal.Add(incoming);
 
             if (value is null) RegistryHelper.DeleteValue(hive, path, name);
             else RegistryHelper.Write(hive, path, name, kind, value);
 
+            if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
             Log.Info($"{title}: {snapshot.FullName} = {newText}");
             return true;
@@ -115,12 +117,14 @@ public sealed class ChangeSession
             if (ServiceControl.IsProtected(service))
                 throw new InvalidOperationException($"служба {service} защищена от изменений");
 
-            (rec, isNew) = _journal.Add(new ChangeRecord
+            var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Service, Target = $"svc:{service}",
                 OldValue = snapshot.Describe(), NewValue = ServiceControl.DescribeStart(mode, delayed), Service = snapshot,
-            });
+            };
+            (rec, isNew) = _journal.Add(incoming);
             ServiceControl.SetStartMode(service, mode, delayed);
+            if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
             Log.Info($"{title}: {service} → {ServiceControl.DescribeStart(mode, delayed)}");
             return true;
@@ -143,13 +147,15 @@ public sealed class ChangeSession
         try
         {
             var original = PowerSchemes.GetActive();
-            (rec, isNew) = _journal.Add(new ChangeRecord
+            var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.PowerScheme, Target = "power:active",
                 OldValue = PowerSchemes.GetName(original), NewValue = PowerSchemes.GetName(scheme),
                 PowerSchemeOriginal = original, PowerSchemeCreated = createdScheme,
-            });
+            };
+            (rec, isNew) = _journal.Add(incoming);
             PowerSchemes.SetActive(scheme);
+            if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
             Log.Info($"{title}: план питания → {PowerSchemes.GetName(scheme)}");
             return true;
@@ -176,13 +182,15 @@ public sealed class ChangeSession
                 Log.Info($"{title}: задача {taskPath} не найдена — пропущено.");
                 return false;
             }
-            (rec, isNew) = _journal.Add(new ChangeRecord
+            var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.ScheduledTask, Target = $"task:{taskPath}",
                 OldValue = info.Enabled ? "Включена" : "Отключена", NewValue = enabled ? "Включена" : "Отключена",
                 TaskPath = taskPath, TaskWasEnabled = info.Enabled,
-            });
+            };
+            (rec, isNew) = _journal.Add(incoming);
             ScheduledTasks.SetEnabled(taskPath, enabled);
+            if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
             Log.Info($"{title}: {taskPath} → {(enabled ? "включена" : "отключена")}");
             return true;
@@ -208,16 +216,18 @@ public sealed class ChangeSession
         bool isNew = false;
         try
         {
-            (rec, isNew) = _journal.Add(new ChangeRecord
+            var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Command, Target = $"cmd:{target}",
                 OldValue = oldValue, NewValue = newValue, RevertFile = revertFile, RevertArgs = revertArgs,
-            });
+            };
+            (rec, isNew) = _journal.Add(incoming);
             // Encoded PowerShell scripts are unreadable base64 — log a readable line instead.
             var encoded = args.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
             if (encoded) Log.Command($"powershell: {title} ({newValue})");
             var r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
             if (!r.Success) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
+            if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
             return true;
         }

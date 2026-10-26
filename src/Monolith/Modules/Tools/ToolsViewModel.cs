@@ -25,7 +25,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     private DateTime _startedAt;
 
     public override string Key => "tools";
-    public override string Index => "09";
+    public override string Index => "10";
     public override string Title => "ИНСТРУМЕНТЫ";
     public override string Subtitle => "Проверка и восстановление Windows, диски, сеть и системные утилиты.";
     public override string Glyph => Glyphs.Repair;

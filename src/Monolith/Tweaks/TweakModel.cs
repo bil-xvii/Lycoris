@@ -146,11 +146,15 @@ public sealed class ServiceTweak : Tweak
 {
     public required IReadOnlyList<(string Service, ServiceStartMode Mode)> Services { get; init; }
 
+    /// <summary>"Manual" is also satisfied by a stricter "Disabled" the user chose — never loosen it.</summary>
+    internal static bool Satisfies(ServiceStartMode current, ServiceStartMode target) =>
+        current == target || (target == ServiceStartMode.Manual && current == ServiceStartMode.Disabled);
+
     public override TweakState Detect()
     {
         var present = Services.Where(s => ServiceControl.Exists(s.Service)).ToList();
         if (present.Count == 0) return TweakState.NotApplicable;
-        var matches = present.Count(s => ServiceControl.Query(s.Service)?.StartMode == s.Mode);
+        var matches = present.Count(s => ServiceControl.Query(s.Service) is { } q && Satisfies(q.StartMode, s.Mode));
         return matches == present.Count ? TweakState.Applied : matches == 0 ? TweakState.NotApplied : TweakState.Partial;
     }
 
@@ -159,7 +163,7 @@ public sealed class ServiceTweak : Tweak
         foreach (var (service, mode) in Services)
         {
             var current = ServiceControl.Query(service);
-            if (current is null || current.StartMode == mode) continue;
+            if (current is null || Satisfies(current.StartMode, mode)) continue;
             ctx.SetService(service, mode);
         }
     }

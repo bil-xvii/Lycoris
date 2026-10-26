@@ -26,6 +26,7 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
     private bool _ownsMutex;
+    private const string SingleInstanceName = @"Local\MONOLITH.SingleInstance";
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -58,6 +59,15 @@ public partial class App : Application
             Ui.AutoAnswer = false;
         }
 
+        // Already running? Bring that window up instead of asking for admin rights again.
+        if (!snapshot && !HasArg(args, "--elevated") && Mutex.TryOpenExisting(SingleInstanceName, out var existing))
+        {
+            existing.Dispose();
+            ActivateExistingInstance();
+            Shutdown();
+            return;
+        }
+
         if (!Elevation.IsElevated && !noElevate)
         {
             if (Elevation.TryRelaunchElevated())
@@ -70,7 +80,7 @@ public partial class App : Application
         if (!snapshot)
         {
             // When relaunched with admin rights the previous (non-elevated) copy is still closing: wait for it.
-            _singleInstance = new Mutex(false, @"Local\MONOLITH.SingleInstance");
+            _singleInstance = new Mutex(false, SingleInstanceName);
             bool acquired;
             try
             {
@@ -92,6 +102,12 @@ public partial class App : Application
         }
 
         Log.PruneOldLogs();
+        if (Elevation.IsElevated && !snapshot)
+        {
+            // Lock down %ProgramData%\MONOLITH before the journal is read, then repair an interrupted restore point.
+            AppPaths.SecureMachineDir();
+            RestorePointService.RecoverPendingFrequency();
+        }
         AppSettings.Load();
         _ = SystemProfile.LoadAsync();
         Log.Info($"MONOLITH запущен{(Elevation.IsElevated ? " с правами администратора" : " в режиме просмотра (без прав администратора)")}.");
@@ -176,6 +192,11 @@ public partial class App : Application
             }
         }
         AppSettings.Load();
+        if (Elevation.IsElevated)
+        {
+            AppPaths.SecureMachineDir();
+            RestorePointService.RecoverPendingFrequency();
+        }
         var full = Path.GetFullPath(dir);
         Dispatcher.InvokeAsync(async () =>
         {
@@ -198,7 +219,11 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        try { ChangeJournal.Instance.Save(); } catch { }
+        // Only an elevated MONOLITH writes the machine journal (Save is a no-op otherwise).
+        if (Elevation.IsElevated)
+        {
+            try { ChangeJournal.Instance.Save(); } catch { }
+        }
         if (_ownsMutex)
         {
             try { _singleInstance?.ReleaseMutex(); } catch { }

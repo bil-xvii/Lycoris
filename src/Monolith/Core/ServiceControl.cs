@@ -142,7 +142,8 @@ public static class ServiceControl
         }
     }
 
-    public static void Restore(ServiceStartSnapshot s) => SetStartMode(s.Name, s.StartMode, s.DelayedAutoStart, allowProtected: true);
+    /// <summary>Puts a start type back. Protected services are refused here too: MONOLITH never journals them.</summary>
+    public static void Restore(ServiceStartSnapshot s) => SetStartMode(s.Name, s.StartMode, s.DelayedAutoStart);
 
     public static async Task<bool> StopAsync(string name, TimeSpan timeout)
     {

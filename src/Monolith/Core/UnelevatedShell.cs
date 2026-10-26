@@ -1,9 +1,8 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Monolith.Core;
 
-namespace Monolith.Modules.Apps;
+namespace Monolith.Core;
 
 /// <summary>
 /// Starts programs with the desktop user's normal (non-elevated) token from an elevated MONOLITH:
@@ -11,7 +10,7 @@ namespace Monolith.Modules.Apps;
 /// so Explorer — not MONOLITH — creates the process (research §13). Used for elevation-prohibited, user-scope
 /// and Store packages, and for opening web pages (a browser must never run as administrator).
 /// </summary>
-internal static class UnelevatedShell
+public static class UnelevatedShell
 {
     public const int SwHide = 0;
     public const int SwShowNormal = 1;
@@ -103,6 +102,34 @@ internal static class UnelevatedShell
         catch (Exception ex)
         {
             Log.Error($"Не удалось открыть {uri.AbsoluteUri}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Starts a program, game or launcher link (steam://, com.epicgames.launcher://, …) as the signed-in user:
+    /// through the desktop shell when MONOLITH is elevated (games must never inherit administrator rights),
+    /// a normal shell start otherwise. Returns false if it could not be started without elevation.
+    /// </summary>
+    public static async Task<bool> StartAsUserAsync(string fileOrUri, string arguments = "", string? directory = null)
+    {
+        if (Elevation.IsElevated)
+        {
+            if (await ShellExecuteAsync(fileOrUri, arguments, directory ?? "", SwShowNormal).ConfigureAwait(false))
+                return true;
+            Log.Warn($"Не удалось запустить без прав администратора: {fileOrUri}");
+            return false;
+        }
+        try
+        {
+            var psi = new ProcessStartInfo(fileOrUri) { UseShellExecute = true, Arguments = arguments };
+            if (!string.IsNullOrEmpty(directory)) psi.WorkingDirectory = directory;
+            using var _ = Process.Start(psi);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Не удалось запустить {fileOrUri}", ex);
             return false;
         }
     }

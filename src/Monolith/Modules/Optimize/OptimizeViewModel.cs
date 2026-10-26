@@ -17,7 +17,7 @@ namespace Monolith.Modules.Optimize;
 public sealed partial class OptimizeViewModel : PageViewModel
 {
     public override string Key => "optimize";
-    public override string Index => "02";
+    public override string Index => "03";
     public override string Title => "ОПТИМИЗАЦИЯ";
     public override string Subtitle => "Выберите профиль, проверьте изменения и примените. Любой пункт откатывается в один клик.";
     public override string Glyph => Glyphs.Bolt;

@@ -88,15 +88,23 @@ public sealed class ChangeJournal
 
     private readonly object _lock = new();
     private readonly string _path;
+    /// <summary>The real journal in %ProgramData%: only an elevated process may write it.</summary>
+    private readonly bool _protected;
     private JournalFile _data = new();
 
     public event Action? Changed;
 
+    /// <summary>Set when the journal had to be quarantined because its folder was writable by non-admins.</summary>
+    public string? QuarantinedFile { get; private set; }
+
     public ChangeJournal(string path)
     {
         _path = path;
+        _protected = AppPaths.IsUnderMachineDir(path);
         Load();
     }
+
+    private bool CanWrite => !_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests;
 
     public IReadOnlyList<ChangeRecord> Records { get { lock (_lock) return _data.Records.ToList(); } }
     public IReadOnlyList<ChangeBatch> Batches { get { lock (_lock) return _data.Batches.ToList(); } }
@@ -127,9 +135,10 @@ public sealed class ChangeJournal
     }
 
     /// <summary>
-    /// Adds a record. If the same target was already changed (and not reverted), the FIRST record is kept,
-    /// because it holds the true original value; only its NewValue is refreshed.
-    /// Returns the record that now represents the target, and whether it is new.
+    /// Adds a record BEFORE the change is made. If the same target was already changed (and not reverted),
+    /// the FIRST record is kept untouched, because it holds the true original value — call
+    /// <see cref="MergeInto"/> after the new change succeeded to note the new value and source.
+    /// Returns the record that represents the target, and whether it is new.
     /// </summary>
     public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record)
     {
@@ -140,10 +149,6 @@ public sealed class ChangeJournal
             var existing = _data.Records.LastOrDefault(r => !r.Reverted && string.Equals(r.Target, record.Target, StringComparison.OrdinalIgnoreCase));
             if (existing is not null)
             {
-                existing.NewValue = record.NewValue;
-                if (record.Source != existing.Source && !existing.AlsoSources.Contains(record.Source))
-                    existing.AlsoSources.Add(record.Source);
-                existing.PowerSchemeCreated ??= record.PowerSchemeCreated;
                 result = existing;
                 isNew = false;
             }
@@ -152,11 +157,25 @@ public sealed class ChangeJournal
                 _data.Records.Add(record);
                 result = record;
                 isNew = true;
+                SaveLocked();
             }
+        }
+        if (isNew) Changed?.Invoke();
+        return (result, isNew);
+    }
+
+    /// <summary>After a successful change of an already-journaled target: remember its new value and source.</summary>
+    public void MergeInto(ChangeRecord existing, ChangeRecord incoming)
+    {
+        lock (_lock)
+        {
+            existing.NewValue = incoming.NewValue;
+            if (incoming.Source != existing.Source && !existing.AlsoSources.Contains(incoming.Source))
+                existing.AlsoSources.Add(incoming.Source);
+            existing.PowerSchemeCreated ??= incoming.PowerSchemeCreated;
             SaveLocked();
         }
         Changed?.Invoke();
-        return (result, isNew);
     }
 
     /// <summary>Removes a record that was added but whose change then failed.</summary>
@@ -219,16 +238,49 @@ public sealed class ChangeJournal
 
     public Task<RevertResult> RevertAllAsync() => RevertAsync(ActiveRecords);
 
+    /// <summary>The only programs a journaled undo command may run (full System32 paths).</summary>
+    private static readonly string[] AllowedRevertPrograms =
+    [
+        ProcessRunner.Sys("cmd.exe"),
+        Path.Combine(ProcessRunner.System32, "WindowsPowerShell", "v1.0", "powershell.exe"),
+        ProcessRunner.Sys("powercfg.exe"),
+        ProcessRunner.Sys("netsh.exe"),
+        ProcessRunner.Sys("fsutil.exe"),
+        ProcessRunner.Sys("pnputil.exe"),
+    ];
+
+    /// <summary>
+    /// Registry locations MONOLITH never writes during an undo: autostart and process-hijack points.
+    /// No legitimate MONOLITH record targets them; refusing them makes a forged journal useless.
+    /// </summary>
+    internal static bool IsForbiddenRestoreTarget(RegistryValueSnapshot s)
+    {
+        var p = s.Path.Replace('/', '\\').TrimEnd('\\').ToLowerInvariant();
+        var n = s.Name.ToLowerInvariant();
+        if (p.Contains("image file execution options") || p.Contains("silentprocessexit")) return true;
+        if (p.Contains(@"\winlogon") || p.Contains(@"\appinit_dlls") || n == "appinit_dlls") return true;
+        if (p.EndsWith(@"currentversion\run") || p.EndsWith(@"currentversion\runonce") || p.EndsWith(@"currentversion\runonceex")
+            || p.EndsWith(@"currentversion\runservices") || p.EndsWith(@"currentversion\runservicesonce")
+            || p.EndsWith(@"policies\explorer\run")) return true;
+        if (p.Contains(@"\services\") && n is "imagepath" or "servicedll" or "failurecommand") return true;
+        if (p.Contains(@"\shell\open\command") || p.Contains(@"\shellex\")) return true;
+        if (p.Contains(@"windows defender") || p.Contains(@"\lsa")) return true;
+        return false;
+    }
+
     private static async Task RevertOneAsync(ChangeRecord r)
     {
         switch (r.Kind)
         {
             case ChangeKind.Registry when r.Registry is not null:
+                if (IsForbiddenRestoreTarget(r.Registry))
+                    throw new InvalidOperationException($"Отказано: {r.Registry.FullName} — защищённое место реестра. Такую запись MONOLITH создать не мог.");
                 RegistryHelper.Restore(r.Registry);
                 break;
 
             case ChangeKind.Service when r.Service is not null:
-                ServiceControl.Restore(r.Service);
+                // Never allowProtected: no legitimate record can target a protected service.
+                ServiceControl.SetStartMode(r.Service.Name, r.Service.StartMode, r.Service.DelayedAutoStart);
                 break;
 
             case ChangeKind.PowerScheme:
@@ -246,6 +298,8 @@ public sealed class ChangeJournal
 
             case ChangeKind.Command when !string.IsNullOrWhiteSpace(r.RevertFile):
                 SafetyLock.ThrowIfLocked("откат команды");
+                if (!AllowedRevertPrograms.Contains(r.RevertFile, StringComparer.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Отказано: команда отката «{r.RevertFile}» не из списка системных утилит.");
                 var encoded = (r.RevertArgs ?? "").Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
                 if (encoded) Log.Command($"powershell: откат «{r.Title}»");
                 var result = await ProcessRunner.RunAsync(r.RevertFile!, r.RevertArgs ?? "",
@@ -260,18 +314,61 @@ public sealed class ChangeJournal
 
     private void Load()
     {
+        if (_protected && Elevation.IsElevated)
+        {
+            AppPaths.SecureMachineDir();
+            if (AppPaths.MachineDirWasInsecure && (File.Exists(_path) || File.Exists(_path + ".bak")))
+            {
+                // Someone without admin rights could have edited it: never replay it. Keep it for inspection.
+                var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                QuarantinedFile = _path + $".untrusted-{stamp}";
+                try { if (File.Exists(_path)) File.Move(_path, QuarantinedFile); } catch { }
+                try { if (File.Exists(_path + ".bak")) File.Move(_path + ".bak", QuarantinedFile + ".bak"); } catch { }
+                Log.Warn($"Журнал изменений хранился в незащищённой папке и отложен как недоверенный: {QuarantinedFile}");
+                return;
+            }
+        }
+
+        if (TryRead(_path, out var data, out var error))
+        {
+            _data = data;
+            return;
+        }
+        if (error is null) return; // no journal yet
+
+        // Damaged: keep a copy, then fall back to the last good version.
+        try { File.Copy(_path, _path + $".broken-{DateTime.Now:yyyyMMddHHmmss}", true); } catch { }
+        if (TryRead(_path + ".bak", out var backup, out _))
+        {
+            _data = backup;
+            Log.Warn("Журнал изменений был повреждён — восстановлен из резервной копии.");
+        }
+        else
+        {
+            _data = new JournalFile();
+            Log.Error("Журнал изменений повреждён — создана копия, начат новый журнал", error);
+        }
+        // Move the damaged file away so the next save does not rotate it into .bak over the good copy.
+        if (CanWrite)
+        {
+            try { File.Delete(_path); } catch { }
+        }
+    }
+
+    private static bool TryRead(string path, out JournalFile data, out Exception? error)
+    {
+        data = new JournalFile();
+        error = null;
         try
         {
-            if (!File.Exists(_path)) return;
-            var json = File.ReadAllText(_path);
-            _data = JsonSerializer.Deserialize<JournalFile>(json, JsonOptions) ?? new JournalFile();
+            if (!File.Exists(path)) return false;
+            data = JsonSerializer.Deserialize<JournalFile>(File.ReadAllText(path), JsonOptions) ?? new JournalFile();
+            return true;
         }
         catch (Exception ex)
         {
-            // Never lose a damaged journal: keep a copy for manual recovery.
-            try { File.Copy(_path, _path + $".broken-{DateTime.Now:yyyyMMddHHmmss}", true); } catch { }
-            Log.Error("Журнал изменений повреждён — создана копия, начат новый журнал", ex);
-            _data = new JournalFile();
+            error = ex;
+            return false;
         }
     }
 
@@ -282,12 +379,20 @@ public sealed class ChangeJournal
 
     private void SaveLocked()
     {
+        // A non-elevated MONOLITH never creates or touches the machine journal.
+        if (!CanWrite) return;
         try
         {
             var dir = Path.GetDirectoryName(_path)!;
             if (!AppPaths.TryEnsureDir(dir)) return;
             var tmp = _path + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(_data, JsonOptions));
+            try { File.Delete(tmp); } catch { }
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(_data, JsonOptions);
+            using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                fs.Write(bytes);
+                fs.Flush(flushToDisk: true);
+            }
             if (File.Exists(_path))
                 File.Replace(tmp, _path, _path + ".bak", ignoreMetadataErrors: true);
             else

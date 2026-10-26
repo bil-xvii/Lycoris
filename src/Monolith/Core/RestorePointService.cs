@@ -109,6 +109,33 @@ public static class RestorePointService
         }
     }
 
+    private static string PendingFrequencyFile => System.IO.Path.Combine(AppPaths.MachineDir, "pending-restorepoint-frequency.json");
+
+    /// <summary>
+    /// Elevated startup: if MONOLITH was closed while creating a restore point, the 24-hour limit we lifted
+    /// for that one call is still lifted — put the original value back.
+    /// </summary>
+    public static void RecoverPendingFrequency()
+    {
+        if (!Elevation.IsElevated) return;
+        try
+        {
+            if (!System.IO.File.Exists(PendingFrequencyFile)) return;
+            var snap = System.Text.Json.JsonSerializer.Deserialize<RegistryValueSnapshot>(System.IO.File.ReadAllText(PendingFrequencyFile));
+            if (snap is { Hive: RegHive.HKLM, Name: "SystemRestorePointCreationFrequency" } &&
+                string.Equals(snap.Path, SrKey, StringComparison.OrdinalIgnoreCase))
+            {
+                RegistryHelper.Restore(snap);
+                Log.Info("Восстановлено исходное ограничение частоты точек восстановления.");
+            }
+            System.IO.File.Delete(PendingFrequencyFile);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Не удалось восстановить ограничение частоты точек восстановления: {ex.Message}");
+        }
+    }
+
     private static RestorePointResult CreateCore(string description)
     {
         var before = MaxSequence();
@@ -116,6 +143,9 @@ public static class RestorePointService
         try
         {
             freq = RegistryHelper.Snapshot(RegHive.HKLM, SrKey, "SystemRestorePointCreationFrequency");
+            // Write the original down first, so a crash between here and "finally" can be repaired at next start.
+            if (AppPaths.TryEnsureDir(AppPaths.MachineDir))
+                System.IO.File.WriteAllText(PendingFrequencyFile, System.Text.Json.JsonSerializer.Serialize(freq));
             RegistryHelper.Write(RegHive.HKLM, SrKey, "SystemRestorePointCreationFrequency", RegistryValueKind.DWord, 0);
         }
         catch { freq = null; }
@@ -152,7 +182,12 @@ public static class RestorePointService
         {
             if (freq is not null)
             {
-                try { RegistryHelper.Restore(freq); } catch { }
+                try
+                {
+                    RegistryHelper.Restore(freq);
+                    System.IO.File.Delete(PendingFrequencyFile);
+                }
+                catch { }
             }
         }
     }

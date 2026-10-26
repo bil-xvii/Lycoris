@@ -22,6 +22,13 @@ by `tools/autosave.ps1` (Claude Code Stop hook in `.claude/settings.json`).
 5. Destructive or irreversible actions (deleting files, uninstalling, driver installs) always show a confirmation
    dialog (`Ui.ConfirmAsync`) listing exactly what will happen.
 6. Without admin rights the app runs read-only: check `Elevation.IsElevated` / `PageViewModel.RequireAdmin`.
+7. `%ProgramData%\MONOLITH` is locked to Administrators/SYSTEM (`AppPaths.SecureMachineDir`); a non-elevated
+   process never writes there. The journal is treated as untrusted input: undo commands are limited to System32
+   tools and autostart/hijack registry locations are refused (`ChangeJournal.IsForbiddenRestoreTarget`).
+8. Browsers, games and launchers are never started with MONOLITH's admin token: use
+   `UnelevatedShell.OpenAsync` (web pages) / `UnelevatedShell.StartAsUserAsync` (programs, launcher URIs).
+9. Downloads of driver installers only via `Modules/Drivers/DriverDownloads` (vendor HTTPS hosts allow-list +
+   valid vendor Authenticode signature, files kept in the admin-only machine folder).
 
 ## Layout
 
