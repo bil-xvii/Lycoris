@@ -120,6 +120,24 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                 [quarantined]);
         }
 
+        // 2b. The journal could not be read or trusted: no changes are possible until a new one is started.
+        if (ChangeJournal.Instance.UnavailableReason is { } unavailable && Elevation.IsElevated)
+        {
+            var start = await Ui.ConfirmAsync("ЖУРНАЛ НЕДОСТУПЕН",
+                $"{unavailable} Пока журнал недоступен, MONOLITH ничего не меняет в системе — иначе изменения нельзя было бы отменить. " +
+                "Можно начать новый журнал: старые файлы не удаляются, а сохраняются рядом с отметкой времени. " +
+                "Изменения, записанные в старом журнале, из MONOLITH отменить будет нельзя — только точкой восстановления Windows.",
+                confirmText: "НАЧАТЬ НОВЫЙ ЖУРНАЛ", danger: true);
+            if (start)
+            {
+                if (await Task.Run(ChangeJournal.Instance.StartNewJournal))
+                    Ui.Toast("Начат новый журнал изменений.", ToastKind.Success);
+                else
+                    await Ui.AlertAsync("НЕ УДАЛОСЬ НАЧАТЬ НОВЫЙ ЖУРНАЛ",
+                        "Старые файлы журнала не удалось отложить. Подробности — в консоли MONOLITH.");
+            }
+        }
+
         // 3. Game Boost changes left active (e.g. MONOLITH or the PC crashed during a game).
         var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
