@@ -279,7 +279,7 @@ SELECT Name, DeviceID, PNPClass, HardwareID, ConfigManagerErrorCode, Present, St
 
 - **Recommendation:** use pnputil, and write a JSON manifest from `pnputil /enum-drivers /format xml` (fallback: parse the text). Create the target folder first. Warn the user about size: an NVIDIA package alone is about 1–2 GB.
 - One article claims DISM is safer because pnputil doesn't copy `.pnf` files. That claim is **debated or weak**: `.pnf` files are a precompiled cache that Windows regenerates.
-- **Restore:** `pnputil /add-driver "<dir>\*.inf" /subdirs /install`. Exit code 0 means success; 3010 means a reboot is required. `/install` installs only if the package outranks the current driver, so it **does not downgrade**.
+- **Restore:** per package, `pnputil /add-driver "<dir>\<package>\<name>.inf" /install`, only for the INFs listed in `monolith-backup.json`. MONOLITH refuses a backup that has unlisted INFs, missing files or links (reparse points) anywhere in its tree. Exit code 0 means success; 3010 means a reboot is required. `/install` installs only if the package outranks the current driver, so it **does not downgrade**.
 - **Rollback after a bad update:**
   - Use the documented `DiRollbackDriver` (newdev.dll, `ROLLBACK_FLAG_NO_UI`, out `NeedReboot`), or Device Manager → Roll Back.
   - Before every install, MONOLITH exports the device's current `oemNN.inf` and records {instanceId, old INF and version, new version, restore point} in the Undo Center.
