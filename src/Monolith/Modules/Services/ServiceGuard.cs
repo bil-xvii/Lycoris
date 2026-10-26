@@ -22,6 +22,9 @@ public static class ServiceGuard
     private const string Updater = "Обновление браузера и WebView2: без него остаются незакрытые уязвимости.";
     private const string Debated = "Спорная настройка: отключение чаще вредит, чем помогает.";
     private const string Identity = "Смарт-карты, токены ЭЦП (Рутокен, JaCarta) и Windows Hello.";
+    private const string NetAuth = "Вход в корпоративные сети (802.1X, WPA2/3-Enterprise, eduroam) и DirectAccess: без неё пропадёт подключение.";
+    private const string Radio = "Управление радиомодулями: без неё не работают режим «в самолёте» и переключатели Wi-Fi/Bluetooth.";
+    private const string Time = "Синхронизация времени и часового пояса: неверное время ломает вход, сертификаты HTTPS и обновления.";
 
     /// <summary>Research §2A HARD-BLOCK list plus "never / do not offer" services from §1.</summary>
     private static readonly Dictionary<string, string> HardBlock = Build(
@@ -46,7 +49,10 @@ public static class ServiceGuard
                       "NVDisplay.ContainerLocalSystem", "AMD External Events Utility", "amd3dvcacheSvc", "AMD Crash Defender Service"]),
         (Updater, ["edgeupdate", "edgeupdatem", "gupdate", "gupdatem"]),
         (Debated, ["SysMain", "SharedAccess"]),
-        (Identity, ["SCardSvr", "ScDeviceEnum", "SCPolicySvc", "CertPropSvc", "WbioSrvc"]));
+        (Identity, ["SCardSvr", "ScDeviceEnum", "SCPolicySvc", "CertPropSvc", "WbioSrvc"]),
+        (NetAuth, ["Eaphost", "dot3svc", "NcaSvc"]),
+        (Radio, ["RmSvc"]),
+        (Time, ["W32Time", "tzautoupdate"]));
 
     private static readonly (string Prefix, string Reason)[] HardBlockPrefixes =
     [
@@ -116,6 +122,21 @@ public static class ServiceGuard
         if (IsDriverStorePath(imagePath))
             return "Служба из пакета драйвера производителя: без неё перестанут работать функции драйвера.";
         return null;
+    }
+
+    /// <summary>
+    /// Research §0.4/§2B "not in the curated allowlist": outside expert mode (Settings → ЭКСПЕРТНЫЙ РЕЖИМ СЛУЖБ)
+    /// every non-curated service — other Microsoft services and all third-party ones — is read-only.
+    /// Returns null when the service is curated or expert mode is on.
+    /// </summary>
+    public static string? NotCuratedLockReason(string name, bool isThirdParty, bool expertMode)
+    {
+        if (expertMode || ServiceCatalog.IsCurated(name)) return null;
+        var what = isThirdParty
+            ? "Служба стороннего производителя: MONOLITH не знает, какие функции её программы от неё зависят."
+            : "Этой службы нет в проверенном списке MONOLITH: последствия её изменения не изучены.";
+        return what + " Здесь она только для просмотра. Менять такие службы на свой риск можно после включения " +
+               "«Экспертного режима служб» в разделе «Настройки».";
     }
 
     public static bool IsDriverStorePath(string? imagePath) =>

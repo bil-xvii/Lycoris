@@ -85,8 +85,10 @@ public static class ServiceCatalog
             Name = "DiagTrack", Title = "Телеметрия Windows", Group = ServiceGroup.Telemetry,
             Description = "Собирает и отправляет в Microsoft диагностические данные. По умолчанию работает постоянно с момента загрузки.",
             Condition = "ПК не участвует в программе Windows Insider и не управляется организацией (Intune, Autopatch).",
-            Impact = "Заметных последствий нет: при необходимости Windows запустит службу сама.",
-            Target = ServiceStartMode.Manual, Profiles = RG, Gate = ServiceGate.NotInsider,
+            Impact = "Часть функций Центра отзывов и средств диагностики может работать хуже; используйте вместе с «Только обязательная диагностика».",
+            // Same journal target (svc:DiagTrack) as Optimize's diagtrack-manual, which general_tweaks.md rates ADVANCED:
+            // the stricter classification wins, so no profile pre-selects it.
+            Target = ServiceStartMode.Manual, Profiles = RG, Conditional = true, Risk = TweakRisk.Advanced, Gate = ServiceGate.NotInsider,
         },
         new()
         {
