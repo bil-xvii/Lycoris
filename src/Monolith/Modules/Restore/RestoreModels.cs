@@ -1,0 +1,62 @@
+using System.Globalization;
+using Monolith.Core;
+
+namespace Monolith.Modules.Restore;
+
+/// <summary>One journal record as shown in the undo center.</summary>
+public sealed class RecordItem(ChangeRecord record)
+{
+    public ChangeRecord Record { get; } = record;
+    public string Title => Record.Title.Length > 0 ? Record.Title : "Без названия";
+    public string KindLabel => RestoreFormat.KindLabel(Record.Kind);
+    public string Target => RestoreFormat.DescribeTarget(Record.Target);
+    public string RawTarget => Record.Target;
+    public string OldValue => string.IsNullOrWhiteSpace(Record.OldValue) ? "—" : Record.OldValue;
+    public string NewValue => string.IsNullOrWhiteSpace(Record.NewValue) ? "—" : Record.NewValue;
+    public string Source => string.IsNullOrWhiteSpace(Record.Source) ? "monolith" : Record.Source;
+    public string TimeText => Record.Timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+    public RecordState State => RestoreFormat.StateOf(Record);
+    public string StatusText => RestoreFormat.StatusText(Record);
+    public bool IsActive => !Record.Reverted;
+    public bool IsReverted => Record.Reverted;
+    public bool IsFailed => State == RecordState.Failed;
+    public string? RevertError => Record.RevertError;
+}
+
+/// <summary>A batch ("пакет") of changes made by one action.</summary>
+public sealed class BatchItem(JournalGroup group)
+{
+    public JournalGroup Group { get; } = group;
+    public Guid Id => Group.Batch.Id;
+    public string Title => Group.Batch.Title.Length > 0 ? Group.Batch.Title : "Без названия";
+    public string DateText => RestoreFormat.FormatDate(Group.Batch.Timestamp);
+    public IReadOnlyList<RecordItem> Records { get; } = group.Records.Select(r => new RecordItem(r)).ToList();
+    public int ActiveCount => Group.ActiveCount;
+    public int TotalCount => Group.TotalCount;
+    public bool CanRevert => ActiveCount > 0;
+    public bool IsEmpty => TotalCount == 0;
+    public bool IsSynthetic => Group.IsSynthetic;
+    public bool HasRestorePointInfo => !IsSynthetic;
+    public bool RestorePointCreated => RestoreFormat.IsRestorePointCreated(Group.Batch.RestorePoint);
+
+    public string RestorePointText => IsSynthetic
+        ? "Записи, пакет которых не найден в журнале."
+        : string.IsNullOrWhiteSpace(Group.Batch.RestorePoint) ? "Точка восстановления не создавалась." : Group.Batch.RestorePoint!;
+
+    public string CountText => TotalCount == 0
+        ? "НЕТ ЗАПИСЕЙ"
+        : ActiveCount == 0
+            ? "ВСЁ ОТКАЧЕНО"
+            : $"АКТИВНО {ActiveCount} ИЗ {TotalCount}";
+}
+
+/// <summary>A Windows restore point.</summary>
+public sealed class RestorePointItem(RestorePointInfo info)
+{
+    public RestorePointInfo Info { get; } = info;
+    public string DateText => Info.Created == DateTime.MinValue ? "—" : Info.Created.ToString("dd.MM.yyyy · HH:mm", CultureInfo.InvariantCulture);
+    public string Description => string.IsNullOrWhiteSpace(Info.Description) ? "Без описания" : Info.Description;
+    public string TypeLabel => RestoreFormat.RestorePointTypeLabel(Info.Type);
+    public bool IsMonolith => RestoreFormat.IsMonolithPoint(Info.Description);
+    public string SequenceText => "#" + Info.Sequence.ToString(CultureInfo.InvariantCulture);
+}
