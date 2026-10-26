@@ -276,8 +276,9 @@ public sealed partial class WuUpdateItem : ObservableObject
         Update = u;
         IsFirmware = WuText.IsFirmware(u.DriverClass);
         FixesProblem = u.DeviceProblemNumber != 0;
-        // Recommended ones are pre-checked; optional ones only when they fix a device with a problem (research §1.1).
-        _isSelected = !IsFirmware && (!u.IsOptional || FixesProblem);
+        // Recommended ones are pre-checked; optional ones never are (research drivers.md §1): the user ticks them
+        // deliberately — a hint marks those that match a device with a problem.
+        _isSelected = !IsFirmware && !u.IsOptional;
     }
 
     internal WuDriverUpdate Update { get; }
@@ -295,13 +296,19 @@ public sealed partial class WuUpdateItem : ObservableObject
     public bool IsOptional => Update.IsOptional;
     public bool IsFirmware { get; }
     public bool FixesProblem { get; }
+    /// <summary>An optional driver for a device with a problem: shown as a hint, never pre-checked.</summary>
+    public bool ShowFixesProblemHint => IsOptional && FixesProblem && !IsFirmware;
+    /// <summary>A recommended driver (or firmware) for a device with a problem.</summary>
+    public bool ShowProblemDeviceTag => FixesProblem && !ShowFixesProblemHint;
     public bool NeedsEula => !Update.EulaAccepted;
     public bool CanSelect => !IsFirmware;
     public string KindText => IsFirmware ? "ПРОШИВКА" : IsOptional ? "НЕОБЯЗАТЕЛЬНОЕ" : "РЕКОМЕНДУЕМОЕ";
     public string KindHint => IsFirmware
         ? "Обновление прошивки (UEFI/BIOS). MONOLITH не прошивает оборудование — установите его в параметрах Windows Update или утилитой производителя."
         : IsOptional
-            ? "Необязательный драйвер: ставьте его, только если с устройством есть проблема."
+            ? FixesProblem
+                ? "Необязательный драйвер для устройства, которое сейчас работает с ошибкой: он может её исправить. Отметьте его, если хотите попробовать."
+                : "Необязательный драйвер: ставьте его, только если с устройством есть проблема."
             : "Рекомендуемый драйвер: Windows Update установит его и сама, здесь можно сделать это сразу.";
 
     [ObservableProperty] private bool _isSelected;

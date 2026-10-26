@@ -236,7 +236,7 @@
                                     <Button Style="{StaticResource Btn.Danger}" HorizontalAlignment="Stretch"
                                             Command="{Binding DataContext.RestoreBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}" ToolTipService.ShowOnDisabled="True"
-                                            ToolTip="pnputil /add-driver … /subdirs /install — после точки восстановления">
+                                            ToolTip="pnputil /add-driver &lt;пакет&gt;.inf /install для каждого пакета из описания копии — после точки восстановления">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                                             <TextBlock Text="ВОССТАНОВИТЬ" VerticalAlignment="Center" />
