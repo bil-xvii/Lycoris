@@ -18,6 +18,7 @@ namespace Monolith.Modules.Settings;
 public sealed partial class SettingsViewModel : PageViewModel
 {
     private bool _confirmingRestorePoints;
+    private bool _confirmingExpertMode;
 
     public override string Key => "settings";
     public override string Index => "11";
@@ -119,6 +120,9 @@ public sealed partial class SettingsViewModel : PageViewModel
             case nameof(AppSettings.CreateRestorePoints):
                 if (!_confirmingRestorePoints) OnPropertyChanged(nameof(CreateRestorePoints));
                 break;
+            case nameof(AppSettings.ServicesExpertMode):
+                if (!_confirmingExpertMode) OnPropertyChanged(nameof(ServicesExpertMode));
+                break;
             case nameof(AppSettings.MonitorIntervalMs):
                 OnPropertyChanged(nameof(SelectedInterval));
                 break;
@@ -133,6 +137,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     private void RaiseSettingProperties()
     {
         OnPropertyChanged(nameof(CreateRestorePoints));
+        OnPropertyChanged(nameof(ServicesExpertMode));
         OnPropertyChanged(nameof(SelectedInterval));
         OnPropertyChanged(nameof(Settings));
     }
@@ -186,6 +191,59 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             _confirmingRestorePoints = false;
             OnPropertyChanged(nameof(CreateRestorePoints));
+        }
+    }
+
+    /// <summary>
+    /// Expert mode of ВСЕ СЛУЖБЫ (services.md §0.4): turning it on asks first (danger); turning it off is immediate.
+    /// </summary>
+    public bool ServicesExpertMode
+    {
+        get => AppSettings.Current.ServicesExpertMode;
+        set
+        {
+            if (value == AppSettings.Current.ServicesExpertMode) return;
+            if (!value)
+            {
+                AppSettings.Current.ServicesExpertMode = false;
+                Log.Info("Экспертный режим служб выключен: службы вне списка MONOLITH снова только для просмотра.");
+                return;
+            }
+            // Keep the toggle off until the user confirms (re-raised after the binding finishes its update).
+            Application.Current?.Dispatcher.BeginInvoke(async () =>
+            {
+                OnPropertyChanged(nameof(ServicesExpertMode));
+                await ConfirmEnableExpertModeAsync();
+            });
+        }
+    }
+
+    private async Task ConfirmEnableExpertModeAsync()
+    {
+        if (_confirmingExpertMode) return;
+        _confirmingExpertMode = true;
+        try
+        {
+            var ok = await Ui.ConfirmAsync(
+                "Включить экспертный режим служб?",
+                "На вкладке «Все службы» станет можно менять тип запуска, запускать и останавливать службы, которых нет в проверенном списке MONOLITH.",
+                [
+                    "Эти службы MONOLITH не проверял: отключение может сломать Wi-Fi с корпоративным входом (802.1X), режим «в самолёте», синхронизацию времени, VPN, резервное копирование и программы сторонних производителей",
+                    "Критичные службы Windows, драйверы, защищённые и пользовательские службы остаются заблокированными и в этом режиме",
+                    "Каждое изменение типа запуска по-прежнему записывается в журнал и откатывается из «Восстановления»",
+                    "Выключить режим можно здесь же в любой момент — уже сделанные изменения при этом не откатываются",
+                ],
+                confirmText: "ВКЛЮЧИТЬ", danger: true);
+            if (ok)
+            {
+                AppSettings.Current.ServicesExpertMode = true;
+                Log.Warn("Экспертный режим служб включён: службы вне списка MONOLITH можно менять на свой риск.");
+            }
+        }
+        finally
+        {
+            _confirmingExpertMode = false;
+            OnPropertyChanged(nameof(ServicesExpertMode));
         }
     }
 

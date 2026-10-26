@@ -275,14 +275,22 @@ public sealed partial class RestoreViewModel : PageViewModel
     private Task RevertRecordAsync(RecordItem? item) => RunBusyAsync("Откат изменения…", async () =>
     {
         if (item is null || _journal is null || !RequireAdmin("Откат изменения")) return;
+        // Research services.md §3.5: show the real current value and warn when it changed after MONOLITH.
+        var live = await Task.Run(() => LiveState.Read(item.Record));
+        var lines = new List<string>
+        {
+            $"{item.KindLabel}: {item.Target}",
+            $"Сейчас: {live.Text}",
+            $"Станет: {item.OldValue}",
+        };
+        if (live.IsDrifted)
+            lines.Add($"После MONOLITH значение изменили (Windows, политика или вы): MONOLITH ставил «{item.NewValue}». Откат заменит текущее значение исходным.");
         if (!await Ui.ConfirmAsync("Откатить изменение?",
-                $"«{item.Title}» вернётся к значению, которое было до MONOLITH.",
-                [
-                    $"{item.KindLabel}: {item.Target}",
-                    $"Сейчас: {item.NewValue}",
-                    $"Станет: {item.OldValue}",
-                ],
-                confirmText: "ОТКАТИТЬ"))
+                live.IsDrifted
+                    ? $"«{item.Title}» изменено вне MONOLITH. Если откатить, вернётся значение, которое было до MONOLITH, а более позднее изменение пропадёт."
+                    : $"«{item.Title}» вернётся к значению, которое было до MONOLITH.",
+                lines,
+                confirmText: "ОТКАТИТЬ", danger: live.IsDrifted))
             return;
 
         var journal = _journal;
@@ -301,10 +309,13 @@ public sealed partial class RestoreViewModel : PageViewModel
             : r.BatchId == batch.Id)).ToList();
         if (active.Count == 0) return;
 
+        var ordered = active.OrderByDescending(r => r.TimestampUtc).ToList();
+        var (lines, drifted) = await DescribeLiveAsync(ordered);
         if (!await Ui.ConfirmAsync("Откатить пакет?",
-                $"«{batch.Title}» — {active.Count} {RestoreFormat.Plural(active.Count, "изменение вернётся", "изменения вернутся", "изменений вернутся")} к исходным значениям, от последнего к первому.",
-                active.OrderByDescending(r => r.TimestampUtc).Select(Describe),
-                confirmText: "ОТКАТИТЬ ПАКЕТ"))
+                $"«{batch.Title}» — {active.Count} {RestoreFormat.Plural(active.Count, "изменение вернётся", "изменения вернутся", "изменений вернутся")} к исходным значениям, от последнего к первому." +
+                DriftSentence(drifted),
+                lines,
+                confirmText: "ОТКАТИТЬ ПАКЕТ", danger: drifted > 0))
             return;
 
         var journal = _journal;
@@ -321,9 +332,11 @@ public sealed partial class RestoreViewModel : PageViewModel
         var active = _journal.ActiveRecords.OrderByDescending(r => r.TimestampUtc).ToList();
         if (active.Count == 0) return;
 
+        var (lines, drifted) = await DescribeLiveAsync(active);
         if (!await Ui.ConfirmAsync("Откатить все изменения?",
-                $"Все {active.Count} {RestoreFormat.Plural(active.Count, "активное изменение", "активных изменения", "активных изменений")} MONOLITH вернутся к исходным значениям — от последнего к первому. Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются.",
-                active.Select(Describe),
+                $"{active.Count} {RestoreFormat.Plural(active.Count, "активное изменение MONOLITH вернётся", "активных изменения MONOLITH вернутся", "активных изменений MONOLITH вернутся")} к исходным значениям — от последнего к первому." +
+                DriftSentence(drifted) + " Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются.",
+                lines,
                 confirmText: "ОТКАТИТЬ ВСЁ", danger: true,
                 footnote: "Для некоторых изменений нужна перезагрузка."))
             return;
@@ -335,6 +348,32 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     private static string Describe(ChangeRecord r) =>
         $"{r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: «{r.NewValue}» → «{r.OldValue}»";
+
+    /// <summary>Dialog lines with a live read per record; drifted ones are flagged (research services.md §3.5).</summary>
+    private static async Task<(List<string> Lines, int Drifted)> DescribeLiveAsync(IReadOnlyList<ChangeRecord> records)
+    {
+        var live = await Task.Run(() => records.Select(LiveState.Read).ToList());
+        var lines = new List<string>(records.Count);
+        var drifted = 0;
+        for (var i = 0; i < records.Count; i++)
+        {
+            var r = records[i];
+            if (live[i].IsDrifted)
+            {
+                drifted++;
+                lines.Add($"ИЗМЕНЕНО ВНЕ MONOLITH · {r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: сейчас «{live[i].Text}» (MONOLITH ставил «{r.NewValue}») → «{r.OldValue}»");
+            }
+            else
+            {
+                lines.Add(Describe(r));
+            }
+        }
+        return (lines, drifted);
+    }
+
+    private static string DriftSentence(int drifted) => drifted == 0
+        ? ""
+        : $" {drifted} {RestoreFormat.Plural(drifted, "значение изменено", "значения изменены", "значений изменено")} после MONOLITH (Windows, политикой или вами) — откат заменит и {(drifted == 1 ? "его" : "их")} исходным значением; такие пункты отмечены «ИЗМЕНЕНО ВНЕ MONOLITH».";
 
     private static async Task ReportAsync(RevertResult result, string success)
     {

@@ -76,7 +76,13 @@ public sealed partial class ServicesViewModel : PageViewModel
     }
 
     /// <summary>Changes made elsewhere (Restore center, other pages) show up when the user comes back.</summary>
-    protected override Task OnReturnAsync() => IsBusy ? Task.CompletedTask : RefreshStatesAsync();
+    protected override Task OnReturnAsync()
+    {
+        if (IsBusy) return Task.CompletedTask;
+        // Expert mode was toggled in Settings: re-apply the locks to the last scan (no rescan needed).
+        if (_builtExpertMode != AppSettings.Current.ServicesExpertMode) BuildAllServices(_scannedServices);
+        return RefreshStatesAsync();
+    }
 
     // ───────────────────────────── Loading ─────────────────────────────
 

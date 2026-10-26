@@ -11,7 +11,8 @@ namespace Monolith.Modules.Services;
 
 /// <summary>
 /// ВСЕ СЛУЖБЫ: every Win32 service, read-only for locked ones (Core protected list, research hard-block list,
-/// per-user services, drivers, PPL, DriverStore). Start-type changes are journaled; start/stop are not.
+/// per-user services, drivers, PPL, DriverStore). Outside expert mode (AppSettings.ServicesExpertMode) every
+/// non-curated service is locked too (research §0.4/§2B). Start-type changes are journaled; start/stop are not.
 /// </summary>
 public sealed partial class ServicesViewModel
 {
@@ -43,12 +44,22 @@ public sealed partial class ServicesViewModel
         return view;
     }
 
+    /// <summary>The last scan as read (structural locks only); the expert-mode lock is layered on in BuildAllServices.</summary>
+    private List<ServiceInfo> _scannedServices = [];
+    /// <summary>The expert-mode value the current ВСЕ СЛУЖБЫ list was built with.</summary>
+    private bool _builtExpertMode;
+
     private void BuildAllServices(List<ServiceInfo> infos)
     {
+        _scannedServices = infos;
+        var expert = _builtExpertMode = AppSettings.Current.ServicesExpertMode;
         var previous = SelectedService?.Name;
         var can = CanModify;
         var items = infos
             .OrderBy(i => i.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .Select(i => i.LockReason is null && ServiceGuard.NotCuratedLockReason(i.Name, i.IsThirdParty, expert) is { } why
+                ? i with { LockReason = why }
+                : i)
             .Select(i => new ServiceItem(i) { CanModify = can })
             .ToList();
         foreach (var item in items) item.Journal = ChangeJournal.Instance.FindActive("svc:" + item.Name);
