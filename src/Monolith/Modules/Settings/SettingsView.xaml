@@ -6,12 +6,435 @@
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:local="clr-namespace:Monolith.Modules.Settings"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:SettingsViewModel}">
+    <UserControl.Resources>
+        <!-- Left meta column of a section -->
+        <Style x:Key="SectionNumber" TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H1}">
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+        <Style x:Key="SectionCaption" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
+            <Setter Property="Margin" Value="0,8,0,0" />
+        </Style>
+        <!-- One settings row inside a section card -->
+        <Style x:Key="SettingRow" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource B.Line}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Padding" Value="22,18" />
+        </Style>
+        <Style x:Key="RowTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H3}">
+            <Setter Property="FontSize" Value="14.5" />
+        </Style>
+        <Style x:Key="RowText" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
+            <Setter Property="Margin" Value="0,5,0,0" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
-        <TextBlock Grid.Row="1" Margin="0,28,0,0" Style="{StaticResource T.Caption}" Text="Модуль в разработке." />
+
+        <ScrollViewer x:Name="MainScroll" Grid.Row="1" Margin="0,26,-14,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      Focusable="False">
+            <StackPanel Margin="0,0,14,0">
+
+                <!-- ═══════════════ 01 SAFETY ═══════════════ -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,28,0">
+                        <TextBlock Text="01" Style="{StaticResource SectionNumber}" />
+                        <TextBlock Text="БЕЗОПАСНОСТЬ" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SectionCaption}" Text="Две страховки при любых изменениях системы. Рекомендуем держать обе включёнными." />
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
+                        <StackPanel>
+                            <Border Style="{StaticResource SettingRow}" BorderThickness="0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ТОЧКА ВОССТАНОВЛЕНИЯ ПЕРЕД ИЗМЕНЕНИЯМИ" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                                            <Border Style="{StaticResource Tag}" Margin="10,0,0,0" Padding="5,1,5,2">
+                                                <TextBlock Text="РЕКОМЕНДУЕТСЯ" FontSize="9.5" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Перед каждым пакетом изменений MONOLITH создаёт точку восстановления Windows. Если система перестанет загружаться, её можно вернуть из среды восстановления. Выключение ускоряет применение, но убирает эту страховку." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding CreateRestorePoints}" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <TextBlock Text="ПОДТВЕРЖДЕНИЕ ПЕРЕД ПРИМЕНЕНИЕМ" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Перед применением показывается точный список изменений. Если выключить, твики применяются сразу; удаление, установка драйверов и другие необратимые действия всё равно спрашивают подтверждение." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ConfirmBeforeApply}" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Rectangle Style="{StaticResource Divider}" Margin="0,30" />
+
+                <!-- ═══════════════ 02 INTERFACE ═══════════════ -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,28,0">
+                        <TextBlock Text="02" Style="{StaticResource SectionNumber}" />
+                        <TextBlock Text="ИНТЕРФЕЙС" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SectionCaption}" Text="Что видно на экране и как часто обновляются данные." />
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
+                        <StackPanel>
+                            <Border Style="{StaticResource SettingRow}" BorderThickness="0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <TextBlock Text="КОНСОЛЬ ОПЕРАЦИЙ" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Панель внизу окна с журналом всех действий и команд. Применяется сразу; свернуть консоль можно и стрелкой справа от неё." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ShowConsole}" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <TextBlock Text="ИНТЕРВАЛ ОБНОВЛЕНИЯ МОНИТОРИНГА" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Как часто «Панель» опрашивает загрузку процессора, видеокарты, памяти и дисков. Реже — меньше нагрузка от самого MONOLITH." />
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="1" Width="200" VerticalAlignment="Center" ItemsSource="{Binding IntervalOptions}"
+                                              SelectedItem="{Binding SelectedInterval}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Label}" FontFamily="{StaticResource F.Mono}" FontSize="12.5" Width="44" />
+                                                    <TextBlock Text="{Binding Hint}" FontSize="12" Foreground="{StaticResource B.Text3}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Rectangle Style="{StaticResource Divider}" Margin="0,30" />
+
+                <!-- ═══════════════ 03 GAME MODE ═══════════════ -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,28,0">
+                        <TextBlock Text="03" Style="{StaticResource SectionNumber}" />
+                        <TextBlock Text="ИГРОВОЙ РЕЖИМ" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SectionCaption}"
+                                   Text="Что делает игровой режим MONOLITH на время игры. Всё временное и возвращается при выходе из игры." />
+                        <Button Content="ОТКРЫТЬ «ИГРЫ»" Margin="0,16,0,0" HorizontalAlignment="Left" Command="{Binding OpenGamesCommand}" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
+                        <StackPanel>
+                            <Border Style="{StaticResource SettingRow}" BorderThickness="0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <TextBlock Text="ПЛАН ПИТАНИЯ «ВЫСОКАЯ ПРОИЗВОДИТЕЛЬНОСТЬ»" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="На время игры включается план высокой производительности, после выхода возвращается прежний. Процессор держит частоты выше — больше тепла и шума; на ноутбуке от батареи быстрее садится заряд." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.GameBoostPowerPlan}" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <TextBlock Text="ВЫСОКИЙ ПРИОРИТЕТ ИГРЫ" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Процесс игры получает приоритет «Высокий» — фоновые программы реже отбирают у неё процессор. Никогда не «Реального времени»: он мешает вводу и звуку." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.GameBoostPriority}" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ОЧИСТКА ПАМЯТИ ОЖИДАНИЯ" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                                            <Border Style="{StaticResource Tag.Muted}" Margin="10,0,0,0" Padding="5,1,5,2">
+                                                <TextBlock Text="ПО ЖЕЛАНИЮ" FontSize="9.5" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="При запуске игры очищается кэш файлов в памяти (standby). Честно: Windows и так мгновенно отдаёт эту память программам, поэтому на ПК с 16 ГБ и больше эффекта обычно нет. Помогает разве что при нехватке ОЗУ, а после очистки часть данных придётся снова читать с диска." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.GameBoostPurgeStandby}" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Rectangle Style="{StaticResource Divider}" Margin="0,30" />
+
+                <!-- ═══════════════ 04 DATA ═══════════════ -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,28,0">
+                        <TextBlock Text="04" Style="{StaticResource SectionNumber}" />
+                        <TextBlock Text="ДАННЫЕ" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SectionCaption}"
+                                   Text="Где MONOLITH хранит журнал, резервные копии и настройки. Ничего не отправляется в сеть." />
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding DataPaths}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:DataPathItem}">
+                                        <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="22,16">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Margin="0,0,24,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Title}" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding State}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                                                                   VerticalAlignment="Center" Margin="12,1,0,0" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Path}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text}"
+                                                               Margin="0,5,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                                                    <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" VerticalAlignment="Center" MinWidth="120"
+                                                        Command="{Binding DataContext.OpenPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                        <TextBlock Text="ОТКРЫТЬ" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <!-- Reset -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Rectangle Fill="{StaticResource B.Hatch}" />
+                                <StackPanel Grid.Column="1" Margin="16,18,24,18">
+                                    <TextBlock Text="СБРОС НАСТРОЕК" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Style="{StaticResource RowText}"
+                                               Text="Возвращает параметры этой страницы к значениям по умолчанию. Изменения системы, журнал отката и папки с играми не затрагиваются." />
+                                </StackPanel>
+                                <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Content="СБРОСИТЬ НАСТРОЙКИ" Margin="0,0,22,0" VerticalAlignment="Center"
+                                        Command="{Binding ResetSettingsCommand}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Rectangle Style="{StaticResource Divider}" Margin="0,30" />
+
+                <!-- ═══════════════ 05 ABOUT ═══════════════ -->
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,28,0">
+                        <TextBlock Text="05" Style="{StaticResource SectionNumber}" />
+                        <TextBlock Text="О ПРОГРАММЕ" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SectionCaption}" Text="Версия, принципы безопасности и использованные компоненты." />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1">
+                        <!-- Logo slab -->
+                        <Border Background="{StaticResource B.White}" Padding="30,28,30,24">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Path Data="M0,0 L26,0 L38,12 L38,86 L0,86 Z" Fill="{StaticResource B.Ink}" Width="38" Height="86" VerticalAlignment="Top" />
+                                <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="MONOLITH" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="70"
+                                               LineHeight="62" LineStackingStrategy="BlockLineHeight" Foreground="{StaticResource B.Ink}" />
+                                    <TextBlock Text="ИЗМЕРЯЕТ. ОБЪЯСНЯЕТ. ОТКАТЫВАЕТ." FontFamily="{StaticResource F.Mono}" FontSize="11.5" FontWeight="Bold"
+                                               Foreground="{StaticResource B.Ink}" Margin="2,10,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+                                    <TextBlock Text="ВЕРСИЯ" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource B.Ink}"
+                                               Opacity="0.6" HorizontalAlignment="Right" />
+                                    <TextBlock Text="{Binding VersionText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="34"
+                                               Foreground="{StaticResource B.Ink}" HorizontalAlignment="Right" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Facts -->
+                        <Border Style="{StaticResource Card.Flush}" BorderThickness="1,0,1,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="1" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="1" />
+                                    <ColumnDefinition Width="1.6*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="20,14">
+                                    <TextBlock Text="СБОРКА" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding BuildText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0" />
+                                </StackPanel>
+                                <Rectangle Grid.Column="1" Style="{StaticResource DividerV}" />
+                                <StackPanel Grid.Column="2" Margin="20,14">
+                                    <TextBlock Text="СРЕДА" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding RuntimeText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <Rectangle Grid.Column="3" Style="{StaticResource DividerV}" />
+                                <StackPanel Grid.Column="4" Margin="20,14">
+                                    <TextBlock Text="СИСТЕМА И РЕЖИМ" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding OsText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding OsText}" />
+                                    <TextBlock Text="{Binding ModeText}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Principles -->
+                        <TextBlock Text="КАК MONOLITH ЗАЩИЩАЕТ СИСТЕМУ" Style="{StaticResource T.H2}" FontWeight="Bold" FontStretch="Condensed" FontSize="20"
+                                   Margin="0,28,0,12" />
+                        <Border BorderBrush="{StaticResource B.Line}" BorderThickness="1,1,0,0">
+                            <ItemsControl ItemsSource="{Binding Principles}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:PrincipleItem}">
+                                        <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,1,1" Background="{StaticResource B.Surface}" Padding="20,16,20,18">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="34" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Number}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" Margin="0,1,0,0" />
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{Binding Title}" Style="{StaticResource T.H3}" />
+                                                    <TextBlock Text="{Binding Text}" Style="{StaticResource T.Caption}" Margin="0,5,0,0" LineHeight="17" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+
+                        <!-- Licenses -->
+                        <TextBlock Text="КОМПОНЕНТЫ И ЛИЦЕНЗИИ" Style="{StaticResource T.H2}" FontWeight="Bold" FontStretch="Condensed" FontSize="20"
+                                   Margin="0,28,0,12" />
+                        <Border Style="{StaticResource Card.Flush}">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Licenses}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:LicenseItem}">
+                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="20,12">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="90" />
+                                                        <ColumnDefinition Width="70" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Margin="0,0,16,0">
+                                                        <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" />
+                                                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,2,0,0">
+                                                            <Run Text="{Binding Use, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Copyright, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Version}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}"
+                                                               VerticalAlignment="Center" />
+                                                    <Border Grid.Column="2" Style="{StaticResource Tag}" HorizontalAlignment="Right">
+                                                        <TextBlock Text="{Binding License}" />
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Grid Margin="20,12,20,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Шрифты" Style="{StaticResource T.BodyStrong}" />
+                                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,2,0,0"
+                                                   Text="Bahnschrift, Segoe UI Variable, Cascadia Mono / Consolas, Segoe Fluent Icons — системные шрифты Windows. В составе MONOLITH не распространяются." />
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Style="{StaticResource Tag.Muted}" VerticalAlignment="Center">
+                                        <TextBlock Text="WINDOWS" />
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

@@ -6,12 +6,474 @@
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:local="clr-namespace:Monolith.Modules.Tools"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:ToolsViewModel}">
+    <UserControl.Resources>
+
+        <!-- Quick link tile: opens a standard Windows tool -->
+        <Style x:Key="QuickTile" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line}" BorderThickness="1"
+                                Padding="14,12,12,12" SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="Ic" Text="{Binding Glyph}" Style="{StaticResource T.Icon}" FontSize="15" HorizontalAlignment="Left"
+                                           VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{StaticResource B.Text2}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontStretch="SemiCondensed"
+                                               FontSize="13" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" Margin="0,0,18,0" />
+                                    <TextBlock Text="{Binding Command}" Style="{StaticResource T.Mono}" FontSize="10.5" Foreground="{StaticResource B.Text3}"
+                                               Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock x:Name="Ext" Grid.Column="1" Text="&#xE8A7;" Style="{StaticResource T.Icon}" FontSize="11" VerticalAlignment="Top"
+                                           HorizontalAlignment="Right" Margin="0,2,0,0" Foreground="{StaticResource B.Text4}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface2}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
+                                <Setter TargetName="Ext" Property="Foreground" Value="{StaticResource B.Text}" />
+                                <Setter TargetName="Ic" Property="Foreground" Value="{StaticResource B.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface3}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Button on a tool card: primary / danger / plain -->
+        <DataTemplate x:Key="ActionTemplate" DataType="{x:Type local:ToolCardAction}">
+            <Grid Margin="0,0,0,8">
+                <Button Style="{StaticResource Btn.Primary}" Content="{Binding Label}" HorizontalAlignment="Stretch"
+                        Visibility="{Binding IsPrimary, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding DataContext.RunCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                <Button Style="{StaticResource Btn.Danger}" Content="{Binding Label}" HorizontalAlignment="Stretch"
+                        Visibility="{Binding IsDanger, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding DataContext.RunCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                <Button Style="{StaticResource Btn}" Content="{Binding Label}" HorizontalAlignment="Stretch"
+                        Visibility="{Binding IsPlain, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding DataContext.RunCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- Fixed volume row inside "Оптимизация дисков" -->
+        <DataTemplate x:Key="VolumeTemplate" DataType="{x:Type local:VolumeItem}">
+            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Letter}" FontFamily="{StaticResource F.Mono}" FontWeight="Bold" FontSize="16"
+                               Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock Text="{Binding Info.DisplayName}" Style="{StaticResource T.BodyStrong}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                        <TextBlock Text="{Binding SpaceText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" Margin="0,2,0,0"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                        <Border Style="{StaticResource Tag.Muted}">
+                            <TextBlock Text="{Binding MediaText}" />
+                        </Border>
+                        <Border Style="{StaticResource Tag}" Margin="6,0,0,0">
+                            <TextBlock Text="{Binding OperationText}" />
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="3" Content="ОПТИМИЗИРОВАТЬ" MinWidth="150" Height="32"
+                            Command="{Binding DataContext.DefragVolumeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- Tool card -->
+        <DataTemplate x:Key="ToolCardTemplate" DataType="{x:Type local:ToolCard}">
+            <Border Style="{StaticResource Card}" Padding="20,18,20,12" Margin="0,0,0,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="170" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border Width="44" Height="44" VerticalAlignment="Top" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
+                                <Setter Property="Background" Value="{StaticResource B.Surface2}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDanger}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource B.Text3}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding Glyph}" Style="{StaticResource T.Icon}" FontSize="18" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="18,0,28,0">
+                        <TextBlock Text="{Binding Command}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="20"
+                                   Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Margin="0,8,0,0" LineHeight="17"
+                                   Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}" />
+                        <WrapPanel Margin="0,12,0,6">
+                            <Border Style="{StaticResource Tag}" Margin="0,0,6,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE916;" FontFamily="{StaticResource F.Icons}" FontSize="10" VerticalAlignment="Center" Margin="0,1,6,0" />
+                                    <TextBlock Text="{Binding Duration}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,6" Visibility="{Binding RequiresAdmin, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="НУЖНЫ ПРАВА АДМИНИСТРАТОРА" />
+                            </Border>
+                            <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,6" Visibility="{Binding NeedsReboot, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="ПЕРЕЗАГРУЗКА" />
+                            </Border>
+                            <Border Style="{StaticResource Tag.Hatch}" Margin="0,0,6,6" Visibility="{Binding IsDanger, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="ОСТОРОЖНО" />
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <ItemsControl Grid.Column="2" ItemsSource="{Binding Actions}" ItemTemplate="{StaticResource ActionTemplate}" VerticalAlignment="Top" Focusable="False" />
+
+                    <!-- Boot-time check status (chkdsk card): read from BootExecute, works without admin rights -->
+                    <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="18,4,0,8" Padding="14,10" Background="{StaticResource B.Surface2}"
+                            Visibility="{Binding HasBootCheck, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Rectangle Width="8" Height="8" VerticalAlignment="Top" Margin="0,5,12,0">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.BootCheckScheduled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                                <Setter Property="Stroke" Value="{StaticResource B.Text}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="ПРОВЕРКА ПРИ ЗАГРУЗКЕ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{Binding DataContext.BootCheckText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Volumes (defrag card) -->
+                    <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="18,6,0,4"
+                                Visibility="{Binding HasVolumes, Converter={StaticResource BoolToVis}}">
+                        <Grid Margin="0,0,0,8">
+                            <TextBlock Text="ДИСКИ ЭТОГО КОМПЬЮТЕРА" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource Btn.Ghost}" Height="26" FontSize="11" HorizontalAlignment="Right" Padding="8,0"
+                                    Command="{Binding DataContext.RefreshVolumesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="ОБНОВИТЬ" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding DataContext.Volumes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      ItemTemplate="{StaticResource VolumeTemplate}" Focusable="False" />
+                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" Text="Поиск дисков…"
+                                   Visibility="{Binding DataContext.VolumesLoading, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- Console line -->
+        <DataTemplate x:Key="ConsoleLineTemplate" DataType="{x:Type local:ConsoleLine}">
+            <Grid Margin="0,1,12,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Marker}" FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}" />
+                <TextBlock x:Name="Tx" Grid.Column="1" Text="{Binding Text}" FontFamily="{StaticResource F.Mono}" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{StaticResource B.Text2}" />
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsCommand}" Value="True">
+                    <Setter TargetName="Tx" Property="Foreground" Value="{StaticResource B.Text}" />
+                    <Setter TargetName="Tx" Property="FontWeight" Value="Bold" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEmphasis}" Value="True">
+                    <Setter TargetName="Tx" Property="Foreground" Value="{StaticResource B.White}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="Info">
+                    <Setter TargetName="Tx" Property="Foreground" Value="{StaticResource B.Text3}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
-        <TextBlock Grid.Row="1" Margin="0,28,0,0" Style="{StaticResource T.Caption}" Text="Модуль в разработке." />
+
+        <Grid Grid.Row="1" Margin="0,26,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="380" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ═══════════════ Tools ═══════════════ -->
+            <ScrollViewer x:Name="MainScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel Margin="0,0,14,0">
+                    <!-- Read-only notice -->
+                    <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,26"
+                            Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Rectangle Fill="{StaticResource B.HatchStrong}" />
+                            <StackPanel Grid.Column="1" Margin="18,14,18,14">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="РЕЖИМ ПРОСМОТРА" Style="{StaticResource T.H3}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource T.Body}" Margin="0,6,0,0"
+                                           Text="Восстановление Windows, диски, сброс сети и диагностика памяти требуют прав администратора — эти кнопки неактивны. Без них доступны сброс DNS-кэша, кэшей Store и значков и системные утилиты." />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Sections}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:ToolSection}">
+                                <StackPanel Margin="0,0,0,22">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Number}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}"
+                                                   VerticalAlignment="Center" Margin="0,2,12,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" Style="{StaticResource T.H1}" VerticalAlignment="Center" />
+                                        <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="16,3,0,0" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding Caption}" Style="{StaticResource T.Body}" Margin="0,4,0,14" />
+                                    <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource ToolCardTemplate}" Focusable="False" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Quick links -->
+                    <StackPanel Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="06" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="0,2,12,0" />
+                            <TextBlock Grid.Column="1" Text="СИСТЕМНЫЕ УТИЛИТЫ" Style="{StaticResource T.H1}" VerticalAlignment="Center" />
+                            <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="16,3,0,0" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,14"
+                                   Text="Быстрый запуск стандартных средств и разделов параметров Windows. MONOLITH только открывает их — изменения вы вносите сами." />
+                        <ItemsControl ItemsSource="{Binding QuickLinks}" Focusable="False" Margin="0,0,-8,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="3" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:QuickLink}">
+                                    <Button Style="{StaticResource QuickTile}" Margin="0,0,8,8" ToolTip="{Binding Command}"
+                                            Command="{Binding DataContext.OpenQuickLinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ═══════════════ Tool console ═══════════════ -->
+            <Border Grid.Column="2" Style="{StaticResource Card.Flush}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Margin="20,16,16,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Rectangle Width="8" Height="8" VerticalAlignment="Center">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Fill" Value="{StaticResource B.Text4}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                            <TextBlock Text="КОНСОЛЬ ИНСТРУМЕНТОВ" Style="{StaticResource T.Label}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Border HorizontalAlignment="Right">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RunState}" Value="ВЫПОЛНЯЕТСЯ">
+                                            <Setter Property="Background" Value="{StaticResource B.White}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RunState}" Value="ГОТОВО">
+                                            <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RunState}" Value="ОШИБКА">
+                                            <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RunState}" Value="ВНИМАНИЕ">
+                                            <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding RunState}" />
+                        </Border>
+                    </Grid>
+
+                    <!-- Current operation -->
+                    <StackPanel Grid.Row="1" Margin="20,18,20,18">
+                        <TextBlock Text="{Binding RunTitle}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="20"
+                                   Foreground="{StaticResource B.Text}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding RunCommandText}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}"
+                                   Margin="0,4,0,0" TextWrapping="Wrap" />
+                        <Grid Margin="0,16,0,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding ProgressText}" Style="{StaticResource T.Stat}" FontSize="40" />
+                                <TextBlock Text="%" Style="{StaticResource T.StatUnit}" Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
+                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,6">
+                                <TextBlock Text="ПРОШЛО" Style="{StaticResource T.Label}" HorizontalAlignment="Right" />
+                                <TextBlock Text="{Binding ElapsedText}" Style="{StaticResource T.Mono}" FontSize="14" Foreground="{StaticResource B.Text}"
+                                           HorizontalAlignment="Right" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Height="8">
+                            <c:Meter Value="{Binding Progress}" Segments="40" Height="8" />
+                            <ProgressBar IsIndeterminate="True" Height="8" VerticalAlignment="Center">
+                                <ProgressBar.Style>
+                                    <Style TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsRunning}" Value="True" />
+                                                    <Condition Binding="{Binding HasProgress}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ProgressBar.Style>
+                            </ProgressBar>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Output -->
+                    <Grid Grid.Row="2" Background="{StaticResource B.Base}">
+                        <Rectangle Height="1" VerticalAlignment="Top" Fill="{StaticResource B.Line}" />
+                        <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line}" />
+                        <ListBox x:Name="OutputList" Style="{StaticResource List.Plain}" ItemsSource="{Binding ConsoleLines}" Margin="14,10,6,10"
+                                 ItemTemplate="{StaticResource ConsoleLineTemplate}" VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling" />
+                        <Grid Background="{StaticResource B.DotGrid}" Visibility="{Binding HasConsoleLines, Converter={StaticResource InverseBoolToVis}}">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="28,0">
+                                <TextBlock Text="&#xE756;" Style="{StaticResource T.Icon}" FontSize="22" Foreground="{StaticResource B.Text3}" />
+                                <TextBlock Text="ВЫВОД ПОЯВИТСЯ ЗДЕСЬ" Style="{StaticResource T.Label}" HorizontalAlignment="Center" Margin="0,12,0,0"
+                                           Foreground="{StaticResource B.Text2}" />
+                                <TextBlock Style="{StaticResource T.Caption}" TextAlignment="Center" Margin="0,6,0,0"
+                                           Text="Команды выполняются без окон консоли, их вывод и прогресс транслируются сюда в реальном времени." />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+
+                    <!-- Result -->
+                    <Grid Grid.Row="3" Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle>
+                            <Rectangle.Style>
+                                <Style TargetType="Rectangle">
+                                    <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ResultIsProblem}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Rectangle.Style>
+                        </Rectangle>
+                        <StackPanel Grid.Column="1" Margin="16,12,20,12">
+                            <TextBlock Text="РЕЗУЛЬТАТ" Style="{StaticResource T.Label}" />
+                            <TextBlock Text="{Binding ResultText}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Controls -->
+                    <StackPanel Grid.Row="4" Margin="16,12,16,16">
+                        <TextBlock Style="{StaticResource T.Caption}" Margin="4,0,0,10" Text="Эту операцию нельзя безопасно прервать — дождитесь завершения."
+                                   Visibility="{Binding ShowNoCancelHint, Converter={StaticResource BoolToVis}}" />
+                        <UniformGrid Columns="3">
+                            <Button Style="{StaticResource Btn.Danger}" Content="ОТМЕНА" Margin="0,0,6,0" Command="{Binding CancelRunCommand}" />
+                            <Button Content="КОПИРОВАТЬ" Margin="3,0" Command="{Binding CopyOutputCommand}" />
+                            <Button Content="ОЧИСТИТЬ" Margin="6,0,0,0" Command="{Binding ClearConsoleCommand}" />
+                        </UniformGrid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
