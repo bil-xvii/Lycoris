@@ -192,7 +192,17 @@ public sealed partial class RestoreViewModel : PageViewModel
     [RelayCommand]
     private void ShowDriftOwner(RecordItem? item)
     {
-        if (item?.Drift?.OwnerPage is { } page) Ui.Navigate(page);
+        if (item?.Drift is not { OwnerPage: { } page } drift) return;
+        // Open the owning page right at the item: the tweak row, the service, or the ЗАДАЧИ tab.
+        var source = DriftDetector.LatestSource(drift.Record);
+        if (drift.TweakId is { } tweakId) Ui.RequestFocus("optimize", tweakId);
+        else if (source is DriftDetector.ServicesTaskSource or DriftDetector.StartupTaskSource)
+        {
+            Ui.RequestFocus("services", "tab:tasks");
+            page = "services"; // not the "startup" alias: it would replace this request with "tab:startup"
+        }
+        else if (source == DriftDetector.ServicesSource && drift.Record.Service?.Name is { } service) Ui.RequestFocus("services", service);
+        Ui.Navigate(page);
     }
 
     private bool CanReapplyDrift(RecordItem? item) => item is { CanReapply: true } && CanAdmin();

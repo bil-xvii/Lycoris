@@ -583,10 +583,11 @@ internal static class JournalTrust
             case ChangeKind.Service when r.Service is { } svc:
                 if (!string.Equals(r.Target, "svc:" + svc.Name, StringComparison.OrdinalIgnoreCase)) return "цель записи не совпадает со службой";
                 if (ServiceControl.IsProtected(svc.Name)) return $"служба {svc.Name} защищена от изменений";
-                // Older builds could change some services that are hard-blocked now; putting back a start type that
-                // lets the service run is always the safe direction, so only a revert TO Disabled is refused.
-                if (ServiceGuard.IsHardBlocked(svc.Name) && svc.StartMode == System.ServiceProcess.ServiceStartMode.Disabled)
-                    return $"службу {svc.Name} MONOLITH никогда не отключает";
+                // Older builds could change these services (hard-blocked since): their records may still put back a
+                // start type that lets the service run. Every other hard-blocked service is never touched.
+                if (ServiceGuard.IsHardBlocked(svc.Name)
+                    && !(LegacyRevertibleServices.Contains(svc.Name) && svc.StartMode != System.ServiceProcess.ServiceStartMode.Disabled))
+                    return $"службу {svc.Name} MONOLITH никогда не меняет";
                 return null;
 
             case ChangeKind.ScheduledTask when r.TaskPath is { } task:
@@ -621,6 +622,10 @@ internal static class JournalTrust
     private const string PsPrefix = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ";
     private const string CmdHead = "/d /s /c \"";
     private const string Unknown = "команда отката не совпадает ни с одной командой MONOLITH";
+
+    /// <summary>Services that older builds could change in ВСЕ СЛУЖБЫ and that are hard-blocked now.</summary>
+    private static readonly HashSet<string> LegacyRevertibleServices =
+        new(["Eaphost", "dot3svc", "NcaSvc", "RmSvc", "W32Time", "tzautoupdate"], StringComparer.OrdinalIgnoreCase);
 
     private static string Quoted(string exe) => "\"" + ProcessRunner.Sys(exe) + "\"";
     private static bool SameFile(string? a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

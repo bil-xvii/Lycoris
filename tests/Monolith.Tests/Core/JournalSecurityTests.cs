@@ -165,6 +165,12 @@ public sealed class JournalSecurityTests : IDisposable
         Assert.Null(JournalTrust.Check(Service("DiagTrack")));
         Assert.NotNull(JournalTrust.Check(Service("mpssvc")));   // protected
         Assert.NotNull(JournalTrust.Check(Service("SysMain")));  // ServiceGuard hard block
+        Assert.Null(JournalTrust.Check(Service("W32Time")));     // hard-blocked later: an old record may restore Manual
+        Assert.NotNull(JournalTrust.Check(new ChangeRecord
+        {
+            Source = "services", Kind = ChangeKind.Service, Target = "svc:W32Time",
+            Service = new ServiceStartSnapshot("W32Time", ServiceStartMode.Disabled, false),
+        }));                                                     // …but never Disabled
     }
 
     [Fact]
