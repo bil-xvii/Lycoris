@@ -101,6 +101,14 @@ src/Monolith/bin/Debug/net10.0-windows10.0.19041.0/win-x64/MONOLITH.exe --snapsh
 # Release single-file exe
 dotnet publish src/Monolith/Monolith.csproj -c Release -r win-x64 --self-contained true -o publish
 ```
+```
+# Full UI self-test (no admin, all system writes locked, dialogs auto-cancelled): report.md + PNG per page,
+# exit code = number of failed pages. Run after every change set.
+MONOLITH.exe --selftest snapshots/selftest
+```
+Unit tests include `TweakApplyRevertTests`: every RegistryTweak is applied and reverted against a redirected
+registry (`RegistryHelper.Redirect`, tests only) and must restore every value exactly.
+
 Running the app normally triggers a UAC prompt; use `--no-elevate` to test without admin.
 Never apply real tweaks on the dev machine during automated testing — use read-only paths and unit tests
 (registry tests use `HKCU\Software\MONOLITH-Tests`).

@@ -8,6 +8,7 @@ namespace Monolith.Tests.Core;
 /// The undo journal is what keeps MONOLITH from ever leaving the system in a changed state it can't restore.
 /// These tests only touch HKCU\Software\MONOLITH-Tests and a temp folder.
 /// </summary>
+[Collection("Registry")]
 public sealed class RegistryAndJournalTests : IDisposable
 {
     private const string Root = @"Software\MONOLITH-Tests";

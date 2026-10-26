@@ -63,15 +63,27 @@ public static class Ui
 {
     public static IUiHost? Host { get; set; }
 
+    /// <summary>
+    /// Self-test mode: when set, every confirmation is answered automatically with this value
+    /// (the self-test sets false = "Cancel", so nothing can ever be changed) and recorded in <see cref="AutoAnswered"/>.
+    /// </summary>
+    public static bool? AutoAnswer { get; set; }
+    public static List<string> AutoAnswered { get; } = [];
+
     private static Dispatcher? Dispatcher => Application.Current?.Dispatcher;
 
     /// <summary>Asks the user to confirm. Returns true on confirm.</summary>
     public static Task<bool> ConfirmAsync(string title, string message, IEnumerable<string>? details = null,
         string confirmText = "ПРИМЕНИТЬ", string cancelText = "ОТМЕНА", bool danger = false, string? footnote = null)
     {
+        if (AutoAnswer is { } auto)
+        {
+            lock (AutoAnswered) AutoAnswered.Add(title);
+            return Task.FromResult(auto);
+        }
         return OnUi(async () =>
         {
-            if (Host is null) return true;
+            if (Host is null) return false;
             var vm = new DialogViewModel
             {
                 Title = title, Message = message, Details = details?.ToList() ?? [],
@@ -86,6 +98,11 @@ public static class Ui
     /// <summary>Shows an informational dialog with a single OK button.</summary>
     public static Task AlertAsync(string title, string message, IEnumerable<string>? details = null)
     {
+        if (AutoAnswer is not null)
+        {
+            lock (AutoAnswered) AutoAnswered.Add(title);
+            return Task.CompletedTask;
+        }
         return OnUi(async () =>
         {
             if (Host is null) return true;

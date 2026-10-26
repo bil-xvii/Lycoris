@@ -22,6 +22,7 @@ public static class PowerSchemes
 
     public static void SetActive(Guid scheme)
     {
+        SafetyLock.ThrowIfLocked("смена плана питания");
         var rc = PowerSetActiveScheme(IntPtr.Zero, ref scheme);
         if (rc != 0) throw new InvalidOperationException($"Не удалось включить план питания {scheme} (код {rc}).");
     }
@@ -74,6 +75,7 @@ public static class PowerSchemes
     /// <summary>Copies a scheme (e.g. the hidden Ultimate Performance template). Returns the new scheme id.</summary>
     public static Guid Duplicate(Guid source)
     {
+        SafetyLock.ThrowIfLocked("создание плана питания");
         var dest = IntPtr.Zero;
         var rc = PowerDuplicateScheme(IntPtr.Zero, ref source, ref dest);
         if (rc != 0 || dest == IntPtr.Zero)
@@ -85,6 +87,7 @@ public static class PowerSchemes
     public static void Delete(Guid scheme)
     {
         if (scheme == Balanced || scheme == HighPerformance || scheme == PowerSaver) return; // never delete built-ins
+        SafetyLock.ThrowIfLocked("удаление плана питания");
         if (GetActive() == scheme) return;
         PowerDeleteScheme(IntPtr.Zero, ref scheme);
     }

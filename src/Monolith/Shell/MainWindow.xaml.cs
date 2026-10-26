@@ -102,7 +102,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void SaveVisual(FrameworkElement element, string file)
+    internal static void SaveVisual(FrameworkElement element, string file)
     {
         var dpi = VisualTreeHelper.GetDpi(element);
         var w = (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX);

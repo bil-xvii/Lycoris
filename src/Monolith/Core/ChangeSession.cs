@@ -31,16 +31,23 @@ public sealed class ChangeSession
     /// Starts a batch of changes. Creates a System Restore point first when <paramref name="createRestorePoint"/>
     /// is true and the user hasn't turned that off in settings.
     /// </summary>
+    /// <summary>TESTS ONLY: lets unit tests run sessions without admin rights (with a redirected registry and a temp journal).</summary>
+    internal static bool BypassElevationForTests { get; set; }
+
+    /// <summary>Set by the self-test mode: any attempt to change the system fails loudly.</summary>
+    public static bool Locked { get; set; }
+
     public static async Task<ChangeSession> BeginAsync(string title, bool createRestorePoint = true,
         IProgress<string>? progress = null, ChangeJournal? journal = null)
     {
-        Elevation.Demand(title);
+        if (Locked) throw new InvalidOperationException("Изменения системы заблокированы (режим самопроверки).");
+        if (!BypassElevationForTests) Elevation.Demand(title);
         journal ??= ChangeJournal.Instance;
         var batch = journal.BeginBatch(title);
         var session = new ChangeSession(journal, batch);
         Log.Info($"Начало изменений: {title}");
 
-        if (createRestorePoint && AppSettings.Current.CreateRestorePoints)
+        if (createRestorePoint && AppSettings.Current.CreateRestorePoints && !BypassElevationForTests)
         {
             progress?.Report("Создание точки восстановления…");
             var rp = await RestorePointService.CreateAsync($"MONOLITH: {title}").ConfigureAwait(false);

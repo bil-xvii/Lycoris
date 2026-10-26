@@ -47,8 +47,20 @@ public static class RegistryHelper
         _ => "HKEY_USERS",
     };
 
+    /// <summary>
+    /// TESTS ONLY: maps every registry location to another one (e.g. under HKCU\Software\MONOLITH-Tests)
+    /// so tweaks can be applied and reverted without touching real settings. Never set in the app.
+    /// </summary>
+    internal static Func<RegHive, string, (RegHive Hive, string Path)>? Redirect { get; set; }
+
+    private static void Map(ref RegHive hive, ref string path)
+    {
+        if (Redirect is { } r) (hive, path) = r(hive, path);
+    }
+
     public static bool KeyExists(RegHive hive, string path)
     {
+        Map(ref hive, ref path);
         try
         {
             using var b = OpenBase(hive);
@@ -60,6 +72,7 @@ public static class RegistryHelper
 
     public static object? Read(RegHive hive, string path, string name)
     {
+        Map(ref hive, ref path);
         try
         {
             using var b = OpenBase(hive);
@@ -81,8 +94,11 @@ public static class RegistryHelper
 
     public static RegistryValueSnapshot Snapshot(RegHive hive, string path, string name)
     {
-        using var b = OpenBase(hive);
-        using var k = b.OpenSubKey(path, false);
+        // The snapshot keeps the logical (unmapped) location; Restore maps it again.
+        RegHive h = hive; string p = path;
+        Map(ref h, ref p);
+        using var b = OpenBase(h);
+        using var k = b.OpenSubKey(p, false);
         if (k is null)
             return new RegistryValueSnapshot { Hive = hive, Path = path, Name = name, KeyExisted = false, ValueExisted = false };
 
@@ -100,6 +116,8 @@ public static class RegistryHelper
 
     public static void Write(RegHive hive, string path, string name, RegistryValueKind kind, object value)
     {
+        if (Redirect is null) SafetyLock.ThrowIfLocked("запись в реестр");
+        Map(ref hive, ref path);
         using var b = OpenBase(hive);
         using var k = b.CreateSubKey(path, true) ?? throw new IOException($"Не удалось открыть {hive}\\{path}");
         k.SetValue(name, Normalize(kind, value), kind);
@@ -107,6 +125,8 @@ public static class RegistryHelper
 
     public static void DeleteValue(RegHive hive, string path, string name)
     {
+        if (Redirect is null) SafetyLock.ThrowIfLocked("удаление из реестра");
+        Map(ref hive, ref path);
         using var b = OpenBase(hive);
         using var k = b.OpenSubKey(path, true);
         k?.DeleteValue(name, false);
@@ -146,6 +166,7 @@ public static class RegistryHelper
     {
         try
         {
+            if (Redirect is not null) return false; // tests: no .reg exports of redirected keys
             if (!KeyExists(hive, path)) return false;
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(file)!);
             var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("reg.exe"),
@@ -158,6 +179,7 @@ public static class RegistryHelper
 
     private static void TryDeleteEmptyKeyChain(RegHive hive, string path)
     {
+        Map(ref hive, ref path);
         try
         {
             using var b = OpenBase(hive);

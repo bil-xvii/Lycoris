@@ -110,6 +110,7 @@ public static class ServiceControl
     {
         if (!allowProtected && IsProtected(name))
             throw new InvalidOperationException($"Служба «{name}» критична для Windows — MONOLITH её не изменяет.");
+        SafetyLock.ThrowIfLocked("изменение службы");
         Elevation.Demand("изменение служб");
 
         var scm = OpenSCManager(null, null, SC_MANAGER_CONNECT);
@@ -145,7 +146,7 @@ public static class ServiceControl
 
     public static async Task<bool> StopAsync(string name, TimeSpan timeout)
     {
-        if (IsProtected(name)) return false;
+        if (IsProtected(name) || SafetyLock.IsLocked) return false;
         try
         {
             using var sc = new ServiceController(name);
@@ -164,6 +165,7 @@ public static class ServiceControl
 
     public static async Task<bool> StartAsync(string name, TimeSpan timeout)
     {
+        if (SafetyLock.IsLocked) return false;
         try
         {
             using var sc = new ServiceController(name);

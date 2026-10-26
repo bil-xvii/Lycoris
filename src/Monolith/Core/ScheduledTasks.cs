@@ -32,6 +32,7 @@ public static class ScheduledTasks
 
     public static void SetEnabled(string taskPath, bool enabled)
     {
+        SafetyLock.ThrowIfLocked("изменение задачи планировщика");
         Elevation.Demand("изменение задач планировщика");
         var (folder, name) = Split(taskPath);
         object? service = null;

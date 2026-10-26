@@ -20,6 +20,7 @@ namespace Monolith;
 ///  --page &lt;key&gt;           open a specific page
 ///  --snapshot &lt;dir&gt;       render every page to PNG and exit (QA)
 ///  --pages a,b,c --wait ms limit / tune --snapshot
+///  --selftest &lt;dir&gt;       exercise every page with all system writes locked; report.md + exit code = failed pages
 /// </summary>
 public partial class App : Application
 {
@@ -40,8 +41,15 @@ public partial class App : Application
 
         var args = e.Args;
         var snapshotDir = ArgValue(args, "--snapshot");
-        var snapshot = snapshotDir is not null;
+        var selfTestDir = ArgValue(args, "--selftest");
+        var snapshot = snapshotDir is not null || selfTestDir is not null;
         var noElevate = snapshot || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
+        if (selfTestDir is not null)
+        {
+            // Lock every system-changing API before anything else runs.
+            ChangeSession.Locked = true;
+            Ui.AutoAnswer = false;
+        }
 
         if (!Elevation.IsElevated && !noElevate)
         {
@@ -85,6 +93,31 @@ public partial class App : Application
             window.ShowActivated = false;
             window.ShowInTaskbar = false;
             window.Show();
+
+            if (selfTestDir is not null)
+            {
+                window.Dispatcher.InvokeAsync(async () =>
+                {
+                    var dir = Path.GetFullPath(selfTestDir);
+                    var failures = 99;
+                    try
+                    {
+                        await Task.Delay(1000);
+                        failures = await new SelfTestRunner(window, vm, dir).RunAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Directory.CreateDirectory(dir);
+                        File.WriteAllText(Path.Combine(dir, "selftest-crash.txt"), ex.ToString());
+                    }
+                    finally
+                    {
+                        Shutdown(failures);
+                    }
+                }, DispatcherPriority.ApplicationIdle);
+                return;
+            }
+
             var only = ArgValue(args, "--pages")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
             var wait = int.TryParse(ArgValue(args, "--wait"), out var w) ? w : 2500;
             window.Dispatcher.InvokeAsync(async () =>
@@ -119,6 +152,7 @@ public partial class App : Application
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         // Keep the app alive: log, notify, continue.
+        if (SelfTestRunner.IsRunning) SelfTestRunner.ReportUnhandled(e.Exception);
         Log.Error("Ошибка интерфейса", e.Exception);
         Ui.Toast(e.Exception.Message, ToastKind.Error, "Непредвиденная ошибка");
         e.Handled = true;
