@@ -313,14 +313,23 @@ public sealed partial class DriversViewModel : PageViewModel
     private void OpenDeviceManager() => ShellOpen(ProcessRunner.Sys("devmgmt.msc"), "диспетчер устройств");
 
     [RelayCommand]
-    private void OpenUrl(string? url)
+    private async Task OpenUrlAsync(string? url)
     {
         if (!DriverSources.IsAllowedUrl(url))
         {
             Log.Warn($"Ссылка не открыта (не официальный источник): {url}");
             return;
         }
-        ShellOpen(url!, url!);
+        if (!url!.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            // ms-settings: pages open in the Settings app, which never runs with administrator rights.
+            ShellOpen(url, url);
+            return;
+        }
+        // Vendor sites: the browser must not inherit MONOLITH's administrator token (drivers downloaded there
+        // would otherwise run elevated without a UAC prompt).
+        if (!await UnelevatedShell.OpenAsync(url))
+            Ui.Toast($"Не удалось открыть страницу без прав администратора. Откройте её в браузере вручную: {url}", ToastKind.Warning);
     }
 
     [RelayCommand]
@@ -351,13 +360,13 @@ public sealed partial class DriversViewModel : PageViewModel
         if (card?.Tool is not { } tool) return;
         if (tool.WingetId is null)
         {
-            OpenUrl(tool.SiteUrl);
+            await OpenUrlAsync(tool.SiteUrl);
             return;
         }
         if (card.ToolInstalled)
         {
             if (card.ToolExePath is not null) ShellOpen(card.ToolExePath, tool.Name);
-            else OpenUrl(tool.SiteUrl);
+            else await OpenUrlAsync(tool.SiteUrl);
             return;
         }
         if (await InstallToolAsync(tool))
@@ -372,7 +381,7 @@ public sealed partial class DriversViewModel : PageViewModel
     {
         if (IntelDsaInstalled)
         {
-            OpenUrl(DriverSources.IntelDsa.SiteUrl);
+            await OpenUrlAsync(DriverSources.IntelDsa.SiteUrl);
             return;
         }
         if (await InstallToolAsync(DriverSources.IntelDsa))

@@ -144,7 +144,9 @@ internal static class WindowsUpdateDrivers
     /// </summary>
     public static Task<WuInstallResult> InstallAsync(IReadOnlyCollection<string> updateIds, IReadOnlySet<string> eulaApproved,
         int serverSelection, IProgress<WuProgress> progress, CancellationToken ct) =>
-        RunOnMtaThread("WUA install", SearchTimeout + DownloadTimeout + InstallTimeout + TimeSpan.FromMinutes(10), ct, token =>
+        // Cancellation is handled inside (RequestAbort) and must not end the await early: the caller keeps waiting
+        // for the real result, so drivers installed before the abort and the reboot flag are reported.
+        RunOnMtaThread("WUA install", SearchTimeout + DownloadTimeout + InstallTimeout + TimeSpan.FromMinutes(10), ct, observeCancellation: false, token =>
         {
             Elevation.Demand("установка драйверов из Windows Update");
             var wanted = new HashSet<string>(updateIds, StringComparer.OrdinalIgnoreCase);
@@ -430,7 +432,16 @@ internal static class WindowsUpdateDrivers
     }
 
     /// <summary>Runs <paramref name="body"/> on a new background MTA thread with an overall timeout.</summary>
-    private static Task<T> RunOnMtaThread<T>(string name, TimeSpan timeout, CancellationToken ct, Func<CancellationToken, T> body)
+    private static Task<T> RunOnMtaThread<T>(string name, TimeSpan timeout, CancellationToken ct, Func<CancellationToken, T> body) =>
+        RunOnMtaThread(name, timeout, ct, observeCancellation: true, body);
+
+    /// <summary>
+    /// Runs <paramref name="body"/> on a new background MTA thread with an overall timeout.
+    /// With <paramref name="observeCancellation"/> = false the returned task ignores <paramref name="ct"/> (only the
+    /// body sees it) and completes when the body really ends — or on the timeout.
+    /// </summary>
+    private static Task<T> RunOnMtaThread<T>(string name, TimeSpan timeout, CancellationToken ct, bool observeCancellation,
+        Func<CancellationToken, T> body)
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -445,6 +456,6 @@ internal static class WindowsUpdateDrivers
         };
         thread.SetApartmentState(ApartmentState.MTA);
         thread.Start();
-        return tcs.Task.WaitAsync(timeout, ct);
+        return observeCancellation ? tcs.Task.WaitAsync(timeout, ct) : tcs.Task.WaitAsync(timeout);
     }
 }

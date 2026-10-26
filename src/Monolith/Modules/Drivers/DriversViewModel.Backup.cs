@@ -157,6 +157,16 @@ public sealed partial class DriversViewModel
     {
         if (item is null) return;
         if (!RequireAdmin("восстановление драйверов")) return;
+
+        // Check the backup against its manifest before anything else (no restore point for a refused backup).
+        var plan = await Task.Run(() => DriverBackupService.PlanRestore(item.Path));
+        if (!plan.Ok)
+        {
+            Log.Warn($"Восстановление из {item.Name} отклонено: {plan.Error}");
+            await Ui.AlertAsync("ВОССТАНОВЛЕНИЕ НЕВОЗМОЖНО", plan.Error!);
+            return;
+        }
+
         var confirmed = await Ui.ConfirmAsync(
             "ВОССТАНОВИТЬ ДРАЙВЕРЫ ИЗ КОПИИ?",
             "Windows добавит пакеты из копии в хранилище драйверов и установит их на подходящие устройства — только там, где они лучше текущих. Более новые драйверы старыми не заменяются.",
@@ -164,7 +174,8 @@ public sealed partial class DriversViewModel
                 $"Копия: {item.Name} от {item.DateText}",
                 $"Содержимое: {item.InfCountText}, {item.SizeText} — {item.ProvidersText}",
                 "Сначала будет создана точка восстановления системы",
-                $"Будет выполнено: pnputil /add-driver \"{Path.Combine(item.Path, "*.inf")}\" /subdirs /install",
+                $"Будет выполнено: pnputil /add-driver \"<пакет>.inf\" /install — по очереди для каждого пакета из описания копии (пакетов: {plan.InfPaths.Count})",
+                "Устанавливаются только пакеты, перечисленные в описании копии (monolith-backup.json)",
                 "Во время установки экран может мигать, а сеть и звук — пропадать на несколько секунд",
                 "Компьютер не будет перезагружен автоматически",
             ],
