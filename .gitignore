@@ -28,3 +28,4 @@ Desktop.ini
 snapshots/
 .claude/settings.local.json
 .claude/worktrees/
+.wt/
