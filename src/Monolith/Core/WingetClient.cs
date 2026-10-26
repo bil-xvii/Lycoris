@@ -6,8 +6,13 @@ namespace Monolith.Core;
 
 public sealed record WingetResult(int ExitCode, string Output, bool Cancelled = false)
 {
-    public bool Success => ExitCode is 0 || WingetClient.IsBenign(ExitCode);
-    public string Message => Cancelled ? "Отменено" : WingetClient.Describe(ExitCode);
+    /// <summary>
+    /// A modifying run (install/upgrade/uninstall) exceeded the timeout and was left running, not killed:
+    /// the result is unknown and has to be re-detected later.
+    /// </summary>
+    public bool StillRunning { get; init; }
+    public bool Success => !StillRunning && (ExitCode is 0 || WingetClient.IsBenign(ExitCode));
+    public string Message => Cancelled ? "Отменено" : StillRunning ? "ещё выполняется — результат проверим заново" : WingetClient.Describe(ExitCode);
 }
 
 /// <summary>One package to install or upgrade, plus the optional installer filters.</summary>
@@ -272,6 +277,9 @@ public static partial class WingetClient
         if (SafetyLock.IsLocked && IsModifying(list))
             return new WingetResult(-1, "Установка программ заблокирована: режим самопроверки.");
 
+        // Killing winget mid-install would kill the installer it started and can leave a half-installed program:
+        // a modifying run that exceeds the timeout is left running and reported as "still running".
+        var modifying = IsModifying(list);
         await Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -282,6 +290,7 @@ public static partial class WingetClient
                     Encoding = OutputEncoding.Utf8,
                     LogCommand = log,
                     Timeout = TimeSpan.FromMinutes(30),
+                    KillOnTimeout = !modifying,
                     OnOutput = line =>
                     {
                         if (IsNoise(line)) return;
@@ -291,6 +300,11 @@ public static partial class WingetClient
 
                 var text = string.Join(Environment.NewLine, r.Combined.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => !IsNoise(l)));
                 if (r.Cancelled) return new WingetResult(r.ExitCode, text, Cancelled: true);
+                if (r.StillRunning)
+                {
+                    Log.Warn($"winget {list.FirstOrDefault()} {ArgId(list)}: идёт дольше 30 минут — MONOLITH перестал ждать, процесс не прерывался.");
+                    return new WingetResult(-1, text) { StillRunning = true };
+                }
                 if (r.ExitCode == InternalError && attempt == 0)
                 {
                     await Task.Delay(1500, ct).ConfigureAwait(false);

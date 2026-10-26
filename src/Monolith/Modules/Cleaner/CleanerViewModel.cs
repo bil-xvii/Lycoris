@@ -43,7 +43,7 @@ public sealed partial class CleanerViewModel : PageViewModel
         new("Prefetch", "Его очистка только замедляет запуск Windows и программ."),
         new("WinSxS, Installer, DriverStore", "Нужны для обновлений и удаления программ. WinSxS — только штатным DISM."),
         new("Шейдеры установленных игр Steam", "Их удаление вызывает статтеры в играх."),
-        new("Windows.old и пакеты обновлений", "Удаляются только через «Параметры → Память» самой Windows."),
+        new("Windows.old и установочные файлы обновления Windows", "Удаляются только через «Параметры → Память» самой Windows. Скачанные пакеты Центра обновления и кэш оптимизации доставки — только отдельными пунктами, Windows при необходимости скачает их заново."),
     ];
 
     public IReadOnlyList<StepLine> Steps { get; } =
@@ -99,6 +99,18 @@ public sealed partial class CleanerViewModel : PageViewModel
     }
 
     protected override Task OnReturnAsync() => RefreshDrivesAsync();
+
+    /// <summary>
+    /// Leaving the page: drop the file lists of analyses that can no longer be used (stale or already cleaned —
+    /// <see cref="CleanItem.NeedsFreshAnalysis"/> forces a new analysis before any clean). Never while working.
+    /// </summary>
+    public override void Deactivate()
+    {
+        base.Deactivate();
+        if (IsWorking) return;
+        foreach (var i in _items)
+            if (i.NeedsFreshAnalysis(StaleAfter)) i.ReleaseManifests();
+    }
 
     // ───────────────────────────── Commands ─────────────────────────────
 
@@ -523,7 +535,7 @@ public sealed partial class CleanerViewModel : PageViewModel
                         break;
                     case CleanMethod.RecycleBin:
                         WorkIndeterminate = true;
-                        r = await CleanRunner.CleanRecycleBinAsync(item.Definition, env);
+                        r = await CleanRunner.CleanRecycleBinAsync(item.Definition, a, env);
                         break;
                     case CleanMethod.DeliveryOptimization:
                         WorkIndeterminate = true;
@@ -626,7 +638,7 @@ public sealed partial class CleanerViewModel : PageViewModel
 
         var title = cancelled ? "ОЧИСТКА ПРЕРВАНА" : errors > 0 ? "ОЧИСТКА ЗАВЕРШЕНА С ОШИБКАМИ" : "ОЧИСТКА ЗАВЕРШЕНА";
         var message = $"Освобождено {CleanFormat.Bytes(freed)}. Удалено: {CleanFormat.Files(deleted)}." +
-                      (inUse > 0 ? $" {CleanFormat.Count(inUse)} {CleanFormat.Plural(inUse, "файл был занят", "файла были заняты", "файлов были заняты")} программами и пропущены." : "") +
+                      (inUse > 0 ? $" {CleanFormat.Count(inUse)} {CleanFormat.Plural(inUse, "файл был занят программами и пропущен", "файла были заняты программами и пропущены", "файлов были заняты программами и пропущены")}." : "") +
                       (errors > 0 ? $" Ошибок: {errors} — подробности в консоли." : "");
         await Ui.AlertAsync(title, message, details);
     }

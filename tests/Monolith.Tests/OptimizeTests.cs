@@ -308,4 +308,23 @@ public sealed class OptimizeTests
         Assert.NotNull(parsed);
         Assert.True(parsed.SetEquals(["a", "b", "c"]));
     }
+
+    // ───────────────────────────── Data loss / merged records ─────────────────────────────
+
+    [Fact]
+    public void Recall_snapshot_tweak_is_marked_as_data_loss_and_exists_in_catalog()
+    {
+        Assert.Contains(TweakCatalog.All, t => t.Id == "recall-snapshots-off");
+        Assert.NotNull(OptimizeLogic.DataLossNote("recall-snapshots-off"));
+        Assert.Null(OptimizeLogic.DataLossNote("some-other-tweak"));
+    }
+
+    [Fact]
+    public void Other_sources_of_merged_records_exclude_own_ids_and_dedupe()
+    {
+        var others = OptimizeLogic.OtherTweakSources(
+            ["tweak:a", "tweak:b", "tweak:a", "services", "tweak:c", "tweak:b", ""], "tweak:", ["a"]);
+        Assert.Equal(["b", "services", "c"], others);
+        Assert.Empty(OptimizeLogic.OtherTweakSources(["tweak:a"], "tweak:", ["a"]));
+    }
 }

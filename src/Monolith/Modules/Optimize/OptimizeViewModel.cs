@@ -19,7 +19,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     public override string Key => "optimize";
     public override string Index => "02";
     public override string Title => "ОПТИМИЗАЦИЯ";
-    public override string Subtitle => "Выберите профиль, проверьте изменения и примените. Любой пункт откатывается в один клик.";
+    public override string Subtitle => "Выберите профиль, проверьте изменения и примените. Изменённые настройки откатываются в один клик.";
     public override string Glyph => Glyphs.Bolt;
 
     private const string SourcePrefix = "tweak:";
@@ -40,6 +40,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private int _visibleExpert;
     private bool _detected;
     private bool _refreshing;
+    /// <summary>System Protection state cached off the UI thread by <see cref="RefreshStatesAsync"/>; null until known.</summary>
+    private bool? _protectionOn;
 
     public OptimizeViewModel()
     {
@@ -213,6 +215,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 var tweaks = _items.Select(i => i.Tweak).ToList();
                 var states = await TweakEngine.DetectAllAsync(tweaks);
                 var revertable = await Task.Run(() => tweaks.Where(TweakEngine.CanRevert).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
+                _protectionOn = await Task.Run(RestorePointService.IsEnabled);
                 foreach (var i in _items)
                 {
                     i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
@@ -335,7 +338,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     internal void ToggleSection(SectionRow section)
     {
-        var selectable = section.Items.Where(i => i.IsApplicable && !i.IsAdvanced).ToList();
+        // Expert items need their own warning, data-loss items must be picked one by one: bulk select skips both.
+        var selectable = section.Items.Where(i => i.IsApplicable && !i.IsAdvanced && !i.HasDataLoss).ToList();
         if (selectable.Count == 0) return;
         var check = !selectable.All(i => i.IsChecked);
         foreach (var i in selectable) i.SetChecked(check);
@@ -463,9 +467,13 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var restart = RestartCount > 0
             ? $" · {RestartCount} {OptimizeLogic.Plural(RestartCount, "требует", "требуют", "требуют")} перезапуска"
             : "";
-        var rp = AppSettings.Current.CreateRestorePoints
-            ? " · перед изменениями будет создана точка восстановления"
-            : " · точка восстановления отключена в настройках";
+        var rp = !AppSettings.Current.CreateRestorePoints
+            ? " · точка восстановления отключена в настройках"
+            : _protectionOn == false
+                ? " · защита системы выключена — точки восстановления не будет, откат через журнал"
+                : _protectionOn == true
+                    ? " · перед изменениями будет создана точка восстановления"
+                    : "";
         return $"Профиль «{CurrentTile.SentenceName}»{restart}{rp}.";
     }
 
@@ -517,15 +525,19 @@ public sealed partial class OptimizeViewModel : PageViewModel
         }
         var alreadyApplied = _items.Count(i => i.IsChecked && i.IsApplied);
 
-        if (AppSettings.Current.ConfirmBeforeApply)
+        // Irreversible data loss is always confirmed, even when the user turned confirmations off.
+        var lossy = targets.Where(t => t.HasDataLoss).ToList();
+        if (AppSettings.Current.ConfirmBeforeApply || lossy.Count > 0)
         {
             var footnote = await RestorePointFootnoteAsync();
-            var message = "MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому любой пункт можно откатить."
+            var message = (lossy.Count > 0
+                              ? "MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому настройки можно откатить. Исключение: удалённые данные не восстанавливаются."
+                              : "MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому любой пункт можно откатить.")
                           + (alreadyApplied > 0 ? $" Уже применённые пункты ({alreadyApplied}) не трогаются." : "");
             var ok = await Ui.ConfirmAsync(
                 $"ПРИМЕНИТЬ {targets.Count} {OptimizeLogic.Plural(targets.Count, "ИЗМЕНЕНИЕ", "ИЗМЕНЕНИЯ", "ИЗМЕНЕНИЙ")}?",
                 message, targets.Select(DescribeForConfirm), confirmText: "ПРИМЕНИТЬ", cancelText: "ОТМЕНА",
-                danger: targets.Any(t => t.IsAdvanced), footnote: footnote);
+                danger: targets.Any(t => t.IsAdvanced) || lossy.Count > 0, footnote: footnote);
             if (!ok) return;
         }
 
@@ -552,6 +564,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (t.State == TweakState.Partial) parts[0] += " (сейчас применено частично)";
         parts.Add(t.RiskText.ToLowerInvariant());
         if (t.HasRestart) parts.Add(t.Tweak.RestartText);
+        if (t.DataLossNote is { } loss) parts.Add(loss);
         return string.Join(" · ", parts);
     }
 
@@ -599,7 +612,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     internal async Task RevertOneAsync(TweakItemViewModel item)
     {
         if (!RequireAdmin("Откат изменений")) return;
-        var records = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == SourcePrefix + item.Id).ToList();
+        var records = ChangeJournal.Instance.ActiveRecords.Where(r => r.TouchedBy(SourcePrefix + item.Id)).ToList();
         if (records.Count == 0)
         {
             Ui.Toast("Для этого пункта нет изменений MONOLITH, которые можно откатить.", ToastKind.Info);
@@ -607,9 +620,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
             return;
         }
 
+        var details = records.Select(DescribeRecord).ToList();
+        if (AlsoRevertsLine(records, [item.Id]) is { } also) details.Add(also);
         var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?",
             $"«{item.Title}»: MONOLITH вернёт значения, которые были до применения.",
-            records.Select(DescribeRecord), confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
+            details, confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
             footnote: item.HasRestart ? $"После отката {item.Tweak.RestartText}." : null);
         if (!ok) return;
 
@@ -633,9 +648,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var active = ChangeJournal.Instance.ActiveRecords;
         var details = targets.Select(t =>
         {
-            var n = active.Count(r => r.Source == SourcePrefix + t.Id);
+            var n = active.Count(r => r.TouchedBy(SourcePrefix + t.Id));
             return $"{t.Title} — {n} {OptimizeLogic.Plural(n, "параметр", "параметра", "параметров")}";
-        });
+        }).ToList();
+        var touched = active.Where(r => targets.Any(t => r.TouchedBy(SourcePrefix + t.Id))).ToList();
+        if (AlsoRevertsLine(touched, targets.Select(t => t.Id).ToList()) is { } also) details.Add(also);
         var restartNote = targets.Any(t => t.HasRestart) ? " Для части пунктов после отката понадобится перезапуск." : "";
         var ok = await Ui.ConfirmAsync(
             $"ОТКАТИТЬ {targets.Count} {OptimizeLogic.Plural(targets.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")}?",
@@ -647,6 +664,20 @@ public sealed partial class OptimizeViewModel : PageViewModel
         await RunBusyAsync("Откат выбранных изменений…", async () => result = await TweakEngine.RevertAsync(targets.Select(t => t.Tweak)));
         await RefreshStatesAsync();
         await ReportRevertAsync(result, targets);
+    }
+
+    /// <summary>
+    /// A merged journal record keeps the original value from before the first tweak touched the target, so
+    /// reverting it also undoes every other tweak recorded on it. Names those tweaks, or returns null.
+    /// </summary>
+    private string? AlsoRevertsLine(IEnumerable<ChangeRecord> records, IReadOnlyCollection<string> ids)
+    {
+        var others = OptimizeLogic.OtherTweakSources(records.SelectMany(r => r.AlsoSources.Prepend(r.Source)), SourcePrefix, ids);
+        if (others.Count == 0) return null;
+        var titles = others.Select(id => _items.FirstOrDefault(i => i.Id == id)?.Title is { } t
+            ? $"«{t}»"
+            : $"изменение раздела «{OptimizeLogic.SourceLabel(id)}»");
+        return "Также откатит: " + string.Join(", ", titles) + " — они меняли те же параметры.";
     }
 
     private static string DescribeRecord(ChangeRecord r) =>
