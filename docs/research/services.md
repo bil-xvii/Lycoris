@@ -31,7 +31,7 @@ Profiles:
 
 | Service (exact) | Display name | Что делает (RU) | Default on 26300 (verified) | Normal | Recommended | Gaming | Condition | Risk |
 |---|---|---|---|---|---|---|---|---|
-| `DiagTrack` | Connected User Experiences and Telemetry | Сбор и отправка диагностических данных (телеметрии) в Microsoft | Auto, no Trig, Running | — | M | M (D? in "Приватность+") | Not a Windows Insider (Insider requires optional diagnostic data). Not Intune/Autopatch/WUfB-reports managed. Apply the `AllowTelemetry` policy first (§4.3). | Low for M. D is **debated** (WinUtil uses D). |
+| `DiagTrack` | Connected User Experiences and Telemetry | Сбор и отправка диагностических данных (телеметрии) в Microsoft | Auto, no Trig, Running | — | M? (Expert) | M? (Expert; D? in "Приватность+") | Not a Windows Insider (Insider requires optional diagnostic data). Not Intune/Autopatch/WUfB-reports managed. Apply the `AllowTelemetry` policy first (§4.3). | Low for M, but some Feedback Hub and diagnostics features may work worse. Reconciled with general_tweaks.md (DiagTrack→Manual is ADVANCED there): the stricter rating wins, so it is opt-in only and never pre-selected. D is **debated** (WinUtil uses D). |
 | `MapsBroker` | Downloaded Maps Manager | Доступ приложений к скачанным офлайн-картам | Auto **Delayed**, no Trig, Stopped | M | M | M | none (the Maps app starts it on demand) | None |
 | `TrkWks` | Distributed Link Tracking Client | Отслеживает перемещение NTFS-файлов для ярлыков и OLE-ссылок | Auto, no Trig | — | M | M | No domain network with moved files on shares | Very low |
 | `PcaSvc` | Program Compatibility Assistant Service | Помощник совместимости: предлагает режимы совместимости для старых программ | Auto **Delayed** + Trig | — | — | M | none | Low. The benefit is debated. |
@@ -92,13 +92,14 @@ Profiles:
 | Audio/video/input | `Audiosrv`, `AudioEndpointBuilder`, `FrameServer`, `FrameServerMonitor`, `hidserv`, `GameInputSvc` | Sound, webcams (Discord/OBS), HID/controllers |
 | Virtualization/VBS | `HvHost`, `vmcompute`, `hns` (if present) | VBS/HVCI, WSL2, Sandbox |
 | Diagnostics needed by OS | `DPS`, `WdiServiceHost`, `WdiSystemHost`, `whesvc`, `WSAIFabricSvc` | Troubleshooters and resource-exhaustion detection. WSAIFabricSvc (Windows AI components host, Auto, new) and whesvc have unknown dependents, so they are **debated** → block. |
+| Auth/radio/time (added after review) | `Eaphost`, `dot3svc`, `NcaSvc`, `RmSvc`, `W32Time`, `tzautoupdate` | Not in the curated list and Admin has `SERVICE_CHANGE_CONFIG` on them, so before expert mode existed they were editable. Disabled `Eaphost`/`dot3svc` breaks 802.1X and WPA2/3-Enterprise Wi-Fi (eduroam, corporate) after a reboot; `NcaSvc` is DirectAccess/connectivity status (dependent of `iphlpsvc`, which is **Keep**); `RmSvc` breaks airplane mode and the radio toggles; `W32Time`/`tzautoupdate` stop time and time-zone sync (wrong time breaks Kerberos, TLS certificates and Windows Update). Zero gain → block. |
 | Third-party (rule) | Anti-cheat: `vgc`, `vgk`, `EasyAntiCheat*`, `BEService`, `FACEIT*`, `PnkBstr*`. Launchers: `Steam Client Service`, `GamingServices`, `GamingServicesNet`. Vendor services such as `NVDisplay.ContainerLocalSystem`, `AMD External Events Utility`, `amd3dvcacheSvc`, `AMD Crash Defender Service`. | Games won't launch, FreeSync/hotkeys/driver features break |
 
 ### 2B. Rule-based blocks (evaluate at runtime, any one blocks)
 
 | Rule | Detection |
 |---|---|
-| Not in the curated allowlist | Name lookup |
+| Not in the curated allowlist | Name lookup. In MONOLITH: enforced unless the user turns on **Settings → ЭКСПЕРТНЫЙ РЕЖИМ СЛУЖБ** (`AppSettings.ServicesExpertMode`, default off, enabling asks a danger confirmation). Expert mode lifts only this rule; every other §2A/§2B block still applies. |
 | Driver | `Type & 0x0B` (`SERVICE_KERNEL_DRIVER=1`, `SERVICE_FILE_SYSTEM_DRIVER=2`), or `Start` ∈ {0,1} |
 | Protected service (PPL) | `QueryServiceConfig2W(…, SERVICE_CONFIG_LAUNCH_PROTECTED=12)` ≠ 0, or registry `LaunchProtected`. Verified: WinDefend/WdNisSvc/MDCoreSvc=3 (Antimalware-Light); SecurityHealthService/wscsvc/AppXSvc/ClipSVC/WaaSMedicSvc/DoSvc/AppIDSvc/Sense=2 (Windows-Light); sppsvc=1. For PPL, MS docs say non-protected processes can't alter config (only `sc config start= auto` is allowed). |
 | Admin lacks change right | `OpenServiceW(…, SERVICE_CHANGE_CONFIG)` → error 5. Verified: the BA ACE lacks `DC` on WinDefend, WdNisSvc, MDCoreSvc, SecurityHealthService, wscsvc, AppXSvc, ClipSVC, sppsvc, RpcSs, DcomLaunch, BFE, mpssvc. |

@@ -52,7 +52,7 @@
                     <StackPanel Margin="0,0,28,0">
                         <TextBlock Text="01" Style="{StaticResource SectionNumber}" />
                         <TextBlock Text="БЕЗОПАСНОСТЬ" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Style="{StaticResource SectionCaption}" Text="Две страховки при любых изменениях системы. Рекомендуем держать обе включёнными." />
+                        <TextBlock Style="{StaticResource SectionCaption}" Text="Две страховки при любых изменениях системы — рекомендуем держать обе включёнными — и доступ к службам вне проверенного списка." />
                     </StackPanel>
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
                         <StackPanel>
@@ -87,6 +87,25 @@
                                                    Text="Перед применением показывается точный список изменений. Если выключить, твики применяются сразу; удаление, установка драйверов и другие необратимые действия всё равно спрашивают подтверждение." />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ConfirmBeforeApply}" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,28,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="ЭКСПЕРТНЫЙ РЕЖИМ СЛУЖБ" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                                            <Border Style="{StaticResource Tag.Hatch}" Margin="10,0,0,0" Padding="5,1,5,2">
+                                                <TextBlock Text="ЭКСПЕРТ" FontSize="9.5" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Разрешает на вкладке «Все службы» менять службы, которых нет в проверенном списке MONOLITH: другие службы Windows и службы сторонних программ. Их отключение может сломать корпоративный Wi-Fi, режим «в самолёте», синхронизацию времени, VPN и сами программы. Без этого режима такие службы только для просмотра. Критичные службы, драйверы и защищённые службы заблокированы всегда." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding ServicesExpertMode}" />
                                 </Grid>
                             </Border>
                         </StackPanel>

@@ -19,6 +19,7 @@ public static class SettingsDefaults
         var d = new AppSettings();
         target.CreateRestorePoints = d.CreateRestorePoints;
         target.ConfirmBeforeApply = d.ConfirmBeforeApply;
+        target.ServicesExpertMode = d.ServicesExpertMode;
         target.ShowConsole = d.ShowConsole;
         target.MonitorIntervalMs = d.MonitorIntervalMs;
         target.LastProfile = d.LastProfile;
@@ -35,6 +36,7 @@ public static class SettingsDefaults
         [
             $"Точка восстановления перед изменениями — {OnOff(d.CreateRestorePoints)}",
             $"Подтверждение перед применением — {OnOff(d.ConfirmBeforeApply)}",
+            $"Экспертный режим служб — {OnOff(d.ServicesExpertMode)}",
             $"Консоль операций — {(d.ShowConsole ? "показана" : "скрыта")}",
             $"Интервал обновления мониторинга — {FormatInterval(d.MonitorIntervalMs)}",
             $"Игровой режим: план питания — {OnOff(d.GameBoostPowerPlan)}, приоритет игры — {OnOff(d.GameBoostPriority)}, очистка памяти ожидания — {OnOff(d.GameBoostPurgeStandby)}",
