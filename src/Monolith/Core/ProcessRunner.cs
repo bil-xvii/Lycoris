@@ -55,12 +55,13 @@ public static class ProcessRunner
     {
         try
         {
+            // The system code pages (not the user culture): correct even with the "UTF-8 for worldwide language support" option.
             return kind switch
             {
                 OutputEncoding.Utf8 => new UTF8Encoding(false),
                 OutputEncoding.Unicode => System.Text.Encoding.Unicode,
-                OutputEncoding.Ansi => System.Text.Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.ANSICodePage),
-                _ => System.Text.Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage),
+                OutputEncoding.Ansi => System.Text.Encoding.GetEncoding((int)GetACP()),
+                _ => System.Text.Encoding.GetEncoding((int)GetOEMCP()),
             };
         }
         catch
@@ -190,6 +191,9 @@ public static class ProcessRunner
         lock (stderr) e2 = stderr.ToString();
         return new ProcessResult(exit, o, e2, timedOut, cancelled);
     }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetOEMCP();
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetACP();
 
     /// <summary>Removes NULs (sfc), backspaces and carriage-return progress spinners (winget).</summary>
     private static string Clean(string line)

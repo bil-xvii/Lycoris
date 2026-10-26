@@ -39,6 +39,8 @@ public static partial class UnelevatedWinget
 
     private static async Task<UnelevatedResult> RunCoreAsync(IReadOnlyList<string> wingetArgs, Action<string>? output, CancellationToken ct)
     {
+        if (SafetyLock.IsLocked && WingetClient.IsModifying(wingetArgs))
+            return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, "Установка программ заблокирована: режим самопроверки.");
         var token = Guid.NewGuid().ToString("N");
         var logName = $"{FilePrefix}{token}.log";
         var exitName = $"{FilePrefix}{token}.exit";

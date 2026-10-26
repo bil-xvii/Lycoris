@@ -27,7 +27,15 @@ public sealed class ChangeRecord
     public ServiceStartSnapshot? Service { get; init; }
     public Guid? PowerSchemeOriginal { get; init; }
     /// <summary>A scheme MONOLITH created (Ultimate Performance copy) and may delete on revert.</summary>
-    public Guid? PowerSchemeCreated { get; init; }
+    public Guid? PowerSchemeCreated { get; set; }
+    /// <summary>
+    /// Other sources that changed the same target after this record was created. The record still holds the
+    /// true original value; reverting from any of these sources restores it.
+    /// </summary>
+    public List<string> AlsoSources { get; set; } = [];
+
+    public bool TouchedBy(string source) =>
+        Source == source || AlsoSources.Contains(source);
     public bool? TaskWasEnabled { get; init; }
     public string? TaskPath { get; init; }
     public string? RevertFile { get; init; }
@@ -115,7 +123,7 @@ public sealed class ChangeJournal
 
     public bool HasActiveSource(string source)
     {
-        lock (_lock) return _data.Records.Any(r => !r.Reverted && r.Source == source);
+        lock (_lock) return _data.Records.Any(r => !r.Reverted && r.TouchedBy(source));
     }
 
     /// <summary>
@@ -125,20 +133,30 @@ public sealed class ChangeJournal
     /// </summary>
     public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record)
     {
+        ChangeRecord result;
+        bool isNew;
         lock (_lock)
         {
             var existing = _data.Records.LastOrDefault(r => !r.Reverted && string.Equals(r.Target, record.Target, StringComparison.OrdinalIgnoreCase));
             if (existing is not null)
             {
                 existing.NewValue = record.NewValue;
-                SaveLocked();
-                return (existing, false);
+                if (record.Source != existing.Source && !existing.AlsoSources.Contains(record.Source))
+                    existing.AlsoSources.Add(record.Source);
+                existing.PowerSchemeCreated ??= record.PowerSchemeCreated;
+                result = existing;
+                isNew = false;
             }
-            _data.Records.Add(record);
+            else
+            {
+                _data.Records.Add(record);
+                result = record;
+                isNew = true;
+            }
             SaveLocked();
         }
         Changed?.Invoke();
-        return (record, true);
+        return (result, isNew);
     }
 
     /// <summary>Removes a record that was added but whose change then failed.</summary>
@@ -188,7 +206,7 @@ public sealed class ChangeJournal
     public Task<RevertResult> RevertSourceAsync(string source)
     {
         List<ChangeRecord> items;
-        lock (_lock) items = _data.Records.Where(r => !r.Reverted && r.Source == source).ToList();
+        lock (_lock) items = _data.Records.Where(r => !r.Reverted && r.TouchedBy(source)).ToList();
         return RevertAsync(items);
     }
 
@@ -227,8 +245,11 @@ public sealed class ChangeJournal
                 break;
 
             case ChangeKind.Command when !string.IsNullOrWhiteSpace(r.RevertFile):
+                SafetyLock.ThrowIfLocked("откат команды");
+                var encoded = (r.RevertArgs ?? "").Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
+                if (encoded) Log.Command($"powershell: откат «{r.Title}»");
                 var result = await ProcessRunner.RunAsync(r.RevertFile!, r.RevertArgs ?? "",
-                    new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2) }).ConfigureAwait(false);
+                    new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
                 if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
                 break;
 

@@ -74,7 +74,17 @@ public sealed class SystemProfile
     public DateTime BootTime { get; private set; } = DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
     public bool IsLoaded { get; private set; }
 
-    public string RamText => RamTotalBytes == 0 ? "—" : $"{Math.Round(RamTotalBytes / 1024d / 1024 / 1024)} ГБ";
+    /// <summary>Sum of installed modules (what the user bought); RamTotalBytes is what Windows can use.</summary>
+    public ulong RamInstalledBytes { get; private set; }
+
+    public string RamText
+    {
+        get
+        {
+            var bytes = RamInstalledBytes > 0 ? RamInstalledBytes : RamTotalBytes;
+            return bytes == 0 ? "—" : $"{Math.Round(bytes / 1024d / 1024 / 1024)} ГБ";
+        }
+    }
     public string OsText => $"{OsName} {OsDisplayVersion} (сборка {OsBuild}{(OsUbr > 0 ? "." + OsUbr : "")})".Trim();
 
     public static Task<SystemProfile> LoadAsync()
@@ -141,9 +151,11 @@ public sealed class SystemProfile
             RamTotalBytes = Convert.ToUInt64(mo["TotalPhysicalMemory"] ?? 0UL);
 
         int rated = 0, configured = 0, count = 0;
-        foreach (var mo in Query("SELECT Speed, ConfiguredClockSpeed FROM Win32_PhysicalMemory"))
+        ulong installed = 0;
+        foreach (var mo in Query("SELECT Speed, ConfiguredClockSpeed, Capacity FROM Win32_PhysicalMemory"))
         {
             count++;
+            installed += Convert.ToUInt64(mo["Capacity"] ?? 0UL);
             rated = Math.Max(rated, Convert.ToInt32(mo["Speed"] ?? 0));
             var c = Convert.ToInt32(mo["ConfiguredClockSpeed"] ?? 0);
             configured = configured == 0 ? c : Math.Min(configured, c);
@@ -151,6 +163,7 @@ public sealed class SystemProfile
         RamRatedSpeed = rated;
         RamConfiguredSpeed = configured;
         RamModules = count;
+        RamInstalledBytes = installed;
     }
 
     private void ReadGpus()

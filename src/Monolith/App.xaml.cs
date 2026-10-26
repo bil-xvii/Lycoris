@@ -25,6 +25,7 @@ namespace Monolith;
 public partial class App : Application
 {
     private Mutex? _singleInstance;
+    private bool _ownsMutex;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -62,13 +63,26 @@ public partial class App : Application
 
         if (!snapshot)
         {
-            _singleInstance = new Mutex(true, @"Local\MONOLITH.SingleInstance", out var isNew);
-            if (!isNew)
+            // When relaunched with admin rights the previous (non-elevated) copy is still closing: wait for it.
+            _singleInstance = new Mutex(false, @"Local\MONOLITH.SingleInstance");
+            bool acquired;
+            try
             {
+                acquired = _singleInstance.WaitOne(HasArg(args, "--elevated") ? TimeSpan.FromSeconds(20) : TimeSpan.Zero);
+            }
+            catch (AbandonedMutexException)
+            {
+                acquired = true; // previous instance crashed — we own it now
+            }
+            if (!acquired)
+            {
+                _singleInstance.Dispose();
+                _singleInstance = null;
                 ActivateExistingInstance();
                 Shutdown();
                 return;
             }
+            _ownsMutex = true;
         }
 
         Log.PruneOldLogs();
@@ -140,11 +154,16 @@ public partial class App : Application
         }
 
         window.Show();
+        _ = vm.RunStartupChecksAsync();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         try { ChangeJournal.Instance.Save(); } catch { }
+        if (_ownsMutex)
+        {
+            try { _singleInstance?.ReleaseMutex(); } catch { }
+        }
         _singleInstance?.Dispose();
         base.OnExit(e);
     }

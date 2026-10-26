@@ -22,8 +22,8 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>Show a confirmation with the list of changes before applying them.</summary>
     [ObservableProperty] private bool _confirmBeforeApply = true;
 
-    /// <summary>Show the operations console at the bottom of the window.</summary>
-    [ObservableProperty] private bool _showConsole = true;
+    /// <summary>Show the operations console at the bottom of the window (collapsed by default to leave room for content).</summary>
+    [ObservableProperty] private bool _showConsole;
 
     /// <summary>Dashboard refresh interval in milliseconds.</summary>
     [ObservableProperty] private int _monitorIntervalMs = 1000;

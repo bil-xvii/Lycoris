@@ -8,9 +8,9 @@ public sealed record TweakRunResult(int Applied, int Skipped, IReadOnlyList<stri
 public static class TweakEngine
 {
     /// <summary>Detects the state of every tweak in parallel-safe sequence (registry/service reads are cheap).</summary>
-    public static Task<Dictionary<string, TweakState>> DetectAllAsync(IEnumerable<Tweak> tweaks) => Task.Run(() =>
+    public static Task<Dictionary<string, TweakState>> DetectAllAsync(IEnumerable<Tweak> tweaks) => Task.Run(async () =>
     {
-        var sp = SystemProfile.Current;
+        var sp = await SystemProfile.LoadAsync().ConfigureAwait(false);
         var result = new Dictionary<string, TweakState>();
         foreach (var t in tweaks)
         {
@@ -65,7 +65,7 @@ public static class TweakEngine
     public static async Task<RevertResult> RevertAsync(IEnumerable<Tweak> tweaks)
     {
         var sources = tweaks.Select(t => "tweak:" + t.Id).ToHashSet();
-        var records = ChangeJournal.Instance.ActiveRecords.Where(r => sources.Contains(r.Source));
+        var records = ChangeJournal.Instance.ActiveRecords.Where(r => sources.Contains(r.Source) || r.AlsoSources.Any(sources.Contains));
         return await ChangeJournal.Instance.RevertAsync(records).ConfigureAwait(false);
     }
 

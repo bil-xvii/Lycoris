@@ -213,7 +213,10 @@ public sealed class ChangeSession
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Command, Target = $"cmd:{target}",
                 OldValue = oldValue, NewValue = newValue, RevertFile = revertFile, RevertArgs = revertArgs,
             });
-            var r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2) }).ConfigureAwait(false);
+            // Encoded PowerShell scripts are unreadable base64 — log a readable line instead.
+            var encoded = args.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
+            if (encoded) Log.Command($"powershell: {title} ({newValue})");
+            var r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
             if (!r.Success) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
             Applied++;
             return true;

@@ -66,6 +66,7 @@ public sealed class SelfTestRunner
     private readonly BindingListener _bindings = new();
     private double _currentMaxLag;
     private volatile bool _lagRunning;
+    private bool _bindingDetectorWorks;
 
     public SelfTestRunner(MainWindow window, MainViewModel vm, string outDir)
     {
@@ -86,6 +87,14 @@ public sealed class SelfTestRunner
         PresentationTraceSources.DataBindingSource.Listeners.Add(_bindings);
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Warning;
         Log.Written += OnLog;
+
+        // Prove the binding-error detector works: a deliberately broken binding must be reported.
+        var probe = new TextBlock { DataContext = new object() };
+        probe.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("SelfTestProbeMissingProperty"));
+        await Task.Delay(400);
+        await Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+        _bindingDetectorWorks = _bindings.Messages.Any(m => m.Contains("SelfTestProbeMissingProperty"));
+
         var lagThread = StartLagMonitor();
 
         var reports = new List<PageReport>();
@@ -321,6 +330,7 @@ public sealed class SelfTestRunner
         sb.AppendLine();
         sb.AppendLine($"Время: {DateTime.Now:yyyy-MM-dd HH:mm:ss} · длительность {elapsed.TotalSeconds:0} с · права администратора: {(Elevation.IsElevated ? "да" : "нет")}");
         sb.AppendLine($"Память: {startMem / 1048576} МБ → {endMem / 1048576} МБ");
+        sb.AppendLine($"Детектор ошибок привязок: {(_bindingDetectorWorks ? "работает (контрольная ошибка поймана)" : "НЕ РАБОТАЕТ — результаты по привязкам недостоверны")}");
         sb.AppendLine();
         sb.AppendLine("| Страница | Статус | Загрузка, мс | Макс. задержка UI, мс | Ошибки | Привязки | Падения | Диалоги |");
         sb.AppendLine("|---|---|---|---|---|---|---|---|");

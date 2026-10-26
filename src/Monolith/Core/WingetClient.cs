@@ -258,12 +258,19 @@ public static partial class WingetClient
         }
     }
 
+    /// <summary>install / upgrade / uninstall / import / repair change the system; list / show / export / search do not.</summary>
+    public static bool IsModifying(IReadOnlyList<string> args) =>
+        args.Count > 0 && args[0].ToLowerInvariant() is "install" or "add" or "upgrade" or "update" or "uninstall" or "remove" or "rm"
+            or "import" or "repair" or "configure" or "pin" or "source";
+
     /// <summary>Runs winget with the given arguments (serialized; retried once on internal error).</summary>
     public static async Task<WingetResult> RunAsync(IEnumerable<string> args, Action<string>? output, CancellationToken ct, bool log = true)
     {
         var exe = ExePath;
         if (exe is null) return new WingetResult(-1, "winget не найден. Установите «Установщик приложений» из Microsoft Store.");
         var list = args.ToList();
+        if (SafetyLock.IsLocked && IsModifying(list))
+            return new WingetResult(-1, "Установка программ заблокирована: режим самопроверки.");
 
         await Gate.WaitAsync(ct).ConfigureAwait(false);
         try

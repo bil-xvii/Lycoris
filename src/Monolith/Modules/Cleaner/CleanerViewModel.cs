@@ -117,6 +117,11 @@ public sealed partial class CleanerViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task CleanAsync()
     {
+        if (GameBoostState.IsActive)
+        {
+            Ui.Toast("Идёт игровая сессия — очистка запустится после выхода из игры, чтобы не мешать ей.", ToastKind.Warning);
+            return;
+        }
         var selected = _items.Where(i => i.IsChecked && i.IsSelectable).ToList();
         if (selected.Count == 0)
         {

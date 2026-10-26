@@ -61,12 +61,21 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
         _consoleExpanded = AppSettings.Current.ShowConsole;
         Ui.Host = this;
+        AppSettings.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AppSettings.ShowConsole))
+                Ui.Post(() => ConsoleExpanded = AppSettings.Current.ShowConsole);
+        };
 
         ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournalCount);
         RefreshJournalCount();
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        _clock.Tick += (_, _) => ClockText = DateTime.Now.ToString("HH:mm");
+        _clock.Tick += async (_, _) =>
+        {
+            ClockText = DateTime.Now.ToString("HH:mm");
+            await RefreshRestoreStatusAsync();
+        };
         _clock.Start();
 
         _ = LoadSystemAsync();
@@ -78,7 +87,44 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         SystemLine1 = sp.CpuName;
         SystemLine2 = sp.PrimaryGpu?.Name ?? "";
         SystemLine3 = $"{sp.RamText} RAM · {sp.OsName} {sp.OsDisplayVersion}".Trim();
-        RestoreEnabled = await Task.Run(RestorePointService.IsEnabled);
+        await RefreshRestoreStatusAsync();
+    }
+
+    public async Task RefreshRestoreStatusAsync()
+    {
+        try { RestoreEnabled = await Task.Run(RestorePointService.IsEnabled); }
+        catch { }
+    }
+
+    /// <summary>Startup safety checks, run once after the window is shown (skipped in QA modes).</summary>
+    public async Task RunStartupChecksAsync()
+    {
+        await Task.Delay(1200);
+
+        // 1. Elevated with a different administrator account: HKCU settings would go to that account.
+        if (Elevation.IsElevated && await Task.Run(Elevation.IsRunningAsDifferentUser))
+        {
+            Log.Warn("MONOLITH запущен от имени другой учётной записи администратора.");
+            await Ui.AlertAsync("ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ",
+                "MONOLITH запущен от имени другого администратора, а не пользователя, который сейчас работает в Windows. " +
+                "Пользовательские настройки (игровой режим, мышь, реклама, автозапуск «для меня») применятся к той учётной записи. " +
+                "Чтобы настроить свой профиль, войдите в Windows под учётной записью администратора и запустите MONOLITH оттуда.");
+        }
+
+        // 2. Game Boost changes left active (e.g. MONOLITH or the PC crashed during a game).
+        var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
+        if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
+        {
+            var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ РЕЖИМ",
+                "Прошлая игровая сессия не завершилась штатно, и её временные изменения всё ещё действуют. Вернуть всё как было?",
+                stale.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}"), confirmText: "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
+            if (ok)
+            {
+                var result = await ChangeJournal.Instance.RevertAsync(stale);
+                Ui.Toast(result.Success ? "Изменения игрового режима отменены." : string.Join("\n", result.Errors),
+                    result.Success ? ToastKind.Success : ToastKind.Error);
+            }
+        }
     }
 
     private void RefreshJournalCount() => ActiveChanges = ChangeJournal.Instance.ActiveRecords.Count;

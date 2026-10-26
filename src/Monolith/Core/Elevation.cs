@@ -59,6 +59,34 @@ public static class Elevation
         }
     }
 
+    /// <summary>
+    /// True when this process runs under a different account than the one signed in to the desktop
+    /// (e.g. a standard user approved UAC with another admin's password). HKCU then belongs to that other account.
+    /// </summary>
+    public static bool IsRunningAsDifferentUser()
+    {
+        try
+        {
+            using var me = WindowsIdentity.GetCurrent();
+            var mySid = me.User?.Value;
+            var session = Process.GetCurrentProcess().SessionId;
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                $"SELECT Handle, SessionId FROM Win32_Process WHERE Name = 'explorer.exe' AND SessionId = {session}");
+            foreach (System.Management.ManagementObject p in searcher.Get())
+            {
+                using (p)
+                {
+                    using var outParams = p.InvokeMethod("GetOwnerSid", null, null);
+                    var sid = outParams?["Sid"]?.ToString();
+                    if (!string.IsNullOrEmpty(sid) && mySid is not null)
+                        return !string.Equals(sid, mySid, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+        }
+        catch { }
+        return false;
+    }
+
     /// <summary>Throws a friendly exception when an admin-only action is attempted without rights.</summary>
     public static void Demand(string action)
     {

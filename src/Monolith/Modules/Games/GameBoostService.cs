@@ -48,6 +48,9 @@ public sealed partial class GameBoostService : ObservableObject
 
     public ObservableCollection<BoostChange> Changes { get; } = [];
 
+    // Publish the session state app-wide (Cleaner refuses to run during a game; startup checks skip recovery).
+    partial void OnIsActiveChanged(bool value) => GameBoostState.Set(value);
+
     /// <summary>Raised on the UI thread after a session has ended (manually or automatically).</summary>
     public event Action? Ended;
 

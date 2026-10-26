@@ -134,7 +134,8 @@ public static class CleanRunner
             {
                 a.RefusedTargets++;
                 a.RefusedNote ??= $"{t.Label}: {PathGuard.Describe(verdict)} — пропущено.";
-                Log.Warn($"Очистка: «{t.Label}» пропущено защитой путей — {PathGuard.Describe(verdict)}.");
+                // Expected and safe (e.g. a cache folder moved to another drive via a junction): informational.
+                Log.Info($"Очистка: «{t.Label}» пропущено защитой путей — {PathGuard.Describe(verdict)}.");
                 continue;
             }
             a.Bytes += m.Bytes;

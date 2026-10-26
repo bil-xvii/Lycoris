@@ -231,7 +231,7 @@
                         </Button>
                     </StackPanel>
                 </Grid>
-                <ListBox x:Name="ConsoleList" Grid.Row="1" Height="150" Style="{StaticResource List.Plain}" ItemsSource="{Binding LogEntries}"
+                <ListBox x:Name="ConsoleList" Grid.Row="1" Height="128" Style="{StaticResource List.Plain}" ItemsSource="{Binding LogEntries}"
                          Margin="40,0,24,10" Visibility="{Binding ConsoleExpanded, Converter={StaticResource BoolToVis}}"
                          VirtualizingPanel.IsVirtualizing="True">
                     <ListBox.ItemTemplate>
