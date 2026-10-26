@@ -1,0 +1,13 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="clr-namespace:Monolith.UI">
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    <ui:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+    <ui:NullToVisibilityConverter x:Key="NullToVis" />
+    <ui:InverseBoolConverter x:Key="InverseBool" />
+    <ui:BytesConverter x:Key="Bytes" />
+    <ui:EqualsConverter x:Key="Equals" />
+    <ui:EqualsToVisibilityConverter x:Key="EqualsToVis" />
+    <ui:UpperConverter x:Key="Upper" />
+    <ui:PercentConverter x:Key="Percent" />
+</ResourceDictionary>

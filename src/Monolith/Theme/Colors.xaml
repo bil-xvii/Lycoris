@@ -1,0 +1,107 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        MONOLITH palette — strictly monochrome.
+        Hierarchy is made with luminance, weight, hatching and inversion, never with hue.
+    -->
+    <Color x:Key="C.Base">#FF090909</Color>
+    <Color x:Key="C.Surface">#FF101010</Color>
+    <Color x:Key="C.Surface2">#FF161616</Color>
+    <Color x:Key="C.Surface3">#FF1D1D1D</Color>
+    <Color x:Key="C.Surface4">#FF262626</Color>
+    <Color x:Key="C.Line">#FF1F1F1F</Color>
+    <Color x:Key="C.Line2">#FF2B2B2B</Color>
+    <Color x:Key="C.Line3">#FF3D3D3D</Color>
+    <Color x:Key="C.Text">#FFF2F2F2</Color>
+    <Color x:Key="C.Text2">#FFA3A3A3</Color>
+    <Color x:Key="C.Text3">#FF6B6B6B</Color>
+    <Color x:Key="C.Text4">#FF474747</Color>
+    <Color x:Key="C.White">#FFFFFFFF</Color>
+    <Color x:Key="C.Black">#FF000000</Color>
+    <Color x:Key="C.Ink">#FF090909</Color>
+    <Color x:Key="C.Scrim">#D8000000</Color>
+
+    <SolidColorBrush x:Key="B.Base" Color="{StaticResource C.Base}" />
+    <SolidColorBrush x:Key="B.Surface" Color="{StaticResource C.Surface}" />
+    <SolidColorBrush x:Key="B.Surface2" Color="{StaticResource C.Surface2}" />
+    <SolidColorBrush x:Key="B.Surface3" Color="{StaticResource C.Surface3}" />
+    <SolidColorBrush x:Key="B.Surface4" Color="{StaticResource C.Surface4}" />
+    <SolidColorBrush x:Key="B.Line" Color="{StaticResource C.Line}" />
+    <SolidColorBrush x:Key="B.Line2" Color="{StaticResource C.Line2}" />
+    <SolidColorBrush x:Key="B.Line3" Color="{StaticResource C.Line3}" />
+    <SolidColorBrush x:Key="B.Text" Color="{StaticResource C.Text}" />
+    <SolidColorBrush x:Key="B.Text2" Color="{StaticResource C.Text2}" />
+    <SolidColorBrush x:Key="B.Text3" Color="{StaticResource C.Text3}" />
+    <SolidColorBrush x:Key="B.Text4" Color="{StaticResource C.Text4}" />
+    <SolidColorBrush x:Key="B.White" Color="{StaticResource C.White}" />
+    <SolidColorBrush x:Key="B.Black" Color="{StaticResource C.Black}" />
+    <SolidColorBrush x:Key="B.Ink" Color="{StaticResource C.Ink}" />
+    <SolidColorBrush x:Key="B.Scrim" Color="{StaticResource C.Scrim}" />
+    <SolidColorBrush x:Key="B.Transparent" Color="Transparent" />
+
+    <!-- Accent is pure white: primary actions are inverted blocks -->
+    <SolidColorBrush x:Key="B.Accent" Color="{StaticResource C.White}" />
+    <SolidColorBrush x:Key="B.AccentHover" Color="#FFD9D9D9" />
+    <SolidColorBrush x:Key="B.AccentPressed" Color="#FFB8B8B8" />
+    <SolidColorBrush x:Key="B.OnAccent" Color="{StaticResource C.Ink}" />
+
+    <!-- Diagonal hatching: warnings, "expert" items, decorative bands -->
+    <DrawingBrush x:Key="B.Hatch" TileMode="Tile" Viewport="0,0,7,7" ViewportUnits="Absolute" Stretch="None">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,7,7" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M0,7 L7,0 M-1,1 L1,-1 M6,8 L8,6">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#40FFFFFF" Thickness="1.2" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <DrawingBrush x:Key="B.HatchStrong" TileMode="Tile" Viewport="0,0,7,7" ViewportUnits="Absolute" Stretch="None">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,7,7" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M0,7 L7,0 M-1,1 L1,-1 M6,8 L8,6">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#A0FFFFFF" Thickness="1.4" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- Fine dot grid for large empty surfaces -->
+    <DrawingBrush x:Key="B.DotGrid" TileMode="Tile" Viewport="0,0,16,16" ViewportUnits="Absolute" Stretch="None">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,16,16" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#14FFFFFF">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,1,1" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- Fade used under sparklines -->
+    <LinearGradientBrush x:Key="B.ChartFill" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#30FFFFFF" Offset="0" />
+        <GradientStop Color="#00FFFFFF" Offset="1" />
+    </LinearGradientBrush>
+</ResourceDictionary>

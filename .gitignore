@@ -27,3 +27,4 @@ Desktop.ini
 *.log
 snapshots/
 .claude/settings.local.json
+.claude/worktrees/
