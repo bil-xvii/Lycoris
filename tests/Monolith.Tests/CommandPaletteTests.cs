@@ -100,6 +100,34 @@ public sealed class CommandPaletteTests
     }
 
     [Fact]
+    public void Former_pages_are_searchable_sections_but_not_listed_for_an_empty_query()
+    {
+        var index = CommandPaletteIndex.Build([("services", "СЛУЖБЫ", ""), ("maintenance", "ОБСЛУЖИВАНИЕ", "")], [], [], [], [],
+            CommandPaletteIndex.Sections);
+        Assert.Equal(["СЛУЖБЫ", "ОБСЛУЖИВАНИЕ"], CommandPaletteSearch.Search(index, "").Select(e => e.Title));
+        Assert.Equal("startup", CommandPaletteSearch.Search(index, "автозапуск")[0].PageKey);
+        Assert.Equal("cleaner", CommandPaletteSearch.Search(index, "очистка")[0].PageKey);
+        Assert.Equal("tools", CommandPaletteSearch.Search(index, "инструменты")[0].PageKey);
+    }
+
+    [Theory]
+    [InlineData("cleaner", "maintenance")]
+    [InlineData("tools", "maintenance")]
+    [InlineData("startup", "services")]
+    [InlineData("optimize", "optimize")]
+    [InlineData("settings", "settings")]
+    public void Old_page_keys_resolve_to_the_new_pages(string key, string page) =>
+        Assert.Equal(page, MainViewModel.ResolvePageKey(key));
+
+    [Fact]
+    public void Every_section_key_resolves_to_a_top_level_page()
+    {
+        string[] pages = ["dashboard", "optimize", "games", "services", "maintenance", "drivers", "apps", "restore", "settings"];
+        foreach (var (key, _, _, _) in CommandPaletteIndex.Sections)
+            Assert.Contains(MainViewModel.ResolvePageKey(key), pages);
+    }
+
+    [Fact]
     public void Tweak_is_found_by_its_id()
     {
         var index = CommandPaletteIndex.Build([], TweakCatalog.All, [], [], []);

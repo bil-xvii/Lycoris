@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Monolith.Modules.Maintenance;
 
 namespace Monolith.Shell;
 
@@ -173,14 +174,23 @@ public partial class MainWindow : Window
     public async Task SnapshotPagesAsync(string outDir, IReadOnlyCollection<string>? only, int waitMs)
     {
         Directory.CreateDirectory(outDir);
+        var n = 0;
         foreach (var page in _vm.Pages)
         {
-            if (only is { Count: > 0 } && !only.Contains(page.Key)) continue;
-            _vm.CurrentPage = page;
-            await Task.Delay(waitMs);
-            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
-            var file = Path.Combine(outDir, $"{page.Index}-{page.Key}.png");
-            SaveVisual(RootBorder, file);
+            n++;
+            // Host pages are shot once per tab ("05-maintenance-cleaner.png"); a tab key in --pages selects that tab only.
+            var tabs = page is MaintenanceViewModel host ? host.Tabs.Select(t => t.Key).ToList() : [];
+            if (tabs.Count == 0) tabs.Add("");
+            foreach (var tab in tabs)
+            {
+                if (only is { Count: > 0 } && !only.Contains(page.Key) && !(tab.Length > 0 && only.Contains(tab))) continue;
+                if (page is MaintenanceViewModel m) m.SelectTab(tab);
+                _vm.CurrentPage = page;
+                await Task.Delay(waitMs);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+                var file = Path.Combine(outDir, $"{n:00}-{page.Key}{(tab.Length > 0 ? "-" + tab : "")}.png");
+                SaveVisual(RootBorder, file);
+            }
         }
     }
 

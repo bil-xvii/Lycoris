@@ -159,6 +159,10 @@ public static class Ui
         });
     }
 
+    /// <summary>
+    /// Opens a page. Old keys still work: "cleaner" / "tools" open the tab of «maintenance»,
+    /// "startup" opens «services» with the focus request "tab:startup".
+    /// </summary>
     public static void Navigate(string pageKey)
     {
         Dispatcher?.BeginInvoke(() => Host?.NavigateTo(pageKey));
