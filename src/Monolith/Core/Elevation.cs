@@ -25,13 +25,24 @@ public static class Elevation
 
     /// <summary>
     /// Starts a new elevated copy of the app. Returns false if the user declined the UAC prompt.
+    /// The copy gets "--elevated --parent &lt;pid&gt;" so it can wait for this process to close before
+    /// taking the single-instance mutex.
     /// </summary>
     public static bool TryRelaunchElevated(IEnumerable<string>? extraArgs = null)
     {
-        var args = Environment.GetCommandLineArgs().Skip(1)
-            .Where(a => !a.Equals("--elevated", StringComparison.OrdinalIgnoreCase))
+        var current = Environment.GetCommandLineArgs().Skip(1).ToList();
+        var kept = new List<string>();
+        for (var i = 0; i < current.Count; i++)
+        {
+            if (current[i].Equals("--elevated", StringComparison.OrdinalIgnoreCase)) continue;
+            if (current[i].Equals("--parent", StringComparison.OrdinalIgnoreCase)) { i++; continue; }
+            kept.Add(current[i]);
+        }
+        var args = kept
             .Concat(extraArgs ?? [])
-            .Append("--elevated");
+            .Append("--elevated")
+            .Append("--parent")
+            .Append(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         var psi = new ProcessStartInfo
         {

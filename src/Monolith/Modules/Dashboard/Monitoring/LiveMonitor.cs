@@ -44,9 +44,12 @@ public sealed class LiveMonitor : IDisposable
     private const string NetDown = @"\Network Interface(*)\Bytes Received/sec";
     private const string NetUp = @"\Network Interface(*)\Bytes Sent/sec";
 
+    /// <summary>Guards the sampling resources; held for a whole Initialize / Sample (can take seconds).</summary>
     private readonly object _gate = new();
+    /// <summary>Guards only <see cref="_cts"/>, so Start / Stop / IsRunning on the UI thread never wait for a sample.</summary>
+    private readonly object _ctsGate = new();
     private CancellationTokenSource? _cts;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     // Sampling resources: created lazily on the sampling thread, used only under _gate.
     private bool _initialized;
@@ -63,14 +66,14 @@ public sealed class LiveMonitor : IDisposable
 
     public bool IsRunning
     {
-        get { lock (_gate) return _cts is not null; }
+        get { lock (_ctsGate) return _cts is not null; }
     }
 
     /// <summary>Starts sampling (no-op when already running). A loop that is still winding down after
     /// <see cref="Stop"/> exits on its own cancelled token, so a quick Stop → Start is safe.</summary>
     public void Start()
     {
-        lock (_gate)
+        lock (_ctsGate)
         {
             if (_disposed || _cts is not null) return;
             _cts = new CancellationTokenSource();
@@ -81,7 +84,7 @@ public sealed class LiveMonitor : IDisposable
 
     public void Stop()
     {
-        lock (_gate)
+        lock (_ctsGate)
         {
             _cts?.Cancel();
             _cts?.Dispose();
@@ -95,6 +98,7 @@ public sealed class LiveMonitor : IDisposable
         {
             lock (_gate)
             {
+                if (_disposed) return;
                 if (!_initialized) Initialize();
             }
             while (!ct.IsCancellationRequested)

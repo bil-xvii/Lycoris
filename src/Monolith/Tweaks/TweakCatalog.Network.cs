@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using Monolith.Core;
 
 namespace Monolith.Tweaks;
@@ -21,12 +22,13 @@ public static partial class TweakCatalog
             Title = "Обновления без P2P-раздачи",
             Description = "Windows скачивает обновления и приложения Store только с серверов Microsoft и не раздаёт их другим компьютерам.",
             Details = "Соответствует выключенному переключателю Параметры → Центр обновления Windows → Дополнительные параметры → " +
-                      "Оптимизация доставки. Убирает исходящий трафик раздачи, который может мешать онлайн-играм на слабом канале; сами загрузки " +
-                      "работают как прежде. Политика не используется, поэтому переключатель в Параметрах остаётся доступным. Полностью вступает " +
-                      "в силу после перезагрузки.",
+                      "Оптимизация доставки. Отключает раздачу обновлений другим ПК. По умолчанию Windows раздаёт их только в локальной сети, " +
+                      "поэтому на пинг это влияет, лишь если раньше была включена раздача в интернет; сами загрузки работают как прежде. " +
+                      "Политика не используется, поэтому переключатель в Параметрах остаётся доступным. Полностью вступает в силу после " +
+                      "перезагрузки.",
             Category = TweakCategory.Network,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Recommended,
             Restart = RestartRequirement.Reboot,
             AppliesTo = _ => LmInt(DeliveryOptimizationPolicy, "DODownloadMode") is null,
             NotApplicableReason = "Режим оптимизации доставки задан групповой политикой.",
@@ -162,27 +164,51 @@ public static partial class TweakCatalog
         if (SameServers(current, servers)) return;
 
         var family = ipv6 ? "ipv6" : "ipv4";
-        var forward = DnsCommand(family, adapter.Index, servers);
-        var restore = DnsCommand(family, adapter.Index, current);
-        var flush = $"{SysTool("ipconfig.exe")} /flushdns";
+        // The interface index is not persistent (it changes when the adapter is re-enabled or replugged), so both
+        // the apply and the undo find the adapter by its GUID when they run.
         RunJournaled(ctx, $"dns{(ipv6 ? 6 : 4)}:{adapter.Guid}",
-            CmdExe, CmdArgs($"({forward} && {flush}) || ({restore} & exit /b 1)"),
-            CmdExe, CmdArgs($"{restore} && {flush}"),
-            $"{adapter.Name} ({family}): {DescribeDns(current)}", $"{adapter.Name} ({family}): {DescribeDns(servers)}");
+            PowerShellExe, PowerShellArgs(DnsScript(family, adapter.Guid, servers, rollbackTo: current)),
+            PowerShellExe, PowerShellArgs(DnsScript(family, adapter.Guid, current)),
+            $"{adapter.Name} ({family}): {DescribeDns(current)}", $"{adapter.Name} ({family}): {DescribeDns(servers)}",
+            OutputEncoding.Utf8);
     }
 
-    /// <summary>netsh command line that puts exactly <paramref name="servers"/> on the interface (empty = back to DHCP).</summary>
-    internal static string DnsCommand(string family, int interfaceIndex, IReadOnlyList<string> servers)
+    /// <summary>
+    /// PowerShell that resolves the adapter by InterfaceGuid (fails if it no longer exists), puts exactly
+    /// <paramref name="servers"/> on it for one address family with netsh (empty = back to DHCP) and flushes the DNS cache.
+    /// With <paramref name="rollbackTo"/>, a failure part-way puts that list back before the error is reported.
+    /// </summary>
+    internal static string DnsScript(string family, string interfaceGuid, IReadOnlyList<string> servers,
+        IReadOnlyList<string>? rollbackTo = null)
     {
-        var netsh = SysTool("netsh.exe");
-        if (servers.Count == 0) return $"{netsh} interface {family} set dnsservers name={interfaceIndex} source=dhcp";
+        if (family is not ("ipv4" or "ipv6")) throw new ArgumentException("неизвестное семейство адресов: " + family, nameof(family));
+        if (!Guid.TryParse(interfaceGuid, out var guid))
+            throw new InvalidOperationException($"некорректный идентификатор сетевого адаптера: {interfaceGuid}");
+        var set = DnsNetshCalls(family, servers);
+        var sb = new StringBuilder();
+        sb.Append($"$a=@(Get-NetAdapter -IncludeHidden | Where-Object {{ $_.InterfaceGuid -eq {Ps(guid.ToString("B"))} }});");
+        sb.Append("if($a.Count -eq 0){throw 'сетевой адаптер не найден (отключён или удалён)'};$i=$a[0].ifIndex;");
+        sb.Append($"$n={Ps(ProcessRunner.Sys("netsh.exe"))};");
+        sb.Append("function Invoke-Netsh([string[]]$x){$o=(& $n $x | Out-String);if($LASTEXITCODE -ne 0){throw ('netsh: '+$o.Trim())}};");
+        if (rollbackTo is null)
+            sb.Append(set);
+        else
+            sb.Append("try{").Append(set).Append("}catch{$e=$_;try{").Append(DnsNetshCalls(family, rollbackTo)).Append("}catch{};throw $e};");
+        sb.Append($"& {Ps(ProcessRunner.Sys("ipconfig.exe"))} /flushdns | Out-Null;exit 0");
+        return sb.ToString();
+    }
+
+    /// <summary>The netsh calls of <see cref="DnsScript"/> ($i = interface index resolved at run time).</summary>
+    private static string DnsNetshCalls(string family, IReadOnlyList<string> servers)
+    {
+        if (servers.Count == 0) return $"Invoke-Netsh @('interface','{family}','set','dnsservers',\"name=$i\",'source=dhcp');";
         // Only real IP literals ever reach the command line (values come from the registry).
         var addresses = servers.Select(s => IPAddress.TryParse(s, out var ip)
             ? ip.ToString()
             : throw new InvalidOperationException($"некорректный адрес DNS-сервера: {s}")).ToList();
-        return string.Join(" && ", addresses.Select((s, i) => i == 0
-            ? $"{netsh} interface {family} set dnsservers name={interfaceIndex} source=static address={s} register=primary validate=no"
-            : $"{netsh} interface {family} add dnsservers name={interfaceIndex} address={s} index={i + 1} validate=no"));
+        return string.Concat(addresses.Select((s, i) => i == 0
+            ? $"Invoke-Netsh @('interface','{family}','set','dnsservers',\"name=$i\",'source=static','address={s}','register=primary','validate=no');"
+            : $"Invoke-Netsh @('interface','{family}','add','dnsservers',\"name=$i\",'address={s}','index={i + 1}','validate=no');"));
     }
 
     private static string DescribeDns(IReadOnlyList<string> servers) =>
