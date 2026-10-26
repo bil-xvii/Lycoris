@@ -1,5 +1,3 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-
 namespace Monolith.Modules.Tools;
 
 /// <summary>Every runnable operation on the Tools page.</summary>
@@ -7,14 +5,14 @@ public enum ToolOp
 {
     DismCheck, DismScan, DismRestore, Sfc,
     ChkdskScan, ChkntfsQuery, CopyChkdskCommand,
-    DefragAll,
+    DefragAll, DefragVolume,
     FlushDns, NetworkReset,
     StoreReset, IconCache,
     BatteryReport, MemoryDiagnostic,
 }
 
 /// <summary>Extra content rendered inside a tool card.</summary>
-public enum ToolExtra { None, Volumes, BootCheck }
+public enum ToolExtra { None, BootCheck }
 
 /// <summary>A button on a tool card.</summary>
 public sealed class ToolCardAction
@@ -24,6 +22,10 @@ public sealed class ToolCardAction
     public bool IsPrimary { get; init; }
     public bool IsDanger { get; init; }
     public bool RequiresAdmin { get; init; }
+    /// <summary>The volume of a per-drive <see cref="ToolOp.DefragVolume"/> button.</summary>
+    public VolumeInfo? Volume { get; init; }
+    /// <summary>Optional tooltip (free space of a drive, …).</summary>
+    public string? Hint { get; init; }
     public bool IsPlain => !IsPrimary && !IsDanger;
 }
 
@@ -42,14 +44,12 @@ public sealed class ToolCard
     public bool IsDanger { get; init; }
     public required IReadOnlyList<ToolCardAction> Actions { get; init; }
     public ToolExtra Extra { get; init; }
-    public bool HasVolumes => Extra == ToolExtra.Volumes;
     public bool HasBootCheck => Extra == ToolExtra.BootCheck;
     public bool HasNote => !string.IsNullOrWhiteSpace(Note);
 }
 
 public sealed class ToolSection
 {
-    public required string Number { get; init; }
     public required string Title { get; init; }
     public required string Caption { get; init; }
     public required IReadOnlyList<ToolCard> Cards { get; init; }
@@ -80,18 +80,6 @@ public sealed record ConsoleLine(string Time, string Text, ConsoleLineKind Kind,
         ConsoleLineKind.Info => "·",
         _ => "",
     };
-}
-
-/// <summary>Fixed volume row in the "Оптимизация дисков" card.</summary>
-public sealed partial class VolumeItem(VolumeInfo info) : ObservableObject
-{
-    public VolumeInfo Info { get; } = info;
-    public string Letter => Info.Letter;
-    public string Title => $"{Info.Letter} {Info.DisplayName}";
-    public string MediaText => Info.MediaText;
-    public string SpaceText => Info.SpaceText;
-    public string OperationText => Info.OperationText;
-    public bool IsSystem => Info.IsSystem;
 }
 
 /// <summary>Segoe Fluent Icons code points used only by this module (in addition to UI/Glyphs).</summary>

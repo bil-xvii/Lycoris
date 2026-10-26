@@ -149,6 +149,36 @@ public sealed class ToolsTests
         Assert.True(ToolOutput.IsBootCheckScheduled(["autocheck autochk /r \\??\\D:"]));
     }
 
+    // ─────────────────────────── quick links & drives ───────────────────────────
+
+    [Fact]
+    public void Quick_links_do_not_duplicate_monolith_pages()
+    {
+        var commands = ToolsViewModel.BuildQuickLinks().Select(l => l.Command).ToList();
+        Assert.Equal(["diskmgmt.msc", "eventvwr.msc", "resmon.exe", "taskmgr.exe", "msinfo32.exe"], commands);
+    }
+
+    [Fact]
+    public void Per_drive_defrag_button_carries_its_volume()
+    {
+        var v = new VolumeInfo("D:", "Игры", "NTFS", 1_000_000_000_000, 250_000_000_000, "HDD", "SATA", false);
+        var a = ToolsViewModel.DefragAction(v);
+        Assert.Equal(ToolOp.DefragVolume, a.Op);
+        Assert.Same(v, a.Volume);
+        Assert.True(a.RequiresAdmin);
+        Assert.Equal("D: · ДЕФРАГМЕНТАЦИЯ", a.Label);
+        Assert.Contains("HDD · SATA", a.Hint);
+    }
+
+    [Fact]
+    public void Volume_set_change_is_detected_by_letter_and_media()
+    {
+        VolumeInfo V(string letter, string media, ulong free = 1) => new(letter, "", "NTFS", 10, free, media, "NVMe", letter == "C:");
+        Assert.True(ToolsViewModel.SameVolumes([V("C:", "SSD")], [V("C:", "SSD", free: 5)]));
+        Assert.False(ToolsViewModel.SameVolumes([V("C:", "SSD")], [V("C:", "SSD"), V("D:", "HDD")]));
+        Assert.False(ToolsViewModel.SameVolumes([V("C:", "SSD")], [V("C:", "HDD")]));
+    }
+
     // ─────────────────────────── undo center ───────────────────────────
 
     [Theory]

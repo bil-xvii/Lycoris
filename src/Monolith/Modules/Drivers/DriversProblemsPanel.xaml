@@ -77,41 +77,6 @@
                     </StackPanel>
                 </Grid>
             </Border>
-
-            <!-- Reference: the codes people meet most often -->
-            <Grid Margin="0,28,0,14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="ЧАСТЫЕ КОДЫ ОШИБОК" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
-                <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="14,0,0,0" />
-            </Grid>
-            <ItemsControl ItemsSource="{Binding CommonProblemCodes}" Margin="0,0,-12,0" Focusable="False">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Columns="3" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type local:ProblemCodeHint}">
-                        <Border Style="{StaticResource Card}" Margin="0,0,12,12" Padding="18,16">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="56" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Code}" Style="{StaticResource T.Stat}" FontSize="30" Foreground="{StaticResource B.Text2}" VerticalAlignment="Top"
-                                           Margin="0,-4,0,0" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" />
-                                    <TextBlock Text="{Binding Action}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
             </StackPanel>
             </ScrollViewer>
 
