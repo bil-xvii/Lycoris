@@ -493,6 +493,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     {
         ApplyCommand.NotifyCanExecuteChanged();
         RevertSelectedCommand.NotifyCanExecuteChanged();
+        ExportProfileCommand.NotifyCanExecuteChanged();
+        ImportProfileCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]

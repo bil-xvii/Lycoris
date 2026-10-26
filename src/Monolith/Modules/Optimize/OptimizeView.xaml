@@ -512,6 +512,31 @@
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
+                    <!-- Export / import of the selection: one compact control, menu with two items -->
+                    <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Click="OnProfileMenuClick"
+                            ToolTip="Сохранить выбранные пункты в файл или загрузить выбор из файла. Ничего не применяется.">
+                        <Button.ContextMenu>
+                            <ContextMenu Placement="Bottom">
+                                <ContextMenu.Resources>
+                                    <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                        <Style.Triggers>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.4" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ContextMenu.Resources>
+                                <MenuItem Header="ЭКСПОРТ ВЫБОРА В ФАЙЛ…" Command="{Binding ExportProfileCommand}"
+                                          ToolTip="Сохранить отмеченные пункты в .json — например, чтобы перенести на другой ПК" />
+                                <MenuItem Header="ИМПОРТ ВЫБОРА ИЗ ФАЙЛА…" Command="{Binding ImportProfileCommand}"
+                                          ToolTip="Отметить пункты из .json. Ничего не применяется, пока вы не нажмёте «ПРИМЕНИТЬ»" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Save}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
+                            <TextBlock Text="ПРОФИЛЬ…" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Command="{Binding OpenJournalCommand}"
                             ToolTip="Все изменения MONOLITH: откат по одному, по сеансу или целиком">
                         <StackPanel Orientation="Horizontal">
