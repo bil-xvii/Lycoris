@@ -22,6 +22,12 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>Show a confirmation with the list of changes before applying them.</summary>
     [ObservableProperty] private bool _confirmBeforeApply = true;
 
+    /// <summary>
+    /// Expert mode of the ВСЕ СЛУЖБЫ tab: allows changing services outside MONOLITH's curated allowlist
+    /// (non-curated Microsoft and third-party services). Off by default — research services.md §0.4/§2B.
+    /// </summary>
+    [ObservableProperty] private bool _servicesExpertMode;
+
     /// <summary>Show the operations console at the bottom of the window (collapsed by default to leave room for content).</summary>
     [ObservableProperty] private bool _showConsole;
 

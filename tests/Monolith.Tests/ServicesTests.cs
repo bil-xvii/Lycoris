@@ -217,6 +217,46 @@ public sealed class ServicesTests
     public void Ordinary_services_are_not_locked(string name, int type, int start, string imagePath) =>
         Assert.Null(ServiceGuard.GetLockReason(name, type, start, 1, 0, imagePath));
 
+    [Theory]
+    [InlineData("Eaphost")]
+    [InlineData("dot3svc")]
+    [InlineData("NcaSvc")]
+    [InlineData("RmSvc")]
+    [InlineData("W32Time")]
+    [InlineData("tzautoupdate")]
+    public void Auth_radio_and_time_services_are_hard_blocked(string name) =>
+        Assert.True(ServiceGuard.IsHardBlocked(name));
+
+    [Theory]
+    [InlineData("Razer Elevation Service", true)]
+    [InlineData("SomeWindowsService", false)]
+    public void Non_curated_services_are_read_only_outside_expert_mode(string name, bool thirdParty)
+    {
+        var reason = ServiceGuard.NotCuratedLockReason(name, thirdParty, expertMode: false);
+        Assert.NotNull(reason);
+        Assert.Contains("Экспертного режима служб", reason);
+        Assert.Null(ServiceGuard.NotCuratedLockReason(name, thirdParty, expertMode: true));
+    }
+
+    [Fact]
+    public void Curated_services_are_never_expert_locked()
+    {
+        foreach (var s in ServiceCatalog.Services)
+            Assert.Null(ServiceGuard.NotCuratedLockReason(s.Name, false, expertMode: false));
+    }
+
+    [Fact]
+    public void Services_expert_mode_is_off_by_default() => Assert.False(new AppSettings().ServicesExpertMode);
+
+    [Fact]
+    public void DiagTrack_is_expert_and_opt_in_like_on_optimize()
+    {
+        var s = ServiceCatalog.Find("DiagTrack")!;
+        Assert.Equal(TweakRisk.Advanced, s.Risk);
+        Assert.True(s.Conditional);
+        foreach (var p in Profiles) Assert.False(s.IsPreselectedIn(p));
+    }
+
     [Fact]
     public void Remote_registry_must_stay_disabled()
     {
