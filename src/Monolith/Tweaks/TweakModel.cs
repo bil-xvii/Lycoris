@@ -108,6 +108,15 @@ public abstract class Tweak
         RestartRequirement.Reboot => "нужна перезагрузка",
         _ => "",
     };
+
+    /// <summary>When the change takes effect, for «Вступит в силу {RestartWhen}».</summary>
+    public string RestartWhen => Restart switch
+    {
+        RestartRequirement.Explorer => "после перезапуска Проводника",
+        RestartRequirement.SignOut => "после выхода из системы",
+        RestartRequirement.Reboot => "после перезагрузки",
+        _ => "сразу",
+    };
 }
 
 /// <summary>A registry value to set. <see cref="Value"/> = null means "delete the value".</summary>

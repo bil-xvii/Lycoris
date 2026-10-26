@@ -15,6 +15,7 @@ public static partial class HealthRules
 {
     public const string TweakGameMode = "game-mode";
     public const string TweakHags = "hags";
+    public const string TweakHagsOther = "hags-other-gpu";
     public const string TweakGameDvr = "gamedvr-off";
 
     /// <summary>Free space is "low" below this share of the system drive…</summary>
@@ -255,20 +256,18 @@ public static partial class HealthRules
     {
         if (s.GameModeOn is null) return null;
         if (s.GameModeOn == true)
-            return new("game-mode", "ИГРОВОЙ РЕЖИМ ВКЛЮЧЁН",
+            return new("game-mode", "ИГРОВОЙ РЕЖИМ WINDOWS ВКЛЮЧЁН",
                 "Windows отдаёт приоритет запущенной игре и не ставит драйверы во время игры.", CheckSeverity.Ok, 6);
         var x3d = IsDualCcdX3D(s.CpuName, s.CpuCores);
-        return new("game-mode", "ИГРОВОЙ РЕЖИМ ВЫКЛЮЧЕН",
-            "Игровой режим отдаёт приоритет игре и не даёт Центру обновления ставить драйверы и показывать уведомления о " +
-            "перезагрузке во время игры." + (x3d ? " На двухкристальных Ryzen X3D он нужен, чтобы игра попадала на кристалл с 3D V-Cache." : "") +
+        return new("game-mode", "ИГРОВОЙ РЕЖИМ WINDOWS ВЫКЛЮЧЕН",
+            "Игровой режим Windows отдаёт приоритет игре и не даёт Центру обновления ставить драйверы и показывать уведомления о " +
+            "перезагрузке во время игры." + (x3d ? " На Ryzen X3D с двумя CCD он нужен, чтобы игра попадала на CCD с 3D V-Cache." : "") +
             " Включается без перезагрузки; отменить можно в разделе «Восстановление».",
             CheckSeverity.Warning, x3d ? 10 : 6, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakGameMode));
     }
 
-    [GeneratedRegex(@"RTX\s*[45]0\d{2}", RegexOptions.IgnoreCase)] private static partial Regex Rtx4050Rx();
-
-    /// <summary>RTX 40/50 series: HAGS is required for DLSS Frame Generation there.</summary>
-    public static bool IsRtx40Or50(string? gpuName) => gpuName is not null && Rtx4050Rx().IsMatch(gpuName);
+    /// <summary>RTX 40/50 series: HAGS is required for DLSS Frame Generation there. Same rule as the «hags» tweak.</summary>
+    public static bool IsRtx40Or50(string? gpuName) => gpuName is not null && Monolith.Tweaks.TweakCatalog.IsRtx40Or50(gpuName);
 
     public static HealthCheckResult? CheckHags(SystemSnapshot s)
     {
@@ -284,7 +283,7 @@ public static partial class HealthRules
                     (rtx ? " На RTX 40/50 это обязательно для генерации кадров DLSS." : "") +
                     " Прирост FPS обычно в пределах ±5 %; при редких микрофризах его можно выключить обратно. Нужна перезагрузка.",
                     rtx ? CheckSeverity.Warning : CheckSeverity.Info, 6,
-                    new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakHags));
+                    new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", rtx ? TweakHags : TweakHagsOther));
             default:
                 return null; // unsupported by the GPU / driver, or unknown
         }
@@ -315,9 +314,9 @@ public static partial class HealthRules
         if (isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores))
         {
             return balanced
-                ? new("power-plan", title, "Рекомендация AMD для двухкристальных Ryzen X3D: драйвер правильно переносит игры на кристалл с 3D V-Cache.", CheckSeverity.Ok, 8)
+                ? new("power-plan", title, "Рекомендация AMD для Ryzen X3D с двумя CCD: драйвер правильно переносит игры на CCD с 3D V-Cache.", CheckSeverity.Ok, 8)
                 : new("power-plan", title,
-                    "На двухкристальных Ryzen X3D драйвер AMD переносит игры на кристалл с 3D V-Cache только в «Сбалансированном» " +
+                    "На Ryzen X3D с двумя CCD драйвер AMD переносит игры на CCD с 3D V-Cache только в «Сбалансированном» " +
                     "плане — так рекомендует AMD. В текущем плане эта логика может не срабатывать. Выберите «Сбалансированный» в «Электропитании».",
                     CheckSeverity.Info, 8, open);
         }
@@ -326,7 +325,7 @@ public static partial class HealthRules
             return balanced
                 ? new("power-plan", title, "Рекомендация AMD для Ryzen X3D: меньше нагрев и энергопотребление в простое без потери FPS.", CheckSeverity.Ok, 0)
                 : new("power-plan", title,
-                    "У Ryzen X3D с одним кристаллом выбор плана почти не влияет на FPS. AMD рекомендует «Сбалансированный» — " +
+                    "У Ryzen X3D с одним CCD выбор плана почти не влияет на FPS. AMD рекомендует «Сбалансированный» — " +
                     "он снижает нагрев и энергопотребление в простое; «Высокая производительность» вреда не наносит.",
                     CheckSeverity.Info, 0, open);
         }
@@ -470,11 +469,11 @@ public static partial class HealthRules
         if (s.StartupCount is not { } n) return null;
         var count = DashFormat.Count(n, "программа", "программы", "программ");
         if (n <= StartupLimit)
-            return new("startup", "АВТОЗАГРУЗКА В НОРМЕ", $"Вместе с Windows запускается {count}.", CheckSeverity.Ok, 6);
-        return new("startup", "МНОГО ПРОГРАММ В АВТОЗАГРУЗКЕ",
+            return new("startup", "АВТОЗАПУСК В НОРМЕ", $"Вместе с Windows запускается {count}.", CheckSeverity.Ok, 6);
+        return new("startup", "МНОГО ПРОГРАММ В АВТОЗАПУСКЕ",
             $"Вместе с Windows запускается {count}. Каждая замедляет вход в систему и работает в фоне. Отключите лишние " +
-            "в разделе «Автозагрузка» — это обратимо, программы не удаляются.",
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К АВТОЗАГРУЗКЕ", "startup"));
+            "в разделе «Автозапуск» — это обратимо, программы не удаляются.",
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К АВТОЗАПУСКУ", "startup"));
     }
 
     // ───────────────────────────── VBS / Memory Integrity (information only) ─────────────────────────────
@@ -483,8 +482,8 @@ public static partial class HealthRules
     {
         VbsState.MemoryIntegrity => new("vbs", "ЦЕЛОСТНОСТЬ ПАМЯТИ ВКЛЮЧЕНА",
             "Изоляция ядра защищает Windows от вредоносных и уязвимых драйверов. В части игр она стоит 0–10 % FPS (в среднем " +
-            "около 5 %), а античиты Riot Vanguard и FACEIT могут её требовать. MONOLITH защиту не отключает: это снижает " +
-            "безопасность. Настройка — «Безопасность Windows → Безопасность устройства → Изоляция ядра».",
+            "около 5 %), а античиты Riot Vanguard и FACEIT могут её требовать. MONOLITH не отключает её сам; отключение есть только " +
+            "как экспертный пункт в «Оптимизации» с отдельным предупреждением — это снижает безопасность и ломает часть античитов. Настройка — «Безопасность Windows → Безопасность устройства → Изоляция ядра».",
             CheckSeverity.Info, 0),
         VbsState.VbsOnly => new("vbs", "ВИРТУАЛИЗАЦИЯ БЕЗОПАСНОСТИ АКТИВНА",
             "Windows изолирует часть ядра в защищённой виртуальной среде (VBS). Это защита от атак на учётные данные и ядро; " +
