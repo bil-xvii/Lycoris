@@ -95,6 +95,8 @@ public sealed record SystemSnapshot
     public DateTime Now { get; init; } = DateTime.Now;
     public TimeSpan Uptime { get; init; }
     public bool IsLaptop { get; init; }
+    /// <summary>A laptop running on battery right now.</summary>
+    public bool OnBattery { get; init; }
     public string CpuName { get; init; } = "";
     public int CpuCores { get; init; }
 

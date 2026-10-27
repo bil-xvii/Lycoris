@@ -344,6 +344,19 @@ public sealed class DashboardDisplayTests
     }
 
     [Fact]
+    public void Refresh_check_follows_the_monitor_cards_on_battery_and_for_a_laptop_panel()
+    {
+        var external = new DisplayInfo("LG", 2560, 1440, 60, 165);
+        var panel = new DisplayInfo("Встроенный экран", 2560, 1600, 60, 165, IsInternal: true);
+
+        Assert.Null(HealthRules.CheckRefreshRate(new SystemSnapshot { IsLaptop = true, OnBattery = true, Displays = [external] }));
+        Assert.Null(HealthRules.CheckRefreshRate(new SystemSnapshot { IsLaptop = true, Displays = [panel] }));
+        var both = HealthRules.CheckRefreshRate(new SystemSnapshot { IsLaptop = true, Displays = [panel, external] });
+        Assert.Equal(CheckSeverity.Warning, both!.Severity);
+        Assert.DoesNotContain("Встроенный экран", both.Detail);
+    }
+
+    [Fact]
     public void Monitor_at_max_refresh_has_no_action()
     {
         var r = HealthRules.CheckRefreshRate(new SystemSnapshot { Displays = [new DisplayInfo("X27U W3", 2560, 1440, 239, 240)] });
