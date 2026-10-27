@@ -6,8 +6,19 @@ using Monolith.Core;
 namespace Monolith.Tweaks;
 
 /// <summary>
-/// Delivery Optimization, Wi-Fi power, TCP auto-tuning repair, DNS, MMCSS network throttling, TCP ACK
-/// (general_tweaks.md §8, gaming_tweaks.md §2 E–F).
+/// Measured network facts that gate Optimize tweaks (set by «Устройства и сеть» → «Замер пинга» for this app session).
+/// </summary>
+public static class NetworkEvidence
+{
+    private static volatile bool _ipv6Worse;
+
+    /// <summary>IPv6 measured clearly worse than IPv4 on both test pairs (gates «ipv6-prefer-ipv4», network_stack.md §17).</summary>
+    public static bool Ipv6Worse { get => _ipv6Worse; set => _ipv6Worse = value; }
+}
+
+/// <summary>
+/// Delivery Optimization, Wi-Fi power, TCP auto-tuning repair, DNS, MMCSS network throttling, TCP ACK, IPv4 preference
+/// (general_tweaks.md §8, gaming_tweaks.md §2 E–F, network_stack.md §17).
 /// </summary>
 public static partial class TweakCatalog
 {
@@ -74,7 +85,10 @@ public static partial class TweakCatalog
                       "значение Windows по умолчанию во всех редакциях; на исправной системе пункт ничего не меняет. Иногда автонастройку " +
                       "выключают намеренно — из-за старого роутера или межсетевого экрана, который плохо работает с масштабированием окна " +
                       "TCP (RFC 1323). Если после применения соединения стали хуже, откатите пункт: прежний уровень вернётся точно. Уровень, " +
-                      "заданный групповой политикой, MONOLITH не меняет. На пинг в играх не влияет. Действует сразу для новых соединений.",
+                      "заданный групповой политикой, MONOLITH не меняет. На пинг в играх не влияет. Действует сразу для новых соединений. " +
+                      "Если у линии есть bufferbloat (пинг растёт во время загрузок — «Устройства и сеть» → «Тест под нагрузкой»), быстрые " +
+                      "загрузки сильнее заполняют очередь роутера и пинг во время скачивания может вырасти: это лечится SQM на роутере или " +
+                      "лимитом скорости в лаунчере, а не выключенной автонастройкой.",
             Category = TweakCategory.Network,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Recommended,
@@ -171,7 +185,57 @@ public static partial class TweakCatalog
                 }
             },
         };
+
+        // ADVANCED, gated by measurement (network_stack.md §17; skeptic: only bit 0x20, never over other bits, never planned).
+        yield return new CustomTweak
+        {
+            Id = "ipv6-prefer-ipv4",
+            Title = "Предпочитать IPv4, если IPv6 хуже",
+            Description = "Для адресов, доступных по обоим протоколам, Windows выбирает IPv4. IPv6 остаётся включённым.",
+            Details = "Вариант, который Microsoft рекомендует вместо отключения IPv6: DisabledComponents = 0x20 меняет только таблицу " +
+                      "предпочтений адресов. Нужен, только если замер в «Устройства и сеть» показал, что IPv6 у вашего провайдера заметно " +
+                      "хуже IPv4 (на 10 мс и больше или с потерями) — такое бывает при неисправном или туннельном IPv6. Большинство игровых " +
+                      "серверов работает по IPv4, поэтому на пинг в играх это обычно не влияет; помогает лаунчерам и сайтам. Если параметр " +
+                      "уже задан с другими битами (частичное отключение IPv6), MONOLITH его не меняет. Откат возвращает прежнее значение. " +
+                      "Нужна перезагрузка.",
+            Category = TweakCategory.Network,
+            Risk = TweakRisk.Advanced,
+            Restart = RestartRequirement.Reboot,
+            Warning = "Только если замер показал, что IPv6 хуже IPv4. В играх разницы обычно нет; нужна перезагрузка.",
+            AppliesTo = _ => Ipv6PreferenceValue() switch
+            {
+                0x20 => true,
+                null or 0 => NetworkEvidence.Ipv6Worse,
+                _ => false,
+            },
+            NotApplicableReason = "Нужен, только если замер в «Устройства и сеть» → «Замер пинга» показал, что IPv6 заметно хуже IPv4, " +
+                                  "и параметр DisabledComponents ещё не задан.",
+            DetectFunc = () => Ipv6PreferenceValue() switch
+            {
+                0x20 => TweakState.Applied,
+                null or 0 => TweakState.NotApplied,
+                _ => TweakState.NotApplicable,
+            },
+            ApplyAction = ctx =>
+            {
+                switch (Ipv6PreferenceValue())
+                {
+                    case 0x20:
+                        return;
+                    case null or 0:
+                        SetDword(ctx, RegHive.HKLM, Tcpip6Parameters, "DisabledComponents", 0x20);
+                        return;
+                    default:
+                        throw new InvalidOperationException("DisabledComponents уже задан другими битами — MONOLITH его не меняет");
+                }
+            },
+        };
     }
+
+    private const string Tcpip6Parameters = @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters";
+
+    /// <summary>HKLM\…\Tcpip6\Parameters\DisabledComponents (null = absent: IPv6 fully on, Windows prefers IPv6).</summary>
+    private static int? Ipv6PreferenceValue() => LmInt(Tcpip6Parameters, "DisabledComponents");
 
     /// <summary>
     /// Static DNS servers on every active physical adapter, IPv4 and IPv6 separately (netsh, per address family).
@@ -184,10 +248,15 @@ public static partial class TweakCatalog
         Title = title,
         Description = $"Активные сетевые адаптеры переключаются на DNS-серверы {provider} (IPv4 и IPv6).",
         Details = "Помогает, только если DNS провайдера медленный или ненадёжный: сайты и лаунчеры начинают открываться быстрее. На пинг " +
-                  "в играх не влияет. Прежние настройки каждого адаптера (автоматически от роутера или ручные адреса) запоминаются и " +
-                  "возвращаются при откате; регистрация адреса компьютера в DNS (свойства адаптера) не меняется ни при применении, ни при " +
-                  "откате. Не используйте, если у вас корпоративная сеть или VPN со своим DNS, Pi-hole/AdGuard Home " +
-                  "или родительский контроль на роутере.",
+                  "в играх не влияет. Проверить, быстрее ли он у вас, можно в «Устройства и сеть» → «Скорость DNS»: часто DNS роутера " +
+                  "быстрее публичных. Меняются все активные сетевые адаптеры. Прежние настройки каждого адаптера (автоматически от роутера " +
+                  "или ручные адреса) запоминаются и возвращаются при откате; регистрация адреса компьютера в DNS (свойства адаптера) не " +
+                  "меняется ни при применении, ни при откате. Не используйте, если у вас корпоративная сеть или VPN со своим DNS, " +
+                  "Pi-hole/AdGuard Home или родительский контроль на роутере." +
+                  (provider == "Cloudflare"
+                      ? " Cloudflare не передаёт подсеть клиента (ECS), поэтому сервисы с привязкой к региону иногда выбирают более дальний " +
+                        "сервер — даже если сам поиск имени стал быстрее."
+                      : ""),
         Category = TweakCategory.Network,
         Risk = TweakRisk.Optional,
         AppliesTo = _ => PhysicalAdapters().Count > 0,
