@@ -211,9 +211,11 @@ public static class AppAdvisor
             case "Microsoft.DirectX":
                 return Recommended("Старым играм нужны D3DX9, XAudio 2.7 и XInput 1.3 — в Windows их нет, без них такие игры не запускаются.");
             case WebView2Id:
+                // Steam draws its windows with its own Chromium (CEF, steamwebhelper), and no source shows that Battle.net
+                // or the EA app need WebView2: the reason names only programs documented as WebView2-based.
                 return ctx.InstalledKnown
-                    ? Required("Веб-движок Windows: без него не работают вход в Xbox (приложение Xbox, Minecraft Launcher) и окна многих программ — здесь он не найден.")
-                    : Optional("Веб-движок Windows для окон программ и входа в Xbox; обычно уже установлен.");
+                    ? Required("Веб-движок Windows: на нём работают окна многих программ (новые Teams и Outlook, Microsoft 365), а здесь он не найден.")
+                    : Optional("Веб-движок Windows для окон многих программ; в Windows 11 он встроен, в Windows 10 обычно уже установлен.");
             case GamingServicesId:
                 if (!ctx.InstalledKnown) return Optional("Нужны для игр из приложения Xbox и Game Pass.");
                 return ctx.IsInstalled(XboxAppId)
@@ -328,22 +330,24 @@ public static class AppAdvisor
     }
 
     /// <summary>
-    /// The official Minecraft Launcher brings its own Java; CurseForge downloads the right Java for Minecraft itself;
-    /// Prism Launcher 9.0+ can download it too (Settings → Java), so a separate JRE is a fallback for Prism only.
+    /// The official Minecraft Launcher brings its own Java (Microsoft Build of OpenJDK) and CurseForge installs the Java
+    /// it needs itself (CurseForge support), so a separate JRE is for Prism Launcher: Java 21 for Minecraft 1.20.5–1.21.x
+    /// (where most modpacks are), 17 for 1.18–1.20.4, 8 for 1.16.5 and older. Minecraft 26.1+ needs Java 25 (not in the
+    /// catalog); Prism can also download Mojang's Java itself once that option is switched on (Settings → Java).
     /// </summary>
     private static AppAdvice Java(string id, AdviceContext ctx)
     {
-        if (!ctx.InstalledKnown) return Optional("Нужна сторонним лаунчерам Minecraft; официальный лаунчер ставит свою Java сам.");
+        if (!ctx.InstalledKnown) return Optional("Нужна сторонним лаунчерам Minecraft вроде Prism Launcher; официальный лаунчер ставит свою Java сам.");
         if (ctx.IsInstalled(PrismLauncherId))
         {
             if (id.Contains(".21.", StringComparison.Ordinal))
-                return Optional("Prism Launcher обычно сам скачивает нужную Java (Настройки → Java); Java 21 — для Minecraft 1.20.5–1.21, если он её попросит.");
+                return Recommended("Prism Launcher запускает Minecraft на установленной Java: Java 21 нужна сборкам 1.20.5–1.21 (или включите в Prism автозагрузку Java).");
             if (id.Contains(".17.", StringComparison.Ordinal))
-                return Optional("Для Minecraft 1.18–1.20.4 в Prism Launcher, если он не скачал Java сам.");
-            return NotNow("Только для старых сборок Minecraft (до 1.17), если Prism Launcher не скачал Java сам.");
+                return Optional("Для сборок Minecraft 1.18–1.20.4 в Prism Launcher.");
+            return NotNow("Только для старых сборок Minecraft (1.16.5 и раньше) в Prism Launcher.");
         }
-        if (ctx.IsInstalled(CurseForgeId)) return NotNow("CurseForge сам скачивает нужную Java для Minecraft.");
-        return NotNow("Официальный лаунчер Minecraft ставит свою Java сам — отдельная нужна только сторонним лаунчерам.");
+        if (ctx.IsInstalled(CurseForgeId)) return NotNow("CurseForge сам ставит нужную Java для Minecraft — отдельная не нужна.");
+        return NotNow("Официальный лаунчер Minecraft ставит свою Java сам — отдельная нужна только сторонним лаунчерам вроде Prism Launcher.");
     }
 
     /// <summary>True when this Windows build opens .rar and .7z itself; null when it cannot be told (build/UBR unknown or staged).</summary>
