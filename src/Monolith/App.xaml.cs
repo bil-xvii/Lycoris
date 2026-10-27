@@ -59,25 +59,12 @@ public partial class App : Application
             Ui.AutoAnswer = false;
         }
 
-        // Already running? Bring that window up instead of asking for admin rights again.
-        if (!snapshot && !HasArg(args, "--elevated"))
+        // Already running? Bring that window up instead of asking for admin rights again. A copy that is still
+        // closing (or hangs without a window) is waited for / offered to be ended — never a silent exit.
+        if (!snapshot && !HasArg(args, "--elevated") && SingleInstanceMutexExists() && !HandOverToExistingInstance())
         {
-            bool running;
-            try
-            {
-                running = Mutex.TryOpenExisting(SingleInstanceName, out var existing);
-                existing?.Dispose();
-            }
-            catch (UnauthorizedAccessException)
-            {
-                running = true; // exists, but belongs to an elevated instance we may not open
-            }
-            if (running)
-            {
-                ActivateExistingInstance();
-                Shutdown();
-                return;
-            }
+            Shutdown();
+            return;
         }
 
         if (!Elevation.IsElevated && !noElevate)
@@ -112,11 +99,16 @@ public partial class App : Application
                 Shutdown();
                 return;
             }
+            if (!acquired && HandOverToExistingInstance())
+            {
+                // The other copy has gone (it was closing, or the user ended a hung one): take over now.
+                try { acquired = _singleInstance!.WaitOne(TimeSpan.FromSeconds(5)); }
+                catch (AbandonedMutexException) { acquired = true; }
+            }
             if (!acquired)
             {
                 _singleInstance?.Dispose();
                 _singleInstance = null;
-                ActivateExistingInstance();
                 Shutdown();
                 return;
             }
@@ -138,6 +130,7 @@ public partial class App : Application
         var vm = new MainViewModel();
         var window = new MainWindow(vm);
         MainWindow = window;
+        if (!snapshot) window.Closed += (_, _) => StartExitWatchdog();
 
         var startPage = ArgValue(args, "--page") ?? "dashboard";
         vm.NavigateTo(startPage);
@@ -259,11 +252,125 @@ public partial class App : Application
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        // Keep the app alive: log, notify, continue.
+        // Keep the app alive: log, notify, continue. While closing there is nothing to keep alive: the exit watchdog
+        // ends the process, so a half-finished shutdown can never leave a windowless MONOLITH holding the instance lock.
         if (SelfTestRunner.IsRunning) SelfTestRunner.ReportUnhandled(e.Exception);
+        if (_closing)
+        {
+            Log.Error("Ошибка при закрытии MONOLITH", e.Exception);
+            e.Handled = true;
+            return;
+        }
         Log.Error("Ошибка интерфейса", e.Exception);
         Ui.Toast(e.Exception.Message, ToastKind.Error, "Непредвиденная ошибка");
         e.Handled = true;
+    }
+
+    private static volatile bool _closing;
+
+    /// <summary>
+    /// The main window is closed: normal shutdown (game-session undo ≤ ~10 s, journal save) gets 20 s, then the
+    /// process ends no matter what. Before, an exception inside WPF's own shutdown left the process alive without a
+    /// window; it kept the single-instance lock, and every new start silently gave up ("приложение не открывается").
+    /// </summary>
+    private static void StartExitWatchdog()
+    {
+        _closing = true;
+        new Thread(() =>
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(20));
+            Log.Warn("MONOLITH не завершился за 20 с после закрытия окна — завершение принудительно.");
+            Environment.Exit(0);
+        })
+        { IsBackground = true, Name = "MONOLITH exit watchdog" }.Start();
+    }
+
+    private static bool SingleInstanceMutexExists()
+    {
+        try
+        {
+            var exists = Mutex.TryOpenExisting(SingleInstanceName, out var existing);
+            existing?.Dispose();
+            return exists;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true; // exists, but belongs to an elevated instance we may not open
+        }
+    }
+
+    /// <summary>
+    /// Another copy holds the instance lock. Returns false when its window was brought up (this copy should exit) or
+    /// the user chose to leave it; true when it is gone and this copy may start: it finished closing within 10 s, or
+    /// it hung without a window and the user agreed to end it.
+    /// </summary>
+    private static bool HandOverToExistingInstance()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            if (ActivateExistingInstance()) return false;
+            if (!SingleInstanceMutexExists()) return true;
+            if (DateTime.UtcNow >= deadline) break;
+            Thread.Sleep(500);
+        }
+
+        var hung = OtherInstances().Where(p => SafeHasNoWindow(p)).ToList();
+        if (hung.Count == 0) return false;
+        var answer = MessageBox.Show(
+            "Предыдущая копия MONOLITH не отвечает: процесс работает, но окна у него нет — скорее всего, он завис при закрытии.\n\n" +
+            "Завершить её и открыть MONOLITH? Если та копия была запущена с правами администратора, Windows попросит подтверждение.",
+            "MONOLITH", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.Yes);
+        if (answer != MessageBoxResult.Yes) return false;
+
+        foreach (var p in hung) EndProcess(p);
+        for (var i = 0; i < 20 && SingleInstanceMutexExists(); i++) Thread.Sleep(500);
+        if (!SingleInstanceMutexExists()) return true;
+        MessageBox.Show("Не удалось завершить зависшую копию MONOLITH. Завершите процесс MONOLITH.exe в диспетчере задач " +
+                        "(вкладка «Подробности») и запустите программу снова.", "MONOLITH", MessageBoxButton.OK, MessageBoxImage.Warning);
+        return false;
+    }
+
+    private static IEnumerable<Process> OtherInstances()
+    {
+        var current = Process.GetCurrentProcess();
+        return Process.GetProcessesByName(current.ProcessName).Where(p => p.Id != current.Id);
+    }
+
+    private static bool SafeHasNoWindow(Process p)
+    {
+        try { p.Refresh(); return p.MainWindowHandle == IntPtr.Zero && !p.HasExited; }
+        catch { return true; }
+    }
+
+    /// <summary>Ends a hung copy: directly when allowed, else (elevated copy) taskkill with a UAC prompt.</summary>
+    private static void EndProcess(Process p)
+    {
+        try
+        {
+            p.Kill();
+            p.WaitForExit(5000);
+            return;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or UnauthorizedAccessException or InvalidOperationException)
+        {
+            if (ex is InvalidOperationException) return; // already gone
+        }
+        try
+        {
+            using var kill = Process.Start(new ProcessStartInfo(ProcessRunner.Sys("taskkill.exe"), $"/PID {p.Id} /F")
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden,
+            });
+            kill?.WaitForExit(15000);
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // The user said no in the UAC window: the caller reports that the copy is still there.
+        }
+        catch { }
     }
 
     /// <summary>"--parent &lt;pid&gt;": wait (up to 20 s) for the copy that relaunched us to close.</summary>
@@ -283,20 +390,21 @@ public partial class App : Application
         catch (System.ComponentModel.Win32Exception) { }
     }
 
-    private static void ActivateExistingInstance()
+    /// <summary>Brings up the window of another running copy; false when no copy has a window.</summary>
+    private static bool ActivateExistingInstance()
     {
         try
         {
-            var current = Process.GetCurrentProcess();
-            foreach (var p in Process.GetProcessesByName(current.ProcessName))
+            foreach (var p in OtherInstances())
             {
-                if (p.Id == current.Id || p.MainWindowHandle == IntPtr.Zero) continue;
+                if (p.MainWindowHandle == IntPtr.Zero) continue;
                 ShowWindow(p.MainWindowHandle, 9); // SW_RESTORE
                 SetForegroundWindow(p.MainWindowHandle);
-                break;
+                return true;
             }
         }
         catch { }
+        return false;
     }
 
     private static bool HasArg(string[] args, string name) => args.Any(a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
