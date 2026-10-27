@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              xmlns:hw="clr-namespace:Monolith.Modules.Drivers.Hardware"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
@@ -146,7 +147,8 @@
         </Grid.RowDefinitions>
 
         <!-- ═══════════ Summary strip + scan ═══════════ -->
-        <Border Style="{StaticResource Card.Flush}">
+        <!-- RoundClip: the scan progress bar runs along the bottom edge of the strip -->
+        <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
