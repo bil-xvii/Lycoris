@@ -123,10 +123,11 @@ internal sealed class DisplayWriter : IDisplayWriter
         var dm = ModeFor(mode);
         var result = Code(ChangeDisplaySettingsExW(gdi, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY, IntPtr.Zero), "сохранение режима");
         if (!result.Ok) return result;
-        return ReadPersistedMode(monitorPath) is { } saved && saved.Width == mode.Width && saved.Height == mode.Height
-               && (saved.Frequency == mode.Frequency || saved.Frequency <= 1)
+        // Verified against the saved (registry) mode; a mode that cannot be read back is taken as Windows reported it.
+        return ReadPersistedMode(monitorPath) is not { } saved
+               || (saved.Width == mode.Width && saved.Height == mode.Height && (saved.SameMode(mode) || saved.Frequency <= 1))
             ? DisplayWriteResult.Success
-            : new DisplayWriteResult(DisplayWriteStatus.Failed, "Windows не сохранила режим");
+            : new DisplayWriteResult(DisplayWriteStatus.Failed, $"Windows сохранила другой режим ({saved.Describe()})");
     }
 
     /// <summary>

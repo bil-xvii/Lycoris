@@ -60,6 +60,7 @@ public sealed class DisplayProviderTests : IDisposable
     public void Card_key_title_and_facts()
     {
         var c = Card(Monitor());
+        Assert.Contains("родное 2560×1440", Card(Monitor() with { Current = new DisplayModeSpec(1920, 1080, 60, 0, 0, 32, 0, 0, 0) }).Facts);
 
         Assert.Equal("display:" + Path, c.Key);
         Assert.Equal(DeviceKind.Monitor, c.Kind);
@@ -78,8 +79,9 @@ public sealed class DisplayProviderTests : IDisposable
         Assert.Equal(SettingControl.DualChoice, mode.Control);
         Assert.Equal("Разрешение и частота", mode.Title);
         Assert.Equal("2560x1440@240", mode.Current!.Value.Text);
-        Assert.Equal("2560×1440, 239,97 Гц", mode.CurrentText);
-        Assert.Equal("2560×1440 · родное", mode.Options[0].Label);
+        Assert.Equal("2560×1440, 240 Гц", mode.CurrentText); // as in the list; the exact 239,97 Гц is in the facts
+        Assert.Equal("2560×1440", mode.Options[0].Label);     // the native size comes first
+        Assert.Equal(["2560x1440", "1920x1080"], mode.Options.Select(o => o.Value.Text));
         Assert.Equal(["240 Гц", "144 Гц", "60 Гц"], mode.SecondaryOptions!(mode.Options[0].Value).Select(o => o.Label));
         Assert.True(mode.NeedsCountdown);
         Assert.Equal(DeviceTargets.DisplayMode(Path), mode.JournalTarget);
