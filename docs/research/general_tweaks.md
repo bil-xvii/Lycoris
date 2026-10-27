@@ -93,10 +93,15 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 | `ads.explorer` | `HKCU\…\Explorer\Advanced\ShowSyncProviderNotifications`=0 | OneDrive/M365 promos in Explorer. Ex. | D | D |
 | `ads.start.hiderec` | `HKLM\SOFTWARE\Policies\Microsoft\Windows\Explorer\HideRecommendedSection`=1 | Hides the whole Recommended section. **Edition-gated** (officially SE/Education); verify on Pro. | – | OPT |
 | `ads.lang` | `HKCU\Control Panel\International\User Profile\HttpAcceptLanguageOptOut`=1 | Websites read the language list | – | D |
+| `ads.start.websites` | `HKCU\Software\Policies\Microsoft\Windows\Explorer\HideRecommendedPersonalizedSites`=1 | Website recommendations (from browser history) in Start «Рекомендуем». Policy CSP Start, User + Device scope, Pro/Ent/Edu, Windows 11 22H2 with KB5027303 (22621.1928) and later. Absent = shown. Greys out the Settings toggle «Показывать веб-сайты из журнала браузера» with the "managed" note. The effect is narrow: the recommendations appear only when browsing history is shared and long enough. Ex. | – | OPT |
+| `ads.start.phone` | `HKCU\Software\Microsoft\Windows\CurrentVersion\Start\Companions\Microsoft.YourPhone_8wekyb3d8bbwe\IsEnabled`=0 | Phone Link companion panel in the new Start. This is the Settings toggle «Показывать мобильное устройство в меню «Пуск»», not a policy (no UI lock). Absent/1 = shown. Exists only with Phone Link ≥ 1.25032.82.0, so offer it only where the `Companions\Microsoft.YourPhone_8wekyb3d8bbwe` key exists (otherwise the write would create an orphan key that does nothing). Ex. | – | OPT |
+| `ads.spotlight.thirdparty` | `HKCU\Software\Policies\Microsoft\Windows\CloudContent\DisableThirdPartySuggestions`=1 | Third-party app/content suggestions in Spotlight and Windows tips (Policy CSP Experience `AllowThirdPartySuggestionsInWindowsSpotlight`, User scope, **Pro supported**). Mostly overlaps the user values above; the remaining real effect is third-party promotion. **Not offered on Home** (edition-blind placebo). The Spotlight pictures stay. SO. Own row, not hidden inside a Start item. | – | OPT |
 
 **Leave `ContentDeliveryAllowed` alone:** setting it to 0 also kills Spotlight.
 
 **Policy route:** the `…\Policies\Microsoft\Windows\CloudContent` policies (e.g. `DisableWindowsConsumerFeatures`) are largely Enterprise/Education-only. On Home/Pro the user values above are the effective mechanism.
+
+**Spotlight / consumer-content policies: DO-NOT-INCLUDE (placebo on Home/Pro).** Policy CSP Experience marks these ❌ for Pro: `DisableWindowsSpotlightFeatures` (AllowWindowsSpotlight), `DisableSpotlightCollectionOnDesktop`, `ConfigureWindowsSpotlight` ("Enterprise SKUs only"), `DisableWindowsSpotlightOnSettings`, `DisableSoftLanding` (AllowWindowsTips), `DisableWindowsConsumerFeatures`, `DisableCloudOptimizedContent`. Lock-screen tips are already covered by `ads.lockscreen`; the Spotlight wallpaper itself stays. The only Pro-supported CloudContent value worth offering is `DisableThirdPartySuggestions` (above).
 
 **Benefit / risk:** removes nags and promo-app installs. No performance effect, no functional risk. SAFE-DEFAULT.
 
@@ -117,10 +122,25 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 
 **`widgets.off`: «Отключить Виджеты» / Widgets. SAFE-DEFAULT (R).**
 - Set `HKLM\SOFTWARE\Policies\Microsoft\Dsh\AllowNewsAndInterests`=0 (DWORD). Absent by default. Ex/SO.
-- This removes the board, the button and its WebView2 processes.
+- This removes the board, the button and its WebView2 processes. Microsoft (Windows IT Pro blog, Mar 2024): disabling it "turns off weather and more on the lock screen in addition to widgets on the taskbar" — say so in Details.
 - **Do not write `HKCU\…\Explorer\Advanced\TaskbarDa` directly.** On 24H2+ the User Choice Protection Driver (UCPD, running here) blocks it with "access denied". Never disable UCPD.
 - To hide only the button, open `ms-settings:taskbar`.
 - Uninstalling `MicrosoftWindows.Client.WebExperience`: DO-NOT-INCLUDE.
+
+**`news.off`: «Отключить «Новости и интересы»» / News and interests (Windows 10). SAFE-DEFAULT (R).** Catalog id `news-interests-off`.
+- `HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds\EnableFeeds`=0 (DWORD). Feeds.admx «Enable news and interests on the taskbar», Policy CSP Feeds/FeedsEnabled. Absent by default (feed on). Ex.
+- Windows 10 counterpart of `widgets.off`: offer only on builds 19041–19045, so the two rows never appear together.
+- Edition table: Windows 10 Pro/Business/Enterprise/Education = yes, Home not listed (the key is reported to be honoured there, undocumented) → Details say «официально: Pro и выше».
+- Microsoft: on Windows 10 it also turns off "weather and more" on the lock screen, and the taskbar context-menu entry disappears.
+- Revert = delete the value; the empty `Windows Feeds` key is removed (MONOLITH created it). The user's own HKCU feed mode comes back untouched.
+- **Rejected:** writing `HKCU\…\Feeds\ShellFeedsTaskbarViewMode`. Since 2022 the value is protected (writes are reverted or fail with access denied, Microsoft Q&A, TenForums): a placebo. DO-NOT-INCLUDE.
+
+**`ai.paint` / `ai.notepad`: AI features in Paint and Notepad. SAFE-OPTIONAL.** Catalog ids `paint-ai-off`, `notepad-ai-off`.
+- Paint: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint` → `DisableCocreator`, `DisableGenerativeFill`, `DisableImageCreator` = 1 (DWORD). Policy CSP WindowsAI, device scope, Pro/Ent/Edu, Windows 11 22H2 10.0.22621.4870+ / 24H2 10.0.26100.3360+, ADMX WindowsCopilot.admx. Absent = available. Restart Paint.
+- Notepad: `HKLM\SOFTWARE\Policies\WindowsNotepad\DisableAIFeatures`=1 (Microsoft Learn «Manage Notepad»: Windows 11 22H2+, Notepad 11.2503.16.0+, machine-wide). Restart Notepad.
+- Home is not in the CSP edition table; the apps read the keys, but say «официально: Pro и выше» for Paint. Gate both on Windows 11 (22621+).
+- Revert = delete the values. `…\Policies\Paint` is removed when MONOLITH created it. **Known gap:** `SOFTWARE\Policies\WindowsNotepad` is only two levels deep and `RegistryHelper.TryDeleteEmptyKeyChain` never deletes keys above three segments, so the empty key stays after undo unless the helper allows `SOFTWARE\Policies\<Vendor>` (requested from the core owner).
+- **Rejected:** `HideAIActionsMenu` (HKLM `…\Policies\Microsoft\Windows\Explorer`) appears only on blogs, no Microsoft documentation → DO-NOT-INCLUDE; the supported route is Settings → Apps → Actions, and since build 26220.7344 the «AI actions» menu disappears when all actions are off. `DisableSettingsAgent`, `ConfigureAgentConnectors`, `DisableRecallDataProviders` are Enterprise/Education-only or Insider-only → placebo on Home/Pro, DO-NOT-INCLUDE. `DisableWidgetsOnLockScreen` is Insider-only: wait.
 
 **`copilot.*`: «Copilot»**
 - **Legacy pane:** `HKCU\Software\Policies\Microsoft\Windows\WindowsCopilot\TurnOffWindowsCopilot`=1. It is **deprecated** and does not affect the new Copilot app. Apply it only on 22H2/23H2 builds. Also set `HKCU\…\Explorer\Advanced\ShowCopilotButton`=0 there (0 here).
@@ -188,6 +208,29 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 - **Risk:** Microsoft notes it affects backup and remote-storage programs. It can also confuse age-based cleanup ("not opened for X days").
 - ADVANCED.
 
+**`sys.trim`: «TRIM для SSD включён» / repair NTFS delete notifications. SAFE-DEFAULT (R), repair only.** Catalog id `trim-on`.
+- `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\DisableDeleteNotification` DWORD: 0 = TRIM on (Windows default for NTFS), 1 = off. This is what `fsutil behavior set DisableDeleteNotify 0` changes; Microsoft: "Enabling or disabling doesn't require a restart. Trim is effective when the next unmap command is issued."
+- Write only when the value is non-zero and an SSD is present; on a healthy PC nothing is written. Revert restores the exact previous DWORD (i.e. switches TRIM off again — a faithful revert of a repair).
+- **Never touch `RefsDisableDeleteNotification`:** ReFS v2 (including Windows 11 Dev Drive) ships with trim off on purpose; writing 0 there would change a default, not repair one.
+- **Group Policy:** ADMX_FileSys «Disable delete notifications on all volumes» = `HKLM\SYSTEM\CurrentControlSet\Policies\DisableDeleteNotification`. If it is set, the PC is managed: not offered, nothing reported as fixed.
+- Microsoft also notes "some devices may experience performance degradation when the delete notification feature is turned on" — Details say so; undo is one click.
+- Dashboard «trim» check should get a shortcut into this item instead of telling the user to type fsutil.
+
+**`sys.optimize.task`: «Оптимизация дисков по расписанию». SAFE-OPTIONAL repair, never in a profile.** Catalog id `drive-optimize-schedule-on`.
+- Scheduled task `\Microsoft\Windows\Defrag\ScheduledDefrag`, enabled by default (weekly; retrims SSDs about once a month, defragments HDDs, never defragments SSDs). `services.md` rates disabling it "never".
+- Enable only when disabled (ScheduledTaskTweak); the journal keeps the previous task state, so undo disables it again.
+- Not in profiles: turning the schedule off is a legitimate choice in the official «Оптимизация дисков» UI.
+- `defragsvc` is in `ServiceControl.Protected` and is not touched.
+
+**`sys.edge.background`: «Microsoft Edge без фонового запуска». SAFE-OPTIONAL, never default.** Catalog id `edge-background-off`.
+- `HKLM\SOFTWARE\Policies\Microsoft\Edge` → `StartupBoostEnabled`=0 (Edge ≥ 88) and `BackgroundModeEnabled`=0 (Edge ≥ 77), REG_DWORD, absent by default. Documented Edge policies, mandatory path, dynamic policy refresh, no domain-join restriction (unlike e.g. HomepageLocation), so they work on unmanaged Home/Pro.
+- The Recommended path (`…\Edge\Recommended`) is ignored once the user touched the toggle, so detection could not confirm the effect: use the mandatory path.
+- Startup boost does write `HKCU\…\CurrentVersion\Run\MicrosoftEdgeAutoLaunch_<hash>` (`--no-startup-window --win-session-start`), which the Startup tab already shows; with the policy Edge removes it itself and does not relaunch after the last window closes. MONOLITH never writes the Run value (IsForbiddenRestoreTarget); Edge recreates it after revert because its own preference was never touched.
+- **Honest effect:** Microsoft calls the resource impact of startup boost "limited" and enables it automatically only for people who use Edge every few days (> 4 GB RAM, or > 1 GB with a modern disk). Background mode is off by default, so that half only locks it. No FPS claim, no RAM promise.
+- **Side effects (Details):** the first Edge launch after sign-in is slower; sites and installed web apps cannot notify while Edge is closed; edge://settings/system shows the toggles locked «Управляется вашей организацией».
+- Never touch EdgeUpdate or WebView2 policies (`services.md`: never disable edgeupdate). Offer only when msedge.exe exists.
+- Revert = delete both values; the empty `Policies\Microsoft\Edge` key is removed when MONOLITH created it (TryDeleteEmptyKeyChain skips it when WebView2/Recommended subkeys exist).
+
 ---
 
 ## 7. UI and quality of life (`ui.*`)
@@ -216,6 +259,11 @@ Optional extra: transparency off, `HKCU\…\Themes\Personalize\EnableTransparenc
 - **`ui.launchto`** «Открывать "Этот компьютер"». `Explorer\Advanced\LaunchTo` DWORD: 1 = This PC, 2 = Home (default), 3 = Downloads, 4 = OneDrive/sync root. Absent by default, so revert = delete. SAFE-OPTIONAL.
 - **`ui.ctxmenu`** «Классическое контекстное меню». Create `HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32` with (Default) = **empty REG_SZ** (it must exist and be empty, not missing). Revert = delete the `{86ca…}` key. Ex. Still the standard method as of May 2026; Microsoft could break it, so detect after Explorer restart. SAFE-OPTIONAL.
 - **`ui.endtask`** «Завершить задачу на панели задач». `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings\TaskbarEndTask`=1 (DWORD). Absent by default. Windows 11 22H2 Moment 4 (KB5030310) and later. Ex. Kills the process tree, so the user can lose unsaved work. SAFE-OPTIONAL (D in R).
+- **`ui.explorer.home`** «"Главная" Проводника без недавних файлов» (catalog id `explorer-home-private`). SAFE-OPTIONAL.
+  - `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer`: `ShowRecent`=0 (Folder Options → Privacy «Показывать недавно использовавшиеся файлы»), `ShowCloudFilesInQuickAccess`=0 («Показывать файлы с Office.com» / account-based insights), `ShowRecommendations`=0 («Показать раздел рекомендаций»; ships for everyone from 24H2 26100.7309 / 25H2 26200.7309, earlier only for Entra ID accounts — elsewhere the value is simply not read). Absent = 1. Ex.
+  - Settings-backed user values: no UI lock, all editions, Windows 10 22H2 and 11. Benefit: privacy when screen-sharing; Explorer stops its cloud recommendation requests on Home. Pinned Quick access folders stay; history and jump lists are not deleted.
+  - **Leave `ShowFrequent` on:** with recent files, frequent folders and cloud files all off, Home renders blank (ElevenForum 21120; note that thread's bullet list swaps ShowRecent/ShowFrequent).
+  - The machine policy `HKLM\Software\Policies\Microsoft\Windows\Explorer\DisableGraphRecentItems`=1 (FileExplorer CSP, Pro+, 22621+) blocks the cloud requests completely but locks the checkbox: not used.
 
 ---
 
@@ -238,6 +286,22 @@ Optional extra: transparency off, `HKCU\…\Themes\Personalize\EnableTransparenc
 - DoH (`netsh dns add encryption …` or Settings): ADVANCED.
 - **Risk:** breaks corporate/VPN split DNS, local `.lan`/`.home` names, Pi-hole/AdGuard and router parental filters.
 - **Benefit:** helps only with a poor ISP resolver. No effect on in-game ping.
+- **Dynamic DNS registration must survive:** `netsh … set dnsservers … register=none|primary|both` (and `source=dhcp`, whose default is primary) rewrites the adapter's «Зарегистрировать адреса этого подключения в DNS» / «Использовать DNS-суффикс подключения при регистрации» flags. The DNS script reads `Get-DnsClient -InterfaceIndex` → `RegisterThisConnectionsAddress` / `UseSuffixWhenRegistering` before netsh and puts them back with `Set-DnsClient` after it (also in the rollback). Registration is per interface, not per address family, so each family's script restores it immediately. Mapping the flags to netsh's none/primary/both would lose the "suffix checked but greyed" state, so it is not used.
+
+**`net.tcp-autotuning`: «Автонастройка окна TCP — стандартная» / repair receive-window auto-tuning. SAFE-DEFAULT (R), repair only.** Catalog id `tcp-autotuning-normal`.
+- Many "internet optimizers" set `netsh interface tcp set global autotuninglevel=disabled` (or experimental). Microsoft (Performance tuning network adapters): "The default level is Normal" and with auto-tuning disabled "for a 1Gbps connection that has a latency of 10 ms, the total achievable throughput is only 51 Mbps". The troubleshooting article gives `netsh int tcp set global autotuninglevel=normal` as the fix. Levels: disabled, highlyrestricted, restricted, normal, experimental.
+- **Read** locale-independently from WMI `root\StandardCimv2:MSFT_NetTCPSetting` → `AutoTuningLevelLocal` (uint8 0–4 = Disabled…Experimental; the Automatic template has none) and `AutoTuningLevelEffective` (0 Local, 1 GroupPolicy). Never parse `netsh … show global` (localized). System.Management, not a PowerShell launch, so detection stays cheap.
+- **Apply** only when the level is not normal: `netsh.exe interface tcp set global autotuninglevel=normal` through `ChangeSession.RunCommandAsync`; undo = the same line with the original level (journal check: System32 netsh.exe, exactly that argument line, one of the five names).
+- netsh "global" sets every template, so the repair runs only when all templates hold the **same** level; mixed templates are refused (one undo line could not restore each of them). If Group Policy decides the level (QoS «inbound TCP throughput level»), nothing is changed.
+- State is reported through Detect (like `win32-priority-programs`), not AppliesTo, so the row does not turn "not applicable" after a successful repair.
+- **Risk / Details:** some users disabled it on purpose for old routers or firewalls that mishandle RFC 1323 window scaling; Details say so, undo is one click. No effect on game ping; applies to new connections immediately.
+
+**Network myths, explicitly rejected (no catalog item):**
+- QoS «Limit reservable bandwidth» / `NonBestEffortLimit`=0: Raymond Chen calls it a "placebo setting"; the 20 % is a maximum reservation for QoS applications, not a cut of normal traffic. DO-NOT-INCLUDE.
+- DSCP / QoS policies for games on home internet: ISPs ignore or bleach the marks. DO-NOT-INCLUDE.
+- `TCPNoDelay` / `TcpAckFrequency`: UDP games are unaffected; already ADVANCED (`tcp-ack-frequency`).
+- `NetworkThrottlingIndex`: already ADVANCED placebo.
+- NIC offload / RSS / RSC / interrupt-moderation toggles: DO-NOT-INCLUDE (gaming_tweaks.md §3).
 
 **`net.do`: «Отключить P2P доставку обновлений» / Delivery Optimization HTTP-only. SAFE-DEFAULT (R).**
 - Set `HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization\DODownloadMode`=0 (DWORD).
@@ -294,9 +358,10 @@ Optional extra: transparency off, `HKCU\…\Themes\Personalize\EnableTransparenc
 **Normal (D):** `ads.*` (except `ads.start.hiderec` and `ads.lang`), `priv.adid`, `sys.storagesense` (safe preset), `ui.ext`.
 
 **Recommended (D):** everything in Normal, plus:
-- `ads.lang`, `search.web`, `search.highlights`, `widgets.off`, `recall` (DisableAIDataAnalysis)
+- `ads.lang`, `search.web`, `search.highlights`, `widgets.off` (Windows 11) / `news.off` (Windows 10), `recall` (DisableAIDataAnalysis)
 - `priv.telemetry`=1 (Settings value), `priv.tailored`, `priv.activity`, `priv.feedback`, `priv.remoteassist`
-- `net.do`=0, `net.wifipower` (AC only), `ui.endtask`
+- `net.do`=0, `net.wifipower` (AC only), `net.tcp-autotuning` (repair, writes only when broken), `ui.endtask`
+- `sys.trim` (repair, writes only when broken and an SSD is present)
 - `sys.faststartup` off, **desktops only**
 
 Everything else is opt-in. Create one restore point per batch: `Checkpoint-Computer`, after setting `SystemRestorePointCreationFrequency`=0 under `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore`; that frequency value is itself saved and reverted. Restore points are throttled to one per 24 hours otherwise.
@@ -351,3 +416,31 @@ Everything else is opt-in. Create one restore point per batch: `Checkpoint-Compu
 - https://www.hexacorn.com/blog/?p=5992
 - https://woshub.com/memory-compression-process-high-usage-windows-10/
 - https://winaero.com/windows-11-disable-background-apps
+- https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-start (HideRecommendedPersonalizedSites)
+- https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience (AllowThirdPartySuggestionsInWindowsSpotlight; Spotlight policies ❌ Pro)
+- https://support.microsoft.com/en-us/windows/mobile-device-in-start-menu-21676d6a-3bc3-439a-aaa3-7463b91cda79
+- https://www.elevenforum.com/t/add-or-remove-phone-link-mobile-device-on-start-menu-in-windows-11.26919/
+- https://techcommunity.microsoft.com/blog/windows-itpro-blog/configuring-weather-and-more-on-the-lock-screen-in-windows/4101024
+- https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-feeds
+- https://www.tenforums.com/threads/tweaking-question-shellfeedstaskbarviewmode-access-denied.215088/
+- https://learn.microsoft.com/en-us/answers/questions/5638954/protected-registry-keys
+- https://learn.microsoft.com/en-us/windows/client-management/manage-notepad
+- https://www.windowslatest.com/2025/12/07/microsoft-confirms-itll-let-you-remove-ai-actions-from-file-explorer-menu-in-windows-11/
+- https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-fileexplorer (DisableGraphRecentItems)
+- https://support.microsoft.com/en-us/windows/experience/fileexplorer/file-explorer-in-windows
+- https://www.thewindowsclub.com/disable-recommended-sectionexplorer-home-windows
+- https://www.elevenforum.com/t/file-explorer-displaying-quick-access-within-home-via-registry.21120/
+- https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-admx-filesys (DisableDeleteNotification policy)
+- https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/defrag
+- https://support.microsoft.com/en-us/windows/experience/storage-filemanagement/defragment-optimize-your-data-drives-in-windows
+- https://infohub.delltechnologies.com/en-au/l/dell-powerstore-microsoft-hyper-v-best-practices/trim-unmap-and-disk-space-recovery-2/
+- https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/startupboostenabled
+- https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/backgroundmodeenabled
+- https://support.microsoft.com/en-us/edge/get-help-with-startup-boost
+- https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics
+- https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/tcpip-performance-known-issues
+- https://learn.microsoft.com/en-us/windows/win32/fwp/wmi/nettcpipprov/msft-nettcpsetting
+- https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface
+- https://devblogs.microsoft.com/oldnewthing/20061123-14/?p=28923
+- https://www.howtogeek.com/730147/windows-10-myth-dont-touch-limit-reservable-bandwidth/
+- https://learn.microsoft.com/en-us/powershell/module/dnsclient/set-dnsclient

@@ -94,6 +94,46 @@ public static partial class TweakCatalog
             ApplyAction = ctx => ActivateScheme(ctx, PowerSchemes.Balanced, "сбалансированная схема питания не найдена"),
         };
 
+        // SAFE-OPTIONAL (Windows 11, Balanced plan, AC only; not on dual-CCD X3D: its interplay with the AMD driver is unverified).
+        yield return new CustomTweak
+        {
+            Id = "power-mode-best-performance",
+            Title = "Режим питания «Максимальная производительность»",
+            Description = "На сбалансированной схеме выбирает режим питания «Максимальная производительность» (Параметры → Система → Питание) для работы от сети.",
+            Details = "Штатный режим Windows 11 — «облегчённая схема» поверх сбалансированной: Windows смещает настройки управления процессором " +
+                      "и ограничения фоновых процессов в сторону производительности, а сама схема «Сбалансированная» остаётся активной. " +
+                      "Заметнее всего на ноутбуках и ПК с настройками производителя; на настольных ПК эффект обычно невелик, а потребление " +
+                      "в простое немного растёт. Меняется только режим при питании от сети, режим от батареи не трогается. Применяется сразу " +
+                      "через документированную функцию Windows (PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим. На Ryzen " +
+                      "X3D с двумя CCD не предлагается: совместимость режима с драйвером AMD 3D V-Cache не проверена.",
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Optional,
+            AppliesTo = sp => sp.IsWindows11 && !IsDualCcdX3D(sp),
+            NotApplicableReason = "Только для Windows 11 на сбалансированной схеме питания и не для Ryzen X3D с двумя CCD.",
+            DetectFunc = () =>
+            {
+                var scheme = PowerSchemes.GetActive();
+                if (scheme == Guid.Empty) return TweakState.Unknown;
+                if (scheme != PowerSchemes.Balanced) return TweakState.NotApplicable; // the mode exists only on Balanced
+                return ReadAcPowerMode() is { } mode
+                    ? mode == PowerModeBestPerformance ? TweakState.Applied : TweakState.NotApplied
+                    : TweakState.NotApplicable;
+            },
+            ApplyAction = ctx =>
+            {
+                if (PowerSchemes.GetActive() != PowerSchemes.Balanced)
+                    throw new InvalidOperationException("режим питания действует только на сбалансированной схеме — сначала включите её");
+                var current = ReadAcPowerMode() ?? throw new InvalidOperationException("не удалось прочитать текущий режим питания");
+                if (current == PowerModeBestPerformance) return;
+                // Only the three documented modes can be journaled (and accepted by the journal check on undo).
+                if (!IsDocumentedPowerMode(current))
+                    throw new InvalidOperationException($"Windows сообщила неизвестный режим питания {current:D} — MONOLITH его не меняет");
+                RunJournaled(ctx, "powermode:ac", PowerShellExe, PowerShellArgs(PowerModeScript(PowerModeBestPerformance)),
+                    PowerShellExe, PowerShellArgs(PowerModeScript(current)),
+                    $"от сети: {DescribePowerMode(current)}", $"от сети: {DescribePowerMode(PowerModeBestPerformance)}", OutputEncoding.Utf8);
+            },
+        };
+
         // SAFE-DEFAULT on dual-CCD X3D: the 3D V-Cache driver steers games to the cache CCD only on Balanced.
         yield return new CustomTweak
         {
@@ -223,6 +263,58 @@ public static partial class TweakCatalog
             },
         };
     }
+
+    // ───────────────────────────── Windows 11 power mode (powrprof, documented) ─────────────────────────────
+
+    /// <summary>GUID_POWER_MODE_NONE: «Сбалансированный» (no overlay).</summary>
+    public static readonly Guid PowerModeBalanced = Guid.Empty;
+    /// <summary>GUID_POWER_MODE_BEST_EFFICIENCY.</summary>
+    public static readonly Guid PowerModeBestEfficiency = new("961cc777-2547-4f9d-8174-7d86181b8a7a");
+    /// <summary>GUID_POWER_MODE_BEST_PERFORMANCE.</summary>
+    public static readonly Guid PowerModeBestPerformance = new("ded574b5-45a0-4f42-8737-46345c09c238");
+
+    /// <summary>The only values PowerSetUserConfiguredACPowerMode supports (Microsoft Learn).</summary>
+    public static bool IsDocumentedPowerMode(Guid mode) =>
+        mode == PowerModeBalanced || mode == PowerModeBestEfficiency || mode == PowerModeBestPerformance;
+
+    internal static string DescribePowerMode(Guid mode) =>
+        mode == PowerModeBestPerformance ? "максимальная производительность"
+        : mode == PowerModeBestEfficiency ? "максимальная эффективность"
+        : mode == PowerModeBalanced ? "сбалансированный"
+        : mode.ToString("D");
+
+    /// <summary>The Add-Type block that exposes PowerSetUserConfiguredACPowerMode to <see cref="PowerModeScript"/>.</summary>
+    internal const string PowerModeTypeDefinition =
+        "if(-not ('Monolith.PowerMode' -as [type])){Add-Type -Namespace Monolith -Name PowerMode -MemberDefinition " +
+        "'[DllImport(\"powrprof.dll\", EntryPoint=\"PowerSetUserConfiguredACPowerMode\")] public static extern uint SetAc(ref Guid mode);'};";
+
+    /// <summary>
+    /// PowerShell that sets the user-configured AC power mode (one of the three documented GUIDs) and fails on any error
+    /// code. Also the only undo script JournalTrust accepts for the "powermode:ac" target.
+    /// </summary>
+    public static string PowerModeScript(Guid mode)
+    {
+        if (!IsDocumentedPowerMode(mode)) throw new ArgumentException($"недокументированный режим питания: {mode:D}", nameof(mode));
+        return PowerModeTypeDefinition +
+               $"$g=[Guid]'{mode:D}';$r=[Monolith.PowerMode]::SetAc([ref]$g);" +
+               "if($r -ne 0){throw ('Windows отклонила смену режима питания, код '+$r)}";
+    }
+
+    /// <summary>The user-configured AC power mode (Windows 11), or null when the function is missing or fails. Read-only.</summary>
+    internal static Guid? ReadAcPowerMode()
+    {
+        try
+        {
+            return PowerGetUserConfiguredACPowerMode(out var mode) == 0 ? mode : null;
+        }
+        catch
+        {
+            return null; // older builds without the export, or not Windows at all
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("powrprof.dll")]
+    private static extern uint PowerGetUserConfiguredACPowerMode(out Guid mode);
 
     private const string FastStartupDetails =
         "Быстрый запуск сохраняет состояние ядра при выключении. Без него пропадают «странности» видеокарты и USB после включения, " +

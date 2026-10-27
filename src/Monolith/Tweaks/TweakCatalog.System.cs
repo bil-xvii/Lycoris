@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Win32;
 using Monolith.Core;
 
@@ -133,6 +134,31 @@ public static partial class TweakCatalog
             },
         };
 
+        // SAFE-OPTIONAL, never in a profile: documented Edge policies (Edge reads them without a restart).
+        yield return new RegistryTweak
+        {
+            Id = "edge-background-off",
+            Title = "Microsoft Edge без фонового запуска",
+            Description = "Политики Edge запрещают «ускорение запуска» (процессы Edge при входе в Windows) и работу Edge в фоне после " +
+                          "закрытия последнего окна.",
+            Details = "Официальные политики Microsoft StartupBoostEnabled и BackgroundModeEnabled. Сам Edge, его обновления и WebView2 " +
+                      "(виджеты, Teams, лаунчеры игр) не затрагиваются. Эффект скромный и на FPS не влияет: Microsoft называет нагрузку от " +
+                      "ускорения запуска ограниченной и включает его автоматически только тем, кто часто открывает Edge, а фоновый режим и " +
+                      "так выключен по умолчанию — политика лишь закрепляет это. Цена: первый запуск Edge после входа медленнее, сайты и " +
+                      "установленные веб-приложения не присылают уведомления, пока Edge закрыт, а в edge://settings/system эти переключатели " +
+                      "станут недоступны с пометкой «Управляется вашей организацией». Откат удаляет политики — Edge вернётся к вашим " +
+                      "настройкам.",
+            Category = TweakCategory.Performance,
+            Risk = TweakRisk.Optional,
+            AppliesTo = _ => IsEdgeInstalled(),
+            NotApplicableReason = "Microsoft Edge не установлен.",
+            Values =
+            [
+                Lm(EdgePolicy, "StartupBoostEnabled", 0),
+                Lm(EdgePolicy, "BackgroundModeEnabled", 0),
+            ],
+        };
+
         yield return new RegistryTweak
         {
             Id = "background-apps-global-off",
@@ -208,6 +234,49 @@ public static partial class TweakCatalog
         };
 
         // ───── File system, memory, search ─────
+
+        // SAFE-DEFAULT repair (Recommended): NTFS only, writes only when someone turned TRIM off. ReFS is never touched.
+        yield return new CustomTweak
+        {
+            Id = "trim-on",
+            Title = "TRIM для SSD включён",
+            Description = "Если TRIM (уведомления об удалении) для NTFS кто-то отключил, включает его обратно: SSD снова узнаёт об " +
+                          "освобождённых блоках.",
+            Details = "TRIM в Windows включён по умолчанию; его часто выключают сторонние «оптимизаторы». Без него SSD со временем " +
+                      "медленнее записывает данные. На исправной системе пункт ничего не меняет. Меняется только параметр NTFS " +
+                      "(DisableDeleteNotification = 0, то же, что «fsutil behavior set DisableDeleteNotify 0»); параметр ReFS, в том числе " +
+                      "для Dev Drive, MONOLITH не трогает — там TRIM выключен Microsoft намеренно. Microsoft отмечает, что на отдельных " +
+                      "накопителях с TRIM производительность падает: если вы выключали его из-за этого, откатите пункт — прежнее значение " +
+                      "вернётся. Если TRIM задан групповой политикой, пункт не предлагается. Перезагрузка не нужна.",
+            Category = TweakCategory.System,
+            Risk = TweakRisk.Safe,
+            DefaultIn = ProfileSet.Recommended,
+            AppliesTo = sp => sp.Disks.Any(d => d.IsSsd) && LmInt(FileSystemPolicy, "DisableDeleteNotification") is null,
+            NotApplicableReason = "SSD не найден, либо TRIM задан групповой политикой.",
+            DetectFunc = () => NtfsTrimDisabled() ? TweakState.NotApplied : TweakState.Applied,
+            ApplyAction = ctx =>
+            {
+                if (NtfsTrimDisabled()) SetDword(ctx, RegHive.HKLM, FileSystemKey, "DisableDeleteNotification", 0);
+            },
+        };
+
+        // SAFE-OPTIONAL repair, never in a profile: turning the schedule off is a legitimate choice in the official UI.
+        yield return new ScheduledTaskTweak
+        {
+            Id = "drive-optimize-schedule-on",
+            Title = "Оптимизация дисков по расписанию",
+            Description = "Если стандартную задачу «Оптимизация дисков» по расписанию отключили, включает её обратно.",
+            Details = "Это задача Windows \\Microsoft\\Windows\\Defrag\\ScheduledDefrag, по умолчанию включена: по расписанию (обычно раз " +
+                      "в неделю) Windows оптимизирует диски — SSD раз в месяц получают повторный TRIM, HDD дефрагментируются; SSD при этом " +
+                      "не дефрагментируются. Её отключают некоторые «оптимизаторы», но выключить расписание можно и штатно в окне " +
+                      "«Оптимизация дисков», поэтому пункт не входит в профили — включайте, если отключали не вы. На исправной системе " +
+                      "пункт ничего не меняет. Откат возвращает прежнее состояние задачи.",
+            Category = TweakCategory.System,
+            Risk = TweakRisk.Optional,
+            NotApplicableReason = "Задачи «Оптимизация дисков» нет в этой системе.",
+            Enable = true,
+            Tasks = [@"\Microsoft\Windows\Defrag\ScheduledDefrag"],
+        };
 
         yield return new CustomTweak
         {
@@ -288,6 +357,30 @@ public static partial class TweakCatalog
                 if (LmInt(HvciKey, "Enabled") == 1) SetDword(ctx, RegHive.HKLM, HvciKey, "Enabled", 0);
             },
         };
+    }
+
+    private const string EdgePolicy = @"SOFTWARE\Policies\Microsoft\Edge";
+    private const string FileSystemKey = @"SYSTEM\CurrentControlSet\Control\FileSystem";
+    /// <summary>ADMX_FileSys «Disable delete notifications on all volumes»: when set, the machine is managed.</summary>
+    private const string FileSystemPolicy = @"SYSTEM\CurrentControlSet\Policies";
+
+    /// <summary>NTFS delete notifications (TRIM) are off: DisableDeleteNotification is set and not 0. Absent = on (default).</summary>
+    private static bool NtfsTrimDisabled() => LmInt(FileSystemKey, "DisableDeleteNotification") is { } v && v != 0;
+
+    /// <summary>Microsoft Edge (Stable) is installed machine-wide.</summary>
+    private static bool IsEdgeInstalled()
+    {
+        try
+        {
+            return new[] { Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.ProgramFiles }
+                .Select(Environment.GetFolderPath)
+                .Where(dir => !string.IsNullOrEmpty(dir))
+                .Any(dir => File.Exists(Path.Combine(dir, "Microsoft", "Edge", "Application", "msedge.exe")));
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool LastAccessDisabled() =>
