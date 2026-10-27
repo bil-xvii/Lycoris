@@ -107,6 +107,8 @@ internal static class DeviceRestore
         var writer = DeviceWriters.Nic ?? throw new InvalidOperationException(DeviceWriters.NoWriterRevert);
         SafetyLock.ThrowIfLocked("откат свойства сетевого адаптера");
         if (GameBoostState.IsActive) throw new InvalidOperationException("во время игрового сеанса MONOLITH не перезапускает сетевой адаптер — повторите откат после игры");
+        if (writer.RunningGame() is { } game)
+            throw new InvalidOperationException($"идёт игра ({game}) — MONOLITH не перезапускает сетевой адаптер, повторите откат после игры");
         if (writer.AdapterName(snap.InterfaceGuid) is null)
             return new RevertOutcome("Сетевого адаптера больше нет — откатывать нечего.", Skipped: true);
         if (writer.Read(snap.InterfaceGuid, snap.Keyword) is not { } live)

@@ -378,9 +378,58 @@ public sealed class DevicePageTests : IDisposable
     {
         var index = CommandPaletteIndex.Build([], [], [], [], [], null, CommandPaletteIndex.DeviceEntries);
         Assert.Contains(CommandPaletteSearch.Search(index, "скорость указателя"), e => e.PageKey == "devices" && e.FocusId == "spi:mouse-speed");
-        Assert.Contains(CommandPaletteSearch.Search(index, "hdr"), e => e.FocusId == "kind:monitor");
-        Assert.Contains(CommandPaletteSearch.Search(index, "микрофон"), e => e.FocusId == "kind:audioinput");
+        Assert.Contains(CommandPaletteSearch.Search(index, "hdr"), e => e.FocusId == "display-hdr");
+        Assert.Contains(CommandPaletteSearch.Search(index, "микрофон"), e => e.FocusId == "mic-level");
         Assert.Contains(CommandPaletteSearch.Search(index, "пинг"), e => e.FocusId == "kind:network");
+    }
+
+    [Fact]
+    public void Plan_with_only_measurements_says_nothing_to_change_and_keeps_the_measurement_rows()
+    {
+        var vm = PageWith(Card("mic", DeviceKind.AudioInput, 40, Setting("mic-level", 60, 60, RecommendPolicy.Suggest, measure: true)));
+        vm.HasScanned = true;
+
+        Assert.False(vm.ShowPlan);           // no apply bar with «Выбрано 0 из 0»
+        Assert.True(vm.IsPlanEmpty);
+        Assert.True(vm.ShowMeasureOnly);
+        Assert.Single(vm.MeasureItems);
+        Assert.StartsWith("Менять нечего", vm.PlanEmptyText);
+
+        var plain = PageWith(Card("mouse", DeviceKind.Mouse, 10, Setting("mouse-speed", 10, 10, RecommendPolicy.Suggest)));
+        plain.HasScanned = true;
+        Assert.True(plain.IsPlanEmpty);
+        Assert.False(plain.ShowMeasureOnly);
+        Assert.Equal("Все настройки устройств и сети совпадают с рекомендуемыми.", plain.PlanEmptyText);
+    }
+
+    [Fact]
+    public void Plan_row_header_never_repeats_the_kind()
+    {
+        var generic = PageWith(Card("Мышь", DeviceKind.Mouse, 10, Setting("mouse-speed", 14, 10, RecommendPolicy.Include)));
+        Assert.Equal("МЫШЬ", generic.PlanItems.Single().Header);
+        var named = PageWith(Card("Микрофон (Razer Seiren V3 Mini)", DeviceKind.AudioInput, 40, Setting("mic-mute", 1, 0, RecommendPolicy.Include)));
+        Assert.Equal("ЗВУК  ·  Микрофон (Razer Seiren V3 Mini)", named.PlanItems.Single().Header);
+    }
+
+    [Fact]
+    public void Unmeasured_row_with_its_own_tool_says_so()
+    {
+        var dpi = new DeviceSetting { Id = "mouse-dpi", Title = "DPI мыши", Tool = new DeviceTool { Id = "dpi", Title = "Проверка DPI", Run = (_, _) => Task.CompletedTask } };
+        Assert.Equal("не измерено", dpi.CurrentText);
+        Assert.Equal("—", new DeviceSetting { Id = "x", Title = "x" }.CurrentText);
+    }
+
+    [Fact]
+    public void Palette_setting_ids_land_on_the_row_or_the_device()
+    {
+        var hdr = new DeviceSetting { Id = "display-hdr", Title = "HDR" };
+        var monitor = Card("display:a", DeviceKind.Monitor, 30, hdr);
+        var mic = Card("mic", DeviceKind.AudioInput, 40);
+        var vm = PageWith(monitor, mic);
+
+        Assert.Same(hdr, vm.Resolve("display-hdr", false));
+        Assert.Same(monitor, vm.Resolve("display-brightness", false)); // no DDC on this monitor: the monitor card
+        Assert.Same(mic, vm.Resolve("mic-level", false));
     }
 
     [Fact]

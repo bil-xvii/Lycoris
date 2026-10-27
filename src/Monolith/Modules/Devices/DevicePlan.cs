@@ -36,6 +36,11 @@ public sealed partial class PlanItem : ObservableObject
     public string? TweakId => Setting.TweakId;
     public string GroupLabel => Card.GroupTitle.ToUpperInvariant();
     public string DeviceTitle => Card.Title;
+    /// <summary>«ЗВУК · Микрофон (…)»; just «МЫШЬ» when the device has no own name (never «МЫШЬ · Мышь»).</summary>
+    public string Header => string.Equals(Card.Title.Trim(), Card.GroupTitle, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(Card.Title.Trim(), Card.KindLabel, StringComparison.OrdinalIgnoreCase)
+        ? GroupLabel
+        : $"{GroupLabel}  ·  {DeviceTitle}";
     public bool NeedsCountdown => Setting.NeedsCountdown;
     public bool IsOptional => Policy == RecommendPolicy.Suggest;
     public bool HasChange => Kind is PlanItemKind.Setting or PlanItemKind.OptimizeTweak;

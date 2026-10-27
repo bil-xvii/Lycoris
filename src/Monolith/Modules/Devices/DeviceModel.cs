@@ -243,7 +243,8 @@ public sealed partial class DeviceSetting : ObservableObject
     public bool CanApply => !IsReadOnly && IsDirty && DisabledReason is null && !IsApplying;
     /// <summary>The row's control can be used (moving it only stages a value; ПРИМЕНИТЬ applies).</summary>
     public bool ControlsEnabled => !IsReadOnly && DisabledReason is null && !IsApplying;
-    public string CurrentText => Current is { } c ? FormatValue(c) : "—";
+    /// <summary>The live value; a row whose value comes from its own measurement says «не измерено» until it ran.</summary>
+    public string CurrentText => Current is { } c ? FormatValue(c) : Tool is not null ? "не измерено" : "—";
     public bool MatchesRecommendation => Recommended is { } r && Current is { } c && SameValue(c, r.Value);
 
     /// <summary>«рек. 10» — for selectable recommendations only (not for findings or tweak rows).</summary>
