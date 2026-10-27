@@ -181,22 +181,7 @@ public static class AppCatalog
 
     public static CategoryInfo Info(AppCategory category) => Categories.First(c => c.Category == category);
 
-    /// <summary>
-    /// "НАБОР ГЕЙМЕРА": every Visual C++ redistributable (x86 + x64), the DirectX End-User Runtime (June 2010)
-    /// and the .NET Desktop Runtimes from the catalog.
-    /// </summary>
-    public static IReadOnlyList<string> GamerKitIds { get; } =
-    [
-        "Microsoft.VCRedist.2005.x86", "Microsoft.VCRedist.2005.x64",
-        "Microsoft.VCRedist.2008.x86", "Microsoft.VCRedist.2008.x64",
-        "Microsoft.VCRedist.2010.x86", "Microsoft.VCRedist.2010.x64",
-        "Microsoft.VCRedist.2012.x86", "Microsoft.VCRedist.2012.x64",
-        "Microsoft.VCRedist.2013.x86", "Microsoft.VCRedist.2013.x64",
-        "Microsoft.VCRedist.2015+.x86", "Microsoft.VCRedist.2015+.x64",
-        "Microsoft.DirectX",
-        "Microsoft.DotNet.DesktopRuntime.10", "Microsoft.DotNet.DesktopRuntime.9",
-        "Microsoft.DotNet.DesktopRuntime.8", "Microsoft.DotNet.DesktopRuntime.6",
-    ];
+    // "НАБОР ГЕЙМЕРА" is computed from the install advice for this PC: AppAdvisor.Kit.
 
     /// <summary>App Installer (winget itself) is never upgraded by MONOLITH: updating it replaces winget while it runs.</summary>
     public const string AppInstallerId = "Microsoft.AppInstaller";

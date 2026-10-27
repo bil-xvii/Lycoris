@@ -52,6 +52,15 @@
                                 <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
                                 <Setter Property="Background" Value="{StaticResource B.Surface2}" />
                             </DataTrigger>
+                            <!-- НЕ НУЖНО: dimmed, full opacity on hover or when ticked -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsDimmed}" Value="True" />
+                                    <Condition Binding="{Binding IsSelected}" Value="False" />
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Opacity" Value="0.55" />
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
@@ -81,6 +90,11 @@
                         </Grid>
                         <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" FontSize="12.5" LineHeight="18" Margin="0,10,0,0"
                                    MaxHeight="36" TextTrimming="CharacterEllipsis" ToolTip="{Binding Description}" />
+                        <!-- install advice: why (every level except ПО ЖЕЛАНИЮ), one line, full text in the tooltip -->
+                        <TextBlock Text="{Binding AdviceReason}" Style="{StaticResource T.Caption}" FontSize="11.5" Margin="0,4,0,0"
+                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding AdviceReason}"
+                                   ToolTipService.ShowDuration="30000"
+                                   Visibility="{Binding HasAdviceCaption, Converter={StaticResource BoolToVis}}" />
                         <ItemsControl ItemsSource="{Binding DisplayTags}" ItemTemplate="{StaticResource TagTemplate}" Margin="0,9,0,0" Focusable="False">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -353,15 +367,14 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Набор геймера" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" Margin="10,1,10,0" VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"
-                                       Text="Visual C++ 2005–2022, DirectX June 2010 и .NET Desktop — без них игры не запускаются. Установленное пропускается."
-                                       ToolTip="Библиотеки, без которых игры не запускаются или падают с ошибками вроде «MSVCP140.dll не найден» и «d3dx9_43.dll отсутствует»: все Visual C++ (x86 и x64), DirectX June 2010 и .NET Desktop Runtime." />
+                                       TextTrimming="CharacterEllipsis" Text="{Binding KitCaption, Mode=OneTime}"
+                                       ToolTip="{Binding KitToolTip}" ToolTipService.ShowDuration="30000" />
                             <TextBlock Grid.Column="2" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text}" VerticalAlignment="Center"
                                        Margin="0,0,10,0" ToolTip="{Binding KitStatusText}">
                                 <Run Text="{Binding KitInstalled, Mode=OneWay}" /><Run Text=" / " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding KitTotal, Mode=OneWay}" Foreground="{StaticResource B.Text3}" />
                             </TextBlock>
                             <Button Grid.Column="3" Style="{StaticResource Btn.Primary}" Content="{Binding KitButtonText}" Command="{Binding InstallKitCommand}"
-                                    ToolTip="Показать список пакетов и установить недостающие" />
+                                    ToolTip="Показать список пакетов и установить недостающие библиотеки, которые нужны этому ПК" />
                         </Grid>
                     </Border>
 
@@ -377,7 +390,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:CategoryFilterViewModel}">
                                     <RadioButton Style="{StaticResource Segment}" GroupName="AppsCategory" Padding="9,0"
-                                                 IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                 IsChecked="{Binding IsSelected, Mode=OneWay}" ToolTip="{Binding ToolTip}"
                                                  Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                  CommandParameter="{Binding}">
                                         <StackPanel Orientation="Horizontal">
@@ -479,12 +492,11 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{x:Static ui:Glyphs.Search}" Style="{StaticResource T.Icon}" FontSize="19" Foreground="{StaticResource B.Text3}" Margin="0,0,14,0" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="Ничего не найдено" Style="{StaticResource T.H2}" />
-                                <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0"
-                                           Text="Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store." />
+                                <TextBlock Text="{Binding NoResultsTitle}" Style="{StaticResource T.H2}" />
+                                <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0" Text="{Binding NoResultsText}" />
                             </StackPanel>
                             <Button Grid.Column="2" Style="{StaticResource Btn}" Content="СБРОСИТЬ ПОИСК" VerticalAlignment="Center" Margin="12,0,0,0"
-                                    Command="{Binding ClearSearchCommand}" />
+                                    Command="{Binding ClearSearchCommand}" Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}" />
                         </Grid>
                     </Border>
 
