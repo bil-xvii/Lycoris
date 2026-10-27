@@ -161,8 +161,6 @@ public static class DisplayAdvice
     /// <summary>«~200 нит» of SDR content while HDR is on.</summary>
     public static string SdrWhiteText(double nits) => $"SDR-контент ≈ {Math.Round(nits).ToString("0", Ru)} нит";
 
-    /// <summary>The monitor names a self-emissive panel (VRR in DirectX 11 games can flicker on OLED loading screens).</summary>
-    public static bool LooksLikeOled(string? name) => name?.Contains("OLED", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>
     /// Games open on the primary monitor: when a slower external monitor is primary, the fastest one gets a note (no write:

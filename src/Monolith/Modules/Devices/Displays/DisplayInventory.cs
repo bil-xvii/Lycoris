@@ -14,7 +14,7 @@ public readonly record struct DisplaySize(int Width, int Height)
     public long Pixels => (long)Width * Height;
     /// <summary>"2560x1440": the option key of the resolution list.</summary>
     public string Key => $"{Width.ToString(CultureInfo.InvariantCulture)}x{Height.ToString(CultureInfo.InvariantCulture)}";
-    public override string ToString() => $"{Width.ToString(CultureInfo.InvariantCulture)} × {Height.ToString(CultureInfo.InvariantCulture)}";
+    public override string ToString() => $"{Width.ToString(CultureInfo.InvariantCulture)}×{Height.ToString(CultureInfo.InvariantCulture)}";
 
     public static DisplaySize? FromKey(string? key)
     {
