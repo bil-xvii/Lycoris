@@ -27,6 +27,8 @@ internal sealed class DisplayWriter : IDisplayWriter
     internal static TimeSpan RevertWait = TimeSpan.FromSeconds(3);
     /// <summary>The driver needs a moment before the new HDR state reads back.</summary>
     internal static TimeSpan HdrSettle = TimeSpan.FromMilliseconds(500);
+    /// <summary>How long after the settle time the new HDR state may take to read back.</summary>
+    internal static TimeSpan HdrConfirmWait = TimeSpan.FromSeconds(4);
 
     private const string What = "изменение параметров экрана";
 
@@ -192,10 +194,18 @@ internal sealed class DisplayWriter : IDisplayWriter
         var rc = DisplayConfigSetDeviceInfo(ref state);
         if (rc != ERROR_SUCCESS) return new(DisplayWriteStatus.Failed, $"Windows не переключила HDR (код {rc.ToString(CultureInfo.InvariantCulture)})");
 
+        // The switch is a modeset: give the driver a moment, then wait (bounded) until the new state reads back, so a slow
+        // driver is never reported as «failed» while it is still switching (that change would then have no record).
         Thread.Sleep(HdrSettle);
-        return Ccd.Find(monitorPath) is { } again && Ccd.Color(again.TargetAdapter, again.TargetId, Build)?.HdrEnabled == enable
-            ? DisplayWriteResult.Success
-            : new DisplayWriteResult(DisplayWriteStatus.Failed, "драйвер видеокарты вернул прежнее значение (настройка цвета в панели NVIDIA/AMD?)");
+        var until = DateTime.UtcNow + HdrConfirmWait;
+        while (true)
+        {
+            if (Ccd.Find(monitorPath) is { } again && Ccd.Color(again.TargetAdapter, again.TargetId, Build)?.HdrEnabled == enable)
+                return DisplayWriteResult.Success;
+            if (DateTime.UtcNow >= until)
+                return new DisplayWriteResult(DisplayWriteStatus.Failed, "драйвер видеокарты вернул прежнее значение (настройка цвета в панели NVIDIA/AMD?)");
+            Thread.Sleep(250);
+        }
     }
 
     // ───────────────────────────── Guard process ─────────────────────────────
