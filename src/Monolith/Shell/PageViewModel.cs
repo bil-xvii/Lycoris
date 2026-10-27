@@ -78,11 +78,41 @@ public abstract partial class PageViewModel : ObservableObject
         }
     }
 
-    /// <summary>Returns false (and tells the user) when admin rights are missing.</summary>
+    private static int _elevationPromptOpen;
+
+    /// <summary>
+    /// Returns false when admin rights are missing and offers to relaunch MONOLITH with them on the same page
+    /// (one prompt at a time; the action itself is not run in this process).
+    /// </summary>
     protected static bool RequireAdmin(string action)
     {
         if (Elevation.IsElevated) return true;
-        Ui.Toast($"Для действия «{action}» нужны права администратора. Нажмите «ПЕРЕЗАПУСТИТЬ С ПРАВАМИ» вверху окна.", ToastKind.Warning);
+        if (Interlocked.Exchange(ref _elevationPromptOpen, 1) == 0)
+        {
+            Ui.Post(async () =>
+            {
+                try
+                {
+                    if (await Ui.ConfirmAsync("Нужны права администратора",
+                            ElevationPromptText(action), confirmText: "ПЕРЕЗАПУСТИТЬ С ПРАВАМИ", cancelText: "НЕ СЕЙЧАС"))
+                        Ui.RestartElevated();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Запрос прав администратора", ex);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _elevationPromptOpen, 0);
+                }
+            });
+        }
         return false;
     }
+
+    /// <summary>Text of the «Нужны права администратора» dialog (pure; exposed for tests).</summary>
+    public static string ElevationPromptText(string action) =>
+        $"«{action}» меняет настройки Windows, поэтому нужны права администратора. MONOLITH перезапустится с ними " +
+        "и откроется на этой же странице — Windows покажет запрос контроля учётных записей (UAC). " +
+        "После перезапуска повторите действие.";
 }

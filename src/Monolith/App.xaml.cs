@@ -12,11 +12,13 @@ namespace Monolith;
 
 /// <summary>
 /// Startup:
-///  1. Without admin rights → ask for them via UAC (declined = read-only mode).
-///  2. One instance only.
-///  3. Load settings, collect system info in the background, open the main window.
+///  1. One instance only.
+///  2. Load settings. Only with «Запрашивать права при запуске» on: without admin rights → ask via UAC
+///     (declined = read-only mode). By default MONOLITH opens instantly read-only and asks for rights
+///     the first time a change needs them (PageViewModel.RequireAdmin), reopening on the same page.
+///  3. Collect system info in the background, open the main window.
 /// Command line:
-///  --no-elevate            stay in read-only mode (no UAC prompt)
+///  --no-elevate            stay in read-only mode (no UAC prompt, even with the setting on)
 ///  --page &lt;key&gt;           open a specific page
 ///  --snapshot &lt;dir&gt;       render every page to PNG and exit (QA)
 ///  --pages a,b,c --wait ms limit / tune --snapshot
@@ -67,7 +69,9 @@ public partial class App : Application
             return;
         }
 
-        if (!Elevation.IsElevated && !noElevate)
+        // Preferences decide whether to ask for admin rights right away (off by default: open instantly, ask later).
+        AppSettings.Load();
+        if (!Elevation.IsElevated && !noElevate && AppSettings.Current.ElevateAtStartup)
         {
             if (Elevation.TryRelaunchElevated())
             {
@@ -123,7 +127,6 @@ public partial class App : Application
             Monolith.Modules.Drivers.DriverBackupService.QuarantineIfInsecure();
             RestorePointService.RecoverPendingFrequency();
         }
-        AppSettings.Load();
         _ = SystemProfile.LoadAsync();
         Log.Info($"MONOLITH запущен{(Elevation.IsElevated ? " с правами администратора" : " в режиме просмотра (без прав администратора)")}.");
 

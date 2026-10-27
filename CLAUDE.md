@@ -26,7 +26,8 @@ not from riskier changes.
 4. `Core/ServiceControl.Protected` services are never modified. Cleaner never follows reparse points.
 5. Destructive or irreversible actions (deleting files, uninstalling, driver installs) always show a confirmation
    dialog (`Ui.ConfirmAsync`) listing exactly what will happen.
-6. Without admin rights the app runs read-only: check `Elevation.IsElevated` / `PageViewModel.RequireAdmin`.
+6. Without admin rights the app runs read-only: check `Elevation.IsElevated` / `PageViewModel.RequireAdmin` (it offers
+   the relaunch with admin rights; the action never runs unelevated).
 7. `%ProgramData%\MONOLITH` is locked to Administrators/SYSTEM (`AppPaths.SecureMachineDir`); a non-elevated
    process never writes there. The journal is treated as untrusted input: undo commands are limited to System32
    tools and autostart/hijack registry locations are refused (`ChangeJournal.IsForbiddenRestoreTarget`).
@@ -43,7 +44,7 @@ not from riskier changes.
 
 ```
 src/Monolith/
-  App.xaml(.cs)          startup, UAC relaunch, single instance, --snapshot QA mode
+  App.xaml(.cs)          startup, optional UAC relaunch, single instance, --snapshot QA mode
   Core/                  system layer (no UI): AppPaths, Log, Elevation, ProcessRunner, RegistryHelper,
                          ChangeJournal, ChangeSession, ServiceControl, PowerSchemes, ScheduledTasks,
                          RestorePointService, SystemProfile, AppSettings, WingetClient, VendorDownloads
@@ -168,7 +169,9 @@ registry (`RegistryHelper.Redirect`, tests only) and must restore every value ex
 Screenshots on Linux: publish win-x64 self-contained and run `MONOLITH.exe --snapshot` under Wine (wine64 + xvfb-run) with
 Liberation/DejaVu fonts renamed to Segoe UI/Bahnschrift/Consolas and registered in the prefix (WPF needs them in
 HKLM\...\Fonts, else it FailFasts in text shaping). Icons render as boxes there (no Segoe Fluent Icons).
-Running the app normally triggers a UAC prompt; use `--no-elevate` to test without admin.
+By default the app opens without a UAC prompt (read-only) and `PageViewModel.RequireAdmin` offers a relaunch with
+admin rights on the same page when a change needs them; Settings → «Запрашивать права администратора при запуске»
+(`AppSettings.ElevateAtStartup`) restores the prompt at startup. `--no-elevate` always stays read-only.
 Never apply real tweaks on the dev machine during automated testing — use read-only paths and unit tests
 (registry tests use `HKCU\Software\MONOLITH-Tests`).
 

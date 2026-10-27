@@ -54,6 +54,13 @@ public sealed partial class AppSettings : ObservableObject
 
     [ObservableProperty] private bool _firstRunCompleted;
 
+    /// <summary>
+    /// Ask for admin rights (UAC) right at startup, as before. Off by default (owner: «чтобы приложение открывалось
+    /// сразу»): MONOLITH opens instantly in read-only mode and asks for rights the first time a change needs them,
+    /// then reopens on the same page.
+    /// </summary>
+    [ObservableProperty] private bool _elevateAtStartup;
+
     /// <summary>Windows build ("26100.2314") seen at the last start — drift notice names a build change.</summary>
     [ObservableProperty] private string _lastWindowsBuild = "";
 

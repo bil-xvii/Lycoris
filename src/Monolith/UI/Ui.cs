@@ -58,6 +58,9 @@ public interface IUiHost
     DialogViewModel? Dialog { get; set; }
     ObservableCollection<ToastItem> Toasts { get; }
     void NavigateTo(string pageKey);
+
+    /// <summary>Relaunches MONOLITH with admin rights on the current page (UAC prompt); false when declined or failed.</summary>
+    bool RestartElevated();
 }
 
 /// <summary>
@@ -163,6 +166,9 @@ public static class Ui
     /// Opens a page. Old keys still work: "cleaner" / "tools" open the tab of «maintenance»,
     /// "startup" opens «services» with the focus request "tab:startup".
     /// </summary>
+    /// <summary>Relaunches MONOLITH with admin rights on the current page (see <see cref="IUiHost.RestartElevated"/>).</summary>
+    public static void RestartElevated() => Post(() => Host?.RestartElevated());
+
     public static void Navigate(string pageKey)
     {
         Dispatcher?.BeginInvoke(() => Host?.NavigateTo(pageKey));

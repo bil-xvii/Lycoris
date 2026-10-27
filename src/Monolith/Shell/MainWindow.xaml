@@ -113,7 +113,7 @@
                     <Border Width="28" Height="10" Background="{StaticResource B.HatchStrong}" CornerRadius="{StaticResource R.Xs}" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Margin="12,0,16,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
                         <Run Text="РЕЖИМ ПРОСМОТРА" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="13" Foreground="{StaticResource B.Text}" />
-                        <Run Text=" — системные изменения отключены: нужны права администратора. Очистка ваших кэшей и установка программ работают и без них." FontSize="12.5" Foreground="{StaticResource B.Text2}" />
+                        <Run Text=" — смотреть и проверять можно сразу. Для изменений в Windows MONOLITH попросит права администратора и откроется на этой же странице." FontSize="12.5" Foreground="{StaticResource B.Text2}" />
                     </TextBlock>
                     <Button Grid.Column="2" Style="{StaticResource Btn.Primary}" Height="28" FontSize="11.5" Command="{Binding RestartAsAdminCommand}">
                         <StackPanel Orientation="Horizontal">
