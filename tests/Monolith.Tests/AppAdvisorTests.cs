@@ -26,6 +26,7 @@ public sealed class AppAdvisorTests
         OsBuild = 26100,
         OsUbr = 6899,
         InstalledKnown = true,
+        StoreKnown = true,
         InstalledIds = new HashSet<string>(installed),
         PeripheralsKnown = true,
         Peripherals = new HashSet<PeripheralBrand>(),
@@ -50,12 +51,13 @@ public sealed class AppAdvisorTests
             (0, 0), (19041, 0), (19045, 6456), (22000, 3260), (22621, 2428), (22621, 2600), (22621, 2715),
             (22631, 2428), (22631, 2506), (26100, 6899), (26200, 7000),
         };
-        var installed = new string[]?[]
+        // Installed ids (null = detection not run yet) and whether the Store checks have finished.
+        var installed = new (string[]? Ids, bool Store)[]
         {
-            null, [], [Xbox, Prism], [CurseForge],
-            [SevenZip, "Google.Chrome", "VideoLAN.VLC", "AntibodySoftware.WizTree", "RevoUninstaller.RevoUninstaller", "REALiX.HWiNFO",
-             "Intel.PresentMon", "VB-Audio.Voicemeeter", "OBSProject.OBSStudio", WebView2],
-            AppCatalog.All.SelectMany(e => e.AllIds).ToArray(),
+            (null, false), ([], true), ([], false), ([Xbox, Prism], true), ([CurseForge], true),
+            ([SevenZip, "Google.Chrome", "VideoLAN.VLC", "AntibodySoftware.WizTree", "RevoUninstaller.RevoUninstaller", "REALiX.HWiNFO",
+              "Intel.PresentMon", "VB-Audio.Voicemeeter", "OBSProject.OBSStudio", WebView2], true),
+            (AppCatalog.All.SelectMany(e => e.AllIds).ToArray(), true),
         };
         var peripherals = new (bool Known, PeripheralBrand[] Brands)[] { (false, []), (true, []), (true, Enum.GetValues<PeripheralBrand>()) };
         var days = new DateOnly[] { Today, new(2026, 11, 10), new(2029, 1, 1) };
@@ -69,7 +71,7 @@ public sealed class AppAdvisorTests
             {
                 GpuKnown = g.Known, GpuVendors = g.Vendors.ToHashSet(),
                 OsBuild = b.Build, OsUbr = b.Ubr,
-                InstalledKnown = i is not null, InstalledIds = new HashSet<string>(i ?? []),
+                InstalledKnown = i.Ids is not null, StoreKnown = i.Store, InstalledIds = new HashSet<string>(i.Ids ?? []),
                 PeripheralsKnown = p.Known, Peripherals = p.Brands.ToHashSet(),
                 Today = d,
             };
@@ -126,6 +128,38 @@ public sealed class AppAdvisorTests
     }
 
     [Fact]
+    public void Safety_clamp_lowers_any_flagged_suggestion_to_optional()
+    {
+        // Drives the clamp itself: today's rules happen to suggest no flagged entry, a later catalog edit might.
+        var logitech = Pc() with { Peripherals = new HashSet<PeripheralBrand> { PeripheralBrand.Logitech } };
+        var suggested = new (string Id, AdviceContext Ctx, AdviceLevel Unflagged)[]
+        {
+            ("Valve.Steam", Pc(), AdviceLevel.Recommended),
+            ("Microsoft.VCRedist.2015+.x64", Pc(), AdviceLevel.Required),
+            ("Microsoft.DotNet.DesktopRuntime.10", Pc(), AdviceLevel.Recommended),
+            ("Logitech.GHUB", logitech, AdviceLevel.Recommended),
+            (GamingServices, Pc(Xbox), AdviceLevel.Required),
+        };
+        var flags = Enum.GetValues<AppFlags>().Where(f => f != AppFlags.None && (AppAdvisor.NeverSuggested & f) == f).ToList();
+        Assert.Equal(7, flags.Count);
+        foreach (var (id, ctx, unflagged) in suggested)
+        {
+            var plain = Assess(id, ctx);
+            Assert.Equal(unflagged, plain.Level);
+            foreach (var flag in flags)
+            {
+                var flagged = E(id) with { Flags = E(id).Flags | flag };
+                var advice = AppAdvisor.Assess(flagged, ctx)!;
+                Assert.Equal(AdviceLevel.Optional, advice.Level);
+                Assert.Equal(plain.Reason, advice.Reason);
+                Assert.Empty(AppAdvisor.Kit([flagged], ctx));
+            }
+        }
+        // Unflagged, the same runtime is in the kit.
+        Assert.Single(AppAdvisor.Kit([E("Microsoft.VCRedist.2015+.x64")], Pc()));
+    }
+
+    [Fact]
     public void Windows_components_and_installed_programs_show_no_advice()
     {
         var edge = E("Microsoft.Edge");
@@ -156,7 +190,7 @@ public sealed class AppAdvisorTests
             // The only "НЕ НУЖНО" that needs no fact about the PC: Process Lasso fights MONOLITH's own game mode.
             if (advice is { Level: AdviceLevel.NotNeeded }) Assert.Equal("BitSum.ProcessLasso", e.Id);
         }
-        foreach (var id in new[] { "Nvidia.PhysX", "Logitech.GHUB", "Elgato.StreamDeck", WebView2, GamingServices, SevenZip,
+        foreach (var id in new[] { "Nvidia.PhysX", "Logitech.GHUB", "Elgato.StreamDeck", "Corsair.iCUE.5", WebView2, GamingServices, SevenZip,
                      "EclipseAdoptium.Temurin.21.JRE", "Microsoft.DotNet.Framework.Runtime" })
             Assert.Equal(AdviceLevel.Optional, Assess(id, ctx).Level);
         // Installed state unknown: no duplicate claims, even when ids are passed along.
@@ -217,14 +251,27 @@ public sealed class AppAdvisorTests
         Assert.Equal(AdviceLevel.Recommended, found.Level);
         Assert.Contains(brandName, found.Reason);
 
-        var none = Assess(id, Pc());
-        Assert.Equal(AdviceLevel.NotNeeded, none.Level);
-        Assert.Contains(brandName, none.Reason);
-
+        // Other makers' devices change nothing.
         var other = Enum.GetValues<PeripheralBrand>().Where(b => b != brand).ToHashSet();
-        Assert.Equal(AdviceLevel.NotNeeded, Assess(id, Pc() with { Peripherals = other }).Level);
+        Assert.Equal(Assess(id, Pc()), Assess(id, Pc() with { Peripherals = other }));
+        Assert.NotEqual(AdviceLevel.Recommended, Assess(id, Pc()).Level);
 
         Assert.Equal(AdviceLevel.Optional, Assess(id, Pc() with { PeripheralsKnown = false }).Level);
+    }
+
+    [Theory]
+    [InlineData("Logitech.GHUB", "NotNeeded", "Logitech")]
+    [InlineData("RazerInc.RazerInstaller.Synapse4", "NotNeeded", "Razer")]
+    // The scan sees USB/Bluetooth devices only: Sonar works with any headset, iCUE also drives Corsair RGB memory (SMBus),
+    // and the Stream Deck app also serves Stream Deck Mobile on a phone.
+    [InlineData("SteelSeries.GG", "Optional", "Sonar")]
+    [InlineData("Corsair.iCUE.5", "Optional", "память Corsair")]
+    [InlineData("Elgato.StreamDeck", "NotNow", "Stream Deck Mobile")]
+    public void Peripheral_software_without_the_device_is_not_needed_only_when_it_has_no_other_use(string id, string expected, string reason)
+    {
+        var none = Assess(id, Pc());
+        Assert.Equal(Level(expected), none.Level);
+        Assert.Contains(reason, none.Reason);
     }
 
     // ─────────────────────────── one program per job ───────────────────────────
@@ -283,6 +330,11 @@ public sealed class AppAdvisorTests
         Assert.Equal(AdviceLevel.Required, Assess(GamingServices, Pc(Xbox)).Level);
         Assert.Equal(AdviceLevel.NotNow, Assess(GamingServices, Pc()).Level);
         Assert.Equal(AdviceLevel.Optional, Assess(GamingServices, Pc() with { InstalledKnown = false }).Level);
+        // Fast detection pass, Store apps not checked yet: the Xbox app may still be there — no "ПОКА НЕ НУЖНО" claim.
+        Assert.Equal(AdviceLevel.Optional, Assess(GamingServices, Pc() with { StoreKnown = false }).Level);
+        Assert.Equal(AdviceLevel.Required, Assess(GamingServices, Pc(Xbox) with { StoreKnown = false }).Level);
+        Assert.DoesNotContain(E(GamingServices), AppAdvisor.Kit(AppCatalog.All, Pc() with { StoreKnown = false }));
+        Assert.False(AdviceContext.Unknown.StoreKnown);
     }
 
     [Fact]
@@ -369,7 +421,13 @@ public sealed class AppAdvisorTests
         Assert.Equal(AdviceLevel.Required, Assess("Microsoft.VCRedist.2015+.x86", pc).Level);
         foreach (var year in new[] { "2005", "2008", "2010", "2012", "2013" })
         foreach (var arch in new[] { "x86", "x64" })
-            Assert.Equal(AdviceLevel.Recommended, Assess($"Microsoft.VCRedist.{year}.{arch}", pc).Level);
+        {
+            var old = Assess($"Microsoft.VCRedist.{year}.{arch}", pc);
+            Assert.Equal(AdviceLevel.Recommended, old.Level);
+            // Out of Microsoft support (2016–2024) without the Eol flag — nothing replaces them — and the reason says so.
+            Assert.Contains("больше не обновляет", old.Reason);
+            Assert.False(E($"Microsoft.VCRedist.{year}.{arch}").Has(AppFlags.Eol));
+        }
         Assert.Equal(AdviceLevel.Recommended, Assess("Microsoft.DirectX", pc).Level);
         Assert.Equal(AdviceLevel.Recommended, Assess("Valve.Steam", pc).Level);
         Assert.Equal(AdviceLevel.Recommended, Assess("Discord.Discord", pc).Level);
@@ -423,10 +481,11 @@ public sealed class AppAdvisorTests
     [Theory]
     [InlineData(19045, 6456, "Recommended")] // Windows 10
     [InlineData(22000, 3260, "Recommended")] // Windows 11 21H2
-    [InlineData(22621, 2428, "Recommended")] // 22H2 before KB5031455
-    [InlineData(22621, 2600, "Optional")]    // 22H2 between the optional preview and the November 2023 update: can't tell
+    [InlineData(22621, 2283, "Recommended")] // 22H2 before KB5030310
+    [InlineData(22621, 2428, "Optional")]    // 22H2 with KB5031354: there, but on only with "get the latest updates"
+    [InlineData(22621, 2600, "Optional")]    // 22H2 between the preview and the November 2023 update: can't tell
     [InlineData(22621, 2715, "Optional")]    // 22H2 with KB5032190
-    [InlineData(22631, 2428, "Recommended")] // 23H2 before KB5031455
+    [InlineData(22631, 2428, "Optional")]    // 23H2 pre-release build: can't tell
     [InlineData(22631, 2506, "Optional")]    // 23H2 with KB5031455
     [InlineData(22631, 0, "Optional")]       // UBR unknown
     [InlineData(26100, 1, "Optional")]       // 24H2
@@ -440,11 +499,14 @@ public sealed class AppAdvisorTests
     {
         Assert.False(AppAdvisor.HasNativeArchives(19045, 6456));
         Assert.False(AppAdvisor.HasNativeArchives(22000, 3260));
-        Assert.False(AppAdvisor.HasNativeArchives(22621, 2505));
+        Assert.False(AppAdvisor.HasNativeArchives(22621, 2360));
+        Assert.Null(AppAdvisor.HasNativeArchives(22621, 2361)); // KB5030310: toggle-gated
+        Assert.Null(AppAdvisor.HasNativeArchives(22621, 2428)); // KB5031354: toggle-gated
         Assert.Null(AppAdvisor.HasNativeArchives(22621, 2506));
         Assert.Null(AppAdvisor.HasNativeArchives(22621, 2714));
         Assert.True(AppAdvisor.HasNativeArchives(22621, 2715));
-        Assert.False(AppAdvisor.HasNativeArchives(22631, 2505));
+        Assert.Null(AppAdvisor.HasNativeArchives(22631, 2428));
+        Assert.Null(AppAdvisor.HasNativeArchives(22631, 2505));
         Assert.True(AppAdvisor.HasNativeArchives(22631, 2506));
         Assert.Null(AppAdvisor.HasNativeArchives(22631, 0));
         Assert.Null(AppAdvisor.HasNativeArchives(22623, 3000)); // Insider branch: can't tell
@@ -530,22 +592,35 @@ public sealed class AppAdvisorTests
     // ─────────────────────────── peripheral scan (pure part) ───────────────────────────
 
     [Theory]
-    [InlineData(@"USB\VID_046D&PID_C539\5&2A5B3C1&0&3", "046D", "Logitech")]
-    [InlineData(@"HID\VID_1532&PID_0084&MI_00\7&1F2E3D4C&0&0000", "1532", "Razer")]
-    [InlineData(@"USB\VID_1B1C&PID_1B2D\6&ABCDEF&0&1", "1B1C", "Corsair")]
-    [InlineData(@"usb\vid_1038&pid_1830\6&abc&0&2", "1038", "SteelSeries")]
-    [InlineData(@"USB\VID_0FD9&PID_0080\CL12K1A00001", "0FD9", "Elgato")]
-    [InlineData(@"BTHENUM\{00001124-0000-1000-8000-00805F9B34FB}_VID&0002046D_PID&B023\7&1A2B3C4D&0&0", "046D", "Logitech")]
-    [InlineData(@"HID\{00001812-0000-1000-8000-00805F9B34FB}_DEV_VID&021038_PID&1830_REV&0001_D1A2B3C4D5E6\8&1&0&0000", "1038", "SteelSeries")]
-    [InlineData(@"USB\VID_045E&PID_028E\00000001", "045E", "")] // Xbox controller: not a brand with software here
-    [InlineData(@"BTHENUM\{0000110B-0000-1000-8000-00805F9B34FB}_VID&0001009E_PID&4020\7&1&0&0", "", "")] // Bluetooth SIG company id
-    [InlineData(@"PCI\VEN_10DE&DEV_2684&SUBSYS_16F310DE&REV_A1\4&1", "", "")]
-    [InlineData(@"USB\ROOT_HUB30\4&2B1C3D4E&0&0", "", "")]
-    [InlineData("", "", "")]
-    public void Peripheral_scan_reads_usb_vendor_ids(string deviceId, string vid, string brand)
+    [InlineData(@"HID\VID_046D&PID_C539&MI_00\7&2A5B3C1&0&0000", "Mouse", "046D", "Logitech")]
+    [InlineData(@"HID\VID_1532&PID_0084&MI_00\7&1F2E3D4C&0&0000", "HIDClass", "1532", "Razer")]
+    [InlineData(@"HID\VID_1B1C&PID_1B2D&MI_01\6&ABCDEF&0&0000", "Keyboard", "1B1C", "Corsair")]
+    [InlineData(@"usb\vid_1038&pid_12ad&mi_00\6&abc&0&0000", "MEDIA", "1038", "SteelSeries")]      // headset audio
+    [InlineData(@"HID\VID_0FD9&PID_0080\7&CL12K1A00001&0&0000", "HIDClass", "0FD9", "Elgato")]     // Stream Deck MK.2
+    [InlineData(@"HID\VID_0FD9&PID_006D\7&1&0&0000", "HIDClass", "0FD9", "Elgato")]                // Stream Deck original V2
+    [InlineData(@"USB\VID_B58E&PID_9E84&MI_00\6&1&0&0000", "MEDIA", "B58E", "Logitech")]           // Blue Yeti: G HUB
+    [InlineData(@"BTHENUM\{00001124-0000-1000-8000-00805F9B34FB}_VID&0002046D_PID&B023\7&1A2B3C4D&0&0", "", "046D", "Logitech")] // no class: not ruled out
+    [InlineData(@"HID\{00001812-0000-1000-8000-00805F9B34FB}_DEV_VID&021038_PID&1830_REV&0001_D1A2B3C4D5E6\8&1&0&0000", "HIDClass", "1038", "SteelSeries")]
+    // Not configured by the maker's program: a Corsair flash drive, a composite parent, Elgato capture cards and cameras,
+    // a Logitech webcam and its microphone.
+    [InlineData(@"USB\VID_1B1C&PID_1A03\0A1B2C3D4E5F", "USB", "1B1C", "")]
+    [InlineData(@"USB\VID_1B1C&PID_1A03\0A1B2C3D4E5F", "WPD", "1B1C", "")]
+    [InlineData(@"USB\VID_1532&PID_0084\6&1&0&4", "USB", "1532", "")]
+    [InlineData(@"USB\VID_0FD9&PID_006A&MI_00\7&1&0&0000", "MEDIA", "0FD9", "")]   // capture card
+    [InlineData(@"USB\VID_0FD9&PID_0066&MI_00\7&1&0&0000", "Camera", "0FD9", "")]  // Cam Link
+    [InlineData(@"USB\VID_0FD9&PID_0078&MI_00\7&1&0&0000", "Image", "0FD9", "")]   // Facecam
+    [InlineData(@"USB\VID_046D&PID_082D&MI_00\7&1&0&0000", "Camera", "046D", "")]  // HD Pro Webcam C920
+    [InlineData(@"USB\VID_046D&PID_082D&MI_02\7&1&0&0002", "MEDIA", "046D", "")]   // its microphone
+    [InlineData(@"USB\VID_045E&PID_028E\00000001", "XnaComposite", "045E", "")] // Xbox controller: not a brand with software here
+    [InlineData(@"BTHENUM\{0000110B-0000-1000-8000-00805F9B34FB}_VID&0001009E_PID&4020\7&1&0&0", "MEDIA", "", "")] // Bluetooth SIG company id
+    [InlineData(@"PCI\VEN_10DE&DEV_2684&SUBSYS_16F310DE&REV_A1\4&1", "Display", "", "")]
+    [InlineData(@"USB\ROOT_HUB30\4&2B1C3D4E&0&0", "USB", "", "")]
+    [InlineData("", "", "", "")]
+    public void Peripheral_scan_reads_usb_vendor_ids(string deviceId, string pnpClass, string vid, string brand)
     {
         Assert.Equal(vid.Length > 0 ? vid : null, PeripheralScan.ParseVendorId(deviceId));
-        Assert.Equal(brand.Length > 0 ? Enum.Parse<PeripheralBrand>(brand) : (PeripheralBrand?)null, PeripheralScan.BrandOf(deviceId));
+        Assert.Equal(brand.Length > 0 ? Enum.Parse<PeripheralBrand>(brand) : (PeripheralBrand?)null,
+            PeripheralScan.BrandOf(deviceId, pnpClass.Length > 0 ? pnpClass : null));
     }
 
     [Fact]
@@ -556,6 +631,11 @@ public sealed class AppAdvisorTests
         Assert.Equal(PeripheralBrand.Corsair, PeripheralScan.VendorIds["1B1C"]);
         Assert.Equal(PeripheralBrand.SteelSeries, PeripheralScan.VendorIds["1038"]);
         Assert.Equal(PeripheralBrand.Elgato, PeripheralScan.VendorIds["0fd9"]);
+        Assert.Equal(PeripheralBrand.Logitech, PeripheralScan.VendorIds["B58E"]); // Blue Microphones (Logitech)
+        // usb.ids names 0060/0063/006c/006d "Stream Deck…"; python-elgato-streamdeck lists the newer models.
+        Assert.Equal(17, PeripheralScan.StreamDeckPids.Count);
+        Assert.All(new[] { "0060", "0063", "006C", "006D", "0080", "0084", "0086", "008F", "0090", "009A" },
+            pid => Assert.Contains(pid, PeripheralScan.StreamDeckPids));
         Assert.Equal(Enum.GetValues<PeripheralBrand>().Length, PeripheralScan.VendorIds.Values.Distinct().Count());
         // Every brand has its program in the catalog, and every peripheral program has a brand.
         Assert.All(AppAdvisor.PeripheralApps.Keys, id => Assert.NotNull(AppCatalog.Find(id)));
@@ -566,16 +646,24 @@ public sealed class AppAdvisorTests
     public void Peripheral_scan_without_usb_ids_is_unknown()
     {
         Assert.False(PeripheralScan.Classify([]).Known);
-        Assert.False(PeripheralScan.Classify([null, "", @"PCI\VEN_8086&DEV_A780", @"ACPI\PNP0303\4&1"]).Known);
+        Assert.False(PeripheralScan.Classify([new(null, null), new("", "HIDClass"), new(@"PCI\VEN_8086&DEV_A780", "System"),
+            new(@"ACPI\PNP0303\4&1", "Keyboard")]).Known);
 
-        var none = PeripheralScan.Classify([@"USB\VID_045E&PID_028E\1", @"PCI\VEN_10DE&DEV_2684"]);
+        var none = PeripheralScan.Classify([new(@"USB\VID_045E&PID_028E\1", "XnaComposite"), new(@"PCI\VEN_10DE&DEV_2684", "Display")]);
         Assert.True(none.Known);
         Assert.Empty(none.Brands);
 
-        var some = PeripheralScan.Classify([@"USB\VID_046D&PID_C539\1", @"HID\VID_046D&PID_C539&MI_01\2", @"USB\VID_0FD9&PID_0080\3"]);
+        // A composite parent ("USB" class) does not count, its HID child does; a Corsair flash drive never does.
+        var some = PeripheralScan.Classify([new(@"USB\VID_046D&PID_C539\1", "USB"), new(@"HID\VID_046D&PID_C539&MI_01\2", "HIDClass"),
+            new(@"HID\VID_0FD9&PID_0080\3", "HIDClass"), new(@"USB\VID_1B1C&PID_1A03\4", "USB"), new(@"USB\VID_0FD9&PID_006A&MI_00\5", "MEDIA")]);
         Assert.True(some.Known);
         Assert.True(some.Brands.SetEquals([PeripheralBrand.Logitech, PeripheralBrand.Elgato]));
         Assert.False(PeripheralScanResult.Unknown.Known);
+
+        // Only a maker's non-peripheral hardware: the scan worked, the brand is not there.
+        var drive = PeripheralScan.Classify([new(@"USB\VID_1B1C&PID_1A03\4", "USB"), new(@"USB\VID_0FD9&PID_006A&MI_00\5", "MEDIA")]);
+        Assert.True(drive.Known);
+        Assert.Empty(drive.Brands);
     }
 
     // ─────────────────────────── card and confirmation ───────────────────────────
@@ -672,11 +760,37 @@ public sealed class AppAdvisorTests
         Assert.Equal("НЕ НУЖНО — NVIDIA PhysX: Видеокарта NVIDIA не найдена.", notes[0]);
         Assert.StartsWith("ПОКА НЕ НУЖНО — XNA Framework 4.0: ", notes[1]);
 
+        Assert.True(AppTexts.NotedEntries(plan).SetEquals([E("Microsoft.XNARedist"), E("Nvidia.PhysX")]));
+
         Assert.Equal("", AppTexts.AdviceLead(0));
         Assert.Contains("1 пакет", AppTexts.AdviceLead(1));
         Assert.Contains("его", AppTexts.AdviceLead(1));
         Assert.Contains("2 пакета", AppTexts.AdviceLead(2));
         Assert.Contains("всё равно можно", AppTexts.AdviceLead(5));
+    }
+
+    [Fact]
+    public void Confirmation_does_not_repeat_the_advice_in_the_warnings()
+    {
+        var pc = Pc();
+        var items = new[] { "RARLab.WinRAR", "Microsoft.Sysinternals.Autoruns", "Microsoft.DotNet.DesktopRuntime.6", "AnyDesk.AnyDesk",
+                            "Microsoft.DotNet.DesktopRuntime.8" }
+            .Select(id => new AppItemViewModel(E(id)) { IsKnown = true, Advice = Assess(id, pc) })
+            .ToList();
+        var noted = AppTexts.NotedEntries(items.Select(i => (i.Entry, i.ShownAdvice)));
+        Assert.DoesNotContain(E("Microsoft.DotNet.DesktopRuntime.8"), noted); // ПО ЖЕЛАНИЮ before its end date: no note
+
+        var all = AppTexts.Warnings(items);
+        var deduped = AppTexts.Warnings(items, noted);
+        Assert.Contains(all, w => w.StartsWith("WinRAR: платная", StringComparison.Ordinal));
+        Assert.Contains(all, w => w.StartsWith("Autoruns: инструмент", StringComparison.Ordinal));
+        Assert.DoesNotContain(deduped, w => w.StartsWith("WinRAR:", StringComparison.Ordinal));
+        Assert.DoesNotContain(deduped, w => w.StartsWith("Autoruns: инструмент", StringComparison.Ordinal));
+        Assert.DoesNotContain(deduped, w => w.StartsWith(".NET Desktop Runtime 6:", StringComparison.Ordinal));
+        // ВНИМАНИЕ lines always stay, and so do facts the reason does not cover and lines of packages without a note.
+        Assert.Contains(deduped, w => w.StartsWith("ВНИМАНИЕ — AnyDesk:", StringComparison.Ordinal));
+        Assert.Contains(deduped, w => w.StartsWith("Autoruns: портативная", StringComparison.Ordinal));
+        Assert.Contains(deduped, w => w.StartsWith(".NET Desktop Runtime 8:", StringComparison.Ordinal));
     }
 
     [Fact]

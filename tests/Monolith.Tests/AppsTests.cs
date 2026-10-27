@@ -119,7 +119,8 @@ public sealed class AppsTests
         // The kit is computed from the install advice (AppAdvisor.Kit); a typical Windows 11 24H2 PC without the Xbox app.
         var ctx = new AdviceContext
         {
-            OsBuild = 26100, OsUbr = 6899, InstalledKnown = true, InstalledIds = new HashSet<string> { "Microsoft.EdgeWebView2Runtime" },
+            OsBuild = 26100, OsUbr = 6899, InstalledKnown = true, StoreKnown = true,
+            InstalledIds = new HashSet<string> { "Microsoft.EdgeWebView2Runtime" },
             Today = new DateOnly(2026, 10, 27),
         };
         var kit = AppAdvisor.Kit(AppCatalog.ForBuild(ctx.OsBuild), ctx).Select(e => e.Id).ToList();
