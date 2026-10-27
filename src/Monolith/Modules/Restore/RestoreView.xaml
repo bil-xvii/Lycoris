@@ -358,7 +358,7 @@
                                         <ColumnDefinition Width="8" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Style="{StaticResource Btn.Primary}" Content="ВКЛЮЧИТЬ ЗАЩИТУ" Command="{Binding EnableProtectionCommand}"
+                                    <Button Style="{StaticResource Btn.Primary}" Content="ВКЛЮЧИТЬ" ToolTip="Включить защиту системы для диска C:" Command="{Binding EnableProtectionCommand}"
                                             Visibility="{Binding CanOfferEnable, Converter={StaticResource BoolToVis}}" />
                                     <Button Grid.Column="2" Content="НАСТРОИТЬ" Command="{Binding ConfigureProtectionCommand}"
                                             ToolTip="SystemPropertiesProtection.exe — «Свойства системы» → «Защита системы»" />

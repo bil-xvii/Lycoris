@@ -120,7 +120,7 @@
 
                         <StackPanel Grid.Column="1" MaxWidth="820" HorizontalAlignment="Left">
                             <WrapPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource T.H3}" FontSize="15.5"
+                                <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontSize="15.5"
                                            FontStretch="SemiCondensed" VerticalAlignment="Center" Margin="0,0,9,0" />
                                 <Border Style="{StaticResource TierChip}">
                                     <TextBlock Text="{Binding TierText}" />
