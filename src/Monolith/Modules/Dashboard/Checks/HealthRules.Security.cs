@@ -24,18 +24,24 @@ public static partial class HealthRules
     // ───────────────────────────── Secure Boot / TPM (anti-cheat readiness) ─────────────────────────────
 
     /// <summary>
-    /// Anti-cheats that require Secure Boot and TPM 2.0: Battlefield 6 (EA Javelin), Call of Duty from Black Ops 7 on
-    /// (Ricochet) and VALORANT on Windows 11 (Riot Vanguard, VAN9001/VAN9003). Matched against library names.
+    /// Anti-cheats that require Secure Boot and TPM 2.0: Battlefield 6 (EA Javelin), Call of Duty: Black Ops 7 and
+    /// Warzone (Ricochet; per support.activision.com/tpm no other current Call of Duty title needs them) and VALORANT on
+    /// Windows 11 (Riot Vanguard, VAN9001/VAN9003). Matched against normalized library names: older Call of Duty games
+    /// (Black Ops III, WWII, Modern Warfare…) must not match. "call of duty" / "call of duty hq" alone is the HQ app that
+    /// hosts Black Ops 7 and Warzone.
     /// </summary>
-    private static readonly (string Match, AntiCheatGame Game, bool Windows11Only)[] AntiCheatRules =
+    private static readonly (Func<string, bool> Matches, AntiCheatGame Game, bool Windows11Only)[] AntiCheatRules =
     [
-        ("battlefield 6", new AntiCheatGame("Battlefield 6", "EA Javelin", true, true), false),
-        ("call of duty", new AntiCheatGame("Call of Duty", "Ricochet", true, true), false),
-        ("valorant", new AntiCheatGame("VALORANT", "Riot Vanguard", true, true), true),
+        (n => Battlefield6Rx().IsMatch(n), new AntiCheatGame("Battlefield 6", "EA Javelin", true, true), false),
+        (n => n is "call of duty" or "call of duty hq" || (n.StartsWith("call of duty", StringComparison.Ordinal) && RicochetTitleRx().IsMatch(n)),
+            new AntiCheatGame("Call of Duty", "Ricochet", true, true), false),
+        (n => n.Contains("valorant", StringComparison.Ordinal), new AntiCheatGame("VALORANT", "Riot Vanguard", true, true), true),
     ];
 
     [GeneratedRegex(@"[™®©]")] private static partial Regex TrademarkRx();
     [GeneratedRegex(@"\s+")] private static partial Regex SpacesRx();
+    [GeneratedRegex(@"\bbattlefield 6\b")] private static partial Regex Battlefield6Rx();
+    [GeneratedRegex(@"\b(black ops 7|warzone)\b")] private static partial Regex RicochetTitleRx();
 
     private static string NormalizeTitle(string name) =>
         SpacesRx().Replace(TrademarkRx().Replace(name, " "), " ").Trim().ToLowerInvariant();
@@ -45,7 +51,7 @@ public static partial class HealthRules
     {
         var normalized = names.Where(n => !string.IsNullOrWhiteSpace(n)).Select(NormalizeTitle).ToList();
         return AntiCheatRules
-            .Where(r => (!r.Windows11Only || osBuild >= 22000) && normalized.Any(n => n.Contains(r.Match, StringComparison.Ordinal)))
+            .Where(r => (!r.Windows11Only || osBuild >= 22000) && normalized.Any(r.Matches))
             .Select(r => r.Game)
             .ToList();
     }
@@ -92,8 +98,8 @@ public static partial class HealthRules
             .ToList();
         detail += games.Count > 0
             ? $"Без этого не запустятся игры из вашей библиотеки: {string.Join(", ", games.Select(g => $"{g.Title} ({g.AntiCheat})"))}. "
-            : "Это требование античитов Battlefield 6 (EA Javelin), Call of Duty: Black Ops 7 и новее (Ricochet) и VALORANT " +
-              "на Windows 11 (Riot Vanguard). Если вы в такие игры не играете, менять ничего не нужно. ";
+            : "Это требование античитов Battlefield 6 (EA Javelin), Call of Duty: Black Ops 7 и Warzone (Ricochet), а также " +
+              "VALORANT на Windows 11 (Riot Vanguard). Если вы в такие игры не играете, менять ничего не нужно. ";
 
         var steps = new List<string>();
         if (legacy)
@@ -191,8 +197,8 @@ public static partial class HealthRules
     {
         if (s.Vbs == VbsState.Unknown) return null;
         var hvci = s.Vbs == VbsState.MemoryIntegrity;
-        // Documented: with memory integrity on, the vulnerable driver blocklist is always enforced.
-        var blocklist = hvci ? true : s.DriverBlocklistEnforced;
+        // Documented: with memory integrity or Smart App Control on, the vulnerable driver blocklist is always enforced.
+        var blocklist = (hvci || s.SmartAppControl == SmartAppControlState.On) ? true : s.DriverBlocklistEnforced;
         var sac = SmartAppControlText(s.SmartAppControl);
 
         if (!hvci && blocklist == false)
