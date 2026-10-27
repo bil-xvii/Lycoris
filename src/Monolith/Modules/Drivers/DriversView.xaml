@@ -35,7 +35,7 @@
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding InventoryTime}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}"
-                               VerticalAlignment="Center" Margin="0,0,16,0" />
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
                     <Button Command="{Binding RefreshCommand}" ToolTip="Заново прочитать драйверы, устройства и резервные копии">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -47,14 +47,14 @@
         </c:PageHeader>
 
         <!-- ═══════════ Tabs ═══════════ -->
-        <Grid Grid.Row="1" Margin="0,20,0,0">
+        <Grid Grid.Row="1" Margin="0,12,0,0">
             <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
             <StackPanel Orientation="Horizontal">
-                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
+                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,19,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Overview}">
                     <TextBlock Text="ВИДЕОКАРТЫ И ЧИПСЕТ" />
                 </RadioButton>
-                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
+                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,19,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Updates}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="ОБНОВЛЕНИЯ WINDOWS" VerticalAlignment="Center" />
@@ -63,7 +63,7 @@
                         </Border>
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
+                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,19,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Problems}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="ПРОБЛЕМНЫЕ УСТРОЙСТВА" VerticalAlignment="Center" />
@@ -72,7 +72,7 @@
                         </Border>
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
+                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,19,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Installed}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="УСТАНОВЛЕННЫЕ ДРАЙВЕРЫ" VerticalAlignment="Center" />
@@ -81,7 +81,7 @@
                         </Border>
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,30,0"
+                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,19,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Backup}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="РЕЗЕРВНАЯ КОПИЯ" VerticalAlignment="Center" />
@@ -95,7 +95,7 @@
 
         <!-- ═══════════ Tab content ═══════════ -->
         <!-- The «ПОДБОР ДЛЯ ВАШЕГО ПК» tab (DriversHardwarePanel) is hidden until the hardware analysis exists. -->
-        <Grid Grid.Row="2" Margin="0,18,0,0">
+        <Grid Grid.Row="2" Margin="0,11,0,0">
             <local:DriversOverviewPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Overview}" />
             <local:DriversUpdatesPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Updates}" />
             <local:DriversProblemsPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Problems}" />

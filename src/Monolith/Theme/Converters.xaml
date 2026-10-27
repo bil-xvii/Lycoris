@@ -9,5 +9,6 @@
     <ui:EqualsConverter x:Key="Equals" />
     <ui:EqualsToVisibilityConverter x:Key="EqualsToVis" />
     <ui:UpperConverter x:Key="Upper" />
+    <ui:SentenceCaseConverter x:Key="Sentence" />
     <ui:PercentConverter x:Key="Percent" />
 </ResourceDictionary>

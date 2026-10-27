@@ -23,7 +23,7 @@
         </Style>
 
         <Style x:Key="Dash.TileStat" TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
-            <Setter Property="FontSize" Value="50" />
+            <Setter Property="FontSize" Value="37" />
             <Setter Property="LineHeight" Value="50" />
             <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
         </Style>
@@ -122,7 +122,7 @@
         <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,18,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,11,0">
                         <Border Width="7" Height="7" Background="{StaticResource B.White}" VerticalAlignment="Center" />
                         <TextBlock Text="LIVE" Style="{StaticResource T.Mono}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource B.Text}"
                                    Margin="8,0,0,0" VerticalAlignment="Center" />
@@ -140,8 +140,8 @@
             </c:PageHeader.Actions>
         </c:PageHeader>
 
-        <ScrollViewer Grid.Row="1" Margin="0,26,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-            <StackPanel Margin="0,0,14,8">
+        <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="0,0,10,8">
 
                 <!-- ═══════════════ Live tiles ═══════════════ -->
                 <Grid>
@@ -156,7 +156,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- CPU -->
-                    <Border Style="{StaticResource Card}" Padding="20,18,20,16">
+                    <Border Style="{StaticResource Card}" Padding="12,11,12,10">
                         <StackPanel>
                             <Grid>
                                 <StackPanel Orientation="Horizontal">
@@ -164,7 +164,7 @@
                                 </StackPanel>
                                 <TextBlock Text="{x:Static ui:Glyphs.Processing}" Style="{StaticResource Dash.TileIcon}" />
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <TextBlock Text="{Binding CpuText}" Style="{StaticResource Dash.TileStat}" />
                                 <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
                             </StackPanel>
@@ -172,13 +172,13 @@
                                 <Run Text="ЧАСТОТА " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding CpuClockText, Mode=OneWay}" />
                             </TextBlock>
                             <TextBlock Text="{Binding CpuCoresText}" Style="{StaticResource Dash.TileCaption}" />
-                            <c:Meter Value="{Binding CpuLoad}" Segments="30" Height="6" Margin="0,16,0,0" HotThreshold="90" />
-                            <c:Sparkline Values="{Binding CpuHistory}" AreaFill="{StaticResource B.ChartFill}" Height="46" Margin="0,12,0,0" />
+                            <c:Meter Value="{Binding CpuLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="90" />
+                            <c:Sparkline Values="{Binding CpuHistory}" AreaFill="{StaticResource B.ChartFill}" Height="46" Margin="0,9,0,0" />
                         </StackPanel>
                     </Border>
 
                     <!-- GPU -->
-                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="20,18,20,16">
+                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="12,11,12,10">
                         <StackPanel>
                             <Grid>
                                 <StackPanel Orientation="Horizontal">
@@ -186,7 +186,7 @@
                                 </StackPanel>
                                 <TextBlock Text="{x:Static ui:Glyphs.Monitor}" Style="{StaticResource Dash.TileIcon}" />
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <TextBlock Text="{Binding GpuText}" Style="{StaticResource Dash.TileStat}" />
                                 <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
                             </StackPanel>
@@ -194,13 +194,13 @@
                                 <Run Text="{Binding GpuTempText, Mode=OneWay}" /><Run Text=" · VRAM " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding GpuVramText, Mode=OneWay}" />
                             </TextBlock>
                             <TextBlock Text="{Binding GpuName}" Style="{StaticResource Dash.TileCaption}" ToolTip="{Binding GpuName}" />
-                            <c:Meter Value="{Binding GpuLoad}" Segments="30" Height="6" Margin="0,16,0,0" HotThreshold="95" />
-                            <c:Sparkline Values="{Binding GpuHistory}" AreaFill="{StaticResource B.ChartFill}" Height="46" Margin="0,12,0,0" />
+                            <c:Meter Value="{Binding GpuLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="95" />
+                            <c:Sparkline Values="{Binding GpuHistory}" AreaFill="{StaticResource B.ChartFill}" Height="46" Margin="0,9,0,0" />
                         </StackPanel>
                     </Border>
 
                     <!-- RAM -->
-                    <Border Grid.Column="4" Style="{StaticResource Card}" Padding="20,18,20,16">
+                    <Border Grid.Column="4" Style="{StaticResource Card}" Padding="12,11,12,10">
                         <StackPanel>
                             <Grid>
                                 <StackPanel Orientation="Horizontal">
@@ -208,7 +208,7 @@
                                 </StackPanel>
                                 <TextBlock Text="{x:Static ui:Glyphs.Memory}" Style="{StaticResource Dash.TileIcon}" />
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <TextBlock Text="{Binding RamText}" Style="{StaticResource Dash.TileStat}" />
                                 <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
                             </StackPanel>
@@ -218,13 +218,13 @@
                             <TextBlock Style="{StaticResource Dash.TileCaption}">
                                 <Run Text="Доступно" /> <Run Text="{Binding RamFreeText, Mode=OneWay}" />
                             </TextBlock>
-                            <c:Meter Value="{Binding RamLoad}" Segments="30" Height="6" Margin="0,16,0,0" HotThreshold="90" />
-                            <c:Sparkline Values="{Binding RamHistory}" AreaFill="{StaticResource B.ChartFill}" Height="46" Margin="0,12,0,0" />
+                            <c:Meter Value="{Binding RamLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="90" />
+                            <c:Sparkline Values="{Binding RamHistory}" AreaFill="{StaticResource B.ChartFill}" Height="46" Margin="0,9,0,0" />
                         </StackPanel>
                     </Border>
 
                     <!-- DISK + NET -->
-                    <Border Grid.Column="6" Style="{StaticResource Card}" Padding="20,18,20,16">
+                    <Border Grid.Column="6" Style="{StaticResource Card}" Padding="12,11,12,10">
                         <StackPanel>
                             <Grid>
                                 <StackPanel Orientation="Horizontal">
@@ -237,7 +237,7 @@
                                     <TextBlock Text="СЕТЬ" Style="{StaticResource T.Label}" FontSize="9.5" Margin="5,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <TextBlock Text="{Binding DiskText}" Style="{StaticResource Dash.TileStat}" />
                                 <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
                             </StackPanel>
@@ -245,8 +245,8 @@
                                 <Run Text="↓ " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding NetDownText, Mode=OneWay}" /><Run Text="   ↑ " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding NetUpText, Mode=OneWay}" />
                             </TextBlock>
                             <TextBlock Text="{Binding DiskIoText}" Style="{StaticResource Dash.TileCaption}" />
-                            <c:Meter Value="{Binding DiskLoad}" Segments="30" Height="6" Margin="0,16,0,0" HotThreshold="90" />
-                            <Grid Height="46" Margin="0,12,0,0">
+                            <c:Meter Value="{Binding DiskLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="90" />
+                            <Grid Height="46" Margin="0,9,0,0">
                                 <c:Sparkline Values="{Binding DiskHistory}" AreaFill="{StaticResource B.ChartFill}" />
                                 <c:Sparkline Values="{Binding NetHistory}" Maximum="{Binding NetMax}" Stroke="{StaticResource B.Text3}" ShowGrid="False" />
                             </Grid>
@@ -255,7 +255,7 @@
                 </Grid>
 
                 <!-- ═══════════════ Health + system ═══════════════ -->
-                <Grid Margin="0,16,0,0">
+                <Grid Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="1.45*" />
                         <ColumnDefinition Width="16" />
@@ -265,13 +265,13 @@
                     <!-- СОСТОЯНИЕ СИСТЕМЫ -->
                     <Border Style="{StaticResource Card.Flush}" VerticalAlignment="Top">
                         <StackPanel>
-                            <Grid Margin="24,20,24,0">
+                            <Grid Margin="15,12,15,0">
                                 <TextBlock Text="СОСТОЯНИЕ СИСТЕМЫ" Style="{StaticResource Dash.CardTitle}" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding LastCheckText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
                                            HorizontalAlignment="Right" VerticalAlignment="Center" />
                             </Grid>
 
-                            <Grid Margin="24,18,24,22">
+                            <Grid Margin="15,11,15,14">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="28" />
@@ -282,7 +282,7 @@
                                 <Grid Width="176" Height="176" VerticalAlignment="Top">
                                     <c:ArcGauge Value="{Binding Score}" Ticks="54" TickLength="14" />
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,4,0,0">
-                                        <TextBlock Text="{Binding ScoreText}" Style="{StaticResource T.Stat}" FontSize="58" HorizontalAlignment="Center"
+                                        <TextBlock Text="{Binding ScoreText}" Style="{StaticResource T.Stat}" FontSize="43" HorizontalAlignment="Center"
                                                    LineHeight="58" LineStackingStrategy="BlockLineHeight" />
                                         <TextBlock Text="ИЗ 100" Style="{StaticResource T.Label}" HorizontalAlignment="Center" Margin="0,4,0,0" />
                                     </StackPanel>
@@ -291,10 +291,10 @@
                                 <!-- Verdict + counters -->
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                     <TextBlock Text="ОЦЕНКА СИСТЕМЫ" Style="{StaticResource T.Label}" />
-                                    <TextBlock Text="{Binding Verdict}" Style="{StaticResource T.H1}" FontSize="34" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Verdict, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" FontSize="25" Margin="0,4,0,0" TextWrapping="Wrap" />
                                     <TextBlock Text="{Binding VerdictSummary}" Style="{StaticResource T.Body}" Margin="0,6,0,0" />
 
-                                    <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,1,0,1" Margin="0,18,0,0"
+                                    <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,1,0,1" Margin="0,11,0,0"
                                             Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -305,17 +305,17 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Margin="0,10,10,10">
-                                                <TextBlock Text="{Binding WarningCount}" Style="{StaticResource T.Stat}" FontSize="28" />
+                                                <TextBlock Text="{Binding WarningCount}" Style="{StaticResource T.Stat}" FontSize="21" />
                                                 <TextBlock Text="ВНИМАНИЕ" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
                                             </StackPanel>
                                             <Rectangle Grid.Column="1" Style="{StaticResource DividerV}" Fill="{StaticResource B.Line2}" Margin="0,10" />
-                                            <StackPanel Grid.Column="2" Margin="16,10,10,10">
-                                                <TextBlock Text="{Binding InfoCount}" Style="{StaticResource T.Stat}" FontSize="28" />
+                                            <StackPanel Grid.Column="2" Margin="10,10,10,10">
+                                                <TextBlock Text="{Binding InfoCount}" Style="{StaticResource T.Stat}" FontSize="21" />
                                                 <TextBlock Text="СОВЕТЫ" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
                                             </StackPanel>
                                             <Rectangle Grid.Column="3" Style="{StaticResource DividerV}" Fill="{StaticResource B.Line2}" Margin="0,10" />
-                                            <StackPanel Grid.Column="4" Margin="16,10,0,10">
-                                                <TextBlock Text="{Binding PassedText}" Style="{StaticResource T.Stat}" FontSize="28" />
+                                            <StackPanel Grid.Column="4" Margin="10,10,0,10">
+                                                <TextBlock Text="{Binding PassedText}" Style="{StaticResource T.Stat}" FontSize="21" />
                                                 <TextBlock Text="В НОРМЕ" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
                                             </StackPanel>
                                         </Grid>
@@ -324,13 +324,13 @@
                             </Grid>
 
                             <!-- Section: needs attention -->
-                            <Grid Margin="24,0,24,0" Height="34" Visibility="{Binding HasIssues, Converter={StaticResource BoolToVis}}">
+                            <Grid Margin="15,0,15,0" Height="34" Visibility="{Binding HasIssues, Converter={StaticResource BoolToVis}}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="ПРОБЛЕМЫ И СОВЕТЫ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
-                                <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="9,0,0,0" />
                             </Grid>
                             <Rectangle Style="{StaticResource Divider}" Visibility="{Binding HasIssues, Converter={StaticResource InverseBoolToVis}}" />
 
@@ -338,7 +338,7 @@
                             <ItemsControl ItemsSource="{Binding Issues}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:CheckItemViewModel}">
-                                        <Border Style="{StaticResource Row}" Padding="24,16,24,16">
+                                        <Border Style="{StaticResource Row}" Padding="15,10,15,10">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
@@ -351,14 +351,14 @@
                                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 </Border>
                                                 <StackPanel Grid.Column="2" Margin="0,4,0,0">
-                                                    <TextBlock Text="{Binding Title}" Style="{StaticResource Dash.CheckTitle}" />
+                                                    <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource Dash.CheckTitle}" />
                                                     <TextBlock Text="{Binding Detail}" Style="{StaticResource Dash.CheckDetail}" />
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="3" Margin="20,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Right">
+                                                <StackPanel Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Right">
                                                     <Border Style="{StaticResource Dash.SeverityTag}" HorizontalAlignment="Right">
                                                         <TextBlock Text="{Binding SeverityText}" />
                                                     </Border>
-                                                    <Button Margin="0,12,0,0" Height="30" MinWidth="128" FontSize="11.5" HorizontalAlignment="Right"
+                                                    <Button Margin="0,9,0,0" Height="30" MinWidth="128" FontSize="11.5" HorizontalAlignment="Right"
                                                             Command="{Binding RunCommand}" IsEnabled="{Binding ActionAvailable}"
                                                             ToolTip="{Binding ActionTooltip}" ToolTipService.ShowOnDisabled="True"
                                                             Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}">
@@ -377,13 +377,13 @@
                             </ItemsControl>
 
                             <!-- Section: passed (collapsed by default) -->
-                            <Expander Margin="24,14,24,18" Visibility="{Binding Passed.Count, Converter={StaticResource NullToVis}}">
+                            <Expander Margin="15,10,15,11" Visibility="{Binding Passed.Count, Converter={StaticResource NullToVis}}">
                                 <Expander.Header>
                                     <TextBlock Style="{StaticResource T.Label}" VerticalAlignment="Center">
                                         <Run Text="В НОРМЕ" /><Run Text="  ·  " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding OkCount, Mode=OneWay}" />
                                     </TextBlock>
                                 </Expander.Header>
-                                <ItemsControl ItemsSource="{Binding Passed}" Focusable="False" Margin="-17,0,0,0">
+                                <ItemsControl ItemsSource="{Binding Passed}" Focusable="False" Margin="-11,0,0,0">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <UniformGrid Columns="2" />
@@ -391,7 +391,7 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type local:CheckItemViewModel}">
-                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="0,11,14,11" Background="Transparent"
+                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="0,11,10,11" Background="Transparent"
                                                     ToolTip="{Binding Detail}">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
@@ -404,7 +404,7 @@
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
                                                     <StackPanel Grid.Column="2">
-                                                        <TextBlock Text="{Binding Title}" Style="{StaticResource T.H3}" FontStretch="SemiCondensed" FontSize="13"
+                                                        <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontStretch="SemiCondensed" FontSize="13"
                                                                    Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
                                                                    TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
@@ -417,9 +417,9 @@
                             </Expander>
 
                             <!-- Loading state -->
-                            <StackPanel Margin="24,22,24,26" Visibility="{Binding HasResults, Converter={StaticResource InverseBoolToVis}}">
+                            <StackPanel Margin="15,14,15,16" Visibility="{Binding HasResults, Converter={StaticResource InverseBoolToVis}}">
                                 <ProgressBar IsIndeterminate="{Binding IsChecking}" Height="2" />
-                                <TextBlock Text="Проверки выполняются в фоне и только читают систему." Style="{StaticResource T.Caption}" Margin="0,12,0,0" />
+                                <TextBlock Text="Проверки выполняются в фоне и только читают систему." Style="{StaticResource T.Caption}" Margin="0,9,0,0" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -428,7 +428,7 @@
                     <StackPanel Grid.Column="2">
 
                         <!-- СИСТЕМА -->
-                        <Border Style="{StaticResource Card}" Padding="24,20,24,10">
+                        <Border Style="{StaticResource Card}" Padding="15,12,15,10">
                             <StackPanel>
                                 <TextBlock Text="СИСТЕМА" Style="{StaticResource Dash.CardTitle}" />
                                 <ItemsControl ItemsSource="{Binding SystemRows}" Margin="0,10,0,0" Focusable="False">
@@ -440,7 +440,7 @@
                                                         <ColumnDefinition Width="112" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Label}" Style="{StaticResource T.Label}" Margin="0,2,12,0" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Label}" Style="{StaticResource T.Label}" Margin="0,2,9,0" TextWrapping="Wrap" />
                                                     <StackPanel Grid.Column="1">
                                                         <TextBlock Text="{Binding Value}" Style="{StaticResource T.BodyStrong}" FontSize="13" TextWrapping="Wrap" />
                                                         <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}" Margin="0,2,0,0"
@@ -451,7 +451,7 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <StackPanel Margin="0,8,0,12" Visibility="{Binding SystemRows.Count, Converter={StaticResource NullToVis}, ConverterParameter=invert}">
+                                <StackPanel Margin="0,8,0,9" Visibility="{Binding SystemRows.Count, Converter={StaticResource NullToVis}, ConverterParameter=invert}">
                                     <ProgressBar IsIndeterminate="{Binding IsChecking}" Height="2" />
                                     <TextBlock Text="Сбор сведений о компьютере…" Style="{StaticResource T.Caption}" Margin="0,10,0,0" />
                                 </StackPanel>

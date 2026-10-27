@@ -14,13 +14,13 @@
             <Setter Property="TextWrapping" Value="NoWrap" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,14,0" />
+            <Setter Property="Margin" Value="0,0,10,0" />
         </Style>
         <Style x:Key="Drv.MonoCell" TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
             <Setter Property="FontSize" Value="11.5" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,12,0" />
+            <Setter Property="Margin" Value="0,0,9,0" />
         </Style>
     </UserControl.Resources>
 
@@ -39,16 +39,16 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid>
-                <TextBox Text="{Binding InstalledSearch, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,36,0"
+                <TextBox Text="{Binding InstalledSearch, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,22,0"
                          Tag="Поиск: устройство, производитель, версия, INF, ID" />
                 <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
-                           VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,13,0" IsHitTestVisible="False"
+                           VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0" IsHitTestVisible="False"
                            Visibility="{Binding InstalledSearch, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
                 <Button Style="{StaticResource Btn.Icon}" Content="&#xE711;" FontSize="10" Width="30" Height="30" HorizontalAlignment="Right" Margin="0,0,3,0"
                         Command="{Binding ClearInstalledSearchCommand}" ToolTip="Очистить поиск"
                         Visibility="{Binding InstalledSearch, Converter={StaticResource NullToVis}}" />
             </Grid>
-            <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding HideMicrosoft}" Margin="24,0,0,0" VerticalAlignment="Center"
+            <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding HideMicrosoft}" Margin="15,0,0,0" VerticalAlignment="Center"
                       ToolTip="Скрыть драйверы, которые входят в состав Windows или поставляются Microsoft">
                 <StackPanel>
                     <TextBlock Text="СКРЫТЬ ДРАЙВЕРЫ MICROSOFT" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontStretch="SemiCondensed" FontSize="12.5" />
@@ -59,18 +59,18 @@
                        HorizontalAlignment="Right" VerticalAlignment="Center" />
         </Grid>
 
-        <Border Grid.Row="1" Style="{StaticResource Callout}" Margin="0,14,0,0" Visibility="{Binding InstalledError, Converter={StaticResource NullToVis}}">
+        <Border Grid.Row="1" Style="{StaticResource Callout}" Margin="0,10,0,0" Visibility="{Binding InstalledError, Converter={StaticResource NullToVis}}">
             <TextBlock Text="{Binding InstalledError}" Style="{StaticResource T.Body}" />
         </Border>
 
         <!-- ═══════════ Table ═══════════ -->
-        <Border Grid.Row="2" Style="{StaticResource Card.Flush}" Margin="0,14,0,0">
+        <Border Grid.Row="2" Style="{StaticResource Card.Flush}" Margin="0,10,0,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,0,0,1" Padding="16,11,20,10">
+                <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,0,0,1" Padding="10,11,12,10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -96,7 +96,7 @@
                          VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True">
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:InstalledDriverItem}">
-                            <Border Style="{StaticResource Row}" Padding="16,9,20,9" ToolTip="{Binding Tooltip}">
+                            <Border Style="{StaticResource Row}" Padding="10,9,12,9" ToolTip="{Binding Tooltip}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -107,7 +107,7 @@
                                         <ColumnDefinition Width="104" />
                                         <ColumnDefinition Width="86" />
                                     </Grid.ColumnDefinitions>
-                                    <Grid Margin="0,0,16,0">
+                                    <Grid Margin="0,0,10,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
@@ -144,7 +144,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Text="{Binding SignedText}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5"
+                                        <TextBlock Text="{Binding SignedText, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5"
                                                    Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="6" Text="{Binding InfName}" Style="{StaticResource Drv.MonoCell}" Margin="0" />
@@ -156,7 +156,7 @@
 
                 <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding InstalledEmpty, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="НИЧЕГО НЕ НАЙДЕНО" Style="{StaticResource T.H2}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Ничего не найдено" Style="{StaticResource T.H2}" HorizontalAlignment="Center" />
                     <TextBlock Style="{StaticResource T.Caption}" HorizontalAlignment="Center" Margin="0,4,0,0"
                                Text="Измените запрос или выключите «Скрыть драйверы Microsoft»." />
                 </StackPanel>

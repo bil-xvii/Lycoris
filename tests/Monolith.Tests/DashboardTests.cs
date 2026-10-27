@@ -631,4 +631,15 @@ public sealed class DashboardRulesTests
         // Only checks with defined defaults remain (pending reboot list is empty → OK).
         Assert.DoesNotContain(results, r => r.Id is "ram-speed" or "refresh-rate" or "restore" or "trim" or "devices" or "vbs");
     }
+
+    [Theory]
+    [InlineData("ВРЕМЕННЫЕ ФАЙЛЫ WINDOWS", "Временные файлы Windows")]
+    [InlineData("КЭШ ИНТЕРНЕТА WINDOWS (WININET)", "Кэш интернета Windows (WinINet)")]
+    [InlineData("X3D С ДВУМЯ CCD", "X3D с двумя CCD")]
+    [InlineData("НАСТРОЙКИ DIRECTX ДЛЯ ПК", "Настройки DirectX для ПК")]
+    [InlineData("MONOLITH ЖДЁТ", "MONOLITH ждёт")]
+    [InlineData("Уже Нормальный текст", "Уже Нормальный текст")]
+    [InlineData("", "")]
+    public void Capital_headings_become_sentence_case(string input, string expected) =>
+        Assert.Equal(expected, Monolith.UI.SentenceCaseConverter.Apply(input));
 }

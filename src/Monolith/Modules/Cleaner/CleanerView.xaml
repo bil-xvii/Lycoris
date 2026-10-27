@@ -78,7 +78,7 @@
             <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="FontStretch" Value="Condensed" />
-            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontSize" Value="19" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
             <Style.Triggers>
@@ -91,13 +91,13 @@
         <!-- Hatched-band callout -->
         <Style x:Key="BandCallout" TargetType="Border" BasedOn="{StaticResource Callout}">
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="0,16,0,0" />
+            <Setter Property="Margin" Value="0,10,0,0" />
         </Style>
 
         <!-- ═══════════════ One cleanup item ═══════════════ -->
         <DataTemplate x:Key="ItemRow" DataType="{x:Type local:CleanItem}">
             <Grid>
-                <Border Padding="22,17,24,17" MouseLeftButtonUp="Row_MouseLeftButtonUp">
+                <Border Padding="14,11,15,11" MouseLeftButtonUp="Row_MouseLeftButtonUp">
                     <Border.Style>
                         <Style TargetType="Border" BasedOn="{StaticResource Row}">
                             <Setter Property="Cursor" Value="Arrow" />
@@ -116,12 +116,12 @@
                         </Grid.ColumnDefinitions>
 
                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Top"
-                                  Margin="0,1,20,0" ToolTip="Включить в очистку" />
+                                  Margin="0,1,12,0" ToolTip="Включить в очистку" />
 
                         <StackPanel Grid.Column="1" MaxWidth="820" HorizontalAlignment="Left">
                             <WrapPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Name, Converter={StaticResource Upper}}" Style="{StaticResource T.H3}" FontSize="15.5"
-                                           FontStretch="SemiCondensed" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource T.H3}" FontSize="15.5"
+                                           FontStretch="SemiCondensed" VerticalAlignment="Center" Margin="0,0,9,0" />
                                 <Border Style="{StaticResource TierChip}">
                                     <TextBlock Text="{Binding TierText}" />
                                 </Border>
@@ -148,7 +148,7 @@
                             </Grid>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="2" HorizontalAlignment="Right" Margin="24,0,0,0">
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Right" Margin="15,0,0,0">
                             <TextBlock Text="{Binding SizeText}" Style="{StaticResource RowSize}" />
                             <TextBlock Text="{Binding CountText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
                                        HorizontalAlignment="Right" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
@@ -176,23 +176,23 @@
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource Btn.Ghost}" Height="40" Margin="0,0,8,0" Command="{Binding CancelCommand}"
+                    <Button Style="{StaticResource Btn.Ghost}" Height="30" Margin="0,0,8,0" Command="{Binding CancelCommand}"
                             Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="ОТМЕНА" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Btn.Ghost}" Height="40" Margin="0,0,8,0" Content="ПО УМОЛЧАНИЮ" Command="{Binding ResetSelectionCommand}"
+                    <Button Style="{StaticResource Btn.Ghost}" Height="30" Margin="0,0,8,0" Content="ПО УМОЛЧАНИЮ" Command="{Binding ResetSelectionCommand}"
                             ToolTip="Вернуть рекомендуемый набор пунктов" />
-                    <Button Height="40" Padding="20,0" Margin="0,0,10,0" Command="{Binding AnalyzeCommand}"
+                    <Button Height="30" Padding="12,0" Margin="0,0,10,0" Command="{Binding AnalyzeCommand}"
                             ToolTip="Посчитать, сколько места занимает мусор. Ничего не удаляется.">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
                             <TextBlock Text="АНАЛИЗ" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Btn.Primary}" Height="40" Padding="24,0" Command="{Binding CleanCommand}"
+                    <Button Style="{StaticResource Btn.Primary}" Height="30" Padding="15,0" Command="{Binding CleanCommand}"
                             ToolTip="Удалить отмеченное — после подтверждения со списком">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
@@ -203,8 +203,8 @@
             </c:PageHeader.Actions>
         </c:PageHeader>
 
-        <ScrollViewer Grid.Row="1" Margin="0,26,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-            <StackPanel Margin="0,0,14,16">
+        <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="0,0,10,10">
 
                 <!-- ═══════════════ Summary ═══════════════ -->
                 <Grid>
@@ -213,33 +213,33 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Style="{StaticResource Card}" Padding="26,22,22,20" BorderThickness="1,1,0,1">
+                    <Border Style="{StaticResource Card}" Padding="16,14,14,12" BorderThickness="1,1,0,1">
                         <StackPanel>
                             <TextBlock Text="НАЙДЕНО" Style="{StaticResource T.Label}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" FontSize="52" />
-                                <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" FontSize="19" Margin="7,0,0,10" />
+                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" />
+                                <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
                             </StackPanel>
                             <TextBlock Text="{Binding FoundCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="1" Style="{StaticResource Card.Inverted}" Padding="26,22,22,20">
+                    <Border Grid.Column="1" Style="{StaticResource Card.Inverted}" Padding="16,14,14,12">
                         <StackPanel>
                             <TextBlock Text="К ОЧИСТКЕ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Ink}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" FontSize="52" Foreground="{StaticResource B.Ink}" />
-                                <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" FontSize="19" Margin="7,0,0,10" Foreground="{StaticResource B.Ink}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" Foreground="{StaticResource B.Ink}" />
+                                <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" Foreground="{StaticResource B.Ink}" />
                             </StackPanel>
                             <TextBlock Text="{Binding SelectedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" Foreground="{StaticResource B.Text3}"
                                        TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="26,22,22,20" BorderThickness="0,1,1,1">
+                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16,14,14,12" BorderThickness="0,1,1,1">
                         <StackPanel>
                             <TextBlock Text="ОСВОБОЖДЕНО" Style="{StaticResource T.Label}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" FontSize="52" />
-                                <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" FontSize="19" Margin="7,0,0,10" />
+                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" />
+                                <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
                             </StackPanel>
                             <TextBlock Text="{Binding FreedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                         </StackPanel>
@@ -247,7 +247,7 @@
                 </Grid>
 
                 <!-- Status strip -->
-                <Border Style="{StaticResource Card}" Padding="26,14,24,14" BorderThickness="1,0,1,1">
+                <Border Style="{StaticResource Card}" Padding="16,10,15,10" BorderThickness="1,0,1,1">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -273,19 +273,19 @@
                                 </Border.Style>
                             </Border>
                             <TextBlock Grid.Column="1" Text="{Binding WorkTitle}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}"
-                                       VerticalAlignment="Center" Margin="12,0,18,0" />
+                                       VerticalAlignment="Center" Margin="9,0,11,0" />
                             <TextBlock Grid.Column="2" Text="{Binding WorkDetail}" Style="{StaticResource T.Caption}" VerticalAlignment="Center"
                                        Foreground="{StaticResource B.Text2}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                             <TextBlock Grid.Column="3" Text="{Binding WorkPercent}" Style="{StaticResource T.Mono}" FontSize="11.5" VerticalAlignment="Center"
-                                       Foreground="{StaticResource B.Text}" Margin="16,0,0,0" />
+                                       Foreground="{StaticResource B.Text}" Margin="10,0,0,0" />
                         </Grid>
-                        <ProgressBar Grid.Row="1" Margin="0,12,0,0" Maximum="100" Value="{Binding WorkProgress}" IsIndeterminate="{Binding WorkIndeterminate}"
+                        <ProgressBar Grid.Row="1" Margin="0,9,0,0" Maximum="100" Value="{Binding WorkProgress}" IsIndeterminate="{Binding WorkIndeterminate}"
                                      Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}" />
                     </Grid>
                 </Border>
 
                 <!-- ═══════════════ Free space: one card per fixed drive (the only drive list of the maintenance page) ═══════════════ -->
-                <ItemsControl ItemsSource="{Binding Drives}" Focusable="False" Margin="0,16,-16,0">
+                <ItemsControl ItemsSource="{Binding Drives}" Focusable="False" Margin="0,10,-10,0">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <UniformGrid Rows="1" />
@@ -293,7 +293,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:DriveCard}">
-                            <Border Style="{StaticResource Card}" Padding="22,16,22,18" Margin="0,0,16,0">
+                            <Border Style="{StaticResource Card}" Padding="14,10,14,11" Margin="0,0,10,0">
                                 <StackPanel>
                                     <TextBlock Text="СВОБОДНОЕ МЕСТО" Style="{StaticResource T.Label}" />
                                     <Grid Margin="0,8,0,0">
@@ -302,12 +302,12 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
-                                                   FontSize="26" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" />
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
+                                                   FontSize="19" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" />
                                         <TextBlock Grid.Column="1" Text="{Binding Label}" Style="{StaticResource T.Label}" Margin="10,0,10,5"
                                                    VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="2" Text="{Binding FreeText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
-                                                   FontStretch="Condensed" FontSize="22" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" Margin="0,0,0,1" />
+                                        <TextBlock Grid.Column="2" Text="{Binding FreeText, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
+                                                   FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" Margin="0,0,0,1" />
                                     </Grid>
                                     <c:Meter Value="{Binding UsedPercent}" Segments="32" Gap="2" Height="8" HotThreshold="90" Margin="0,10,0,0" />
                                     <TextBlock Text="{Binding Caption}" Style="{StaticResource T.Caption}" Margin="0,7,0,0" />
@@ -318,7 +318,7 @@
                 </ItemsControl>
 
                 <!-- Elevated as another account -->
-                <TextBlock Text="{Binding ForeignUserText}" Style="{StaticResource T.Caption}" Margin="0,14,0,0"
+                <TextBlock Text="{Binding ForeignUserText}" Style="{StaticResource T.Caption}" Margin="0,10,0,0"
                            Visibility="{Binding ForeignUserText, Converter={StaticResource NullToVis}}" />
 
                 <!-- Windows is servicing itself -->
@@ -329,11 +329,11 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Rectangle Fill="{StaticResource B.HatchStrong}" />
-                        <StackPanel Grid.Column="1" Margin="20,14,22,15">
+                        <StackPanel Grid.Column="1" Margin="12,10,14,11">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Sync}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center"
                                            Foreground="{StaticResource B.Text}" Margin="0,0,10,0" />
-                                <TextBlock Text="WINDOWS ВЫПОЛНЯЕТ ОБСЛУЖИВАНИЕ" Style="{StaticResource T.H3}" VerticalAlignment="Center" />
+                                <TextBlock Text="Windows выполняет обслуживание" Style="{StaticResource T.H3}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Text="{Binding ServicingText}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,6,0,0" />
                         </StackPanel>
@@ -344,7 +344,7 @@
                 <ItemsControl ItemsSource="{Binding Groups}" Focusable="False">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:CleanGroup}">
-                            <StackPanel Margin="0,36,0,0">
+                            <StackPanel Margin="0,22,0,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -352,17 +352,13 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Background="{StaticResource B.White}" Padding="6,1,6,2" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Index}" FontFamily="{StaticResource F.Mono}" FontSize="11" FontWeight="Bold"
-                                                   Foreground="{StaticResource B.Ink}" />
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="{Binding Title}" Style="{StaticResource T.H1}" FontSize="26" Margin="12,0,0,0"
+                                    <TextBlock Grid.Column="1" Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" FontFamily="{StaticResource F.Body}" FontWeight="Bold"
                                                VerticalAlignment="Center" />
-                                    <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="18,3,18,0" />
+                                    <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="11,3,11,0" />
                                     <TextBlock Grid.Column="3" Text="{Binding Meta}" Style="{StaticResource T.Mono}" FontSize="11.5" VerticalAlignment="Center"
                                                Foreground="{StaticResource B.Text2}" />
                                 </Grid>
-                                <TextBlock Text="{Binding Hint}" Style="{StaticResource T.Caption}" Margin="0,6,0,14" />
+                                <TextBlock Text="{Binding Hint}" Style="{StaticResource T.Caption}" Margin="0,6,0,10" />
                                 <Border Style="{StaticResource Card.Flush}" BorderThickness="1,1,1,0">
                                     <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource ItemRow}" Focusable="False" />
                                 </Border>
@@ -375,7 +371,7 @@
                 </ItemsControl>
 
                 <!-- ═══════════════ Bottom: what is never deleted (collapsed) ═══════════════ -->
-                <Expander Margin="0,36,0,0">
+                <Expander Margin="0,22,0,0">
                     <Expander.Header>
                         <TextBlock Text="ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ" Style="{StaticResource T.Label}" />
                     </Expander.Header>
@@ -387,7 +383,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type local:GuaranteeLine}">
-                                <Grid Margin="0,6,22,8">
+                                <Grid Margin="0,6,14,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="22" />
                                         <ColumnDefinition Width="*" />

@@ -8,16 +8,16 @@
     <UserControl.Resources>
         <local:AnyTrueToVisibilityConverter x:Key="Drv.AnyTrueToVis" />
         <Style x:Key="Drv.Fact" TargetType="StackPanel">
-            <Setter Property="Margin" Value="0,0,36,0" />
+            <Setter Property="Margin" Value="0,0,22,0" />
         </Style>
         <Style x:Key="Drv.FactValue" TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
-            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontSize" Value="18" />
             <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="0,0,12,28">
+        <StackPanel Margin="0,0,9,17">
 
             <!-- ═══════════ Create backup ═══════════ -->
             <Border Style="{StaticResource Card}" Padding="0">
@@ -27,11 +27,11 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Rectangle Grid.ColumnSpan="2" Height="3" VerticalAlignment="Top" Fill="{StaticResource B.White}" />
-                    <StackPanel Margin="24,24,24,22">
-                        <TextBlock Text="РЕЗЕРВНАЯ КОПИЯ ДРАЙВЕРОВ" Style="{StaticResource T.H1}" />
+                    <StackPanel Margin="15,15,15,14">
+                        <TextBlock Text="Резервная копия драйверов" Style="{StaticResource T.H1}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="660" HorizontalAlignment="Left"
                                    Text="Сохраняет все сторонние драйверы — видеокарты, чипсета, сети, звука — в отдельную папку встроенной утилитой Windows pnputil. Пригодится после переустановки системы: из копии драйверы возвращаются одной кнопкой. Более старую версию поверх новой копия не ставит — после неудачного обновления используйте «Откатить драйвер» в диспетчере устройств или точку восстановления." />
-                        <WrapPanel Margin="0,18,0,0">
+                        <WrapPanel Margin="0,11,0,0">
                             <StackPanel Style="{StaticResource Drv.Fact}">
                                 <TextBlock Text="ПАКЕТОВ К СОХРАНЕНИЮ" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding OemPackageCount}" Style="{StaticResource Drv.FactValue}" />
@@ -45,11 +45,11 @@
                                 <TextBlock Text="{Binding BackupsRoot}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text}" Margin="0,11,0,0" />
                             </StackPanel>
                         </WrapPanel>
-                        <Border Style="{StaticResource Tag.Hatch}" Margin="0,14,0,0" Visibility="{Binding LowDiskSpace, Converter={StaticResource BoolToVis}}">
+                        <Border Style="{StaticResource Tag.Hatch}" Margin="0,10,0,0" Visibility="{Binding LowDiskSpace, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="НА СИСТЕМНОМ ДИСКЕ МЕНЬШЕ 5 ГБ — КОПИЯ МОЖЕТ НЕ ПОМЕСТИТЬСЯ" />
                         </Border>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,24,24,22" Width="230">
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,15,15,14" Width="230">
                         <Button Style="{StaticResource Btn.Hero}" Command="{Binding ExportBackupCommand}" HorizontalAlignment="Stretch"
                                 ToolTip="pnputil /export-driver * — система не изменяется" ToolTipService.ShowOnDisabled="True">
                             <StackPanel Orientation="Horizontal">
@@ -70,7 +70,7 @@
             </Border>
 
             <!-- ═══════════ Operation: progress + pnputil output ═══════════ -->
-            <Border Style="{StaticResource Card}" Margin="0,16,0,0" Padding="0">
+            <Border Style="{StaticResource Card}" Margin="0,10,0,0" Padding="0">
                 <Border.Visibility>
                     <MultiBinding Converter="{StaticResource Drv.AnyTrueToVis}">
                         <Binding Path="IsBackupRunning" />
@@ -78,13 +78,13 @@
                     </MultiBinding>
                 </Border.Visibility>
                 <StackPanel>
-                    <Grid Margin="20,16,20,0">
+                    <Grid Margin="12,10,12,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
-                            <TextBlock Text="{Binding BackupStage}" Style="{StaticResource T.H3}" FontSize="15"
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="{Binding BackupStage, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontSize="15"
                                        Visibility="{Binding IsBackupRunning, Converter={StaticResource BoolToVis}}" />
                             <ProgressBar Margin="0,10,0,0" Height="4" Maximum="100" Value="{Binding BackupPercent}" IsIndeterminate="{Binding BackupIndeterminate}"
                                          Visibility="{Binding IsBackupRunning, Converter={StaticResource BoolToVis}}" />
@@ -110,15 +110,15 @@
                                 Visibility="{Binding CanCancelBackup, Converter={StaticResource BoolToVis}}" />
                     </Grid>
 
-                    <Border Style="{StaticResource Card.Inverted}" Margin="20,14,20,0" Padding="16,10"
+                    <Border Style="{StaticResource Card.Inverted}" Margin="12,10,12,0" Padding="10,10"
                             Visibility="{Binding BackupRebootRequired, Converter={StaticResource BoolToVis}}">
                         <TextBlock FontFamily="{StaticResource F.Body}" FontSize="12.5" Foreground="{StaticResource B.Ink}" TextWrapping="Wrap"
                                    Text="Требуется перезагрузка для завершения установки драйвера. MONOLITH не перезагружает компьютер сам." />
                     </Border>
 
-                    <TextBlock Text="ВЫВОД PNPUTIL" Style="{StaticResource T.Label}" Margin="20,16,20,6" />
+                    <TextBlock Text="ВЫВОД PNPUTIL" Style="{StaticResource T.Label}" Margin="12,10,12,6" />
                     <Border Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0">
-                        <ListBox x:Name="OutputList" Style="{StaticResource List.Plain}" ItemsSource="{Binding BackupOutput}" Height="180" Margin="20,8,8,8"
+                        <ListBox x:Name="OutputList" Style="{StaticResource List.Plain}" ItemsSource="{Binding BackupOutput}" Height="180" Margin="12,8,8,8"
                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -131,18 +131,18 @@
             </Border>
 
             <!-- ═══════════ Existing backups ═══════════ -->
-            <Grid Margin="0,30,0,14">
+            <Grid Margin="0,19,0,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="СОХРАНЁННЫЕ КОПИИ" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
-                <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="14,0" />
+                <TextBlock Text="Сохранённые копии" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0" />
                 <TextBlock Grid.Column="2" Text="ВОССТАНОВЛЕНИЕ НЕ ПОНИЖАЕТ ВЕРСИИ ДРАЙВЕРОВ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
             </Grid>
 
-            <Border Style="{StaticResource Card}" Background="{StaticResource B.DotGrid}" Padding="28,30"
+            <Border Style="{StaticResource Card}" Background="{StaticResource B.DotGrid}" Padding="17,19"
                     Visibility="{Binding HasBackups, Converter={StaticResource InverseBoolToVis}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -150,10 +150,10 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Border Width="56" Height="56" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Background="{StaticResource B.Surface}">
-                        <TextBlock Text="&#xE74E;" Style="{StaticResource T.Icon}" FontSize="22" Foreground="{StaticResource B.Text2}" />
+                        <TextBlock Text="&#xE74E;" Style="{StaticResource T.Icon}" FontSize="17" Foreground="{StaticResource B.Text2}" />
                     </Border>
-                    <StackPanel Grid.Column="1" Margin="22,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="КОПИЙ ПОКА НЕТ" Style="{StaticResource T.H2}" />
+                    <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Копий пока нет" Style="{StaticResource T.H2}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0"
                                    Text="Создайте копию сейчас, пока все устройства работают. Перед каждой установкой драйверов из Windows Update MONOLITH также сохраняет заменяемые драйверы автоматически." />
                     </StackPanel>
@@ -163,16 +163,16 @@
             <ItemsControl ItemsSource="{Binding Backups}" Focusable="False">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type local:BackupItem}">
-                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12">
+                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,9">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="168" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,1,0" Padding="20,18">
+                                <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,1,0" Padding="12,11">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding DateText}" Style="{StaticResource T.H2}" FontSize="16" />
+                                        <TextBlock Text="{Binding DateText, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" FontSize="16" />
                                         <Border Margin="0,10,0,0">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource Tag}">
@@ -189,20 +189,20 @@
                                     </StackPanel>
                                 </Border>
 
-                                <StackPanel Grid.Column="1" Margin="22,18,16,18">
+                                <StackPanel Grid.Column="1" Margin="14,11,10,11">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding SizeText}" Style="{StaticResource T.Stat}" FontSize="22" />
-                                        <Rectangle Style="{StaticResource DividerV}" Height="16" Margin="14,0" VerticalAlignment="Center" Fill="{StaticResource B.Line3}" />
-                                        <TextBlock Text="{Binding InfCountText}" Style="{StaticResource T.Stat}" FontSize="22" Foreground="{StaticResource B.Text2}" />
+                                        <TextBlock Text="{Binding SizeText}" Style="{StaticResource T.Stat}" FontSize="17" />
+                                        <Rectangle Style="{StaticResource DividerV}" Height="16" Margin="10,0" VerticalAlignment="Center" Fill="{StaticResource B.Line3}" />
+                                        <TextBlock Text="{Binding InfCountText}" Style="{StaticResource T.Stat}" FontSize="17" Foreground="{StaticResource B.Text2}" />
                                         <TextBlock Text="{Binding Name}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}"
-                                                   VerticalAlignment="Center" Margin="16,4,0,0" />
+                                                   VerticalAlignment="Center" Margin="10,4,0,0" />
                                     </StackPanel>
                                     <TextBlock Text="{Binding ProvidersText}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" Margin="0,6,0,0"
                                                TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" TextWrapping="NoWrap"
                                                TextTrimming="CharacterEllipsis" ToolTip="{Binding Note}"
                                                Visibility="{Binding Note, Converter={StaticResource NullToVis}}" />
-                                    <Expander Margin="0,12,0,0">
+                                    <Expander Margin="0,9,0,0">
                                         <Expander.Header>
                                             <TextBlock Text="{Binding PackagesHeader}" Style="{StaticResource T.Label}" />
                                         </Expander.Header>
@@ -232,7 +232,7 @@
                                     </Expander>
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="2" Margin="0,18,20,18" VerticalAlignment="Top" Width="168">
+                                <StackPanel Grid.Column="2" Margin="0,11,12,11" VerticalAlignment="Top" Width="168">
                                     <Button Style="{StaticResource Btn.Danger}" HorizontalAlignment="Stretch"
                                             Command="{Binding DataContext.RestoreBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}" ToolTipService.ShowOnDisabled="True"
@@ -250,7 +250,7 @@
                                         <Button Content="ОТКРЫТЬ" Margin="0,0,8,0"
                                                 Command="{Binding DataContext.OpenBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}" />
-                                        <Button Grid.Column="1" Style="{StaticResource Btn.Icon}" Width="36" Height="36" Content="&#xE74D;"
+                                        <Button Grid.Column="1" Style="{StaticResource Btn.Icon}" Width="36" Height="30" Content="&#xE74D;"
                                                 ToolTip="Удалить копию" ToolTipService.ShowOnDisabled="True"
                                                 Command="{Binding DataContext.DeleteBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}" />

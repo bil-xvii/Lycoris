@@ -4,10 +4,8 @@
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              x:Name="Root">
     <!--
-        ──────────────────────────────── ▨▨
-        ОПТИМИЗАЦИЯ                    [actions]
-        subtitle
-
+        Compact header, one band:  ОПТИМИЗАЦИЯ                       [actions]
+                                   one muted line of subtitle
         Embedded (PageHeader.IsEmbedded inherited from a host page): only [actions], right-aligned.
     -->
     <UserControl.Resources>
@@ -19,36 +17,26 @@
             </Style.Triggers>
         </Style>
     </UserControl.Resources>
-    <StackPanel>
-        <Grid Margin="0,0,0,10" Style="{StaticResource HideWhenEmbedded}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <Rectangle Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="0,0,10,0" />
-            <Border Grid.Column="1" Width="44" Height="8" Background="{StaticResource B.HatchStrong}" VerticalAlignment="Center" />
-        </Grid>
-        <Grid>
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding (c:PageHeader.IsEmbedded), ElementName=Root}" Value="True">
-                            <!-- Leaves room for the host's tabs, which sit on the same line. -->
-                            <Setter Property="MinHeight" Value="36" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Style="{StaticResource HideWhenEmbedded}">
-                <TextBlock Text="{Binding Title, ElementName=Root}" Style="{StaticResource T.Display}" />
-                <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Body}" Margin="0,6,0,0" MaxWidth="760"
-                           HorizontalAlignment="Left" />
-            </StackPanel>
-            <ContentPresenter Grid.Column="1" Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Bottom" Margin="24,0,0,2" />
-        </Grid>
-    </StackPanel>
+    <Grid>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding (c:PageHeader.IsEmbedded), ElementName=Root}" Value="True">
+                        <!-- Leaves room for the host's tabs, which sit on the same line. -->
+                        <Setter Property="MinHeight" Value="32" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
+                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subtitle, ElementName=Root}" />
+        </StackPanel>
+        <ContentPresenter Grid.Column="1" Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Center" Margin="20,0,0,0" />
+    </Grid>
 </UserControl>
