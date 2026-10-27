@@ -53,7 +53,7 @@ public static class StartupChanges
             }
             // Back to how it was before MONOLITH: undo every layer of this entry instead of stacking a new one.
             var layers = journal.ActiveLayers(StartupLocations.JournalTarget(e));
-            if (layers.Count > 0 && layers[0].Registry is { } snapshot && OriginalEnabled(e, snapshot) == enable)
+            if (UndoesLayers(e, enable, layers))
             {
                 revert.AddRange(layers);
                 continue;
@@ -142,6 +142,21 @@ public static class StartupChanges
     }
 
     /// <summary>
+    /// True when switching to <paramref name="enable"/> goes back to the state the entry had before MONOLITH: then every
+    /// layer (<paramref name="layers"/>, this account's, oldest first) is undone and the exact original value comes back.
+    /// </summary>
+    public static bool UndoesLayers(StartupEntry e, bool enable, IReadOnlyList<ChangeRecord> layers) =>
+        layers.Count > 0 && layers[0].Registry is { } snapshot && OriginalEnabled(e, snapshot) == enable;
+
+    /// <summary>A packaged task's State from before MONOLITH (the oldest layer's original), or null when unknown.</summary>
+    public static int? PackagedStateBefore(IReadOnlyList<ChangeRecord> layers) =>
+        layers.Count > 0 && layers[0].Registry is { } snapshot ? PackagedStartup.OriginalState(snapshot) : null;
+
+    /// <summary>Same, from the current account's journal layers of the entry.</summary>
+    public static int? PackagedStateBefore(StartupEntry e) =>
+        StartupLocations.IsPackaged(e.Source) ? PackagedStateBefore(ChangeJournal.Instance.ActiveLayers(StartupLocations.JournalTarget(e))) : null;
+
+    /// <summary>
     /// Was the entry enabled before MONOLITH changed it? Packaged tasks: from the DWORD State (null when unknown, so
     /// the page writes instead of reverting); everything else: the StartupApproved rule below.
     /// </summary>
@@ -162,7 +177,12 @@ public static class StartupChanges
         }
     }
 
-    /// <summary>Active journal records made by this page.</summary>
-    public static IReadOnlyList<ChangeRecord> ActiveRecords() =>
-        ChangeJournal.Instance.ActiveRecords.Where(r => r.Source is EntrySource or TaskSource).ToList();
+    /// <summary>
+    /// Active journal records made by this page for the current account (the «MONOLITH» tag). HKCU targets read the
+    /// same for every account, so another account's records are left out: there is nothing of theirs to undo here.
+    /// </summary>
+    public static IReadOnlyList<ChangeRecord> ActiveRecords() => PageRecords(ChangeJournal.Instance.ActiveRecords, UserScope.CurrentSid);
+
+    internal static IReadOnlyList<ChangeRecord> PageRecords(IEnumerable<ChangeRecord> records, string? currentSid) =>
+        records.Where(r => !r.Reverted && r.Source is (EntrySource or TaskSource) && !ChangeJournal.IsOtherUser(r, currentSid)).ToList();
 }
