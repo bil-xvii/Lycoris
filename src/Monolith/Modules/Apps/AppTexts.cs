@@ -221,7 +221,8 @@ public static class AppTexts
     /// What happened and what the user can do, for a finished queue row that did not end in "ГОТОВО".
     /// Every winget outcome gets a plain-language answer; unknown codes point to the log and the official site.
     /// </summary>
-    public static string ResultDetail(int code, QueueOperation op, CatalogEntry e)
+    /// <param name="elevated">Defaults to the current process: the vendor download needs administrator rights.</param>
+    public static string ResultDetail(int code, QueueOperation op, CatalogEntry e, bool? elevated = null)
     {
         var site = $"Можно установить программу с официального сайта ({e.Website}).";
         var install = op == QueueOperation.Install;
@@ -240,7 +241,7 @@ public static class AppTexts
             return "Контрольная сумма скачанного установщика не совпала с каталогом winget. Чаще всего это значит, что производитель " +
                    "выложил новую версию по той же ссылке, а каталог winget ещё не обновлён; реже — файл повреждён или подменён по пути. " +
                    "Поэтому winget его не запустил, и обходить эту проверку MONOLITH не будет. " +
-                   (e.VendorInstaller is { } v
+                   (e.VendorInstaller is { } v && (elevated ?? Elevation.IsElevated)
                        ? $"Нажмите «СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ»: MONOLITH скачает официальный установщик с {v.Host} и проверит его цифровую подпись " +
                          $"({SignerList(v.Signers)}). Или повторите через несколько дней, когда каталог winget обновится."
                        : "Скачайте программу с официального сайта (кнопка «ОТКРЫТЬ САЙТ») или повторите через несколько дней, когда каталог winget обновится.");
@@ -306,10 +307,11 @@ public static class AppTexts
     }
 
     /// <summary>The button a failed (or skipped) queue row offers, if any.</summary>
-    public static QueueFallback FallbackFor(int code, QueueOperation op, CatalogEntry e)
+    /// <param name="elevated">Defaults to the current process: without admin rights the vendor download is not offered (site instead).</param>
+    public static QueueFallback FallbackFor(int code, QueueOperation op, CatalogEntry e, bool? elevated = null)
     {
         if (code == WingetClient.InstallerHashMismatch)
-            return e.VendorInstaller is not null ? QueueFallback.VendorDownload : QueueFallback.Website;
+            return e.VendorInstaller is not null && (elevated ?? Elevation.IsElevated) ? QueueFallback.VendorDownload : QueueFallback.Website;
         if (code == WingetClient.NoApplicationsFound && op == QueueOperation.Upgrade) return QueueFallback.None;
         if (code == WingetClient.InstallLocationRequired || code == WingetClient.NoApplicationsFound || code == WingetClient.NoApplicableInstaller
             || WingetClient.IsDownloadProblem(code) || code == unchecked((int)0x8A150113))

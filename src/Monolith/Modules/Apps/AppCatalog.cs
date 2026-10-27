@@ -66,7 +66,8 @@ public sealed record VendorInstaller(string Url, IReadOnlyList<string> Signers)
     public VendorDownloadRequest? ToRequest(string label)
     {
         if (!Uri.TryCreate(Url, UriKind.Absolute, out var url) || VendorDownloads.SafeFileName(url) is not { } file) return null;
-        var request = new VendorDownloadRequest(url, file, AllowedHosts, Signers, VendorDownloads.AppsDir) { Label = label };
+        // App links are unversioned (the vendor swaps the file behind them): always download the current file.
+        var request = new VendorDownloadRequest(url, file, AllowedHosts, Signers, VendorDownloads.AppsDir) { Label = label, ReuseVerifiedCopy = false };
         return VendorDownloads.Validate(request) is null ? request : null;
     }
 }

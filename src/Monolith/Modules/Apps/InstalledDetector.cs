@@ -51,11 +51,15 @@ public static class InstalledDetector
         foreach (var (id, version) in exported)
             if (ids.Contains(id)) map[id] = version;
         var managed = new HashSet<string>(map.Keys, StringComparer.OrdinalIgnoreCase);
+        // An empty export means "winget export" failed (a working winget always lists something). Then "found only by
+        // the cross-checks" would wrongly mark every runtime as not managed by winget: keep the last known list instead.
+        var exportOk = exported.Count > 0;
+        IReadOnlySet<string> Unmanaged() => exportOk ? UnmanagedIds(map, managed) : PreviousUnmanaged();
 
         await Task.Run(() => ApplyCrossChecks(map), ct).ConfigureAwait(false);
         progress?.Invoke(new InstalledSnapshot(new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase), DateTime.Now, false)
         {
-            Unmanaged = UnmanagedIds(map, managed),
+            Unmanaged = Unmanaged(),
         });
 
         // Store apps are often missing from the export; "winget list --id X -e" exit 0 = installed (verified).
@@ -70,9 +74,15 @@ public static class InstalledDetector
             }
         }
 
-        var snapshot = new InstalledSnapshot(map, DateTime.Now, false) { Unmanaged = UnmanagedIds(map, managed) };
+        var snapshot = new InstalledSnapshot(map, DateTime.Now, false) { Unmanaged = Unmanaged() };
         SaveCache(snapshot);
         return snapshot;
+    }
+
+    private static IReadOnlySet<string> PreviousUnmanaged()
+    {
+        try { return LoadCache()?.Unmanaged ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
+        catch { return new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
     }
 
     /// <summary>Installed ids that winget itself did not report (found only by the cross-checks).</summary>

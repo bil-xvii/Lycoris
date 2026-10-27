@@ -181,6 +181,12 @@ public sealed partial class AppItemViewModel : ObservableObject
     {
         if (!value && IsSelected) IsSelected = false;
     }
+
+    /// <summary>Became "installed outside winget" with the same version: a ticked card would stay counted but do nothing.</summary>
+    partial void OnIsUnmanagedChanged(bool value)
+    {
+        if (!CanSelect && IsSelected) IsSelected = false;
+    }
 }
 
 /// <summary>One catalog section ("ЛАУНЧЕРЫ").</summary>

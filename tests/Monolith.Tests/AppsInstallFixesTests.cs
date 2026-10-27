@@ -147,11 +147,17 @@ public sealed class AppsInstallFixesTests
         Assert.Equal(QueueState.Failed, state);
         Assert.Equal("ОШИБКА: производитель обновил установщик, а каталог winget ещё нет — установка заблокирована ради безопасности", text);
 
-        var detail = AppTexts.ResultDetail(WingetClient.InstallerHashMismatch, QueueOperation.Install, ghub);
+        var detail = AppTexts.ResultDetail(WingetClient.InstallerHashMismatch, QueueOperation.Install, ghub, elevated: true);
         Assert.Contains("download01.logi.com", detail);
         Assert.Contains("СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ", detail);
         Assert.Contains("подменён", detail); // honest: a mismatch can also mean a tampered file
-        Assert.Equal(QueueFallback.VendorDownload, AppTexts.FallbackFor(WingetClient.InstallerHashMismatch, QueueOperation.Install, ghub));
+        Assert.Equal(QueueFallback.VendorDownload, AppTexts.FallbackFor(WingetClient.InstallerHashMismatch, QueueOperation.Install, ghub, elevated: true));
+
+        // Without admin rights the vendor download is impossible: the row honestly offers the website instead.
+        Assert.Equal(QueueFallback.Website, AppTexts.FallbackFor(WingetClient.InstallerHashMismatch, QueueOperation.Install, ghub, elevated: false));
+        var readOnly = AppTexts.ResultDetail(WingetClient.InstallerHashMismatch, QueueOperation.Install, ghub, elevated: false);
+        Assert.DoesNotContain("СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ", readOnly);
+        Assert.Contains("ОТКРЫТЬ САЙТ", readOnly);
 
         // Without vendor data: the official site.
         var steam = Entry("Valve.Steam");

@@ -39,7 +39,8 @@ public sealed partial class AppsViewModel
                 await OpenLinkAsync(job.App.Entry.Website);
                 return;
             case QueueFallback.VendorDownload:
-                await DownloadFromVendorAsync(job.App, job, afterHashMismatch: true);
+                // Website-only entries (LatencyMon…) never went through winget: no "winget refused" lead for them.
+                await DownloadFromVendorAsync(job.App, job, afterHashMismatch: !job.App.Entry.WebsiteOnly);
                 return;
         }
     }
@@ -117,16 +118,20 @@ public sealed partial class AppsViewModel
                 SetBusyText($"{entry.Name}: {VendorDownloads.FormatProgress(p)}");
             });
             var path = await Task.Run(() => VendorDownloads.DownloadAsync(request, progress, ct), CancellationToken.None);
+            // ОТМЕНА must still stop everything after the transfer: signature check, restore point and the launch.
+            ct.ThrowIfCancellationRequested();
             AppendLog($"Скачано и проверено: {path}");
 
             if (restore && !await CreateRestorePointAsync(entry))
             {
                 job.State = QueueState.Cancelled;
                 job.StatusText = "ОТМЕНЕНО: нет точки восстановления";
-                job.Detail = $"Установщик скачан и проверен, но не запущен. Он сохранён в {Path.GetDirectoryName(path)} — повторно скачивать не придётся.";
+                job.Detail = "Установщик скачан и проверен, но не запущен: вы не стали продолжать без точки восстановления. При повторе MONOLITH скачает свежую копию.";
                 job.Fallback = QueueFallback.VendorDownload;
                 return;
             }
+
+            ct.ThrowIfCancellationRequested();
 
             // The file sat in the admin-only folder; check it once more right before it is started.
             job.StatusText = "ПРОВЕРКА ПОДПИСИ…";
@@ -137,6 +142,8 @@ public sealed partial class AppsViewModel
                 throw new InvalidOperationException($"Подпись установщика не подтверждена перед запуском ({signer}) — файл удалён, запуск отменён.");
             }
 
+            ct.ThrowIfCancellationRequested();
+            job.IsDownloading = false; // from here on nothing can be cancelled any more
             // Never with MONOLITH's admin token: the vendor installer asks for the rights it needs itself.
             if (await UnelevatedShell.StartAsUserAsync(path, "", Path.GetDirectoryName(path)))
             {
@@ -159,7 +166,7 @@ public sealed partial class AppsViewModel
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            job.Detail = "Загрузка прервана, недокачанный файл удалён. Её можно повторить.";
+            job.Detail = "Загрузка прервана, установщик не запущен (недокачанный файл удалён). Её можно повторить.";
             job.Fallback = QueueFallback.VendorDownload;
             job.State = QueueState.Cancelled;
             job.StatusText = "ЗАГРУЗКА ОТМЕНЕНА";
