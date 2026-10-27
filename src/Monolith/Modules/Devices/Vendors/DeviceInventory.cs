@@ -246,10 +246,18 @@ internal static partial class DeviceInventory
     internal static string CardKey(string groupKey) =>
         "periph:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(groupKey.ToUpperInvariant())))[..12].ToLowerInvariant();
 
-    /// <summary>A card title from a product string: all-caps strings in sentence case («MYSTIC LIGHT» → «Mystic Light»), plus the vendor.</summary>
+    /// <summary>
+    /// A card title from a product string. A shouted name of plain words goes to sentence case («MYSTIC LIGHT» → «Mystic Light»);
+    /// a model with a code keeps its spelling («INZONE E9», «PRO X2 SUPERSTRIKE»). Lighting controllers, gamepads and other
+    /// devices get the vendor when their name does not say it («Mystic Light (MSI)»).
+    /// </summary>
     internal static string DisplayTitle(InventoryGroup g)
     {
-        var name = g.Name.Any(char.IsLower) ? g.Name : SentenceCaseConverter.Apply(g.Name);
-        return g.Vendor is { } v && !name.Contains(v.Name, StringComparison.OrdinalIgnoreCase) ? $"{name} ({v.Name})" : name;
+        var words = g.Name.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        var shouted = !g.Name.Any(char.IsLower) && words.Count(w => w.Length >= 4 && w.All(char.IsLetter)) >= 2
+                      && !words.Any(w => w.Any(char.IsDigit));
+        var name = shouted ? SentenceCaseConverter.Apply(g.Name) : g.Name;
+        var addVendor = g.Kind is InventoryKind.Lighting or InventoryKind.Controller or InventoryKind.Peripheral;
+        return addVendor && g.Vendor is { } v && !name.Contains(v.Name, StringComparison.OrdinalIgnoreCase) ? $"{name} ({v.Name})" : name;
     }
 }

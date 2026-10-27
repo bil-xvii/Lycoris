@@ -77,7 +77,7 @@ internal sealed class VendorEnricher : IDeviceEnricher
             AddVendorApps(card, own, apps, launch, onceNotes);
         }
 
-        AddInventoryCards(cards, groups.Where(g => !claimed.Contains(g)).ToList(), apps, launch);
+        AddInventoryCards(cards, groups.Where(g => !claimed.Contains(g)).ToList(), apps, history, launch, onceNotes);
         AddDynamicLightingNote(cards, groups, apps);
         AddUnifierNote(cards, apps);
         FixHdrCalibrationLinks(cards);
@@ -246,18 +246,21 @@ internal sealed class VendorEnricher : IDeviceEnricher
     /// here (open the program, or a note to act on). An install offer alone stays on Drivers.
     /// </summary>
     private static void AddInventoryCards(List<DeviceCard> cards, IReadOnlyList<InventoryGroup> unclaimed, VendorAppSnapshot apps,
-        Func<VendorApp, Task<bool>> launch)
+        Func<string, IReadOnlyList<HistoryHint>> history, Func<VendorApp, Task<bool>> launch, HashSet<string> onceNotes)
     {
         var unifier = apps.Installed.FirstOrDefault(a => a.IsRgbUnifier);
+        // Mice, keyboards and audio belong to their providers; only when none of them reported anything is the group shown here.
+        var providerMice = cards.Any(c => c.Kind == DeviceKind.Mouse);
+        var providerKeyboards = cards.Any(c => c.Kind == DeviceKind.Keyboard);
+        var providerAudio = cards.Any(c => c.Kind is DeviceKind.AudioOutput or DeviceKind.AudioInput);
         var order = 80;
         foreach (var g in unclaimed)
         {
             if (g.Kind == InventoryKind.Other) continue;
             if (g.Kind is not (InventoryKind.Lighting or InventoryKind.Controller) && g.Vendor is null) continue;
-            // Mice, keyboards and audio belong to their providers; only when none of them reported anything is the group shown here.
-            if (g.Kind == InventoryKind.Mouse && cards.Any(c => c.Kind == DeviceKind.Mouse)) continue;
-            if (g.Kind == InventoryKind.Keyboard && cards.Any(c => c.Kind == DeviceKind.Keyboard)) continue;
-            if (g.Kind == InventoryKind.Audio && cards.Any(c => c.Kind is DeviceKind.AudioOutput or DeviceKind.AudioInput)) continue;
+            if (g.Kind == InventoryKind.Mouse && providerMice) continue;
+            if (g.Kind == InventoryKind.Keyboard && providerKeyboards) continue;
+            if (g.Kind == InventoryKind.Audio && providerAudio) continue;
 
             var kind = g.Kind switch
             {
@@ -269,28 +272,30 @@ internal sealed class VendorEnricher : IDeviceEnricher
                 _ => DeviceKind.Peripheral,
             };
             var board = g.VidPid is "0DB0:0076";
+            var subtitle = board ? "подсветка материнской платы" : null;
+            if (kind == DeviceKind.Mouse && ReceiverHints.IsReceiver(g.Vid, g.Pid) && g.Vid is { } vid)
+            {
+                try { subtitle = history(vid).FirstOrDefault() is { } last ? ReceiverHints.HistoryText(last.Name) : null; }
+                catch (Exception ex) { Log.Warn($"Устройства: история подключений не прочитана ({ex.Message})."); }
+            }
             var card = new DeviceCard
             {
                 Key = g.CardKey,
                 Kind = kind,
                 Title = DeviceInventory.DisplayTitle(g),
-                Subtitle = board ? "подсветка материнской платы" : null,
+                Subtitle = subtitle,
                 Order = order,
                 Hardware = [new DeviceHardwareRef(g.Vid, g.Pid, g.ContainerId, g.InstanceIds)],
             };
 
-            var forDevice = VendorApps.All.Where(a => !a.IsRgbUnifier && a.AppliesTo(g.Vid, [g.Name])).ToList();
-            var installed = forDevice.Where(a => apps.IsInstalled(a.Key)).ToList();
-            foreach (var app in installed)
-            {
-                if (apps.Get(app.Key) is { Launchable: true } state) AddLink(card, LaunchLink(app, kind, state.Running, launch));
-                else AddNote(card, new DeviceNote(OpenFromStartNote(app.Name)));
-            }
+            AddVendorApps(card, [g], apps, launch, onceNotes);
             // The board's RGB with OpenRGB already installed: never recommend a third lighting program.
-            if (installed.Count == 0 && kind == DeviceKind.Lighting && unifier is not null)
+            var vendorInstalled = VendorApps.All.Any(a => !a.IsRgbUnifier && a.AppliesTo(g.Vid, [g.Name]) && apps.IsInstalled(a.Key));
+            if (!vendorInstalled && kind == DeviceKind.Lighting && unifier is not null)
                 AddNote(card, new DeviceNote(UnifierOwnsNote(unifier.Name, board)));
 
-            if (card.VendorApps.Count == 0 && card.Notes.Count == 0) continue;
+            // Only an install offer: that lives on Drivers (ПОДБОР ДЛЯ ВАШЕГО ПК) — no card here.
+            if (!card.VendorApps.Any(a => a.CanLaunch) && card.Notes.Count == 0) continue;
             cards.Add(card);
             order++;
         }
