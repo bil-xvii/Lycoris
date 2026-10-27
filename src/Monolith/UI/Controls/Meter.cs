@@ -63,20 +63,31 @@ public sealed class Meter : FrameworkElement
         var lit = (int)Math.Round(Math.Clamp(Value, 0, 100) / 100d * n);
         var hot = Value >= HotThreshold;
 
+        // Segments are rounded with the R.Xs token, but never past a quarter of their short side:
+        // small cells stay rounded cells instead of turning into dots.
+        var token = TryFindResource("R.Xs.D") is double t ? t : 0;
+        var segWidth = Math.Max(1, Math.Round(segW));
+        var r = Math.Min(token, Math.Min(segWidth, h) / 4);
+
         for (var i = 0; i < n; i++)
         {
             var x = Math.Round(i * (segW + Gap));
-            var rect = new Rect(x, 0, Math.Max(1, Math.Round(segW)), h);
+            var rect = new Rect(x, 0, segWidth, h);
             if (i < lit)
             {
                 if (hot)
-                    dc.DrawRectangle(null, HotPen, new Rect(rect.X + 0.5, rect.Y + 0.5, rect.Width - 1, rect.Height - 1));
+                {
+                    var inner = Math.Max(0, r - 0.5);
+                    dc.DrawRoundedRectangle(null, HotPen, new Rect(rect.X + 0.5, rect.Y + 0.5, rect.Width - 1, rect.Height - 1), inner, inner);
+                }
                 else
-                    dc.DrawRectangle(Fill, null, rect);
+                {
+                    dc.DrawRoundedRectangle(Fill, null, rect, r, r);
+                }
             }
             else
             {
-                dc.DrawRectangle(Track, null, rect);
+                dc.DrawRoundedRectangle(Track, null, rect, r, r);
             }
         }
     }

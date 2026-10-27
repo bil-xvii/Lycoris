@@ -22,11 +22,19 @@ public sealed class ArcGauge : FrameworkElement
     public int Ticks { get => (int)GetValue(TicksProperty); set => SetValue(TicksProperty, value); }
     public double TickLength { get => (double)GetValue(TickLengthProperty); set => SetValue(TickLengthProperty, value); }
 
-    private static readonly Pen LitPen = Freeze(new Pen(Brushes.White, 3));
-    private static readonly Pen DimPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x2B)), 3));
+    // Ticks have round caps (the rounded shape language); they are shortened by the cap so the outer extent is unchanged.
+    private static readonly Pen LitPen = Freeze(RoundCaps(new Pen(Brushes.White, 3)));
+    private static readonly Pen DimPen = Freeze(RoundCaps(new Pen(new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x2B)), 3)));
     private static readonly Pen MajorPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0x47, 0x47, 0x47)), 1));
 
     private static Pen Freeze(Pen p) { p.Freeze(); return p; }
+
+    private static Pen RoundCaps(Pen p)
+    {
+        p.StartLineCap = PenLineCap.Round;
+        p.EndLineCap = PenLineCap.Round;
+        return p;
+    }
 
     protected override void OnRender(DrawingContext dc)
     {
@@ -39,11 +47,12 @@ public sealed class ArcGauge : FrameworkElement
         var lit = (int)Math.Round(Math.Clamp(Value, 0, 100) / 100d * n);
 
         const double start = 135, sweep = 270;
+        var cap = LitPen.Thickness / 2;
         for (var i = 0; i < n; i++)
         {
             var a = (start + sweep * i / (n - 1)) * Math.PI / 180;
-            var p1 = new Point(c.X + Math.Cos(a) * rInner, c.Y + Math.Sin(a) * rInner);
-            var p2 = new Point(c.X + Math.Cos(a) * rOuter, c.Y + Math.Sin(a) * rOuter);
+            var p1 = new Point(c.X + Math.Cos(a) * (rInner + cap), c.Y + Math.Sin(a) * (rInner + cap));
+            var p2 = new Point(c.X + Math.Cos(a) * (rOuter - cap), c.Y + Math.Sin(a) * (rOuter - cap));
             dc.DrawLine(i < lit ? LitPen : DimPen, p1, p2);
         }
 
