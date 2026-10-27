@@ -85,12 +85,35 @@ public static class PackagedStartup
         _ => null,
     };
 
-    /// <summary>Was the task on before MONOLITH changed it? Null when the journal snapshot is not a DWORD State.</summary>
-    public static bool? OriginalEnabled(RegistryValueSnapshot snapshot) =>
+    /// <summary>The State recorded before MONOLITH changed it. Null when the journal snapshot is not a DWORD State.</summary>
+    public static int? OriginalState(RegistryValueSnapshot snapshot) =>
         snapshot is { ValueExisted: true, Kind: RegistryValueKind.DWord }
         && uint.TryParse(snapshot.Data, NumberStyles.None, CultureInfo.InvariantCulture, out var v) && v <= int.MaxValue
-            ? IsEnabled((int)v)
+            ? (int)v
             : null;
+
+    /// <summary>Was the task on before MONOLITH changed it? Null when the journal snapshot is not a DWORD State.</summary>
+    public static bool? OriginalEnabled(RegistryValueSnapshot snapshot) =>
+        OriginalState(snapshot) is { } v ? IsEnabled(v) : null;
+
+    /// <summary>
+    /// The State a switch leaves (same rule as <see cref="StartupChanges.SetEntriesAsync"/>): back to the state the task
+    /// had before MONOLITH (<paramref name="before"/>) the journal restores that exact value — 0 stays 0 —, otherwise
+    /// the Task Manager value (<see cref="TargetState"/>) is written.
+    /// </summary>
+    public static int StateAfterSwitch(bool enable, int? before) =>
+        before is { } b && IsEnabled(b) == enable ? b : TargetState(enable);
+
+    /// <summary>"= …" text of the State a switch leaves, for the confirmation dialog.</summary>
+    public static string SwitchText(bool enable, int state) =>
+        state != TargetState(enable) ? $"{state} ({StateText(state)}) — как было до MONOLITH"
+        : enable ? "2 (включено)"
+        : "1 (отключено пользователем — как в Диспетчере задач)";
+
+    /// <summary>Added when a switch leaves State 0: unlike 1, it lets the app turn its autostart on again by itself.</summary>
+    public static string? StateNote(int state) => state == (int)PackagedTaskState.Disabled
+        ? "При State = 0 приложение может само снова включить свой автозапуск (при 1 — только пользователь)."
+        : null;
 
     public static string StateText(int? state) => state switch
     {
