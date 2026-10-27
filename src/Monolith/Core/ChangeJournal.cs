@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
 using System.Security.Principal;
@@ -77,7 +78,10 @@ public sealed class ChangeRecord
     [JsonIgnore] public bool IsActive => !Reverted;
     /// <summary>The change went into one account's profile (HKCU, per-user DirectX/visual-effect settings).</summary>
     [JsonIgnore] public bool IsPerUser => UserScope.IsPerUser(Kind, Target, Registry);
-    /// <summary>A per-user change from a build that did not record the account: bulk reverts leave it to a per-row revert.</summary>
+    /// <summary>
+    /// A per-user change from a build that did not record the account: never layered with an account's records, and
+    /// bulk reverts leave it to a per-row revert.
+    /// </summary>
     [JsonIgnore] public bool IsLegacyPerUser => IsPerUser && UserSid is null;
     /// <summary>Older builds merged later changes of the same target into one record (see <see cref="AlsoSources"/>).</summary>
     [JsonIgnore] public bool IsLegacyMerged => AlsoSources.Count > 0;
@@ -101,6 +105,13 @@ public sealed record RevertResult(int Reverted, int Failed, IReadOnlyList<string
 {
     public bool Success => Failed == 0;
     public int HandedOver { get; init; }
+    /// <summary>Records whose original was actually put back into the system (hand-overs change nothing).</summary>
+    public int Restored => Reverted - HandedOver;
+    /// <summary>
+    /// Active records the revert left on purpose: another account's, or a per-user record from an older build that
+    /// names no account (see <see cref="ChangeJournal.IsBulkRevertible"/>). Not failures, but not reverted either.
+    /// </summary>
+    public IReadOnlyList<ChangeRecord> Left { get; init; } = [];
     /// <summary>Records whose target was read back and equals the original.</summary>
     public int Confirmed { get; init; }
     /// <summary>«Title: сейчас X, ожидалось Y» for every record whose read-back differs from the original.</summary>
@@ -155,12 +166,20 @@ public static class UserScope
         _ => false,
     };
 
-    /// <summary>"DOMAIN\user" for a SID, or the SID itself when it cannot be resolved.</summary>
-    public static string AccountName(string sid)
+    private static readonly ConcurrentDictionary<string, string> AccountNames = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// "DOMAIN\user" for a SID, or the SID itself when it cannot be resolved. Blocking on the first call per SID (an LSA
+    /// lookup can wait seconds for an unreachable domain controller): call off the UI thread; the result is cached.
+    /// </summary>
+    public static string AccountName(string sid) => AccountNames.GetOrAdd(sid, static s =>
     {
-        try { return new SecurityIdentifier(sid).Translate(typeof(NTAccount)).Value; }
-        catch { return sid; }
-    }
+        try { return new SecurityIdentifier(s).Translate(typeof(NTAccount)).Value; }
+        catch { return s; }
+    });
+
+    /// <summary>The name <see cref="AccountName"/> already resolved, or the SID itself. Never blocks (UI thread).</summary>
+    public static string CachedAccountName(string sid) => AccountNames.TryGetValue(sid, out var name) ? name : sid;
 
     public static string OtherAccountMessage(string sid) =>
         $"Изменение сделано для учётной записи {AccountName(sid)}; войдите под ней, чтобы отменить";
@@ -223,6 +242,22 @@ public sealed class ChangeJournal
     }
 
     private readonly object _lock = new();
+
+    /// <summary>
+    /// One revert or one journaled change at a time, journal-wide. A revert holds it for its whole run; a change holds
+    /// it from reading the live state through <see cref="Add"/> and the system write (see <see cref="Exclusive{T}"/>).
+    /// Otherwise a revert could hand an original to a layer that is being restored, or a new layer could record the
+    /// state from the middle of a revert as its original.
+    /// </summary>
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly AsyncLocal<GateHold?> _gateHold = new();
+
+    /// <summary>Marks the flow that holds the gate; it is no longer valid once released (a captured context cannot reuse it).</summary>
+    private sealed class GateHold
+    {
+        public volatile bool Held = true;
+    }
+
     /// <summary>Null: an in-memory journal (tests).</summary>
     private readonly string? _path;
     /// <summary>The real journal in %ProgramData%: only an elevated process may write it.</summary>
@@ -322,6 +357,45 @@ public sealed class ChangeJournal
         return true;
     }
 
+    // ───────────────────────────── Gate ─────────────────────────────
+
+    /// <summary>
+    /// Runs <paramref name="body"/> while no revert and no other journaled change runs. Blocking wait: call off the UI
+    /// thread. Re-entrant: a body that already holds the gate (a tweak's apply calling the session) runs straight away.
+    /// </summary>
+    public T Exclusive<T>(Func<T> body)
+    {
+        if (_gateHold.Value is { Held: true }) return body();
+        _gate.Wait();
+        var previous = _gateHold.Value;
+        var hold = new GateHold();
+        _gateHold.Value = hold;
+        try { return body(); }
+        finally
+        {
+            hold.Held = false;
+            _gateHold.Value = previous;
+            _gate.Release();
+        }
+    }
+
+    public void Exclusive(Action body) => Exclusive(() => { body(); return true; });
+
+    /// <summary>As <see cref="Exclusive{T}"/>, waiting asynchronously; the gate stays held across the awaits of <paramref name="body"/>.</summary>
+    public async Task<T> ExclusiveAsync<T>(Func<Task<T>> body)
+    {
+        if (_gateHold.Value is { Held: true }) return await body().ConfigureAwait(false);
+        await _gate.WaitAsync().ConfigureAwait(false);
+        var hold = new GateHold();
+        _gateHold.Value = hold; // set inside this async method: seen by body, never by the caller
+        try { return await body().ConfigureAwait(false); }
+        finally
+        {
+            hold.Held = false;
+            _gate.Release();
+        }
+    }
+
     // ───────────────────────────── Accounts and layers ─────────────────────────────
 
     private static bool SameTarget(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
@@ -329,18 +403,48 @@ public sealed class ChangeJournal
     /// <summary>Records compared by identity (two records never stand for the same change).</summary>
     public static readonly IEqualityComparer<ChangeRecord> ByReference = ReferenceEqualityComparer.Instance;
 
+    /// <summary>Scope of per-user records from older builds: they name no account, so they never share a scope with an account's records.</summary>
+    internal const string LegacyScope = "LEGACY";
+
     /// <summary>
     /// Whose state a record changed: "" for machine-wide changes, the account SID for per-user ones. Per-user records
-    /// from older builds (no SID) were written into the HKCU of whoever ran MONOLITH, so they count as the current account's.
+    /// from older builds (no SID) may have gone into any account's HKCU: they get a scope of their own, so a new change
+    /// of an account is never layered under or over them (and never inherits their created keys).
     /// </summary>
-    internal static string ScopeOf(ChangeRecord r, string? currentSid) =>
-        !r.IsPerUser ? "" : (r.UserSid ?? currentSid ?? "?").ToUpperInvariant();
+    internal static string ScopeOf(ChangeRecord r) =>
+        !r.IsPerUser ? "" : r.UserSid is { } sid ? sid.ToUpperInvariant() : LegacyScope;
+
+    /// <summary>
+    /// For a per-user record from an older build: the newest active record of the current account on the same target
+    /// — that change sets the value in this profile now. Null when there is none, or <paramref name="r"/> is not such a record.
+    /// Restoring the old record would overwrite that change, so it waits until the change is reverted.
+    /// </summary>
+    internal static ChangeRecord? ShadowOf(IReadOnlyList<ChangeRecord> records, ChangeRecord r, string? currentSid)
+    {
+        if (!r.IsLegacyPerUser || r.Reverted || r.Target.Length == 0 || currentSid is null) return null;
+        for (var i = records.Count - 1; i >= 0; i--)
+        {
+            var x = records[i];
+            if (!x.Reverted && x.UserSid is { } sid && UserScope.Same(sid, currentSid) && SameTarget(x.Target, r.Target)) return x;
+        }
+        return null;
+    }
+
+    /// <summary>See <see cref="ShadowOf"/>.</summary>
+    public ChangeRecord? ShadowedBy(ChangeRecord r)
+    {
+        var sid = UserScope.CurrentSid;
+        lock (_lock) return ShadowOf(_data.Records, r, sid);
+    }
 
     /// <summary>True for a per-user change recorded for another Windows account: it is never reverted from this one.</summary>
     public static bool IsOtherUser(ChangeRecord r, string? currentSid) =>
         r.UserSid is { } sid && !UserScope.Same(sid, currentSid);
 
-    /// <summary>Machine-wide changes and the current account's own (including older per-user records without a SID).</summary>
+    /// <summary>
+    /// Machine-wide changes and the current account's own. Older per-user records without a SID are not another
+    /// account's (they can be reverted here, from their row or their tweak), but they are not layered with this account's.
+    /// </summary>
     public static bool IsMine(ChangeRecord r) => !IsOtherUser(r, UserScope.CurrentSid);
 
     /// <summary>
@@ -349,18 +453,21 @@ public sealed class ChangeJournal
     /// </summary>
     public static bool IsBulkRevertible(ChangeRecord r) => !r.Reverted && IsMine(r) && !r.IsLegacyPerUser;
 
+    /// <summary>Active records a bulk revert leaves on purpose (another account's, or an older per-user record without one).</summary>
+    public static bool IsLeftByBulk(ChangeRecord r) => !r.Reverted && !IsBulkRevertible(r);
+
     /// <summary>The next newer active layer of <paramref name="r"/>'s target in the same scope, or null when <paramref name="r"/> sets the live value.</summary>
-    internal static ChangeRecord? NewerLayer(IReadOnlyList<ChangeRecord> records, ChangeRecord r, string? currentSid)
+    internal static ChangeRecord? NewerLayer(IReadOnlyList<ChangeRecord> records, ChangeRecord r)
     {
         var i = -1;
         for (var k = 0; k < records.Count; k++)
             if (ReferenceEquals(records[k], r)) { i = k; break; }
         if (i < 0 || r.Target.Length == 0) return null;
-        var scope = ScopeOf(r, currentSid);
+        var scope = ScopeOf(r);
         for (var j = i + 1; j < records.Count; j++)
         {
             var n = records[j];
-            if (!n.Reverted && SameTarget(n.Target, r.Target) && ScopeOf(n, currentSid) == scope) return n;
+            if (!n.Reverted && SameTarget(n.Target, r.Target) && ScopeOf(n) == scope) return n;
         }
         return null;
     }
@@ -368,6 +475,7 @@ public sealed class ChangeJournal
     /// <summary>
     /// The active records that set the live value of their target (the newest layer per target and scope), in input
     /// order. Drift checks and live reads compare only these with the system: an older layer's value is already replaced.
+    /// An older build's per-user record under the current account's own change of the same value is not one either.
     /// </summary>
     public static IReadOnlyList<ChangeRecord> TopLayers(IEnumerable<ChangeRecord> records, string? currentSid = null)
     {
@@ -377,7 +485,7 @@ public sealed class ChangeJournal
         for (var i = active.Count - 1; i >= 0; i--)
         {
             var r = active[i];
-            if (r.Target.Length == 0 || seen.Add(ScopeOf(r, currentSid) + "|" + r.Target)) tops.Add(r);
+            if ((r.Target.Length == 0 || seen.Add(ScopeOf(r) + "|" + r.Target)) && ShadowOf(active, r, currentSid) is null) tops.Add(r);
         }
         tops.Reverse();
         return tops;
@@ -391,7 +499,10 @@ public sealed class ChangeJournal
             return _data.Records.LastOrDefault(r => !r.Reverted && SameTarget(r.Target, target) && !IsOtherUser(r, sid));
     }
 
-    /// <summary>Every active layer of a target for the current account, oldest first (the last one sets the live value).</summary>
+    /// <summary>
+    /// Every active change of a target for the current account, oldest first (the last one sets the live value). Older
+    /// per-user records without an account come first; they are not layers of the account's own records (<see cref="ScopeOf"/>).
+    /// </summary>
     public IReadOnlyList<ChangeRecord> ActiveLayers(string target)
     {
         var sid = UserScope.CurrentSid;
@@ -402,8 +513,7 @@ public sealed class ChangeJournal
     /// <summary>The newer active change that now sets <paramref name="r"/>'s target, or null when <paramref name="r"/> does.</summary>
     public ChangeRecord? NewerLayer(ChangeRecord r)
     {
-        var sid = UserScope.CurrentSid;
-        lock (_lock) return r.Reverted ? null : NewerLayer(_data.Records, r, sid);
+        lock (_lock) return r.Reverted ? null : NewerLayer(_data.Records, r);
     }
 
     public bool HasActiveSource(string source)
@@ -427,19 +537,19 @@ public sealed class ChangeJournal
     /// <summary>
     /// For a write of a value into <paramref name="path"/>: the shallowest key MONOLITH created that covers it, from an
     /// active record of the same hive and account. A value written into such a key inherits it, so whichever record is
-    /// reverted last removes the created keys, in any order. Records from older builds count with their own key only.
+    /// reverted last removes the created keys, in any order. Records from older builds count with their own key only,
+    /// and a write of an account never inherits a key from an older per-user record without an account.
     /// </summary>
     public string? InheritedKeyRoot(RegHive hive, string path, string? userSid)
     {
-        var sid = UserScope.CurrentSid;
-        var scope = hive == RegHive.HKCU ? (userSid ?? sid ?? "?").ToUpperInvariant() : "";
+        var scope = hive == RegHive.HKCU ? userSid?.ToUpperInvariant() ?? LegacyScope : "";
         string? best = null;
         lock (_lock)
         {
             foreach (var r in _data.Records)
             {
                 if (r.Reverted || r.Kind != ChangeKind.Registry || r.Registry is not { } s || s.Hive != hive) continue;
-                if (ScopeOf(r, sid) != scope) continue;
+                if (ScopeOf(r) != scope) continue;
                 var root = s.CreatedKeyRoot ?? (!s.KeyExisted ? s.Path : null);
                 if (root is not null && RegistryHelper.IsSameOrAncestor(root, path)) best = RegistryHelper.ShallowerRoot(best, root);
             }
@@ -459,12 +569,11 @@ public sealed class ChangeJournal
     {
         ChangeRecord result;
         bool isNew;
-        var sid = UserScope.CurrentSid;
         lock (_lock)
         {
-            var scope = ScopeOf(record, sid);
+            var scope = ScopeOf(record);
             var top = record.Target.Length == 0 ? null
-                : _data.Records.LastOrDefault(r => !r.Reverted && SameTarget(r.Target, record.Target) && ScopeOf(r, sid) == scope);
+                : _data.Records.LastOrDefault(r => !r.Reverted && SameTarget(r.Target, record.Target) && ScopeOf(r) == scope);
             if (top is not null && CanMerge(top, record))
             {
                 result = top;
@@ -523,12 +632,44 @@ public sealed class ChangeJournal
     /// <summary>
     /// Reverts the given records, newest first. A record whose target has a newer active layer (same account) is not
     /// restored in the system: the newer layer takes over its original (and the plan copy it created, while that plan
-    /// is in use) and the record is marked reverted — the newer change keeps working, and its own undo later goes back
-    /// to the state from before both. Every other record is restored and, when <paramref name="verify"/> is given,
+    /// is still needed) and the record is marked reverted — the newer change keeps working, and its own undo later goes
+    /// back to the state from before both. Every other record is restored and, when <paramref name="verify"/> is given,
     /// read back right away; the result is stored on the record (<see cref="ChangeRecord.RevertMismatch"/>).
-    /// The journal is saved after every record. Another account's records are refused.
+    /// The journal is saved after every record. Another account's records are refused, and so is an older per-user
+    /// record while the current account's own later change of the same value is active (<see cref="ShadowOf"/>).
+    /// Runs under the journal gate: no other revert and no journaled change runs meanwhile.
     /// </summary>
     public async Task<RevertResult> RevertAsync(IEnumerable<ChangeRecord> records, Func<ChangeRecord, RevertCheck>? verify = null)
+    {
+        var result = await ExclusiveAsync(() => RevertCoreAsync(records, verify)).ConfigureAwait(false);
+        Changed?.Invoke();
+        return result;
+    }
+
+    /// <summary>Picks the records under the gate (so the list sees every earlier revert), reverts them and reports what was left on purpose.</summary>
+    private async Task<RevertResult> RevertSelectedAsync(Func<(List<ChangeRecord> Revert, List<ChangeRecord> Left)> select,
+        Func<ChangeRecord, RevertCheck>? verify)
+    {
+        var result = await ExclusiveAsync(async () =>
+        {
+            List<ChangeRecord> revert, left;
+            lock (_lock) (revert, left) = select();
+            var r = await RevertCoreAsync(revert, verify).ConfigureAwait(false);
+            return r with { Left = left };
+        }).ConfigureAwait(false);
+        Changed?.Invoke();
+        return result;
+    }
+
+    /// <summary>What a revert reads to put a record back: compared after the restore as a backstop to the gate.</summary>
+    private readonly record struct RestoreInputs(string OldValue, RegistryValueSnapshot? Registry, ServiceStartSnapshot? Service,
+        Guid? PlanOriginal, Guid? PlanCreated, string PlansMore, bool? TaskWasEnabled, string? RevertFile, string? RevertArgs)
+    {
+        public static RestoreInputs Of(ChangeRecord r) => new(r.OldValue, r.Registry, r.Service, r.PowerSchemeOriginal,
+            r.PowerSchemeCreated, string.Join(",", r.PowerSchemesCreatedMore ?? []), r.TaskWasEnabled, r.RevertFile, r.RevertArgs);
+    }
+
+    private async Task<RevertResult> RevertCoreAsync(IEnumerable<ChangeRecord> records, Func<ChangeRecord, RevertCheck>? verify)
     {
         List<ChangeRecord> list;
         lock (_lock)
@@ -557,8 +698,12 @@ public sealed class ChangeJournal
                 if (JournalTrust.Check(r) is { } refusal)
                     throw new InvalidOperationException($"Отказано: {refusal}. Такую запись MONOLITH создать не мог.");
 
-                ChangeRecord? newer;
-                lock (_lock) newer = NewerLayer(_data.Records, r, sid);
+                ChangeRecord? newer, shadow;
+                lock (_lock)
+                {
+                    newer = NewerLayer(_data.Records, r);
+                    shadow = newer is null ? ShadowOf(_data.Records, r, sid) : null;
+                }
                 if (newer is not null)
                 {
                     saved &= HandOver(r, newer);
@@ -566,8 +711,11 @@ public sealed class ChangeJournal
                     JournalLog.Success($"Откат «{r.Title}»: значение сейчас задаёт более позднее изменение «{newer.Title}» — система не изменена, исходное значение передано ему.");
                     continue;
                 }
+                if (shadow is not null)
+                    throw new InvalidOperationException(
+                        $"сейчас это значение в профиле текущей учётной записи задаёт более позднее изменение «{shadow.Title}» — сначала откатите его");
 
-                var outcome = await SystemAccess.RestoreAsync(r).ConfigureAwait(false);
+                var outcome = await RestoreCheckedAsync(r).ConfigureAwait(false);
                 lock (_lock)
                 {
                     r.Reverted = true;
@@ -611,11 +759,31 @@ public sealed class ChangeJournal
         saved &= Save();
         if (!saved && list.Count > 0)
             JournalLog.Error("Журнал изменений не удалось сохранить после отката — после перезапуска откаченные записи могут снова показаться активными.");
-        Changed?.Invoke();
         return new RevertResult(ok + handed, failed, errors, saved)
         {
             HandedOver = handed, Confirmed = confirmed, Mismatches = mismatches, Notes = notes,
         };
+    }
+
+    /// <summary>
+    /// Restores <paramref name="r"/> in the system. Backstop to the gate: the restore inputs are read before the await
+    /// and compared after it; when they changed meanwhile, the restore runs again with the new ones (and gives up with
+    /// an error after three tries, leaving the record active) instead of marking a stale restore as done.
+    /// </summary>
+    private async Task<RevertOutcome> RestoreCheckedAsync(ChangeRecord r)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            RestoreInputs before;
+            lock (_lock) before = RestoreInputs.Of(r);
+            var outcome = await SystemAccess.RestoreAsync(r).ConfigureAwait(false);
+            bool same;
+            lock (_lock) same = RestoreInputs.Of(r) == before;
+            if (same) return outcome;
+            if (attempt >= 3)
+                throw new InvalidOperationException("исходное значение менялось во время отката — запись оставлена активной, повторите откат");
+            JournalLog.Warn($"Откат «{r.Title}»: исходное значение изменилось во время отката — откат повторён.");
+        }
     }
 
     private static RevertCheck SafeVerify(Func<ChangeRecord, RevertCheck> verify, ChangeRecord r)
@@ -640,16 +808,17 @@ public sealed class ChangeJournal
     /// <summary>
     /// Reverting <paramref name="r"/> while <paramref name="newer"/> sets the same target: nothing changes in the system.
     /// The newer layer takes over r's original (registry snapshot, service start, plan, task state, or the absolute undo
-    /// command of the catalog — so it stays a valid record), and r is marked reverted. A plan copy r created is handed
-    /// over while it is the active plan; otherwise it is deleted now. Returns whether the journal was saved.
+    /// command of the catalog — so it stays a valid record), and r is marked reverted. A plan copy r created is kept
+    /// (and handed over) while it is still needed: it is the active plan, or another active layer goes back to it on its
+    /// undo; otherwise it is deleted now. Returns whether the journal was saved.
     /// </summary>
     private bool HandOver(ChangeRecord r, ChangeRecord newer)
     {
         if (r.Kind != newer.Kind) throw new InvalidOperationException("Отказано: у изменений одной цели разный тип.");
         var created = r.Kind == ChangeKind.PowerScheme ? CreatedSchemes(r) : [];
         var active = created.Count > 0 ? SystemAccess.ActivePowerScheme() : Guid.Empty;
-        var inUse = created.Where(c => c == active).ToList();
-        var drop = created.Where(c => c != active).ToList();
+        var keep = created.Count == 0 ? [] : StillNeededPlans(r, newer, created, active);
+        var drop = created.Except(keep).ToList();
         var newerMayOwnPlans = JournalTrust.IsTweakish(newer);
         bool saved;
         lock (_lock)
@@ -670,7 +839,7 @@ public sealed class ChangeJournal
             }
             if (newerMayOwnPlans)
             {
-                foreach (var c in inUse)
+                foreach (var c in keep)
                 {
                     if (newer.PowerSchemeCreated is null) newer.PowerSchemeCreated = c;
                     else if (newer.PowerSchemeCreated != c && newer.PowerSchemesCreatedMore?.Contains(c) != true)
@@ -696,12 +865,12 @@ public sealed class ChangeJournal
             r.HandedTo = newer.Id;
             r.RevertVerifiedUtc = null;
             r.RevertMismatch = null;
-            r.RevertNote = !newerMayOwnPlans && inUse.Count > 0
-                ? "Созданная MONOLITH схема питания сейчас включена, поэтому не удалена: удалите её в «Электропитании» после смены схемы."
+            r.RevertNote = !newerMayOwnPlans && keep.Count > 0
+                ? "Созданная MONOLITH схема питания ещё нужна (она включена или к ней вернёт откат более позднего изменения), поэтому не удалена: удалите её в «Электропитании», когда она станет не нужна."
                 : null;
             saved = SaveLocked();
         }
-        if (!newerMayOwnPlans && inUse.Count > 0) JournalLog.Warn($"«{r.Title}»: {r.RevertNote}");
+        if (!newerMayOwnPlans && keep.Count > 0) JournalLog.Warn($"«{r.Title}»: {r.RevertNote}");
 
         var gone = new List<Guid>();
         foreach (var c in drop)
@@ -715,6 +884,26 @@ public sealed class ChangeJournal
         }
         if (gone.Count > 0) saved &= CloseSettingsOfDeletedPlans(gone);
         return saved;
+    }
+
+    /// <summary>
+    /// The plan copies of <paramref name="r"/> that must survive its hand-over to <paramref name="newer"/>: the active
+    /// plan, and every plan another active layer goes back to on its undo. The newer layer counts with the original it
+    /// takes over from r (its own original — often r's copy — is replaced by it).
+    /// </summary>
+    private List<Guid> StillNeededPlans(ChangeRecord r, ChangeRecord newer, IReadOnlyList<Guid> created, Guid active)
+    {
+        HashSet<Guid> referenced;
+        lock (_lock)
+        {
+            referenced = _data.Records
+                .Where(x => !x.Reverted && !ReferenceEquals(x, r) && !ReferenceEquals(x, newer)
+                            && x.Kind == ChangeKind.PowerScheme && SameTarget(x.Target, r.Target))
+                .Select(x => x.PowerSchemeOriginal ?? Guid.Empty)
+                .ToHashSet();
+        }
+        if (r.PowerSchemeOriginal is { } original) referenced.Add(original);
+        return created.Where(c => c == active || referenced.Contains(c)).ToList();
     }
 
     /// <summary>
@@ -745,19 +934,51 @@ public sealed class ChangeJournal
         }
     }
 
-    public Task<RevertResult> RevertSourceAsync(string source, Func<ChangeRecord, RevertCheck>? verify = null)
+    /// <summary>
+    /// The records a revert of <paramref name="sources"/> (a tweak, a page) undoes, and the ones it leaves. Undone: active
+    /// and not another account's. Left: an older per-user record under the current account's own later change of the same
+    /// value (<see cref="ShadowOf"/>) — the old record may be another account's, so its original is not written over this
+    /// profile's change. It can still be reverted from its own row once that change is reverted.
+    /// </summary>
+    public (IReadOnlyList<ChangeRecord> Revert, IReadOnlyList<ChangeRecord> Left) SourceCandidates(IReadOnlyCollection<string> sources)
     {
         var sid = UserScope.CurrentSid;
-        List<ChangeRecord> items;
-        lock (_lock) items = _data.Records.Where(r => !r.Reverted && r.TouchedBy(source) && !IsOtherUser(r, sid)).ToList();
-        return RevertAsync(items, verify);
+        lock (_lock) return SourceCandidatesLocked(sources, sid);
     }
 
-    public Task<RevertResult> RevertBatchAsync(Guid batchId, Func<ChangeRecord, RevertCheck>? verify = null) =>
-        RevertAsync(BatchCandidates(batchId), verify);
+    private (List<ChangeRecord> Revert, List<ChangeRecord> Left) SourceCandidatesLocked(IReadOnlyCollection<string> sources, string? sid)
+    {
+        var revert = new List<ChangeRecord>();
+        var left = new List<ChangeRecord>();
+        foreach (var r in _data.Records)
+        {
+            if (r.Reverted || IsOtherUser(r, sid) || !sources.Any(r.TouchedBy)) continue;
+            (ShadowOf(_data.Records, r, sid) is null ? revert : left).Add(r);
+        }
+        return (revert, left);
+    }
 
+    public Task<RevertResult> RevertSourceAsync(string source, Func<ChangeRecord, RevertCheck>? verify = null) =>
+        RevertSourcesAsync([source], verify);
+
+    /// <summary>Reverts what <paramref name="sources"/> changed for this account (see <see cref="SourceCandidates"/>).</summary>
+    public Task<RevertResult> RevertSourcesAsync(IReadOnlyCollection<string> sources, Func<ChangeRecord, RevertCheck>? verify = null)
+    {
+        var sid = UserScope.CurrentSid;
+        return RevertSelectedAsync(() => SourceCandidatesLocked(sources, sid), verify);
+    }
+
+    /// <summary>Reverts a batch (see <see cref="IsBulkRevertible"/>); <see cref="RevertResult.Left"/> names the records it left.</summary>
+    public Task<RevertResult> RevertBatchAsync(Guid batchId, Func<ChangeRecord, RevertCheck>? verify = null) =>
+        RevertSelectedAsync(() =>
+        {
+            var batch = _data.Records.Where(r => r.BatchId == batchId).ToList();
+            return (batch.Where(IsBulkRevertible).ToList(), batch.Where(IsLeftByBulk).ToList());
+        }, verify);
+
+    /// <summary>«ОТКАТИТЬ ВСЁ» (see <see cref="IsBulkRevertible"/>); <see cref="RevertResult.Left"/> names the records it left.</summary>
     public Task<RevertResult> RevertAllAsync(Func<ChangeRecord, RevertCheck>? verify = null) =>
-        RevertAsync(RevertAllCandidates(), verify);
+        RevertSelectedAsync(() => (_data.Records.Where(IsBulkRevertible).ToList(), _data.Records.Where(IsLeftByBulk).ToList()), verify);
 
     /// <summary>
     /// Registry locations MONOLITH never writes during an undo: autostart and process-hijack points.

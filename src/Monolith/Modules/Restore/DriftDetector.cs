@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.ServiceProcess;
 using Monolith.Core;
+using Monolith.Modules.Startup;
 
 namespace Monolith.Modules.Restore;
 
@@ -61,11 +62,15 @@ public static class DriftDetector
         {
             if (!IsCandidate(r)) continue;
             var live = read(r);
-            var drifted = IsStartupEntry(r) ? StartupDrift(r.NewValue, live.Text) : live.Drifted;
+            var drifted = !IsStartupEntry(r) ? live.Drifted
+                : IsPackagedMark(r) ? PackagedDrift(r.NewValue, live.Text)
+                : StartupDrift(r.NewValue, live.Text);
             if (drifted != true) continue;
             if (skip.Contains(IgnoreKey(r, DisplayValue(r, live.Text)))) continue; // same form as DriftItem.IgnoreKey
             var tweakId = TweakIdOf(r);
             var fix = ClassifyFix(r, tweakId is not null && tweakExists(tweakId));
+            // A state set by policy (3/4) is never written: the row only shows the owning page.
+            if (fix == DriftFix.StartupEntry && IsPackagedMark(r) && PackagedStartup.IsPolicy(PackagedStateOf(live.Text))) fix = DriftFix.None;
             result.Add(new DriftItem(r, DisplayValue(r, r.NewValue), DisplayValue(r, live.Text), fix,
                 fix == DriftFix.Tweak ? tweakId : null, OwnerPage(LatestSource(r))));
         }
@@ -85,6 +90,10 @@ public static class DriftDetector
     }
 
     public static bool IsStartupEntry(ChangeRecord r) => r.Kind == ChangeKind.Registry && LatestSource(r) == StartupSource;
+
+    /// <summary>A packaged (MSIX) app's startup task: DWORD State, not a StartupApproved mark.</summary>
+    public static bool IsPackagedMark(ChangeRecord r) =>
+        IsStartupEntry(r) && r.Registry is { } reg && JournalTrust.IsPackagedStartupMark(reg);
 
     public static DriftFix ClassifyFix(ChangeRecord r, bool tweakFound)
     {
@@ -143,14 +152,16 @@ public static class DriftDetector
     };
 
     /// <summary>
-    /// StartupApproved state from a value description: "удалено"/"отсутствовало" = enabled (no mark), otherwise
-    /// "Binary: XX …" where an odd first byte means disabled (same rule as Task Manager). Null when unreadable.
+    /// Startup state from a value description. StartupApproved marks: "удалено"/"отсутствовало" = enabled (no mark),
+    /// otherwise "Binary: XX …" where an odd first byte means disabled (same rule as Task Manager). Packaged-app startup
+    /// tasks: "DWord: N", 2 or 4 = enabled, 0, 1 or 3 = disabled. Null when unreadable.
     /// </summary>
     public static bool? StartupEnabledOf(string? text)
     {
         var t = text?.Trim();
         if (string.IsNullOrEmpty(t) || t == LiveState.Unknown) return null;
         if (t is "удалено" or "отсутствовало") return true;
+        if (PackagedStateOf(t) is { } state) return PackagedStartup.IsEnabled(state);
         const string prefix = "Binary:";
         if (!t.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
         var hex = t[prefix.Length..].Trim();
@@ -159,14 +170,33 @@ public static class DriftDetector
         return byte.TryParse(first, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b) ? (b & 1) == 0 : null;
     }
 
+    /// <summary>A packaged startup task's State (0–4) from "DWord: N"; null for anything else.</summary>
+    public static int? PackagedStateOf(string? text)
+    {
+        const string prefix = "DWord:";
+        var t = text?.Trim();
+        if (t is null || !t.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
+        return int.TryParse(t[prefix.Length..].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var state) && state is >= 0 and <= 4
+            ? state : null;
+    }
+
     /// <summary>Startup marks carry a timestamp, so only the enabled/disabled state is compared.</summary>
     public static bool? StartupDrift(string? applied, string? live) =>
         StartupEnabledOf(applied) is { } a && StartupEnabledOf(live) is { } l ? a != l : null;
 
+    /// <summary>Packaged startup tasks: on/off compared on the DWORD states; a missing task (app removed) cannot be compared.</summary>
+    public static bool? PackagedDrift(string? applied, string? live) =>
+        PackagedStateOf(applied) is { } a && PackagedStateOf(live) is { } l ? PackagedStartup.IsEnabled(a) != PackagedStartup.IsEnabled(l) : null;
+
     /// <summary>Readable value for the row: startup marks as «включён/отключён», everything else as is.</summary>
     public static string DisplayValue(ChangeRecord r, string? value)
     {
-        if (IsStartupEntry(r) && StartupEnabledOf(value) is { } enabled) return enabled ? "автозапуск включён" : "автозапуск отключён";
+        if (IsPackagedMark(r))
+        {
+            if (PackagedStateOf(value) is { } state)
+                return (PackagedStartup.IsEnabled(state) ? "автозапуск включён" : "автозапуск отключён") + (PackagedStartup.IsPolicy(state) ? " политикой" : "");
+        }
+        else if (IsStartupEntry(r) && StartupEnabledOf(value) is { } enabled) return enabled ? "автозапуск включён" : "автозапуск отключён";
         return string.IsNullOrWhiteSpace(value) ? LiveState.Unknown : value.Trim();
     }
 

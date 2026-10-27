@@ -122,7 +122,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                 lines, confirmText: "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
             if (ok)
             {
-                var result = await ChangeJournal.Instance.RevertAsync(stale);
+                var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(stale));
                 Ui.Toast(result.Success ? "Изменения игрового сеанса отменены." : string.Join("\n", result.Errors),
                     result.Success ? ToastKind.Success : ToastKind.Error);
             }

@@ -52,7 +52,9 @@ public static class TweakEngine
                 var before = session.Applied;
                 try
                 {
-                    t.Apply(new TweakContext { Session = session, System = sp, Tweak = t });
+                    // The journal gate covers the whole tweak: it reads the live state (DNS servers, the active plan…)
+                    // before it calls the session, and no revert may change that state in between.
+                    session.Exclusive(() => t.Apply(new TweakContext { Session = session, System = sp, Tweak = t }));
                 }
                 catch (Exception ex)
                 {
@@ -82,17 +84,13 @@ public static class TweakEngine
     /// Reverts exactly what this tweak changed (its own journal records, for this account), restoring the state from
     /// before it. Where another change was made later to the same setting, that later change keeps its value and takes
     /// over the original (see <see cref="ChangeJournal.RevertAsync"/>). <paramref name="verify"/> reads each target back.
+    /// Older per-user records the account's own later change covers are left (<see cref="RevertResult.Left"/>).
     /// </summary>
     public static Task<RevertResult> RevertAsync(Tweak tweak, Func<ChangeRecord, RevertCheck>? verify = null) =>
         ChangeJournal.Instance.RevertSourceAsync("tweak:" + tweak.Id, verify);
 
-    public static async Task<RevertResult> RevertAsync(IEnumerable<Tweak> tweaks, Func<ChangeRecord, RevertCheck>? verify = null)
-    {
-        var sources = tweaks.Select(t => "tweak:" + t.Id).ToHashSet();
-        var records = ChangeJournal.Instance.ActiveRecords
-            .Where(r => (sources.Contains(r.Source) || r.AlsoSources.Any(sources.Contains)) && ChangeJournal.IsMine(r));
-        return await ChangeJournal.Instance.RevertAsync(records, verify).ConfigureAwait(false);
-    }
+    public static Task<RevertResult> RevertAsync(IEnumerable<Tweak> tweaks, Func<ChangeRecord, RevertCheck>? verify = null) =>
+        ChangeJournal.Instance.RevertSourcesAsync(tweaks.Select(t => "tweak:" + t.Id).ToHashSet(), verify);
 
     /// <summary>True if this account has an active (not reverted) change of this tweak — i.e. "Undo" is available.</summary>
     public static bool CanRevert(Tweak tweak) => ChangeJournal.Instance.HasActiveSource("tweak:" + tweak.Id);

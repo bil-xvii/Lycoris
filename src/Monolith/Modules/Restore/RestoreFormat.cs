@@ -119,21 +119,55 @@ public static class RestoreFormat
 
     /// <summary>
     /// For every active record that is an older layer (a newer active change of the same target and account exists):
-    /// the record that sets the live value now. Records that set their target themselves are not in the map.
+    /// the record that sets the live value now. An older build's per-user record maps to the current account's own
+    /// change of the same value (<see cref="ChangeJournal.ShadowOf"/>). Records that set their target themselves are not in the map.
     /// </summary>
     public static IReadOnlyDictionary<Guid, ChangeRecord> CoveredBy(IReadOnlyList<ChangeRecord> records, string? currentSid)
     {
-        var tops = ChangeJournal.TopLayers(records, currentSid);
+        var active = records.Where(r => !r.Reverted).ToList();
+        var tops = ChangeJournal.TopLayers(active, currentSid);
         var topSet = new HashSet<ChangeRecord>(tops, ChangeJournal.ByReference);
         var byKey = new Dictionary<string, ChangeRecord>(StringComparer.OrdinalIgnoreCase);
-        foreach (var t in tops.Where(t => t.Target.Length > 0)) byKey[ChangeJournal.ScopeOf(t, currentSid) + "|" + t.Target] = t;
+        foreach (var t in tops.Where(t => t.Target.Length > 0)) byKey[ChangeJournal.ScopeOf(t) + "|" + t.Target] = t;
         var result = new Dictionary<Guid, ChangeRecord>();
-        foreach (var r in records)
+        foreach (var r in active)
         {
-            if (r.Reverted || topSet.Contains(r) || r.Target.Length == 0) continue;
-            if (byKey.TryGetValue(ChangeJournal.ScopeOf(r, currentSid) + "|" + r.Target, out var top)) result[r.Id] = top;
+            if (topSet.Contains(r) || r.Target.Length == 0) continue;
+            if (ChangeJournal.ShadowOf(active, r, currentSid) is { } shadow) result[r.Id] = shadow;
+            else if (byKey.TryGetValue(ChangeJournal.ScopeOf(r) + "|" + r.Target, out var top)) result[r.Id] = top;
         }
         return result;
+    }
+
+    /// <summary>
+    /// What a revert put back: «Возвращено значений: N.», plus the records handed over to a later change, which left the
+    /// system as it was (<see cref="RevertResult.HandedOver"/>).
+    /// </summary>
+    public static string RevertCounts(RevertResult r, string returned = "Возвращено значений") =>
+        $"{returned}: {r.Restored}." + (r.HandedOver > 0 ? $" Оставлено действующим более позднее изменение: {r.HandedOver}." : "");
+
+    /// <summary>
+    /// Why a revert left records active on purpose (<see cref="RevertResult.Left"/>, or the records a bulk revert skips),
+    /// one sentence per reason; empty when nothing was left. On the UI thread pass a non-blocking
+    /// <paramref name="accountName"/> (<see cref="UserScope.CachedAccountName"/>).
+    /// </summary>
+    public static string LeftText(IEnumerable<ChangeRecord> left, string? currentSid, Func<string, string> accountName)
+    {
+        var list = left.Where(r => !r.Reverted).ToList();
+        var parts = new List<string>();
+        var others = list.Where(r => ChangeJournal.IsOtherUser(r, currentSid)).ToList();
+        var legacy = list.Count(r => !ChangeJournal.IsOtherUser(r, currentSid) && r.IsLegacyPerUser);
+        if (legacy > 0)
+            parts.Add($"{legacy} {Plural(legacy, "изменение сделано", "изменения сделаны", "изменений сделано")} старой версией MONOLITH " +
+                      $"для неизвестной учётной записи — откатите {(legacy == 1 ? "его" : "их")} по одной в журнале, войдя под той учётной записью.");
+        if (others.Count > 0)
+        {
+            var names = others.Select(r => accountName(r.UserSid!)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            parts.Add($"{others.Count} {Plural(others.Count, "изменение сделано", "изменения сделаны", "изменений сделано")} " +
+                      $"для {(names.Count == 1 ? "учётной записи" : "учётных записей")} {string.Join(", ", names)} — " +
+                      $"{(others.Count == 1 ? "его" : "их")} можно откатить, только войдя под {(names.Count == 1 ? "ней" : "ними")}.");
+        }
+        return string.Join(" ", parts);
     }
 
     /// <summary>A journal source as the user knows it: the tweak's title, or the page that made the change.</summary>
@@ -159,11 +193,13 @@ public static class RestoreFormat
             if (ChangeJournal.IsOtherUser(r, currentSid))
                 parts.Add($"Изменение сделано для учётной записи {accountName(r.UserSid!)}; войдите под ней, чтобы отменить.");
             else if (r.IsLegacyPerUser)
-                parts.Add("Записано старой версией MONOLITH без учётной записи: откат вернёт значение в профиль текущей учётной записи. " +
-                          "«ОТКАТИТЬ ВСЁ» и откат пакета эту запись пропускают.");
+                parts.Add("Записано старой версией MONOLITH без учётной записи: откат запишет исходное значение в профиль текущей " +
+                          "учётной записи, поэтому откатывайте под той, где применяли. «ОТКАТИТЬ ВСЁ» и откат пакета эту запись пропускают.");
             if (coveredBy is not null)
-                parts.Add($"Сейчас значение задаёт более позднее изменение «{coveredBy.Title}»: откат этой записи систему не изменит, " +
-                          "а исходное значение перейдёт к нему.");
+                parts.Add(r.IsLegacyPerUser && coveredBy.UserSid is not null // the account's own change, not a newer old-build layer
+                    ? $"Сейчас значение в профиле этой учётной записи задаёт более позднее изменение «{coveredBy.Title}» — сначала откатите его."
+                    : $"Сейчас значение задаёт более позднее изменение «{coveredBy.Title}»: откат этой записи систему не изменит, " +
+                      "а исходное значение перейдёт к нему.");
             if (r.IsLegacyMerged)
                 parts.Add($"Запись старой версии: откат вернёт значение до MONOLITH и отменит также {string.Join(", ", r.AlsoSources.Distinct().Select(SourceTitle))}.");
             return string.Join(" ", parts);
