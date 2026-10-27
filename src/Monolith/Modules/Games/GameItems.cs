@@ -4,7 +4,7 @@ using Monolith.Core;
 namespace Monolith.Modules.Games;
 
 /// <summary>A game card in the library grid.</summary>
-public sealed class GameCardViewModel
+public sealed partial class GameCardViewModel : ObservableObject
 {
     public GameCardViewModel(GameEntry entry)
     {
@@ -26,6 +26,27 @@ public sealed class GameCardViewModel
 
     /// <summary>0 = dot grid, 1 = diagonal hatch, 2 = plain raised block (deterministic per game).</summary>
     public int CoverVariant { get; }
+
+    // ───────────── Per-game GPU preference (hybrid PCs only; the switch itself is handled by GamesViewModel) ─────────────
+
+    /// <summary>Windows' per-app GPU preference values that belong to this game (read from the registry).</summary>
+    public IReadOnlyList<GpuPreferenceValue> GpuValues { get; private set; } = [];
+
+    /// <summary>True when one of the game's exes is set to «высокая производительность».</summary>
+    [ObservableProperty] private bool _isGpuHigh;
+    /// <summary>Null until the state was read (no empty tooltip box).</summary>
+    [ObservableProperty] private string? _gpuTooltip;
+
+    public void SetGpu(IReadOnlyList<GpuPreferenceValue> values, string tooltip)
+    {
+        GpuValues = values;
+        IsGpuHigh = values.Any(v => v.IsHigh);
+        GpuTooltip = tooltip;
+        SyncGpuToggle();
+    }
+
+    /// <summary>The switch flips itself on click; this pushes the real state back into it (after cancel / failure).</summary>
+    public void SyncGpuToggle() => OnPropertyChanged(nameof(IsGpuHigh));
 
     /// <summary>FNV-1a — stable across runs (string.GetHashCode is randomized per process).</summary>
     private static uint StableHash(string s)
