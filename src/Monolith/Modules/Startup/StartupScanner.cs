@@ -5,7 +5,7 @@ using Monolith.Core;
 
 namespace Monolith.Modules.Startup;
 
-/// <summary>The five places Task Manager reads autostart entries from (docs/research/general_tweaks.md §1).</summary>
+/// <summary>The places Task Manager reads autostart entries from (docs/research/general_tweaks.md §1).</summary>
 public enum StartupSource
 {
     /// <summary>HKCU\Software\Microsoft\Windows\CurrentVersion\Run.</summary>
@@ -18,6 +18,8 @@ public enum StartupSource
     FolderUser,
     /// <summary>%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp.</summary>
     FolderCommon,
+    /// <summary>Startup task of a packaged (MSIX / Store) app: HKCU …\AppModel\SystemAppData\&lt;family&gt;\&lt;task&gt;, DWORD State.</summary>
+    PackagedTask,
 }
 
 /// <summary>Where an entry lives and where Windows keeps its enabled/disabled mark.</summary>
@@ -32,6 +34,8 @@ public static class StartupLocations
     public static bool IsMachine(StartupSource s) => s is StartupSource.RunMachine or StartupSource.Run32Machine or StartupSource.FolderCommon;
 
     public static bool IsFolder(StartupSource s) => s is StartupSource.FolderUser or StartupSource.FolderCommon;
+
+    public static bool IsPackaged(StartupSource s) => s == StartupSource.PackagedTask;
 
     public static RegHive ApprovedHive(StartupSource s) => IsMachine(s) ? RegHive.HKLM : RegHive.HKCU;
 
@@ -56,27 +60,43 @@ public static class StartupLocations
         StartupSource.RunUser => @"HKCU\" + RunKey,
         StartupSource.RunMachine => @"HKLM\" + RunKeyMachine,
         StartupSource.Run32Machine => @"HKLM\" + Run32Key,
+        StartupSource.PackagedTask => @"HKCU\" + PackagedStartup.SystemAppDataKey,
         _ => FolderPath(s),
     };
+
+    /// <summary>Full location of one entry's on/off mark: its StartupApproved value, or a packaged task's State.</summary>
+    public static string DescribeMark(StartupEntry e) => IsPackaged(e.Source)
+        ? $@"HKCU\{PackagedStartup.KeyPath(e.PackageFamilyName ?? "", e.Name)} → {PackagedStartup.StateValue}"
+        : $@"{ApprovedHive(e.Source)}\{ApprovedKey(e.Source)} → «{e.Name}»";
 
     /// <summary>Short label for the table.</summary>
     public static string ShortLabel(StartupSource s) => s switch
     {
         StartupSource.RunUser or StartupSource.RunMachine => "Реестр · Run",
         StartupSource.Run32Machine => "Реестр · Run32",
+        StartupSource.PackagedTask => "Приложение MSIX",
         _ => "Папка автозагрузки",
     };
 
     /// <summary>The key the journal uses for the StartupApproved value of this entry (same format as ChangeSession).</summary>
     public static string JournalTarget(StartupSource s, string name) => $"reg:{ApprovedHive(s)}\\{ApprovedKey(s)}\\{name}";
+
+    /// <summary>The journal key of an entry's mark, for every source.</summary>
+    public static string JournalTarget(StartupEntry e) => IsPackaged(e.Source)
+        ? PackagedStartup.JournalTarget(e.PackageFamilyName ?? "", e.Name)
+        : JournalTarget(e.Source, e.Name);
 }
 
 /// <summary>One autostart entry as found on disk / in the registry.</summary>
 public sealed record StartupEntry
 {
     public required StartupSource Source { get; init; }
-    /// <summary>Registry value name, or the file name (with extension) inside the Startup folder.</summary>
+    /// <summary>Registry value name, the file name (with extension) inside the Startup folder, or a packaged app's TaskId.</summary>
     public required string Name { get; init; }
+    /// <summary>Package family name (packaged tasks only).</summary>
+    public string? PackageFamilyName { get; init; }
+    /// <summary>Live DWORD State of a packaged task (<see cref="PackagedTaskState"/>); null when unreadable or not a packaged task.</summary>
+    public int? PackageState { get; init; }
     public required string DisplayName { get; init; }
     /// <summary>Raw command line (registry) or "target arguments" of the shortcut.</summary>
     public required string Command { get; init; }
@@ -90,6 +110,16 @@ public sealed record StartupEntry
     public bool Enabled { get; init; }
     public DateTime? DisabledAtUtc { get; init; }
     public StartupRisk Risk { get; init; }
+
+    /// <summary>Unique row key (a TaskId is unique only inside its package).</summary>
+    public string Key => PackageFamilyName is { } family ? $"{Source}|{family}\\{Name}" : $"{Source}|{Name}";
+
+    /// <summary>
+    /// Whether MONOLITH may switch this entry at all: Run / Startup-folder marks always; packaged tasks only in a user
+    /// state (0/1/2) and with names the undo journal accepts. Policy-managed tasks (3/4) are never written.
+    /// </summary>
+    public bool CanChange => !StartupLocations.IsPackaged(Source)
+                             || (PackagedStartup.IsUserChangeable(PackageState) && PackagedStartup.IsJournalSafe(PackageFamilyName, Name));
 }
 
 /// <summary>Reads autostart entries exactly where Task Manager does. Read-only.</summary>
@@ -103,11 +133,24 @@ public static class StartupScanner
         ScanRegistry(list, StartupSource.Run32Machine, RegHive.HKLM, StartupLocations.Run32Key);
         ScanFolder(list, StartupSource.FolderUser);
         ScanFolder(list, StartupSource.FolderCommon);
+        list.AddRange(PackagedStartup.Scan());
         list.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.CurrentCultureIgnoreCase));
         return list;
     }
 
-    /// <summary>Current enabled state of one entry, straight from StartupApproved.</summary>
+    /// <summary>The entry with its on/off state read again (StartupApproved mark, or a packaged task's State).</summary>
+    public static StartupEntry Refresh(StartupEntry e)
+    {
+        if (StartupLocations.IsPackaged(e.Source))
+        {
+            var state = PackagedStartup.ReadState(e.PackageFamilyName ?? "", e.Name);
+            return e with { PackageState = state, Enabled = PackagedStartup.IsEnabled(state), DisabledAtUtc = null };
+        }
+        var (enabled, at) = ReadState(e.Source, e.Name);
+        return e with { Enabled = enabled, DisabledAtUtc = at };
+    }
+
+    /// <summary>Current enabled state of one Run / Startup-folder entry, straight from StartupApproved.</summary>
     public static (bool Enabled, DateTime? DisabledAtUtc) ReadState(StartupSource source, string name)
     {
         var raw = RegistryHelper.Read(StartupLocations.ApprovedHive(source), StartupLocations.ApprovedKey(source), name) as byte[];
