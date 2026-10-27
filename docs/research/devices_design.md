@@ -132,7 +132,7 @@ default output card «Выходы мониторов X27U W3, Odyssey G5 не �
 | Формат | info | 48 kHz (never 96/192 as "boost") | link `ms-settings:sound-properties?endpointId=…` |
 | Улучшения звука | info | off when the vendor app does the DSP (INZONE Hub) | link |
 | Пространственный звук | info | off when INZONE 360 / in-game HRTF is used | link |
-| Приглушение во время звонков (default render card) | choice 0–3 | 3 «ничего не делать» for gaming with voice chat (Suggest) | `SetRegistry` HKCU `Software\Microsoft\Multimedia\Audio\UserDuckingPreference` (allow-listed); «вступит в силу после выхода из системы» + link `mmsys.cpl,,3` |
+| Приглушение во время звонков (default render card) | read-only tweak row + «В ОПТИМИЗАЦИИ» | 3 «ничего не делать» for gaming with voice chat (Suggest) | the Optimize RegistryTweak `audio-ducking` (HKCU `Software\Microsoft\Multimedia\Audio\UserDuckingPreference` = 3, SAFE-OPTIONAL, Gaming profile, sign-out), applied from the plan through TweakEngine with its own source `tweak:audio-ducking` — the page itself writes no registry value (review fix); «ВЫХОД ИЗ СИСТЕМЫ» tag + link `mmsys.cpl,,3` to apply at once |
 | Монофонический звук | note (only when on) | off for games | link `ms-settings:easeofaccess-audio` |
 | EQ / 360 Spatial Sound / DRC (INZONE) | note | vendor-only → «ОТКРЫТЬ INZONE HUB» | vendors |
 
@@ -140,8 +140,8 @@ default output card «Выходы мониторов X27U W3, Odyssey G5 не �
 
 | Setting | Control | Recommended | Write |
 |---|---|---|---|
-| Уровень микрофона | slider 0–100 % (+ dB range in hint) | only after the **Проверка уровня** tool: speech peaks −12…−6 dBFS, nothing above −1 dBFS (Suggest, target in dB) | `SetAudioLevel` |
-| Без звука | toggle | — | `SetAudioLevel(mute)` |
+| Уровень микрофона | slider 0–100 % (the endpoint's own dB range in the hint), the level test inline in the row | only after the **Проверка уровня** tool: p95 speech peaks at −9 dBFS but no sample above −1 dBFS, only lower when samples clipped (Suggest, absolute dB target compared within 0,5 dB); the main microphone shows «НУЖНО ИЗМЕРЕНИЕ» until measured; the result is dropped (re-measure) when the level moves > 0,5 dB or MONOLITH changes it | `SetAudioLevel` (target `audio:level:<id>`), per-user |
+| Без звука | toggle | — | `SetAudioLevel(mute)` (separate target `audio:mute:<id>`: undo restores only its own part), per-user |
 | Доступ приложений к микрофону | note (only when Deny) | link `ms-settings:privacy-microphone` | — |
 | Усиление / АРУ | v1: not implemented (driver exposes none on this PC; deferred to v2, see §9) | | |
 | Частота дискретизации / микшер (Razer) | note | vendor-only → «ОТКРЫТЬ RAZER SYNAPSE» | vendors |

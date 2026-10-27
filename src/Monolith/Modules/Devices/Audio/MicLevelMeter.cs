@@ -66,8 +66,11 @@ public static class MicLevelMeter
             {
                 ct.ThrowIfCancellationRequested();
                 Thread.Sleep(10);
-                while (capture.GetNextPacketSize(out var packet) >= 0 && packet > 0)
+                while (true)
                 {
+                    // An unplugged or reset device fails here (AUDCLNT_E_DEVICE_INVALIDATED): never a silent partial result.
+                    Check(capture.GetNextPacketSize(out var packet), "микрофон отключился во время проверки");
+                    if (packet == 0) break;
                     Check(capture.GetBuffer(out var data, out var frames, out var flags, out _, out _), "чтение записи прервалось");
                     try
                     {
