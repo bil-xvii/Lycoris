@@ -44,7 +44,7 @@
                         <ColumnDefinition Width="250" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="ПОВЕДЕНИЕ" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
+                    <TextBlock Text="Поведение" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
                         <StackPanel>
                             <Border Style="{StaticResource SettingRow}" BorderThickness="0">
@@ -54,7 +54,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,17,0">
-                                        <TextBlock Text="ПОДТВЕРЖДЕНИЕ ПЕРЕД ПРИМЕНЕНИЕМ" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="Подтверждение перед применением" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
                                                    Text="Перед применением показывается точный список изменений. Если выключить, твики применяются сразу; удаление, установка драйверов и другие необратимые действия всё равно спрашивают подтверждение." />
                                     </StackPanel>
@@ -68,7 +68,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,17,0">
-                                        <TextBlock Text="ИНТЕРВАЛ ОБНОВЛЕНИЯ МОНИТОРИНГА" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="Интервал обновления мониторинга" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
                                                    Text="Как часто «Панель» опрашивает загрузку процессора, видеокарты, памяти и дисков. Реже — меньше нагрузка от самого MONOLITH." />
                                     </StackPanel>
@@ -98,7 +98,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,17,0">
-                        <TextBlock Text="ДАННЫЕ" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="Данные" Style="{StaticResource SectionTitle}" />
                         <TextBlock Style="{StaticResource SectionCaption}" Text="Всё хранится на этом компьютере, ничего не отправляется в сеть." />
                     </StackPanel>
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
@@ -114,7 +114,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Margin="0,0,15,0">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding Title}" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding State}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
                                                                    VerticalAlignment="Center" Margin="9,1,0,0" />
                                                     </StackPanel>
@@ -144,7 +144,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Rectangle Fill="{StaticResource B.Hatch}" />
                                 <StackPanel Grid.Column="1" Margin="10,11,15,11">
-                                    <TextBlock Text="СБРОС НАСТРОЕК" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Сброс настроек" Style="{StaticResource RowTitle}" />
                                     <TextBlock Style="{StaticResource RowText}"
                                                Text="Возвращает параметры MONOLITH к значениям по умолчанию. Изменения системы, журнал отката и папки с играми не затрагиваются." />
                                 </StackPanel>
@@ -163,7 +163,7 @@
                         <ColumnDefinition Width="250" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="О ПРОГРАММЕ" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
+                    <TextBlock Text="О программе" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
 
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding VersionLine}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,10,0,0"

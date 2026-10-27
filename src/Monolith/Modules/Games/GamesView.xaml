@@ -477,7 +477,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
                                     <StackPanel Margin="0,10,9,0">
-                                        <TextBlock Text="СХЕМА ПИТАНИЯ" Style="{StaticResource Games.OptionTitle}" />
+                                        <TextBlock Text="Схема питания" Style="{StaticResource Games.OptionTitle}" />
                                         <TextBlock Text="{Binding PowerNote}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding Settings.GameBoostPowerPlan}"
@@ -490,7 +490,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
                                     <StackPanel Margin="0,10,9,0">
-                                        <TextBlock Text="ПРИОРИТЕТ ИГРЫ" Style="{StaticResource Games.OptionTitle}" />
+                                        <TextBlock Text="Приоритет игры" Style="{StaticResource Games.OptionTitle}" />
                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16"
                                                    Text="«Высокий» на время игры — никогда «Реального времени». Эффект небольшой, риск минимальный." />
                                     </StackPanel>
@@ -505,7 +505,7 @@
                                     <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
                                     <StackPanel Margin="0,10,9,0">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="ОЧИСТКА ПАМЯТИ" Style="{StaticResource Games.OptionTitle}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Очистка памяти" Style="{StaticResource Games.OptionTitle}" VerticalAlignment="Center" />
                                             <Border Style="{StaticResource Tag.Muted}" Margin="8,0,0,0" Padding="5,1,5,2">
                                                 <TextBlock Text="ПО ЖЕЛАНИЮ" FontSize="9.5" />
                                             </Border>
@@ -524,7 +524,7 @@
                                     <Rectangle Grid.ColumnSpan="2" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
                                     <StackPanel Margin="0,10,9,0">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="ЗАКРЫТИЕ ПРОГРАММ" Style="{StaticResource Games.OptionTitle}" VerticalAlignment="Center" />
+                                            <TextBlock Text="Закрытие программ" Style="{StaticResource Games.OptionTitle}" VerticalAlignment="Center" />
                                             <Border Style="{StaticResource Tag}" Margin="8,0,0,0" Padding="5,1,5,2">
                                                 <TextBlock Text="{Binding CloseListCount}" FontFamily="{StaticResource F.Mono}" FontSize="10" />
                                             </Border>

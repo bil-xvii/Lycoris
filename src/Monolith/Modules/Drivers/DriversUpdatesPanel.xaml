@@ -202,7 +202,7 @@
                 <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE895;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
-                <TextBlock Text="ПОИСК ДРАЙВЕРОВ В WINDOWS UPDATE" Style="{StaticResource Drv.StateTitle}" />
+                <TextBlock Text="Поиск драйверов в Windows Update" Style="{StaticResource Drv.StateTitle}" />
                 <TextBlock Style="{StaticResource Drv.StateText}"
                            Text="Windows Update сверяет устройства этого компьютера с каталогом Microsoft. Обычно это занимает от 10 секунд до пары минут." />
                 <ProgressBar IsIndeterminate="True" Width="320" Height="3" Margin="0,12,0,0" />
@@ -215,7 +215,7 @@
                 <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE721;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
-                <TextBlock Text="ПОИСК ЕЩЁ НЕ ВЫПОЛНЯЛСЯ" Style="{StaticResource Drv.StateTitle}" />
+                <TextBlock Text="Поиск ещё не выполнялся" Style="{StaticResource Drv.StateTitle}" />
                 <TextBlock Style="{StaticResource Drv.StateText}" Text="Поиск безопасен и ничего не меняет: он только показывает, какие драйверы предлагает Windows Update." />
                 <Button Style="{StaticResource Btn.Primary}" Content="НАЙТИ ОБНОВЛЕНИЯ" Command="{Binding SearchUpdatesCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" />
             </StackPanel>
@@ -226,7 +226,7 @@
                 <Border Width="64" Height="64" Background="{StaticResource B.Hatch}" BorderBrush="{StaticResource B.Text2}" BorderThickness="1" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE7BA;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
-                <TextBlock Text="ПОИСК НЕ УДАЛСЯ" Style="{StaticResource Drv.StateTitle}" />
+                <TextBlock Text="Поиск не удался" Style="{StaticResource Drv.StateTitle}" />
                 <TextBlock Text="{Binding UpdatesError}" Style="{StaticResource Drv.StateText}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
                     <Button Style="{StaticResource Btn.Primary}" Content="ПОВТОРИТЬ" Command="{Binding SearchUpdatesCommand}" />
@@ -243,7 +243,7 @@
                     <Border Width="64" Height="64" Background="{StaticResource B.White}" HorizontalAlignment="Center">
                         <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="21" Foreground="{StaticResource B.Ink}" />
                     </Border>
-                    <TextBlock Text="НОВЫХ ДРАЙВЕРОВ НЕТ" Style="{StaticResource Drv.StateTitle}" />
+                    <TextBlock Text="Новых драйверов нет" Style="{StaticResource Drv.StateTitle}" />
                     <TextBlock Style="{StaticResource Drv.StateText}"
                                Text="Windows Update не предлагает обновлений драйверов для этого компьютера. Свежие видеодрайверы обычно раньше появляются у производителя — смотрите «Обзор»." />
                 </StackPanel>

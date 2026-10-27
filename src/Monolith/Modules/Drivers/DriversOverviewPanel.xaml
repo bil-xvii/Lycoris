@@ -38,7 +38,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="ВИДЕОКАРТЫ" Style="{StaticResource Drv.SectionTitle}" />
+                <TextBlock Text="Видеокарты" Style="{StaticResource Drv.SectionTitle}" />
                 <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0" />
                 <TextBlock Grid.Column="2" Text="ТОЛЬКО ОФИЦИАЛЬНЫЕ ИСТОЧНИКИ ПРОИЗВОДИТЕЛЕЙ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
             </Grid>
@@ -79,7 +79,7 @@
                                             <TextBlock Text="{Binding VerdictText}" />
                                         </Border>
                                     </DockPanel>
-                                    <TextBlock Text="{Binding Name}" Style="{StaticResource T.H1}" Margin="0,10,0,0"
+                                    <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" Margin="0,10,0,0"
                                                TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
 
                                     <Grid Margin="0,11,0,0">
@@ -192,7 +192,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="ПЛАТФОРМА" Style="{StaticResource Drv.SectionTitle}" />
+                <TextBlock Text="Платформа" Style="{StaticResource Drv.SectionTitle}" />
                 <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0,0,0" />
             </Grid>
 
@@ -223,7 +223,7 @@
                                     <TextBlock Text="{Binding ChipsetVerdict}" />
                                 </Border>
                             </DockPanel>
-                            <TextBlock Text="{Binding ChipsetCpu}" Style="{StaticResource T.H1}" FontSize="17"
+                            <TextBlock Text="{Binding ChipsetCpu, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" FontSize="17"
                                        Margin="0,9,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding ChipsetCpu}" />
                             <TextBlock Text="{Binding ChipsetRecommendation}" Style="{StaticResource T.Body}" Margin="0,8,0,0" />
                         </StackPanel>
