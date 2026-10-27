@@ -520,6 +520,85 @@ public sealed class PackagedStartupTests
         Assert.True(StartupChanges.OriginalEnabled(new StartupEntry { Source = StartupSource.RunUser, Name = "x", DisplayName = "x", Command = "x" }, Dw("1")));
     }
 
+    private static ChangeRecord Layer(string? originalState, string source = StartupChanges.EntrySource, string? sid = "S-1-5-21-1-2-3-1001",
+        bool reverted = false) => new()
+    {
+        Source = source, Kind = ChangeKind.Registry, Target = StartupLocations.JournalTarget(Packaged(2)), UserSid = sid, Reverted = reverted,
+        Registry = new RegistryValueSnapshot
+        {
+            Hive = RegHive.HKCU, Path = PackagedStartup.KeyPath(Teams, "TeamsTfwStartupTask"), Name = PackagedStartup.StateValue,
+            KeyExisted = true, ValueExisted = originalState is not null, Kind = RegistryValueKind.DWord, Data = originalState,
+        },
+    };
+
+    [Theory]
+    [InlineData(false, 0, 0)]    // turned on in MONOLITH from 0: turning it off undoes that and restores 0, not 1
+    [InlineData(false, 1, 1)]
+    [InlineData(false, 2, 1)]    // on before MONOLITH: turning it off writes what Task Manager writes
+    [InlineData(false, null, 1)]
+    [InlineData(true, 0, 2)]
+    [InlineData(true, 1, 2)]
+    [InlineData(true, 2, 2)]
+    [InlineData(true, 4, 4)]
+    [InlineData(true, null, 2)]
+    public void A_switch_leaves_the_original_when_it_undoes_monolith_else_the_task_manager_value(bool enable, int? before, int expected) =>
+        Assert.Equal(expected, PackagedStartup.StateAfterSwitch(enable, before));
+
+    [Theory]
+    [InlineData(false, "0")]
+    [InlineData(false, "1")]
+    [InlineData(false, "2")]
+    [InlineData(true, "0")]
+    [InlineData(true, "1")]
+    [InlineData(true, "2")]
+    [InlineData(true, null)]
+    [InlineData(false, "x")]
+    public void The_promised_state_is_what_set_entries_does(bool enable, string? original)
+    {
+        // Same layers SetEntriesAsync sees: the oldest one holds the value from before MONOLITH, a newer one the 2 it wrote.
+        IReadOnlyList<ChangeRecord> layers = [Layer(original), Layer("2")];
+        var before = StartupChanges.PackagedStateBefore(layers);
+        var promised = PackagedStartup.StateAfterSwitch(enable, before);
+        // Undo restores layers[0]'s original exactly; otherwise the Task Manager value is written.
+        Assert.Equal(StartupChanges.UndoesLayers(Packaged(2), enable, layers), promised == before);
+        if (!StartupChanges.UndoesLayers(Packaged(2), enable, layers)) Assert.Equal(PackagedStartup.TargetState(enable), promised);
+        Assert.Null(StartupChanges.PackagedStateBefore(Array.Empty<ChangeRecord>()));
+    }
+
+    [Fact]
+    public void Dialog_and_tooltip_name_the_state_that_is_really_written()
+    {
+        Assert.Equal("2 (включено)", PackagedStartup.SwitchText(enable: true, 2));
+        Assert.Equal("1 (отключено пользователем — как в Диспетчере задач)", PackagedStartup.SwitchText(enable: false, 1));
+        Assert.Equal("0 (отключено приложением) — как было до MONOLITH", PackagedStartup.SwitchText(enable: false, 0));
+        Assert.NotNull(PackagedStartup.StateNote(0));
+        Assert.Null(PackagedStartup.StateNote(1));
+        Assert.Null(PackagedStartup.StateNote(2));
+
+        Assert.Contains("State = 1", StartupItem.PackagedToggleTooltip(enable: false, 1));
+        Assert.Contains("State = 2", StartupItem.PackagedToggleTooltip(enable: true, 2));
+        var undo = StartupItem.PackagedToggleTooltip(enable: false, 0);
+        Assert.Contains("State = 0", undo);
+        Assert.DoesNotContain("State = 1)", undo);
+        Assert.Contains(PackagedStartup.StateNote(0)!, undo);
+    }
+
+    [Fact]
+    public void The_monolith_tag_counts_only_this_accounts_records()
+    {
+        const string me = "S-1-5-21-1-2-3-1001", other = "S-1-5-21-1-2-3-1002";
+        var mine = Layer("2", sid: me);
+        var legacy = Layer("2", sid: null);              // older build: written into whoever ran MONOLITH — this account
+        var task = new ChangeRecord { Source = StartupChanges.TaskSource, Kind = ChangeKind.ScheduledTask, Target = @"task:\Vendor\Updater" };
+        var theirs = Layer("2", sid: other);             // same HKCU target string, another account's profile
+        var reverted = Layer("2", sid: me, reverted: true);
+        var foreign = Layer("2", source: "tweak:x", sid: me);
+
+        var page = StartupChanges.PageRecords([mine, legacy, task, theirs, reverted, foreign], me);
+        Assert.Equal(new[] { mine, legacy, task }, page);
+        Assert.Equal(new[] { legacy, task, theirs }, StartupChanges.PageRecords([mine, legacy, task, theirs], other));
+    }
+
     [Fact]
     public void Row_identity_and_labels()
     {
