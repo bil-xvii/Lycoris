@@ -1,17 +1,21 @@
 using System.Runtime.InteropServices;
+using Monolith.Modules.Dashboard.Monitoring;
 
 namespace Monolith.Modules.Dashboard.Checks;
 
 /// <summary>
 /// Read-only display facts: every monitor attached to the desktop with its current mode and the best refresh rate
 /// it offers at that resolution (EnumDisplaySettings, per tech.md §7), plus the monitor's friendly name
-/// (QueryDisplayConfig). Never changes display settings.
+/// (QueryDisplayConfig), the adapter that drives it (target LUID) and the number of outputs per adapter.
+/// Never changes display settings.
 /// </summary>
 internal static class DisplayProbe
 {
     private const uint DISPLAY_DEVICE_ATTACHED_TO_DESKTOP = 0x1;
+    private const uint DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4;
     private const int ENUM_CURRENT_SETTINGS = -1;
     private const uint DM_INTERLACED = 0x2;
+    private const uint QDC_ALL_PATHS = 0x1;
     private const uint QDC_ONLY_ACTIVE_PATHS = 0x2;
     private const int DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME = 1;
     private const int DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME = 2;
@@ -41,16 +45,22 @@ internal static class DisplayProbe
 
             string name;
             double? exact = null;
+            string adapterKey = "";
+            var isInternal = false;
             if (names.TryGetValue(dd.DeviceName, out var info))
             {
                 name = info.Name;
                 exact = info.Hz;
+                adapterKey = info.AdapterKey;
+                isInternal = info.IsInternal;
             }
             else
             {
                 name = MonitorString(dd.DeviceName) ?? dd.DeviceString;
             }
-            list.Add(new DisplayInfo(string.IsNullOrWhiteSpace(name) ? "Монитор" : name.Trim(), width, height, hz, max, exact));
+            var primary = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+            list.Add(new DisplayInfo(string.IsNullOrWhiteSpace(name) ? "Монитор" : name.Trim(), width, height, hz, max, exact,
+                adapterKey, isInternal, primary));
         }
         return list;
     }
@@ -63,10 +73,37 @@ internal static class DisplayProbe
         return EnumDisplayDevicesW(adapterDevice, 0, ref mon, 0) && !string.IsNullOrWhiteSpace(mon.DeviceString) ? mon.DeviceString : null;
     }
 
-    /// <summary>GDI source name ("\\.\DISPLAY1") → monitor friendly name and exact refresh rate.</summary>
-    private static Dictionary<string, (string Name, double? Hz)> ReadFriendlyNames()
+    /// <summary>
+    /// Number of display outputs (targets) per adapter LUID key, from every possible path (QDC_ALL_PATHS) — connected or not.
+    /// A discrete GPU with no outputs (compute card, hybrid mobile chip in a mini-PC) has none. Empty on failure.
+    /// </summary>
+    public static Dictionary<string, int> TargetsPerAdapter()
     {
-        var map = new Dictionary<string, (string, double?)>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (GetDisplayConfigBufferSizes(QDC_ALL_PATHS, out var pathCount, out var modeCount) != 0 || pathCount == 0) return result;
+            var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+            var modes = new DISPLAYCONFIG_MODE_INFO[Math.Max(1u, modeCount)];
+            if (QueryDisplayConfig(QDC_ALL_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero) != 0) return result;
+            var seen = new HashSet<(string, uint)>();
+            for (var i = 0; i < pathCount && i < paths.Length; i++)
+            {
+                var t = paths[i].targetInfo;
+                var key = MonitorMath.LuidKey(t.adapterId.HighPart, t.adapterId.LowPart);
+                if (seen.Add((key, t.id))) result[key] = result.GetValueOrDefault(key) + 1;
+            }
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+        }
+        return result;
+    }
+
+    /// <summary>GDI source name ("\\.\DISPLAY1") → monitor friendly name, exact refresh rate, target adapter and panel type.</summary>
+    private static Dictionary<string, (string Name, double? Hz, string AdapterKey, bool IsInternal)> ReadFriendlyNames()
+    {
+        var map = new Dictionary<string, (string, double?, string, bool)>(StringComparer.OrdinalIgnoreCase);
         try
         {
             if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out var pathCount, out var modeCount) != 0) return map;
@@ -90,12 +127,14 @@ internal static class DisplayProbe
                 target.header.adapterId = path.targetInfo.adapterId;
                 target.header.id = path.targetInfo.id;
                 var name = DisplayConfigGetDeviceInfo(ref target) == 0 ? target.monitorFriendlyDeviceName?.Trim() : null;
+                var isInternal = IsInternal(path.targetInfo.outputTechnology);
                 if (string.IsNullOrEmpty(name))
-                    name = IsInternal(path.targetInfo.outputTechnology) ? "Встроенный дисплей" : "Монитор";
+                    name = isInternal ? "Встроенный дисплей" : "Монитор";
 
                 var rr = path.targetInfo.refreshRate;
                 double? hz = rr.Denominator > 0 && rr.Numerator > 0 ? (double)rr.Numerator / rr.Denominator : null;
-                map.TryAdd(source.viewGdiDeviceName, (name, hz));
+                var adapter = MonitorMath.LuidKey(path.targetInfo.adapterId.HighPart, path.targetInfo.adapterId.LowPart);
+                map.TryAdd(source.viewGdiDeviceName, (name, hz, adapter, isInternal));
             }
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)

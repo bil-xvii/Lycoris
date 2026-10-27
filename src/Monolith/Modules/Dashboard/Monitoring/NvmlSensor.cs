@@ -5,9 +5,18 @@ using System.Text;
 namespace Monolith.Modules.Dashboard.Monitoring;
 
 /// <summary>
+/// NVML facts for one card (all read-only queries). Null = not reported. Max values are "possible with this device and
+/// system" per NVML (they already include the slot); <see cref="GpuMaxGen"/> is what the card alone supports.
+/// <see cref="UnderLoad"/> = every sample of the current link was taken at ≥ 50 % GPU use (the link slows down at idle).
+/// </summary>
+internal readonly record struct NvmlLink(ulong? Bar1Total, ulong? VramTotal, int? CurrentGen, int? CurrentWidth,
+    int? MaxGen, int? MaxWidth, int? GpuMaxGen, bool UnderLoad);
+
+/// <summary>
 /// Optional NVIDIA temperature source (nvml.dll ships with the NVIDIA driver in System32).
 /// Loaded dynamically and only from System32, so a planted DLL can never be picked up.
-/// Used only when D3DKMT does not report a temperature for an NVIDIA adapter.
+/// Used only when D3DKMT does not report a temperature for an NVIDIA adapter, and by the dashboard checks for the
+/// Resizable BAR / PCIe link facts (<see cref="ReadLink"/>). Only query functions are ever called — never a setter.
 /// </summary>
 internal sealed unsafe class NvmlSensor : IDisposable
 {
@@ -112,6 +121,63 @@ internal sealed unsafe class NvmlSensor : IDisposable
         if (_library == IntPtr.Zero) return null;
         uint t = 0;
         return _getTemperature(_device, NVML_TEMPERATURE_GPU, &t) == NVML_SUCCESS && t is > 0 and < 150 ? t : null;
+    }
+
+    /// <summary>Utilisation (%) at or above which the current PCIe link is taken as the working link.</summary>
+    public const int LoadThreshold = 50;
+
+    /// <summary>
+    /// BAR1 window, VRAM and PCIe link of the chosen card. Every export is optional: a missing one (older driver)
+    /// only leaves its value null. The current link is sampled <paramref name="samples"/> times, <paramref name="intervalMs"/> apart.
+    /// </summary>
+    public NvmlLink ReadLink(int samples = 3, int intervalMs = 300)
+    {
+        if (_library == IntPtr.Zero) return default;
+        var triple = stackalloc ulong[3];
+
+        ulong? bar1 = null, vram = null;
+        if (NativeLibrary.TryGetExport(_library, "nvmlDeviceGetBAR1MemoryInfo", out var pBar1))
+        {
+            new Span<ulong>(triple, 3).Clear();
+            if (((delegate* unmanaged<IntPtr, ulong*, int>)pBar1)(_device, triple) == NVML_SUCCESS && triple[0] > 0) bar1 = triple[0];
+        }
+        if (NativeLibrary.TryGetExport(_library, "nvmlDeviceGetMemoryInfo", out var pMem))
+        {
+            new Span<ulong>(triple, 3).Clear();
+            if (((delegate* unmanaged<IntPtr, ulong*, int>)pMem)(_device, triple) == NVML_SUCCESS && triple[0] > 0) vram = triple[0];
+        }
+
+        var maxGen = Gen(ReadUInt("nvmlDeviceGetMaxPcieLinkGeneration"));
+        var maxWidth = Width(ReadUInt("nvmlDeviceGetMaxPcieLinkWidth"));
+        var gpuMaxGen = Gen(ReadUInt("nvmlDeviceGetGpuMaxPcieLinkGeneration"));
+
+        int? curGen = null, curWidth = null;
+        var loaded = NativeLibrary.TryGetExport(_library, "nvmlDeviceGetUtilizationRates", out var pUtil) && samples > 0;
+        var util = stackalloc uint[2];
+        for (var i = 0; i < Math.Max(1, samples); i++)
+        {
+            if (i > 0) Thread.Sleep(intervalMs);
+            if (loaded)
+            {
+                util[0] = util[1] = 0;
+                if (((delegate* unmanaged<IntPtr, uint*, int>)pUtil)(_device, util) != NVML_SUCCESS || util[0] < LoadThreshold) loaded = false;
+            }
+            // Keep the best value seen: a momentary dip must never look like a narrower link.
+            if (Gen(ReadUInt("nvmlDeviceGetCurrPcieLinkGeneration")) is { } g) curGen = Math.Max(curGen ?? 0, g);
+            if (Width(ReadUInt("nvmlDeviceGetCurrPcieLinkWidth")) is { } w) curWidth = Math.Max(curWidth ?? 0, w);
+        }
+        return new NvmlLink(bar1, vram, curGen, curWidth, maxGen, maxWidth, gpuMaxGen, loaded && curWidth is not null);
+
+        static int? Gen(uint? v) => v is >= 1 and <= 6 ? (int)v : null;
+        static int? Width(uint? v) => v is >= 1 and <= 32 ? (int)v : null;
+    }
+
+    /// <summary>Calls an optional <c>nvmlReturn_t f(nvmlDevice_t, unsigned int*)</c> query; null when missing or failed.</summary>
+    private uint? ReadUInt(string export)
+    {
+        if (!NativeLibrary.TryGetExport(_library, export, out var p)) return null;
+        uint v = 0;
+        return ((delegate* unmanaged<IntPtr, uint*, int>)p)(_device, &v) == NVML_SUCCESS ? v : null;
     }
 
     public void Dispose()
