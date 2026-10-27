@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
@@ -62,7 +63,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Width="72" Height="72" Background="{StaticResource B.White}" VerticalAlignment="Top">
+                    <Border Width="72" Height="72" Background="{StaticResource B.White}" CornerRadius="{StaticResource R.Lg}" VerticalAlignment="Top">
                         <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="24" Foreground="{StaticResource B.Ink}" />
                     </Border>
                     <StackPanel Grid.Column="1" Margin="17,0,0,0" VerticalAlignment="Center">
@@ -86,7 +87,8 @@
                 <ItemsControl ItemsSource="{Binding Problems}" Margin="0,0,9,10" Focusable="False">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:ProblemDeviceItem}">
-                            <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,9">
+                            <!-- RoundClip: the code block fills the left edge -->
+                            <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,9" ui:RoundClip.Content="True">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="96" />
@@ -135,7 +137,7 @@
                                             <TextBlock Grid.Column="1" Text="{Binding Action}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" />
                                         </Grid>
                                         <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Margin="0,9,0,0"
-                                                Padding="10,0,2,0" HorizontalAlignment="Left">
+                                                CornerRadius="{StaticResource R.Md}" Padding="10,0,2,0" HorizontalAlignment="Left">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="ID" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
                                                 <TextBlock Text="{Binding HardwareId}" Style="{StaticResource T.Mono}" FontSize="11.5" VerticalAlignment="Center"

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
@@ -64,7 +65,8 @@
         </Border>
 
         <!-- ═══════════ Table ═══════════ -->
-        <Border Grid.Row="2" Style="{StaticResource Card.Flush}" Margin="0,10,0,0">
+        <!-- RoundClip: hovered rows paint to the edge; the card corners clip them -->
+        <Border Grid.Row="2" Style="{StaticResource Card.Flush}" Margin="0,10,0,0" ui:RoundClip.Content="True">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

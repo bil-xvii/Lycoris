@@ -88,10 +88,11 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Hatched-band callout -->
+        <!-- Hatched-band callout (RoundClip keeps the band inside the rounded corners) -->
         <Style x:Key="BandCallout" TargetType="Border" BasedOn="{StaticResource Callout}">
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="ui:RoundClip.Content" Value="True" />
         </Style>
 
         <!-- ═══════════════ One cleanup item ═══════════════ -->
@@ -206,82 +207,86 @@
         <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="0,0,10,10">
 
-                <!-- ═══════════════ Summary ═══════════════ -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border Style="{StaticResource Card}" Padding="16,14,14,12" BorderThickness="1,1,0,1">
-                        <StackPanel>
-                            <TextBlock Text="НАЙДЕНО" Style="{StaticResource T.Label}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" />
-                                <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding FoundCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                        </StackPanel>
-                    </Border>
-                    <Border Grid.Column="1" Style="{StaticResource Card.Inverted}" Padding="16,14,14,12">
-                        <StackPanel>
-                            <TextBlock Text="К ОЧИСТКЕ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Ink}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" Foreground="{StaticResource B.Ink}" />
-                                <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" Foreground="{StaticResource B.Ink}" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding SelectedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" Foreground="{StaticResource B.Text3}"
-                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                        </StackPanel>
-                    </Border>
-                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16,14,14,12" BorderThickness="0,1,1,1">
-                        <StackPanel>
-                            <TextBlock Text="ОСВОБОЖДЕНО" Style="{StaticResource T.Label}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" />
-                                <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding FreedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-
-                <!-- Status strip -->
-                <Border Style="{StaticResource Card}" Padding="16,10,15,10" BorderThickness="1,0,1,1">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                <!-- ═══════════════ Summary + status: one rounded strip (RoundClip keeps the white block inside its corners) ═══════════════ -->
+                <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
+                    <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border Width="7" Height="7" VerticalAlignment="Center">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource B.Text3}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsWorking}" Value="True">
-                                                <Setter Property="Background" Value="{StaticResource B.White}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
+                            <Border Padding="16,14,14,12" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <TextBlock Text="НАЙДЕНО" Style="{StaticResource T.Label}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                        <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" />
+                                        <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding FoundCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                </StackPanel>
                             </Border>
-                            <TextBlock Grid.Column="1" Text="{Binding WorkTitle}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}"
-                                       VerticalAlignment="Center" Margin="9,0,11,0" />
-                            <TextBlock Grid.Column="2" Text="{Binding WorkDetail}" Style="{StaticResource T.Caption}" VerticalAlignment="Center"
-                                       Foreground="{StaticResource B.Text2}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                            <TextBlock Grid.Column="3" Text="{Binding WorkPercent}" Style="{StaticResource T.Mono}" FontSize="11.5" VerticalAlignment="Center"
-                                       Foreground="{StaticResource B.Text}" Margin="10,0,0,0" />
+                            <Border Grid.Column="1" Background="{StaticResource B.White}" TextElement.Foreground="{StaticResource B.Ink}" Padding="16,14,14,12">
+                                <StackPanel>
+                                    <TextBlock Text="К ОЧИСТКЕ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Ink}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                        <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" Foreground="{StaticResource B.Ink}" />
+                                        <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" Foreground="{StaticResource B.Ink}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding SelectedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" Foreground="{StaticResource B.Text3}"
+                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Padding="16,14,14,12" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
+                                <StackPanel>
+                                    <TextBlock Text="ОСВОБОЖДЕНО" Style="{StaticResource T.Label}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                        <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" />
+                                        <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding FreedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                </StackPanel>
+                            </Border>
                         </Grid>
-                        <ProgressBar Grid.Row="1" Margin="0,9,0,0" Maximum="100" Value="{Binding WorkProgress}" IsIndeterminate="{Binding WorkIndeterminate}"
-                                     Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}" />
-                    </Grid>
+        
+                        <!-- Status strip -->
+                        <Border Padding="16,10,15,10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="7" Height="7" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource B.Text3}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsWorking}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource B.White}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding WorkTitle}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}"
+                                               VerticalAlignment="Center" Margin="9,0,11,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding WorkDetail}" Style="{StaticResource T.Caption}" VerticalAlignment="Center"
+                                               Foreground="{StaticResource B.Text2}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    <TextBlock Grid.Column="3" Text="{Binding WorkPercent}" Style="{StaticResource T.Mono}" FontSize="11.5" VerticalAlignment="Center"
+                                               Foreground="{StaticResource B.Text}" Margin="10,0,0,0" />
+                                </Grid>
+                                <ProgressBar Grid.Row="1" Margin="0,9,0,0" Maximum="100" Value="{Binding WorkProgress}" IsIndeterminate="{Binding WorkIndeterminate}"
+                                             Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
                 </Border>
 
                 <!-- ═══════════════ Free space: one card per fixed drive (the only drive list of the maintenance page) ═══════════════ -->
@@ -359,8 +364,10 @@
                                                Foreground="{StaticResource B.Text2}" />
                                 </Grid>
                                 <TextBlock Text="{Binding Hint}" Style="{StaticResource T.Caption}" Margin="0,6,0,10" />
-                                <Border Style="{StaticResource Card.Flush}" BorderThickness="1,1,1,0">
-                                    <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource ItemRow}" Focusable="False" />
+                                <!-- RoundClip: row hover, the white selection edge and the row progress bar paint to the edge.
+                                     -1 bottom margin: the last row's hairline lies on the card's bottom border instead of doubling it. -->
+                                <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
+                                    <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource ItemRow}" Focusable="False" Margin="0,0,0,-1" />
                                 </Border>
                                 <TextBlock Text="{Binding MissingText}" Style="{StaticResource T.Mono}" FontSize="10.5" Foreground="{StaticResource B.Text3}"
                                            Margin="0,10,0,0" TextWrapping="Wrap"

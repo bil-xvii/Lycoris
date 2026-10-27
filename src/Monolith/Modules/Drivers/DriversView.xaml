@@ -11,6 +11,7 @@
         <Style x:Key="Drv.TabBadge" TargetType="Border">
             <Setter Property="Margin" Value="8,0,0,0" />
             <Setter Property="Padding" Value="5,1,5,2" />
+            <Setter Property="CornerRadius" Value="{StaticResource R.Xs}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Background" Value="{StaticResource B.Surface4}" />
             <Setter Property="TextElement.FontFamily" Value="{StaticResource F.Mono}" />
