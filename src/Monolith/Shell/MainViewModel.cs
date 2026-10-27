@@ -111,19 +111,15 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
         {
             // A plan chosen later (e.g. in Optimize) stays: the session's record only hands its original over to it.
-            // Records of older builds could carry a tweak merged into the session's plan record: say that it goes too.
-            var lines = stale.Select(r => ChangeJournal.Instance.NewerLayer(r) is { } newer
-                ? $"{r.Title}: останется «{newer.NewValue}» — его позже выбрал «{newer.Title}»"
-                : $"{r.Title}: {r.NewValue} → {r.OldValue}" + (r.IsLegacyMerged
-                    ? $" (также откатит: {string.Join(", ", r.AlsoSources.Distinct().Select(Monolith.Modules.Restore.RestoreFormat.SourceTitle))})"
-                    : "")).ToList();
-            var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ СЕАНС",
-                "Прошлая игровая сессия не завершилась штатно, и её временные изменения всё ещё действуют. Вернуть всё как было?",
-                lines, confirmText: "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
+            // Same layer-aware texts as the Games page.
+            Func<ChangeRecord, ChangeRecord?> newer = r => ChangeJournal.Instance.NewerLayer(r);
+            var lines = Monolith.Modules.Games.GameBoostService.StaleLines(stale, newer);
+            var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ СЕАНС", Monolith.Modules.Games.GameBoostService.StalePrompt(stale, newer),
+                lines, confirmText: Monolith.Modules.Games.GameBoostService.AllKept(stale, newer) ? "ЗАКРЫТЬ ЗАПИСЬ" : "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
             if (ok)
             {
                 var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(stale));
-                Ui.Toast(result.Success ? "Изменения игрового сеанса отменены." : string.Join("\n", result.Errors),
+                Ui.Toast(result.Success ? Monolith.Modules.Games.GameBoostService.StaleRevertedText(result) : string.Join("\n", result.Errors),
                     result.Success ? ToastKind.Success : ToastKind.Error);
             }
         }

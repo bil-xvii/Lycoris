@@ -108,7 +108,7 @@ Legend: ● full · ◐ partial or limited · ○ none · ? not verified
 8. **Weakened security.**
    - Tools that turn off Defender, updates or Hyper-V Code Integrity (Microsoft's VBS memory protection, shown as Memory Integrity, HVCI).
    - Microsoft's own gaming article says Memory Integrity and Virtual Machine Platform can be turned off for gaming, but warns the device "may be vulnerable".
-   - Anti-cheat now requires Secure Boot and TPM 2.0 (Battlefield 6 with Javelin, Black Ops 7 with Ricochet), so "security off" tweaks can lock players out of games.
+   - Anti-cheat now requires Secure Boot and TPM 2.0 (Battlefield 6 with Javelin; Call of Duty: Black Ops 7 and Call of Duty: Warzone with Ricochet — no other current CoD title, per support.activision.com/tpm), so "security off" tweaks can lock players out of games.
 9. **Edition-blind placebo.** `HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableWindowsConsumerFeatures` (DWORD 1) only works on Enterprise and Education since 1607. `AllowTelemetry=0` is treated as 1 (Required) on Home and Pro. Tools apply both anyway.
 10. **Debloat breaking AMD X3D core parking.** On dual-CCD X3D CPUs (7950X3D, 9950X3D), core parking relies on Game Bar game detection plus the 3D V‑Cache Performance Optimizer chipset driver. Removing Game Bar breaks it. The 9800X3D on the dev machine has a single CCD and is not affected.
 11. **Settings drift.** Feature updates reset privacy settings, which O&O's FAQ acknowledges.

@@ -217,7 +217,7 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 - Dashboard «trim» check should get a shortcut into this item instead of telling the user to type fsutil.
 
 **`sys.optimize.task`: «Оптимизация дисков по расписанию». SAFE-OPTIONAL repair, never in a profile.** Catalog id `drive-optimize-schedule-on`.
-- Scheduled task `\Microsoft\Windows\Defrag\ScheduledDefrag`, enabled by default (weekly; retrims SSDs about once a month, defragments HDDs, never defragments SSDs). `services.md` rates disabling it "never".
+- Scheduled task `\Microsoft\Windows\Defrag\ScheduledDefrag`, enabled by default (weekly; retrims SSDs, defragments HDDs; per the `defrag` Microsoft Learn page SSDs may also get a traditional defragmentation at most once a month when needed — the Microsoft storage team explains this happens when volume snapshots / System Restore are on (Hanselman, 2014)). `services.md` rates disabling it "never".
 - Enable only when disabled (ScheduledTaskTweak); the journal keeps the previous task state, so undo disables it again.
 - Not in profiles: turning the schedule off is a legitimate choice in the official «Оптимизация дисков» UI.
 - `defragsvc` is in `ServiceControl.Protected` and is not touched.
