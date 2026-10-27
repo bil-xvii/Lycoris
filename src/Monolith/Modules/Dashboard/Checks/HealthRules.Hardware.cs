@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Monolith.Core;
 using Monolith.Modules.Dashboard.Monitoring;
 
@@ -208,6 +209,16 @@ public static partial class HealthRules
         return RebarState.Unknown;
     }
 
+    /// <summary>
+    /// NVIDIA cards that never get Resizable BAR (NVIDIA supports it from RTX 30 on): GeForce GT/GTS/GTX, MX, RTX 20,
+    /// TITAN, Quadro, Tesla and the Turing T-series. A deny-list, so new or unknown names still get the BIOS hint.
+    /// </summary>
+    public static bool NvidiaCardLacksRebar(string? gpuName) => gpuName is not null && NoRebarNvidiaRx().IsMatch(gpuName);
+
+    [GeneratedRegex(@"\bGT[SX]?\s*\d|\b(TITAN|Quadro|Tesla)\b|GeForce\s+MX|\bRTX\s*20\d\d\b|\bT(400|500|550|600|1000|1200|2000)\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex NoRebarNvidiaRx();
+
     public static HealthCheckResult? CheckRebar(SystemSnapshot s)
     {
         if (s.GpuLink is not { } link) return null;
@@ -217,6 +228,8 @@ public static partial class HealthRules
                 return new("rebar", "RESIZABLE BAR ВКЛЮЧЁН",
                     $"{link.GpuName}: процессору доступна вся видеопамять (окно BAR1 — {DashFormat.WholeGb(link.Bar1Total)}). " +
                     "Драйвер NVIDIA использует это в тех играх, где оно даёт прирост.", CheckSeverity.Ok, 4);
+            case RebarState.NotActive when NvidiaCardLacksRebar(link.GpuName):
+                return null; // the card itself has no Resizable BAR: no BIOS/CSM steps that cannot help
             case RebarState.NotActive:
                 var bios = s.Firmware switch
                 {
@@ -230,7 +243,8 @@ public static partial class HealthRules
                 return new("rebar", "RESIZABLE BAR НЕ АКТИВЕН",
                     $"{link.GpuName}: процессору доступно только окно 256 МБ видеопамяти. Resizable BAR ускоряет часть игр — " +
                     "драйвер NVIDIA включает его только для игр из своего списка. Возможные причины: функция выключена в BIOS, " +
-                    "у карты старая прошивка без поддержки (ранним RTX 30 нужно обновление VBIOS с сайта производителя карты), " +
+                    "видеокарта её не поддерживает (у NVIDIA — только RTX 30 и новее), у карты старая прошивка без поддержки " +
+                    "(ранним RTX 30 нужно обновление VBIOS с сайта производителя карты), " +
                     "платформа её не поддерживает" + (s.IsLaptop ? " (на ноутбуке это решает производитель)." : ".") + bios +
                     " При включённом BitLocker сначала сохраните ключ восстановления. MONOLITH настройки BIOS не меняет.",
                     CheckSeverity.Info, 3);
@@ -248,19 +262,33 @@ public static partial class HealthRules
     public static bool IsLinkDegraded(GpuLinkFacts l) =>
         l.UnderLoad && l.CurrentWidth is { } current && l.MaxWidth is { } max && current < max;
 
+    /// <summary>Under load the link runs at a lower PCIe generation than the card and slot allow (riser, contact, BIOS).</summary>
+    public static bool IsLinkGenLowered(GpuLinkFacts l) =>
+        l.UnderLoad && l.CurrentGen is { } current && l.MaxGen is { } max && current < max;
+
     public static HealthCheckResult? CheckPcieLink(SystemSnapshot s)
     {
         if (s.GpuLink is not { MaxGen: { } maxGen, MaxWidth: { } maxWidth } link) return null;
+        var genLowered = IsLinkGenLowered(link);
         if (IsLinkDegraded(link))
             return new("pcie-link", "ЛИНИЯ PCIE ВИДЕОКАРТЫ СУЖЕНА",
-                $"{link.GpuName} под нагрузкой работает на PCIe ×{link.CurrentWidth}, хотя карта и слот поддерживают ×{maxWidth}, — " +
+                $"{link.GpuName} под нагрузкой работает на PCIe {(genLowered ? $"{link.CurrentGen}.0 " : "")}×{link.CurrentWidth}, " +
+                $"хотя карта и слот поддерживают {(genLowered ? $"{maxGen}.0 " : "")}×{maxWidth}, — " +
                 "линия работает ниже возможностей карты. Частые причины: карта не до конца вставлена в слот или перекошена, " +
                 "загрязнены контакты, некачественный райзер-кабель. Выключите ПК, отключите питание и переустановите карту до " +
                 "щелчка фиксатора. MONOLITH ничего не меняет.", CheckSeverity.Warning, 6);
+        if (genLowered)
+            return new("pcie-link", $"ЛИНИЯ PCIE ВИДЕОКАРТЫ: {link.CurrentGen}.0 ВМЕСТО {maxGen}.0",
+                $"{link.GpuName} под нагрузкой работает на PCIe {link.CurrentGen}.0 ×{link.CurrentWidth ?? maxWidth}, хотя карта и " +
+                $"слот поддерживают PCIe {maxGen}.0, — пропускная способность линии ниже возможной. Частые причины: райзер-кабель " +
+                "для более старой версии PCIe, плохой контакт в слоте, скорость линии, ограниченная вручную в BIOS. " +
+                "MONOLITH ничего не меняет.", CheckSeverity.Info, 4);
 
-        var text = $"{link.GpuName}: PCIe {maxGen}.0 ×{maxWidth}" + (link.UnderLoad
-            ? " — под нагрузкой линия работает полностью."
-            : " — столько поддерживают карта и слот; в простое скорость линии снижается для экономии энергии, это нормально.");
+        var text = $"{link.GpuName}: PCIe {maxGen}.0 ×{maxWidth}" + (!link.UnderLoad
+            ? " — столько поддерживают карта и слот; в простое скорость линии снижается для экономии энергии, это нормально."
+            : link.CurrentGen is null
+                ? " — под нагрузкой линия работает на полную ширину."
+                : " — под нагрузкой линия работает полностью.");
         if (link.GpuMaxGen is { } cardGen && cardGen > maxGen)
             text += $" Сама карта поддерживает PCIe {cardGen}.0 — это ограничение платы или слота, а не неисправность.";
         if (maxWidth < 16)
