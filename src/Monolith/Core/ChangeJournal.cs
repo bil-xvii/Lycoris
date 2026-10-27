@@ -548,9 +548,13 @@ public sealed class ChangeJournal
         {
             foreach (var r in _data.Records)
             {
-                if (r.Reverted || r.Kind != ChangeKind.Registry || r.Registry is not { } s || s.Hive != hive) continue;
-                if (ScopeOf(r) != scope) continue;
-                var root = s.CreatedKeyRoot ?? (!s.KeyExisted ? s.Path : null);
+                if (r.Reverted || ScopeOf(r) != scope) continue;
+                string? root;
+                if (r.Kind == ChangeKind.Registry && r.Registry is { } s && s.Hive == hive)
+                    root = s.CreatedKeyRoot ?? (!s.KeyExisted ? s.Path : null);
+                else if (hive == RegHive.HKCU && r.Kind == ChangeKind.Command)
+                    root = TweakCatalog.DxCreatedKeyRoot(r); // a DirectX token script that created UserGpuPreferences (or DirectX)
+                else continue;
                 if (root is not null && RegistryHelper.IsSameOrAncestor(root, path)) best = RegistryHelper.ShallowerRoot(best, root);
             }
         }

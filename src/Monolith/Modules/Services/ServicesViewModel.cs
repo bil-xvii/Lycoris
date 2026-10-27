@@ -439,12 +439,17 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     private static async Task ReportRevertAsync(RevertResult result)
     {
-        if (result.Success)
+        // Hand-overs are not values returned: count only what changed back, and say what was left and why.
+        var left = await Task.Run(() => Monolith.Modules.Restore.RestoreFormat.LeftText(result.Left, UserScope.CurrentSid, UserScope.AccountName));
+        var counts = Monolith.Modules.Restore.RestoreFormat.RevertCounts(result);
+        if (result.Success && string.IsNullOrEmpty(left))
         {
-            Ui.Toast(result.Reverted == 1 ? "Исходное значение восстановлено." : $"Откатено изменений: {result.Reverted}.", ToastKind.Success, "ОТКАТ");
+            Ui.Toast(counts, ToastKind.Success, "ОТКАТ");
             return;
         }
-        await Ui.AlertAsync("ОТКАТ ВЫПОЛНЕН НЕ ПОЛНОСТЬЮ", $"Откатено: {result.Reverted}, ошибок: {result.Failed}. Записи с ошибками остались в «Восстановлении».", result.Errors);
+        var lines = result.Errors.ToList();
+        if (!string.IsNullOrEmpty(left)) lines.Insert(0, left);
+        await Ui.AlertAsync("ОТКАТ ВЫПОЛНЕН НЕ ПОЛНОСТЬЮ", $"{counts} Ошибок: {result.Failed}. Записи, которые не откатились, остались в «Восстановлении».", lines);
     }
 
     // ───────────────────────────── Refresh ─────────────────────────────

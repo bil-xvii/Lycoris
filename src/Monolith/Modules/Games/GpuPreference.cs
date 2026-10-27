@@ -366,10 +366,16 @@ public static class GpuPreferenceStore
             var title = enableHigh ? $"Игры: высокопроизводительный GPU для «{gameName}»" : $"Игры: выбор GPU Windows для «{gameName}»";
             // One HKCU value per game: the journal record and the .reg export are the undo (as for single startup toggles).
             var session = await ChangeSession.BeginAsync(title, createRestorePoint: false, journal: journal).ConfigureAwait(false);
-            foreach (var (exe, data) in writes)
+            foreach (var (exe, _) in writes)
             {
-                session.SetRegistry(RegHive.HKCU, GpuPreference.KeyPath, exe, RegistryValueKind.String, data,
-                    GpuPreference.JournalSource, $"Видеокарта для игры «{gameName}» ({GpuPreference.FileName(exe)})");
+                // Re-read and merge inside the journal gate: no revert can change the value between the read and the write.
+                session.Exclusive(() =>
+                {
+                    var now = RegistryHelper.Read(RegHive.HKCU, GpuPreference.KeyPath, exe) as string;
+                    var data = GpuPreference.Merge(now, enableHigh ? GpuPreference.HighPerformance : GpuPreference.Auto);
+                    session.SetRegistry(RegHive.HKCU, GpuPreference.KeyPath, exe, RegistryValueKind.String, data,
+                        GpuPreference.JournalSource, $"Видеокарта для игры «{gameName}» ({GpuPreference.FileName(exe)})");
+                });
             }
             session.Complete();
             applied += session.Applied;

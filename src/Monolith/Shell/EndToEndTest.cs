@@ -69,7 +69,7 @@ public static class EndToEndTest
             try
             {
                 var session = await ChangeSession.BeginAsync($"Сквозной тест: {t.Title}", createRestorePoint: false, journal: journal);
-                await Task.Run(() => t.Apply(new TweakContext { Session = session, System = sp, Tweak = t }));
+                await Task.Run(() => session.Exclusive(() => t.Apply(new TweakContext { Session = session, System = sp, Tweak = t })));
                 session.Complete();
                 if (session.Errors.Count > 0) { ok = false; note += "ошибки применения: " + string.Join("; ", session.Errors) + " "; }
 

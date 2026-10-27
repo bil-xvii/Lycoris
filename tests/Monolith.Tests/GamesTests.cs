@@ -812,7 +812,7 @@ public sealed class GamesTests
 
     /// <summary>The newer-layer lookup of the real journal, over a fixed record list (journal order).</summary>
     private static Func<ChangeRecord, ChangeRecord?> Layers(params ChangeRecord[] journal) =>
-        r => ChangeJournal.NewerLayer(journal, r, null);
+        r => ChangeJournal.NewerLayer(journal, r);
 
     [Fact]
     public void Stale_session_texts_promise_the_original_only_when_nothing_newer_holds_the_plan()

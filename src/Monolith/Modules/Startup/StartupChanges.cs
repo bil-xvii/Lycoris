@@ -70,8 +70,13 @@ public static class StartupChanges
             {
                 progress?.Report($"{(enable ? "Включение" : "Отключение")}: {e.DisplayName}");
                 if (StartupLocations.IsPackaged(e.Source))
-                    session.SetRegistry(RegHive.HKCU, PackagedStartup.KeyPath(e.PackageFamilyName!, e.Name), PackagedStartup.StateValue,
-                        RegistryValueKind.DWord, PackagedStartup.TargetState(enable), EntrySource, EntryRecordTitle(e));
+                    // Re-check the live state inside the journal gate: the app may have been removed or put under policy.
+                    session.Exclusive(() =>
+                    {
+                        if (PackagedWriteRefusal(e) is { } late) { errors.Add($"{e.DisplayName}: {late}."); return; }
+                        session.SetRegistry(RegHive.HKCU, PackagedStartup.KeyPath(e.PackageFamilyName!, e.Name), PackagedStartup.StateValue,
+                            RegistryValueKind.DWord, PackagedStartup.TargetState(enable), EntrySource, EntryRecordTitle(e));
+                    });
                 else
                     session.SetRegistry(StartupLocations.ApprovedHive(e.Source), StartupLocations.ApprovedKey(e.Source), e.Name,
                         RegistryValueKind.Binary, StartupApproved.Build(enable), EntrySource, EntryRecordTitle(e));

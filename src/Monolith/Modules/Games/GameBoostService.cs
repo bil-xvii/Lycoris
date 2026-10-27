@@ -532,7 +532,8 @@ public sealed partial class GameBoostService : ObservableObject
             try { _pendingChange?.Wait(TimeSpan.FromSeconds(5)); }
             catch { /* its own error handling reports it */ }
             RestorePriorities(TakeRaised());
-            Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source)).Wait(TimeSpan.FromSeconds(5));
+            if (!Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source)).Wait(TimeSpan.FromSeconds(5)))
+                Log.Warn("Игровой сеанс: откат при выходе не успел за 5 с (журнал был занят) — при следующем запуске MONOLITH предложит вернуть настройки.");
             Log.Info("Игровой сеанс: MONOLITH закрыт во время сеанса — изменения отменены.");
         }
         catch (Exception ex)
