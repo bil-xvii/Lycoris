@@ -57,7 +57,8 @@ src/Monolith/
   Modules/<Name>/        one folder per page: <Name>View.xaml(.cs) + <Name>ViewModel.cs + module services
 tests/Monolith.Tests/    xUnit
 docs/research/           research reports (competitors, tweaks, cleaner, drivers, services, apps catalog, tech)
-tools/                   autosave.ps1, make-icon.ps1, extract-research.ps1
+tools/                   autosave.ps1, make-icon.ps1, extract-research.ps1, publish.ps1 (build + auto-sign),
+                         sign.ps1 / signing-cert.ps1 (Authenticode signing; owner guide in docs/signing.md)
 ```
 
 Pages (sidebar order): dashboard, optimize, games, services («АВТОЗАПУСК И СЛУЖБЫ»: tabs АВТОЗАПУСК | СЛУЖБЫ |
