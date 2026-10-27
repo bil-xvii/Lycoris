@@ -21,9 +21,77 @@ public sealed record StartOption(string Label, ServiceStartMode Mode, bool Delay
     public override string ToString() => Label;
 }
 
+/// <summary>How far the ВСЕ СЛУЖБЫ tab may change a service's start type.</summary>
+public enum StartChangeScope
+{
+    /// <summary>Locked service: read-only.</summary>
+    None,
+    /// <summary>A service that must stay disabled (Remote Registry): only «Отключена».</summary>
+    DisabledOnly,
+    /// <summary>A Windows service: «Автоматически» or «Вручную», never «Отключена».</summary>
+    NoDisable,
+    /// <summary>A third-party service, or a curated entry whose researched target is «Отключена».</summary>
+    Full,
+}
+
+/// <summary>
+/// Start types the ВСЕ СЛУЖБЫ tab offers (docs/research/services.md §0.4, §1, §2B): MONOLITH disables only what its
+/// research allows — curated entries with a «Отключена» target and third-party services (with a warning). Any other
+/// Windows service can only be switched between «Автоматически» and «Вручную»: a disabled Windows service is not
+/// started even on demand, and the feature that needs it breaks without saying why.
+/// </summary>
+public static class ServiceStartPolicy
+{
+    public static StartChangeScope ScopeFor(string name, bool isThirdParty, bool isLocked)
+    {
+        if (isLocked) return StartChangeScope.None;
+        if (ServiceGuard.MustStayDisabled(name)) return StartChangeScope.DisabledOnly;
+        if (ServiceCatalog.Find(name) is { } curated)
+            return curated.Target == ServiceStartMode.Disabled ? StartChangeScope.Full : StartChangeScope.NoDisable;
+        return isThirdParty ? StartChangeScope.Full : StartChangeScope.NoDisable;
+    }
+
+    /// <summary>True when MONOLITH may set this start type.</summary>
+    public static bool Allows(StartChangeScope scope, StartOption? option) => option is not null && scope switch
+    {
+        StartChangeScope.Full => true,
+        StartChangeScope.NoDisable => option.Mode != ServiceStartMode.Disabled,
+        StartChangeScope.DisabledOnly => option.Mode == ServiceStartMode.Disabled,
+        _ => false,
+    };
+
+    /// <summary>The combo box items: every allowed start type plus the current one (so the box can show it).</summary>
+    public static IReadOnlyList<StartOption> OptionsFor(StartChangeScope scope, ServiceStartMode? current, bool delayed)
+    {
+        var now = current is { } mode ? StartOption.For(mode, delayed) : null;
+        return StartOption.All.Where(o => Allows(scope, o) || o == now).ToList();
+    }
+
+    /// <summary>Why some start types are missing from the list (null = nothing to explain).</summary>
+    public static string? Note(StartChangeScope scope, bool isCurated) => scope switch
+    {
+        StartChangeScope.DisabledOnly => "Эту службу можно только оставить отключённой — MONOLITH её не включает.",
+        StartChangeScope.NoDisable when isCurated =>
+            "«Отключена» для этой службы недоступно: MONOLITH ставит ей «Вручную», чтобы Windows могла запустить её сама, когда она понадобится.",
+        StartChangeScope.NoDisable =>
+            "Служба Windows вне списка рекомендаций: доступны только «Автоматически» и «Вручную». Отключённую службу Windows не запустит " +
+            "даже по требованию, а сломанная функция не подскажет причину.",
+        _ => null,
+    };
+}
+
 /// <summary>Russian texts for start types and states.</summary>
 public static class ServiceText
 {
+    /// <summary>
+    /// The honest restore-point sentence for a confirmation. The Services page asks separately before it goes on
+    /// without a restore point, so «protection off» says so instead of promising one.
+    /// </summary>
+    public static string RestorePointLine(bool settingOn, bool protectionOn, string journaled) =>
+        !settingOn ? $"Точка восстановления не создаётся: она отключена в настройках MONOLITH. {journaled}"
+        : !protectionOn ? $"Защита системы Windows выключена — точку восстановления создать не получится, MONOLITH спросит, продолжать ли без неё. {journaled}"
+        : $"Перед изменением создаётся точка восстановления. {journaled}";
+
     public static string Start(ServiceStartMode? mode, bool delayed, bool triggers = false) => mode switch
     {
         null => "Нет данных",

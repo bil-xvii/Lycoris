@@ -52,7 +52,7 @@ public sealed partial class ServicesViewModel
                 item.State = state;
                 item.BlockReason = BlockReasonFor(entry);
                 item.CanModify = can;
-                item.IsRecommended = entry.IsPreselectedIn(SelectedProfile);
+                item.IsRecommended = item.RecommendedIn(SelectedProfile);
                 if (!item.IsSelectable) item.IsSelected = false;
                 present.Add(item);
             }
@@ -89,7 +89,10 @@ public sealed partial class ServicesViewModel
         };
     }
 
-    /// <summary>Pre-selects what the profile recommends. Conditional ("по условию") items are never pre-selected.</summary>
+    /// <summary>
+    /// Pre-selects what the profile recommends. Conditional ("по условию") items are never pre-selected, nor are
+    /// services that already start only on demand (research §0.1: «Отключена» gains nothing there).
+    /// </summary>
     private void ApplyProfileToRecommendations()
     {
         _bulkSelect = true;
@@ -97,7 +100,7 @@ public sealed partial class ServicesViewModel
         {
             foreach (var item in _recByName.Values)
             {
-                item.IsRecommended = item.Entry.IsPreselectedIn(SelectedProfile);
+                item.IsRecommended = item.RecommendedIn(SelectedProfile);
                 item.IsSelected = item.IsRecommended && item.IsSelectable;
             }
         }
@@ -136,7 +139,7 @@ public sealed partial class ServicesViewModel
         var items = _recByName.Values.ToList();
         RecommendationCount = items.Count;
         OptimalCount = items.Count(i => i.IsAtTarget || i.IsAlreadyManual);
-        ToChangeCount = items.Count(i => i.Entry.IsPreselectedIn(SelectedProfile) && i.IsSelectable);
+        ToChangeCount = items.Count(i => i.RecommendedIn(SelectedProfile) && i.IsSelectable);
         ChangedCount = items.Count(i => i.IsChanged);
         SelectedRecommendationCount = items.Count(i => i.IsSelected && i.IsSelectable);
     }
@@ -151,7 +154,9 @@ public sealed partial class ServicesViewModel
         if (selected.Count == 0) return;
 
         // Build the plan from a fresh read: show exactly "current → new".
-        var live = await Task.Run(() => selected.ToDictionary(i => i.Name, i => ServiceScanner.ReadLiveState(i.Name), StringComparer.OrdinalIgnoreCase));
+        var (live, restorePointLine) = await Task.Run(() =>
+            (selected.ToDictionary(i => i.Name, i => ServiceScanner.ReadLiveState(i.Name), StringComparer.OrdinalIgnoreCase),
+             RestorePointLine("Исходные значения сохраняются в журнале.")));
         var plan = selected
             .Where(i => live[i.Name].Exists)
             .Select(i => (Item: i, State: live[i.Name]))
@@ -169,9 +174,9 @@ public sealed partial class ServicesViewModel
             $"{p.Item.Title} ({p.Item.Name}): {ServiceText.Start(p.State.StartMode, p.State.Delayed, p.State.HasTriggers)} → {p.Item.TargetText}").ToList();
         var disabling = plan.Count(p => p.Item.Entry.Target == ServiceStartMode.Disabled);
         var message = "Изменится только тип запуска. Работающие службы не останавливаются — изменения вступят в силу после перезагрузки. " +
-                      "Перед изменением создаётся точка восстановления, исходные значения сохраняются в журнале.";
+                      restorePointLine;
         if (disabling > 0)
-            message += " Отключённую службу Windows не запустит даже по требованию — убедитесь, что условия отмеченных пунктов выполняются.";
+            message += " Службы с целью «Отключена» Windows не запустит даже по требованию — убедитесь, что условия отмеченных пунктов выполняются.";
 
         if (!await Ui.ConfirmAsync("ИЗМЕНИТЬ ТИП ЗАПУСКА?", message, details, "ПРИМЕНИТЬ", danger: disabling > 0,
                 footnote: "Откат: кнопка ОТКАТИТЬ в строке или раздел «Восстановление»."))
@@ -224,8 +229,11 @@ public sealed partial class ServicesViewModel
         var live = await Task.Run(() => ServiceControl.Query(name));
         if (live is null)
         {
-            await Ui.AlertAsync("СЛУЖБА НЕ НАЙДЕНА",
-                $"Службы {name} больше нет в системе — возвращать нечего. Запись можно удалить из журнала в разделе «Восстановление».");
+            await Ui.AlertAsync("СЛУЖБЫ БОЛЬШЕ НЕТ",
+                $"Службы {name} больше нет в системе: её удалило обновление Windows или программа. Возвращать нечего — " +
+                "тип запуска был у службы, которой уже нет.",
+                VanishedHelp("служба"));
+            await ReloadAsync();
             return;
         }
 

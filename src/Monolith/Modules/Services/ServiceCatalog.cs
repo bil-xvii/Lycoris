@@ -80,13 +80,19 @@ public static class ServiceCatalog
     public static IReadOnlyList<CuratedService> Services { get; } =
     [
         // ───────────── ТЕЛЕМЕТРИЯ ─────────────
+        // Same change and the same explanation as Optimize's "diagtrack-manual" (journal target svc:DiagTrack):
+        // opt-in only, never pre-selected by a profile.
         new()
         {
             Name = "DiagTrack", Title = "Телеметрия Windows", Group = ServiceGroup.Telemetry,
-            Description = "Собирает и отправляет в Microsoft диагностические данные. По умолчанию работает постоянно с момента загрузки.",
-            Condition = "ПК не участвует в программе Windows Insider и не управляется организацией (Intune, Autopatch).",
-            Impact = "Заметных последствий нет: при необходимости Windows запустит службу сама.",
-            Target = ServiceStartMode.Manual, Profiles = RG, Gate = ServiceGate.NotInsider,
+            Description = "Собирает и отправляет в Microsoft диагностические данные. По умолчанию работает постоянно с момента загрузки. " +
+                          "Поддерживаемый способ уменьшить телеметрию — пункт «Только обязательная диагностика» в «Оптимизации»; " +
+                          "служба — дополнительная мера.",
+            Condition = "ПК не участвует в программе Windows Insider и не управляется организацией (Intune, Autopatch). " +
+                        "Используйте вместе с пунктом «Только обязательная диагностика», а не вместо него.",
+            Impact = "Перестанут нормально работать программа предварительной оценки Windows (Insider), часть функций Центра отзывов " +
+                     "и средств диагностики. Служба остаётся в системе и может быть запущена по требованию.",
+            Target = ServiceStartMode.Manual, Conditional = true, Risk = TweakRisk.Optional, Gate = ServiceGate.NotInsider,
         },
         new()
         {
@@ -477,10 +483,14 @@ public static class ServiceCatalog
         _ => "РЕКОМЕНДУЕМЫЙ",
     };
 
+    /// <summary>
+    /// What a profile pre-selects. Profiles never pre-select «по условию» items or services that already start only on
+    /// demand (RecommendationItem.RecommendedIn), so they only touch services that start with Windows.
+    /// </summary>
     public static string ProfileDescription(ProfileSet profile) => profile switch
     {
-        ProfileSet.Normal => "Только изменения без риска: то, что Windows и так запустит сама при необходимости.",
+        ProfileSet.Normal => "Без риска: «Вручную» для служб, которые Windows запустит сама, и «Отключена» для удалённого реестра.",
         ProfileSet.Gaming => "Рекомендуемый набор плюс службы, которые редко нужны на игровом ПК. Пункты «по условию» отметьте сами.",
-        _ => "Сбалансированный набор для большинства домашних ПК: телеметрия и редко нужные службы — «вручную».",
+        _ => "Редко нужные службы, которые стартуют вместе с Windows: где можно — «Вручную».",
     };
 }

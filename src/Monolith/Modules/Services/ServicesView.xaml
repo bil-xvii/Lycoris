@@ -545,7 +545,7 @@
                                     <StackPanel Grid.Column="4" Margin="22,16,22,16" VerticalAlignment="Center">
                                         <TextBlock Text="БЕЗ ИЛЛЮЗИЙ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                         <TextBlock Style="{StaticResource T.Body}" FontSize="12" Margin="0,5,0,0"
-                                                   Text="Отключение служб не прибавляет FPS: реальный выигрыш — десятки мегабайт памяти и меньше фоновой активности. MONOLITH ставит «Вручную»: служба запустится сама, когда понадобится. Работающие службы не останавливаются." />
+                                                   Text="Отключение служб не прибавляет FPS: выигрыш — десятки мегабайт памяти. Где можно, MONOLITH ставит «Вручную» — служба запустится сама, когда понадобится; с целью «Отключена» не запустится вовсе. Работающие службы не останавливаются." />
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -782,10 +782,10 @@
                                                         Command="{Binding DataContext.ApplyStartTypeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                             </Grid>
                                             <TextBlock Style="{StaticResource T.Caption}" Margin="0,8,0,0"
-                                                       Text="Записывается в журнал, перед изменением создаётся точка восстановления. Служба не останавливается — новый тип сработает при следующем старте Windows." />
+                                                       Text="Изменение записывается в журнал и откатывается. Служба не останавливается — новый тип сработает при следующем старте Windows." />
                                             <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0" Foreground="{StaticResource B.Text2}"
-                                                       Text="Эту службу можно только оставить отключённой — MONOLITH её не включает."
-                                                       Visibility="{Binding MustStayDisabled, Converter={StaticResource BoolToVis}}" />
+                                                       Text="{Binding StartPolicyNote}"
+                                                       Visibility="{Binding StartPolicyNote, Converter={StaticResource NullToVis}}" />
 
                                             <TextBlock Text="СЕЙЧАС" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" Margin="0,22,0,0" />
                                             <Grid Margin="0,10,0,0">

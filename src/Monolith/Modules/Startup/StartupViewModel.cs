@@ -1,6 +1,5 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Data;
@@ -49,6 +48,9 @@ public sealed partial class StartupViewModel : PageViewModel
     [ObservableProperty] private string _scanText = "Сканирование…";
     [ObservableProperty] private string? _tasksError;
 
+    /// <summary>What happens with the restore point before a change of several entries (setting + System Protection state).</summary>
+    [ObservableProperty] private string _restorePointNote = StartupTexts.RestorePointNote(settingOn: true, protectionOn: true);
+
     public StartupViewModel()
     {
         ItemsView = new ListCollectionView(Items) { Filter = o => o is StartupItem i && Matches(i) };
@@ -57,8 +59,8 @@ public sealed partial class StartupViewModel : PageViewModel
 
     public string TotalCaption => MissingCount > 0 ? $"без файла: {MissingCount}" : "Run, Run32 и папки";
     public string TaskCaption => TaskCount == 0 ? "сторонних не найдено" : $"включено: {TaskEnabledCount}";
-    public string ItemsCountText => $"{TotalCount} {Plural(TotalCount, "ЗАПИСЬ", "ЗАПИСИ", "ЗАПИСЕЙ")}";
-    public string TasksCountText => $"{TaskCount} {Plural(TaskCount, "ЗАДАЧА", "ЗАДАЧИ", "ЗАДАЧ")}";
+    public string ItemsCountText => $"{TotalCount} {StartupTexts.Plural(TotalCount, "ЗАПИСЬ", "ЗАПИСИ", "ЗАПИСЕЙ")}";
+    public string TasksCountText => $"{TaskCount} {StartupTexts.Plural(TaskCount, "ЗАДАЧА", "ЗАДАЧИ", "ЗАДАЧ")}";
     public bool HasItems => TotalCount > 0;
     public bool HasTasks => TaskCount > 0;
     public bool ShowNoMatches => IsLoaded && TotalCount > 0 && VisibleCount == 0;
@@ -123,6 +125,7 @@ public sealed partial class StartupViewModel : PageViewModel
     {
         var entriesTask = StaWorker.Run(StartupScanner.Scan, "MONOLITH startup scan");
         var tasksTask = StaWorker.Run(() => LogonTaskScanner.Scan(), "MONOLITH task scan");
+        RestorePointNote = await Task.Run(ReadRestorePointNote);
 
         var entries = await entriesTask;
         List<LogonTask> tasks;
@@ -181,7 +184,7 @@ public sealed partial class StartupViewModel : PageViewModel
                 Ui.Toast($"«{item.DisplayName}» — значок защиты системы. MONOLITH его не отключает.", ToastKind.Warning);
                 return;
             }
-            if (!enable && !await ConfirmEntriesAsync([item], enable: false)) return;
+            if (!enable && !await ConfirmEntriesAsync([item], enable: false, restorePointNote: null)) return;
             await ApplyEntriesAsync([item], enable, createRestorePoint: false);
         }
         finally
@@ -226,8 +229,10 @@ public sealed partial class StartupViewModel : PageViewModel
                 : "Все выбранные записи уже отключены.", ToastKind.Info);
             return;
         }
-        if (!await ConfirmEntriesAsync(targets, enable: false, skippedLocked: locked.Count)) return;
-        await ApplyEntriesAsync(targets, enable: false, createRestorePoint: targets.Count > 1);
+        var multiple = targets.Count > 1;
+        var note = multiple ? await RefreshRestorePointNoteAsync() : null;
+        if (!await ConfirmEntriesAsync(targets, enable: false, note, skippedLocked: locked.Count)) return;
+        await ApplyEntriesAsync(targets, enable: false, createRestorePoint: multiple);
     }
 
     [RelayCommand]
@@ -240,8 +245,9 @@ public sealed partial class StartupViewModel : PageViewModel
             Ui.Toast("Все выбранные записи уже включены.", ToastKind.Info);
             return;
         }
-        if (targets.Count > 1 && !await ConfirmEntriesAsync(targets, enable: true)) return;
-        await ApplyEntriesAsync(targets, enable: true, createRestorePoint: targets.Count > 1);
+        var multiple = targets.Count > 1;
+        if (multiple && !await ConfirmEntriesAsync(targets, enable: true, await RefreshRestorePointNoteAsync())) return;
+        await ApplyEntriesAsync(targets, enable: true, createRestorePoint: multiple);
     }
 
     [RelayCommand]
@@ -264,28 +270,39 @@ public sealed partial class StartupViewModel : PageViewModel
     private async Task RevertAllAsync()
     {
         if (!EnsureIdle() || !RequireAdmin("откат изменений автозапуска")) return;
-        var records = StartupChanges.ActiveRecords();
-        if (records.Count == 0)
+        var all = StartupChanges.ActiveRecords();
+        if (all.Count == 0)
         {
             Ui.Toast("Изменений автозапуска в журнале нет.", ToastKind.Info);
             return;
         }
 
+        // A task removed by its program's uninstaller has nothing to put back — its undo would only fail.
+        var vanished = await Task.Run(() => all.Where(r => r.Kind == ChangeKind.ScheduledTask && r.TaskPath is { } p && !ScheduledTasks.Query(p).Exists).ToList());
+        var records = all.Except(vanished).ToList();
+        var gone = vanished.Select(r => $"{r.Title}: задачи больше нет в планировщике — пропускается").ToList();
+        if (records.Count == 0)
+        {
+            await Ui.AlertAsync("ВОЗВРАЩАТЬ НЕЧЕГО",
+                "Задач из журнала этой страницы больше нет в планировщике (их удалила программа или обновление), поэтому возвращать нечего.",
+                gone.Append("Записи об изменениях остаются в разделе «Восстановление»: если задача появится снова, её можно будет вернуть там или здесь."));
+            return;
+        }
+
         var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЯ АВТОЗАПУСКА?",
-            $"MONOLITH вернёт исходное состояние {records.Count} {Plural(records.Count, "записи", "записей", "записей")}: " +
-            "отметки StartupApproved и состояние задач планировщика станут такими, какими были до первого изменения.",
-            records.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}"),
+            StartupTexts.RevertAllMessage(records.Count),
+            records.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}").Concat(gone),
             confirmText: "ОТКАТИТЬ",
-            footnote: "Ничего не удаляется. Изменения вступят в силу при следующем входе в Windows.");
+            footnote: "Ничего не удаляется. Отметки автозапуска сработают при следующем входе в Windows, задачи планировщика — сразу.");
         if (!ok) return;
 
         await RunBusyAsync("Откат изменений автозапуска…", async () =>
         {
             var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(records));
             if (result.Success)
-                Ui.Toast($"Возвращено исходное состояние: {result.Reverted}.", ToastKind.Success, "АВТОЗАПУСК");
+                Ui.Toast(StartupTexts.RevertDone(result.Reverted), ToastKind.Success, "АВТОЗАПУСК");
             else
-                Ui.Toast($"Откачено {result.Reverted}, ошибок {result.Failed}: {result.Errors.FirstOrDefault()}", ToastKind.Error, "АВТОЗАПУСК");
+                Ui.Toast(StartupTexts.RevertPartial(result.Reverted, result.Failed, result.Errors.FirstOrDefault()), ToastKind.Error, "АВТОЗАПУСК");
             await ScanAsync();
         });
     }
@@ -306,7 +323,7 @@ public sealed partial class StartupViewModel : PageViewModel
             UpdateJournalState();
             Recount();
             RefreshView();
-            ReportOutcome(outcome, items.Select(i => i.DisplayName).ToList(), enable, "Изменение вступит в силу при следующем входе в Windows.");
+            ReportOutcome(outcome, StartupTexts.EntriesResult(items.Select(i => i.DisplayName).ToList(), enable), enable);
         });
     }
 
@@ -320,31 +337,35 @@ public sealed partial class StartupViewModel : PageViewModel
             if (state is { } on) item.Update(on);
             UpdateJournalState();
             Recount();
-            ReportOutcome(outcome, [item.DisplayName], enable, "Планировщик применяет изменение сразу.");
+            ReportOutcome(outcome, StartupTexts.TaskResult(item.DisplayName, enable), enable);
         });
     }
 
-    private static void ReportOutcome(StartupChangeOutcome outcome, IReadOnlyList<string> names, bool enable, string tail)
+    private static void ReportOutcome(StartupChangeOutcome outcome, string successText, bool enable)
     {
-        var subject = names.Count == 1 ? $"«{names[0]}»" : $"{names.Count} {Plural(names.Count, "запись", "записи", "записей")}";
         if (outcome.Success && outcome.Applied > 0)
-        {
-            var text = enable
-                ? $"{subject} снова {(names.Count == 1 ? "будет" : "будут")} запускаться вместе с Windows. {tail}"
-                : $"{subject} больше не {(names.Count == 1 ? "будет" : "будут")} запускаться при входе. Вернуть можно здесь же или в разделе «Восстановление».";
-            Ui.Toast(text, ToastKind.Success, enable ? "АВТОЗАПУСК ВКЛЮЧЁН" : "АВТОЗАПУСК ОТКЛЮЧЁН");
-        }
+            Ui.Toast(successText, ToastKind.Success, enable ? "АВТОЗАПУСК ВКЛЮЧЁН" : "АВТОЗАПУСК ОТКЛЮЧЁН");
         else if (outcome.Success)
-        {
             Ui.Toast("Изменений не потребовалось.", ToastKind.Info, "АВТОЗАПУСК");
-        }
         else
-        {
             Ui.Toast(outcome.Errors[0], ToastKind.Error, outcome.Applied > 0 ? $"ПРИМЕНЕНО ЧАСТИЧНО ({outcome.Applied})" : "НЕ ПРИМЕНЕНО");
-        }
+
+        // The confirmation already said when System Protection is off; report only an unexpected failure.
+        if (outcome.RestorePoint is { Outcome: RestorePointOutcome.Failed or RestorePointOutcome.Skipped } rp && outcome.Applied > 0)
+            Ui.Toast($"{rp.Message} Изменения записаны в журнал и откатываются из MONOLITH.", ToastKind.Warning, "ТОЧКА ВОССТАНОВЛЕНИЯ");
     }
 
-    private static Task<bool> ConfirmEntriesAsync(IReadOnlyList<StartupItem> items, bool enable, int skippedLocked = 0)
+    private static string ReadRestorePointNote() =>
+        StartupTexts.RestorePointNote(AppSettings.Current.CreateRestorePoints, RestorePointService.IsEnabled());
+
+    /// <summary>Re-reads the setting and System Protection right before a confirmation (registry read off the UI thread).</summary>
+    private async Task<string> RefreshRestorePointNoteAsync()
+    {
+        RestorePointNote = await Task.Run(ReadRestorePointNote);
+        return RestorePointNote;
+    }
+
+    private static Task<bool> ConfirmEntriesAsync(IReadOnlyList<StartupItem> items, bool enable, string? restorePointNote, int skippedLocked = 0)
     {
         var details = new List<string>();
         foreach (var i in items)
@@ -373,19 +394,13 @@ public sealed partial class StartupViewModel : PageViewModel
         }
         if (skippedLocked > 0)
             details.Add($"Пропущено защитных записей: {skippedLocked} (Безопасность Windows и антивирусы MONOLITH не отключает).");
-        if (items.Count > 1)
-            details.Add("Перед изменением MONOLITH создаст точку восстановления (если это включено в настройках).");
-
-        var subject = items.Count == 1 ? $"«{items[0].DisplayName}»" : $"{items.Count} {Plural(items.Count, "запись", "записи", "записей")}";
-        var message = enable
-            ? $"{subject} снова {(items.Count == 1 ? "будет" : "будут")} запускаться при входе в Windows."
-            : $"{subject} перестанет запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач. " +
-              "Уже запущенные программы продолжат работать до перезагрузки.";
+        if (restorePointNote is not null)
+            details.Add(restorePointNote);
 
         return Ui.ConfirmAsync(
-            enable ? (items.Count == 1 ? "ВКЛЮЧИТЬ АВТОЗАПУСК?" : $"ВКЛЮЧИТЬ {items.Count} {Plural(items.Count, "ЗАПИСЬ", "ЗАПИСИ", "ЗАПИСЕЙ")}?")
-                   : (items.Count == 1 ? "ОТКЛЮЧИТЬ АВТОЗАПУСК?" : $"ОТКЛЮЧИТЬ {items.Count} {Plural(items.Count, "ЗАПИСЬ", "ЗАПИСИ", "ЗАПИСЕЙ")}?"),
-            message, details,
+            StartupTexts.ConfirmTitle(items.Count, enable),
+            StartupTexts.ConfirmMessage(items.Select(i => i.DisplayName).ToList(), enable),
+            details,
             confirmText: enable ? "ВКЛЮЧИТЬ" : "ОТКЛЮЧИТЬ",
             footnote: "Вернуть: переключатель на этой странице, Диспетчер задач → «Автозагрузка» или раздел «Восстановление». " +
                       "Изменение вступит в силу при следующем входе в Windows.");
@@ -415,8 +430,12 @@ public sealed partial class StartupViewModel : PageViewModel
 
     // ───────────────────────────── Row actions ─────────────────────────────
 
+    /// <summary>
+    /// Shows the file in Explorer. The Explorer window is started as the signed-in user (rule 8): a file manager with
+    /// MONOLITH's admin token would start everything opened from it as administrator.
+    /// </summary>
     [RelayCommand]
-    private void OpenLocation(IStartupRow? row)
+    private async Task OpenLocationAsync(IStartupRow? row)
     {
         if (row is null) return;
         try
@@ -428,15 +447,18 @@ public sealed partial class StartupViewModel : PageViewModel
 
             if (file is not null)
             {
-                Process.Start(new ProcessStartInfo(explorer, $"/select,\"{file}\"") { UseShellExecute = false });
+                if (!await UnelevatedShell.StartAsUserAsync(explorer, $"/select,\"{file}\""))
+                    Ui.Toast($"Не удалось открыть Проводник без прав администратора. Файл: {file}", ToastKind.Error, "ОТКРЫТЬ РАСПОЛОЖЕНИЕ");
                 return;
             }
 
             var dir = row.TargetPath is { } tp && Path.IsPathFullyQualified(tp) ? Path.GetDirectoryName(tp) : null;
             if (dir is not null && FileProbe.DirectoryExists(dir))
             {
-                Process.Start(new ProcessStartInfo(explorer, $"\"{dir}\"") { UseShellExecute = false });
-                Ui.Toast($"Файл не найден, открыта папка: {dir}", ToastKind.Warning);
+                if (await UnelevatedShell.StartAsUserAsync(explorer, $"\"{dir}\""))
+                    Ui.Toast($"Файл не найден, открыта папка: {dir}", ToastKind.Warning);
+                else
+                    Ui.Toast($"Не удалось открыть Проводник без прав администратора. Папка: {dir}", ToastKind.Error, "ОТКРЫТЬ РАСПОЛОЖЕНИЕ");
                 return;
             }
 
@@ -476,31 +498,16 @@ public sealed partial class StartupViewModel : PageViewModel
         }
     }
 
+    /// <summary>Searches the file name on the web. The browser never gets MONOLITH's admin token (rule 8).</summary>
     [RelayCommand]
-    private void SearchOnline(IStartupRow? row)
+    private async Task SearchOnlineAsync(IStartupRow? row)
     {
         if (row is null) return;
         var term = row.TargetPath is { Length: > 0 } t ? Path.GetFileName(t) : row.DisplayName;
         if (string.IsNullOrWhiteSpace(term)) term = row.DisplayName;
         var url = "https://www.google.com/search?q=" + Uri.EscapeDataString(term);
-        try
-        {
-            if (Elevation.IsElevated)
-            {
-                // Hand the URL to the (non-elevated) shell so the browser does not run with admin rights.
-                var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
-                Process.Start(new ProcessStartInfo(explorer, $"\"{url}\"") { UseShellExecute = false });
-            }
-            else
-            {
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Автозапуск: не удалось открыть браузер", ex);
-            Ui.Toast($"Не удалось открыть браузер: {ex.Message}", ToastKind.Error);
-        }
+        if (!await UnelevatedShell.OpenAsync(url))
+            Ui.Toast("Не удалось открыть браузер без прав администратора. Поищите имя файла вручную: " + term, ToastKind.Error, "ПОИСК В СЕТИ");
     }
 
     // ───────────────────────────── State ─────────────────────────────
@@ -576,14 +583,5 @@ public sealed partial class StartupViewModel : PageViewModel
         return Contains(i.DisplayName, q) || Contains(i.Entry.Name, q) || Contains(i.Command, q) || Contains(i.Entry.Publisher, q);
 
         static bool Contains(string? s, string q) => s?.Contains(q, StringComparison.CurrentCultureIgnoreCase) == true;
-    }
-
-    internal static string Plural(int n, string one, string few, string many)
-    {
-        var n10 = n % 10;
-        var n100 = n % 100;
-        if (n10 == 1 && n100 != 11) return one;
-        if (n10 is >= 2 and <= 4 && n100 is < 12 or > 14) return few;
-        return many;
     }
 }

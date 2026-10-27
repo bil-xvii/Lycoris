@@ -9,9 +9,9 @@ using Monolith.UI;
 namespace Monolith.Modules.Services;
 
 /// <summary>
-/// СЛУЖБЫ: curated recommendations (allowlist from research), the full service list (expert mode with locks)
-/// and telemetry scheduled tasks. Every change goes through <see cref="ChangeSession"/>: journaled + restore point.
-/// Running services are never stopped automatically.
+/// СЛУЖБЫ: curated recommendations (allowlist from research), the full service list (locks + <see cref="ServiceStartPolicy"/>:
+/// Windows services outside the list are never disabled) and telemetry scheduled tasks. Every change goes through
+/// <see cref="ChangeSession"/>: journaled + restore point. Running services are never stopped automatically.
 /// </summary>
 public sealed partial class ServicesViewModel : PageViewModel
 {
@@ -127,6 +127,7 @@ public sealed partial class ServicesViewModel : PageViewModel
             {
                 if (states.TryGetValue(item.Name, out var st) && st.Exists)
                     item.State = st with { DisplayName = st.DisplayName ?? item.State?.DisplayName };
+                item.IsRecommended = item.RecommendedIn(SelectedProfile);
                 if (!item.IsSelectable) item.IsSelected = false;
             }
 
@@ -199,6 +200,28 @@ public sealed partial class ServicesViewModel : PageViewModel
         return session;
     }
 
+    /// <summary>Restore-point sentence for a confirmation, from the setting and the live System Protection state (registry read).</summary>
+    private static string RestorePointLine(string journaled) =>
+        ServiceText.RestorePointLine(AppSettings.Current.CreateRestorePoints, RestorePointService.IsEnabled(), journaled);
+
+    /// <summary>
+    /// The service or task a journal record points to is gone (removed by a Windows update or an uninstaller):
+    /// there is nothing to put back, and the undo would only fail.
+    /// </summary>
+    private static bool TargetVanished(ChangeRecord r) => r.Kind switch
+    {
+        ChangeKind.Service when r.Service is not null => ServiceControl.Query(r.Service.Name) is null,
+        ChangeKind.ScheduledTask when r.TaskPath is not null => !ScheduledTasks.Query(r.TaskPath).Exists,
+        _ => false,
+    };
+
+    /// <summary>Real ways out for a record whose service or task no longer exists (journal records are never deleted).</summary>
+    private static IReadOnlyList<string> VanishedHelp(string what) =>
+    [
+        "Запись об изменении остаётся в разделе «Восстановление» — MONOLITH не удаляет записи журнала.",
+        $"Если {what} появится снова (например, после переустановки программы), исходное значение можно будет вернуть кнопкой ОТКАТИТЬ здесь или в разделе «Восстановление».",
+    ];
+
     private static string BatchTitle(string prefix, IReadOnlyList<string> names) => names.Count switch
     {
         0 => prefix,
@@ -222,10 +245,12 @@ public sealed partial class ServicesViewModel : PageViewModel
     {
         if (result.Success)
         {
-            Ui.Toast(result.Reverted == 1 ? "Исходное значение восстановлено." : $"Откатено изменений: {result.Reverted}.", ToastKind.Success, "ОТКАТ");
+            Ui.Toast(result.Reverted == 1 ? "Исходное значение восстановлено." : $"Восстановлено исходных значений: {result.Reverted}.", ToastKind.Success, "ОТКАТ");
             return;
         }
-        await Ui.AlertAsync("ОТКАТ ВЫПОЛНЕН НЕ ПОЛНОСТЬЮ", $"Откатено: {result.Reverted}, ошибок: {result.Failed}. Записи с ошибками остались в «Восстановлении».", result.Errors);
+        await Ui.AlertAsync("ОТКАТ ВЫПОЛНЕН НЕ ПОЛНОСТЬЮ",
+            $"Восстановлено: {result.Reverted}, ошибок: {result.Failed}. Записи с ошибками остались активными в разделе «Восстановление» — " +
+            "откат можно повторить там или кнопкой ОТКАТИТЬ на этой странице.", result.Errors);
     }
 
     // ───────────────────────────── Revert all ─────────────────────────────
@@ -236,13 +261,28 @@ public sealed partial class ServicesViewModel : PageViewModel
     private async Task RevertAllAsync()
     {
         if (!RequireAdmin("откат изменений служб")) return;
-        var records = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source is ServiceSource or TaskSource).ToList();
-        if (records.Count == 0) return;
+        var all = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source is ServiceSource or TaskSource).ToList();
+        if (all.Count == 0) return;
 
-        var details = records.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}").ToList();
+        // A service or task that no longer exists has nothing to put back — its undo would only fail.
+        var vanished = await Task.Run(() => all.Where(TargetVanished).ToList());
+        var records = all.Except(vanished).ToList();
+        var gone = vanished.Select(r => $"{r.Title}: больше нет в системе — пропускается").ToList();
+        if (records.Count == 0)
+        {
+            await Ui.AlertAsync("ВОЗВРАЩАТЬ НЕЧЕГО",
+                "Служб и задач из журнала этой страницы больше нет в системе (их удалило обновление Windows или программа), поэтому возвращать нечего.",
+                gone.Concat(VanishedHelp("служба или задача")));
+            return;
+        }
+
+        var details = records.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}").Concat(gone).ToList();
         if (!await Ui.ConfirmAsync("ОТКАТИТЬ ВСЕ ИЗМЕНЕНИЯ СЛУЖБ?",
                 "Службы и задачи, изменённые на этой странице, вернутся к исходным значениям из журнала. Работающие службы не останавливаются.",
-                details, "ОТКАТИТЬ ВСЁ", footnote: "Изменения из других разделов не затрагиваются."))
+                details, "ОТКАТИТЬ ВСЁ",
+                footnote: vanished.Count == 0
+                    ? "Изменения из других разделов не затрагиваются."
+                    : "Изменения из других разделов не затрагиваются. Записи об исчезнувших службах и задачах остаются в разделе «Восстановление»."))
             return;
 
         await RunBusyAsync("Откат изменений служб…", async () =>

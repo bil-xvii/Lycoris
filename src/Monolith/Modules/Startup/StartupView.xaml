@@ -279,13 +279,18 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <TextBlock Text="ВЫБРАНО" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding SelectedCount}" Style="{StaticResource T.Mono}" FontSize="14" Foreground="{StaticResource B.Text}"
+                            <TextBlock Grid.Column="1" Text="{Binding SelectedCount}" Style="{StaticResource T.Mono}" FontSize="14" Foreground="{StaticResource B.Text}"
                                        Margin="10,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Перед изменением нескольких записей MONOLITH создаёт точку восстановления." Style="{StaticResource T.Caption}"
-                                       Margin="20,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="2" Text="{Binding RestorePointNote}" ToolTip="{Binding RestorePointNote}" Style="{StaticResource T.Caption}"
+                                       Margin="20,0,16,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </Grid>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <Button Style="{StaticResource Btn.Primary}" Command="{Binding DisableSelectedCommand}" Content="ОТКЛЮЧИТЬ ВЫБРАННЫЕ" />
                             <Button Command="{Binding EnableSelectedCommand}" Content="ВКЛЮЧИТЬ ВЫБРАННЫЕ" Margin="8,0,0,0" />

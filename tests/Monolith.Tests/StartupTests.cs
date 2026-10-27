@@ -408,15 +408,90 @@ public sealed class StartupScanSmokeTests
         Assert.False(FileProbe.FileExists("relative.exe"));
         Assert.False(FileProbe.FileExists(null));
     }
+}
 
+public sealed class StartupTextsTests
+{
     [Theory]
     [InlineData(1, "запись")]
     [InlineData(2, "записи")]
     [InlineData(5, "записей")]
     [InlineData(11, "записей")]
+    [InlineData(12, "записей")]
+    [InlineData(14, "записей")]
     [InlineData(21, "запись")]
     [InlineData(22, "записи")]
+    [InlineData(111, "записей")]
     [InlineData(112, "записей")]
+    [InlineData(0, "записей")]
     public void Russian_plural(int n, string expected) =>
-        Assert.Equal(expected, StartupViewModel.Plural(n, "запись", "записи", "записей"));
+        Assert.Equal(expected, StartupTexts.Plural(n, "запись", "записи", "записей"));
+
+    [Theory]
+    [InlineData(1, "перестанет")]
+    [InlineData(2, "перестанут")]
+    [InlineData(3, "перестанут")]
+    [InlineData(5, "перестанут")]
+    [InlineData(11, "перестанут")]
+    [InlineData(21, "перестанет")]
+    [InlineData(111, "перестанут")]
+    public void Verb_agrees_with_the_count(int n, string expected) =>
+        Assert.Equal(expected, StartupTexts.Agree(n, "перестанет", "перестанут"));
+
+    private static IReadOnlyList<string> Names(int n) => Enumerable.Range(1, n).Select(i => $"App{i}").ToList();
+
+    [Fact]
+    public void Disable_confirmation_agrees_for_one_and_many()
+    {
+        Assert.StartsWith("«Steam» перестанет запускаться", StartupTexts.ConfirmMessage(["Steam"], enable: false));
+        Assert.StartsWith("3 записи перестанут запускаться", StartupTexts.ConfirmMessage(Names(3), enable: false));
+        Assert.StartsWith("5 записей перестанут запускаться", StartupTexts.ConfirmMessage(Names(5), enable: false));
+        Assert.StartsWith("21 запись перестанет запускаться", StartupTexts.ConfirmMessage(Names(21), enable: false));
+    }
+
+    [Fact]
+    public void Enable_confirmation_and_results_agree()
+    {
+        Assert.StartsWith("«Discord» снова будет запускаться", StartupTexts.ConfirmMessage(["Discord"], enable: true));
+        Assert.StartsWith("4 записи снова будут запускаться", StartupTexts.ConfirmMessage(Names(4), enable: true));
+        Assert.StartsWith("2 записи больше не будут запускаться", StartupTexts.EntriesResult(Names(2), enable: false));
+        Assert.StartsWith("21 запись больше не будет запускаться", StartupTexts.EntriesResult(Names(21), enable: false));
+        Assert.StartsWith("«Steam» снова будет запускаться", StartupTexts.EntriesResult(["Steam"], enable: true));
+    }
+
+    [Theory]
+    [InlineData(1, true, "ВКЛЮЧИТЬ АВТОЗАПУСК?")]
+    [InlineData(3, true, "ВКЛЮЧИТЬ 3 ЗАПИСИ?")]
+    [InlineData(5, false, "ОТКЛЮЧИТЬ 5 ЗАПИСЕЙ?")]
+    [InlineData(21, false, "ОТКЛЮЧИТЬ 21 ЗАПИСЬ?")]
+    public void Confirmation_titles(int n, bool enable, string expected) =>
+        Assert.Equal(expected, StartupTexts.ConfirmTitle(n, enable));
+
+    [Fact]
+    public void Revert_texts_use_the_right_cases()
+    {
+        Assert.Contains("исходное состояние 1 записи журнала", StartupTexts.RevertAllMessage(1));
+        Assert.Contains("исходное состояние 3 записей журнала", StartupTexts.RevertAllMessage(3));
+        Assert.Contains("исходное состояние 21 записи журнала", StartupTexts.RevertAllMessage(21));
+        Assert.Equal("Исходное состояние возвращено: 2 записи.", StartupTexts.RevertDone(2));
+        Assert.Equal("Возвращено: 1 запись, ошибок: 2. Нет доступа", StartupTexts.RevertPartial(1, 2, "Нет доступа"));
+        Assert.Equal("Возвращено: 0 записей, ошибок: 1.", StartupTexts.RevertPartial(0, 1, null));
+    }
+
+    [Fact]
+    public void Task_results_do_not_claim_sign_in_only()
+    {
+        Assert.Contains("планировщик больше не будет её запускать", StartupTexts.TaskResult("Updater", enable: false));
+        Assert.Contains("действует сразу", StartupTexts.TaskResult("Updater", enable: true));
+    }
+
+    [Fact]
+    public void Restore_point_note_never_promises_what_cannot_happen()
+    {
+        Assert.Contains("создаёт точку восстановления", StartupTexts.RestorePointNote(settingOn: true, protectionOn: true));
+        Assert.Contains("не будет", StartupTexts.RestorePointNote(settingOn: true, protectionOn: false));
+        Assert.Contains("отключено в настройках", StartupTexts.RestorePointNote(settingOn: false, protectionOn: true));
+        Assert.DoesNotContain("MONOLITH создаёт", StartupTexts.RestorePointNote(settingOn: false, protectionOn: false));
+        Assert.DoesNotContain("MONOLITH создаёт", StartupTexts.RestorePointNote(settingOn: true, protectionOn: false));
+    }
 }

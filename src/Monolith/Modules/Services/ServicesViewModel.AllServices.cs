@@ -11,7 +11,8 @@ namespace Monolith.Modules.Services;
 
 /// <summary>
 /// ВСЕ СЛУЖБЫ: every Win32 service, read-only for locked ones (Core protected list, research hard-block list,
-/// per-user services, drivers, PPL, DriverStore). Start-type changes are journaled; start/stop are not.
+/// per-user services, drivers, PPL, DriverStore). Start types follow <see cref="ServiceStartPolicy"/>: Windows services
+/// outside the curated list are never disabled. Start-type changes are journaled; start/stop are not.
 /// </summary>
 public sealed partial class ServicesViewModel
 {
@@ -129,11 +130,17 @@ public sealed partial class ServicesViewModel
         var option = item?.PendingStart;
         if (item is null || option is null || item.IsLocked) return;
         if (!RequireAdmin("изменение типа запуска")) return;
-        if (item.MustStayDisabled && option.Mode != ServiceStartMode.Disabled) return;
+        if (!ServiceStartPolicy.Allows(item.StartScope, option))
+        {
+            Ui.Toast(item.StartPolicyNote ?? "Этот тип запуска MONOLITH для службы не ставит.", ToastKind.Warning);
+            item.ResetPending();
+            return;
+        }
 
-        var (live, dependents) = await Task.Run(() =>
+        var (live, dependents, restorePointLine) = await Task.Run(() =>
             (ServiceControl.Query(item.Name),
-             option.Mode == ServiceStartMode.Disabled ? ServiceScanner.GetDependents(item.Name) : (IReadOnlyList<DependentInfo>)[]));
+             option.Mode == ServiceStartMode.Disabled ? ServiceScanner.GetDependents(item.Name) : (IReadOnlyList<DependentInfo>)[],
+             RestorePointLine("Исходный тип запуска сохраняется в журнале.")));
         if (live is null)
         {
             Ui.Toast($"Служба {item.Name} не найдена — список устарел. Нажмите «Обновить».", ToastKind.Warning);
@@ -149,15 +156,18 @@ public sealed partial class ServicesViewModel
         var details = new List<string>
         {
             $"{item.DisplayName} ({item.Name}): {live.Describe()} → {newText}",
-            "Перед изменением создаётся точка восстановления, исходный тип запуска сохраняется в журнале.",
+            restorePointLine,
             "Служба сейчас не останавливается и не запускается — новый тип запуска сработает при следующем старте Windows.",
         };
         if (option.Mode == ServiceStartMode.Disabled)
             details.Add("Отключённую службу Windows не запустит даже по требованию: всё, что от неё зависит, перестанет работать.");
+        if (option.Mode == ServiceStartMode.Manual && live.StartMode == ServiceStartMode.Automatic && !item.HasTriggers)
+            details.Add("У службы нет триггеров запуска: после перезагрузки она запустится, только если её вызовет программа или другая служба. " +
+                        "Функции, которые ждут её с момента загрузки, могут не работать.");
         if (dependents.Count > 0)
             details.Add($"От неё зависят: {string.Join(", ", dependents.Select(d => d.DisplayName))}.");
-        if (item.IsThirdParty)
-            details.Add($"Служба стороннего производителя ({item.Publisher}): её программа может перестать работать.");
+        if (item.IsThirdParty && option.Mode != ServiceStartMode.Automatic)
+            details.Add($"Служба стороннего производителя ({item.Publisher}): её программа может перестать работать или обновляться.");
         if (!item.IsCurated)
             details.Add("Этой службы нет в списке рекомендаций MONOLITH — вы меняете её на свой риск.");
 

@@ -4,7 +4,8 @@ using Monolith.Core;
 namespace Monolith.Modules.Startup;
 
 /// <summary>Result of a batch of autostart changes.</summary>
-public sealed record StartupChangeOutcome(int Applied, IReadOnlyList<string> Errors)
+/// <param name="RestorePoint">The restore point attempt, when one was requested and allowed by the settings.</param>
+public sealed record StartupChangeOutcome(int Applied, IReadOnlyList<string> Errors, RestorePointResult? RestorePoint = null)
 {
     public bool Success => Errors.Count == 0;
 }
@@ -30,12 +31,31 @@ public static class StartupChanges
         return names.Count == 1 ? $"Автозапуск: {verb} «{names[0]}»" : $"Автозапуск: {verb} ({names.Count} шт.)";
     }
 
+    /// <summary>
+    /// Starts a journaled batch. The restore point is made here rather than inside <see cref="ChangeSession.BeginAsync"/>
+    /// so the caller learns whether it was really created (System Protection may be off).
+    /// </summary>
+    private static async Task<(ChangeSession Session, RestorePointResult? RestorePoint)> BeginAsync(string title, bool createRestorePoint,
+        IProgress<string>? progress)
+    {
+        var session = await ChangeSession.BeginAsync(title, createRestorePoint: false, progress).ConfigureAwait(false);
+        if (!createRestorePoint || !AppSettings.Current.CreateRestorePoints) return (session, null);
+
+        progress?.Report("Создание точки восстановления…");
+        var rp = await RestorePointService.CreateAsync($"MONOLITH: {title}").ConfigureAwait(false);
+        session.Batch.RestorePoint = rp.Message;
+        ChangeJournal.Instance.UpdateBatch(session.Batch);
+        if (!rp.Created) Log.Warn($"{title}: {rp.Message}");
+        return (session, rp);
+    }
+
     public static async Task<StartupChangeOutcome> SetEntriesAsync(IReadOnlyList<StartupEntry> entries, bool enable,
         bool createRestorePoint, IProgress<string>? progress = null)
     {
         var journal = ChangeJournal.Instance;
         var errors = new List<string>();
         var applied = 0;
+        RestorePointResult? restorePoint = null;
 
         var revert = new List<ChangeRecord>();
         var write = new List<StartupEntry>();
@@ -48,7 +68,7 @@ public static class StartupChanges
 
         if (write.Count > 0)
         {
-            var session = await ChangeSession.BeginAsync(BatchTitle(write.Select(w => w.DisplayName).ToList(), enable),
+            (var session, restorePoint) = await BeginAsync(BatchTitle(write.Select(w => w.DisplayName).ToList(), enable),
                 createRestorePoint, progress).ConfigureAwait(false);
             foreach (var e in write)
             {
@@ -69,7 +89,7 @@ public static class StartupChanges
             errors.AddRange(r.Errors);
         }
 
-        return new StartupChangeOutcome(applied, errors);
+        return new StartupChangeOutcome(applied, errors, restorePoint);
     }
 
     public static async Task<StartupChangeOutcome> SetTasksAsync(IReadOnlyList<LogonTask> tasks, bool enable,
@@ -78,6 +98,7 @@ public static class StartupChanges
         var journal = ChangeJournal.Instance;
         var errors = new List<string>();
         var applied = 0;
+        RestorePointResult? restorePoint = null;
 
         var revert = new List<ChangeRecord>();
         var write = new List<LogonTask>();
@@ -90,7 +111,7 @@ public static class StartupChanges
 
         if (write.Count > 0)
         {
-            var session = await ChangeSession.BeginAsync(BatchTitle(write.Select(w => w.Name).ToList(), enable),
+            (var session, restorePoint) = await BeginAsync(BatchTitle(write.Select(w => w.Name).ToList(), enable),
                 createRestorePoint, progress).ConfigureAwait(false);
             foreach (var t in write)
             {
@@ -110,7 +131,7 @@ public static class StartupChanges
             errors.AddRange(r.Errors);
         }
 
-        return new StartupChangeOutcome(applied, errors);
+        return new StartupChangeOutcome(applied, errors, restorePoint);
     }
 
     /// <summary>Was the entry enabled before MONOLITH changed it? (absent value / non-binary = enabled).</summary>
