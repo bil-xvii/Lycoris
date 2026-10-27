@@ -1,7 +1,10 @@
+using System.IO;
+using Microsoft.Win32;
 using Monolith.Core;
 using Monolith.Modules.Restore;
 using Monolith.Modules.Settings;
 using Monolith.Modules.Tools;
+using Monolith.Tweaks;
 
 namespace Monolith.Tests;
 
@@ -247,6 +250,146 @@ public sealed class ToolsTests
         Assert.False(RestoreFormat.IsMonolithPoint(null));
     }
 
+    // ─────────────────────────── undo center: live value / drift ───────────────────────────
+
+    [Theory]
+    [InlineData("DWord: 1", RegistryValueKind.DWord, 1, LiveState.Same)]
+    [InlineData("DWord: 1", RegistryValueKind.DWord, 0, LiveState.Drifted)]
+    [InlineData("DWord: -1", RegistryValueKind.DWord, -1, LiveState.Same)]
+    [InlineData("DWord: 4294967295", RegistryValueKind.DWord, -1, LiveState.Same)]
+    [InlineData("DWord: 2", RegistryValueKind.String, "2", LiveState.Drifted)]
+    [InlineData("String: Deny", RegistryValueKind.String, "Deny", LiveState.Same)]
+    [InlineData("String: Deny", RegistryValueKind.String, "Allow", LiveState.Drifted)]
+    [InlineData("ExpandString: %SystemRoot%\\x", RegistryValueKind.ExpandString, "%SystemRoot%\\x", LiveState.Same)]
+    [InlineData("Нечто непонятное", RegistryValueKind.DWord, 1, LiveState.Unknown)]
+    public void Registry_drift_is_detected_by_value(string journal, RegistryValueKind kind, object current, LiveState expected) =>
+        Assert.Equal(expected, RestoreLive.CompareRegistry(journal, kind, current).State);
+
+    [Fact]
+    public void Registry_drift_handles_deleted_binary_multi_string_and_qword_values()
+    {
+        Assert.Equal(LiveState.Same, RestoreLive.CompareRegistry("удалено", null, null).State);
+        var recreated = RestoreLive.CompareRegistry("удалено", RegistryValueKind.DWord, 1);
+        Assert.Equal(LiveState.Drifted, recreated.State);
+        Assert.Equal("DWord: 1", recreated.Text);
+
+        var gone = RestoreLive.CompareRegistry("DWord: 0", null, null);
+        Assert.Equal(LiveState.Drifted, gone.State);
+        Assert.Equal(RestoreLive.Absent, gone.Text);
+
+        Assert.Equal(LiveState.Same, RestoreLive.CompareRegistry("Binary: 02 00 FF", RegistryValueKind.Binary, new byte[] { 2, 0, 0xFF }).State);
+        Assert.Equal(LiveState.Drifted, RestoreLive.CompareRegistry("Binary: 02 00 FF", RegistryValueKind.Binary, new byte[] { 3, 0, 0xFF }).State);
+        Assert.Equal(LiveState.Same, RestoreLive.CompareRegistry("MultiString: a; б", RegistryValueKind.MultiString, new[] { "a", "б" }).State);
+        Assert.Equal(LiveState.Same, RestoreLive.CompareRegistry("QWord: 1234567890123", RegistryValueKind.QWord, 1234567890123L).State);
+    }
+
+    [Fact]
+    public void Service_task_and_power_drift_compare_the_journal_text()
+    {
+        Assert.Equal(LiveState.Same, RestoreLive.CompareText("Вручную", "Вручную").State);
+        var drift = RestoreLive.CompareText("Вручную", "Отключена");
+        Assert.Equal(LiveState.Drifted, drift.State);
+        Assert.Equal("Отключена", drift.Text);
+    }
+
+    [Fact]
+    public void Revert_dialog_shows_the_live_value_not_the_journal_copy()
+    {
+        var r = new ChangeRecord
+        {
+            Title = "Телеметрия", Kind = ChangeKind.Service, Target = "svc:DiagTrack",
+            OldValue = "Автоматически", NewValue = "Вручную",
+            Service = new ServiceStartSnapshot("DiagTrack", System.ServiceProcess.ServiceStartMode.Automatic, false),
+        };
+
+        var same = RestoreFormat.RevertLines(r, new LiveValue(LiveState.Same, "Вручную"));
+        Assert.Contains("Сейчас: Вручную — как установил MONOLITH", same);
+        Assert.Contains("Станет: Автоматически", same);
+
+        var drifted = RestoreFormat.RevertLines(r, new LiveValue(LiveState.Drifted, "Отключена"));
+        Assert.Contains("MONOLITH установил: Вручную", drifted);
+        Assert.Contains(drifted, l => l.StartsWith("Сейчас: Отключена — изменено после MONOLITH"));
+        Assert.DoesNotContain(drifted, l => l.StartsWith("Сейчас: Вручную"));
+
+        var line = RestoreFormat.BatchLine(new LiveRecord(r, new LiveValue(LiveState.Drifted, "Отключена")));
+        Assert.Contains("сейчас «Отключена»", line);
+        Assert.Contains("изменено после MONOLITH", line);
+        Assert.Contains("«Автоматически»", line);
+
+        var gone = RestoreFormat.BatchLine(new LiveRecord(r, new LiveValue(LiveState.Gone, "службы «DiagTrack» больше нет в Windows")));
+        Assert.Contains("возвращать нечего", gone);
+    }
+
+    [Fact]
+    public void Revert_dialog_names_the_real_target_and_command()
+    {
+        // Free-text Target / Title can be anything; the dialog shows what the revert data really touches.
+        var reg = new ChangeRecord
+        {
+            Title = "Безобидно", Kind = ChangeKind.Registry, Target = "reg:HKCU\\Harmless",
+            Registry = new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Test", Name = "Value" },
+        };
+        Assert.Equal(@"HKLM\SOFTWARE\Test\Value", RestoreFormat.RevertTarget(reg));
+
+        var script = "$ProgressPreference='SilentlyContinue';[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;Set-Something -Value 1";
+        var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
+        var cmd = new ChangeRecord
+        {
+            Title = "Команда", Kind = ChangeKind.Command, Target = "cmd:test", OldValue = "0", NewValue = "1",
+            RevertFile = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+            RevertArgs = "-NoProfile -NonInteractive -EncodedCommand " + encoded,
+        };
+        Assert.Equal("powershell.exe (скрипт): Set-Something -Value 1", RestoreFormat.DescribeCommand(cmd));
+        Assert.Contains(RestoreFormat.RevertLines(cmd, new LiveValue(LiveState.Unknown, "—")), l => l.StartsWith("Команда отката: powershell.exe"));
+
+        var netsh = new ChangeRecord { Kind = ChangeKind.Command, RevertFile = @"C:\Windows\System32\netsh.exe", RevertArgs = "int tcp set global autotuninglevel=normal" };
+        Assert.Equal("netsh.exe int tcp set global autotuninglevel=normal", RestoreFormat.DescribeCommand(netsh));
+    }
+
+    [Fact]
+    public void Merged_records_name_every_source()
+    {
+        var r = new ChangeRecord { Source = "tweak:power-plan-performance", AlsoSources = ["tweak:power-plan-ultimate"], Kind = ChangeKind.PowerScheme };
+        Assert.Equal("tweak:power-plan-performance + tweak:power-plan-ultimate", new RecordItem(r).Source);
+        Assert.Contains(RestoreFormat.RevertLines(r, new LiveValue(LiveState.Same, "x")), l => l.Contains("tweak:power-plan-ultimate"));
+    }
+
+    [Theory]
+    [InlineData(1, "1 активное изменение MONOLITH вернётся")]
+    [InlineData(3, "3 активных изменения MONOLITH вернутся")]
+    [InlineData(5, "5 активных изменений MONOLITH вернутся")]
+    [InlineData(21, "21 активное изменение MONOLITH вернётся")]
+    public void Revert_all_message_agrees_with_the_count(int n, string expected) =>
+        Assert.Equal(expected, RestoreFormat.ActiveChangesWillReturn(n));
+
+    // ─────────────────────────── tools: running and opening ───────────────────────────
+
+    [Theory]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\battery-report.html", true)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\sub\report.htm", true)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\report.exe", false)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs\..\evil.html", false)]
+    [InlineData(@"C:\Users\u\AppData\Local\MONOLITH\Logs-other\report.html", false)]
+    [InlineData(@"C:\Windows\report.html", false)]
+    public void Only_own_html_reports_are_opened_in_a_browser(string file, bool allowed) =>
+        Assert.Equal(allowed, ShellLauncher.IsOwnHtmlReport(file, @"C:\Users\u\AppData\Local\MONOLITH\Logs"));
+
+    [Fact]
+    public void Network_reset_confirmation_tells_the_truth_about_the_restore_point()
+    {
+        Assert.StartsWith("Перед сбросом будет создана точка восстановления", ToolOutput.NetworkResetRestoreNote(true, true));
+        Assert.Contains("создана не будет", ToolOutput.NetworkResetRestoreNote(true, false));
+        Assert.Contains("выключено в настройках", ToolOutput.NetworkResetRestoreNote(false, true));
+    }
+
+    [Fact]
+    public void Slow_servicing_note_says_monolith_will_not_stop_it()
+    {
+        var note = ToolOutput.SlowRunNote(TimeSpan.FromMinutes(45));
+        Assert.Contains("45 мин", note);
+        Assert.Contains("не прервёт", note);
+    }
+
     // ─────────────────────────── settings ───────────────────────────
 
     [Fact]
@@ -318,4 +461,77 @@ public sealed class ToolsTests
     [InlineData(null, "2.1.0")]
     public void Component_versions_are_cleaned(string? informational, string expected) =>
         Assert.Equal(expected, SettingsDefaults.CleanVersion(informational, new Version(2, 1, 0, 7)));
+}
+
+/// <summary>
+/// The undo center's live read against real journal records: values are written through ChangeSession into a
+/// redirected registry (HKCU\Software\MONOLITH-Tests\Redirect-*) and a temp journal — never the real settings.
+/// </summary>
+[Collection("Registry")]
+public sealed class RestoreLiveRegistryTests : IDisposable
+{
+    private readonly string _root = $@"Software\MONOLITH-Tests\Redirect-{Guid.NewGuid():N}";
+    private readonly string _journalPath = Path.Combine(Path.GetTempPath(), $"monolith-restorelive-{Guid.NewGuid():N}.json");
+
+    public RestoreLiveRegistryTests()
+    {
+        RegistryHelper.Redirect = (hive, path) => (RegHive.HKCU, $@"{_root}\{hive}\{path}");
+        ChangeSession.BypassElevationForTests = true;
+    }
+
+    public void Dispose()
+    {
+        RegistryHelper.Redirect = null;
+        ChangeSession.BypassElevationForTests = false;
+        try { Registry.CurrentUser.DeleteSubKeyTree(_root, false); } catch { }
+        foreach (var f in new[] { _journalPath, _journalPath + ".bak", _journalPath + ".tmp" })
+            try { File.Delete(f); } catch { }
+    }
+
+    [Fact]
+    public async Task Values_set_through_the_journal_read_back_as_unchanged_until_something_else_changes_them()
+    {
+        const string key = @"SOFTWARE\MONOLITH\LiveRead";
+        var journal = new ChangeJournal(_journalPath);
+        var session = await ChangeSession.BeginAsync("live read", createRestorePoint: false, journal: journal);
+        session.SetRegistry(RegHive.HKLM, key, "Dw", RegistryValueKind.DWord, 0xFFFFFFFFu, "test", "Dw");
+        session.SetRegistry(RegHive.HKLM, key, "Qw", RegistryValueKind.QWord, 1234567890123L, "test", "Qw");
+        session.SetRegistry(RegHive.HKLM, key, "Sz", RegistryValueKind.String, "текст", "test", "Sz");
+        session.SetRegistry(RegHive.HKLM, key, "Ms", RegistryValueKind.MultiString, new[] { "a", "б" }, "test", "Ms");
+        session.SetRegistry(RegHive.HKLM, key, "Bin", RegistryValueKind.Binary, new byte[] { 2, 0, 0xFF }, "test", "Bin");
+        RegistryHelper.Write(RegHive.HKLM, key, "Del", RegistryValueKind.DWord, 7);
+        session.SetRegistry(RegHive.HKLM, key, "Del", RegistryValueKind.DWord, null, "test", "Del");
+        session.Complete();
+        Assert.Empty(session.Errors);
+
+        var records = journal.ActiveRecords;
+        Assert.Equal(6, records.Count);
+        Assert.All(records, r => Assert.Equal(LiveState.Same, RestoreLive.Read(r).State));
+
+        // Someone else changes two of them afterwards.
+        RegistryHelper.Write(RegHive.HKLM, key, "Dw", RegistryValueKind.DWord, 0);
+        RegistryHelper.Write(RegHive.HKLM, key, "Del", RegistryValueKind.DWord, 9);
+        var dw = RestoreLive.Read(records.Single(r => r.Title == "Dw"));
+        Assert.Equal(LiveState.Drifted, dw.State);
+        Assert.Equal("DWord: 0", dw.Text);
+        Assert.Equal(LiveState.Drifted, RestoreLive.Read(records.Single(r => r.Title == "Del")).State);
+        Assert.Equal(LiveState.Same, RestoreLive.Read(records.Single(r => r.Title == "Sz")).State);
+    }
+
+    public static IEnumerable<object[]> RegistryTweakIds() =>
+        TweakCatalog.All.OfType<RegistryTweak>().Select(t => new object[] { t.Id });
+
+    /// <summary>Every catalog registry tweak writes NewValue text that the live read understands (no false drift).</summary>
+    [Theory]
+    [MemberData(nameof(RegistryTweakIds))]
+    public async Task Catalog_tweaks_are_not_reported_as_drifted_right_after_apply(string id)
+    {
+        var tweak = (RegistryTweak)TweakCatalog.Find(id)!;
+        var journal = new ChangeJournal(_journalPath);
+        var session = await ChangeSession.BeginAsync("live " + id, createRestorePoint: false, journal: journal);
+        tweak.Apply(new TweakContext { Session = session, System = SystemProfile.Current, Tweak = tweak });
+        session.Complete();
+        Assert.Empty(session.Errors);
+        Assert.All(journal.ActiveRecords, r => Assert.Equal(LiveState.Same, RestoreLive.Read(r).State));
+    }
 }

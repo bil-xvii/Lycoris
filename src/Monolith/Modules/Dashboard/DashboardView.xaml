@@ -523,14 +523,14 @@
                                     </Button>
 
                                     <Button Grid.Row="2" Style="{StaticResource Dash.QuickButton}" Command="{Binding GoCommand}" CommandParameter="games"
-                                            ToolTip="Раздел «Игры»: библиотека и игровой режим MONOLITH">
+                                            ToolTip="Раздел «Игры»: библиотека игр и GAME BOOST — временные настройки MONOLITH на время игры">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="ИГРОВОЙ РЕЖИМ" FontSize="13.5" />
+                                                <TextBlock Text="GAME BOOST" FontSize="13.5" />
                                                 <TextBlock Text="Игры и ускорение" FontFamily="{StaticResource F.Body}" FontWeight="Normal" FontStretch="Normal"
                                                            FontSize="11.5" Foreground="{StaticResource B.Text3}" Margin="0,3,0,0" />
                                             </StackPanel>
@@ -538,16 +538,16 @@
                                         </Grid>
                                     </Button>
 
-                                    <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource Dash.QuickButton}" Command="{Binding GoCommand}" CommandParameter="drivers"
-                                            ToolTip="Раздел «Драйверы»: версии, даты и обновления">
+                                    <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource Dash.QuickButton}" Command="{Binding OpenHardwareMatchCommand}"
+                                            ToolTip="«Железо и драйверы» → «Подбор для вашего ПК»: комплектующие компьютера и официальные драйверы и утилиты для них">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="ОБНОВИТЬ ДРАЙВЕРЫ" FontSize="13.5" />
-                                                <TextBlock Text="Версии и обновления" FontFamily="{StaticResource F.Body}" FontWeight="Normal" FontStretch="Normal"
+                                                <TextBlock Text="ЖЕЛЕЗО И ДРАЙВЕРЫ" FontSize="13.5" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="Подбор для вашего ПК" FontFamily="{StaticResource F.Body}" FontWeight="Normal" FontStretch="Normal"
                                                            FontSize="11.5" Foreground="{StaticResource B.Text3}" Margin="0,3,0,0" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Devices}" FontFamily="{StaticResource F.Icons}" FontSize="16" VerticalAlignment="Center" />

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
 using Monolith.Modules.Dashboard.Checks;
 using Monolith.Modules.Dashboard.Monitoring;
+using Monolith.Modules.Drivers;
 using Monolith.Shell;
 using Monolith.Tweaks;
 using Monolith.UI;
@@ -183,8 +184,10 @@ public sealed partial class DashboardViewModel : PageViewModel
     private async Task CheckCoreAsync()
     {
         var snapshot = await SystemInspector.CollectAsync();
-        var results = await Task.Run(() => HealthRules.Evaluate(snapshot));
-        var profile = SystemProfile.Current;
+        var profile = await SystemProfile.LoadAsync();
+        // Buttons that apply a catalog tweak are matched against the catalog (applicability + current state),
+        // so a check never shows a button that would do nothing on this PC.
+        var results = await Task.Run(() => HealthRules.Evaluate(snapshot).Select(r => ResolveTweakAction(r, profile)).ToList());
 
         Issues.Clear();
         Passed.Clear();
@@ -284,6 +287,33 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     private static string Fallback(string? s) => string.IsNullOrWhiteSpace(s) ? DashFormat.Missing : s.Trim();
 
+    /// <summary>Reads the catalog for an ApplyTweak button (background thread: Detect reads the registry / driver caps).</summary>
+    private static HealthCheckResult ResolveTweakAction(HealthCheckResult r, SystemProfile profile)
+    {
+        if (r.Action is not { Kind: CheckActionKind.ApplyTweak, Target: { } id }) return r;
+        var tweak = TweakCatalog.Find(id);
+        TweakAvailability availability;
+        if (tweak is null || tweak.Risk == TweakRisk.Advanced) availability = TweakAvailability.OptimizeOnly;
+        else if (!tweak.IsApplicable(profile)) availability = TweakAvailability.NotApplicable;
+        else
+        {
+            TweakState state;
+            try { state = tweak.Detect(); }
+            catch (Exception ex)
+            {
+                Log.Warn($"Панель: не удалось прочитать состояние «{tweak.Title}»: {ex.Message}");
+                state = TweakState.Unknown;
+            }
+            availability = state switch
+            {
+                TweakState.Applied => TweakAvailability.AlreadyApplied,
+                TweakState.NotApplicable => TweakAvailability.NotApplicable,
+                _ => TweakAvailability.Available,
+            };
+        }
+        return HealthRules.ResolveTweakAction(r, availability, tweak is null ? "" : DashFormat.RestartWhen(tweak.Restart));
+    }
+
     // ───────────────────────────── Check actions ─────────────────────────────
 
     private async Task RunActionAsync(CheckItemViewModel item)
@@ -298,10 +328,13 @@ public sealed partial class DashboardViewModel : PageViewModel
         switch (action.Kind)
         {
             case CheckActionKind.Navigate when action.Target is { } page:
-                Ui.Navigate(page);
+                NavigateTo(page, action.Section);
                 break;
             case CheckActionKind.OpenUri when action.Target is { } uri:
-                await OpenShellAsync(uri, null, "параметры Windows");
+                if (uri.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase))
+                    await OpenShellAsync(uri, null, "параметры Windows");
+                else if (!await UnelevatedShell.OpenAsync(uri)) // web pages: never in a browser with admin rights
+                    Ui.Toast("Не удалось открыть ссылку без прав администратора.", ToastKind.Warning);
                 break;
             case CheckActionKind.OpenPowerOptions:
                 await OpenShellAsync(ProcessRunner.Sys("control.exe"), "/name Microsoft.PowerOptions", "«Электропитание»");
@@ -364,23 +397,46 @@ public sealed partial class DashboardViewModel : PageViewModel
         }
         if (!RequireAdmin(tweak.Title)) return;
 
+        // Re-checked at click time: the button is only shown for applicable tweaks, but the PC may have changed since.
         var profile = await SystemProfile.LoadAsync();
-        if (!tweak.IsApplicable(profile))
+        var (applicable, state, protectionOn) = await Task.Run(() =>
+        {
+            var ok = tweak.IsApplicable(profile);
+            TweakState s;
+            try { s = ok ? tweak.Detect() : TweakState.NotApplicable; }
+            catch { s = TweakState.Unknown; }
+            return (ok, s, RestorePointService.IsEnabled());
+        });
+        if (!applicable)
         {
             Ui.Toast(tweak.NotApplicableReason ?? "Эта настройка не подходит для этого компьютера.", ToastKind.Warning, tweak.Title);
+            await RefreshAsync(showBusy: false);
+            return;
+        }
+        var restartWhen = DashFormat.RestartWhen(tweak.Restart);
+        if (state == TweakState.Applied)
+        {
+            Ui.Toast(restartWhen.Length > 0
+                    ? $"Настройка уже записана и вступит в силу {restartWhen}."
+                    : "Настройка уже действует — менять нечего.",
+                ToastKind.Info, tweak.Title);
+            await RefreshAsync(showBusy: false);
             return;
         }
 
         var details = new List<string> { $"{tweak.Title}: {tweak.Description}" };
-        if (tweak.Restart != RestartRequirement.None) details.Add($"Вступит в силу после действия: {tweak.RestartText}");
-        details.Add(AppSettings.Current.CreateRestorePoints
-            ? "Перед изменением будет создана точка восстановления (если защита системы включена)"
-            : "Точка восстановления не создаётся — это выключено в настройках");
+        if (!string.IsNullOrWhiteSpace(tweak.Details)) details.Add(tweak.Details);
+        if (restartWhen.Length > 0) details.Add($"Вступит в силу {restartWhen}");
+        details.Add(!AppSettings.Current.CreateRestorePoints
+            ? "Точка восстановления не создаётся — это выключено в настройках"
+            : protectionOn
+                ? "Перед изменением будет создана точка восстановления Windows"
+                : "Защита системы выключена — точки восстановления не будет, отменить можно только через журнал MONOLITH");
         details.Add("Исходное значение сохраняется в журнале — отменить можно в разделе «Восстановление»");
 
         var confirmed = await Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",
             $"MONOLITH применит настройку «{tweak.Title}» через журнал изменений. Будет сделано следующее:",
-            details, footnote: "Изменение обратимо.");
+            details, footnote: "Изменение обратимо: исходное значение хранится в журнале MONOLITH.");
         if (!confirmed) return;
 
         TweakRunResult? result = null;
@@ -392,12 +448,24 @@ public sealed partial class DashboardViewModel : PageViewModel
             else if (r.Applied > 0)
                 Ui.Toast(r.Restart == RestartRequirement.None
                         ? "Готово. Отменить можно в разделе «Восстановление»."
-                        : $"Готово. Изменение вступит в силу: {tweak.RestartText}.",
+                        : $"Готово. Изменение вступит в силу {DashFormat.RestartWhen(r.Restart)}.",
                     ToastKind.Success, tweak.Title);
             else
                 Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
         }
         await RefreshAsync(showBusy: false);
+    }
+
+    // ───────────────────────────── Navigation ─────────────────────────────
+
+    /// <summary>Opens a page; for «Железо и драйверы» also the requested tab ("Hardware", "Overview", "Problems"…).</summary>
+    private static void NavigateTo(string page, string? section)
+    {
+        if (page == HealthRules.DriversPage && section is not null
+            && Enum.TryParse<DriversTab>(section, ignoreCase: true, out var tab)
+            && Ui.Host is MainViewModel main && main.Pages.OfType<DriversViewModel>().FirstOrDefault() is { } drivers)
+            drivers.SelectedTab = tab;
+        Ui.Navigate(page);
     }
 
     // ───────────────────────────── Quick actions ─────────────────────────────
@@ -407,4 +475,8 @@ public sealed partial class DashboardViewModel : PageViewModel
     {
         if (!string.IsNullOrEmpty(page)) Ui.Navigate(page);
     }
+
+    /// <summary>«Железо и драйверы» → «Подбор для вашего ПК»: components and the official drivers / utilities for them.</summary>
+    [RelayCommand]
+    private void OpenHardwareMatch() => NavigateTo(HealthRules.DriversPage, HealthRules.DriversTabHardware);
 }

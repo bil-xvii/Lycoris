@@ -104,6 +104,15 @@ public static class DashFormat
 
     public static string Date(DateTime date) => date.ToString("dd.MM.yyyy", Ru);
 
+    /// <summary>When a setting takes effect, ready for "вступит в силу …": "после перезагрузки". Empty = right away.</summary>
+    public static string RestartWhen(Monolith.Tweaks.RestartRequirement restart) => restart switch
+    {
+        Monolith.Tweaks.RestartRequirement.Reboot => "после перезагрузки",
+        Monolith.Tweaks.RestartRequirement.SignOut => "после выхода из системы и повторного входа",
+        Monolith.Tweaks.RestartRequirement.Explorer => "после перезапуска Проводника",
+        _ => "",
+    };
+
     /// <summary>"7 %" for shares (free space etc.).</summary>
     public static string Share(double fraction) => $"{Math.Round(fraction * 100).ToString("0", Ru)} %";
 

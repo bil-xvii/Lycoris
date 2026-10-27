@@ -44,9 +44,14 @@ public sealed class LiveMonitor : IDisposable
     private const string NetDown = @"\Network Interface(*)\Bytes Received/sec";
     private const string NetUp = @"\Network Interface(*)\Bytes Sent/sec";
 
+    // Two locks on purpose: _ctsGate guards only the running loop's token and is held for a few instructions,
+    // so Start/Stop/IsRunning on the UI thread never wait for a sample. _gate guards the sampling resources and is
+    // held by the sampling thread for a whole Initialize()/Sample() (PDH, D3DKMT, NVML can take seconds).
+    private readonly object _ctsGate = new();
     private readonly object _gate = new();
     private CancellationTokenSource? _cts;
-    private bool _disposed;
+    private volatile bool _disposed;
+    private bool _released;
 
     // Sampling resources: created lazily on the sampling thread, used only under _gate.
     private bool _initialized;
@@ -63,47 +68,56 @@ public sealed class LiveMonitor : IDisposable
 
     public bool IsRunning
     {
-        get { lock (_gate) return _cts is not null; }
+        get { lock (_ctsGate) return _cts is not null; }
     }
 
     /// <summary>Starts sampling (no-op when already running). A loop that is still winding down after
     /// <see cref="Stop"/> exits on its own cancelled token, so a quick Stop → Start is safe.</summary>
     public void Start()
     {
-        lock (_gate)
+        CancellationTokenSource cts;
+        lock (_ctsGate)
         {
             if (_disposed || _cts is not null) return;
-            _cts = new CancellationTokenSource();
-            var token = _cts.Token;
-            _ = Task.Run(() => RunAsync(token));
+            _cts = cts = new CancellationTokenSource();
         }
+        _ = Task.Run(() => RunAsync(cts));
     }
 
+    /// <summary>
+    /// Stops sampling without waiting: safe to call on the UI thread while a sample is in progress.
+    /// The loop notices the cancelled token after its current sample and exits on its own.
+    /// </summary>
     public void Stop()
     {
-        lock (_gate)
+        CancellationTokenSource? cts;
+        lock (_ctsGate)
         {
-            _cts?.Cancel();
-            _cts?.Dispose();
+            cts = _cts;
             _cts = null;
         }
+        if (cts is null) return;
+        try { cts.Cancel(); }
+        catch (ObjectDisposedException) { }
     }
 
-    private async Task RunAsync(CancellationToken ct)
+    private async Task RunAsync(CancellationTokenSource cts)
     {
+        var ct = cts.Token;
         try
         {
             lock (_gate)
             {
+                if (_disposed) { ReleaseLocked(); return; }
                 if (!_initialized) Initialize();
             }
             while (!ct.IsCancellationRequested)
             {
                 var started = DateTime.UtcNow;
-                MonitorSample? sample = null;
+                MonitorSample sample;
                 lock (_gate)
                 {
-                    if (_disposed) return;
+                    if (_disposed) { ReleaseLocked(); return; }
                     sample = Sample();
                 }
                 if (ct.IsCancellationRequested) return;
@@ -111,15 +125,26 @@ public sealed class LiveMonitor : IDisposable
 
                 var interval = Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000);
                 var wait = interval - (int)(DateTime.UtcNow - started).TotalMilliseconds;
-                await Task.Delay(Math.Max(50, wait), ct).ConfigureAwait(false);
+                // ForceYielding: the continuation never runs inline inside Stop()'s Cancel() on the UI thread.
+                await Task.Delay(Math.Max(50, wait), ct)
+                    .ConfigureAwait(ConfigureAwaitOptions.ForceYielding | ConfigureAwaitOptions.SuppressThrowing);
             }
-        }
-        catch (OperationCanceledException)
-        {
         }
         catch (Exception ex)
         {
             Log.Error("Мониторинг остановлен из-за ошибки", ex);
+        }
+        finally
+        {
+            // A loop that ended by itself (error) must not leave a stale token behind, or Start() would never run again.
+            lock (_ctsGate)
+            {
+                if (ReferenceEquals(_cts, cts)) _cts = null;
+            }
+            cts.Dispose();
+            // Dispose() ran while this loop was sampling: the resources are released here, on this thread.
+            if (_disposed)
+                lock (_gate) ReleaseLocked();
         }
     }
 
@@ -271,21 +296,31 @@ public sealed class LiveMonitor : IDisposable
         }
     }
 
+    /// <summary>
+    /// Stops sampling and frees PDH / D3DKMT / NVML. Never blocks on a running sample: if the sampling thread holds
+    /// the resources right now, it releases them itself as soon as the current sample ends.
+    /// </summary>
     public void Dispose()
     {
+        _disposed = true;
         Stop();
-        lock (_gate)
-        {
-            if (_disposed) return;
-            _disposed = true;
-            _pdh?.Dispose();
-            _pdh = null;
-            D3dkmt.Close(_adapters);
-            _adapters = [];
-            _primary = null;
-            _nvml?.Dispose();
-            _nvml = null;
-        }
+        if (!Monitor.TryEnter(_gate)) return;
+        try { ReleaseLocked(); }
+        finally { Monitor.Exit(_gate); }
+    }
+
+    /// <summary>Frees the sampling resources once. Caller holds <see cref="_gate"/>.</summary>
+    private void ReleaseLocked()
+    {
+        if (_released) return;
+        _released = true;
+        _pdh?.Dispose();
+        _pdh = null;
+        D3dkmt.Close(_adapters);
+        _adapters = [];
+        _primary = null;
+        _nvml?.Dispose();
+        _nvml = null;
     }
 
     #region P/Invoke

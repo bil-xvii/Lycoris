@@ -13,6 +13,17 @@ public enum ToolOp
     BatteryReport, MemoryDiagnostic,
 }
 
+/// <summary>
+/// How a running tool may be stopped: only by the user, after <see cref="Warning"/> told them what stopping means.
+/// Tools that change Windows (DISM, SFC, chkdsk, defrag, network reset) are never killed by a timer; only quick
+/// read-only or cache commands keep a short timeout, because stopping them is harmless. Servicing
+/// (DISM /RestoreHealth, SFC, network reset) has no policy at all — research tech.md §8: interrupting it can leave
+/// Windows half-repaired.
+/// </summary>
+/// <param name="Warning">Shown in the "Прервать?" dialog: what happens if the tool is stopped now.</param>
+/// <param name="Cancelled">The result line after the user stopped it.</param>
+public sealed record CancelPolicy(string Warning, string Cancelled);
+
 /// <summary>Extra content rendered inside a tool card.</summary>
 public enum ToolExtra { None, Volumes, BootCheck }
 

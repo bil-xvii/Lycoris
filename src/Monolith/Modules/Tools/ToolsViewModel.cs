@@ -22,6 +22,9 @@ public sealed partial class ToolsViewModel : PageViewModel
     private readonly DispatcherTimer _flushTimer;
     private readonly DispatcherTimer _clockTimer;
     private CancellationTokenSource? _cts;
+    private CancelPolicy? _cancelPolicy;
+    private TimeSpan? _slowAfter;
+    private bool _slowNoted;
     private DateTime _startedAt;
 
     public override string Key => "tools";
@@ -71,7 +74,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         _flushTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(100) };
         _flushTimer.Tick += (_, _) => FlushPending();
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _clockTimer.Tick += (_, _) => ElapsedText = ToolOutput.FormatElapsed(DateTime.Now - _startedAt);
+        _clockTimer.Tick += (_, _) => OnClockTick();
         ConsoleLines.CollectionChanged += (_, _) => HasConsoleLines = ConsoleLines.Count > 0;
     }
 
@@ -156,14 +159,38 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private bool CanCancel() => IsRunning && CanCancelRun && !CancelRequested;
 
+    /// <summary>
+    /// Stops the running tool only after the user read what stopping it means. Tools that change Windows are never
+    /// stopped by a timer, and servicing (DISM /RestoreHealth, SFC, network reset) offers no stop at all.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanCancel))]
-    private void CancelRun()
+    private async Task CancelRunAsync()
     {
-        if (_cts is null) return;
+        if (_cts is not { } cts || _cancelPolicy is not { } policy) return;
         CancelRequested = true;
-        CancelRunCommand.NotifyCanExecuteChanged();
-        Emit("Отмена… процесс будет остановлен.", ConsoleLineKind.Info);
-        _cts.Cancel();
+        var stop = await Ui.ConfirmAsync("Прервать операцию?", policy.Warning,
+            [$"Команда: {RunCommandText}", $"Идёт: {ElapsedText}"],
+            confirmText: "ПРЕРВАТЬ", cancelText: "ПРОДОЛЖИТЬ", danger: true);
+        // The tool may have finished while the dialog was open: its token is then already disposed.
+        if (!ReferenceEquals(cts, _cts)) return;
+        if (!stop)
+        {
+            CancelRequested = false;
+            return;
+        }
+        Emit("Остановка по вашему запросу…", ConsoleLineKind.Info);
+        cts.Cancel();
+    }
+
+    private void OnClockTick()
+    {
+        var elapsed = DateTime.Now - _startedAt;
+        ElapsedText = ToolOutput.FormatElapsed(elapsed);
+        if (_slowAfter is { } slow && !_slowNoted && elapsed > slow)
+        {
+            _slowNoted = true;
+            Emit(ToolOutput.SlowRunNote(slow), ConsoleLineKind.Info);
+        }
     }
 
     [RelayCommand]
@@ -213,12 +240,23 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunDismAsync(ToolOutput.DismMode mode)
     {
-        var (arg, title, cancellable) = mode switch
+        // DISM is never stopped by a timer. The read-only checks may be stopped by the user after a warning;
+        // /RestoreHealth is servicing and cannot be stopped at all.
+        (string Arg, string Title, CancelPolicy? Cancel, TimeSpan? SlowAfter) spec = mode switch
         {
-            ToolOutput.DismMode.CheckHealth => ("/CheckHealth", "ОБРАЗ WINDOWS · БЫСТРАЯ ПРОВЕРКА", true),
-            ToolOutput.DismMode.ScanHealth => ("/ScanHealth", "ОБРАЗ WINDOWS · СКАНИРОВАНИЕ", true),
-            _ => ("/RestoreHealth", "ОБРАЗ WINDOWS · ВОССТАНОВЛЕНИЕ", false),
+            ToolOutput.DismMode.CheckHealth => ("/CheckHealth", "ОБРАЗ WINDOWS · БЫСТРАЯ ПРОВЕРКА",
+                new CancelPolicy(
+                    "DISM только читает отметку о повреждении хранилища компонентов. Остановка ничего не меняет в системе — проверку можно запустить снова.",
+                    "Проверка прервана. Система не изменялась."),
+                null),
+            ToolOutput.DismMode.ScanHealth => ("/ScanHealth", "ОБРАЗ WINDOWS · СКАНИРОВАНИЕ",
+                new CancelPolicy(
+                    "Сканирование только проверяет хранилище компонентов и ничего в нём не исправляет. Остановка не вредит системе, но результата не будет — сканирование придётся начать заново.",
+                    "Сканирование прервано. Система не изменялась."),
+                null),
+            _ => ("/RestoreHealth", "ОБРАЗ WINDOWS · ВОССТАНОВЛЕНИЕ", null, TimeSpan.FromMinutes(45)),
         };
+        var (arg, title, cancel, slowAfter) = spec;
         var display = $"DISM /Online /Cleanup-Image {arg}";
 
         if (mode == ToolOutput.DismMode.RestoreHealth && !await Ui.ConfirmAsync(
@@ -229,17 +267,16 @@ public sealed partial class ToolsViewModel : PageViewModel
                     "Длительность: обычно 10–30 минут, индикатор может подолгу стоять на 62% — это нормально",
                     "Нужен интернет: источник исправных компонентов — Windows Update",
                     "Личные файлы, программы и настройки не затрагиваются",
-                    "Прерывать нельзя: остановка посреди восстановления может оставить хранилище в незавершённом состоянии",
+                    "Прерывать нельзя: остановка посреди восстановления может оставить хранилище в незавершённом состоянии. MONOLITH сам его не прервёт, сколько бы оно ни длилось",
                 ],
                 confirmText: "ЗАПУСТИТЬ", footnote: "После завершения запустите «Проверку системных файлов»."))
             return;
 
-        await ExecuteAsync(title, display, cancellable, "Восстановление образа Windows…", async ct =>
+        await ExecuteAsync(title, display, "Образ Windows: DISM…", async ct =>
         {
-            var r = await RunProcessAsync(ProcessRunner.Sys("dism.exe"), ["/Online", "/Cleanup-Image", arg], OutputEncoding.Oem,
-                cancellable ? TimeSpan.FromHours(2) : null, ct);
+            var r = await RunProcessAsync(ProcessRunner.Sys("dism.exe"), ["/Online", "/Cleanup-Image", arg], OutputEncoding.Oem, null, ct);
             return r.Cancelled ? null : ToolOutput.ClassifyDism(mode, r.ExitCode, r.Combined);
-        });
+        }, cancel, slowAfter);
     }
 
     private async Task RunSfcAsync()
@@ -251,37 +288,41 @@ public sealed partial class ToolsViewModel : PageViewModel
                     "Команда: sfc /scannow",
                     "Длительность: 5–20 минут, на HDD дольше",
                     "Заменяются только оригинальные файлы Microsoft — личные данные и программы не затрагиваются",
-                    "Прерывать нельзя: дождитесь 100%",
+                    "Прерывать нельзя: дождитесь 100%. MONOLITH сам проверку не прервёт, сколько бы она ни длилась",
                     "Если найдены неисправимые файлы — сначала «Восстановление образа» (DISM), затем повторите проверку",
                 ],
                 confirmText: "ЗАПУСТИТЬ", footnote: "Журнал проверки: %WINDIR%\\Logs\\CBS\\CBS.log"))
             return;
 
-        await ExecuteAsync("ПРОВЕРКА СИСТЕМНЫХ ФАЙЛОВ", "sfc /scannow", cancellable: false, "Проверка системных файлов…", async ct =>
+        // Servicing: no cancel, no timeout (tech.md §8).
+        await ExecuteAsync("ПРОВЕРКА СИСТЕМНЫХ ФАЙЛОВ", "sfc /scannow", "Проверка системных файлов…", async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("sfc.exe"), ["/scannow"], OutputEncoding.Unicode, null, ct);
             return ToolOutput.ClassifySfc(r.ExitCode, r.Combined);
-        });
+        }, cancel: null, slowAfter: TimeSpan.FromMinutes(40));
     }
 
+    // chkdsk /scan repairs what it can online (NTFS self-healing), so it is never stopped by a timer either.
     private Task RunChkdskAsync() =>
-        ExecuteAsync("ПРОВЕРКА ДИСКА " + SystemDrive, $"chkdsk {SystemDrive} /scan", cancellable: true, "Проверка диска…", async ct =>
+        ExecuteAsync("ПРОВЕРКА ДИСКА " + SystemDrive, $"chkdsk {SystemDrive} /scan", "Проверка диска…", async ct =>
         {
-            var r = await RunProcessAsync(ProcessRunner.Sys("chkdsk.exe"), [SystemDrive, "/scan"], OutputEncoding.Oem, TimeSpan.FromHours(3), ct);
+            var r = await RunProcessAsync(ProcessRunner.Sys("chkdsk.exe"), [SystemDrive, "/scan"], OutputEncoding.Oem, null, ct);
             if (r.Cancelled) return null;
             var outcome = ToolOutput.ClassifyChkdsk(r.ExitCode, r.Combined);
             await ReadBootCheckAsync();
             return outcome;
-        });
+        }, new CancelPolicy(
+            "Проверка остановится, не дойдя до конца. Файловая система при этом не повреждается: исправления, которые NTFS уже внесла на ходу, сохраняются. Результата проверки не будет — запустите её снова позже.",
+            "Проверка диска прервана. Результата нет — запустите её снова, когда будет время."));
 
     private Task RunChkntfsAsync() =>
-        ExecuteAsync("СОСТОЯНИЕ ДИСКА " + SystemDrive, $"chkntfs {SystemDrive}", cancellable: true, "Чтение состояния диска…", async ct =>
+        ExecuteAsync("СОСТОЯНИЕ ДИСКА " + SystemDrive, $"chkntfs {SystemDrive}", "Чтение состояния диска…", async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("chkntfs.exe"), [SystemDrive], OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
             if (r.Cancelled) return null;
             await ReadBootCheckAsync();
             return ToolOutput.ClassifyChkntfs(r.ExitCode, r.Combined, SystemDrive);
-        });
+        }, new CancelPolicy("chkntfs только читает состояние диска — остановка ничего не меняет.", "Чтение состояния прервано."));
 
     private async Task RunDefragAsync(IReadOnlyList<VolumeInfo> volumes)
     {
@@ -293,7 +334,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         var title = volumes.Count == 1 ? $"ОПТИМИЗАЦИЯ ДИСКА {volumes[0].Letter}" : $"ОПТИМИЗАЦИЯ ДИСКОВ · {volumes.Count}";
         var display = volumes.Count == 1 ? $"defrag {volumes[0].Letter} /O /U /V" : $"defrag <{string.Join(" ", volumes.Select(v => v.Letter))}> /O /U /V";
 
-        await ExecuteAsync(title, display, cancellable: true, "Оптимизация дисков…", async ct =>
+        await ExecuteAsync(title, display, "Оптимизация дисков…", async ct =>
         {
             int ok = 0, failed = 0;
             var errors = new List<string>();
@@ -302,7 +343,8 @@ public sealed partial class ToolsViewModel : PageViewModel
                 ct.ThrowIfCancellationRequested();
                 Emit($"{v.Letter} {v.DisplayName} — {v.MediaText}: {(v.IsSsd ? "TRIM" : v.IsHdd ? "дефрагментация" : "Windows выберет операцию сама")}", ConsoleLineKind.Info);
                 ResetProgress();
-                var r = await RunProcessAsync(ProcessRunner.Sys("defrag.exe"), [v.Letter, "/O", "/U", "/V"], OutputEncoding.Oem, TimeSpan.FromHours(8), ct);
+                // A large HDD can take hours: only the user stops it (harmless for data, like «Остановить» in «Оптимизации дисков»).
+                var r = await RunProcessAsync(ProcessRunner.Sys("defrag.exe"), [v.Letter, "/O", "/U", "/V"], OutputEncoding.Oem, null, ct);
                 if (r.Cancelled) return null;
                 if (r.ExitCode == 0) ok++;
                 else
@@ -314,21 +356,23 @@ public sealed partial class ToolsViewModel : PageViewModel
             return failed == 0
                 ? ToolOutcome.Ok(volumes.Count == 1 ? $"Диск {volumes[0].Letter} оптимизирован." : $"Оптимизировано дисков: {ok}.")
                 : ToolOutcome.Fail($"Оптимизировано: {ok}, с ошибкой: {string.Join(", ", errors)}.");
-        });
+        }, new CancelPolicy(
+            "Оптимизация остановится на текущем диске. Это безопасно для данных: уже перемещённые фрагменты остаются на местах, а оставшееся Windows доделает при плановой оптимизации, если она включена.",
+            "Оптимизация прервана. Данные не пострадали."));
     }
 
     private Task RunFlushDnsAsync() =>
-        ExecuteAsync("СБРОС DNS-КЭША", "ipconfig /flushdns", cancellable: false, "Сброс DNS-кэша…", async ct =>
+        ExecuteAsync("СБРОС DNS-КЭША", "ipconfig /flushdns", "Сброс DNS-кэша…", async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("ipconfig.exe"), ["/flushdns"], OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
+            if (r.Cancelled) return null;
             return ToolOutput.ClassifyExit(r.ExitCode, "Кэш DNS очищен. Имена сайтов будут заново запрошены у DNS-сервера.", "Не удалось очистить кэш DNS");
-        });
+        }, new CancelPolicy("Очистка кэша DNS будет остановлена. Это безвредно: кэш просто останется прежним.", "Очистка кэша DNS прервана."));
 
     private async Task RunNetworkResetAsync()
     {
-        var restoreNote = AppSettings.Current.CreateRestorePoints
-            ? "Перед сбросом будет создана точка восстановления Windows — только через неё можно вернуть прежние сетевые параметры"
-            : "Создание точек восстановления выключено в настройках — вернуть прежние параметры будет нельзя";
+        var protectionOn = await Task.Run(RestorePointService.IsEnabled);
+        var restoreNote = ToolOutput.NetworkResetRestoreNote(AppSettings.Current.CreateRestorePoints, protectionOn);
         if (!await Ui.ConfirmAsync(
                 "Сбросить сетевые настройки?",
                 "Каталог Winsock и стек TCP/IP вернутся к состоянию чистой установки Windows. Это крайняя мера, когда сеть не работает и другие способы не помогли.",
@@ -343,10 +387,12 @@ public sealed partial class ToolsViewModel : PageViewModel
                 confirmText: "СБРОСИТЬ", danger: true, footnote: "Кнопкой «Откатить» в журнале это действие не отменяется."))
             return;
 
-        await ExecuteAsync("СБРОС СЕТЕВЫХ НАСТРОЕК", "netsh winsock reset · netsh int ip reset", cancellable: false, "Сброс сетевых настроек…", async ct =>
+        // Changes the network stack: no cancel and no timeout — a killed netsh could leave the reset half done.
+        await ExecuteAsync("СБРОС СЕТЕВЫХ НАСТРОЕК", "netsh winsock reset · netsh int ip reset", "Сброс сетевых настроек…", async ct =>
         {
             RestorePointResult? rp = null;
-            if (AppSettings.Current.CreateRestorePoints)
+            // With protection off the user already agreed above to reset without a restore point.
+            if (AppSettings.Current.CreateRestorePoints && protectionOn)
             {
                 Emit("Создание точки восстановления…", ConsoleLineKind.Info);
                 rp = await RestorePointService.CreateAsync("MONOLITH: сброс сетевых настроек");
@@ -359,7 +405,9 @@ public sealed partial class ToolsViewModel : PageViewModel
             }
 
             var session = await ChangeSession.BeginAsync("Сброс сетевых настроек", createRestorePoint: false);
-            session.Batch.RestorePoint = rp?.Message ?? "Создание точек восстановления выключено в настройках.";
+            session.Batch.RestorePoint = rp?.Message ?? (AppSettings.Current.CreateRestorePoints
+                ? "Защита системы выключена — точка восстановления не создавалась."
+                : "Создание точек восстановления выключено в настройках.");
             ChangeJournal.Instance.UpdateBatch(session.Batch);
 
             AppPaths.TryEnsureDir(session.BackupDir);
@@ -370,9 +418,9 @@ public sealed partial class ToolsViewModel : PageViewModel
                 Path.Combine(session.BackupDir, "Tcpip_Parameters.reg"));
 
             var netsh = ProcessRunner.Sys("netsh.exe");
-            var winsock = await RunProcessAsync(netsh, ["winsock", "reset"], OutputEncoding.Oem, TimeSpan.FromMinutes(3), ct);
+            var winsock = await RunProcessAsync(netsh, ["winsock", "reset"], OutputEncoding.Oem, null, ct);
             var ip = await RunProcessAsync(netsh, ["int", "ip", "reset", Path.Combine(session.BackupDir, "netsh-int-ip-reset.log")],
-                OutputEncoding.Oem, TimeSpan.FromMinutes(3), ct);
+                OutputEncoding.Oem, null, ct);
 
             if (winsock.ExitCode == 0 && ip.ExitCode == 0)
             {
@@ -381,21 +429,23 @@ public sealed partial class ToolsViewModel : PageViewModel
             }
             return ToolOutcome.Fail($"Сброс выполнен не полностью: winsock — код {winsock.ExitCode}, TCP/IP — код {ip.ExitCode}. " +
                                     "Если часть параметров сбросить не удалось, перезагрузитесь и повторите.");
-        });
+        }, cancel: null, slowAfter: TimeSpan.FromMinutes(3));
     }
 
     private Task RunStoreResetAsync() =>
-        ExecuteAsync("СБРОС КЭША MICROSOFT STORE", "wsreset.exe", cancellable: true, "Сброс кэша Microsoft Store…", async ct =>
+        ExecuteAsync("СБРОС КЭША MICROSOFT STORE", "wsreset.exe", "Сброс кэша Microsoft Store…", async ct =>
         {
             var exe = ProcessRunner.Sys("WSReset.exe");
             if (!File.Exists(exe)) return ToolOutcome.Fail("WSReset.exe не найден — Microsoft Store в этой системе отсутствует.");
             var r = await RunProcessAsync(exe, [], OutputEncoding.Oem, TimeSpan.FromMinutes(3), ct);
             if (r.Cancelled) return null;
             return ToolOutput.ClassifyExit(r.ExitCode, "Кэш Microsoft Store очищен. Store откроется автоматически.", "Не удалось сбросить кэш Store");
-        });
+        }, new CancelPolicy(
+            "Сброс кэша Store будет остановлен. Это безвредно: кэш восстановится сам, сброс можно запустить снова.",
+            "Сброс кэша Store прерван."));
 
     private Task RunIconCacheAsync() =>
-        ExecuteAsync("ПЕРЕСОЗДАНИЕ КЭША ЗНАЧКОВ", "ie4uinit.exe -show", cancellable: true, "Обновление кэша значков…", async ct =>
+        ExecuteAsync("ПЕРЕСОЗДАНИЕ КЭША ЗНАЧКОВ", "ie4uinit.exe -show", "Обновление кэша значков…", async ct =>
         {
             var exe = ProcessRunner.Sys("ie4uinit.exe");
             if (!File.Exists(exe)) return ToolOutcome.Fail("ie4uinit.exe не найден в System32.");
@@ -403,10 +453,10 @@ public sealed partial class ToolsViewModel : PageViewModel
             if (r.Cancelled) return null;
             return ToolOutput.ClassifyExit(r.ExitCode,
                 "Кэш значков обновлён. Если значки не изменились — перезайдите в систему.", "Не удалось обновить кэш значков");
-        });
+        }, new CancelPolicy("Обновление кэша значков будет остановлено. Это безвредно — его можно запустить снова.", "Обновление кэша значков прервано."));
 
     private Task RunBatteryReportAsync() =>
-        ExecuteAsync("ОТЧЁТ О БАТАРЕЕ", "powercfg /batteryreport", cancellable: true, "Создание отчёта о батарее…", async ct =>
+        ExecuteAsync("ОТЧЁТ О БАТАРЕЕ", "powercfg /batteryreport", "Создание отчёта о батарее…", async ct =>
         {
             if (!AppPaths.TryEnsureDir(AppPaths.LogsDir)) return ToolOutcome.Fail("Не удалось создать папку для отчёта: " + AppPaths.LogsDir);
             var file = Path.Combine(AppPaths.LogsDir, "battery-report.html");
@@ -414,9 +464,11 @@ public sealed partial class ToolsViewModel : PageViewModel
             if (r.Cancelled) return null;
             if (r.ExitCode != 0 || !File.Exists(file)) return ToolOutcome.Fail($"Отчёт не создан (код {r.ExitCode}).");
             Emit("Отчёт: " + file, ConsoleLineKind.Info);
-            ShellLauncher.Open(file, displayName: "Отчёт о батарее");
-            return ToolOutcome.Ok("Отчёт о батарее создан и открыт в браузере.");
-        });
+            // The browser must never inherit MONOLITH's administrator rights: opened through the desktop shell as the user.
+            if (await ShellLauncher.OpenDocumentAsUserAsync(file, "Отчёт о батарее"))
+                return ToolOutcome.Ok("Отчёт о батарее создан и открыт в браузере.");
+            return ToolOutcome.Warn("Отчёт создан, но открыть его без прав администратора не удалось. Откройте файл вручную: " + file);
+        }, new CancelPolicy("powercfg только читает сведения о батарее — остановка ничего не меняет.", "Создание отчёта прервано."));
 
     private async Task RunMemoryDiagnosticAsync()
     {
@@ -451,12 +503,18 @@ public sealed partial class ToolsViewModel : PageViewModel
     /// Runs one tool with the console: header, elapsed clock, streamed output, progress, outcome.
     /// <paramref name="work"/> returns null when it was cancelled.
     /// </summary>
-    private async Task ExecuteAsync(string title, string command, bool cancellable, string busyText, Func<CancellationToken, Task<ToolOutcome?>> work)
+    /// <param name="cancel">Null: the tool cannot be stopped (servicing). Otherwise the user may stop it after the warning.</param>
+    /// <param name="slowAfter">For tools that cannot be stopped: after this long, a console note explains why MONOLITH keeps waiting.</param>
+    private async Task ExecuteAsync(string title, string command, string busyText, Func<CancellationToken, Task<ToolOutcome?>> work,
+        CancelPolicy? cancel = null, TimeSpan? slowAfter = null)
     {
         if (IsRunning) return;
         _cts = new CancellationTokenSource();
+        _cancelPolicy = cancel;
+        _slowAfter = slowAfter;
+        _slowNoted = false;
         IsRunning = true;
-        CanCancelRun = cancellable;
+        CanCancelRun = cancel is not null;
         CancelRequested = false;
         RunTitle = title;
         RunCommandText = command;
@@ -506,13 +564,15 @@ public sealed partial class ToolsViewModel : PageViewModel
         finally
         {
             FlushPending();
-            outcome ??= ToolOutcome.Cancel("Операция отменена. Изменения, которые инструмент успел сделать, сохраняются — это безопасно.");
+            outcome ??= ToolOutcome.Cancel(cancel?.Cancelled ?? "Операция прервана.");
             Finish(outcome);
             _clockTimer.Stop();
             _flushTimer.Stop();
             ElapsedText = ToolOutput.FormatElapsed(DateTime.Now - _startedAt);
             _cts.Dispose();
             _cts = null;
+            _cancelPolicy = null;
+            _slowAfter = null;
             CanCancelRun = false;
             CancelRequested = false;
             IsRunning = false;
@@ -565,7 +625,8 @@ public sealed partial class ToolsViewModel : PageViewModel
             Timeout = timeout,
             OnOutput = line => _pending.Enqueue(line),
         }, ct);
-        if (r.TimedOut) _pending.Enqueue("Превышено время ожидания — процесс остановлен.");
+        // Only quick read-only / cache commands have a timeout at all (see CancelPolicy).
+        if (r.TimedOut) _pending.Enqueue("Команда не ответила за отведённое время и остановлена — это безвредно, её можно запустить снова.");
         if (r.ExitCode == -1 && !r.Cancelled && !r.TimedOut && r.StdOut.Length == 0 && r.StdErr.Length > 0)
             _pending.Enqueue(r.StdErr.Trim());
         return r;
@@ -642,7 +703,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                 Title = "ОТЧЁТ О БАТАРЕЕ",
                 Command = "powercfg /batteryreport",
                 Description = "HTML-отчёт Windows о батарее: паспортная и текущая ёмкость (степень износа), число циклов заряда, история использования и прогноз времени работы.",
-                Note = "Отчёт сохраняется в папку журналов MONOLITH и открывается в браузере. Ничего не меняет в системе.",
+                Note = "Отчёт сохраняется в папку журналов MONOLITH и открывается в браузере от имени пользователя — без прав администратора. Ничего не меняет в системе.",
                 Duration = "~5 С",
                 Actions = [new ToolCardAction { Op = ToolOp.BatteryReport, Label = "СОЗДАТЬ ОТЧЁТ", IsPrimary = true }],
             });
@@ -759,7 +820,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                         Title = "СБРОС СЕТЕВЫХ НАСТРОЕК",
                         Command = "netsh winsock reset · netsh int ip reset",
                         Description = "Возвращает каталог Winsock и стек TCP/IP к состоянию чистой установки. Крайняя мера при «подключено, без доступа к интернету», ошибках сокетов и после удаления VPN или антивирусов, сломавших сеть.",
-                        Note = "Сбрасывает вручную заданные IP-адреса, шлюзы и DNS; VPN и сетевые фильтры может понадобиться переустановить. Перед сбросом создаётся точка восстановления — вернуть прежнее состояние можно только через неё.",
+                        Note = "Сбрасывает вручную заданные IP-адреса, шлюзы и DNS; VPN и сетевые фильтры может понадобиться переустановить. Перед сбросом MONOLITH создаёт точку восстановления, если защита системы включена, — вернуть прежнее состояние можно только через неё.",
                         Duration = "< 1 МИН",
                         RequiresAdmin = true,
                         NeedsReboot = true,

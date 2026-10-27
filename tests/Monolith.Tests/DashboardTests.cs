@@ -2,6 +2,8 @@ using Monolith.Core;
 using Monolith.Modules.Dashboard;
 using Monolith.Modules.Dashboard.Checks;
 using Monolith.Modules.Dashboard.Monitoring;
+using Monolith.Modules.Drivers;
+using Monolith.Tweaks;
 
 namespace Monolith.Tests;
 
@@ -443,6 +445,8 @@ public sealed class DashboardRulesTests
     [InlineData("NVIDIA GeForce RTX 5070 Ti", true)]
     [InlineData("NVIDIA GeForce RTX 4090", true)]
     [InlineData("NVIDIA GeForce RTX 3080", false)]
+    [InlineData("NVIDIA RTX 4000 Ada Generation", false)]
+    [InlineData("NVIDIA GeForce RTX 4060 Laptop GPU", true)]
     [InlineData("AMD Radeon RX 7900 XTX", false)]
     [InlineData(null, false)]
     public void Rtx_40_50(string? name, bool expected) => Assert.Equal(expected, HealthRules.IsRtx40Or50(name));
@@ -507,10 +511,111 @@ public sealed class DashboardRulesTests
         var rtx50 = HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.Off, PrimaryGpu = Gpu("NVIDIA GeForce RTX 5070 Ti") })!;
         var rtx30 = HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.Off, PrimaryGpu = Gpu("NVIDIA GeForce RTX 3070") })!;
         Assert.Equal(CheckSeverity.Warning, rtx50.Severity);
+        Assert.Equal(HealthRules.TweakHags, rtx50.Action!.Target);
         Assert.Equal(CheckSeverity.Info, rtx30.Severity);
-        Assert.Equal("hags", rtx30.Action!.Target);
+        // Not RTX 40/50: the button applies the catalog item that is actually offered for such cards.
+        Assert.Equal(HealthRules.TweakHagsOther, rtx30.Action!.Target);
         Assert.Null(HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.Unsupported }));
         Assert.Equal(CheckSeverity.Ok, HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.On })!.Severity);
+    }
+
+    [Fact]
+    public void Hags_uses_the_catalog_rule_for_rtx_40_50_on_any_nvidia_gpu()
+    {
+        GpuInfo Gpu(string name, GpuVendor vendor = GpuVendor.Nvidia) => new(name, vendor, "32.0.15.8180", DateTime.Today, 8UL << 30, "");
+
+        // Workstation Ada cards are not GeForce RTX 40: the catalog «hags» item refuses them, so the Dashboard must not offer it.
+        var ada = HealthRules.CheckHags(new SystemSnapshot { Hags = HagsState.Off, PrimaryGpu = Gpu("NVIDIA RTX 4000 Ada Generation") })!;
+        Assert.Equal(HealthRules.TweakHagsOther, ada.Action!.Target);
+        Assert.Equal(CheckSeverity.Info, ada.Severity);
+
+        // The catalog looks at every NVIDIA adapter, not only the primary one.
+        var amd = Gpu("AMD Radeon RX 7900 XTX", GpuVendor.Amd);
+        var mixed = HealthRules.CheckHags(new SystemSnapshot
+        {
+            Hags = HagsState.Off, PrimaryGpu = amd, Gpus = [amd, Gpu("NVIDIA GeForce RTX 4060")],
+        })!;
+        Assert.Equal(HealthRules.TweakHags, mixed.Action!.Target);
+    }
+
+    [Fact]
+    public void Every_dashboard_tweak_button_exists_in_the_catalog_and_is_not_expert()
+    {
+        foreach (var id in new[] { HealthRules.TweakGameMode, HealthRules.TweakHags, HealthRules.TweakHagsOther, HealthRules.TweakGameDvr })
+        {
+            var tweak = TweakCatalog.Find(id);
+            Assert.NotNull(tweak);
+            Assert.NotEqual(TweakRisk.Advanced, tweak!.Risk);
+        }
+    }
+
+    [Fact]
+    public void Tweak_buttons_follow_what_the_catalog_allows()
+    {
+        var off = HealthRules.CheckHags(new SystemSnapshot
+        {
+            Hags = HagsState.Off,
+            PrimaryGpu = new GpuInfo("NVIDIA GeForce RTX 4070", GpuVendor.Nvidia, "32.0.15.8180", DateTime.Today, 12UL << 30, ""),
+        })!;
+
+        Assert.Same(off, HealthRules.ResolveTweakAction(off, TweakAvailability.Available, "после перезагрузки"));
+
+        var notHere = HealthRules.ResolveTweakAction(off, TweakAvailability.NotApplicable);
+        Assert.Null(notHere.Action);
+        Assert.Equal(off.Detail, notHere.Detail);
+
+        var pending = HealthRules.ResolveTweakAction(off, TweakAvailability.AlreadyApplied, "после перезагрузки");
+        Assert.Null(pending.Action);
+        Assert.Equal(CheckSeverity.Info, pending.Severity);
+        Assert.EndsWith("Настройка уже записана и вступит в силу после перезагрузки.", pending.Detail);
+
+        var expert = HealthRules.ResolveTweakAction(off, TweakAvailability.OptimizeOnly);
+        Assert.Equal(CheckActionKind.Navigate, expert.Action!.Kind);
+        Assert.Equal("optimize", expert.Action.Target);
+        Assert.False(expert.Action.RequiresAdmin);
+
+        // Checks without a tweak button are never touched.
+        var restore = HealthRules.CheckRestore(new SystemSnapshot { RestoreEnabled = false })!;
+        Assert.Same(restore, HealthRules.ResolveTweakAction(restore, TweakAvailability.NotApplicable));
+    }
+
+    [Fact]
+    public void Restart_wording_reads_as_a_sentence()
+    {
+        Assert.Equal("после перезагрузки", DashFormat.RestartWhen(RestartRequirement.Reboot));
+        Assert.Equal("после выхода из системы и повторного входа", DashFormat.RestartWhen(RestartRequirement.SignOut));
+        Assert.Equal("после перезапуска Проводника", DashFormat.RestartWhen(RestartRequirement.Explorer));
+        Assert.Equal("", DashFormat.RestartWhen(RestartRequirement.None));
+    }
+
+    [Fact]
+    public void Driver_checks_open_the_right_tab_of_hardware_and_drivers()
+    {
+        var devices = HealthRules.CheckDevices(new SystemSnapshot { ProblemDevices = [new ProblemDevice("PCI Device", 28)] })!;
+        Assert.Contains("«Железо и драйверы»", devices.Detail);
+        Assert.Equal(DriversTab.Problems, Enum.Parse<DriversTab>(devices.Action!.Section!));
+
+        var now = new DateTime(2026, 10, 26);
+        var gpu = new GpuInfo("NVIDIA GeForce RTX 3080", GpuVendor.Nvidia, "31.0.15.5222", now.AddYears(-1), 10UL << 30, "");
+        var driver = HealthRules.CheckGpuDriver(new SystemSnapshot { Now = now, PrimaryGpu = gpu })!;
+        Assert.Contains("«Железо и драйверы»", driver.Detail);
+        Assert.Equal(DriversTab.Overview, Enum.Parse<DriversTab>(driver.Action!.Section!));
+
+        Assert.Equal(DriversTab.Hardware, Enum.Parse<DriversTab>(HealthRules.DriversTabHardware));
+        Assert.DoesNotContain(HealthRules.Evaluate(new SystemSnapshot { ProblemDevices = [new ProblemDevice("X", 28)], StartupCount = 30 }),
+            r => r.Detail.Contains("«Драйверы»") || r.Detail.Contains("«Автозагрузка»"));
+    }
+
+    [Fact]
+    public void Windows_game_mode_is_not_confused_with_game_boost()
+    {
+        var off = HealthRules.CheckGameMode(new SystemSnapshot { GameModeOn = false })!;
+        Assert.Contains("WINDOWS", off.Title);
+        Assert.Contains("WINDOWS", HealthRules.CheckGameMode(new SystemSnapshot { GameModeOn = true })!.Title);
+
+        var startup = HealthRules.CheckStartup(new SystemSnapshot { StartupCount = 30 })!;
+        Assert.Equal("К АВТОЗАПУСКУ", startup.Action!.Label);
+        Assert.Contains("«Автозапуск»", startup.Detail);
     }
 
     [Fact]
@@ -547,6 +652,40 @@ public sealed class DashboardRulesTests
         Assert.Null(r.Action); // never offered to switch off
         Assert.Equal(0, r.Weight);
         Assert.Null(HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Off }));
+    }
+
+    [Fact]
+    public void Memory_integrity_text_matches_the_expert_item_in_optimize()
+    {
+        // Optimize ships an expert «hvci-off» item, so the Dashboard must not claim MONOLITH can never turn it off.
+        var hvci = TweakCatalog.Find("hvci-off");
+        Assert.NotNull(hvci);
+        Assert.Equal(TweakRisk.Advanced, hvci!.Risk);
+
+        var r = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.MemoryIntegrity })!;
+        Assert.DoesNotContain("защиту не отключает", r.Detail);
+        Assert.Contains("экспертный пункт", r.Detail);
+        Assert.Contains("«Оптимизации»", r.Detail);
+    }
+
+    [Fact]
+    public void Stopping_the_monitor_never_waits_for_a_sample()
+    {
+        using var monitor = new LiveMonitor();
+        for (var i = 0; i < 3; i++)
+        {
+            monitor.Start();
+            Assert.True(monitor.IsRunning);
+            Thread.Sleep(i * 20); // stop during PDH initialisation and during a sample
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            monitor.Stop();
+            sw.Stop();
+            Assert.False(monitor.IsRunning);
+            Assert.True(sw.ElapsedMilliseconds < 200, $"Stop() blocked for {sw.ElapsedMilliseconds} ms");
+        }
+        monitor.Dispose();
+        monitor.Start();
+        Assert.False(monitor.IsRunning); // disposed: never restarts
     }
 
     [Fact]

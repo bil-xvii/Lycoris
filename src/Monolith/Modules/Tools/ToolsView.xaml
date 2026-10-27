@@ -464,10 +464,12 @@
 
                     <!-- Controls -->
                     <StackPanel Grid.Row="4" Margin="16,12,16,16">
-                        <TextBlock Style="{StaticResource T.Caption}" Margin="4,0,0,10" Text="Эту операцию нельзя безопасно прервать — дождитесь завершения."
+                        <TextBlock Style="{StaticResource T.Caption}" Margin="4,0,0,10" TextWrapping="Wrap"
+                                   Text="Эту операцию нельзя безопасно прервать — дождитесь завершения. MONOLITH не останавливает её и по таймеру."
                                    Visibility="{Binding ShowNoCancelHint, Converter={StaticResource BoolToVis}}" />
                         <UniformGrid Columns="3">
-                            <Button Style="{StaticResource Btn.Danger}" Content="ОТМЕНА" Margin="0,0,6,0" Command="{Binding CancelRunCommand}" />
+                            <Button Style="{StaticResource Btn.Danger}" Content="ПРЕРВАТЬ" Margin="0,0,6,0" Command="{Binding CancelRunCommand}"
+                                    ToolTip="Перед остановкой MONOLITH объяснит, чем это грозит, и спросит ещё раз" ToolTipService.ShowOnDisabled="False" />
                             <Button Content="КОПИРОВАТЬ" Margin="3,0" Command="{Binding CopyOutputCommand}" />
                             <Button Content="ОЧИСТИТЬ" Margin="6,0,0,0" Command="{Binding ClearConsoleCommand}" />
                         </UniformGrid>
