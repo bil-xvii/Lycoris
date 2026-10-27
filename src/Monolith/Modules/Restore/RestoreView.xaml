@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Restore"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:RestoreViewModel}">
     <UserControl.Resources>
@@ -19,7 +20,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- State marker: ■ active, □ reverted, hatched = revert failed -->
-                    <Rectangle Width="10" Height="10" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,5,0,0">
+                    <Rectangle Width="10" Height="10" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,5,0,0">
                         <Rectangle.Style>
                             <Style TargetType="Rectangle">
                                 <Setter Property="Fill" Value="{StaticResource B.White}" />
@@ -43,15 +44,15 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center" TextWrapping="NoWrap"
                                        TextTrimming="CharacterEllipsis" />
-                            <Border Style="{StaticResource Tag.Muted}" Margin="10,0,0,0" Padding="5,1,5,2">
+                            <Border Style="{StaticResource Tag.Muted}" Margin="10,0,0,0" Padding="5,1,5,2" CornerRadius="{StaticResource R.Xs}">
                                 <TextBlock Text="{Binding KindLabel}" FontSize="9.5" />
                             </Border>
-                            <Border Style="{StaticResource Tag.Hatch}" Margin="6,0,0,0" Padding="5,1,5,2"
+                            <Border Style="{StaticResource Tag.Hatch}" Margin="6,0,0,0" Padding="5,1,5,2" CornerRadius="{StaticResource R.Xs}"
                                     Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}"
                                     ToolTip="После MONOLITH значение изменили Windows (например, обновление), политика или другая программа.">
                                 <TextBlock Text="ИЗМЕНЕНО ВНЕ MONOLITH" FontSize="9.5" />
                             </Border>
-                            <Border Style="{StaticResource Tag.Hatch}" Margin="6,0,0,0" Padding="5,1,5,2"
+                            <Border Style="{StaticResource Tag.Hatch}" Margin="6,0,0,0" Padding="5,1,5,2" CornerRadius="{StaticResource R.Xs}"
                                     Visibility="{Binding IsMismatch, Converter={StaticResource BoolToVis}}"
                                     ToolTip="После отката MONOLITH прочитал значение заново, и оно отличается от исходного.">
                                 <TextBlock Text="НЕ СОВПАДАЕТ" FontSize="9.5" />
@@ -135,11 +136,11 @@
                     <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding Description}" />
                     <WrapPanel Margin="0,6,0,0">
-                        <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0" Padding="5,1,5,2"
+                        <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0" Padding="5,1,5,2" CornerRadius="{StaticResource R.Xs}"
                                 Visibility="{Binding IsMonolith, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="MONOLITH" FontSize="9.5" />
                         </Border>
-                        <Border Style="{StaticResource Tag.Muted}" Padding="5,1,5,2">
+                        <Border Style="{StaticResource Tag.Muted}" Padding="5,1,5,2" CornerRadius="{StaticResource R.Xs}">
                             <TextBlock Text="{Binding TypeLabel}" FontSize="9.5" />
                         </Border>
                     </WrapPanel>
@@ -237,7 +238,7 @@
                         <Rectangle Height="1" Fill="{StaticResource B.Line2}" Margin="0,0,0,10" />
 
                         <!-- Drift: one compact line; the records themselves are tagged in the list below -->
-                        <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,10"
+                        <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,10" ui:RoundClip.Content="True"
                                 Visibility="{Binding HasDrift, Converter={StaticResource BoolToVis}}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -263,7 +264,7 @@
                         <!-- Empty journal / filter matched nothing: one line -->
                         <Border Style="{StaticResource Card}" Visibility="{Binding IsFilterEmpty, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="10" Height="10" Stroke="{StaticResource B.Text3}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,9,0" />
+                                <Rectangle Width="10" Height="10" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" Stroke="{StaticResource B.Text3}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,9,0" />
                                 <TextBlock Text="{Binding FilterEmptyText}" Style="{StaticResource T.Body}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Border>
@@ -272,7 +273,7 @@
                         <ItemsControl ItemsSource="{Binding Batches}" Focusable="False">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:BatchItem}">
-                                    <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,10">
+                                    <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,10" ui:RoundClip.Content="True">
                                         <StackPanel>
                                             <Grid Margin="12,10,12,10">
                                                 <Grid.ColumnDefinitions>
@@ -284,7 +285,7 @@
                                                     <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
                                                                FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap" />
                                                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                                        <Rectangle Width="8" Height="8" VerticalAlignment="Center" Margin="0,1,8,0">
+                                                        <Rectangle Width="8" Height="8" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Center" Margin="0,1,8,0">
                                                             <Rectangle.Style>
                                                                 <Style TargetType="Rectangle">
                                                                     <Setter Property="Fill" Value="Transparent" />
@@ -344,7 +345,7 @@
                             <StackPanel>
                                 <TextBlock Text="ЗАЩИТА СИСТЕМЫ WINDOWS" Style="{StaticResource T.Label}" />
                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                    <Rectangle Width="14" Height="14" VerticalAlignment="Center" Margin="0,2,9,0">
+                                    <Rectangle Width="14" Height="14" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Center" Margin="0,2,9,0">
                                         <Rectangle.Style>
                                             <Style TargetType="Rectangle">
                                                 <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
