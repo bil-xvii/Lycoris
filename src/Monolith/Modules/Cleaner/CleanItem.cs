@@ -27,6 +27,12 @@ public static class CleanFormat
 
     public static string Files(long n) => $"{Count(n)} {Plural(n, "файл", "файла", "файлов")}";
 
+    /// <summary>"файл был занят программами и пропущен" / "файла были заняты программами и пропущены"…</summary>
+    public static string InUseSkipped(long n) => Plural(n,
+        "файл был занят программами и пропущен",
+        "файла были заняты программами и пропущены",
+        "файлов были заняты программами и пропущены");
+
     public static string Bytes(long bytes) => SystemProfile.FormatBytes(Math.Max(0, bytes));
 
     /// <summary>"1,4 ГБ" → ("1,4", "ГБ") for the big stat numbers.</summary>
@@ -79,7 +85,7 @@ public sealed partial class CleanItem : ObservableObject
     /// <summary>The status chip follows the checkbox ("К ОЧИСТКЕ" / "НЕ ВЫБРАНО") while the item has work.</summary>
     private bool _ready;
 
-    /// <summary>Last dry-run result (the manifest the user approves).</summary>
+    /// <summary>Last dry-run result: counters for display plus the compact approval of what the confirmation lists.</summary>
     public ItemAnalysis? Analysis { get; private set; }
 
     /// <summary>Bytes a cleaning run would take now (0 before analysis).</summary>
@@ -252,11 +258,22 @@ public sealed partial class CleanItem : ObservableObject
         OnPropertyChanged(nameof(FoundBytes));
     }
 
+    /// <summary>
+    /// Drops the approval fingerprints of an analysis that can no longer be confirmed (too old): a new clean always
+    /// starts with a fresh analysis, so they would only hold memory.
+    /// </summary>
+    public void ReleaseIfStale(TimeSpan staleAfter)
+    {
+        if (Analysis is { } a && NeedsFreshAnalysis(staleAfter)) a.ReleaseApprovals();
+    }
+
     public void ApplyCleanResult(ItemCleanResult r)
     {
         IsWorking = false;
         WasCleaned = true;
         _ready = false;
+        // The approval is used up: anything cleaned later needs a new analysis and a new confirmation.
+        Analysis?.ReleaseApprovals();
         if (r.Skipped is { } skipped)
         {
             StatusText = "ПРОПУЩЕНО";

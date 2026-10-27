@@ -9,6 +9,7 @@ namespace Monolith.Modules.Cleaner;
 public sealed class ItemAnalysis
 {
     public DateTime AtUtc { get; } = DateTime.UtcNow;
+    /// <summary>Per-target counters plus the compact approval fingerprints (never the file paths themselves).</summary>
     public List<TargetManifest> Manifests { get; } = [];
     /// <summary>Everything found (including folders of running apps).</summary>
     public long Bytes { get; set; }
@@ -31,6 +32,18 @@ public sealed class ItemAnalysis
     public string? Unavailable { get; set; }
 
     public bool HasRunningApps => RunningApps.Count > 0;
+
+    /// <summary>Approval fingerprints still held in memory (0 after <see cref="ReleaseApprovals"/>).</summary>
+    public long RetainedFingerprints => Manifests.Sum(m => (long)m.RetainedFingerprints);
+
+    /// <summary>
+    /// Drops the approval of every target (after cleaning, or once the analysis is too old to be confirmed):
+    /// the counters stay for display, a cleaning pass over this analysis deletes nothing.
+    /// </summary>
+    public void ReleaseApprovals()
+    {
+        foreach (var m in Manifests) m.Release();
+    }
 
     /// <summary>True when a cleaning run has something to do for this item.</summary>
     public bool HasWork(CleanMethod method) => Blocker is null && Unavailable is null && method switch
@@ -141,20 +154,29 @@ public static class CleanRunner
             a.Bytes += m.Bytes;
             a.Files += m.Count;
 
+            // Only what is counted as cleanable is approved: a cache whose program was running (or that needs rights
+            // MONOLITH does not have) is not part of the confirmation, so it is not deleted even if that changes later.
             var running = t.Owner is { } o && Running(o);
             if (running)
             {
                 if (!a.RunningApps.Contains(t.Owner!.Name)) a.RunningApps.Add(t.Owner!.Name);
+                m.Release();
                 continue;
             }
-            if (t.RequiresAdmin && !env.IsElevated) continue;
+            if (t.RequiresAdmin && !env.IsElevated)
+            {
+                m.Release();
+                continue;
+            }
             a.CleanableBytes += m.Bytes;
             a.CleanableFiles += m.Count;
-            a.CleanableDirs += m.Dirs.Count;
+            a.CleanableDirs += m.DirCount;
         }
 
         if (def.Method == CleanMethod.Tools)
         {
+            // The tool deletes its own cache; the folders are only measured, so no file approval is kept.
+            a.ReleaseApprovals();
             foreach (var o in def.ToolOwners)
                 if (Running(o) && !a.RunningApps.Contains(o.Name))
                     a.RunningApps.Add(o.Name);
@@ -168,13 +190,17 @@ public static class CleanRunner
     /// <summary>Common checks before an item is cleaned. Returns the reason to skip, or null.</summary>
     public static string? PreCheck(CleanDefinition def, CleanEnvironment env)
     {
+        if (SafetyLock.IsLocked) return "Удаление заблокировано: режим самопроверки.";
         if (def.RequiresAdmin && !env.IsElevated) return "Нужны права администратора.";
         if (def.IsUserScope && env.UserScopeBlocked)
             return $"MONOLITH запущен от имени другой учётной записи ({env.ForeignSessionUser}) — пользовательские данные не трогаются.";
         return def.Blocker?.Invoke(env);
     }
 
-    /// <summary>Deletes the approved manifests of a Files item (blocking; call on a worker thread).</summary>
+    /// <summary>
+    /// Deletes what the user approved for a Files item (blocking; call on a worker thread): every target is walked
+    /// again and only files matching the analysis fingerprints are deleted.
+    /// </summary>
     public static ItemCleanResult CleanFiles(CleanDefinition def, ItemAnalysis a, CleanEnvironment env, PathGuard guard,
         CancellationToken ct, Action<int>? onProgress = null)
     {
@@ -197,6 +223,16 @@ public static class CleanRunner
                 r.Tally.Cancelled = true;
                 break;
             }
+            if (m.IsReleased)
+            {
+                // Not part of what the user confirmed (its program was running during the analysis).
+                if (m.Target.Owner is { } skipped && a.RunningApps.Contains(skipped.Name))
+                {
+                    var note = $"{skipped.Name}: был запущен во время анализа — этот кэш не входил в подтверждение и пропущен.";
+                    if (!r.Notes.Contains(note)) r.Notes.Add(note);
+                }
+                continue;
+            }
             if (m.Target.RequiresAdmin && !env.IsElevated)
             {
                 r.Notes.Add($"{m.Target.Label}: нужны права администратора — пропущено.");
@@ -215,7 +251,7 @@ public static class CleanRunner
 
             var offset = done;
             var t = CleanEngine.Clean(m, guard, ct, n => onProgress?.Invoke(offset + n));
-            done += m.Files.Count;
+            done += m.Count;
             if (t.BaseProblem is { } problem) r.Notes.Add($"{m.Target.Label}: {problem} — пропущено.");
             r.Tally.Add(t);
             if (t.Cancelled) break;
@@ -275,7 +311,23 @@ public static class CleanRunner
         return r;
     }
 
-    public static async Task<ItemCleanResult> CleanRecycleBinAsync(CleanDefinition def, CleanEnvironment env)
+    /// <summary>How the Recycle Bin compares with what the user approved.</summary>
+    public static RecycleBinChange CompareRecycleBin(RecycleBinState approved, RecycleBinState current)
+    {
+        if (current.Items <= 0) return RecycleBinChange.Empty;
+        return current == approved ? RecycleBinChange.Unchanged : RecycleBinChange.Changed;
+    }
+
+    /// <summary>Re-confirmations allowed when the bin keeps changing; after that the item is skipped.</summary>
+    private const int MaxRecycleBinRounds = 3;
+
+    /// <summary>
+    /// Empties the Recycle Bin only while it holds exactly what the user approved (same item count and size as the
+    /// analysis shown in the confirmation). If anything was added, restored or deleted since, nothing is emptied:
+    /// <paramref name="confirmChanged"/> shows the user the new contents and only a fresh "yes" empties that.
+    /// </summary>
+    public static async Task<ItemCleanResult> CleanRecycleBinAsync(CleanDefinition def, ItemAnalysis approved, CleanEnvironment env,
+        Func<RecycleBinState, RecycleBinState, Task<bool>> confirmChanged)
     {
         var r = new ItemCleanResult();
         if (PreCheck(def, env) is { } reason)
@@ -283,24 +335,40 @@ public static class CleanRunner
             r.Skipped = reason;
             return r;
         }
-        await Task.Run(() =>
+
+        var expected = new RecycleBinState(approved.CleanableBytes, approved.Items ?? 0);
+        for (var round = 0; round < MaxRecycleBinRounds; round++)
         {
-            var q = SystemCleanup.RunSta(NativeCleaner.QueryRecycleBin);
-            // Some builds return E_UNEXPECTED for an empty bin, so the call is skipped when there is nothing.
-            if (q is null || q.Value.Items == 0)
+            var attempt = await Task.Run(() => SystemCleanup.RunSta(() => NativeCleaner.EmptyRecycleBinIfUnchanged(expected)))
+                .ConfigureAwait(false);
+            switch (attempt.Outcome)
             {
-                r.Notes.Add("Корзина уже пуста.");
-                return;
+                case RecycleBinEmptyOutcome.Emptied:
+                    r.ToolFreed = expected.Bytes;
+                    r.ToolItems = expected.Items;
+                    return r;
+                case RecycleBinEmptyOutcome.AlreadyEmpty:
+                    r.Notes.Add("Корзина уже пуста.");
+                    return r;
+                case RecycleBinEmptyOutcome.QueryFailed:
+                    r.Error = "Windows не сообщила содержимое корзины — корзина не очищена.";
+                    return r;
+                case RecycleBinEmptyOutcome.Failed:
+                    r.Error = $"Windows не очистила корзину (код 0x{attempt.HResult:X8}).";
+                    return r;
+                case RecycleBinEmptyOutcome.Changed:
+                    var current = attempt.Current!.Value;
+                    Log.Info($"Очистка: корзина изменилась после анализа ({expected.Items} → {current.Items} объектов) — нужно новое подтверждение.");
+                    if (!await confirmChanged(expected, current).ConfigureAwait(false))
+                    {
+                        r.Skipped = "Корзина изменилась после анализа, новое содержимое не подтверждено — ничего не удалено.";
+                        return r;
+                    }
+                    expected = current;
+                    break;
             }
-            var hr = SystemCleanup.RunSta(NativeCleaner.EmptyRecycleBin);
-            if (hr != 0)
-            {
-                r.Error = $"Windows не очистила корзину (код 0x{hr:X8}).";
-                return;
-            }
-            r.ToolFreed = q.Value.Bytes;
-            r.ToolItems = q.Value.Items;
-        }).ConfigureAwait(false);
+        }
+        r.Skipped = "Корзина продолжает меняться — очистка отложена, ничего не удалено. Повторите анализ позже.";
         return r;
     }
 
@@ -340,6 +408,15 @@ public static class CleanRunner
         return r;
     }
 }
+
+/// <summary>Size and item count of the Recycle Bin (all drives).</summary>
+public readonly record struct RecycleBinState(long Bytes, long Items);
+
+public enum RecycleBinChange { Unchanged, Changed, Empty }
+
+public enum RecycleBinEmptyOutcome { Emptied, AlreadyEmpty, Changed, QueryFailed, Failed }
+
+public readonly record struct RecycleBinAttempt(RecycleBinEmptyOutcome Outcome, RecycleBinState? Current = null, int HResult = 0);
 
 public readonly record struct DeliveryOptimizationSize(bool Available, long? Bytes)
 {
@@ -416,8 +493,8 @@ public static class SystemCleanup
 
     /// <summary>
     /// DISM /AnalyzeComponentStore, and only when it reports "Component Store Cleanup Recommended : Yes",
-    /// DISM /StartComponentCleanup (never /ResetBase). The cleanup itself is not cancellable: interrupting
-    /// servicing half-way is worse than waiting.
+    /// DISM /StartComponentCleanup (never /ResetBase). The cleanup itself is neither cancellable nor time-limited:
+    /// interrupting servicing half-way is worse than waiting, so it runs until DISM finishes.
     /// </summary>
     public static async Task<ComponentCleanupOutcome> RunComponentCleanupAsync(Action<string, double?> progress, CancellationToken ct)
     {
@@ -446,12 +523,13 @@ public static class SystemCleanup
         var run = await ProcessRunner.RunAsync(dism, "/Online /English /Cleanup-Image /StartComponentCleanup",
             new ProcessRunOptions
             {
-                Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromHours(3),
+                // No timeout: a timer must never kill DISM in the middle of servicing.
+                Encoding = OutputEncoding.Oem,
                 OnOutput = l => { if (DismOutput.ParsePercent(l) is { } p) progress("DISM очищает хранилище компонентов — не выключайте ПК…", p); },
             }, CancellationToken.None).ConfigureAwait(false);
         var after = FreeSpace(drive);
         if (!run.Success)
-            return new(0, null, run.TimedOut ? "DISM: превышено время очистки." : $"DISM /StartComponentCleanup завершился с кодом {run.ExitCode}.");
+            return new(0, null, $"DISM /StartComponentCleanup завершился с кодом {run.ExitCode}.");
         return new(Math.Max(0, after - before), "Хранилище компонентов очищено.", null);
     }
 

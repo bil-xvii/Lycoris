@@ -260,8 +260,25 @@ internal static class NativeCleaner
         return hr == 0 ? (info.i64Size, info.i64NumItems) : null;
     }
 
-    /// <summary>Empties the Recycle Bin on all drives without the shell's own dialogs. Returns the HRESULT.</summary>
-    public static int EmptyRecycleBin() => SHEmptyRecycleBinW(IntPtr.Zero, null, 0x1 | 0x2 | 0x4);
+    /// <summary>
+    /// Empties the Recycle Bin on all drives (without the shell's own dialogs) only if it still holds exactly
+    /// <paramref name="approved"/>: the bin is queried right before the call, on the same thread, and nothing is emptied
+    /// when its item count or size differ. An empty bin is never passed to the shell (some builds answer E_UNEXPECTED).
+    /// </summary>
+    public static RecycleBinAttempt EmptyRecycleBinIfUnchanged(RecycleBinState approved)
+    {
+        if (QueryRecycleBin() is not { } q) return new(RecycleBinEmptyOutcome.QueryFailed);
+        var current = new RecycleBinState(q.Bytes, q.Items);
+        switch (CleanRunner.CompareRecycleBin(approved, current))
+        {
+            case RecycleBinChange.Empty:
+                return new(RecycleBinEmptyOutcome.AlreadyEmpty, current);
+            case RecycleBinChange.Changed:
+                return new(RecycleBinEmptyOutcome.Changed, current);
+        }
+        var hr = SHEmptyRecycleBinW(IntPtr.Zero, null, 0x1 | 0x2 | 0x4); // NOCONFIRMATION | NOPROGRESSUI | NOSOUND
+        return hr == 0 ? new(RecycleBinEmptyOutcome.Emptied, current) : new(RecycleBinEmptyOutcome.Failed, current, hr);
+    }
 
     // ───────────────────────────── Processes / sessions ─────────────────────────────
 

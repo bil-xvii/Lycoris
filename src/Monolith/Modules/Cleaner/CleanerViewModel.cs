@@ -26,6 +26,8 @@ public sealed partial class CleanerViewModel : PageViewModel
     private PathGuard? _guard;
     private bool _lastAnalysisCancelled;
     private long _lastProgressTicks;
+    /// <summary>A clean is being confirmed or executed (its approvals must stay).</summary>
+    private bool _cleanFlow;
 
     public override string Key => "cleaner";
     public override string Index => "04";
@@ -43,13 +45,13 @@ public sealed partial class CleanerViewModel : PageViewModel
         new("Prefetch", "Его очистка только замедляет запуск Windows и программ."),
         new("WinSxS, Installer, DriverStore", "Нужны для обновлений и удаления программ. WinSxS — только штатным DISM."),
         new("Шейдеры установленных игр Steam", "Их удаление вызывает статтеры в играх."),
-        new("Windows.old и пакеты обновлений", "Удаляются только через «Параметры → Память» самой Windows."),
+        new("Windows.old и файлы установки Windows", "Только через «Параметры → Память». Скачанные пакеты Центра обновления — отдельными пунктами списка."),
     ];
 
     public IReadOnlyList<StepLine> Steps { get; } =
     [
         new("01", "АНАЛИЗ", "Только подсчёт: ничего не удаляется."),
-        new("02", "ПОДТВЕРЖДЕНИЕ", "Перед удалением — список мест и размеров."),
+        new("02", "ПОДТВЕРЖДЕНИЕ", "Перед удалением — список мест и размеров. Сам MONOLITH удаляет только файлы, подсчитанные анализом."),
         new("03", "ОЧИСТКА", "Занятые файлы пропускаются, по ссылкам (junction, symlink) MONOLITH не переходит. Удалённое не восстановить."),
     ];
 
@@ -100,6 +102,14 @@ public sealed partial class CleanerViewModel : PageViewModel
 
     protected override Task OnReturnAsync() => RefreshDrivesAsync();
 
+    public override void Deactivate()
+    {
+        // Leaving the page: approvals that can no longer be confirmed (too old, already cleaned) only hold memory —
+        // the next clean re-analyses them anyway. Never while a clean is being confirmed or running.
+        if (IsWorking || _cleanFlow) return;
+        foreach (var i in _items) i.ReleaseIfStale(StaleAfter);
+    }
+
     // ───────────────────────────── Commands ─────────────────────────────
 
     private bool CanRun() => !IsWorking;
@@ -116,6 +126,20 @@ public sealed partial class CleanerViewModel : PageViewModel
 
     [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task CleanAsync()
+    {
+        if (_cleanFlow) return;
+        _cleanFlow = true;
+        try
+        {
+            await CleanFlowAsync();
+        }
+        finally
+        {
+            _cleanFlow = false;
+        }
+    }
+
+    private async Task CleanFlowAsync()
     {
         if (GameBoostState.IsActive)
         {
@@ -523,7 +547,7 @@ public sealed partial class CleanerViewModel : PageViewModel
                         break;
                     case CleanMethod.RecycleBin:
                         WorkIndeterminate = true;
-                        r = await CleanRunner.CleanRecycleBinAsync(item.Definition, env);
+                        r = await CleanRunner.CleanRecycleBinAsync(item.Definition, a, env, ConfirmChangedRecycleBinAsync);
                         break;
                     case CleanMethod.DeliveryOptimization:
                         WorkIndeterminate = true;
@@ -588,6 +612,20 @@ public sealed partial class CleanerViewModel : PageViewModel
         return results;
     }
 
+    /// <summary>The bin no longer holds what was confirmed: show the new contents and ask again.</summary>
+    private static Task<bool> ConfirmChangedRecycleBinAsync(RecycleBinState approved, RecycleBinState current) =>
+        Ui.ConfirmAsync("КОРЗИНА ИЗМЕНИЛАСЬ",
+            "После анализа содержимое корзины изменилось, поэтому она пока не очищена. " +
+            "Очистить её с текущим содержимым? Вернуть эти файлы будет нельзя.",
+            [
+                $"Вы подтвердили: {DescribeBin(approved)}",
+                $"Сейчас в корзине: {DescribeBin(current)}",
+            ],
+            "ОЧИСТИТЬ КОРЗИНУ", "НЕ ОЧИЩАТЬ", danger: true);
+
+    private static string DescribeBin(RecycleBinState s) =>
+        $"{CleanFormat.Count(s.Items)} {CleanFormat.Plural(s.Items, "объект", "объекта", "объектов")} · {CleanFormat.Bytes(s.Bytes)}";
+
     private static void LogResult(CleanItem item, ItemCleanResult r)
     {
         if (r.Skipped is { } skipped) Log.Warn($"Очистка: {item.Name} — пропущено: {skipped}");
@@ -626,7 +664,7 @@ public sealed partial class CleanerViewModel : PageViewModel
 
         var title = cancelled ? "ОЧИСТКА ПРЕРВАНА" : errors > 0 ? "ОЧИСТКА ЗАВЕРШЕНА С ОШИБКАМИ" : "ОЧИСТКА ЗАВЕРШЕНА";
         var message = $"Освобождено {CleanFormat.Bytes(freed)}. Удалено: {CleanFormat.Files(deleted)}." +
-                      (inUse > 0 ? $" {CleanFormat.Count(inUse)} {CleanFormat.Plural(inUse, "файл был занят", "файла были заняты", "файлов были заняты")} программами и пропущены." : "") +
+                      (inUse > 0 ? $" {CleanFormat.Count(inUse)} {CleanFormat.InUseSkipped(inUse)}." : "") +
                       (errors > 0 ? $" Ошибок: {errors} — подробности в консоли." : "");
         await Ui.AlertAsync(title, message, details);
     }

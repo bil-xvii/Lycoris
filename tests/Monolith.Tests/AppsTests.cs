@@ -586,4 +586,107 @@ public sealed class AppsTests
         Assert.Equal("RiotGames.LeagueOfLegends.NA", lol.PackageId);
         Assert.Equal("NA", lol.SelectedVariant!.ToString());
     }
+
+    // ─────────────────────────── confirmation honesty ───────────────────────────
+
+    [Fact]
+    public void Sha256_is_claimed_only_for_winget_source_packages()
+    {
+        var steam = AppCatalog.Find("Valve.Steam")!;
+        var xbox = AppCatalog.Find("9MV0B5HZVK9Z")!;
+        Assert.Equal(PackageSource.MsStore, xbox.Source);
+
+        var wingetOnly = AppTexts.VerificationText([steam]);
+        Assert.Contains("SHA256", wingetOnly);
+        Assert.DoesNotContain("Microsoft Store", wingetOnly);
+
+        var storeOnly = AppTexts.VerificationText([xbox]);
+        Assert.Contains("Microsoft Store", storeOnly);
+        Assert.DoesNotContain("сверяются с SHA256", storeOnly);
+
+        var mixed = AppTexts.VerificationText([steam, xbox]);
+        Assert.Contains("пакетов winget", mixed);
+        Assert.Contains("Microsoft Store", mixed);
+    }
+
+    [Fact]
+    public void Confirmation_says_that_licences_and_store_terms_are_accepted()
+    {
+        var steam = AppCatalog.Find("Valve.Steam")!;
+        var xbox = AppCatalog.Find("9MV0B5HZVK9Z")!;
+
+        var winget = AppTexts.AgreementText([steam], "УСТАНОВИТЬ");
+        Assert.Contains("«УСТАНОВИТЬ»", winget);
+        Assert.Contains("лицензионные соглашения издателей", winget);
+        Assert.DoesNotContain("Microsoft Store", winget);
+
+        Assert.Contains("условия Microsoft Store", AppTexts.AgreementText([steam, xbox], "УСТАНОВИТЬ"));
+        Assert.Contains("«ОБНОВИТЬ»", AppTexts.AgreementText([steam], "ОБНОВИТЬ"));
+
+        // The confirmation text matches what is actually passed to winget.
+        Assert.Contains("--accept-package-agreements", WingetClient.BuildInstallArgs(steam.CreateRequest(steam.Id)));
+        Assert.Contains("--accept-package-agreements", WingetClient.BuildUpgradeArgs(steam.CreateRequest(steam.Id)));
+        Assert.Contains("--accept-source-agreements", WingetClient.BuildInstallArgs(xbox.CreateRequest(xbox.Id)));
+    }
+
+    [Theory]
+    [InlineData(false, true, true, RestorePointPlan.NotElevated)]
+    [InlineData(true, false, true, RestorePointPlan.OffInSettings)]
+    [InlineData(true, true, false, RestorePointPlan.ProtectionOff)]
+    [InlineData(true, true, true, RestorePointPlan.WillTry)]
+    public void Restore_point_plan_follows_rights_settings_and_system_protection(bool elevated, bool setting, bool protection, RestorePointPlan expected) =>
+        Assert.Equal(expected, AppTexts.PlanRestorePoint(elevated, setting, protection));
+
+    [Fact]
+    public void Restore_point_footnote_promises_a_point_only_when_one_will_be_attempted()
+    {
+        foreach (var plan in Enum.GetValues<RestorePointPlan>())
+        {
+            var text = AppTexts.RestorePointFootnote(plan);
+            if (plan == RestorePointPlan.WillTry)
+            {
+                Assert.Contains("создаст точку восстановления", text);
+                Assert.Contains("без вашего согласия", text);
+            }
+            else
+            {
+                Assert.Contains("не", text);
+                Assert.DoesNotContain("будет создана", text);
+                Assert.DoesNotContain("создаст", text);
+            }
+        }
+    }
+
+    // ─────────────────────────── timeouts ───────────────────────────
+
+    [Fact]
+    public void Installs_upgrades_and_uninstalls_are_never_time_limited()
+    {
+        var steam = new WingetPackageRequest("Valve.Steam");
+        Assert.Null(WingetClient.TimeoutFor(WingetClient.BuildInstallArgs(steam)));
+        Assert.Null(WingetClient.TimeoutFor(WingetClient.BuildUpgradeArgs(steam)));
+        Assert.Null(WingetClient.TimeoutFor(["uninstall", "--id", "Valve.Steam", "--exact", "--silent"]));
+    }
+
+    [Fact]
+    public void Read_only_winget_calls_keep_a_reasonable_timeout()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(1), WingetClient.TimeoutFor(["--version"]));
+        string[][] readOnly = [["list", "--id", "Valve.Steam", "--exact"], ["export", "-o", "x.json", "--include-versions"], ["show", "--id", "Valve.Steam"]];
+        foreach (var args in readOnly)
+        {
+            var t = WingetClient.TimeoutFor(args);
+            Assert.NotNull(t);
+            Assert.InRange(t!.Value, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(15));
+        }
+    }
+
+    [Fact]
+    public void Timed_out_result_is_not_reported_as_missing_winget()
+    {
+        var r = new WingetResult(-1, "") { TimedOut = true };
+        Assert.False(r.Success);
+        Assert.Equal("winget не ответил вовремя", r.Message);
+        Assert.False(new WingetResult(0, "", Cancelled: true).Success);
+    }
 }
