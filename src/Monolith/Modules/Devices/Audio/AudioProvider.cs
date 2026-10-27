@@ -118,7 +118,7 @@ public sealed class AudioProvider : IDeviceProvider
             .OrderByDescending(e => e.IsDefaultCommunications).ThenByDescending(e => e.IsDefault)
             .ThenBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         var mainOutput = outputs.FirstOrDefault();
-        var mainMic = mics.FirstOrDefault(e => e.IsDefaultCommunications) ?? mics.FirstOrDefault(e => e.IsDefault);
+        var mainMic = mics.FirstOrDefault(e => e.IsDefaultCommunications) ?? mics.FirstOrDefault(e => e.IsDefault) ?? mics.FirstOrDefault();
 
         var cards = new List<DeviceCard>();
         for (var i = 0; i < outputs.Count; i++)
