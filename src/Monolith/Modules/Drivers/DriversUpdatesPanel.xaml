@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
@@ -125,7 +126,7 @@
             </Border>
 
             <!-- Windows is already waiting for a reboot -->
-            <Border Style="{StaticResource Callout}" Padding="0" Margin="0,10,0,0">
+            <Border Style="{StaticResource Callout}" Padding="0" Margin="0,10,0,0" ui:RoundClip.Content="True">
                 <Border.Visibility>
                     <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
                         <Binding Path="RebootPending" />
@@ -199,7 +200,7 @@
             <!-- Searching -->
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,25"
                         Visibility="{Binding UpdatesState, Converter={StaticResource EqualsToVis}, ConverterParameter=Searching}">
-                <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" HorizontalAlignment="Center">
+                <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE895;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
                 <TextBlock Text="Поиск драйверов в Windows Update" Style="{StaticResource Drv.StateTitle}" />
@@ -212,7 +213,7 @@
             <!-- Not searched yet -->
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,25"
                         Visibility="{Binding UpdatesState, Converter={StaticResource EqualsToVis}, ConverterParameter=NotSearched}">
-                <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" HorizontalAlignment="Center">
+                <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE721;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
                 <TextBlock Text="Поиск ещё не выполнялся" Style="{StaticResource Drv.StateTitle}" />
@@ -223,7 +224,8 @@
             <!-- Error -->
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,25"
                         Visibility="{Binding UpdatesState, Converter={StaticResource EqualsToVis}, ConverterParameter=Error}">
-                <Border Width="64" Height="64" Background="{StaticResource B.Hatch}" BorderBrush="{StaticResource B.Text2}" BorderThickness="1" HorizontalAlignment="Center">
+                <Border Width="64" Height="64" Background="{StaticResource B.Hatch}" BorderBrush="{StaticResource B.Text2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}"
+                        HorizontalAlignment="Center">
                     <TextBlock Text="&#xE7BA;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
                 <TextBlock Text="Поиск не удался" Style="{StaticResource Drv.StateTitle}" />
@@ -240,7 +242,7 @@
                 <!-- Nothing to install -->
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,25"
                             Visibility="{Binding HasUpdates, Converter={StaticResource InverseBoolToVis}}">
-                    <Border Width="64" Height="64" Background="{StaticResource B.White}" HorizontalAlignment="Center">
+                    <Border Width="64" Height="64" Background="{StaticResource B.White}" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
                         <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="21" Foreground="{StaticResource B.Ink}" />
                     </Border>
                     <TextBlock Text="Новых драйверов нет" Style="{StaticResource Drv.StateTitle}" />
@@ -249,7 +251,8 @@
                 </StackPanel>
 
                 <!-- List -->
-                <Border Style="{StaticResource Card.Flush}" Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVis}}">
+                <!-- RoundClip: hovered rows paint to the edge; the card corners clip them -->
+                <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True" Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVis}}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
@@ -20,7 +21,8 @@
         <StackPanel Margin="0,0,9,17">
 
             <!-- ═══════════ Create backup ═══════════ -->
-            <Border Style="{StaticResource Card}" Padding="0">
+            <!-- RoundClip: the white bar runs along the top edge -->
+            <Border Style="{StaticResource Card}" Padding="0" ui:RoundClip.Content="True">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -70,7 +72,8 @@
             </Border>
 
             <!-- ═══════════ Operation: progress + pnputil output ═══════════ -->
-            <Border Style="{StaticResource Card}" Margin="0,10,0,0" Padding="0">
+            <!-- RoundClip: the pnputil output well fills the bottom edge -->
+            <Border Style="{StaticResource Card}" Margin="0,10,0,0" Padding="0" ui:RoundClip.Content="True">
                 <Border.Visibility>
                     <MultiBinding Converter="{StaticResource Drv.AnyTrueToVis}">
                         <Binding Path="IsBackupRunning" />
@@ -149,7 +152,8 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Width="56" Height="56" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Background="{StaticResource B.Surface}">
+                    <Border Width="56" Height="56" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Background="{StaticResource B.Surface}"
+                            CornerRadius="{StaticResource R.Lg}">
                         <TextBlock Text="&#xE74E;" Style="{StaticResource T.Icon}" FontSize="17" Foreground="{StaticResource B.Text2}" />
                     </Border>
                     <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
@@ -163,7 +167,8 @@
             <ItemsControl ItemsSource="{Binding Backups}" Focusable="False">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type local:BackupItem}">
-                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,9">
+                        <!-- RoundClip: the date column fills the left edge -->
+                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,9" ui:RoundClip.Content="True">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="168" />
