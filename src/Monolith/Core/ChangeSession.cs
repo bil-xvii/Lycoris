@@ -7,8 +7,10 @@ namespace Monolith.Core;
 /// <summary>
 /// The single gateway for every reversible system change.
 /// Each Set* method: captures the original state → writes it to the journal → makes the change.
-/// If the change fails, the journal entry is removed again. Everything done through a session
-/// shows up in the Restore center and can be undone one by one or all at once.
+/// If the change fails, the journal entry is removed again (unless the outcome is unknown). Everything done through
+/// a session shows up in the Restore center and can be undone one by one or all at once. A change of a target that
+/// already has an active record becomes a new layer holding the state right before it (see <see cref="ChangeJournal.Add"/>).
+/// Changes in one account's profile (HKCU, per-user commands) record that account's SID.
 /// </summary>
 public sealed class ChangeSession
 {
@@ -77,12 +79,18 @@ public sealed class ChangeSession
                 _ = RegistryHelper.ExportKeyAsync(hive, path, file).GetAwaiter().GetResult();
             }
 
+            // HKCU is the profile of the account MONOLITH runs as; the journal is shared by every account.
+            var userSid = hive == RegHive.HKCU ? UserScope.CurrentSid : null;
             var snapshot = RegistryHelper.Snapshot(hive, path, name);
+            // Writing into a key MONOLITH created earlier (still claimed by an active record): carry its created root,
+            // so whichever of these records is reverted last removes the created keys.
+            if (!snapshot.ValueExisted && _journal.InheritedKeyRoot(hive, path, userSid) is { } inherited)
+                snapshot = snapshot.WithCreatedKeyRoot(RegistryHelper.ShallowerRoot(snapshot.CreatedKeyRoot, inherited));
             var newText = value is null ? "удалено" : $"{kind}: {FormatValue(kind, value)}";
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Registry, Target = target,
-                OldValue = snapshot.Describe(), NewValue = newText, Registry = snapshot,
+                OldValue = snapshot.Describe(), NewValue = newText, Registry = snapshot, UserSid = userSid,
             };
             (rec, isNew) = _journal.Add(incoming);
 
@@ -108,9 +116,10 @@ public sealed class ChangeSession
     {
         ChangeRecord? rec = null;
         bool isNew = false;
+        ServiceStartSnapshot? snapshot = null;
         try
         {
-            var snapshot = ServiceControl.Query(service);
+            snapshot = ServiceControl.Query(service);
             if (snapshot is null)
             {
                 Log.Info($"{title}: служба {service} не найдена — пропущено.");
@@ -136,8 +145,27 @@ public sealed class ChangeSession
         }
         catch (Exception ex)
         {
-            if (rec is not null && isNew) _journal.Remove(rec);
+            // Drop the new record only when the service is back at (or never left) its original start type.
+            if (rec is not null && isNew)
+            {
+                if (snapshot is null || ServiceUnchanged(service, snapshot)) _journal.Remove(rec);
+                else Log.Warn($"{title}: служба {service} изменена лишь частично — запись сохранена для отката.");
+            }
             Fail(title, ex);
+            return false;
+        }
+    }
+
+    private static bool ServiceUnchanged(string service, ServiceStartSnapshot original)
+    {
+        try
+        {
+            return ServiceControl.Query(service) is not { } now
+                   || (now.StartMode == original.StartMode && now.DelayedAutoStart == original.DelayedAutoStart
+                       && (original.RawDelayed is null || now.RawDelayed == original.RawDelayed));
+        }
+        catch
+        {
             return false;
         }
     }
@@ -152,6 +180,9 @@ public sealed class ChangeSession
         try
         {
             var original = PowerSchemes.GetActive();
+            // Without the current plan there is nothing to go back to: change nothing.
+            if (original == Guid.Empty)
+                throw new InvalidOperationException("не удалось определить текущую схему питания — схема не изменена");
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.PowerScheme, Target = "power:active",
@@ -212,9 +243,11 @@ public sealed class ChangeSession
 
     /// <summary>
     /// Runs a command whose effect is undone by another command (e.g. fsutil / bcdedit style settings).
-    /// <paramref name="target"/> identifies the setting so repeated applies keep the first original.
+    /// <paramref name="target"/> identifies the setting (a later change of it becomes a new layer).
     /// <paramref name="successCodes"/> lists the exit codes that mean "applied" (default: only 0). An applied
-    /// non-zero code keeps the journal record; 3010 also sets <see cref="RebootRequired"/>.
+    /// non-zero code keeps the journal record; 3010 also sets <see cref="RebootRequired"/>. A command that timed out
+    /// or was interrupted keeps its record too: it may have changed something, and the undo command writes the
+    /// original state back either way. Per-user targets (DirectX tokens, visual effects) record the account.
     /// </summary>
     public async Task<bool> RunCommandAsync(string target, string file, string args, string revertFile, string revertArgs,
         string oldValue, string newValue, string source, string title, OutputEncoding encoding = OutputEncoding.Oem,
@@ -222,19 +255,23 @@ public sealed class ChangeSession
     {
         ChangeRecord? rec = null;
         bool isNew = false;
+        ProcessResult? r = null;
         try
         {
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Command, Target = $"cmd:{target}",
                 OldValue = oldValue, NewValue = newValue, RevertFile = revertFile, RevertArgs = revertArgs,
+                UserSid = UserScope.IsPerUserCommand(target) ? UserScope.CurrentSid : null,
             };
             (rec, isNew) = _journal.Add(incoming);
             // Encoded PowerShell scripts are unreadable base64 — log a readable line instead.
             var encoded = args.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
             if (encoded) Log.Command($"powershell: {title} ({newValue})");
-            var r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
-            var applied = r.Success || (!r.TimedOut && !r.Cancelled && successCodes?.Contains(r.ExitCode) == true);
+            r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
+            if (OutcomeUnknown(r))
+                throw new InvalidOperationException("результат неизвестен (команда прервана по тайм-ауту) — запись сохранена для отката");
+            var applied = r.Success || successCodes?.Contains(r.ExitCode) == true;
             if (!applied) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
             if (r.ExitCode == ProcessExit.RebootRequired)
             {
@@ -247,11 +284,16 @@ public sealed class ChangeSession
         }
         catch (Exception ex)
         {
-            if (rec is not null && isNew) _journal.Remove(rec);
+            // Remove the record only when the command ran to its end and failed (its own rollback has run) or never
+            // started; a killed or still-running command may have changed the system.
+            if (rec is not null && isNew && !OutcomeUnknown(r)) _journal.Remove(rec);
             Fail(title, ex);
             return false;
         }
     }
+
+    /// <summary>The command was killed on timeout, cancelled or is still running: what it changed is not known.</summary>
+    internal static bool OutcomeUnknown(ProcessResult? r) => r is { TimedOut: true } or { Cancelled: true } or { StillRunning: true };
 
     public void Complete()
     {

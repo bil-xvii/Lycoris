@@ -85,6 +85,10 @@ public sealed class RegistryAndJournalTests : IDisposable
         Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, deepKey));
     }
 
+    /// <summary>
+    /// The same source writing a target twice in ONE batch is one change: one record with the first original.
+    /// (Changes in different batches or by different sources are separate layers — see LayeredUndoTests.)
+    /// </summary>
     [Fact]
     public async Task Journal_reverts_to_the_first_original_value_after_repeated_changes()
     {
@@ -150,7 +154,7 @@ public sealed class RegistryAndJournalTests : IDisposable
     public void Damaged_journal_without_backup_blocks_changes_until_a_new_one_is_started()
     {
         File.WriteAllText(_journalPath, "{ this is not json");
-        var journal = new ChangeJournal(_journalPath);
+        var journal = ChangeJournal.ForTests(_journalPath);
         Assert.Empty(journal.Records);
         Assert.True(journal.IsUnavailable);
         Assert.Throws<InvalidOperationException>(() => journal.BeginBatch("blocked"));
@@ -159,7 +163,7 @@ public sealed class RegistryAndJournalTests : IDisposable
         Assert.True(journal.StartNewJournal());
         Assert.False(journal.IsUnavailable);
         journal.BeginBatch("fresh");
-        Assert.Single(new ChangeJournal(_journalPath).Batches);
+        Assert.Single(ChangeJournal.ForTests(_journalPath).Batches);
 
         var dir = Path.GetDirectoryName(_journalPath)!;
         var name = Path.GetFileName(_journalPath);
@@ -171,7 +175,7 @@ public sealed class RegistryAndJournalTests : IDisposable
     [Fact]
     public void Removed_record_is_not_reverted()
     {
-        var journal = new ChangeJournal(_journalPath);
+        var journal = ChangeJournal.ForTests(_journalPath);
         var batch = journal.BeginBatch("x");
         var (rec, _) = journal.Add(new ChangeRecord
         {

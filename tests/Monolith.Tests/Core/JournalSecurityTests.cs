@@ -1,5 +1,6 @@
 using System.IO;
 using System.ServiceProcess;
+using Microsoft.Win32;
 using Monolith.Core;
 using Monolith.Tweaks;
 
@@ -41,7 +42,7 @@ public sealed class JournalSecurityTests : IDisposable
     public async Task Forged_command_record_is_not_executed()
     {
         var marker = Path.Combine(Path.GetTempPath(), $"monolith-pwned-{Guid.NewGuid():N}.txt");
-        var journal = new ChangeJournal(_journalPath);
+        var journal = ChangeJournal.ForTests(_journalPath);
         var batch = journal.BeginBatch("forged");
         journal.Add(new ChangeRecord
         {
@@ -57,7 +58,7 @@ public sealed class JournalSecurityTests : IDisposable
     [Fact]
     public async Task Forged_protected_service_record_is_refused()
     {
-        var journal = new ChangeJournal(_journalPath);
+        var journal = ChangeJournal.ForTests(_journalPath);
         var batch = journal.BeginBatch("forged");
         journal.Add(new ChangeRecord
         {
@@ -174,6 +175,38 @@ public sealed class JournalSecurityTests : IDisposable
     }
 
     [Fact]
+    public void Packaged_startup_tasks_and_game_gpu_choices_are_allowed_only_in_their_place()
+    {
+        ChangeRecord Rec(string source, RegHive hive, string path, string name, RegistryValueKind kind = RegistryValueKind.DWord,
+            bool existed = true) => new()
+        {
+            Source = source, Kind = ChangeKind.Registry, Target = $@"reg:{hive}\{path}\{name}",
+            Registry = new RegistryValueSnapshot { Hive = hive, Path = path, Name = name, ValueExisted = existed, Kind = kind, Data = "2" },
+        };
+        const string task = @"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\SpotifyStartupTask";
+        Assert.Null(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State")));
+        Assert.Null(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State", existed: false)));
+        Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "Other")));
+        Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKLM, task, "State")));
+        Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State", RegistryValueKind.String)));
+        Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task + @"\Deeper", "State")));
+
+        const string gpu = @"Software\Microsoft\DirectX\UserGpuPreferences";
+        Assert.Null(JournalTrust.Check(Rec("games", RegHive.HKCU, gpu, @"D:\Games\Cyberpunk 2077\bin\x64\Cyberpunk2077.exe", RegistryValueKind.String)));
+        Assert.Null(JournalTrust.Check(Rec("games", RegHive.HKCU, gpu, @"C:\Games\game.exe", existed: false)));
+        Assert.NotNull(JournalTrust.Check(Rec("games", RegHive.HKCU, gpu, "DirectXUserGlobalSettings", RegistryValueKind.String)));
+        Assert.NotNull(JournalTrust.Check(Rec("games", RegHive.HKCU, gpu, @"C:\Games\game.exe", RegistryValueKind.DWord)));
+        Assert.NotNull(JournalTrust.Check(Rec("games", RegHive.HKLM, gpu, @"C:\Games\game.exe", RegistryValueKind.String)));
+        Assert.NotNull(JournalTrust.Check(Rec("games", RegHive.HKCU, @"Software\Microsoft\GameBar", @"C:\Games\game.exe", RegistryValueKind.String)));
+        Assert.NotNull(JournalTrust.Check(new ChangeRecord
+        {
+            Source = "games", Kind = ChangeKind.Service, Target = "svc:DiagTrack",
+            Service = new ServiceStartSnapshot("DiagTrack", ServiceStartMode.Manual, false),
+        }));
+        Assert.True(JournalTrust.IsKnownSource("games"));
+    }
+
+    [Fact]
     public void Record_is_not_kept_when_the_journal_cannot_be_written()
     {
         // The journal's folder is a file, so nothing can ever be saved.
@@ -181,7 +214,7 @@ public sealed class JournalSecurityTests : IDisposable
         File.WriteAllText(blocker, "");
         try
         {
-            var journal = new ChangeJournal(Path.Combine(blocker, "journal.json"));
+            var journal = ChangeJournal.ForTests(Path.Combine(blocker, "journal.json"));
             Assert.Throws<InvalidOperationException>(() => journal.BeginBatch("x"));
             Assert.Throws<InvalidOperationException>(() => journal.Add(new ChangeRecord { Source = "tweak:x", Target = "reg:x" }));
             Assert.Empty(journal.Records);
@@ -198,7 +231,7 @@ public sealed class JournalSecurityTests : IDisposable
     {
         File.WriteAllText(_journalPath, "{ broken");
         File.WriteAllText(_journalPath + ".bak", "also broken");
-        var journal = new ChangeJournal(_journalPath);
+        var journal = ChangeJournal.ForTests(_journalPath);
         Assert.True(journal.IsUnavailable);
         Assert.Throws<InvalidOperationException>(() => journal.BeginBatch("x"));
         Assert.False(journal.Save());
@@ -211,21 +244,21 @@ public sealed class JournalSecurityTests : IDisposable
     [Fact]
     public void Missing_journal_uses_the_backup()
     {
-        var good = new ChangeJournal(_journalPath);
+        var good = ChangeJournal.ForTests(_journalPath);
         good.BeginBatch("first");
         good.BeginBatch("second");
         File.Delete(_journalPath);
-        Assert.NotEmpty(new ChangeJournal(_journalPath).Batches);
+        Assert.NotEmpty(ChangeJournal.ForTests(_journalPath).Batches);
     }
 
     [Fact]
     public void Corrupt_journal_falls_back_to_backup()
     {
-        var good = new ChangeJournal(_journalPath);
+        var good = ChangeJournal.ForTests(_journalPath);
         good.BeginBatch("first");
         good.BeginBatch("second"); // second save rotates the first version into .bak
         File.WriteAllText(_journalPath, "{ broken");
-        var reloaded = new ChangeJournal(_journalPath);
+        var reloaded = ChangeJournal.ForTests(_journalPath);
         Assert.NotEmpty(reloaded.Batches);
         foreach (var c in Directory.GetFiles(Path.GetDirectoryName(_journalPath)!, Path.GetFileName(_journalPath) + ".broken-*"))
             File.Delete(c);

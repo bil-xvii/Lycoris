@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Security.Principal;
 using System.ServiceProcess;
 using System.Text;
 using System.Text.Json;
@@ -12,7 +13,13 @@ namespace Monolith.Core;
 
 public enum ChangeKind { Registry, Service, PowerScheme, ScheduledTask, Command }
 
-/// <summary>One reversible change MONOLITH made to the system, with everything needed to undo it.</summary>
+/// <summary>
+/// One reversible change MONOLITH made to the system, with everything needed to undo it.
+/// Changes of the same target are LAYERS: every record holds the state right before its own change. Reverting the
+/// newest layer restores that state; reverting an older layer while a newer one is active leaves the system alone and
+/// hands its original over to the next newer layer (<see cref="ChangeJournal.RevertAsync"/>). So reverting one change
+/// undoes exactly that change, and reverting all of them, newest first, ends at the state from before MONOLITH.
+/// </summary>
 public sealed class ChangeRecord
 {
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -25,33 +32,55 @@ public sealed class ChangeRecord
     public ChangeKind Kind { get; init; }
     /// <summary>Unique key of the changed thing: "reg:HKCU\...\Name", "svc:DiagTrack", "power:active", "task:\Microsoft\...".</summary>
     public string Target { get; init; } = "";
-    public string OldValue { get; init; } = "";
+    /// <summary>The state before this change (after a hand-over: the state before the reverted older layer).</summary>
+    public string OldValue { get; set; } = "";
     public string NewValue { get; set; } = "";
-
-    public RegistryValueSnapshot? Registry { get; init; }
-    public ServiceStartSnapshot? Service { get; init; }
-    public Guid? PowerSchemeOriginal { get; init; }
-    /// <summary>A scheme MONOLITH created (Ultimate Performance copy) and may delete on revert.</summary>
-    public Guid? PowerSchemeCreated { get; set; }
     /// <summary>
-    /// Other sources that changed the same target after this record was created. The record still holds the
-    /// true original value; reverting from any of these sources restores it.
+    /// SID of the Windows account whose profile was changed (HKCU values, per-user commands). Null for machine-wide
+    /// changes, and for per-user records written by builds that did not record the account.
+    /// </summary>
+    public string? UserSid { get; init; }
+
+    public RegistryValueSnapshot? Registry { get; set; }
+    public ServiceStartSnapshot? Service { get; set; }
+    public Guid? PowerSchemeOriginal { get; set; }
+    /// <summary>A scheme MONOLITH created (Ultimate Performance copy) and deletes on revert.</summary>
+    public Guid? PowerSchemeCreated { get; set; }
+    /// <summary>More created schemes this record deletes on revert (handed over from a reverted older layer).</summary>
+    public List<Guid>? PowerSchemesCreatedMore { get; set; }
+    /// <summary>
+    /// Records from older builds only: other sources merged into this record (the record holds the original from before
+    /// the first of them, so reverting it also undoes theirs). New changes of a journaled target get their own layer.
     /// </summary>
     public List<string> AlsoSources { get; set; } = [];
 
     public bool TouchedBy(string source) =>
         Source == source || AlsoSources.Contains(source);
-    public bool? TaskWasEnabled { get; init; }
+    public bool? TaskWasEnabled { get; set; }
     public string? TaskPath { get; init; }
-    public string? RevertFile { get; init; }
-    public string? RevertArgs { get; init; }
+    public string? RevertFile { get; set; }
+    public string? RevertArgs { get; set; }
 
     public bool Reverted { get; set; }
     public DateTime? RevertedUtc { get; set; }
     public string? RevertError { get; set; }
+    /// <summary>Reverted while a newer layer was active: the system was not touched, this record's original went to that layer.</summary>
+    public Guid? HandedTo { get; set; }
+    /// <summary>How the revert went when it was not a plain restore (target gone, fallback used…). Russian, shown on the row.</summary>
+    public string? RevertNote { get; set; }
+    /// <summary>When the target was read back after the revert. Null: not checked (or nothing to read back).</summary>
+    public DateTime? RevertVerifiedUtc { get; set; }
+    /// <summary>Set when the read-back differs from the original: «сейчас X, ожидалось Y».</summary>
+    public string? RevertMismatch { get; set; }
 
     [JsonIgnore] public DateTime Timestamp => TimestampUtc.ToLocalTime();
     [JsonIgnore] public bool IsActive => !Reverted;
+    /// <summary>The change went into one account's profile (HKCU, per-user DirectX/visual-effect settings).</summary>
+    [JsonIgnore] public bool IsPerUser => UserScope.IsPerUser(Kind, Target, Registry);
+    /// <summary>A per-user change from a build that did not record the account: bulk reverts leave it to a per-row revert.</summary>
+    [JsonIgnore] public bool IsLegacyPerUser => IsPerUser && UserSid is null;
+    /// <summary>Older builds merged later changes of the same target into one record (see <see cref="AlsoSources"/>).</summary>
+    [JsonIgnore] public bool IsLegacyMerged => AlsoSources.Count > 0;
 }
 
 public sealed class ChangeBatch
@@ -63,9 +92,95 @@ public sealed class ChangeBatch
     [JsonIgnore] public DateTime Timestamp => TimestampUtc.ToLocalTime();
 }
 
-public sealed record RevertResult(int Reverted, int Failed, IReadOnlyList<string> Errors)
+/// <summary>
+/// Outcome of a revert. <see cref="Reverted"/> counts every record that is no longer active, including the ones handed
+/// over to a newer layer (<see cref="HandedOver"/>). <see cref="JournalSaved"/> is false when the journal could not be
+/// written afterwards: the system is reverted, but after a restart the records could show as active again.
+/// </summary>
+public sealed record RevertResult(int Reverted, int Failed, IReadOnlyList<string> Errors, bool JournalSaved = true)
 {
     public bool Success => Failed == 0;
+    public int HandedOver { get; init; }
+    /// <summary>Records whose target was read back and equals the original.</summary>
+    public int Confirmed { get; init; }
+    /// <summary>«Title: сейчас X, ожидалось Y» for every record whose read-back differs from the original.</summary>
+    public IReadOnlyList<string> Mismatches { get; init; } = [];
+    /// <summary>Reverts that were not a plain restore (target gone, fallback used).</summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
+
+    /// <summary>One line for a toast, or null when nothing was read back.</summary>
+    public string? VerificationText => (Confirmed, Mismatches.Count) switch
+    {
+        (0, 0) => null,
+        (_, 0) => $"Откат подтверждён: {Confirmed}.",
+        (0, var m) => $"Не совпадает с исходным: {m}.",
+        var (c, m) => $"Откат подтверждён: {c}, не совпадает с исходным: {m}.",
+    };
+}
+
+/// <summary>A reverted target read back: <see cref="Matches"/> null = cannot be checked (a command without a reader, a vanished service…).</summary>
+public sealed record RevertCheck(bool? Matches, string? Live = null, string? Expected = null)
+{
+    public static readonly RevertCheck NotChecked = new(Matches: null);
+    public string? MismatchText => Matches == false ? $"сейчас {Live ?? "—"}, ожидалось {Expected ?? "—"}" : null;
+}
+
+/// <summary>The Windows account per-user changes belong to. The journal is machine-wide, HKCU is not.</summary>
+public static class UserScope
+{
+    private static readonly Lazy<string?> ProcessSid = new(() =>
+    {
+        try { return WindowsIdentity.GetCurrent().User?.Value; }
+        catch { return null; }
+    });
+
+    /// <summary>TESTS ONLY: replaces the account of this process.</summary>
+    internal static Func<string?>? CurrentSidForTests { get; set; }
+
+    /// <summary>SID of the account MONOLITH runs as — whose HKCU it writes. Null when it cannot be read.</summary>
+    public static string? CurrentSid => CurrentSidForTests is { } f ? f() : ProcessSid.Value;
+
+    internal static readonly Regex SidPattern = new(@"^S-1-[0-9]{1,3}(-[0-9]{1,10}){1,14}$", RegexOptions.CultureInvariant);
+
+    public static bool Same(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Command targets (without "cmd:") that change the current account's settings: DirectX tokens, visual effects.</summary>
+    public static bool IsPerUserCommand(string target) =>
+        target.StartsWith("dx:", StringComparison.Ordinal) || target.StartsWith("spi:", StringComparison.Ordinal);
+
+    internal static bool IsPerUser(ChangeKind kind, string target, RegistryValueSnapshot? reg) => kind switch
+    {
+        ChangeKind.Registry => reg is not null ? reg.Hive == RegHive.HKCU : target.StartsWith(@"reg:HKCU\", StringComparison.OrdinalIgnoreCase),
+        ChangeKind.Command => target.StartsWith("cmd:", StringComparison.Ordinal) && IsPerUserCommand(target[4..]),
+        _ => false,
+    };
+
+    /// <summary>"DOMAIN\user" for a SID, or the SID itself when it cannot be resolved.</summary>
+    public static string AccountName(string sid)
+    {
+        try { return new SecurityIdentifier(sid).Translate(typeof(NTAccount)).Value; }
+        catch { return sid; }
+    }
+
+    public static string OtherAccountMessage(string sid) =>
+        $"Изменение сделано для учётной записи {AccountName(sid)}; войдите под ней, чтобы отменить";
+}
+
+/// <summary>What restoring one record did beyond the plain restore.</summary>
+internal sealed record RevertOutcome(string? Note = null, bool Skipped = false, IReadOnlyList<Guid>? DeletedSchemes = null)
+{
+    public static readonly RevertOutcome Done = new();
+}
+
+/// <summary>The system side of an undo. Replaced in unit tests; the real one writes the registry, services, plans, tasks.</summary>
+internal interface IJournalSystem
+{
+    /// <summary>Puts the state recorded in <paramref name="r"/> back. Only called for records that passed <see cref="JournalTrust"/>.</summary>
+    Task<RevertOutcome> RestoreAsync(ChangeRecord r);
+    Guid ActivePowerScheme();
+    /// <summary>Null when the plans could not be listed.</summary>
+    bool? PowerSchemeExists(Guid scheme);
+    void DeletePowerScheme(Guid scheme);
 }
 
 /// <summary>
@@ -91,13 +206,33 @@ public sealed class ChangeJournal
     private static readonly Lazy<ChangeJournal> Default = new(() => new ChangeJournal(AppPaths.JournalFile));
     public static ChangeJournal Instance => Default.Value;
 
+    /// <summary>The journal's log lines. Logging never fails a journal operation: an undo that was done stays recorded as done.</summary>
+    private static class JournalLog
+    {
+        public static void Info(string message) => Try(() => Log.Info(message));
+        public static void Success(string message) => Try(() => Log.Success(message));
+        public static void Warn(string message) => Try(() => Log.Warn(message));
+        public static void Error(string message) => Try(() => Log.Error(message));
+        public static void Error(string message, Exception ex) => Try(() => Log.Error(message, ex));
+
+        private static void Try(Action write)
+        {
+            try { write(); }
+            catch { /* the console or log file is unavailable: the journal itself is what matters */ }
+        }
+    }
+
     private readonly object _lock = new();
-    private readonly string _path;
+    /// <summary>Null: an in-memory journal (tests).</summary>
+    private readonly string? _path;
     /// <summary>The real journal in %ProgramData%: only an elevated process may write it.</summary>
     private readonly bool _protected;
     private JournalFile _data = new();
 
     public event Action? Changed;
+
+    /// <summary>The system side of an undo (tests replace it).</summary>
+    internal IJournalSystem SystemAccess { get; set; } = WindowsJournalSystem.Instance;
 
     /// <summary>Set when the journal had to be quarantined because its folder was writable by non-admins.</summary>
     public string? QuarantinedFile { get; private set; }
@@ -113,12 +248,17 @@ public sealed class ChangeJournal
     private const string UnavailableMessage =
         "Журнал изменений недоступен, поэтому MONOLITH не вносит новые изменения: без журнала их нельзя было бы отменить.";
 
-    public ChangeJournal(string path)
+    public ChangeJournal(string path) : this(path, AppPaths.IsUnderMachineDir(path)) { }
+
+    private ChangeJournal(string? path, bool isProtected)
     {
         _path = path;
-        _protected = AppPaths.IsUnderMachineDir(path);
-        Load();
+        _protected = isProtected;
+        if (path is not null) Load();
     }
+
+    /// <summary>TESTS ONLY: a journal outside %ProgramData% (no folder ACL checks); a null path keeps it in memory.</summary>
+    internal static ChangeJournal ForTests(string? path = null) => new(path, false);
 
     private bool CanWrite => !IsUnavailable && (!_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests);
 
@@ -166,51 +306,168 @@ public sealed class ChangeJournal
             var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
             try
             {
-                if (File.Exists(_path)) File.Move(_path, _path + $".unavailable-{stamp}");
-                if (File.Exists(_path + ".bak")) File.Move(_path + ".bak", _path + $".bak.unavailable-{stamp}");
+                if (_path is not null && File.Exists(_path)) File.Move(_path, _path + $".unavailable-{stamp}");
+                if (_path is not null && File.Exists(_path + ".bak")) File.Move(_path + ".bak", _path + $".bak.unavailable-{stamp}");
             }
             catch (Exception ex)
             {
-                Log.Error("Не удалось отложить старый журнал изменений", ex);
+                JournalLog.Error("Не удалось отложить старый журнал изменений", ex);
                 return false;
             }
             _data = new JournalFile();
             UnavailableReason = null;
-            Log.Warn($"Начат новый журнал изменений; старые файлы сохранены с отметкой {stamp}.");
+            JournalLog.Warn($"Начат новый журнал изменений; старые файлы сохранены с отметкой {stamp}.");
         }
         Changed?.Invoke();
         return true;
     }
 
+    // ───────────────────────────── Accounts and layers ─────────────────────────────
+
+    private static bool SameTarget(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Records compared by identity (two records never stand for the same change).</summary>
+    public static readonly IEqualityComparer<ChangeRecord> ByReference = ReferenceEqualityComparer.Instance;
+
+    /// <summary>
+    /// Whose state a record changed: "" for machine-wide changes, the account SID for per-user ones. Per-user records
+    /// from older builds (no SID) were written into the HKCU of whoever ran MONOLITH, so they count as the current account's.
+    /// </summary>
+    internal static string ScopeOf(ChangeRecord r, string? currentSid) =>
+        !r.IsPerUser ? "" : (r.UserSid ?? currentSid ?? "?").ToUpperInvariant();
+
+    /// <summary>True for a per-user change recorded for another Windows account: it is never reverted from this one.</summary>
+    public static bool IsOtherUser(ChangeRecord r, string? currentSid) =>
+        r.UserSid is { } sid && !UserScope.Same(sid, currentSid);
+
+    /// <summary>Machine-wide changes and the current account's own (including older per-user records without a SID).</summary>
+    public static bool IsMine(ChangeRecord r) => !IsOtherUser(r, UserScope.CurrentSid);
+
+    /// <summary>
+    /// What «ОТКАТИТЬ ВСЁ» and a batch revert may undo on their own: active, this account's or machine-wide, and not a
+    /// per-user record from an older build (those name no account, so they are reverted only from their own row).
+    /// </summary>
+    public static bool IsBulkRevertible(ChangeRecord r) => !r.Reverted && IsMine(r) && !r.IsLegacyPerUser;
+
+    /// <summary>The next newer active layer of <paramref name="r"/>'s target in the same scope, or null when <paramref name="r"/> sets the live value.</summary>
+    internal static ChangeRecord? NewerLayer(IReadOnlyList<ChangeRecord> records, ChangeRecord r, string? currentSid)
+    {
+        var i = -1;
+        for (var k = 0; k < records.Count; k++)
+            if (ReferenceEquals(records[k], r)) { i = k; break; }
+        if (i < 0 || r.Target.Length == 0) return null;
+        var scope = ScopeOf(r, currentSid);
+        for (var j = i + 1; j < records.Count; j++)
+        {
+            var n = records[j];
+            if (!n.Reverted && SameTarget(n.Target, r.Target) && ScopeOf(n, currentSid) == scope) return n;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The active records that set the live value of their target (the newest layer per target and scope), in input
+    /// order. Drift checks and live reads compare only these with the system: an older layer's value is already replaced.
+    /// </summary>
+    public static IReadOnlyList<ChangeRecord> TopLayers(IEnumerable<ChangeRecord> records, string? currentSid = null)
+    {
+        var active = records.Where(r => !r.Reverted).ToList();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var tops = new List<ChangeRecord>();
+        for (var i = active.Count - 1; i >= 0; i--)
+        {
+            var r = active[i];
+            if (r.Target.Length == 0 || seen.Add(ScopeOf(r, currentSid) + "|" + r.Target)) tops.Add(r);
+        }
+        tops.Reverse();
+        return tops;
+    }
+
+    /// <summary>The newest active change of a target for the current account (machine-wide targets: any).</summary>
     public ChangeRecord? FindActive(string target)
     {
+        var sid = UserScope.CurrentSid;
         lock (_lock)
-            return _data.Records.LastOrDefault(r => !r.Reverted && string.Equals(r.Target, target, StringComparison.OrdinalIgnoreCase));
+            return _data.Records.LastOrDefault(r => !r.Reverted && SameTarget(r.Target, target) && !IsOtherUser(r, sid));
+    }
+
+    /// <summary>Every active layer of a target for the current account, oldest first (the last one sets the live value).</summary>
+    public IReadOnlyList<ChangeRecord> ActiveLayers(string target)
+    {
+        var sid = UserScope.CurrentSid;
+        lock (_lock)
+            return _data.Records.Where(r => !r.Reverted && SameTarget(r.Target, target) && !IsOtherUser(r, sid)).ToList();
+    }
+
+    /// <summary>The newer active change that now sets <paramref name="r"/>'s target, or null when <paramref name="r"/> does.</summary>
+    public ChangeRecord? NewerLayer(ChangeRecord r)
+    {
+        var sid = UserScope.CurrentSid;
+        lock (_lock) return r.Reverted ? null : NewerLayer(_data.Records, r, sid);
     }
 
     public bool HasActiveSource(string source)
     {
-        lock (_lock) return _data.Records.Any(r => !r.Reverted && r.TouchedBy(source));
+        var sid = UserScope.CurrentSid;
+        lock (_lock) return _data.Records.Any(r => !r.Reverted && r.TouchedBy(source) && !IsOtherUser(r, sid));
+    }
+
+    /// <summary>The records «ОТКАТИТЬ ВСЁ» reverts (see <see cref="IsBulkRevertible"/>).</summary>
+    public IReadOnlyList<ChangeRecord> RevertAllCandidates()
+    {
+        lock (_lock) return _data.Records.Where(IsBulkRevertible).ToList();
+    }
+
+    /// <summary>The records a batch revert reverts (see <see cref="IsBulkRevertible"/>).</summary>
+    public IReadOnlyList<ChangeRecord> BatchCandidates(Guid batchId)
+    {
+        lock (_lock) return _data.Records.Where(r => r.BatchId == batchId && IsBulkRevertible(r)).ToList();
     }
 
     /// <summary>
-    /// Adds a record BEFORE the change is made. If the same target was already changed (and not reverted),
-    /// the FIRST record is kept untouched, because it holds the true original value — call
-    /// <see cref="MergeInto"/> after the new change succeeded to note the new value and source.
-    /// Returns the record that represents the target, and whether it is new.
-    /// Throws (and keeps nothing) when a new record could not be written to disk: the caller must then not
-    /// make the change — no change without an on-disk undo record.
+    /// For a write of a value into <paramref name="path"/>: the shallowest key MONOLITH created that covers it, from an
+    /// active record of the same hive and account. A value written into such a key inherits it, so whichever record is
+    /// reverted last removes the created keys, in any order. Records from older builds count with their own key only.
+    /// </summary>
+    public string? InheritedKeyRoot(RegHive hive, string path, string? userSid)
+    {
+        var sid = UserScope.CurrentSid;
+        var scope = hive == RegHive.HKCU ? (userSid ?? sid ?? "?").ToUpperInvariant() : "";
+        string? best = null;
+        lock (_lock)
+        {
+            foreach (var r in _data.Records)
+            {
+                if (r.Reverted || r.Kind != ChangeKind.Registry || r.Registry is not { } s || s.Hive != hive) continue;
+                if (ScopeOf(r, sid) != scope) continue;
+                var root = s.CreatedKeyRoot ?? (!s.KeyExisted ? s.Path : null);
+                if (root is not null && RegistryHelper.IsSameOrAncestor(root, path)) best = RegistryHelper.ShallowerRoot(best, root);
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Adds a record BEFORE the change is made. A target that already has an active change gets a new LAYER whose
+    /// original is the live state now (the value of the previous layer), so each change can be undone on its own.
+    /// Only a repeated write of the same target by the same source in the same batch is merged: the existing record is
+    /// returned (IsNew = false) — call <see cref="MergeInto"/> after the change succeeded.
+    /// Throws (and keeps nothing) when a new record could not be written to disk: the caller must then not make the
+    /// change — no change without an on-disk undo record.
     /// </summary>
     public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record)
     {
         ChangeRecord result;
         bool isNew;
+        var sid = UserScope.CurrentSid;
         lock (_lock)
         {
-            var existing = _data.Records.LastOrDefault(r => !r.Reverted && string.Equals(r.Target, record.Target, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null)
+            var scope = ScopeOf(record, sid);
+            var top = record.Target.Length == 0 ? null
+                : _data.Records.LastOrDefault(r => !r.Reverted && SameTarget(r.Target, record.Target) && ScopeOf(r, sid) == scope);
+            if (top is not null && CanMerge(top, record))
             {
-                result = existing;
+                result = top;
                 isNew = false;
             }
             else
@@ -230,7 +487,13 @@ public sealed class ChangeJournal
         return (result, isNew);
     }
 
-    /// <summary>After a successful change of an already-journaled target: remember its new value and source.</summary>
+    /// <summary>The same change written twice in one action (same batch, source, account): one record keeps the first original.</summary>
+    internal static bool CanMerge(ChangeRecord top, ChangeRecord incoming) =>
+        top.BatchId == incoming.BatchId && top.Source == incoming.Source && top.Kind == incoming.Kind
+        && UserScope.Same(top.UserSid, incoming.UserSid) && !top.IsLegacyMerged
+        && (incoming.PowerSchemeCreated is null || top.PowerSchemeCreated is null || top.PowerSchemeCreated == incoming.PowerSchemeCreated);
+
+    /// <summary>After a successful repeated write of a merged target (see <see cref="Add"/>): remember the new value.</summary>
     public void MergeInto(ChangeRecord existing, ChangeRecord incoming)
     {
         lock (_lock)
@@ -255,65 +518,246 @@ public sealed class ChangeJournal
         Changed?.Invoke();
     }
 
-    public async Task<RevertResult> RevertAsync(IEnumerable<ChangeRecord> records)
+    // ───────────────────────────── Revert ─────────────────────────────
+
+    /// <summary>
+    /// Reverts the given records, newest first. A record whose target has a newer active layer (same account) is not
+    /// restored in the system: the newer layer takes over its original (and the plan copy it created, while that plan
+    /// is in use) and the record is marked reverted — the newer change keeps working, and its own undo later goes back
+    /// to the state from before both. Every other record is restored and, when <paramref name="verify"/> is given,
+    /// read back right away; the result is stored on the record (<see cref="ChangeRecord.RevertMismatch"/>).
+    /// The journal is saved after every record. Another account's records are refused.
+    /// </summary>
+    public async Task<RevertResult> RevertAsync(IEnumerable<ChangeRecord> records, Func<ChangeRecord, RevertCheck>? verify = null)
     {
-        // Newest first, so chained changes unwind in the right order.
-        var list = records.Where(r => !r.Reverted).OrderByDescending(r => r.TimestampUtc).ToList();
-        int ok = 0, failed = 0;
+        List<ChangeRecord> list;
+        lock (_lock)
+        {
+            var order = new Dictionary<ChangeRecord, int>(ByReference);
+            for (var i = 0; i < _data.Records.Count; i++) order[_data.Records[i]] = i;
+            // Newest first (journal order), so each record is the top layer of its target when it is undone.
+            list = records.Distinct(ByReference).Where(r => !r.Reverted)
+                .OrderByDescending(r => order.TryGetValue(r, out var i) ? i : -1)
+                .ThenByDescending(r => r.TimestampUtc).ToList();
+        }
+
+        var sid = UserScope.CurrentSid;
+        int ok = 0, failed = 0, handed = 0, confirmed = 0;
         var errors = new List<string>();
+        var mismatches = new List<string>();
+        var notes = new List<string>();
+        var saved = true;
         foreach (var r in list)
         {
+            if (r.Reverted) continue; // closed meanwhile (a setting of a power plan deleted by an earlier record)
             try
             {
-                await RevertOneAsync(r).ConfigureAwait(false);
+                if (IsOtherUser(r, sid)) throw new InvalidOperationException(UserScope.OtherAccountMessage(r.UserSid!));
+                // The journal file is input, not authority: refuse anything MONOLITH's own code could not have recorded.
+                if (JournalTrust.Check(r) is { } refusal)
+                    throw new InvalidOperationException($"Отказано: {refusal}. Такую запись MONOLITH создать не мог.");
+
+                ChangeRecord? newer;
+                lock (_lock) newer = NewerLayer(_data.Records, r, sid);
+                if (newer is not null)
+                {
+                    saved &= HandOver(r, newer);
+                    handed++;
+                    JournalLog.Success($"Откат «{r.Title}»: значение сейчас задаёт более позднее изменение «{newer.Title}» — система не изменена, исходное значение передано ему.");
+                    continue;
+                }
+
+                var outcome = await SystemAccess.RestoreAsync(r).ConfigureAwait(false);
                 lock (_lock)
                 {
                     r.Reverted = true;
                     r.RevertedUtc = DateTime.UtcNow;
                     r.RevertError = null;
+                    r.HandedTo = null;
+                    r.RevertNote = outcome.Note;
+                    r.RevertVerifiedUtc = null;
+                    r.RevertMismatch = null;
+                    saved &= SaveLocked(); // persist each completed undo at once
                 }
                 ok++;
-                Log.Success($"Откат: {r.Title} → {r.OldValue}");
+                if (outcome.Note is { } note) notes.Add($"{r.Title}: {note}");
+                JournalLog.Success($"Откат: {r.Title} → {r.OldValue}");
+                if (outcome.DeletedSchemes is { Count: > 0 } deleted) saved &= CloseSettingsOfDeletedPlans(deleted);
+
+                if (verify is not null && !outcome.Skipped)
+                {
+                    var check = SafeVerify(verify, r);
+                    lock (_lock)
+                    {
+                        r.RevertVerifiedUtc = check.Matches is null ? null : DateTime.UtcNow;
+                        r.RevertMismatch = check.MismatchText;
+                    }
+                    if (check.Matches == true) confirmed++;
+                    else if (check.Matches == false)
+                    {
+                        mismatches.Add($"{r.Title}: {check.MismatchText}");
+                        JournalLog.Warn($"Откат «{r.Title}» не совпал с исходным значением: {check.MismatchText}");
+                    }
+                }
             }
             catch (Exception ex)
             {
                 lock (_lock) r.RevertError = ex.Message;
                 failed++;
                 errors.Add($"{r.Title}: {ex.Message}");
-                Log.Error($"Не удалось откатить «{r.Title}»", ex);
+                JournalLog.Error($"Не удалось откатить «{r.Title}»", ex);
             }
         }
-        Save();
+        saved &= Save();
+        if (!saved && list.Count > 0)
+            JournalLog.Error("Журнал изменений не удалось сохранить после отката — после перезапуска откаченные записи могут снова показаться активными.");
         Changed?.Invoke();
-        return new RevertResult(ok, failed, errors);
+        return new RevertResult(ok + handed, failed, errors, saved)
+        {
+            HandedOver = handed, Confirmed = confirmed, Mismatches = mismatches, Notes = notes,
+        };
     }
 
-    public Task<RevertResult> RevertSourceAsync(string source)
+    private static RevertCheck SafeVerify(Func<ChangeRecord, RevertCheck> verify, ChangeRecord r)
     {
-        List<ChangeRecord> items;
-        lock (_lock) items = _data.Records.Where(r => !r.Reverted && r.TouchedBy(source)).ToList();
-        return RevertAsync(items);
+        try { return verify(r); }
+        catch (Exception ex)
+        {
+            JournalLog.Warn($"Не удалось проверить откат «{r.Title}»: {ex.Message}");
+            return RevertCheck.NotChecked;
+        }
     }
 
-    public Task<RevertResult> RevertBatchAsync(Guid batchId)
+    /// <summary>Every plan a record deletes on revert.</summary>
+    internal static List<Guid> CreatedSchemes(ChangeRecord r)
     {
-        List<ChangeRecord> items;
-        lock (_lock) items = _data.Records.Where(r => !r.Reverted && r.BatchId == batchId).ToList();
-        return RevertAsync(items);
+        var list = new List<Guid>();
+        if (r.PowerSchemeCreated is { } c) list.Add(c);
+        if (r.PowerSchemesCreatedMore is { } more) list.AddRange(more);
+        return list.Where(g => g != Guid.Empty).Distinct().ToList();
     }
 
-    public Task<RevertResult> RevertAllAsync() => RevertAsync(ActiveRecords);
+    /// <summary>
+    /// Reverting <paramref name="r"/> while <paramref name="newer"/> sets the same target: nothing changes in the system.
+    /// The newer layer takes over r's original (registry snapshot, service start, plan, task state, or the absolute undo
+    /// command of the catalog — so it stays a valid record), and r is marked reverted. A plan copy r created is handed
+    /// over while it is the active plan; otherwise it is deleted now. Returns whether the journal was saved.
+    /// </summary>
+    private bool HandOver(ChangeRecord r, ChangeRecord newer)
+    {
+        if (r.Kind != newer.Kind) throw new InvalidOperationException("Отказано: у изменений одной цели разный тип.");
+        var created = r.Kind == ChangeKind.PowerScheme ? CreatedSchemes(r) : [];
+        var active = created.Count > 0 ? SystemAccess.ActivePowerScheme() : Guid.Empty;
+        var inUse = created.Where(c => c == active).ToList();
+        var drop = created.Where(c => c != active).ToList();
+        var newerMayOwnPlans = JournalTrust.IsTweakish(newer);
+        bool saved;
+        lock (_lock)
+        {
+            var backup = (newer.OldValue, newer.Registry, newer.Service, newer.PowerSchemeOriginal, newer.PowerSchemeCreated,
+                More: newer.PowerSchemesCreatedMore?.ToList(), newer.TaskWasEnabled, newer.RevertFile, newer.RevertArgs);
+            newer.OldValue = r.OldValue;
+            switch (r.Kind)
+            {
+                case ChangeKind.Registry: newer.Registry = r.Registry; break;
+                case ChangeKind.Service: newer.Service = r.Service; break;
+                case ChangeKind.PowerScheme: newer.PowerSchemeOriginal = r.PowerSchemeOriginal; break;
+                case ChangeKind.ScheduledTask: newer.TaskWasEnabled = r.TaskWasEnabled; break;
+                case ChangeKind.Command:
+                    newer.RevertFile = r.RevertFile;
+                    newer.RevertArgs = r.RevertArgs;
+                    break;
+            }
+            if (newerMayOwnPlans)
+            {
+                foreach (var c in inUse)
+                {
+                    if (newer.PowerSchemeCreated is null) newer.PowerSchemeCreated = c;
+                    else if (newer.PowerSchemeCreated != c && newer.PowerSchemesCreatedMore?.Contains(c) != true)
+                        (newer.PowerSchemesCreatedMore ??= []).Add(c);
+                }
+            }
+            if (JournalTrust.Check(newer) is { } refusal)
+            {
+                newer.OldValue = backup.OldValue;
+                newer.Registry = backup.Registry;
+                newer.Service = backup.Service;
+                newer.PowerSchemeOriginal = backup.PowerSchemeOriginal;
+                newer.PowerSchemeCreated = backup.PowerSchemeCreated;
+                newer.PowerSchemesCreatedMore = backup.More;
+                newer.TaskWasEnabled = backup.TaskWasEnabled;
+                newer.RevertFile = backup.RevertFile;
+                newer.RevertArgs = backup.RevertArgs;
+                throw new InvalidOperationException($"Отказано: {refusal}. Исходное значение нельзя передать более позднему изменению.");
+            }
+            r.Reverted = true;
+            r.RevertedUtc = DateTime.UtcNow;
+            r.RevertError = null;
+            r.HandedTo = newer.Id;
+            r.RevertVerifiedUtc = null;
+            r.RevertMismatch = null;
+            r.RevertNote = !newerMayOwnPlans && inUse.Count > 0
+                ? "Созданная MONOLITH схема питания сейчас включена, поэтому не удалена: удалите её в «Электропитании» после смены схемы."
+                : null;
+            saved = SaveLocked();
+        }
+        if (!newerMayOwnPlans && inUse.Count > 0) JournalLog.Warn($"«{r.Title}»: {r.RevertNote}");
 
-    /// <summary>The only programs a journaled undo command may run (full System32 paths).</summary>
-    private static readonly string[] AllowedRevertPrograms =
-    [
-        ProcessRunner.Sys("cmd.exe"),
-        Path.Combine(ProcessRunner.System32, "WindowsPowerShell", "v1.0", "powershell.exe"),
-        ProcessRunner.Sys("powercfg.exe"),
-        ProcessRunner.Sys("netsh.exe"),
-        ProcessRunner.Sys("fsutil.exe"),
-        ProcessRunner.Sys("pnputil.exe"),
-    ];
+        var gone = new List<Guid>();
+        foreach (var c in drop)
+        {
+            try
+            {
+                if (SystemAccess.PowerSchemeExists(c) == true) SystemAccess.DeletePowerScheme(c);
+                if (SystemAccess.PowerSchemeExists(c) == false) gone.Add(c);
+            }
+            catch (Exception ex) { JournalLog.Warn($"Не удалось удалить схему питания {c}: {ex.Message}"); }
+        }
+        if (gone.Count > 0) saved &= CloseSettingsOfDeletedPlans(gone);
+        return saved;
+    }
+
+    /// <summary>
+    /// A deleted plan copy takes its settings with it: active power-setting records of that plan have nothing left to
+    /// undo, so they are marked reverted (with a note) instead of failing forever.
+    /// </summary>
+    private bool CloseSettingsOfDeletedPlans(IReadOnlyCollection<Guid> schemes)
+    {
+        var closed = new List<ChangeRecord>();
+        lock (_lock)
+        {
+            foreach (var g in schemes)
+            {
+                var prefix = $"cmd:powercfg:{g:D}:";
+                foreach (var r in _data.Records.Where(x => !x.Reverted && x.Kind == ChangeKind.Command
+                                                           && x.Target.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                {
+                    r.Reverted = true;
+                    r.RevertedUtc = DateTime.UtcNow;
+                    r.RevertError = null;
+                    r.RevertNote = "Схема питания, в которой MONOLITH менял этот параметр, удалена вместе с ним — откатывать нечего.";
+                    closed.Add(r);
+                }
+            }
+            if (closed.Count == 0) return true;
+            foreach (var r in closed) JournalLog.Info($"«{r.Title}»: схема питания удалена вместе с параметром — запись закрыта.");
+            return SaveLocked();
+        }
+    }
+
+    public Task<RevertResult> RevertSourceAsync(string source, Func<ChangeRecord, RevertCheck>? verify = null)
+    {
+        var sid = UserScope.CurrentSid;
+        List<ChangeRecord> items;
+        lock (_lock) items = _data.Records.Where(r => !r.Reverted && r.TouchedBy(source) && !IsOtherUser(r, sid)).ToList();
+        return RevertAsync(items, verify);
+    }
+
+    public Task<RevertResult> RevertBatchAsync(Guid batchId, Func<ChangeRecord, RevertCheck>? verify = null) =>
+        RevertAsync(BatchCandidates(batchId), verify);
+
+    public Task<RevertResult> RevertAllAsync(Func<ChangeRecord, RevertCheck>? verify = null) =>
+        RevertAsync(RevertAllCandidates(), verify);
 
     /// <summary>
     /// Registry locations MONOLITH never writes during an undo: autostart and process-hijack points.
@@ -334,72 +778,11 @@ public sealed class ChangeJournal
         return false;
     }
 
-    private static async Task RevertOneAsync(ChangeRecord r)
-    {
-        // The journal file is input, not authority: refuse anything MONOLITH's own code could not have recorded.
-        if (JournalTrust.Check(r) is { } refusal)
-            throw new InvalidOperationException($"Отказано: {refusal}. Такую запись MONOLITH создать не мог.");
-
-        switch (r.Kind)
-        {
-            case ChangeKind.Registry when r.Registry is not null:
-                if (IsForbiddenRestoreTarget(r.Registry))
-                    throw new InvalidOperationException($"Отказано: {r.Registry.FullName} — защищённое место реестра. Такую запись MONOLITH создать не мог.");
-                RegistryHelper.Restore(r.Registry);
-                break;
-
-            case ChangeKind.Service when r.Service is not null:
-                if (ServiceControl.Query(r.Service.Name) is null)
-                {
-                    Log.Info($"Откат пропущен: службы {r.Service.Name} больше нет в системе.");
-                    break;
-                }
-                // Never allowProtected: no legitimate record can target a protected service (JournalTrust refuses it too).
-                ServiceControl.SetStartMode(r.Service.Name, r.Service.StartMode, r.Service.DelayedAutoStart);
-                break;
-
-            case ChangeKind.PowerScheme:
-                if (r.PowerSchemeOriginal is { } original && original != Guid.Empty)
-                {
-                    if (PowerSchemes.Exists(original)) PowerSchemes.SetActive(original);
-                    else PowerSchemes.SetActive(PowerSchemes.Balanced);
-                }
-                if (r.PowerSchemeCreated is { } created) PowerSchemes.Delete(created);
-                break;
-
-            case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
-                if (!ScheduledTasks.Query(r.TaskPath).Exists)
-                {
-                    Log.Info($"Откат пропущен: задачи {r.TaskPath} больше нет в планировщике.");
-                    break;
-                }
-                ScheduledTasks.SetEnabled(r.TaskPath, wasEnabled);
-                break;
-
-            case ChangeKind.Command when !string.IsNullOrWhiteSpace(r.RevertFile):
-                SafetyLock.ThrowIfLocked("откат команды");
-                // DNS records from older builds name the adapter by its (non-persistent) index: run the current
-                // GUID-based script with the same servers instead.
-                var (revertFile, revertArgs) = JournalTrust.UpgradeLegacyDns(r) ?? (r.RevertFile!, r.RevertArgs ?? "");
-                if (!AllowedRevertPrograms.Contains(revertFile, StringComparer.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"Отказано: команда отката «{revertFile}» не из списка системных утилит.");
-                var encoded = revertArgs.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
-                if (encoded) Log.Command($"powershell: откат «{r.Title}»");
-                var result = await ProcessRunner.RunAsync(revertFile, revertArgs,
-                    new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
-                var rebootPending = result is { ExitCode: ProcessExit.RebootRequired, TimedOut: false, Cancelled: false }
-                                    && string.Equals(r.RevertFile, ProcessRunner.Sys("pnputil.exe"), StringComparison.OrdinalIgnoreCase);
-                if (rebootPending) Log.Warn($"Откат «{r.Title}» вступит в силу после перезагрузки.");
-                else if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
-                break;
-
-            default:
-                throw new InvalidOperationException("Запись журнала не содержит данных для отката.");
-        }
-    }
+    // ───────────────────────────── Storage ─────────────────────────────
 
     private void Load()
     {
+        var path = _path!;
         if (_protected && Elevation.IsElevated)
         {
             AppPaths.SecureMachineDir();
@@ -407,58 +790,58 @@ public sealed class ChangeJournal
             {
                 // Could not lock the folder down: anyone might still be able to edit the journal. Never replay it.
                 UnavailableReason = "Не удалось защитить папку данных MONOLITH от записи обычными пользователями.";
-                Log.Error("Журнал изменений не загружен: папка данных не защищена.");
+                JournalLog.Error("Журнал изменений не загружен: папка данных не защищена.");
                 return;
             }
-            if (AppPaths.MachineDirWasInsecure && (File.Exists(_path) || File.Exists(_path + ".bak")))
+            if (AppPaths.MachineDirWasInsecure && (File.Exists(path) || File.Exists(path + ".bak")))
             {
                 // Someone without admin rights could have edited it: never replay it. Keep it for inspection.
                 var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-                var quarantined = _path + $".untrusted-{stamp}";
+                var quarantined = path + $".untrusted-{stamp}";
                 try
                 {
-                    if (File.Exists(_path)) File.Move(_path, quarantined);
-                    if (File.Exists(_path + ".bak")) File.Move(_path + ".bak", quarantined + ".bak");
+                    if (File.Exists(path)) File.Move(path, quarantined);
+                    if (File.Exists(path + ".bak")) File.Move(path + ".bak", quarantined + ".bak");
                 }
                 catch (Exception ex)
                 {
                     UnavailableReason = "Журнал хранился в незащищённой папке, и его не удалось отложить.";
-                    Log.Error("Не удалось отложить недоверенный журнал изменений", ex);
+                    JournalLog.Error("Не удалось отложить недоверенный журнал изменений", ex);
                     return;
                 }
                 QuarantinedFile = quarantined;
-                Log.Warn($"Журнал изменений хранился в незащищённой папке и отложен как недоверенный: {QuarantinedFile}");
+                JournalLog.Warn($"Журнал изменений хранился в незащищённой папке и отложен как недоверенный: {QuarantinedFile}");
                 return;
             }
         }
 
-        if (TryRead(_path, out var data, out var error))
+        if (TryRead(path, out var data, out var error))
         {
             _data = data;
             return;
         }
-        var backupPath = _path + ".bak";
+        var backupPath = path + ".bak";
         if (error is null)
         {
             // No journal.json. A surviving .bak still holds undo records (e.g. a crash during a save).
             if (TryRead(backupPath, out var orphan, out _))
             {
                 _data = orphan;
-                Log.Warn("Журнал изменений не найден — загружена резервная копия.");
+                JournalLog.Warn("Журнал изменений не найден — загружена резервная копия.");
             }
             return;
         }
 
         // Damaged: keep a copy, then fall back to the last good version.
-        try { File.Copy(_path, _path + $".broken-{DateTime.Now:yyyyMMddHHmmss}", true); } catch { }
+        try { File.Copy(path, path + $".broken-{DateTime.Now:yyyyMMddHHmmss}", true); } catch { }
         if (TryRead(backupPath, out var backup, out _))
         {
             _data = backup;
-            Log.Warn("Журнал изменений был повреждён — восстановлен из резервной копии.");
+            JournalLog.Warn("Журнал изменений был повреждён — восстановлен из резервной копии.");
             // Move the damaged file away so the next save does not rotate it into .bak over the good copy.
             if (CanWrite)
             {
-                try { File.Delete(_path); } catch { }
+                try { File.Delete(path); } catch { }
             }
             return;
         }
@@ -466,7 +849,7 @@ public sealed class ChangeJournal
         // Both copies are unreadable: keep every file untouched and refuse new changes (their undo would be lost).
         _data = new JournalFile();
         UnavailableReason = "Файл журнала и его резервная копия повреждены.";
-        Log.Error("Журнал изменений и его резервная копия повреждены — новые изменения заблокированы", error);
+        JournalLog.Error("Журнал изменений и его резервная копия повреждены — новые изменения заблокированы", error);
     }
 
     private static bool TryRead(string path, out JournalFile data, out Exception? error)
@@ -496,12 +879,13 @@ public sealed class ChangeJournal
     {
         // A non-elevated MONOLITH never creates or touches the machine journal; an unavailable one is never overwritten.
         if (!CanWrite) return false;
+        if (_path is null) return true; // in-memory (tests)
         try
         {
             var dir = Path.GetDirectoryName(_path)!;
-            if (!AppPaths.TryEnsureDir(dir))
+            if (!(_protected ? AppPaths.TryEnsureDir(dir) : TryCreateDir(dir)))
             {
-                Log.Error($"Не удалось сохранить журнал изменений: папка {dir} недоступна.");
+                JournalLog.Error($"Не удалось сохранить журнал изменений: папка {dir} недоступна.");
                 return false;
             }
             var tmp = _path + ".tmp";
@@ -520,8 +904,130 @@ public sealed class ChangeJournal
         }
         catch (Exception ex)
         {
-            Log.Error("Не удалось сохранить журнал изменений", ex);
+            JournalLog.Error("Не удалось сохранить журнал изменений", ex);
             return false;
+        }
+    }
+
+    /// <summary>A journal outside %ProgramData%\MONOLITH (tests): its folder is created like any other.</summary>
+    private static bool TryCreateDir(string dir)
+    {
+        try
+        {
+            Directory.CreateDirectory(dir);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+/// <summary>The real system side of an undo: registry, services, power plans, scheduled tasks, catalog undo commands.</summary>
+internal sealed class WindowsJournalSystem : IJournalSystem
+{
+    public static readonly WindowsJournalSystem Instance = new();
+
+    /// <summary>The only programs a journaled undo command may run (full System32 paths).</summary>
+    private static readonly string[] AllowedRevertPrograms =
+    [
+        ProcessRunner.Sys("cmd.exe"),
+        Path.Combine(ProcessRunner.System32, "WindowsPowerShell", "v1.0", "powershell.exe"),
+        ProcessRunner.Sys("powercfg.exe"),
+        ProcessRunner.Sys("netsh.exe"),
+        ProcessRunner.Sys("fsutil.exe"),
+        ProcessRunner.Sys("pnputil.exe"),
+    ];
+
+    public Guid ActivePowerScheme() => PowerSchemes.GetActive();
+    public bool? PowerSchemeExists(Guid scheme) => PowerSchemes.TryExists(scheme);
+    public void DeletePowerScheme(Guid scheme) => PowerSchemes.Delete(scheme);
+
+    public async Task<RevertOutcome> RestoreAsync(ChangeRecord r)
+    {
+        switch (r.Kind)
+        {
+            case ChangeKind.Registry when r.Registry is not null:
+                if (ChangeJournal.IsForbiddenRestoreTarget(r.Registry))
+                    throw new InvalidOperationException($"Отказано: {r.Registry.FullName} — защищённое место реестра. Такую запись MONOLITH создать не мог.");
+                RegistryHelper.Restore(r.Registry);
+                return RevertOutcome.Done;
+
+            case ChangeKind.Service when r.Service is not null:
+                if (ServiceControl.Query(r.Service.Name) is null)
+                {
+                    Log.Info($"Откат пропущен: службы {r.Service.Name} больше нет в системе.");
+                    return new RevertOutcome("Службы больше нет в системе — откатывать нечего.", Skipped: true);
+                }
+                // Never allowProtected: no legitimate record can target a protected service (JournalTrust refuses it too).
+                ServiceControl.Restore(r.Service);
+                return RevertOutcome.Done;
+
+            case ChangeKind.PowerScheme:
+            {
+                string? note = null;
+                if (r.PowerSchemeOriginal is { } original && original != Guid.Empty && PowerSchemes.Exists(original))
+                {
+                    PowerSchemes.SetActive(original);
+                }
+                else
+                {
+                    PowerSchemes.SetActive(PowerSchemes.Balanced);
+                    note = r.PowerSchemeOriginal is { } o && o != Guid.Empty
+                        ? "Исходной схемы питания больше нет — включена «Сбалансированная»."
+                        : "Исходная схема питания не была записана — включена «Сбалансированная».";
+                    Log.Warn($"«{r.Title}»: {note}");
+                }
+                var gone = new List<Guid>();
+                foreach (var created in ChangeJournal.CreatedSchemes(r))
+                {
+                    if (created == r.PowerSchemeOriginal) continue;
+                    if (PowerSchemes.TryExists(created) == true) PowerSchemes.Delete(created);
+                    if (PowerSchemes.TryExists(created) == false) gone.Add(created);
+                    else Log.Warn($"«{r.Title}»: созданную MONOLITH схему питания {created} удалить не удалось.");
+                }
+                return new RevertOutcome(note, DeletedSchemes: gone);
+            }
+
+            case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
+                if (!ScheduledTasks.Query(r.TaskPath).Exists)
+                {
+                    Log.Info($"Откат пропущен: задачи {r.TaskPath} больше нет в планировщике.");
+                    return new RevertOutcome("Задачи больше нет в планировщике — откатывать нечего.", Skipped: true);
+                }
+                ScheduledTasks.SetEnabled(r.TaskPath, wasEnabled);
+                return RevertOutcome.Done;
+
+            case ChangeKind.Command when !string.IsNullOrWhiteSpace(r.RevertFile):
+                SafetyLock.ThrowIfLocked("откат команды");
+                // A power setting of a plan that no longer exists went away with the plan: nothing is left to undo.
+                if (JournalTrust.PowercfgTarget(r.Target) is { } pc && PowerSchemes.TryExists(pc.Scheme) == false)
+                {
+                    Log.Info($"Откат пропущен: схемы питания {pc.Scheme} больше нет — изменённое значение удалено вместе с ней.");
+                    return new RevertOutcome("Схемы питания больше нет — параметр удалён вместе с ней, откатывать нечего.", Skipped: true);
+                }
+                // DNS records from older builds name the adapter by its (non-persistent) index: run the current
+                // GUID-based script with the same servers instead.
+                var (revertFile, revertArgs) = JournalTrust.UpgradeLegacyDns(r) ?? (r.RevertFile!, r.RevertArgs ?? "");
+                if (!AllowedRevertPrograms.Contains(revertFile, StringComparer.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Отказано: команда отката «{revertFile}» не из списка системных утилит.");
+                var encoded = revertArgs.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
+                if (encoded) Log.Command($"powershell: откат «{r.Title}»");
+                var result = await ProcessRunner.RunAsync(revertFile, revertArgs,
+                    new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
+                var rebootPending = result is { ExitCode: ProcessExit.RebootRequired, TimedOut: false, Cancelled: false }
+                                    && string.Equals(r.RevertFile, ProcessRunner.Sys("pnputil.exe"), StringComparison.OrdinalIgnoreCase);
+                if (rebootPending)
+                {
+                    Log.Warn($"Откат «{r.Title}» вступит в силу после перезагрузки.");
+                    return new RevertOutcome("Вступит в силу после перезагрузки.", Skipped: true);
+                }
+                if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
+                return RevertOutcome.Done;
+
+            default:
+                throw new InvalidOperationException("Запись журнала не содержит данных для отката.");
         }
     }
 }
@@ -543,12 +1049,16 @@ internal static class JournalTrust
 {
     private static readonly HashSet<string> ModuleSources = new(StringComparer.Ordinal)
     {
-        "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers",
+        "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers", "games",
     };
 
     private static readonly Regex TweakSource = new(@"^tweak:[a-z0-9][a-z0-9-]{0,80}$", RegexOptions.CultureInvariant);
 
     internal static bool IsKnownSource(string source) => ModuleSources.Contains(source) || TweakSource.IsMatch(source);
+
+    /// <summary>Records of a tweak (or older merged records a tweak touched): only these may own plan copies to delete.</summary>
+    internal static bool IsTweakish(ChangeRecord r) =>
+        r.Source.StartsWith("tweak:", StringComparison.Ordinal) || r.AlsoSources.Any(s => s.StartsWith("tweak:", StringComparison.Ordinal));
 
     /// <summary>Null when the record may be reverted; otherwise a short Russian reason.</summary>
     internal static string? Check(ChangeRecord r)
@@ -563,12 +1073,19 @@ internal static class JournalTrust
         {
             "services" => ChangeKind.Service,
             "services-tasks" or "startup-tasks" => ChangeKind.ScheduledTask,
-            "startup" => ChangeKind.Registry,
+            "startup" or "games" => ChangeKind.Registry,
             "gameboost" => ChangeKind.PowerScheme,
             "drivers" => ChangeKind.Command,
             _ => null,
         };
         if (expected is { } kind && r.Kind != kind) return $"источник «{r.Source}» не создаёт записи типа {r.Kind}";
+
+        // An account is recorded only for changes in one account's profile.
+        if (r.UserSid is { } sid)
+        {
+            if (!UserScope.SidPattern.IsMatch(sid)) return "некорректная учётная запись в записи";
+            if (!r.IsPerUser) return "учётная запись указана для изменения всей системы";
+        }
 
         switch (r.Kind)
         {
@@ -577,7 +1094,14 @@ internal static class JournalTrust
                     return "цель записи не совпадает с параметром реестра";
                 if (reg.Hive == RegHive.HKCR) return $"раздел {reg.Hive} MONOLITH не меняет";
                 if (ChangeJournal.IsForbiddenRestoreTarget(reg)) return $"{reg.FullName} — защищённое место реестра";
-                if (r.Source == "startup" && !IsStartupApproved(reg)) return $"{reg.FullName} — не отметка автозагрузки StartupApproved";
+                if (reg.CreatedKeyRoot is { } root)
+                {
+                    if (!RegistryHelper.IsValidCreatedRoot(reg.Path, root)) return "некорректный раздел, созданный MONOLITH";
+                    if (ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = reg.Hive, Path = root, Name = "" }))
+                        return $"{reg.Hive}\\{root} — защищённое место реестра";
+                }
+                if (r.Source == "startup" && !IsStartupMark(reg)) return $"{reg.FullName} — не отметка автозагрузки";
+                if (r.Source == "games" && !IsGpuPreference(reg)) return $"{reg.FullName} — не выбор видеокарты для игры";
                 return null;
 
             case ChangeKind.Service when r.Service is { } svc:
@@ -597,24 +1121,51 @@ internal static class JournalTrust
 
             case ChangeKind.PowerScheme:
                 if (r.Target != "power:active") return "некорректная цель записи плана питания";
-                if (r.PowerSchemeCreated is not null && !isTweak && !r.AlsoSources.Any(s => s.StartsWith("tweak:", StringComparison.Ordinal)))
-                    return "план питания на удаление указан не твиком";
+                var created = new List<Guid>();
+                if (r.PowerSchemeCreated is { } c) created.Add(c);
+                if (r.PowerSchemesCreatedMore is { } more) created.AddRange(more);
+                if (created.Count > 0)
+                {
+                    if (!IsTweakish(r)) return "план питания на удаление указан не твиком";
+                    if (created.Any(g => g == Guid.Empty || PowerSchemes.IsBuiltIn(g))) return "встроенный план питания указан на удаление";
+                }
                 return null;
 
             case ChangeKind.Command:
                 return CheckCommand(r, isTweak);
 
             default:
-                return null; // no data to revert: RevertOneAsync reports that itself
+                return null; // no data to revert: the system side reports that itself
         }
     }
 
-    private static bool IsStartupApproved(RegistryValueSnapshot reg)
+    private const string StartupApprovedRoot = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\";
+
+    /// <summary>Packaged-app startup tasks: HKCU …\AppModel\SystemAppData\&lt;PackageFamilyName&gt;\&lt;TaskId&gt;, value State (DWORD).</summary>
+    private static readonly Regex PackagedStartupTask = new(
+        @"^Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\SystemAppData\\" +
+        @"[A-Za-z0-9.\-]{3,50}_[a-z0-9]{13}\\[A-Za-z0-9._\-]{1,128}$",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    private const string GpuPreferencesPath = @"Software\Microsoft\DirectX\UserGpuPreferences";
+    private static readonly Regex ExePath = new(@"^[A-Za-z]:\\[^\x00-\x1F""<>|*?]+\.exe$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    /// <summary>The marks the startup page writes: StartupApproved (Run, Run32, StartupFolder) or a packaged app's startup task state.</summary>
+    private static bool IsStartupMark(RegistryValueSnapshot reg)
     {
-        const string root = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\";
         var p = reg.Path.TrimEnd('\\');
-        return new[] { "Run", "Run32", "StartupFolder" }.Any(sub => string.Equals(p, root + sub, StringComparison.OrdinalIgnoreCase));
+        if (new[] { "Run", "Run32", "StartupFolder" }.Any(sub => string.Equals(p, StartupApprovedRoot + sub, StringComparison.OrdinalIgnoreCase)))
+            return true;
+        return reg.Hive == RegHive.HKCU && PackagedStartupTask.IsMatch(p) && reg.Name == "State"
+               && (!reg.ValueExisted || reg.Kind == Microsoft.Win32.RegistryValueKind.DWord);
     }
+
+    /// <summary>The games page's per-game GPU choice: HKCU …\DirectX\UserGpuPreferences, a value named by the game's exe path (REG_SZ).</summary>
+    private static bool IsGpuPreference(RegistryValueSnapshot reg) =>
+        reg.Hive == RegHive.HKCU
+        && string.Equals(reg.Path.TrimEnd('\\'), GpuPreferencesPath, StringComparison.OrdinalIgnoreCase)
+        && ExePath.IsMatch(reg.Name)
+        && (!reg.ValueExisted || reg.Kind == Microsoft.Win32.RegistryValueKind.String);
 
     // ───────────────────────────── Undo commands ─────────────────────────────
 
@@ -676,16 +1227,66 @@ internal static class JournalTrust
         var pc = Regex.Match(target, $"^powercfg:({GuidPattern}):({GuidPattern}):ac$");
         if (pc.Success)
         {
-            var exe = Regex.Escape(powercfg);
-            var m = Regex.Match(inner,
-                $"^{exe} /setacvalueindex ({GuidPattern}) ({GuidPattern}) ({GuidPattern}) ([0-9]{{1,10}}) && {exe} /setactive SCHEME_CURRENT$");
-            return m.Success
+            var m = PowercfgUndoLine(inner);
+            return m is { Success: true }
                    && string.Equals(m.Groups[1].Value, pc.Groups[1].Value, StringComparison.OrdinalIgnoreCase)
                    && string.Equals(m.Groups[3].Value, pc.Groups[2].Value, StringComparison.OrdinalIgnoreCase)
                 ? null : Unknown;
         }
 
         return Unknown;
+    }
+
+    private static Match PowercfgUndoLine(string inner)
+    {
+        var exe = Regex.Escape(Quoted("powercfg.exe"));
+        return Regex.Match(inner,
+            $"^{exe} /setacvalueindex ({GuidPattern}) ({GuidPattern}) ({GuidPattern}) ([0-9]{{1,10}}) && {exe} /setactive SCHEME_CURRENT$");
+    }
+
+    /// <summary>"cmd:powercfg:{scheme}:{setting}:ac" → the scheme and setting, or null for any other target.</summary>
+    internal static (Guid Scheme, Guid Setting)? PowercfgTarget(string target)
+    {
+        var m = Regex.Match(target, $"^cmd:powercfg:({GuidPattern}):({GuidPattern}):ac$");
+        return m.Success && Guid.TryParse(m.Groups[1].Value, out var scheme) && Guid.TryParse(m.Groups[2].Value, out var setting)
+            ? (scheme, setting) : null;
+    }
+
+    /// <summary>The power setting and the AC value a powercfg undo record writes back (null for other records).</summary>
+    internal static (Guid Scheme, Guid Subgroup, Guid Setting, uint Value)? PowercfgUndo(ChangeRecord r)
+    {
+        if (r.Kind != ChangeKind.Command || PowercfgTarget(r.Target) is null) return null;
+        var args = r.RevertArgs ?? "";
+        if (!args.StartsWith(CmdHead, StringComparison.Ordinal) || !args.EndsWith('"') || args.Length <= CmdHead.Length) return null;
+        var m = PowercfgUndoLine(args[CmdHead.Length..^1]);
+        if (!m.Success) return null;
+        return Guid.TryParse(m.Groups[1].Value, out var scheme) && Guid.TryParse(m.Groups[2].Value, out var sub)
+               && Guid.TryParse(m.Groups[3].Value, out var setting)
+               && uint.TryParse(m.Groups[4].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var value)
+            ? (scheme, sub, setting, value) : null;
+    }
+
+    /// <summary>The adapter and the DNS servers a DNS undo record puts back (empty = automatic), or null for other records.</summary>
+    internal static (bool Ipv6, string Adapter, IReadOnlyList<string> Servers)? DnsUndo(ChangeRecord r)
+    {
+        if (r.Kind != ChangeKind.Command || !r.Target.StartsWith("cmd:", StringComparison.Ordinal)) return null;
+        var dns = Regex.Match(r.Target[4..], $@"^dns([46]):(\{{?{GuidPattern}\}}?)$");
+        if (!dns.Success) return null;
+        var args = UpgradeLegacyDns(r)?.Args ?? r.RevertArgs ?? "";
+        if (PsScript(args) is not { } script) return null;
+        var servers = Regex.Matches(script, "'address=([0-9A-Fa-f:.%]+)'").Select(m => m.Groups[1].Value).ToList();
+        return (dns.Groups[1].Value == "6", dns.Groups[2].Value, servers);
+    }
+
+    /// <summary>The DirectX token and the value a dx undo record puts back (null value = token removed), or null for other records.</summary>
+    internal static (string Token, string? Value)? DxUndo(ChangeRecord r)
+    {
+        if (r.Kind != ChangeKind.Command || !r.Target.StartsWith("cmd:dx:", StringComparison.Ordinal)) return null;
+        if (PsScript(r.RevertArgs ?? "") is not { } script) return null;
+        var m = Regex.Match(script, @"\$v=(\$null|'(?:[^']|'')*');");
+        if (!m.Success) return null;
+        var raw = m.Groups[1].Value;
+        return (r.Target["cmd:dx:".Length..], raw == "$null" ? null : raw[1..^1].Replace("''", "'"));
     }
 
     private static string? PsScript(string args)

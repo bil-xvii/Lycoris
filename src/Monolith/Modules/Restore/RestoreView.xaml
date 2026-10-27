@@ -51,6 +51,11 @@
                                     ToolTip="После MONOLITH значение изменили Windows (например, обновление), политика или другая программа.">
                                 <TextBlock Text="ИЗМЕНЕНО ВНЕ MONOLITH" FontSize="9.5" />
                             </Border>
+                            <Border Style="{StaticResource Tag.Hatch}" Margin="6,0,0,0" Padding="5,1,5,2"
+                                    Visibility="{Binding IsMismatch, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="После отката MONOLITH прочитал значение заново, и оно отличается от исходного.">
+                                <TextBlock Text="НЕ СОВПАДАЕТ" FontSize="9.5" />
+                            </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding Target}" ToolTip="{Binding RawTarget}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
                                    Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
@@ -66,6 +71,8 @@
                         </TextBlock>
                         <TextBlock Text="{Binding DriftText}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text}"
                                    Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text}" Margin="0,6,0,0"
                                    Visibility="{Binding IsFailed, Converter={StaticResource BoolToVis}}">
                             <Run Text="Ошибка отката:" FontWeight="SemiBold" />
@@ -98,7 +105,7 @@
                                 CommandParameter="{Binding}" />
                         <Button Style="{StaticResource Btn.Primary}" Content="ПРИМЕНИТЬ СНОВА" Height="30" MinWidth="110" Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="11.5"
                                 Visibility="{Binding CanReapply, Converter={StaticResource BoolToVis}}"
-                                ToolTip="Снова записать значение, которое ставил MONOLITH. Исходное значение в журнале сохраняется."
+                                ToolTip="Снова записать значение, которое ставил MONOLITH, отдельным пакетом. Исходное значение в журнале сохраняется."
                                 Command="{Binding DataContext.ReapplyDriftCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 CommandParameter="{Binding}" />
                         <Button Content="ПОКАЗАТЬ" Height="30" MinWidth="110" Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="11.5"
@@ -319,7 +326,7 @@
                                             <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="12,9"
                                                     Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
                                                 <TextBlock Style="{StaticResource T.Caption}"
-                                                           Text="В пакете нет записей для отката: действие выполнено напрямую (например, сброс сети) или изменения не применились. Вернуть прежнее состояние можно точкой восстановления, если она создана." />
+                                                           Text="В пакете нет записей для отката: действие выполнено напрямую (например, сброс сети), настройки уже были такими или изменение не удалось. Вернуть прежнее состояние можно точкой восстановления, если она создана." />
                                             </Border>
                                         </StackPanel>
                                     </Border>
