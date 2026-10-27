@@ -184,6 +184,13 @@ internal static class HardwareCatalog
     public static PeripheralVendor? PeripheralByVid(string? vid) =>
         vid is null ? null : Peripherals.FirstOrDefault(p => string.Equals(p.Vid, vid, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>Devices Windows names only by class («USB-устройство ввода»), by VID:PID (verified on the dev PC).</summary>
+    public static string? KnownDeviceName(string vid, string pid) => $"{vid}:{pid}".ToUpperInvariant() switch
+    {
+        "0DB0:0076" => "Mystic Light (подсветка платы)",
+        _ => null,
+    };
+
     /// <summary>PCI / USB vendor ids of network and Bluetooth chips.</summary>
     private static readonly Dictionary<string, string> NetVendors = new(StringComparer.OrdinalIgnoreCase)
     {

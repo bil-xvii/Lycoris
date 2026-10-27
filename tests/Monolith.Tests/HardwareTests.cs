@@ -624,6 +624,7 @@ public sealed class HardwareTests
         PnpDevice[] devices = [Device(@"HID\VID_0DB0&PID_0076\7&2F7C0A1&0&0000", "HIDClass", "USB-устройство ввода")];
         var c = Component(HardwareAdvisor.Build(Snapshot(devices: devices), Context()), "periph:0DB0");
         Assert.Equal("MSI", c.Kind);
+        Assert.Equal("Mystic Light (подсветка платы)", c.Name); // Windows calls it only «USB-устройство ввода»
         var a = Assert.Single(c.Actions);
         Assert.Equal("MSI Center", a.Title);
         Assert.Equal(HwActionKind.OpenPage, a.Kind);

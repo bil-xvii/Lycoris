@@ -125,6 +125,15 @@ public sealed class DeviceInventoryTests
     }
 
     [Fact]
+    public void Card_titles_keep_model_codes_and_name_the_vendor_of_controllers()
+    {
+        var groups = GroupAll(Keyboard(), Inzone(), Msi());
+        Assert.Equal("PRO Gaming Keyboard", DeviceInventory.DisplayTitle(groups.Single(g => g.Pid == "C339")));
+        Assert.Equal("INZONE E9", DeviceInventory.DisplayTitle(groups.Single(g => g.Pid == "0F80")));
+        Assert.Equal("Mystic Light (MSI)", DeviceInventory.DisplayTitle(groups.Single(g => g.Pid == "0076")));
+    }
+
+    [Fact]
     public void G_hub_virtual_devices_are_dropped()
     {
         Assert.Empty(GroupAll(GHubVirtual()));

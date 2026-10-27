@@ -386,6 +386,30 @@ public sealed class VendorEnricherTests
     }
 
     [Fact]
+    public void Without_providers_every_known_device_with_a_program_gets_its_own_card()
+    {
+        // A provider that found nothing (or failed): the inventory still shows the devices that have something to do here.
+        var (cards, _) = Run([], [Receiver, Keyboard, Inzone, Seiren, MysticLight], OwnerApps);
+        Assert.Equal(5, cards.Count);
+        var mouse = cards.Single(c => c.Kind == DeviceKind.Mouse);
+        Assert.Equal("LIGHTSPEED-приёмник Logitech", mouse.Title);
+        Assert.Equal("раньше по кабелю подключалась: PRO X2 SUPERSTRIKE", mouse.Subtitle);
+        Assert.Contains(mouse.Notes, n => n.Text == VendorEnricher.OnboardMemoryNote);
+        Assert.Equal("PRO Gaming Keyboard", cards.Single(c => c.Kind == DeviceKind.Keyboard).Title);
+        // One audio device does not hide the other.
+        Assert.Equal(["INZONE E9", "Razer Seiren V3 Mini"], cards.Where(c => c.Kind == DeviceKind.AudioOutput).Select(c => c.Title).Order());
+        Assert.All(cards, c => Assert.InRange(c.Order, 80, 99));
+        Assert.Equal(cards.Count, cards.Select(c => c.Key).Distinct().Count());
+    }
+
+    [Fact]
+    public void Inventory_cards_with_only_an_install_offer_are_not_created()
+    {
+        var (cards, _) = Run([], [Receiver, Keyboard, Inzone], Apps([]));
+        Assert.Empty(cards);
+    }
+
+    [Fact]
     public void An_msi_controller_with_only_an_install_offer_stays_on_drivers()
     {
         var (cards, _) = Run([], [MysticLight], Apps([]));

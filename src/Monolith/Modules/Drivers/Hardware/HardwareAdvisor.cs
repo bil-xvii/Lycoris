@@ -826,7 +826,8 @@ internal static class HardwareAdvisor
             {
                 ids.Add($"{g.Key.Vid}:{g.Key.Pid}");
                 devices.AddRange(g.Select(x => x.Device));
-                var best = g.Select(x => x.Device.Name).FirstOrDefault(n => !HardwareRules.IsGenericDeviceName(n));
+                var best = g.Select(x => x.Device.Name).FirstOrDefault(n => !HardwareRules.IsGenericDeviceName(n))
+                           ?? HardwareCatalog.KnownDeviceName(g.Key.Vid, g.Key.Pid);
                 if (best is not null && !names.Contains(best, StringComparer.OrdinalIgnoreCase)) names.Add(best);
             }
             var wuMatches = devices.SelectMany(d => wu.Match(d.DeviceId, d.HardwareIds)).DistinctBy(u => u.UpdateId).ToList();
