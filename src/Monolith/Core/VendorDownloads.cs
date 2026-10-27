@@ -33,6 +33,12 @@ public sealed record VendorDownloadRequest(
 
     /// <summary>What the file is, for the log ("драйвер NVIDIA 621.01", "Logitech G HUB").</summary>
     public string Label { get; init; } = "";
+
+    /// <summary>
+    /// Reuse an already downloaded, validly signed copy. Right for versioned file names (drivers); wrong for app links
+    /// that always have the same name ("lghub_installer.exe") while the vendor replaces the file behind them.
+    /// </summary>
+    public bool ReuseVerifiedCopy { get; init; } = true;
 }
 
 /// <summary>
@@ -204,6 +210,9 @@ public static partial class VendorDownloads
         Elevation.Demand("загрузка установщика");
         var dir = PrepareFolder(r.Folder);
         var target = Path.Combine(dir, r.FileName);
+
+        // Unversioned links: always fetch the vendor's current file, never an old copy with the same name.
+        if (!r.ReuseVerifiedCopy && File.Exists(target)) TryDelete(target);
 
         // Already downloaded and still validly signed → reuse.
         if (File.Exists(target))
