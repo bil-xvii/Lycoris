@@ -1,3 +1,6 @@
+using System.IO;
+using Microsoft.Win32;
+using Monolith.Core;
 using Monolith.Modules.Games;
 using Monolith.Modules.Games.Sources;
 
@@ -637,4 +640,252 @@ public sealed class GamesTests
     [Fact]
     public void Readiness_summary_is_one_line_pointing_to_the_dashboard() =>
         Assert.Equal("Готовность к играм: 2/3 — на Панели", GamingReadiness.SummaryLine(2, 3));
+
+    // ───────────────────────────── Per-game GPU preference ─────────────────────────────
+
+    private static GpuInfo Gpu(string name, GpuVendor vendor) => new(name, vendor, "1.0", null, 0, "");
+
+    [Fact]
+    public void Gpu_switch_is_shown_only_on_hybrid_pcs_with_windows_10_1803_or_later()
+    {
+        var hybrid = new[] { Gpu("AMD Radeon(TM) Graphics", GpuVendor.Amd), Gpu("NVIDIA GeForce RTX 4060 Laptop GPU", GpuVendor.Nvidia) };
+        Assert.True(GpuPreference.IsHybrid(hybrid, 22631));
+        Assert.True(GpuPreference.IsHybrid(hybrid, GpuPreference.MinBuild));
+        Assert.False(GpuPreference.IsHybrid(hybrid, GpuPreference.MinBuild - 1));
+        Assert.True(GpuPreference.IsHybrid([Gpu("Intel(R) UHD Graphics", GpuVendor.Intel), Gpu("Intel(R) Arc(TM) A370M", GpuVendor.Intel)], 22631));
+        // One real GPU: nothing to choose between.
+        Assert.False(GpuPreference.IsHybrid([Gpu("NVIDIA GeForce RTX 4070", GpuVendor.Nvidia)], 22631));
+        Assert.False(GpuPreference.IsHybrid([], 22631));
+        // Virtual / remote display adapters are not a second GPU.
+        Assert.False(GpuPreference.IsHybrid([Gpu("NVIDIA GeForce RTX 4070", GpuVendor.Nvidia), Gpu("Microsoft Remote Display Adapter", GpuVendor.Microsoft)], 22631));
+        Assert.False(GpuPreference.IsHybrid([Gpu("Intel(R) UHD Graphics 770", GpuVendor.Intel), Gpu("Parsec Virtual Display Adapter", GpuVendor.Other)], 22631));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("GpuPreference=2;", 2)]
+    [InlineData("SwapEffectUpgradeEnable=1;GpuPreference=1;", 1)]
+    [InlineData(" gpupreference = 0 ;AutoHDREnable=1;", 0)]
+    [InlineData("AutoHDREnable=2097;", null)]
+    [InlineData("GpuPreference=x;", null)]
+    [InlineData("GpuPreference=2", 2)]
+    public void Gpu_preference_token_is_parsed(string? data, int? expected) => Assert.Equal(expected, GpuPreference.Parse(data));
+
+    [Theory]
+    [InlineData(null, 2, "GpuPreference=2;")]
+    [InlineData("", 2, "GpuPreference=2;")]
+    [InlineData("GpuPreference=0;", 2, "GpuPreference=2;")]
+    // Other tokens are kept exactly, in their place; the preference token is replaced in place or appended.
+    [InlineData("SwapEffectUpgradeEnable=1;", 2, "SwapEffectUpgradeEnable=1;GpuPreference=2;")]
+    [InlineData("GpuPreference=1;SwapEffectUpgradeEnable=1;", 2, "GpuPreference=2;SwapEffectUpgradeEnable=1;")]
+    [InlineData("AutoHDREnable=2097;GpuPreference=2;SwapEffectUpgradeEnable=1;", 0, "AutoHDREnable=2097;GpuPreference=0;SwapEffectUpgradeEnable=1;")]
+    [InlineData("AutoHDREnable=2097", 2, "AutoHDREnable=2097;GpuPreference=2;")]
+    // A duplicate token is dropped (Windows reads one), empty segments are not kept.
+    [InlineData("GpuPreference=0;;AutoHDREnable=1;GpuPreference=1;", 2, "GpuPreference=2;AutoHDREnable=1;")]
+    public void Gpu_preference_merge_changes_only_the_preference_token(string? existing, int preference, string expected) =>
+        Assert.Equal(expected, GpuPreference.Merge(existing, preference));
+
+    [Fact]
+    public void Gpu_preference_merge_round_trips()
+    {
+        var merged = GpuPreference.Merge("SwapEffectUpgradeEnable=1;AutoHDREnable=1;", GpuPreference.HighPerformance);
+        Assert.Equal(GpuPreference.HighPerformance, GpuPreference.Parse(merged));
+        Assert.Contains("SwapEffectUpgradeEnable=1;", merged);
+        Assert.Contains("AutoHDREnable=1;", merged);
+        Assert.Equal(merged, GpuPreference.Merge(merged, GpuPreference.HighPerformance)); // idempotent
+    }
+
+    private static RegistryValueSnapshot Original(string? data) => new()
+    {
+        Hive = RegHive.HKCU, Path = GpuPreference.KeyPath, Name = @"D:\Games\X\x.exe",
+        KeyExisted = data is not null, ValueExisted = data is not null, Kind = Microsoft.Win32.RegistryValueKind.String, Data = data,
+    };
+
+    [Fact]
+    public void Gpu_switch_reverts_monolith_records_to_the_exact_original_and_writes_otherwise()
+    {
+        // Already in the wanted state: nothing to do.
+        Assert.Equal(GpuChange.None, GpuPreference.Decide(true, 2, null));
+        Assert.Equal(GpuChange.None, GpuPreference.Decide(false, 1, null));
+        Assert.Equal(GpuChange.None, GpuPreference.Decide(false, null, null));
+        // Nothing journaled: write (and journal) the merged value.
+        Assert.Equal(GpuChange.Write, GpuPreference.Decide(true, null, null));
+        Assert.Equal(GpuChange.Write, GpuPreference.Decide(false, 2, null)); // chosen in Windows Settings → «let Windows decide»
+        // Turning MONOLITH's own change back = revert its record: the previous string (or absence) comes back exactly.
+        Assert.Equal(GpuChange.Revert, GpuPreference.Decide(false, 2, Original(null)));
+        Assert.Equal(GpuChange.Revert, GpuPreference.Decide(false, 2, Original("GpuPreference=1;SwapEffectUpgradeEnable=1;")));
+        Assert.Equal(GpuChange.Revert, GpuPreference.Decide(true, 0, Original("GpuPreference=2;")));
+        // Changed outside MONOLITH after its record: writing again keeps the record's true original (merge by target).
+        Assert.Equal(GpuChange.Write, GpuPreference.Decide(true, 0, Original(null)));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Program Files (x86)\Steam\steamapps\common\Game\Game.exe", true)]
+    [InlineData(@"D:\Games\[GOG] Witcher\bin\x64\witcher3.EXE", true)]
+    [InlineData(@"game.exe", false)]
+    [InlineData(@"\\server\share\game.exe", false)]
+    [InlineData(@"C:\Games\game.exe:stream.exe", false)]
+    [InlineData(@"C:\Games\..\Windows\notepad.exe", false)]
+    [InlineData(@"C:\Games\\game.exe", false)]
+    [InlineData(@"C:/Games/game.exe", false)]
+    [InlineData(@"C:\Games\game.txt", false)]
+    [InlineData("C:\\Games\\ga\nme.exe", false)]
+    [InlineData(@"C:\Games\"" game.exe", false)]
+    [InlineData(null, false)]
+    public void Gpu_preference_names_only_absolute_local_exe_paths(string? path, bool valid) =>
+        Assert.Equal(valid, GpuPreference.IsValidExePath(path));
+
+    [Fact]
+    public void Gpu_values_belong_to_a_game_by_its_exe_or_its_own_folder()
+    {
+        const string dir = @"D:\SteamLibrary\steamapps\common\Cyberpunk 2077\";
+        Assert.True(GpuPreference.BelongsTo(@"D:\SteamLibrary\steamapps\common\Cyberpunk 2077\bin\x64\Cyberpunk2077.exe", null, dir, true));
+        Assert.True(GpuPreference.BelongsTo(@"d:\steamlibrary\STEAMAPPS\common\cyberpunk 2077\bin\x64\cyberpunk2077.exe", null, dir, true));
+        Assert.False(GpuPreference.BelongsTo(@"D:\SteamLibrary\steamapps\common\Cyberpunk 2077 Tools\x.exe", null, dir, true));
+        Assert.False(GpuPreference.BelongsTo("DirectXUserGlobalSettings", null, dir, true));
+        // A shared folder ("D:\Games\") identifies no single game: only the exact exe counts.
+        Assert.False(GpuPreference.BelongsTo(@"D:\Games\other.exe", null, @"D:\Games\", false));
+        Assert.True(GpuPreference.BelongsTo(@"D:\Games\mine.exe", @"D:\Games\mine.exe", @"D:\Games\", false));
+    }
+
+    [Fact]
+    public void Gpu_preference_targets_only_exes_known_to_be_the_game()
+    {
+        const string dir = @"D:\Games\X\";
+        Assert.Null(GpuPreference.KnownExe(Game("steam:1", "X", GamePlatform.Steam, dir), dir));
+        Assert.Null(GpuPreference.KnownExe(Game("epic:x", "X", GamePlatform.Epic, dir), dir));
+        // Riot's exe is the Riot Client; EA / Battle.net entries are often launcher stubs.
+        Assert.Null(GpuPreference.KnownExe(Game("riot:x", "X", GamePlatform.Riot, dir, @"C:\Riot Games\Riot Client\RiotClientServices.exe"), dir));
+        Assert.Null(GpuPreference.KnownExe(Game("ea:x", "X", GamePlatform.Ea, dir, @"D:\Games\X\X Launcher.exe"), dir));
+        Assert.Equal(@"D:\Games\X\bin\x.exe", GpuPreference.KnownExe(Game("gog:1", "X", GamePlatform.Gog, dir, @"D:\Games\X\bin\x.exe"), dir));
+        Assert.Null(GpuPreference.KnownExe(Game("gog:2", "X", GamePlatform.Gog, dir, @"C:\Other\x.exe"), dir));
+        Assert.Equal(@"D:\Games\X\x.exe", GpuPreference.KnownExe(Game("custom:x", "X", GamePlatform.Custom, dir, @"D:\Games\X\x.exe"), dir));
+    }
+
+    [Fact]
+    public void Gpu_exe_guess_prefers_the_largest_real_game_binary()
+    {
+        var guess = GpuPreference.GuessExe(
+        [
+            (@"D:\G\X\UnityCrashHandler64.exe", 1_500_000),
+            (@"D:\G\X\X Launcher.exe", 90_000_000),
+            (@"D:\G\X\_CommonRedist\vcredist_x64.exe", 25_000_000),
+            (@"D:\G\X\Engine\Binaries\Win64\X-Win64-Shipping.exe", 80_000_000),
+            (@"D:\G\X\X.exe", 300_000),
+            (@"D:\G\X\EasyAntiCheat\EasyAntiCheat_EOS_Setup.exe", 40_000_000),
+        ]);
+        Assert.Equal(@"D:\G\X\Engine\Binaries\Win64\X-Win64-Shipping.exe", guess);
+        Assert.Null(GpuPreference.GuessExe([]));
+        Assert.Null(GpuPreference.GuessExe([(@"D:\G\X\unins000.exe", 1000)]));
+    }
+
+    [Fact]
+    public void Gpu_journal_target_is_the_one_change_session_writes() =>
+        Assert.Equal(@"reg:HKCU\Software\Microsoft\DirectX\UserGpuPreferences\D:\G\x.exe", GpuPreference.JournalTarget(@"D:\G\x.exe"));
+
+    [Fact]
+    public void Gpu_card_tooltip_states_the_current_choice_and_why_it_is_read_only()
+    {
+        var high = new[] { new GpuPreferenceValue(@"D:\G\X\x.exe", "GpuPreference=2;") };
+        var saving = new[] { new GpuPreferenceValue(@"D:\G\X\x.exe", "GpuPreference=1;") };
+        Assert.StartsWith("Включено: Windows запускает x.exe на дискретной видеокарте (GeForce RTX 4060)", GpuPreference.CardTooltip(high, "GeForce RTX 4060", true, true));
+        Assert.Contains("вернётся ровно то значение", GpuPreference.CardTooltip(high, null, true, true));
+        Assert.Contains("энергосбережение", GpuPreference.CardTooltip(saving, null, true, true));
+        Assert.Contains("Сейчас видеокарту выбирает Windows", GpuPreference.CardTooltip([], null, true, true));
+        Assert.Contains("Только просмотр", GpuPreference.CardTooltip([], null, false, true));
+        Assert.Contains("от другой учётной записи", GpuPreference.CardTooltip([], null, true, false));
+    }
+}
+
+/// <summary>
+/// The per-game GPU switch against a redirected registry (HKCU\Software\MONOLITH-Tests\Redirect-*), never the real
+/// settings: on → off must put back exactly what was there, and one game's undo must not touch another game.
+/// </summary>
+[Collection("Registry")]
+public sealed class GpuPreferenceRegistryTests : IDisposable
+{
+    private const string GameA = @"D:\Games\Hybrid Test A\bin\GameA.exe";
+    private const string GameB = @"D:\Games\Hybrid Test B\GameB.exe";
+    private readonly string _root = $@"Software\MONOLITH-Tests\Redirect-{Guid.NewGuid():N}";
+    private readonly string _journalPath = Path.Combine(Path.GetTempPath(), $"monolith-gputest-{Guid.NewGuid():N}.json");
+
+    public GpuPreferenceRegistryTests()
+    {
+        RegistryHelper.Redirect = (hive, path) => (RegHive.HKCU, $@"{_root}\{hive}\{path}");
+        ChangeSession.BypassElevationForTests = true;
+        // The DirectX key exists on every PC that ran a game; UserGpuPreferences itself may not.
+        RegistryHelper.Write(RegHive.HKCU, GpuPreference.ParentPath, "Sentinel", RegistryValueKind.String, "keep");
+    }
+
+    public void Dispose()
+    {
+        RegistryHelper.Redirect = null;
+        ChangeSession.BypassElevationForTests = false;
+        try { Registry.CurrentUser.DeleteSubKeyTree(_root, false); } catch { }
+        foreach (var f in new[] { _journalPath, _journalPath + ".bak", _journalPath + ".tmp" })
+            try { File.Delete(f); } catch { }
+    }
+
+    private static string? Read(string exe) => RegistryHelper.ReadString(RegHive.HKCU, GpuPreference.KeyPath, exe);
+
+    private async Task Set(string exe, bool high)
+    {
+        var outcome = await GpuPreferenceStore.SetAsync([exe], high, "Test", new ChangeJournal(_journalPath));
+        Assert.True(outcome.Success, string.Join("; ", outcome.Errors));
+    }
+
+    [Fact]
+    public async Task On_then_off_removes_the_value_and_the_key_monolith_created()
+    {
+        Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, GpuPreference.KeyPath));
+        await Set(GameA, true);
+        Assert.Equal("GpuPreference=2;", Read(GameA));
+
+        await Set(GameA, false);
+        Assert.Null(Read(GameA));
+        Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, GpuPreference.KeyPath));
+        Assert.Equal("keep", RegistryHelper.ReadString(RegHive.HKCU, GpuPreference.ParentPath, "Sentinel"));
+        Assert.Empty(new ChangeJournal(_journalPath).ActiveRecords);
+    }
+
+    [Fact]
+    public async Task On_then_off_restores_the_exact_previous_string_with_its_other_tokens()
+    {
+        const string before = "SwapEffectUpgradeEnable=1;GpuPreference=1;AutoHDREnable=2097;";
+        RegistryHelper.Write(RegHive.HKCU, GpuPreference.KeyPath, GameA, RegistryValueKind.String, before);
+
+        await Set(GameA, true);
+        Assert.Equal("SwapEffectUpgradeEnable=1;GpuPreference=2;AutoHDREnable=2097;", Read(GameA));
+
+        await Set(GameA, false);
+        Assert.Equal(before, Read(GameA));
+    }
+
+    [Fact]
+    public async Task Undoing_one_game_leaves_the_other_game_alone()
+    {
+        await Set(GameA, true);
+        await Set(GameB, true);
+
+        await Set(GameA, false);
+        Assert.Null(Read(GameA));
+        Assert.Equal("GpuPreference=2;", Read(GameB));
+        var active = new ChangeJournal(_journalPath).ActiveRecords;
+        Assert.Single(active);
+        Assert.Equal(GpuPreference.JournalTarget(GameB), active[0].Target);
+    }
+
+    [Fact]
+    public async Task A_choice_made_in_windows_is_changed_through_the_journal_and_comes_back_on_revert()
+    {
+        RegistryHelper.Write(RegHive.HKCU, GpuPreference.KeyPath, GameA, RegistryValueKind.String, "GpuPreference=2;");
+
+        await Set(GameA, false);
+        Assert.Equal("GpuPreference=0;", Read(GameA));
+
+        var result = await new ChangeJournal(_journalPath).RevertAllAsync();
+        Assert.True(result.Success, string.Join("; ", result.Errors));
+        Assert.Equal("GpuPreference=2;", Read(GameA));
+    }
 }
