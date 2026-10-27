@@ -124,29 +124,41 @@ public static class GamePaths
     }
 
     /// <summary>
-    /// A folder specific enough to identify one game: not a drive root and not a shared top-level
-    /// folder like "C:\Games\" or "C:\Program Files\". Process matching by prefix is only safe for those.
+    /// A folder specific enough to identify one game: not a drive root and not a shared folder where many unrelated
+    /// programs live ("C:\Program Files\", the user profile, Desktop, Downloads, Documents, AppData…).
+    /// Process matching by prefix is only safe for those — a game launched through the shell has no PID to go by.
     /// </summary>
     public static bool IsSpecificDir(string normalizedDir)
     {
         if (string.IsNullOrEmpty(normalizedDir)) return false;
         var parts = normalizedDir.TrimEnd('\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2) return false; // "C:\"
-        var system = new[]
-        {
+        foreach (var s in SharedFolders.Value)
+            if (string.Equals(s, normalizedDir, StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
+
+    private static readonly Lazy<IReadOnlyList<string>> SharedFolders = new(() =>
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string[] raw =
+        [
             Environment.GetFolderPath(Environment.SpecialFolder.Windows),
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            profile,
             Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-        };
-        foreach (var s in system)
-        {
-            if (string.IsNullOrEmpty(s)) continue;
-            if (string.Equals(NormalizeDir(s), normalizedDir, StringComparison.OrdinalIgnoreCase)) return false;
-        }
-        return true;
-    }
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            string.IsNullOrEmpty(profile) ? "" : Path.Combine(profile, "Downloads"),
+            Path.GetTempPath(),
+        ];
+        return raw.Where(s => !string.IsNullOrEmpty(s)).Select(NormalizeDir).Where(s => s.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    });
 
     /// <summary>"C:/x/y.exe,0" or "\"C:\x\y.exe\"" → "C:\x\y.exe"; null when not an .exe.</summary>
     public static string? ExeFromIconValue(string? value)

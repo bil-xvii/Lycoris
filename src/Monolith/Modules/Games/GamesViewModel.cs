@@ -23,7 +23,7 @@ public sealed partial class GamesViewModel : PageViewModel
     public override string Key => "games";
     public override string Index => "03";
     public override string Title => "ИГРЫ";
-    public override string Subtitle => "Библиотека игр и игровой режим: максимум ресурсов игре, пока она запущена.";
+    public override string Subtitle => "Библиотека игр и ускорение на время игры: схема питания, приоритет процесса, закрытие лишних программ.";
     public override string Glyph => Glyphs.Game;
 
     public GamesViewModel()
@@ -84,14 +84,14 @@ public sealed partial class GamesViewModel : PageViewModel
     public bool CanStartBoost => IsElevated && !Boost.IsActive && !Boost.IsTransitioning;
     public bool CanLaunchBoosted => IsElevated && !Boost.IsActive && !Boost.IsTransitioning;
     public string BoostTooltip => !IsElevated
-        ? "Игровой режим меняет схему питания — нужны права администратора."
+        ? "Ускорение игры меняет схему питания и приоритет процессов — нужны права администратора."
         : Boost.IsActive
-            ? "Игровой режим уже работает — сначала остановите текущий сеанс."
-            : "Запустить игру и на время игры включить игровой режим.";
+            ? "Ускорение уже работает — сначала остановите текущий сеанс."
+            : "Запустить игру и на время игры включить ускорение.";
     public bool IsBoostIdle => !Boost.IsActive;
     public string BoostStatus => Boost.IsTransitioning && !Boost.IsActive ? "ЗАПУСК"
-        : Boost.IsActive ? (string.IsNullOrEmpty(Boost.PhaseText) ? "АКТИВЕН" : Boost.PhaseText)
-        : IsElevated ? "ВЫКЛЮЧЕН" : "НЕДОСТУПЕН";
+        : Boost.IsActive ? (string.IsNullOrEmpty(Boost.PhaseText) ? "АКТИВНО" : Boost.PhaseText)
+        : IsElevated ? "ВЫКЛЮЧЕНО" : "НЕДОСТУПНО";
 
     // ───────────────────────────── Readiness state ─────────────────────────────
 
@@ -291,25 +291,22 @@ public sealed partial class GamesViewModel : PageViewModel
     }
 
     [RelayCommand]
-    private void OpenFolder(GameCardViewModel? card)
+    private async Task OpenFolder(GameCardViewModel? card)
     {
         if (card is null) return;
-        try { GameLauncher.OpenFolder(card.Entry); }
+        try { await GameLauncher.OpenFolderAsync(card.Entry); }
         catch (Exception ex) { Ui.Toast(ex.Message, ToastKind.Warning, "ПАПКА ИГРЫ"); }
     }
 
+    /// <summary>ИГРАТЬ: a plain launch as the signed-in user (never with MONOLITH's admin token), nothing in the system changes.</summary>
     [RelayCommand]
     private async Task Play(GameCardViewModel? card)
     {
         if (card is null) return;
         try
         {
-            await Task.Run(() => GameLauncher.Launch(card.Entry));
+            await GameLauncher.LaunchAsync(card.Entry);
             Ui.Toast($"Запуск «{card.Name}»…", ToastKind.Info);
-        }
-        catch (OperationCanceledException ex)
-        {
-            Ui.Toast(ex.Message, ToastKind.Warning, "ЗАПУСК ИГРЫ");
         }
         catch (Exception ex)
         {
@@ -330,20 +327,20 @@ public sealed partial class GamesViewModel : PageViewModel
     private async Task StopBoost()
     {
         if (!Boost.IsActive) return;
-        await Boost.StopAsync("Игровой режим остановлен вручную, изменения отменены.");
+        await Boost.StopAsync("Ускорение остановлено вручную.");
     }
 
     private async Task StartBoostFlowAsync(GameEntry? game)
     {
-        if (!RequireAdmin("Игровой режим")) return;
+        if (!RequireAdmin(GameBoostService.DisplayName)) return;
         if (Boost.IsActive || Boost.IsTransitioning)
         {
-            Ui.Toast("Игровой режим уже работает. Сначала остановите текущий сеанс кнопкой «СТОП».", ToastKind.Warning, "ИГРОВОЙ РЕЖИМ");
+            Ui.Toast("Ускорение уже работает. Сначала остановите текущий сеанс кнопкой «СТОП».", ToastKind.Warning, "УСКОРЕНИЕ ИГРЫ");
             return;
         }
         if (game is { IsAvailable: false })
         {
-            Ui.Toast($"Файл игры не найден: {game.ExePath}", ToastKind.Warning, "ИГРОВОЙ РЕЖИМ");
+            Ui.Toast($"Файл игры не найден: {game.ExePath}", ToastKind.Warning, "УСКОРЕНИЕ ИГРЫ");
             return;
         }
 
@@ -354,13 +351,13 @@ public sealed partial class GamesViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Error("Игровой режим: не удалось подготовить сеанс", ex);
-            Ui.Toast(ex.Message, ToastKind.Error, "ИГРОВОЙ РЕЖИМ");
+            Log.Error("Ускорение игры: не удалось подготовить сеанс", ex);
+            Ui.Toast(ex.Message, ToastKind.Error, "УСКОРЕНИЕ ИГРЫ");
             return;
         }
 
         var ok = await Ui.ConfirmAsync(
-            game is null ? "ВКЛЮЧИТЬ ИГРОВОЙ РЕЖИМ?" : "ИГРАТЬ С УСКОРЕНИЕМ?",
+            game is null ? "ВКЛЮЧИТЬ УСКОРЕНИЕ ИГРЫ?" : "ИГРАТЬ С УСКОРЕНИЕМ?",
             game is null
                 ? "На время сеанса MONOLITH сделает следующее:"
                 : $"MONOLITH запустит «{game.Name}» и на время игры сделает следующее:",
@@ -434,7 +431,7 @@ public sealed partial class GamesViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"Игровой режим: не удалось определить план питания — {ex.Message}");
+            Log.Warn($"Ускорение игры: не удалось определить план питания — {ex.Message}");
             PowerNote = "Не удалось определить текущий план питания.";
         }
     }
@@ -460,8 +457,16 @@ public sealed partial class GamesViewModel : PageViewModel
         var records = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == GameBoostService.Source).ToList();
         HasStaleBoost = records.Count > 0;
         StaleText = records.Count == 0 ? ""
-            : "Прошлый сеанс игрового режима не завершился (MONOLITH был закрыт аварийно). Всё ещё действует: " +
-              string.Join("; ", records.Select(r => $"{r.Title.Replace("Игровой режим: ", "")} — «{r.NewValue}» вместо «{r.OldValue}»")) + ".";
+            : "Прошлый сеанс ускорения игры не завершился (MONOLITH был закрыт аварийно). Всё ещё действует: " +
+              string.Join("; ", records.Select(r => $"{StaleTitle(r.Title)} — «{r.NewValue}» вместо «{r.OldValue}»")) + ".";
+    }
+
+    /// <summary>"Ускорение игры: план питания" → "план питания" (records of older versions say "Игровой режим: …").</summary>
+    private static string StaleTitle(string title)
+    {
+        foreach (var prefix in new[] { "Ускорение игры: ", "Игровой режим: " })
+            if (title.StartsWith(prefix, StringComparison.Ordinal)) return title[prefix.Length..];
+        return title;
     }
 
     private async Task OfferStaleRestoreAsync()
@@ -471,21 +476,21 @@ public sealed partial class GamesViewModel : PageViewModel
         var details = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == GameBoostService.Source)
             .Select(r => $"{r.Title}: сейчас «{r.NewValue}», было «{r.OldValue}»").ToList();
         var ok = await Ui.ConfirmAsync("ВЕРНУТЬ НАСТРОЙКИ?",
-            "Прошлый сеанс игрового режима не завершился — MONOLITH был закрыт аварийно. Эти временные изменения всё ещё действуют. Вернуть исходные значения?",
+            "Прошлый сеанс ускорения игры не завершился — MONOLITH был закрыт аварийно. Эти временные изменения всё ещё действуют. Вернуть исходные значения?",
             details, "ВЕРНУТЬ", "ПОЗЖЕ",
-            footnote: "Это можно сделать и позже: здесь или в «Центре отката».");
+            footnote: "Это можно сделать и позже: здесь или в разделе «Восстановление».");
         if (ok) await RestoreStale();
     }
 
     [RelayCommand]
     private async Task RestoreStale()
     {
-        if (!RequireAdmin("Вернуть настройки игрового режима")) return;
-        await RunBusyAsync("Откат игрового режима…", async () =>
+        if (!RequireAdmin("Вернуть настройки ускорения игры")) return;
+        await RunBusyAsync("Откат ускорения игры…", async () =>
         {
             var r = await Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(GameBoostService.Source));
-            if (r.Success) Ui.Toast($"Исходные настройки возвращены (изменений: {r.Reverted}).", ToastKind.Success, "ИГРОВОЙ РЕЖИМ");
-            else Ui.Toast($"Не удалось вернуть: {string.Join("; ", r.Errors)}", ToastKind.Error, "ИГРОВОЙ РЕЖИМ");
+            if (r.Success) Ui.Toast($"Исходные настройки возвращены (изменений: {r.Reverted}).", ToastKind.Success, "УСКОРЕНИЕ ИГРЫ");
+            else Ui.Toast($"Не удалось вернуть: {string.Join("; ", r.Errors)}", ToastKind.Error, "УСКОРЕНИЕ ИГРЫ");
         });
         CheckStale();
         await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync());
@@ -619,8 +624,8 @@ public sealed partial class GamesViewModel : PageViewModel
         UpdateCloseList();
         IsEditorOpen = false;
         Log.Info(EditorList.Count == 0
-            ? "Игровой режим: список закрываемых приложений очищен."
-            : "Игровой режим: перед игрой закрывать " + string.Join(", ", EditorList));
+            ? "Ускорение игры: список закрываемых приложений очищен."
+            : "Ускорение игры: перед игрой закрывать " + string.Join(", ", EditorList));
         Ui.Toast(EditorList.Count == 0 ? "Список закрытия пуст." : $"Список закрытия сохранён: {EditorList.Count}.", ToastKind.Success);
     }
 

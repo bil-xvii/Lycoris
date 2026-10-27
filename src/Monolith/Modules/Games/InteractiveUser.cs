@@ -51,6 +51,12 @@ internal static class InteractiveUser
         return RegistryHelper.ReadString(hive, prefix + path, name);
     }
 
+    public static bool KeyExists(string path)
+    {
+        var (hive, prefix) = Hive;
+        return RegistryHelper.KeyExists(hive, prefix + path);
+    }
+
     private static (string? Own, string? Shell) Detect()
     {
         string? own = null, shell = null;

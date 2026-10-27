@@ -1,3 +1,4 @@
+using System.IO;
 using Monolith.Modules.Games;
 using Monolith.Modules.Games.Sources;
 
@@ -368,6 +369,19 @@ public sealed class GamesTests
         Assert.True(GamePaths.IsSpecificDir(@"D:\SteamLibrary\steamapps\common\Portal 2\"));
     }
 
+    [Fact]
+    public void User_folders_full_of_unrelated_programs_are_not_used_for_process_matching()
+    {
+        // A launched game has no PID: matching every process under Downloads or AppData would take other apps for the game.
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Assert.False(GamePaths.IsSpecificDir(GamePaths.NormalizeDir(Path.Combine(profile, "Downloads"))));
+        Assert.False(GamePaths.IsSpecificDir(GamePaths.NormalizeDir(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments))));
+        Assert.False(GamePaths.IsSpecificDir(GamePaths.NormalizeDir(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData))));
+        Assert.False(GamePaths.IsSpecificDir(GamePaths.NormalizeDir(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData))));
+        Assert.False(GamePaths.IsSpecificDir(GamePaths.NormalizeDir(Path.GetTempPath())));
+        Assert.True(GamePaths.IsSpecificDir(GamePaths.NormalizeDir(Path.Combine(profile, "Downloads", "SomeGame"))));
+    }
+
     [Theory]
     [InlineData("\"C:\\Games\\X\\game.exe\"", @"C:\Games\X\game.exe")]
     [InlineData(@"C:\Games\X\game.exe,0", @"C:\Games\X\game.exe")]
@@ -455,6 +469,50 @@ public sealed class GamesTests
     [InlineData(null, false)]
     public void Only_known_launch_urls_are_opened(string? uri, bool allowed) => Assert.Equal(allowed, GameLauncher.IsAllowedUri(uri));
 
+    [Theory]
+    [InlineData("steam://rungameid/570", "steam")]
+    [InlineData("com.epicgames.launcher://apps/Fortnite?action=launch&silent=true", "com.epicgames.launcher")]
+    [InlineData("uplay://launch/635/0", "uplay")]
+    [InlineData("no-scheme", null)]
+    [InlineData("", null)]
+    public void Launch_url_scheme_is_extracted_for_the_installed_check(string uri, string? scheme) =>
+        Assert.Equal(scheme, GameLauncher.SchemeOf(uri));
+
+    // ───────────────────────────── Game process detection (no PID from the shell launch) ─────────────────────────────
+
+    [Fact]
+    public void Exact_exe_is_the_game_own_exe_never_an_outside_launcher()
+    {
+        var dir = GamePaths.NormalizeDir(@"C:\Riot Games\VALORANT\live");
+        var riot = new GameEntry
+        {
+            Id = "riot:x", Name = "VALORANT", Platform = GamePlatform.Riot, InstallDir = dir,
+            ExePath = @"C:\Riot Games\Riot Client\RiotClientServices.exe",
+        };
+        Assert.Null(GameProcessFinder.ExactExe(riot, dir));
+
+        var gogDir = GamePaths.NormalizeDir(@"C:\GOG Games\Witcher 3");
+        var gog = Game("gog:1", "Witcher 3", GamePlatform.Gog, gogDir, @"C:\GOG Games\Witcher 3\bin\x64\witcher3.exe");
+        Assert.Equal(@"C:\GOG Games\Witcher 3\bin\x64\witcher3.exe", GameProcessFinder.ExactExe(gog, gogDir));
+
+        // User-added exe counts even when its folder is too broad for folder matching.
+        var desktop = GamePaths.NormalizeDir(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+        var custom = Game("custom:x", "Game", GamePlatform.Custom, desktop, Path.Combine(desktop, "game.exe"));
+        Assert.Equal(Path.Combine(desktop, "game.exe"), GameProcessFinder.ExactExe(custom, desktop));
+    }
+
+    [Fact]
+    public void Game_own_exe_ranks_first_then_memory()
+    {
+        var ranked = GameProcessFinder.Rank(
+        [
+            new GameProcess(10, "helper", @"D:\G\helper.exe", 900_000_000, false),
+            new GameProcess(20, "game", @"D:\G\game.exe", 100_000_000, true),
+            new GameProcess(30, "other", @"D:\G\other.exe", 500_000_000, false),
+        ]);
+        Assert.Equal([20, 10, 30], ranked.Select(p => p.Pid));
+    }
+
     // ───────────────────────────── Processes ─────────────────────────────
 
     [Theory]
@@ -514,32 +572,74 @@ public sealed class GamesTests
     [InlineData("", 16, false)]
     public void Dual_ccd_x3d_detection(string cpu, int cores, bool dual) => Assert.Equal(dual, BoostPolicy.IsDualCcdX3D(cpu, cores));
 
+    /// <summary>A desktop where every rule allows the switch; each test changes one fact.</summary>
+    private static readonly PowerFacts Desktop = new(
+        Enabled: true, DualCcdX3D: false, Laptop: false, OnBattery: false, ModernStandby: false,
+        ManagedElsewhere: false, HighPerformanceExists: true, AlreadyFast: false);
+
     [Fact]
     public void Power_plan_switches_only_when_every_rule_allows_it()
     {
-        Assert.Equal(PowerPlanAction.Switch, BoostPolicy.DecidePowerPlan(true, false, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipDisabled, BoostPolicy.DecidePowerPlan(false, false, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(true, false, true, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipModernStandby, BoostPolicy.DecidePowerPlan(true, false, false, true, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipAlreadyFast, BoostPolicy.DecidePowerPlan(true, false, false, false, false, true, true));
-        Assert.Equal(PowerPlanAction.SkipManagedElsewhere, BoostPolicy.DecidePowerPlan(true, false, false, false, true, true, false));
-        Assert.Equal(PowerPlanAction.SkipUnavailable, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, false));
+        Assert.Equal(PowerPlanAction.Switch, BoostPolicy.DecidePowerPlan(Desktop));
+        Assert.Equal(PowerPlanAction.SkipDisabled, BoostPolicy.DecidePowerPlan(Desktop with { Enabled = false }));
+        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(Desktop with { DualCcdX3D = true }));
+        Assert.Equal(PowerPlanAction.SkipLaptop, BoostPolicy.DecidePowerPlan(Desktop with { Laptop = true }));
+        Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(Desktop with { OnBattery = true }));
+        Assert.Equal(PowerPlanAction.SkipModernStandby, BoostPolicy.DecidePowerPlan(Desktop with { ModernStandby = true }));
+        Assert.Equal(PowerPlanAction.SkipAlreadyFast, BoostPolicy.DecidePowerPlan(Desktop with { AlreadyFast = true }));
+        Assert.Equal(PowerPlanAction.SkipManagedElsewhere, BoostPolicy.DecidePowerPlan(Desktop with { ManagedElsewhere = true }));
+        Assert.Equal(PowerPlanAction.SkipUnavailable, BoostPolicy.DecidePowerPlan(Desktop with { HighPerformanceExists = false }));
     }
 
     [Fact]
     public void Dual_ccd_x3d_wins_over_every_other_reason()
     {
-        // Even on battery and with the setting on, the X3D rule is the one reported.
-        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, true, true, true, false, true));
+        // Even on a laptop on battery with the setting on, the X3D rule is the one reported.
+        var everything = new PowerFacts(true, true, true, true, true, true, false, true);
+        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(everything));
     }
+
+    [Theory]
+    [InlineData(false)] // plugged in
+    [InlineData(true)]  // on battery
+    public void Laptops_never_get_high_performance_plugged_in_or_not(bool onBattery)
+    {
+        // gaming_tweaks.md power-plan-high: SAFE-OPTIONAL for desktops only.
+        Assert.Equal(PowerPlanAction.SkipLaptop, BoostPolicy.DecidePowerPlan(Desktop with { Laptop = true, OnBattery = onBattery }));
+    }
+
+    [Theory]
+    [InlineData(true, true, true)]    // the session's plan is active and the PC unplugged → give it back now
+    [InlineData(true, false, false)]  // still on mains → keep
+    [InlineData(false, true, false)]  // the session did not switch (or already released) → nothing to do
+    [InlineData(false, false, false)]
+    public void Session_plan_is_released_when_the_pc_goes_on_battery(bool switched, bool onBattery, bool release) =>
+        Assert.Equal(release, BoostPolicy.ShouldReleasePlanOnBattery(switched, onBattery));
 
     [Fact]
     public void Power_descriptions_are_specific()
     {
         Assert.Contains("«Сбалансированная» → «Высокая производительность»", BoostPolicy.Describe(PowerPlanAction.Switch, "Сбалансированная", ""));
+        Assert.Contains("переходе на батарею", BoostPolicy.Describe(PowerPlanAction.Switch, "Сбалансированная", ""));
         Assert.Contains("Ryzen 9 7950X3D 16-Core", BoostPolicy.Describe(PowerPlanAction.SkipDualCcdX3D, "x", "AMD Ryzen 9 7950X3D 16-Core Processor"));
+        Assert.Contains("с двумя CCD", BoostPolicy.Describe(PowerPlanAction.SkipDualCcdX3D, "x", "AMD Ryzen 9 7950X3D 16-Core Processor"));
         Assert.Contains("батареи", BoostPolicy.Describe(PowerPlanAction.SkipOnBattery, "x", ""));
+        var laptop = BoostPolicy.Describe(PowerPlanAction.SkipLaptop, "x", "");
+        Assert.Contains("ноутбук", laptop);
+        Assert.Contains("0–2 %", laptop);
+        Assert.Contains("Питание и батарея", laptop);
+    }
+
+    [Fact]
+    public void Boost_texts_never_call_the_session_windows_game_mode()
+    {
+        // «Игровой режим» is the Windows feature; MONOLITH's session is «Ускорение игры».
+        foreach (var action in Enum.GetValues<PowerPlanAction>())
+        {
+            var text = BoostPolicy.Describe(action, "Сбалансированная", "AMD Ryzen 9 7950X3D 16-Core Processor");
+            var at = text.IndexOf("игровой режим", StringComparison.OrdinalIgnoreCase);
+            Assert.True(at < 0 || text[at..].StartsWith("игровой режим Windows", StringComparison.OrdinalIgnoreCase), text);
+        }
     }
 
     [Fact]
@@ -553,7 +653,33 @@ public sealed class GamesTests
         Assert.Contains(lines, l => l.Contains("Discord (3), chrome") && l.Contains("принудительное завершение — только после отдельного вопроса"));
         Assert.Contains(lines, l => l.Contains("«Высокий»") && l.Contains("никогда «Реального времени»"));
         Assert.DoesNotContain(lines, l => l.Contains("standby"));
-        Assert.Contains(lines, l => l.Contains("«Counter-Strike 2»"));
+        Assert.Contains(lines, l => l.Contains("«Counter-Strike 2»") && l.Contains("правами пользователя"));
+    }
+
+    [Fact]
+    public void Boost_plan_is_honest_that_closed_apps_are_not_reopened()
+    {
+        var plan = new BoostPlan(PowerPlanAction.Switch, "План питания: A → B.", [new RunningApp("Discord", "", 1, 0, true)], [], true, false);
+        var lines = plan.Describe(Game("steam:730", "Counter-Strike 2", GamePlatform.Steam, @"D:\cs2"));
+        Assert.Contains(lines, l => l.Contains("Discord") && l.Contains("не открывает"));
+        Assert.DoesNotContain(lines, l => l.Contains("всё вернётся", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void End_message_says_what_came_back_and_what_did_not()
+    {
+        var msg = BoostPolicy.EndMessage("«CS2» закрыта — ускорение выключено.", 1, 0, 1, ["Discord", "chrome"]);
+        Assert.StartsWith("«CS2» закрыта — ускорение выключено.", msg);
+        Assert.Contains("План питания возвращён.", msg);
+        Assert.Contains("Приоритет игры возвращён.", msg);
+        Assert.Contains("Закрытые программы (Discord, chrome) MONOLITH заново не открывает", msg);
+
+        // Nothing was changed: the message claims nothing.
+        Assert.Equal("Ускорение остановлено вручную.", BoostPolicy.EndMessage("Ускорение остановлено вручную.", 0, 0, 0, []));
+
+        var failed = BoostPolicy.EndMessage("Стоп.", 0, 2, 0, []);
+        Assert.Contains("2 изменения", failed);
+        Assert.Contains("«Восстановление»", failed);
     }
 
     [Fact]
@@ -596,7 +722,7 @@ public sealed class GamesTests
 
         var old = GamingReadiness.GpuFromInfo("AMD Radeon RX 6600", "31.0.1", new DateTime(2025, 1, 10), now);
         Assert.Equal(ReadinessState.Attention, old.State);
-        Assert.Contains("«Драйверы»", old.Hint);
+        Assert.Contains("«Железо и драйверы»", old.Hint);
 
         Assert.Equal(ReadinessState.Info, GamingReadiness.GpuFromInfo("GPU", "", null, now).State);
     }
@@ -607,6 +733,32 @@ public sealed class GamesTests
     [InlineData("Intel(R) Arc(TM) A770 Graphics", "Arc A770 Graphics")]
     [InlineData("Microsoft Basic Display Adapter", "Microsoft Basic Display Adapter")]
     public void Gpu_names_are_shortened(string name, string expected) => Assert.Equal(expected, GamingReadiness.ShortGpuName(name));
+
+    [Fact]
+    public void Readiness_power_plan_on_a_laptop_does_not_push_high_performance()
+    {
+        var balanced = Monolith.Core.PowerSchemes.Balanced;
+        var laptop = GamingReadiness.PowerPlanFromFacts(balanced, "Сбалансированная", dualCcdX3D: false, laptop: true, onBattery: false);
+        Assert.Equal(ReadinessState.Info, laptop.State);
+        Assert.Contains("схему не меняет", laptop.Hint);
+
+        var desktop = GamingReadiness.PowerPlanFromFacts(balanced, "Сбалансированная", dualCcdX3D: false, laptop: false, onBattery: false);
+        Assert.Contains("Ускорение игры", desktop.Hint);
+        Assert.DoesNotContain("Игровой режим", desktop.Hint);
+
+        var battery = GamingReadiness.PowerPlanFromFacts(balanced, "Сбалансированная", dualCcdX3D: false, laptop: true, onBattery: true);
+        Assert.Contains("батареи", battery.Hint);
+    }
+
+    [Fact]
+    public void Readiness_power_plan_on_dual_ccd_x3d_wants_balanced()
+    {
+        var high = GamingReadiness.PowerPlanFromFacts(Monolith.Core.PowerSchemes.HighPerformance, "Высокая производительность", true, false, false);
+        Assert.Equal(ReadinessState.Attention, high.State);
+        Assert.Contains("с двумя CCD", high.Hint);
+        Assert.Equal(ReadinessState.Ok,
+            GamingReadiness.PowerPlanFromFacts(Monolith.Core.PowerSchemes.Balanced, "Сбалансированная", true, true, true).State);
+    }
 
     [Fact]
     public void Readiness_score_ignores_info_checks()

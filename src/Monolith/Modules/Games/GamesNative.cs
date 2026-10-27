@@ -107,13 +107,13 @@ internal static class GamesNative
 
     // ───────────────────────────── Power ─────────────────────────────
 
-    /// <summary>Laptop running on battery right now (ACLineStatus = 0 and a system battery exists).</summary>
+    /// <summary>Running on battery right now (ACLineStatus = 0 and a system battery exists).</summary>
     public static bool IsOnBattery()
     {
         try
         {
             if (!GetSystemPowerStatus(out var s)) return false;
-            if ((s.BatteryFlag & 128) != 0) return false; // no system battery
+            if ((s.BatteryFlag & 128) != 0 || s.BatteryFlag == 255) return false; // no system battery / unknown
             return s.ACLineStatus == 0;
         }
         catch
@@ -123,16 +123,33 @@ internal static class GamesNative
     }
 
     /// <summary>Modern Standby (S0 low power idle): SYSTEM_POWER_CAPABILITIES.AoAc (byte offset 20).</summary>
-    public static bool IsModernStandby()
+    public static bool IsModernStandby() => ReadPowerCapabilities() is { } caps && caps[CapsAoAc] != 0;
+
+    /// <summary>
+    /// Portable PC according to the power manager: the machine has a lid, or a long-term system battery
+    /// (SystemBatteriesPresent without BatteriesAreShortTerm — a UPS reports short-term batteries and does not count).
+    /// A second opinion next to SystemProfile.IsLaptop, which depends on WMI.
+    /// </summary>
+    public static bool IsPortable() =>
+        ReadPowerCapabilities() is { } caps &&
+        (caps[CapsLidPresent] != 0 || (caps[CapsSystemBatteriesPresent] != 0 && caps[CapsBatteriesAreShortTerm] == 0));
+
+    // SYSTEM_POWER_CAPABILITIES byte offsets (winnt.h): every field before BatteryScale is one byte.
+    private const int CapsLidPresent = 2;
+    private const int CapsAoAc = 20;
+    private const int CapsSystemBatteriesPresent = 30;
+    private const int CapsBatteriesAreShortTerm = 31;
+
+    private static byte[]? ReadPowerCapabilities()
     {
         try
         {
             var caps = new byte[128]; // SYSTEM_POWER_CAPABILITIES is 76 bytes
-            return GetPwrCapabilities(caps) && caps[20] != 0;
+            return GetPwrCapabilities(caps) ? caps : null;
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 

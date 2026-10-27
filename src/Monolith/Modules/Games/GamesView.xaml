@@ -98,7 +98,7 @@
                             </Grid.ColumnDefinitions>
                             <Button Style="{StaticResource Btn.Primary}" Height="32" Padding="10,0" FontSize="11.5" IsEnabled="{Binding IsAvailable}"
                                     Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
-                                    CommandParameter="{Binding}" ToolTip="Обычный запуск, без изменений в системе">
+                                    CommandParameter="{Binding}" ToolTip="Обычный запуск с правами пользователя, без изменений в системе">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="9.5" VerticalAlignment="Center" Margin="0,0,7,0" />
                                     <TextBlock Text="ИГРАТЬ" VerticalAlignment="Center" />
@@ -396,7 +396,7 @@
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                     <TextBlock Style="{StaticResource T.Body}" Margin="0,16,0,0" MaxWidth="540" HorizontalAlignment="Left"
-                                               Text="MONOLITH проверил лаунчеры ниже и не нашёл установленных игр. Если игра стоит отдельно от лаунчера — добавьте её вручную: укажите .exe файл, и у неё появятся кнопки запуска и игрового режима." />
+                                               Text="MONOLITH проверил лаунчеры ниже и не нашёл установленных игр. Если игра стоит отдельно от лаунчера — добавьте её вручную: укажите .exe файл, и у неё появятся кнопки «ИГРАТЬ» и «С УСКОРЕНИЕМ»." />
                                     <TextBlock Text="ПРОВЕРЕННЫЕ ЛАУНЧЕРЫ" Style="{StaticResource T.Label}" Margin="0,22,0,8" />
                                     <ItemsControl ItemsSource="{Binding Sources}" ItemTemplate="{StaticResource Games.SourceCell}"
                                                   MaxWidth="560" HorizontalAlignment="Left" Focusable="False">
@@ -446,7 +446,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="GAME BOOST" Style="{StaticResource T.Label}" />
-                                    <TextBlock Text="ИГРОВОЙ РЕЖИМ" Style="{StaticResource T.H1}" FontSize="22" Margin="0,1,0,0" />
+                                    <TextBlock Text="УСКОРЕНИЕ ИГРЫ" Style="{StaticResource T.H1}" FontSize="22" Margin="0,1,0,0" />
                                 </StackPanel>
                                 <Border Grid.Column="2" VerticalAlignment="Top" Margin="8,2,0,0">
                                     <Border.Style>
@@ -495,7 +495,7 @@
                             <!-- Idle: what it does + options -->
                             <StackPanel Margin="20,14,20,0" Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Style="{StaticResource T.Body}"
-                                           Text="На время игры: схема питания, приоритет игры и закрытие лишних программ. После выхода из игры всё возвращается само." />
+                                           Text="На время игры: схема питания, приоритет игры и закрытие лишних программ. Схема питания и приоритет возвращаются сами; закрытые программы MONOLITH заново не открывает." />
 
                                 <!-- Read-only explanation -->
                                 <Border Style="{StaticResource Callout}" Padding="0" Margin="0,14,0,0"
@@ -509,7 +509,7 @@
                                         <StackPanel Grid.Column="1" Margin="14,11,14,12">
                                             <TextBlock Text="НУЖНЫ ПРАВА АДМИНИСТРАТОРА" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                             <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,0" LineHeight="16"
-                                                       Text="Игровой режим меняет схему питания Windows, поэтому без прав администратора выключен. Библиотека и обычный запуск игр работают." />
+                                                       Text="Ускорение игры меняет схему питания и приоритет процессов, поэтому без прав администратора выключено. Библиотека и обычный запуск игр работают." />
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -529,7 +529,7 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <Button Style="{StaticResource Btn.Primary}" Height="30" FontSize="11.5" Padding="12,0" Content="ВЕРНУТЬ НАСТРОЙКИ"
                                                         Command="{Binding RestoreStaleCommand}" IsEnabled="{Binding IsElevated}" Margin="0,0,8,0" />
-                                                <Button Height="30" FontSize="11.5" Padding="12,0" Content="ЦЕНТР ОТКАТА" Command="{Binding GoRestoreCommand}" />
+                                                <Button Height="30" FontSize="11.5" Padding="12,0" Content="ВОССТАНОВЛЕНИЕ" Command="{Binding GoRestoreCommand}" />
                                             </StackPanel>
                                         </StackPanel>
                                     </Grid>
@@ -547,7 +547,7 @@
                                         <TextBlock Text="{Binding PowerNote}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding Settings.GameBoostPowerPlan}"
-                                              VerticalAlignment="Top" Margin="0,14,0,0" ToolTip="«Высокая производительность» на время игры" />
+                                              VerticalAlignment="Top" Margin="0,14,0,0" ToolTip="«Высокая производительность» на время игры — только на настольных ПК (не на ноутбуках и не на Ryzen X3D с двумя CCD)" />
                                 </Grid>
                                 <Grid Margin="0,14,0,0">
                                     <Grid.ColumnDefinitions>
@@ -617,14 +617,14 @@
                                         Visibility="{Binding Boost.IsActive, Converter={StaticResource BoolToVis}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <TextBlock Text="СТОП И ВЕРНУТЬ ВСЁ" VerticalAlignment="Center" />
+                                        <TextBlock Text="СТОП И ВЕРНУТЬ НАСТРОЙКИ" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
                             <TextBlock Margin="20,10,20,20" LineHeight="16">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
-                                        <Setter Property="Text" Value="Или нажмите «С УСКОРЕНИЕМ» на карточке игры: режим включится вместе с игрой и выключится, когда вы из неё выйдете." />
+                                        <Setter Property="Text" Value="Или нажмите «С УСКОРЕНИЕМ» на карточке игры: ускорение включится вместе с игрой и выключится, когда вы из неё выйдете." />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Boost.IsActive}" Value="True">
                                                 <Setter Property="Text" Value="Схема питания вернётся к прежней, приоритет игры — к обычному. Закрытые программы откройте сами, если они нужны." />
@@ -662,7 +662,7 @@
                                        Visibility="{Binding ReadinessLoaded, Converter={StaticResource InverseBoolToVis}}" />
                             <ItemsControl ItemsSource="{Binding Readiness}" ItemTemplate="{StaticResource Games.ReadinessRow}" Focusable="False" />
                             <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text4}" Margin="0,2,0,12" LineHeight="16"
-                                       Text="Только чтение: здесь ничего не меняется. Исправить — в разделах «Оптимизация» и «Драйверы»." />
+                                       Text="Только чтение: здесь ничего не меняется. Исправить — в разделах «Оптимизация» и «Железо и драйверы»." />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -677,7 +677,7 @@
                                 </Button>
                                 <Button Grid.Column="2" Command="{Binding GoDriversCommand}" Padding="8,0" FontSize="11.5">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="ДРАЙВЕРЫ" VerticalAlignment="Center" />
+                                        <TextBlock Text="ЖЕЛЕЗО И ДРАЙВЕРЫ" VerticalAlignment="Center" />
                                         <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center" Margin="8,1,0,0" />
                                     </StackPanel>
                                 </Button>
@@ -706,7 +706,7 @@
                     <StackPanel Margin="28,28,28,0">
                         <TextBlock Text="ЗАКРЫВАТЬ ПЕРЕД ИГРОЙ" Style="{StaticResource T.H1}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="760" HorizontalAlignment="Left"
-                                   Text="Отметьте программы, которые игровой режим закроет перед запуском игры: браузеры, мессенджеры, облачные клиенты. Системные процессы, драйверы, античиты и лаунчеры сюда не попадают. Закрытые программы после игры сами не откроются." />
+                                   Text="Отметьте программы, которые MONOLITH закроет перед игрой с ускорением: браузеры, мессенджеры, облачные клиенты. Системные процессы, драйверы, античиты и лаунчеры сюда не попадают. Закрытые программы MONOLITH после игры заново не открывает — запускайте их сами." />
                     </StackPanel>
 
                     <Grid Grid.Row="1" Margin="28,20,28,0" Height="330">
