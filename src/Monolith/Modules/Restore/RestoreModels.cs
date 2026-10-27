@@ -4,9 +4,17 @@ using Monolith.Core;
 namespace Monolith.Modules.Restore;
 
 /// <summary>One journal record as shown in the undo center.</summary>
-public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null)
+public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null, string note = "", bool otherUser = false)
 {
     public ChangeRecord Record { get; } = record;
+    /// <summary>Whose change it is, which newer change now sets the value, how the revert went (see <see cref="RestoreFormat.RecordNote"/>).</summary>
+    public string Note { get; } = note;
+    public bool HasNote => Note.Length > 0;
+    /// <summary>A change in another account's profile: shown, never reverted from here.</summary>
+    public bool IsOtherUser { get; } = otherUser;
+    public bool CanRevert => IsActive && !IsOtherUser;
+    /// <summary>The value read back after the revert differs from the original.</summary>
+    public bool IsMismatch => Record.Reverted && Record.RevertMismatch is not null;
     /// <summary>Set when the live value no longer equals what MONOLITH set (changed by Windows or another program).</summary>
     public DriftItem? Drift { get; } = drift;
     public bool IsDrifted => Drift is not null && !Record.Reverted;
@@ -31,16 +39,16 @@ public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null)
 }
 
 /// <summary>A batch ("пакет") of changes made by one action.</summary>
-public sealed class BatchItem(JournalGroup group, IReadOnlyDictionary<Guid, DriftItem>? drift = null)
+public sealed class BatchItem(JournalGroup group, Func<ChangeRecord, RecordItem> item)
 {
     public JournalGroup Group { get; } = group;
     public Guid Id => Group.Batch.Id;
     public string Title => Group.Batch.Title.Length > 0 ? Group.Batch.Title : "Без названия";
     public string DateText => RestoreFormat.FormatDate(Group.Batch.Timestamp);
-    public IReadOnlyList<RecordItem> Records { get; } = group.Records.Select(r => new RecordItem(r, drift?.GetValueOrDefault(r.Id))).ToList();
+    public IReadOnlyList<RecordItem> Records { get; } = group.Records.Select(item).ToList();
     public int ActiveCount => Group.ActiveCount;
     public int TotalCount => Group.TotalCount;
-    public bool CanRevert => ActiveCount > 0;
+    public bool CanRevert => Group.RevertibleCount > 0;
     public bool IsEmpty => TotalCount == 0;
     public bool IsSynthetic => Group.IsSynthetic;
     public bool HasRestorePointInfo => !IsSynthetic;

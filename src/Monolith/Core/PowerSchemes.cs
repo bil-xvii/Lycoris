@@ -54,6 +54,20 @@ public static class PowerSchemes
 
     public static bool Exists(Guid scheme) => List().Any(s => s.Id == scheme);
 
+    /// <summary>
+    /// Whether the scheme exists; null when the plans could not be listed at all, so a failed enumeration is never
+    /// mistaken for "the scheme is gone".
+    /// </summary>
+    public static bool? TryExists(Guid scheme)
+    {
+        var list = List();
+        return list.Count == 0 ? null : list.Any(s => s.Id == scheme);
+    }
+
+    /// <summary>Plans Windows ships (never deleted by MONOLITH) and the hidden Ultimate template.</summary>
+    public static bool IsBuiltIn(Guid scheme) =>
+        scheme == Balanced || scheme == HighPerformance || scheme == PowerSaver || scheme == UltimateTemplate;
+
     public static string GetName(Guid scheme)
     {
         uint size = 0;
@@ -86,7 +100,7 @@ public static class PowerSchemes
 
     public static void Delete(Guid scheme)
     {
-        if (scheme == Balanced || scheme == HighPerformance || scheme == PowerSaver) return; // never delete built-ins
+        if (IsBuiltIn(scheme) || scheme == Guid.Empty) return; // never delete built-ins (or the template)
         SafetyLock.ThrowIfLocked("удаление плана питания");
         if (GetActive() == scheme) return;
         PowerDeleteScheme(IntPtr.Zero, ref scheme);

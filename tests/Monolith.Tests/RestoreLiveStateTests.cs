@@ -27,6 +27,36 @@ public sealed class RestoreLiveStateTests
         Assert.Null(LiveState.IsDrift(ChangeKind.Service, applied, live));
 
     [Fact]
+    public void Revert_check_compares_the_restored_registry_value_exactly()
+    {
+        RegistryValueSnapshot Snap(bool existed, RegistryValueKind kind = RegistryValueKind.DWord, string? data = null) =>
+            new() { Hive = RegHive.HKCU, Path = "P", Name = "N", ValueExisted = existed, Kind = kind, Data = data };
+
+        Assert.True(LiveState.CompareRegistry(Snap(false), Snap(false)).Matches);
+        Assert.True(LiveState.CompareRegistry(Snap(true, data: "7"), Snap(true, data: "7")).Matches);
+        var changed = LiveState.CompareRegistry(Snap(true, data: "7"), Snap(true, data: "1"));
+        Assert.False(changed.Matches);
+        Assert.Equal("сейчас DWord: 1, ожидалось DWord: 7", changed.MismatchText);
+        Assert.False(LiveState.CompareRegistry(Snap(false), Snap(true, data: "0")).Matches);
+        Assert.Equal("сейчас DWord: 0, ожидалось значения нет", LiveState.CompareRegistry(Snap(false), Snap(true, data: "0")).MismatchText);
+        Assert.False(LiveState.CompareRegistry(Snap(true, RegistryValueKind.String, "7"), Snap(true, RegistryValueKind.DWord, "7")).Matches);
+    }
+
+    [Fact]
+    public void Revert_check_compares_the_service_start_and_its_delayed_flag()
+    {
+        var original = new ServiceStartSnapshot("Svc", System.ServiceProcess.ServiceStartMode.Manual, false, RawDelayed: true);
+        Assert.True(LiveState.CompareService(original, original).Matches);
+        var flagLost = LiveState.CompareService(original, original with { RawDelayed = false });
+        Assert.False(flagLost.Matches);
+        Assert.Contains("флаг отложенного запуска 0", flagLost.Live);
+        Assert.False(LiveState.CompareService(original, original with { StartMode = System.ServiceProcess.ServiceStartMode.Disabled }).Matches);
+        // Records from older builds did not capture the flag: only the start type is compared.
+        var legacy = original with { RawDelayed = null };
+        Assert.True(LiveState.CompareService(legacy, original with { RawDelayed = false }).Matches);
+    }
+
+    [Fact]
     public void Registry_snapshot_uses_change_session_wording()
     {
         Assert.Equal("удалено", LiveState.FormatRegistry(new RegistryValueSnapshot { ValueExisted = false }));

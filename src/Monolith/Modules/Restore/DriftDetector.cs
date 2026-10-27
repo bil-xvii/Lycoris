@@ -39,12 +39,16 @@ public static class DriftDetector
     public const string ServicesSource = "services";
     public const string ServicesTaskSource = "services-tasks";
 
-    /// <summary>Blocking live read of the current journal (registry, SCM, task scheduler).</summary>
+    public const string GamesSource = "games";
+
+    /// <summary>Blocking live read of the current journal (registry, SCM, task scheduler): this account's and machine-wide records.</summary>
     public static IReadOnlyList<DriftItem> DetectLive(IReadOnlyCollection<string>? ignored = null) =>
-        Detect(ChangeJournal.Instance.ActiveRecords, LiveState.Read, id => Tweaks.TweakCatalog.Find(id) is not null, ignored);
+        Detect(ChangeJournal.Instance.ActiveRecords.Where(ChangeJournal.IsMine), LiveState.Read,
+            id => Tweaks.TweakCatalog.Find(id) is not null, ignored);
 
     /// <summary>
-    /// Records that drifted: active, comparable (not a command, not a temporary Game Boost change), the target still
+    /// Records that drifted: active, the newest layer of their target (an older layer's value was replaced by a later
+    /// MONOLITH change on purpose), comparable (not a command, not a temporary Game Boost change), the target still
     /// exists and its live value differs from <see cref="ChangeRecord.NewValue"/>. <paramref name="ignored"/> holds
     /// <see cref="IgnoreKey"/> values the user accepted («ЗАБЫТЬ»); a later different value is reported again.
     /// </summary>
@@ -53,7 +57,7 @@ public static class DriftDetector
     {
         var skip = ignored is null ? new HashSet<string>() : new HashSet<string>(ignored, StringComparer.Ordinal);
         var result = new List<DriftItem>();
-        foreach (var r in records)
+        foreach (var r in ChangeJournal.TopLayers(records, UserScope.CurrentSid))
         {
             if (!IsCandidate(r)) continue;
             var live = read(r);
@@ -71,7 +75,7 @@ public static class DriftDetector
     public static bool IsCandidate(ChangeRecord r) =>
         !r.Reverted && r.Kind != ChangeKind.Command && !r.TouchedBy(GameBoostSource);
 
-    /// <summary>The source of the last change of the target (its NewValue): the newest AlsoSource, else Source.</summary>
+    /// <summary>The source of the last change of the target (its NewValue): the newest AlsoSource of an older merged record, else Source.</summary>
     public static string LatestSource(ChangeRecord r) => r.AlsoSources.Count > 0 ? r.AlsoSources[^1] : r.Source;
 
     public static string? TweakIdOf(ChangeRecord r)
@@ -102,6 +106,7 @@ public static class DriftDetector
         ServicesSource or ServicesTaskSource => "services",
         StartupSource or StartupTaskSource => "startup",
         "drivers" => "drivers",
+        GamesSource => "games",
         _ => null,
     };
 
