@@ -117,7 +117,9 @@ public sealed partial class DevicesViewModel : PageViewModel
     public string PlanHeader => $"РЕКОМЕНДУЕТСЯ ИЗМЕНИТЬ · {PlanCount}";
     public string OptionalHeader => $"ЕЩЁ ПО ЖЕЛАНИЮ · {OptionalItems.Count}";
     public string FindingsHeader => $"НАХОДКИ · {Findings.Count}";
-    public string SelectedText => $"Выбрано {SelectedCount} из {PlanCount + OptionalItems.Count}";
+    public string SelectedText => $"Выбрано {SelectedCount} из {SelectableCount}";
+    /// <summary>Rows the user can actually tick (a per-user row for another account or a read-only row is shown, not counted).</summary>
+    public int SelectableCount => PlanItems.Concat(OptionalItems).Count(i => i.Selectable);
     public string ChangedText => $"Изменено на этой странице: {ChangedCount}. Откатить — кнопкой «ОТКАТИТЬ» во вкладке «Вручную» или в «Восстановлении».";
     public string FoundHeader => $"НАЙДЕНО · {Cards.Count}";
 
@@ -346,12 +348,12 @@ public sealed partial class DevicesViewModel : PageViewModel
         Replace(Findings, plan.Where(i => i.Kind == PlanItemKind.Advice));
         foreach (var item in PlanItems.Concat(OptionalItems)) item.PropertyChanged += OnPlanItemChanged;
 
-        PlanCount = PlanItems.Count;
+        PlanCount = PlanItems.Count(i => i.Selectable); // the header and the tab count only what can be applied
         UpdateSelectedCount();
         foreach (var name in new[]
                  {
                      nameof(ShowPlan), nameof(IsPlanEmpty), nameof(HasFindings), nameof(HasOptional), nameof(HasMeasure), nameof(OptionalCount),
-                     nameof(FindingCount), nameof(OptionalHeader), nameof(FindingsHeader), nameof(SelectedText),
+                     nameof(FindingCount), nameof(OptionalHeader), nameof(FindingsHeader), nameof(SelectedText), nameof(SelectableCount),
                  })
             OnPropertyChanged(name);
     }
