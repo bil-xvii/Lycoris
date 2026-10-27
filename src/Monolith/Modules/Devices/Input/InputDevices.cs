@@ -94,7 +94,7 @@ internal static class InputDevices
 
     private static readonly Regex UsbStyle = new(@"VID_([0-9A-F]{4})&PID_([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     // Bluetooth: …_VID&0002046d_PID&b023… (BTHENUM / HID over BT) or …_VID&02046d_PID&b023… (BTHLE).
-    private static readonly Regex BtStyle = new(@"VID&[0-9A-F]{2}([0-9A-F]{4})_PID&([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex BtStyle = new(@"VID&[0-9A-F]{2}(?:[0-9A-F]{2})?([0-9A-F]{4})_PID&([0-9A-F]{4})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     /// <summary>VID and PID (upper-case hex) from a USB, HID or Bluetooth instance id.</summary>
     public static (string Vid, string Pid)? ParseVidPid(string? id)
