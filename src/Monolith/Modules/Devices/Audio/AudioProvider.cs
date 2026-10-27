@@ -151,6 +151,7 @@ public sealed class AudioProvider : IDeviceProvider
 
         var facts = new List<string>();
         if (AudioParsing.ConnectionText(e) is { } connection) facts.Add(connection);
+        if (e.Format is { } format) facts.Add(AudioParsing.ChannelsText(format.Channels));
         if (e.Scalar is { } volume) facts.Add($"громкость {Math.Round(volume * 100).ToString("0", CultureInfo.InvariantCulture)} %");
         if (e.Mute == true) facts.Add("звук выключен");
 
@@ -183,6 +184,7 @@ public sealed class AudioProvider : IDeviceProvider
 
         var facts = new List<string>();
         if (AudioParsing.ConnectionText(e) is { } connection) facts.Add(connection);
+        if (e.Format is { } format) facts.Add(AudioParsing.ChannelsText(format.Channels));
         if (e.HardwareSupport is { } hw && (hw & CoreAudio.HardwareVolume) != 0) facts.Add("уровень меняется в самом микрофоне");
 
         var notes = new List<DeviceNote>();
@@ -246,15 +248,15 @@ public sealed class AudioProvider : IDeviceProvider
 
     private static DeviceSetting FormatRow(EndpointInfo e) =>
         Info("audio-format", "Формат", "Частота и разрядность, в которых Windows передаёт звук устройству",
-            e.Format is { } f ? AudioParsing.FormatText(f) : "—", 40, AudioAdvice.FormatAdvice(e.Format), null, DeviceSettingsLink(e));
+            e.Format is { } f ? AudioParsing.RateBitsText(f) : "—", 40, AudioAdvice.FormatAdvice(e.Format), null, DeviceSettingsLink(e));
 
     private static DeviceSetting? EnhancementsRow(EndpointInfo e)
     {
         if (e.EnhancementsOff is not { } off) return null; // no effects on this endpoint (or unreadable): nothing to show
         var advice = AudioAdvice.EnhancementsAdvice(e, AudioAdvice.HasVendorProcessing(e));
         return Info("audio-enhancements", "Улучшения звука",
-            e.Flow == AudioFlow.Render ? "Эффекты Windows и драйвера: эквалайзер, объёмный звук, тонкомпенсация"
-                                       : "Эффекты Windows и драйвера для записи: шумоподавление, Voice Clarity",
+            e.Flow == AudioFlow.Render ? "Эффекты Windows и драйвера: эквалайзер, объёмный звук"
+                                       : "Эффекты записи: шумоподавление, Voice Clarity и другие",
             off ? "выкл" : "вкл", 50, advice, advice is null ? null : DeviceSettingsLink(e));
     }
 
@@ -339,8 +341,8 @@ public sealed class AudioProvider : IDeviceProvider
             Id = "mic-level",
             Title = "Уровень микрофона",
             Hint = rangeText is null
-                ? "Чувствительность записи. Подбирайте по проверке уровня — без перегруза"
-                : $"Чувствительность записи, {rangeText}. Подбирайте по проверке уровня — без перегруза",
+                ? "Чувствительность записи: подберите её по проверке уровня ниже"
+                : $"Чувствительность записи ({rangeText}): подберите по проверке ниже",
             Control = SettingControl.Slider,
             Min = 0,
             Max = 100,
@@ -380,7 +382,7 @@ public sealed class AudioProvider : IDeviceProvider
         {
             Id = "mic-mute",
             Title = "Без звука",
-            Hint = "Выключает микрофон в Windows: вас не слышно ни в одной программе, пока не включите",
+            Hint = "Выключает микрофон в Windows: вас не слышно ни в одной программе",
             Control = SettingControl.Toggle,
             JournalTarget = DeviceTargets.AudioMute(e.Id),
             PerUser = true,

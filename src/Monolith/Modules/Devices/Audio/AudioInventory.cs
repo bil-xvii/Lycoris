@@ -207,7 +207,10 @@ public static class AudioParsing
     };
 
     /// <summary>«48 кГц · 16 бит · стерео».</summary>
-    public static string FormatText(AudioFormat f) => $"{RateText(f.SampleRate)} · {f.Bits} бит · {ChannelsText(f.Channels)}";
+    public static string FormatText(AudioFormat f) => $"{RateBitsText(f)} · {ChannelsText(f.Channels)}";
+
+    /// <summary>«48 кГц · 16 бит» (the «Формат» row; the channels are a fact of the card).</summary>
+    public static string RateBitsText(AudioFormat f) => $"{RateText(f.SampleRate)} · {f.Bits} бит";
 
     /// <summary>«+5,6 дБ» / «−16 дБ» (typographic minus).</summary>
     public static string DbText(double db) => SignedNumber(db, "0.#") + " дБ";
