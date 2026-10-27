@@ -67,6 +67,12 @@ public sealed record SystemSnapshot
 
     public GpuInfo? PrimaryGpu { get; init; }
 
+    /// <summary>Every display adapter (the tweak catalog decides HAGS by any NVIDIA card, not only the primary one).</summary>
+    public IReadOnlyList<GpuInfo> Gpus { get; init; } = [];
+
+    /// <summary><see cref="Gpus"/>, or just the primary GPU when the list was not filled.</summary>
+    public IReadOnlyList<GpuInfo> AllGpus => Gpus.Count > 0 ? Gpus : PrimaryGpu is { } g ? [g] : [];
+
     /// <summary>Enabled startup entries (Run keys + Startup folders). Null = unknown.</summary>
     public int? StartupCount { get; init; }
 

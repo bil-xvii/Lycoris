@@ -118,4 +118,87 @@ public static class RestoreFormat
     }
 
     public static string FormatDate(DateTime local) => local.ToString("dd.MM.yyyy · HH:mm", Ru);
+
+    private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+
+    /// <summary>
+    /// What a revert really touches, taken from the data the revert uses (not from the free-text Target),
+    /// so a damaged or forged journal record cannot hide its real target behind a harmless title.
+    /// </summary>
+    public static string RevertTarget(ChangeRecord r) => r.Kind switch
+    {
+        ChangeKind.Registry when r.Registry is { } s => s.FullName,
+        ChangeKind.Service when r.Service is { } svc => svc.Name,
+        ChangeKind.ScheduledTask when !string.IsNullOrWhiteSpace(r.TaskPath) => r.TaskPath!,
+        ChangeKind.PowerScheme => "Активная схема питания",
+        _ => DescribeTarget(r.Target),
+    };
+
+    /// <summary>The undo command of a Command record as it will run: "netsh.exe interface …"; PowerShell scripts decoded.</summary>
+    public static string DescribeCommand(ChangeRecord r)
+    {
+        if (string.IsNullOrWhiteSpace(r.RevertFile)) return "—";
+        var exe = System.IO.Path.GetFileName(r.RevertFile);
+        var args = (r.RevertArgs ?? "").Trim();
+        var marker = args.IndexOf("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
+        if (marker >= 0)
+        {
+            var encoded = args[(marker + "-EncodedCommand".Length)..].Trim().Split(' ', 2)[0];
+            try
+            {
+                var script = System.Text.Encoding.Unicode.GetString(Convert.FromBase64String(encoded));
+                // RunPowerShellAsync prepends output settings; they are not part of the action.
+                var utf8 = script.IndexOf("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;", StringComparison.Ordinal);
+                if (utf8 >= 0) script = script[(utf8 + "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;".Length)..];
+                return $"{exe} (скрипт): {Truncate(script.Trim(), 200)}";
+            }
+            catch (FormatException)
+            {
+                return $"{exe} (скрипт не читается)";
+            }
+        }
+        return Truncate($"{exe} {args}".Trim(), 200);
+    }
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+
+    /// <summary>Dialog lines for reverting one record: what MONOLITH set, what is there now, what it becomes.</summary>
+    public static IReadOnlyList<string> RevertLines(ChangeRecord r, LiveValue live)
+    {
+        var lines = new List<string> { $"{KindLabel(r.Kind)}: {RevertTarget(r)}" };
+        if (live.State == LiveState.Same)
+        {
+            lines.Add($"Сейчас: {Show(r.NewValue)} — как установил MONOLITH");
+        }
+        else
+        {
+            lines.Add($"MONOLITH установил: {Show(r.NewValue)}");
+            lines.Add(live.State == LiveState.Drifted
+                ? $"Сейчас: {live.Text} — изменено после MONOLITH (вами, Windows или политикой)"
+                : $"Сейчас: {live.Text}");
+        }
+        lines.Add($"Станет: {Show(r.OldValue)}");
+        if (r.Kind == ChangeKind.Command) lines.Add("Команда отката: " + DescribeCommand(r));
+        if (r.AlsoSources.Count > 0)
+            lines.Add($"Эту же настройку меняли и другие действия MONOLITH ({string.Join(", ", r.AlsoSources)}) — исходное значение вернётся и для них");
+        return lines;
+    }
+
+    /// <summary>One line per record in the batch / «все» dialogs, with the live value when it drifted.</summary>
+    public static string BatchLine(LiveRecord l)
+    {
+        var r = l.Record;
+        var head = $"{(string.IsNullOrWhiteSpace(r.Title) ? "Без названия" : r.Title)} · {RevertTarget(r)}";
+        var line = l.Live.State switch
+        {
+            LiveState.Drifted => $"{head}: сейчас «{l.Live.Text}» — изменено после MONOLITH → «{Show(r.OldValue)}»",
+            LiveState.Gone => $"{head}: {l.Live.Text} — возвращать нечего",
+            _ => $"{head}: «{Show(r.NewValue)}» → «{Show(r.OldValue)}»",
+        };
+        return r.Kind == ChangeKind.Command ? $"{line} · команда: {DescribeCommand(r)}" : line;
+    }
+
+    /// <summary>"3 активных изменения MONOLITH вернутся" with correct agreement for any count.</summary>
+    public static string ActiveChangesWillReturn(int n) =>
+        $"{n} {Plural(n, "активное изменение", "активных изменения", "активных изменений")} MONOLITH {Plural(n, "вернётся", "вернутся", "вернутся")}";
 }

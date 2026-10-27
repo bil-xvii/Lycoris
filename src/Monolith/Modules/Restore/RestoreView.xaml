@@ -306,13 +306,13 @@
                                     <StackPanel Grid.Column="2" Margin="22,18,22,20">
                                         <TextBlock Text="02 · ТОЧКА" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0" LineHeight="17"
-                                                   Text="Перед каждым пакетом изменений создаётся точка восстановления Windows — вторая страховка." />
+                                                   Text="Перед пакетами изменений создаётся точка восстановления Windows, если защита системы включена, — вторая страховка." />
                                     </StackPanel>
                                     <Rectangle Grid.Column="3" Style="{StaticResource DividerV}" />
                                     <StackPanel Grid.Column="4" Margin="22,18,22,20">
                                         <TextBlock Text="03 · ОТКАТ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0" LineHeight="17"
-                                                   Text="Любое изменение откатывается здесь: по одному, пакетом или все сразу — к точному исходному значению." />
+                                                   Text="Изменения настроек откатываются здесь — по одному, пакетом или все сразу — к точному исходному значению. Удаление файлов и установки так не отменяются." />
                                     </StackPanel>
                                 </Grid>
                             </Grid>
@@ -392,6 +392,11 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- Older batches, page by page -->
+                        <Button Content="{Binding ShowMoreText}" Command="{Binding ShowMoreBatchesCommand}" HorizontalAlignment="Stretch" Height="38"
+                                ToolTip="Журнал показывается частями, начиная с последних действий"
+                                Visibility="{Binding HasMoreBatches, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
 
                     <!-- System Restore -->

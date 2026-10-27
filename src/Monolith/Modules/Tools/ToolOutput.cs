@@ -207,4 +207,17 @@ public static partial class ToolOutput
         ToolStatus.Cancelled => "ОТМЕНЕНО",
         _ => "ОШИБКА",
     };
+
+    /// <summary>Console note for a servicing tool that runs longer than usual and that MONOLITH will not stop.</summary>
+    public static string SlowRunNote(TimeSpan usual) =>
+        $"Операция идёт дольше обычного (больше {Math.Max(1, (int)usual.TotalMinutes)} мин). Это бывает при медленном диске или интернете. " +
+        "Прерывать её небезопасно, и MONOLITH её не прервёт — дождитесь завершения.";
+
+    /// <summary>The restore-point line of the network reset confirmation: what will really happen.</summary>
+    public static string NetworkResetRestoreNote(bool restorePointsSetting, bool protectionOn) => (restorePointsSetting, protectionOn) switch
+    {
+        (false, _) => "Создание точек восстановления выключено в настройках — вернуть прежние параметры будет нельзя",
+        (true, false) => "Защита системы Windows выключена — точка восстановления создана не будет, вернуть прежние параметры будет нельзя",
+        _ => "Перед сбросом будет создана точка восстановления Windows — только через неё можно вернуть прежние сетевые параметры",
+    };
 }

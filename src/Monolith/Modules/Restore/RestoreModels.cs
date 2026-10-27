@@ -13,7 +13,9 @@ public sealed class RecordItem(ChangeRecord record)
     public string RawTarget => Record.Target;
     public string OldValue => string.IsNullOrWhiteSpace(Record.OldValue) ? "—" : Record.OldValue;
     public string NewValue => string.IsNullOrWhiteSpace(Record.NewValue) ? "—" : Record.NewValue;
-    public string Source => string.IsNullOrWhiteSpace(Record.Source) ? "monolith" : Record.Source;
+    /// <summary>Who changed it; sources merged into this record later are listed too (a revert restores the original for all of them).</summary>
+    public string Source => (string.IsNullOrWhiteSpace(Record.Source) ? "monolith" : Record.Source)
+                            + (Record.AlsoSources.Count > 0 ? " + " + string.Join(" + ", Record.AlsoSources) : "");
     public string TimeText => Record.Timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
     public RecordState State => RestoreFormat.StateOf(Record);
     public string StatusText => RestoreFormat.StatusText(Record);

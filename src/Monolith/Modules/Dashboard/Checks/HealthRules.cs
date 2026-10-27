@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Monolith.Core;
+using Monolith.Tweaks;
 
 namespace Monolith.Modules.Dashboard.Checks;
 
@@ -14,8 +15,17 @@ public sealed record RamVerdict(int Rated, int Configured, string Type, int Modu
 public static partial class HealthRules
 {
     public const string TweakGameMode = "game-mode";
+    /// <summary>HAGS for GeForce RTX 40/50 (required for DLSS Frame Generation there).</summary>
     public const string TweakHags = "hags";
+    /// <summary>HAGS for every other GPU whose driver supports it (optional).</summary>
+    public const string TweakHagsOther = "hags-other-gpu";
     public const string TweakGameDvr = "gamedvr-off";
+
+    /// <summary>Page keys and tabs the checks link to.</summary>
+    public const string DriversPage = "drivers";
+    public const string DriversTabHardware = "Hardware";
+    public const string DriversTabGpu = "Overview";
+    public const string DriversTabProblems = "Problems";
 
     /// <summary>Free space is "low" below this share of the system drive…</summary>
     public const double LowSpaceShare = 0.15;
@@ -168,7 +178,7 @@ public static partial class HealthRules
         if (s.RestoreBlockedByPolicy)
             return new("restore", "ЗАЩИТА СИСТЕМЫ ЗАПРЕЩЕНА ПОЛИТИКОЙ",
                 "Точки восстановления отключены групповой политикой (обычно это решение администратора организации). " +
-                "MONOLITH политики не обходит; собственные изменения по-прежнему откатываются в разделе «Восстановление».",
+                "MONOLITH политики не обходит; изменения настроек, сделанные MONOLITH, по-прежнему откатываются через журнал в разделе «Восстановление».",
                 CheckSeverity.Info, 15);
         if (s.RestoreEnabled is null) return null;
         if (s.RestoreEnabled == true)
@@ -242,8 +252,9 @@ public static partial class HealthRules
         var shown = problems.Take(3).Select(d => $"{d.Name} (код {d.Code}: {DeviceErrorText(d.Code)})");
         var more = problems.Count > 3 ? $" и ещё {problems.Count - 3}" : "";
         return new("devices", "УСТРОЙСТВА С ОШИБКАМИ",
-            $"{string.Join("; ", shown)}{more}. Чаще всего помогает установка или обновление драйвера в разделе «Драйверы».",
-            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.Navigate, "К ДРАЙВЕРАМ", "drivers"));
+            $"{string.Join("; ", shown)}{more}. Чаще всего помогает установка или обновление драйвера: раздел «Железо и драйверы» → " +
+            "«Проблемные устройства».",
+            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.Navigate, "К УСТРОЙСТВАМ", DriversPage, DriversTabProblems));
     }
 
     // ───────────────────────────── Gaming settings ─────────────────────────────
@@ -255,20 +266,26 @@ public static partial class HealthRules
     {
         if (s.GameModeOn is null) return null;
         if (s.GameModeOn == true)
-            return new("game-mode", "ИГРОВОЙ РЕЖИМ ВКЛЮЧЁН",
+            return new("game-mode", "ИГРОВОЙ РЕЖИМ WINDOWS ВКЛЮЧЁН",
                 "Windows отдаёт приоритет запущенной игре и не ставит драйверы во время игры.", CheckSeverity.Ok, 6);
         var x3d = IsDualCcdX3D(s.CpuName, s.CpuCores);
-        return new("game-mode", "ИГРОВОЙ РЕЖИМ ВЫКЛЮЧЕН",
-            "Игровой режим отдаёт приоритет игре и не даёт Центру обновления ставить драйверы и показывать уведомления о " +
-            "перезагрузке во время игры." + (x3d ? " На двухкристальных Ryzen X3D он нужен, чтобы игра попадала на кристалл с 3D V-Cache." : "") +
+        return new("game-mode", "ИГРОВОЙ РЕЖИМ WINDOWS ВЫКЛЮЧЕН",
+            "Игровой режим Windows (Параметры → Игры) отдаёт приоритет игре и не даёт Центру обновления ставить драйверы и " +
+            "показывать уведомления о перезагрузке во время игры. Это не GAME BOOST MONOLITH, а штатная функция Windows." +
+            (x3d ? " На Ryzen X3D с двумя кристаллами он нужен, чтобы игра попадала на кристалл с 3D V-Cache." : "") +
             " Включается без перезагрузки; отменить можно в разделе «Восстановление».",
             CheckSeverity.Warning, x3d ? 10 : 6, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakGameMode));
     }
 
-    [GeneratedRegex(@"RTX\s*[45]0\d{2}", RegexOptions.IgnoreCase)] private static partial Regex Rtx4050Rx();
+    /// <summary>
+    /// GeForce RTX 40/50 — the same rule the tweak catalog uses for the «hags» item (RTX 4050–4090 / 5050–5090),
+    /// so the Dashboard never offers the RTX item on a card the catalog will refuse (e.g. RTX 4000 Ada).
+    /// </summary>
+    public static bool IsRtx40Or50(string? gpuName) => gpuName is not null && TweakCatalog.IsRtx40Or50(gpuName);
 
-    /// <summary>RTX 40/50 series: HAGS is required for DLSS Frame Generation there.</summary>
-    public static bool IsRtx40Or50(string? gpuName) => gpuName is not null && Rtx4050Rx().IsMatch(gpuName);
+    /// <summary>True when any NVIDIA adapter is an RTX 40/50 (the catalog checks every GPU, not only the primary one).</summary>
+    public static bool HasRtx40Or50(SystemSnapshot s) =>
+        s.AllGpus.Any(g => g.Vendor == GpuVendor.Nvidia && IsRtx40Or50(g.Name));
 
     public static HealthCheckResult? CheckHags(SystemSnapshot s)
     {
@@ -278,16 +295,42 @@ public static partial class HealthRules
                 return new("hags", "АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU ВКЛЮЧЕНО",
                     "Видеокарта сама управляет очередью кадров; доступна генерация кадров DLSS / FSR.", CheckSeverity.Ok, 6);
             case HagsState.Off:
-                var rtx = IsRtx40Or50(s.PrimaryGpu?.Name);
+                var rtx = HasRtx40Or50(s);
                 return new("hags", "АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU ВЫКЛЮЧЕНО",
                     "Видеокарта может сама планировать очередь кадров и разгрузить процессор." +
-                    (rtx ? " На RTX 40/50 это обязательно для генерации кадров DLSS." : "") +
-                    " Прирост FPS обычно в пределах ±5 %; при редких микрофризах его можно выключить обратно. Нужна перезагрузка.",
+                    (rtx
+                        ? " На GeForce RTX 40/50 это обязательно для генерации кадров DLSS."
+                        : " Для этой видеокарты это необязательно: часть технологий генерации кадров требует HAGS, на старых картах и в VR иногда появляются рывки.") +
+                    " Прирост FPS обычно в пределах ±5 %; при микрофризах его можно выключить обратно. Нужна перезагрузка.",
                     rtx ? CheckSeverity.Warning : CheckSeverity.Info, 6,
-                    new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakHags));
+                    new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", rtx ? TweakHags : TweakHagsOther));
             default:
                 return null; // unsupported by the GPU / driver, or unknown
         }
+    }
+
+    /// <summary>
+    /// Adjusts a check whose button applies a catalog tweak to what the catalog actually allows on this PC:
+    /// no button when the tweak does not apply here, no button (and a note) when it is already set and only waits
+    /// for a restart, and only a link to «Оптимизация» for expert or unknown items. Other checks are returned as is.
+    /// </summary>
+    /// <param name="restartWhen">"после перезагрузки" etc., empty when the tweak needs no restart.</param>
+    public static HealthCheckResult ResolveTweakAction(HealthCheckResult r, TweakAvailability availability, string restartWhen = "")
+    {
+        if (r.Action is not { Kind: CheckActionKind.ApplyTweak }) return r;
+        return availability switch
+        {
+            TweakAvailability.Available => r,
+            TweakAvailability.NotApplicable => r with { Action = null },
+            TweakAvailability.OptimizeOnly => r with { Action = new CheckAction(CheckActionKind.Navigate, "К ОПТИМИЗАЦИИ", "optimize") },
+            _ when restartWhen.Length > 0 => r with
+            {
+                Action = null,
+                Severity = r.Severity == CheckSeverity.Warning ? CheckSeverity.Info : r.Severity,
+                Detail = $"{r.Detail} Настройка уже записана и вступит в силу {restartWhen}.",
+            },
+            _ => r with { Action = null },
+        };
     }
 
     public static HealthCheckResult? CheckGameDvr(SystemSnapshot s)
@@ -297,7 +340,7 @@ public static partial class HealthRules
             return new("gamedvr", "ФОНОВАЯ ЗАПИСЬ ИГР ВЫКЛЮЧЕНА", "Game Bar не тратит ресурсы на постоянную запись видео.", CheckSeverity.Ok, 5);
         return new("gamedvr", "ФОНОВАЯ ЗАПИСЬ ИГР ВКЛЮЧЕНА",
             "Xbox Game Bar постоянно записывает последние минуты игры. Кодирование видео отнимает 1–5 % FPS и часть видеопамяти. " +
-            "После выключения скриншоты, Game Bar и игровой режим продолжают работать; отменить можно в разделе «Восстановление».",
+            "После выключения скриншоты, Game Bar и игровой режим Windows продолжают работать; отменить можно в разделе «Восстановление».",
             CheckSeverity.Warning, 5, new CheckAction(CheckActionKind.ApplyTweak, "ВЫКЛЮЧИТЬ", TweakGameDvr));
     }
 
@@ -315,9 +358,9 @@ public static partial class HealthRules
         if (isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores))
         {
             return balanced
-                ? new("power-plan", title, "Рекомендация AMD для двухкристальных Ryzen X3D: драйвер правильно переносит игры на кристалл с 3D V-Cache.", CheckSeverity.Ok, 8)
+                ? new("power-plan", title, "Рекомендация AMD для Ryzen X3D с двумя кристаллами: драйвер правильно переносит игры на кристалл с 3D V-Cache.", CheckSeverity.Ok, 8)
                 : new("power-plan", title,
-                    "На двухкристальных Ryzen X3D драйвер AMD переносит игры на кристалл с 3D V-Cache только в «Сбалансированном» " +
+                    "На Ryzen X3D с двумя кристаллами драйвер AMD переносит игры на кристалл с 3D V-Cache только в «Сбалансированном» " +
                     "плане — так рекомендует AMD. В текущем плане эта логика может не срабатывать. Выберите «Сбалансированный» в «Электропитании».",
                     CheckSeverity.Info, 8, open);
         }
@@ -453,8 +496,9 @@ public static partial class HealthRules
                 $"{gpu.Name}: версия {version} от {DashFormat.Date(date)}.", CheckSeverity.Ok, 6);
         return new("gpu-driver", "ДРАЙВЕР ВИДЕОКАРТЫ УСТАРЕЛ",
             $"{gpu.Name}: версия {version} от {DashFormat.Date(date)} — ему {DashFormat.Age(date, s.Now)}. " +
-            "Новые драйверы исправляют ошибки и ускоряют свежие игры. Проверьте обновление в разделе «Драйверы».",
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К ДРАЙВЕРАМ", "drivers"));
+            "Новые драйверы исправляют ошибки и ускоряют свежие игры. Проверьте обновление: раздел «Железо и драйверы» → " +
+            "«Видеокарты и чипсет».",
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К ДРАЙВЕРАМ", DriversPage, DriversTabGpu));
     }
 
     // ───────────────────────────── Startup ─────────────────────────────
@@ -470,11 +514,11 @@ public static partial class HealthRules
         if (s.StartupCount is not { } n) return null;
         var count = DashFormat.Count(n, "программа", "программы", "программ");
         if (n <= StartupLimit)
-            return new("startup", "АВТОЗАГРУЗКА В НОРМЕ", $"Вместе с Windows запускается {count}.", CheckSeverity.Ok, 6);
-        return new("startup", "МНОГО ПРОГРАММ В АВТОЗАГРУЗКЕ",
+            return new("startup", "АВТОЗАПУСК В НОРМЕ", $"Вместе с Windows запускается {count}.", CheckSeverity.Ok, 6);
+        return new("startup", "МНОГО ПРОГРАММ В АВТОЗАПУСКЕ",
             $"Вместе с Windows запускается {count}. Каждая замедляет вход в систему и работает в фоне. Отключите лишние " +
-            "в разделе «Автозагрузка» — это обратимо, программы не удаляются.",
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К АВТОЗАГРУЗКЕ", "startup"));
+            "в разделе «Автозапуск» — это обратимо, программы не удаляются.",
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К АВТОЗАПУСКУ", "startup"));
     }
 
     // ───────────────────────────── VBS / Memory Integrity (information only) ─────────────────────────────
@@ -483,12 +527,14 @@ public static partial class HealthRules
     {
         VbsState.MemoryIntegrity => new("vbs", "ЦЕЛОСТНОСТЬ ПАМЯТИ ВКЛЮЧЕНА",
             "Изоляция ядра защищает Windows от вредоносных и уязвимых драйверов. В части игр она стоит 0–10 % FPS (в среднем " +
-            "около 5 %), а античиты Riot Vanguard и FACEIT могут её требовать. MONOLITH защиту не отключает: это снижает " +
-            "безопасность. Настройка — «Безопасность Windows → Безопасность устройства → Изоляция ядра».",
+            "около 5 %), а античиты Riot Vanguard и FACEIT могут её требовать. Сам MONOLITH её не отключает и не предлагает " +
+            "в профилях: выключение есть только как экспертный пункт в «Оптимизации» — с отдельным предупреждением и только " +
+            "по вашему явному выбору, потому что это снижает защиту ядра. Настройка Windows — «Безопасность Windows → " +
+            "Безопасность устройства → Изоляция ядра».",
             CheckSeverity.Info, 0),
         VbsState.VbsOnly => new("vbs", "ВИРТУАЛИЗАЦИЯ БЕЗОПАСНОСТИ АКТИВНА",
             "Windows изолирует часть ядра в защищённой виртуальной среде (VBS). Это защита от атак на учётные данные и ядро; " +
-            "влияние на игры обычно небольшое. MONOLITH её не отключает.", CheckSeverity.Info, 0),
+            "влияние на игры обычно небольшое. MONOLITH саму VBS не отключает — такого пункта в нём нет.", CheckSeverity.Info, 0),
         _ => null,
     };
 }

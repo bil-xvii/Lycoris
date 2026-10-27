@@ -50,6 +50,7 @@ public static class SystemInspector
             PowerPlanName = Safe(() => PowerSchemes.GetName(PowerSchemes.GetActive()), ""),
             PendingReboot = Safe(ReadPendingReboot, []),
             PrimaryGpu = p.PrimaryGpu,
+            Gpus = p.Gpus,
             StartupCount = Safe<int?>(() => CountStartupEntries(), null),
             Vbs = Safe(ReadVbs, VbsState.Unknown),
         };

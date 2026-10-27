@@ -17,8 +17,12 @@ namespace Monolith.Modules.Restore;
 /// </summary>
 public sealed partial class RestoreViewModel : PageViewModel
 {
+    /// <summary>Batches shown at once; «ПОКАЗАТЬ ЕЩЁ» adds the next page.</summary>
+    private const int PageSize = 20;
+
     private ChangeJournal? _journal;
     private bool _rebuildQueued;
+    private int _visibleBatches = PageSize;
 
     public override string Key => "restore";
     public override string Index => "10";
@@ -42,6 +46,9 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private bool _isJournalEmpty;
     [ObservableProperty] private bool _isFilterEmpty;
     [ObservableProperty] private string _filterEmptyText = "";
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasMoreBatches))] private int _hiddenBatchCount;
+    [ObservableProperty] private string _showMoreText = "";
+    public bool HasMoreBatches => HiddenBatchCount > 0;
 
     // ── system restore ──
     [ObservableProperty] private bool _protectionEnabled;
@@ -87,11 +94,24 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (e.PropertyName == nameof(AppSettings.CreateRestorePoints)) Ui.Post(UpdateAutoPointsText);
     }
 
-    private void UpdateAutoPointsText() => AutoPointsText = AppSettings.Current.CreateRestorePoints
-        ? "MONOLITH создаёт точку перед каждым пакетом изменений."
-        : "Автоматические точки MONOLITH выключены в настройках.";
+    private void UpdateAutoPointsText() => AutoPointsText = !AppSettings.Current.CreateRestorePoints
+        ? "Автоматические точки MONOLITH выключены в настройках."
+        : ProtectionEnabled
+            ? "MONOLITH создаёт точку перед пакетами изменений; одиночные переключатели и GAME BOOST — без неё."
+            : "Пока защита системы выключена, MONOLITH не может создавать точки — откат только через журнал.";
 
-    partial void OnFilterChanged(JournalFilter value) => Rebuild();
+    partial void OnFilterChanged(JournalFilter value)
+    {
+        _visibleBatches = PageSize;
+        Rebuild();
+    }
+
+    [RelayCommand]
+    private void ShowMoreBatches()
+    {
+        _visibleBatches += PageSize;
+        Rebuild();
+    }
 
     /// <summary>The journal raises Changed from background threads; coalesce bursts into one rebuild on the UI thread.</summary>
     private void OnJournalChanged()
@@ -124,12 +144,17 @@ public sealed partial class RestoreViewModel : PageViewModel
         RevertedCaption = RevertedCount == 0 ? "откатов не было" : "возвращено к исходному";
         BatchCaption = BatchCount == 0 ? "действий не было" : RestoreFormat.Plural(BatchCount, "действие MONOLITH", "действия MONOLITH", "действий MONOLITH");
 
+        // A long journal (hundreds of batches) is shown page by page: every batch card is a full visual tree,
+        // and building them all at once froze the UI for more than a second.
         var groups = RestoreFormat.Group(batches, records, Filter);
+        var shown = Math.Min(groups.Count, _visibleBatches);
         Batches.Clear();
-        foreach (var g in groups) Batches.Add(new BatchItem(g));
+        for (var i = 0; i < shown; i++) Batches.Add(new BatchItem(groups[i]));
+        HiddenBatchCount = groups.Count - shown;
+        ShowMoreText = $"ПОКАЗАТЬ ЕЩЁ {Math.Min(PageSize, HiddenBatchCount)} ИЗ {HiddenBatchCount}";
 
         IsJournalEmpty = batches.Count == 0 && records.Count == 0;
-        IsFilterEmpty = !IsJournalEmpty && Batches.Count == 0;
+        IsFilterEmpty = !IsJournalEmpty && groups.Count == 0;
         FilterEmptyText = Filter == JournalFilter.Active
             ? "Активных изменений нет — система в исходном состоянии относительно MONOLITH."
             : "Откаченных изменений пока нет.";
@@ -159,8 +184,9 @@ public sealed partial class RestoreViewModel : PageViewModel
         {
             (_, true) => ("ЗАПРЕЩЕНА", "Защита системы отключена групповой политикой. Включить её может только администратор организации; до этого откат возможен только через журнал MONOLITH."),
             (true, _) => ("ВКЛЮЧЕНА", $"Windows хранит точки восстановления для диска {drive} — через них можно вернуть системные файлы, реестр и драйверы к прежнему состоянию."),
-            _ => ("ВЫКЛЮЧЕНА", $"Точки восстановления для диска {drive} не создаются. Изменения MONOLITH всё равно откатываются через журнал, но страховки на уровне Windows нет."),
+            _ => ("ВЫКЛЮЧЕНА", $"Точки восстановления для диска {drive} не создаются. Изменения настроек MONOLITH всё равно откатываются через журнал, но страховки на уровне Windows нет."),
         };
+        UpdateAutoPointsText();
         NotifyCommands();
         if (Ui.Host is MainViewModel main) main.RestoreEnabled = enabled;
         await LoadPointsAsync();
@@ -259,7 +285,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private void OpenSystemRestore() => RestorePointService.OpenSystemRestoreWizard();
 
     [RelayCommand]
-    private void OpenBackups() => ShellLauncher.OpenFolder(AppPaths.BackupsDir, "Резервные копии");
+    private Task OpenBackupsAsync() => ShellLauncher.OpenFolderAsync(AppPaths.BackupsDir, "Резервные копии");
 
     [RelayCommand]
     private Task RefreshPointsAsync() => RefreshProtectionAsync();
@@ -275,18 +301,25 @@ public sealed partial class RestoreViewModel : PageViewModel
     private Task RevertRecordAsync(RecordItem? item) => RunBusyAsync("Откат изменения…", async () =>
     {
         if (item is null || _journal is null || !RequireAdmin("Откат изменения")) return;
-        if (!await Ui.ConfirmAsync("Откатить изменение?",
-                $"«{item.Title}» вернётся к значению, которое было до MONOLITH.",
-                [
-                    $"{item.KindLabel}: {item.Target}",
-                    $"Сейчас: {item.NewValue}",
-                    $"Станет: {item.OldValue}",
-                ],
-                confirmText: "ОТКАТИТЬ"))
+        var record = item.Record;
+        if (record.Reverted) return;
+
+        // The real current value, read now — never the journal's copy of what MONOLITH once set.
+        var live = await Task.Run(() => RestoreLive.Read(record));
+        var message = live.State switch
+        {
+            LiveState.Drifted => $"«{item.Title}» вернётся к значению, которое было до MONOLITH. После MONOLITH это значение уже " +
+                                 "изменили — вы, Windows или политика. Откат заменит и это изменение.",
+            LiveState.Gone => $"«{item.Title}»: {live.Text}, поэтому возвращать нечего. MONOLITH попробует закрыть запись журнала.",
+            _ => $"«{item.Title}» вернётся к значению, которое было до MONOLITH.",
+        };
+        if (!await Ui.ConfirmAsync("Откатить изменение?", message, RestoreFormat.RevertLines(record, live),
+                confirmText: live.IsDrifted ? "ВСЁ РАВНО ОТКАТИТЬ" : "ОТКАТИТЬ", danger: live.IsDrifted,
+                footnote: live.IsDrifted ? "Если текущее значение вас устраивает, нажмите «Отмена» — запись останется в журнале." : null))
             return;
 
         var journal = _journal;
-        var result = await Task.Run(() => journal.RevertAsync([item.Record]));
+        var result = await Task.Run(() => journal.RevertAsync([record]));
         await ReportAsync(result, "Изменение откачено.");
     });
 
@@ -296,19 +329,25 @@ public sealed partial class RestoreViewModel : PageViewModel
     private Task RevertBatchAsync(BatchItem? batch) => RunBusyAsync("Откат пакета…", async () =>
     {
         if (batch is null || _journal is null || !RequireAdmin("Откат пакета")) return;
-        var active = _journal.Records.Where(r => !r.Reverted && (batch.IsSynthetic
-            ? _journal.Batches.All(b => b.Id != r.BatchId)
-            : r.BatchId == batch.Id)).ToList();
+        var journal = _journal;
+        var active = journal.Records.Where(r => !r.Reverted && (batch.IsSynthetic
+            ? journal.Batches.All(b => b.Id != r.BatchId)
+            : r.BatchId == batch.Id)).OrderByDescending(r => r.TimestampUtc).ToList();
         if (active.Count == 0) return;
 
+        var plan = await ChooseRecordsAsync(active);
+        if (plan is null) return;
+        var (include, skipped) = plan.Value;
+
         if (!await Ui.ConfirmAsync("Откатить пакет?",
-                $"«{batch.Title}» — {active.Count} {RestoreFormat.Plural(active.Count, "изменение вернётся", "изменения вернутся", "изменений вернутся")} к исходным значениям, от последнего к первому.",
-                active.OrderByDescending(r => r.TimestampUtc).Select(Describe),
-                confirmText: "ОТКАТИТЬ ПАКЕТ"))
+                $"«{batch.Title}» — {include.Count} {RestoreFormat.Plural(include.Count, "изменение вернётся", "изменения вернутся", "изменений вернутся")} к исходным значениям, от последнего к первому.",
+                include.Select(RestoreFormat.BatchLine),
+                confirmText: "ОТКАТИТЬ ПАКЕТ",
+                danger: include.Any(l => l.Live.IsDrifted),
+                footnote: Footnote(skipped)))
             return;
 
-        var journal = _journal;
-        var result = await Task.Run(() => journal.RevertAsync(active));
+        var result = await Task.Run(() => journal.RevertAsync(include.Select(l => l.Record)));
         await ReportAsync(result, $"Пакет «{batch.Title}» откачен.");
     });
 
@@ -318,23 +357,58 @@ public sealed partial class RestoreViewModel : PageViewModel
     private Task RevertAllAsync() => RunBusyAsync("Откат всех изменений…", async () =>
     {
         if (_journal is null || !RequireAdmin("Откат всех изменений")) return;
-        var active = _journal.ActiveRecords.OrderByDescending(r => r.TimestampUtc).ToList();
+        var journal = _journal;
+        var active = journal.ActiveRecords.OrderByDescending(r => r.TimestampUtc).ToList();
         if (active.Count == 0) return;
 
+        var plan = await ChooseRecordsAsync(active);
+        if (plan is null) return;
+        var (include, skipped) = plan.Value;
+
         if (!await Ui.ConfirmAsync("Откатить все изменения?",
-                $"Все {active.Count} {RestoreFormat.Plural(active.Count, "активное изменение", "активных изменения", "активных изменений")} MONOLITH вернутся к исходным значениям — от последнего к первому. Система вернётся к состоянию до MONOLITH.",
-                active.Select(Describe),
+                $"{RestoreFormat.ActiveChangesWillReturn(include.Count)} к исходным значениям — от последнего к первому. " +
+                "Возвращаются только настройки из журнала (реестр, службы, задачи, схемы питания): удалённые файлы, " +
+                "установленные драйверы и программы, сброс сети этим не отменяются.",
+                include.Select(RestoreFormat.BatchLine),
                 confirmText: "ОТКАТИТЬ ВСЁ", danger: true,
-                footnote: "Для некоторых изменений нужна перезагрузка."))
+                footnote: Footnote(skipped)))
             return;
 
-        var journal = _journal;
-        var result = await Task.Run(() => journal.RevertAllAsync());
-        await ReportAsync(result, "Все изменения откачены.");
+        // Exactly the confirmed records — not whatever is active by the time the revert starts.
+        var result = await Task.Run(() => journal.RevertAsync(include.Select(l => l.Record)));
+        await ReportAsync(result, "Все подтверждённые изменения откачены.");
     });
 
-    private static string Describe(ChangeRecord r) =>
-        $"{r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: «{r.NewValue}» → «{r.OldValue}»";
+    /// <summary>
+    /// Reads the live value of every record. When some were changed after MONOLITH (drift), asks once whether to
+    /// include them; the safe default («ПРОПУСТИТЬ ИХ», also on Esc) leaves them as they are. Null = nothing left to revert.
+    /// </summary>
+    private static async Task<(List<LiveRecord> Include, int Skipped)?> ChooseRecordsAsync(List<ChangeRecord> active)
+    {
+        var live = await Task.Run(() => active.Select(r => new LiveRecord(r, RestoreLive.Read(r))).ToList());
+        var drifted = live.Where(l => l.Live.IsDrifted).ToList();
+        if (drifted.Count == 0) return (live, 0);
+
+        var takeDrifted = await Ui.ConfirmAsync("Значения изменены после MONOLITH",
+            $"У {drifted.Count} из {live.Count} {RestoreFormat.Plural(live.Count, "записи", "записей", "записей")} текущее значение отличается от " +
+            "того, что установил MONOLITH: его поменяли вы, Windows или политика. Вернуть и их к значениям, которые были до MONOLITH?",
+            drifted.Select(RestoreFormat.BatchLine),
+            confirmText: "ВЕРНУТЬ И ИХ", cancelText: "ПРОПУСТИТЬ ИХ", danger: true,
+            footnote: "«Пропустить их» оставит эти значения как есть. Остальные изменения вы подтвердите следующим шагом.");
+        if (takeDrifted) return (live, 0);
+
+        var rest = live.Where(l => !l.Live.IsDrifted).ToList();
+        if (rest.Count == 0)
+        {
+            Ui.Toast("Откатывать нечего: все значения изменены после MONOLITH и оставлены как есть.", ToastKind.Info);
+            return null;
+        }
+        return (rest, drifted.Count);
+    }
+
+    private static string Footnote(int skipped) => skipped == 0
+        ? "Для некоторых изменений нужна перезагрузка."
+        : $"Пропущено (изменено после MONOLITH): {skipped}. Для некоторых изменений нужна перезагрузка.";
 
     private static async Task ReportAsync(RevertResult result, string success)
     {
@@ -345,7 +419,8 @@ public sealed partial class RestoreViewModel : PageViewModel
         }
         Ui.Toast($"Откачено: {result.Reverted}, ошибок: {result.Failed}.", ToastKind.Warning);
         await Ui.AlertAsync("Часть изменений не откачена",
-            "Эти записи остались активными — их можно откатить повторно после перезагрузки или вернуть точкой восстановления Windows.",
+            "Эти записи остались активными. Если служба или задача удалена из Windows, возвращать нечего. В остальных случаях " +
+            "повторите откат после перезагрузки или верните систему точкой восстановления Windows.",
             result.Errors);
     }
 }
