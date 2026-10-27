@@ -346,14 +346,22 @@ public sealed partial class StartupViewModel : PageViewModel
     private static Task<bool> ConfirmEntriesAsync(IReadOnlyList<StartupItem> items, bool enable, int skippedLocked = 0)
     {
         var details = new List<string>();
+        string? stateNote = null;
+        var restoresMark = false;
         foreach (var i in items)
         {
-            if (items.Count == 1 && i.IsPackaged)
+            // Packaged tasks: the State the switch really leaves — back to the state from before MONOLITH restores that exact value.
+            var state = i.IsPackaged ? PackagedStartup.StateAfterSwitch(enable, StartupChanges.PackagedStateBefore(i.Entry)) : (int?)null;
+            if (state.HasValue)
+            {
+                stateNote ??= PackagedStartup.StateNote(state.Value);
+                restoresMark |= state.Value != PackagedStartup.TargetState(enable);
+            }
+            if (items.Count == 1 && state.HasValue)
             {
                 details.Add($"Приложение MSIX: {i.Entry.PackageFamilyName}, задача автозапуска «{i.Entry.Name}»");
                 if (i.TargetPath is not null) details.Add($"Программа: {i.Command}");
-                details.Add($"Отметка: {StartupLocations.DescribeMark(i.Entry)} = " +
-                            (enable ? "2 (включено)" : "1 (отключено пользователем — как в Диспетчере задач)"));
+                details.Add($"Отметка: {StartupLocations.DescribeMark(i.Entry)} = {PackagedStartup.SwitchText(enable, state.Value)}");
             }
             else if (items.Count == 1)
             {
@@ -364,7 +372,8 @@ public sealed partial class StartupViewModel : PageViewModel
             }
             else
             {
-                details.Add($"{i.DisplayName} — {(i.IsMachine ? "для всех" : "для меня")}, {LowerFirst(i.SourceText)}");
+                details.Add($"{i.DisplayName} — {(i.IsMachine ? "для всех" : "для меня")}, {LowerFirst(i.SourceText)}" +
+                            (state is { } restored && restored != PackagedStartup.TargetState(enable) ? $", State = {PackagedStartup.SwitchText(enable, restored)}" : ""));
             }
 
             switch (i.Risk)
@@ -377,6 +386,7 @@ public sealed partial class StartupViewModel : PageViewModel
                     break;
             }
         }
+        if (stateNote is not null) details.Add(stateNote);
         if (enable && items.Any(i => i.IsPackaged))
             details.Add("Приложение MSIX Windows запускает при входе, только если его хотя бы раз открывали.");
         if (skippedLocked > 0)
@@ -387,7 +397,8 @@ public sealed partial class StartupViewModel : PageViewModel
         var subject = items.Count == 1 ? $"«{items[0].DisplayName}»" : $"{items.Count} {Plural(items.Count, "запись", "записи", "записей")}";
         var message = enable
             ? $"{subject} снова {(items.Count == 1 ? "будет" : "будут")} запускаться при входе в Windows."
-            : $"{subject} {Plural(items.Count, "перестанет", "перестанут", "перестанут")} запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач. " +
+            : $"{subject} {Plural(items.Count, "перестанет", "перестанут", "перестанут")} запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач" +
+              (restoresMark ? " (или возвращает отметку, что была до него)" : "") + ". " +
               "Уже запущенные программы продолжат работать до перезагрузки.";
 
         return Ui.ConfirmAsync(
@@ -545,7 +556,11 @@ public sealed partial class StartupViewModel : PageViewModel
     {
         var records = StartupChanges.ActiveRecords();
         var targets = records.Select(r => r.Target).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var i in Items) i.IsJournaled = targets.Contains(StartupLocations.JournalTarget(i.Entry));
+        foreach (var i in Items)
+        {
+            i.IsJournaled = targets.Contains(StartupLocations.JournalTarget(i.Entry));
+            i.PackageStateBefore = StartupChanges.PackagedStateBefore(i.Entry);
+        }
         foreach (var t in Tasks) t.IsJournaled = targets.Contains($"task:{t.Path}");
     }
 

@@ -80,6 +80,11 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     [NotifyPropertyChangedFor(nameof(StatusDetail))]
     private bool _isJournaled;
 
+    /// <summary>Packaged tasks: the State from before MONOLITH changed it (this account's journal), or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToggleTooltip))]
+    private int? _packageStateBefore;
+
     public string StatusText => IsEnabled ? "ВКЛЮЧЕНО" : "ОТКЛЮЧЕНО";
 
     public string StatusDetail
@@ -103,10 +108,17 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
             ? "Состоянием этой задачи управляет администратор или групповая политика — MONOLITH его не меняет."
         : !CanChange ? "Состояние задачи не распознано или имя пакета нестандартное — MONOLITH её не меняет."
         : IsEnabled && !CanDisable ? "Значок защиты Windows или антивируса — MONOLITH его не отключает."
-        : IsPackaged && IsEnabled ? "Отключить, как в Диспетчере задач (State = 1): приложение не будет запускаться при входе. Ничего не удаляется."
-        : IsPackaged ? "Включить (State = 2). Windows запускает такое приложение при входе, если его хотя бы раз открывали."
+        : IsPackaged ? PackagedToggleTooltip(!IsEnabled, PackagedStartup.StateAfterSwitch(!IsEnabled, PackageStateBefore))
         : IsEnabled ? "Отключить: программа не будет запускаться при входе. Ничего не удаляется."
         : "Включить: программа снова будет запускаться при входе в Windows.";
+
+    /// <summary>The packaged toggle's tooltip names the State the switch really leaves (an undo restores the original).</summary>
+    internal static string PackagedToggleTooltip(bool enable, int state) =>
+        state != PackagedStartup.TargetState(enable)
+            ? $"{(enable ? "Включить" : "Отключить")}: MONOLITH вернёт State = {state} ({PackagedStartup.StateText(state)}), как было до него."
+              + (PackagedStartup.StateNote(state) is { } note ? " " + note : "")
+        : enable ? "Включить (State = 2). Windows запускает такое приложение при входе, если его хотя бы раз открывали."
+        : "Отключить, как в Диспетчере задач (State = 1): приложение не будет запускаться при входе. Ничего не удаляется.";
 
     /// <summary>Takes the state read back after a change (<see cref="StartupScanner.Refresh"/>).</summary>
     public void Update(StartupEntry fresh)
