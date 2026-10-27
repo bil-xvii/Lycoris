@@ -653,24 +653,31 @@ public sealed partial class OptimizeViewModel : PageViewModel
     {
         if (!RequireAdmin("Откат изменений")) return;
         var journal = ChangeJournal.Instance;
-        var records = journal.ActiveRecords.Where(r => r.TouchedBy(SourcePrefix + item.Id) && ChangeJournal.IsMine(r)).ToList();
+        // The same selection the revert makes: older per-user records under this account's own later change stay.
+        var (records, left) = journal.SourceCandidates([SourcePrefix + item.Id]);
         if (records.Count == 0)
         {
-            Ui.Toast("Для этого пункта нет изменений MONOLITH, которые можно откатить.", ToastKind.Info);
+            var why = left.Count > 0 ? await Task.Run(() => RestoreFormat.LeftText(left, UserScope.CurrentSid, UserScope.AccountName)) : "";
+            Ui.Toast(why.Length > 0 ? why : "Для этого пункта нет изменений MONOLITH, которые можно откатить.", ToastKind.Info);
             await RefreshStatesAsync();
             return;
         }
 
         // Settings a later change (another tweak or page) has set again keep that value: only this tweak's layer goes.
         var own = new HashSet<ChangeRecord>(records, ChangeJournal.ByReference);
-        var keepers = await Task.Run(() => records.ToDictionary(r => r, r => journal.ActiveLayers(r.Target)
-            .SkipWhile(x => !ReferenceEquals(x, r)).Skip(1).FirstOrDefault(x => !own.Contains(x)), ChangeJournal.ByReference));
+        var (keepers, account, leftText) = await Task.Run(() => (
+            records.ToDictionary(r => r, r => journal.ActiveLayers(r.Target)
+                .SkipWhile(x => !ReferenceEquals(x, r)).Skip(1).FirstOrDefault(x => !own.Contains(x)), ChangeJournal.ByReference),
+            records.Any(r => r.IsLegacyPerUser) && UserScope.CurrentSid is { } sid ? UserScope.AccountName(sid) : null,
+            RestoreFormat.LeftText(left, UserScope.CurrentSid, UserScope.AccountName)));
         var details = records.Select(r => keepers[r] is { } keeper
             ? $"{OptimizeLogic.DescribeTarget(r.Target)}: останется «{keeper.NewValue}» — его позже задал «{keeper.Title}», исходное значение перейдёт к нему"
             : DescribeRecord(r)).ToList();
         if (AlsoRevertsLine(records.Where(r => r.IsLegacyMerged), [item.Id]) is { } also) details.Add(also);
-        if (records.Any(r => r.IsLegacyPerUser))
-            details.Add("Часть записей сделана старой версией без учётной записи: значения вернутся в профиль текущей учётной записи.");
+        if (account is not null)
+            details.Add($"Часть записей сделана старой версией MONOLITH без учётной записи: исходные значения запишутся в профиль {account}. " +
+                        "Если изменения делали под другой учётной записью, у неё они останутся.");
+        if (leftText.Length > 0) details.Add("Не войдут в откат: " + leftText);
         var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?",
             $"«{item.Title}»: MONOLITH вернёт значения, которые были до применения этого пункта.",
             details, confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
@@ -678,7 +685,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (!ok) return;
 
         RevertResult? result = null;
-        await RunBusyAsync($"Откат: {item.Title}…", async () => result = await TweakEngine.RevertAsync(item.Tweak, LiveState.VerifyRevert));
+        await RunBusyAsync($"Откат: {item.Title}…", async () =>
+            result = await Task.Run(() => TweakEngine.RevertAsync(item.Tweak, LiveState.VerifyRevert)));
         await RefreshStatesAsync();
         await ReportRevertAsync(result, [item]);
     }
@@ -705,27 +713,32 @@ public sealed partial class OptimizeViewModel : PageViewModel
     {
         if (result is null) return;
         var check = result.VerificationText is { } v ? " " + v : "";
+        // Only values actually put back count as returned; hand-overs left a later change working and the system as it was.
+        var counts = RestoreFormat.RevertCounts(result, "Возвращено параметров");
+        var left = RestoreFormat.LeftText(result.Left, UserScope.CurrentSid, UserScope.CachedAccountName);
+        var tail = left.Length > 0 ? " " + left : "";
         if (!result.JournalSaved)
             Ui.Toast("Откат выполнен, но журнал не удалось сохранить на диск — после перезапуска записи могут снова показаться активными.",
                 ToastKind.Warning, "ЖУРНАЛ НЕ СОХРАНЁН");
         if (result.Success && result.Mismatches.Count == 0)
         {
-            Ui.Toast($"Возвращено параметров: {result.Reverted}.{check}", ToastKind.Success, "ОТКАТ ВЫПОЛНЕН");
+            if (left.Length == 0) Ui.Toast(counts + check, ToastKind.Success, "ОТКАТ ВЫПОЛНЕН");
+            else Ui.Toast(counts + check + tail, ToastKind.Warning, "ОТКАЧЕНО НЕ ВСЁ");
         }
         else if (result.Success)
         {
             await Ui.AlertAsync("ОТКАТ НЕ СОВПАЛ С ИСХОДНЫМ",
-                $"Возвращено параметров: {result.Reverted}.{check} После отката MONOLITH прочитал значения заново: эти отличаются от исходных " +
-                "(их могла сразу изменить Windows, политика или другая программа). Подробности — в разделе «Восстановление».",
+                $"{counts}{check} После отката MONOLITH прочитал значения заново: эти отличаются от исходных " +
+                "(их могла сразу изменить Windows, политика или другая программа). Подробности — в разделе «Восстановление»." + tail,
                 result.Mismatches);
         }
         else
         {
             await Ui.AlertAsync("ОТКАТ С ОШИБКАМИ",
-                $"Возвращено параметров: {result.Reverted}, не удалось: {result.Failed}.{check} Повторить можно здесь или в разделе «Восстановление».",
+                $"{counts} Не удалось: {result.Failed}.{check} Повторить можно здесь или в разделе «Восстановление»." + tail,
                 result.Errors.Concat(result.Mismatches.Select(m => "НЕ СОВПАДАЕТ · " + m)));
         }
-        if (result.Reverted == 0) return;
+        if (result.Restored == 0) return; // nothing changed in the system: no restart to offer
         var restart = targets.Select(t => t.Tweak.Restart).DefaultIfEmpty(RestartRequirement.None).Max();
         if (restart != RestartRequirement.None) await OfferRestartAsync(restart);
     }

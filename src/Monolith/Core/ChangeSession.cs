@@ -11,6 +11,9 @@ namespace Monolith.Core;
 /// a session shows up in the Restore center and can be undone one by one or all at once. A change of a target that
 /// already has an active record becomes a new layer holding the state right before it (see <see cref="ChangeJournal.Add"/>).
 /// Changes in one account's profile (HKCU, per-user commands) record that account's SID.
+/// Every Set* call holds the journal gate (<see cref="ChangeJournal.Exclusive{T}"/>) from reading the original through
+/// the journal record and the write, so no revert runs in between; <see cref="Exclusive"/> widens that to a whole
+/// tweak (which reads the live state itself before calling the session).
 /// </summary>
 public sealed class ChangeSession
 {
@@ -61,10 +64,20 @@ public sealed class ChangeSession
         return session;
     }
 
+    /// <summary>
+    /// Runs <paramref name="body"/> (reads of the live state and Set* calls) under the journal gate: no revert and no
+    /// other journaled change runs meanwhile. Blocking: call off the UI thread. Never revert from inside it.
+    /// </summary>
+    public void Exclusive(Action body) => _journal.Exclusive(body);
+
     // ───────────────────────────── Registry ─────────────────────────────
 
     /// <summary>Sets a registry value. <paramref name="value"/> = null deletes the value.</summary>
     public bool SetRegistry(RegHive hive, string path, string name, RegistryValueKind kind, object? value,
+        string source, string title) =>
+        _journal.Exclusive(() => SetRegistryCore(hive, path, name, kind, value, source, title));
+
+    private bool SetRegistryCore(RegHive hive, string path, string name, RegistryValueKind kind, object? value,
         string source, string title)
     {
         var target = $"reg:{hive}\\{path}\\{name}";
@@ -112,7 +125,10 @@ public sealed class ChangeSession
 
     // ───────────────────────────── Services ─────────────────────────────
 
-    public bool SetServiceStart(string service, ServiceStartMode mode, string source, string title, bool delayed = false)
+    public bool SetServiceStart(string service, ServiceStartMode mode, string source, string title, bool delayed = false) =>
+        _journal.Exclusive(() => SetServiceStartCore(service, mode, source, title, delayed));
+
+    private bool SetServiceStartCore(string service, ServiceStartMode mode, string source, string title, bool delayed)
     {
         ChangeRecord? rec = null;
         bool isNew = false;
@@ -173,7 +189,10 @@ public sealed class ChangeSession
     // ───────────────────────────── Power plans ─────────────────────────────
 
     /// <summary>Activates a power plan. <paramref name="createdScheme"/> marks a plan MONOLITH created, so revert can delete it.</summary>
-    public bool SetPowerScheme(Guid scheme, string source, string title, Guid? createdScheme = null)
+    public bool SetPowerScheme(Guid scheme, string source, string title, Guid? createdScheme = null) =>
+        _journal.Exclusive(() => SetPowerSchemeCore(scheme, source, title, createdScheme));
+
+    private bool SetPowerSchemeCore(Guid scheme, string source, string title, Guid? createdScheme)
     {
         ChangeRecord? rec = null;
         bool isNew = false;
@@ -206,7 +225,10 @@ public sealed class ChangeSession
 
     // ───────────────────────────── Scheduled tasks ─────────────────────────────
 
-    public bool SetTaskEnabled(string taskPath, bool enabled, string source, string title)
+    public bool SetTaskEnabled(string taskPath, bool enabled, string source, string title) =>
+        _journal.Exclusive(() => SetTaskEnabledCore(taskPath, enabled, source, title));
+
+    private bool SetTaskEnabledCore(string taskPath, bool enabled, string source, string title)
     {
         ChangeRecord? rec = null;
         bool isNew = false;
@@ -249,9 +271,14 @@ public sealed class ChangeSession
     /// or was interrupted keeps its record too: it may have changed something, and the undo command writes the
     /// original state back either way. Per-user targets (DirectX tokens, visual effects) record the account.
     /// </summary>
-    public async Task<bool> RunCommandAsync(string target, string file, string args, string revertFile, string revertArgs,
+    public Task<bool> RunCommandAsync(string target, string file, string args, string revertFile, string revertArgs,
         string oldValue, string newValue, string source, string title, OutputEncoding encoding = OutputEncoding.Oem,
-        IReadOnlySet<int>? successCodes = null)
+        IReadOnlySet<int>? successCodes = null) =>
+        _journal.ExclusiveAsync(() => RunCommandCoreAsync(target, file, args, revertFile, revertArgs, oldValue, newValue, source,
+            title, encoding, successCodes));
+
+    private async Task<bool> RunCommandCoreAsync(string target, string file, string args, string revertFile, string revertArgs,
+        string oldValue, string newValue, string source, string title, OutputEncoding encoding, IReadOnlySet<int>? successCodes)
     {
         ChangeRecord? rec = null;
         bool isNew = false;
