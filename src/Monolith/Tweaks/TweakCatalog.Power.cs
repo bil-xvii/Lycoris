@@ -54,7 +54,8 @@ public static partial class TweakCatalog
             DetectFunc = () =>
             {
                 var copy = PowerSchemes.FindUltimateCopy();
-                return copy is { } id && PowerSchemes.GetActive() == id ? TweakState.Applied : TweakState.NotApplied;
+                return copy is { } id && !SchemeChangeNeeded(PowerSchemes.GetActive(), id, SessionHoldsPlan())
+                    ? TweakState.Applied : TweakState.NotApplied;
             },
             ApplyAction = ctx =>
             {
@@ -62,7 +63,7 @@ public static partial class TweakCatalog
                 Guid? created = null;
                 if (PowerSchemes.FindUltimateCopy() is { } existing)
                 {
-                    if (PowerSchemes.GetActive() == existing) return;
+                    if (!SchemeChangeNeeded(PowerSchemes.GetActive(), existing, SessionHoldsPlan())) return;
                     scheme = existing;
                 }
                 else
