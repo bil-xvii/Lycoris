@@ -27,7 +27,7 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
 
     public StartupEntry Entry { get; private set; }
 
-    public string Key => $"{Entry.Source}|{Entry.Name}";
+    public string Key => Entry.Key;
     public string DisplayName => Entry.DisplayName;
     public string Command => Entry.Command;
     public string? TargetPath => Entry.TargetPath;
@@ -35,25 +35,40 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     public string? ItemPath => Entry.ItemPath;
     public StartupRisk Risk => Entry.Risk;
     public bool IsMachine => StartupLocations.IsMachine(Entry.Source);
+    public bool IsPackaged => StartupLocations.IsPackaged(Entry.Source);
 
     public string ScopeText => IsMachine ? "ДЛЯ ВСЕХ" : "ДЛЯ МЕНЯ";
     public string SourceText => StartupLocations.ShortLabel(Entry.Source);
     public string PublisherText => Entry.Publisher ?? (Entry.TargetExists ? "Издатель не указан" : "Нет данных");
     public bool HasPublisher => Entry.Publisher is not null;
-    public string FileText => TargetPath is null ? "—" : Path.GetFileName(TargetPath);
+    public string FileText => BootPerformance.FileName(TargetPath) ?? "—";
 
     public string NameTooltip =>
-        $"{Entry.Name}\n{StartupLocations.Describe(Entry.Source)}" +
+        (IsPackaged ? $"{Entry.PackageFamilyName} › {Entry.Name}" : $"{Entry.Name}\n{StartupLocations.Describe(Entry.Source)}") +
         (Entry.Description is { } d && d != Entry.DisplayName ? $"\n{d}" : "");
 
-    public string LocationTooltip =>
-        $"{StartupLocations.Describe(Entry.Source)}\nОтметка: {(IsMachine ? "HKLM" : "HKCU")}\\{StartupLocations.ApprovedKey(Entry.Source)}";
+    public string LocationTooltip => IsPackaged
+        ? $"Задача автозапуска приложения MSIX\n{StartupLocations.DescribeMark(Entry)} = {Entry.PackageState?.ToString() ?? "?"} ({PackagedStartup.StateText(Entry.PackageState)})"
+        : $"{StartupLocations.Describe(Entry.Source)}\nОтметка: {(IsMachine ? "HKLM" : "HKCU")}\\{StartupLocations.ApprovedKey(Entry.Source)}";
 
     public bool CanDisable => StartupClassifier.CanDisable(Entry.Risk);
 
+    /// <summary>False for packaged tasks under policy, in an unknown state or with names the journal could not undo.</summary>
+    public bool CanChange => Entry.CanChange;
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip))]
+    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip), nameof(ShowBootDelay))]
     private bool _isEnabled;
+
+    /// <summary>Newest boot slowdown Windows recorded for this program (Diagnostics-Performance event 101), if any.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowBootDelay), nameof(BootDelayTooltip))]
+    private BootDelayMatch? _bootDelay;
+
+    /// <summary>The «ЗАМЕДЛЯЕТ ЗАГРУЗКУ» tag: only while the entry still starts with Windows.</summary>
+    public bool ShowBootDelay => BootDelay is not null && IsEnabled;
+
+    public string? BootDelayTooltip => BootDelay is { } m ? BootPerformance.DelayTooltip(m) : null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusDetail))]
@@ -72,26 +87,38 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
         get
         {
             var parts = new List<string>();
-            if (!IsEnabled && DisabledAtUtc is { } at) parts.Add("с " + at.ToLocalTime().ToString("dd.MM.yyyy HH:mm"));
+            if (IsPackaged) parts.Add(PackagedStartup.StateText(Entry.PackageState));
+            else if (!IsEnabled && DisabledAtUtc is { } at) parts.Add("с " + at.ToLocalTime().ToString("dd.MM.yyyy HH:mm"));
             else parts.Add(IsEnabled ? "при входе в Windows" : "не запускается");
             if (IsJournaled) parts.Add("MONOLITH");
             return string.Join(" · ", parts);
         }
     }
 
-    public bool CanToggle => Elevation.IsElevated && (!IsEnabled || CanDisable);
+    public bool CanToggle => Elevation.IsElevated && CanChange && (!IsEnabled || CanDisable);
 
     public string ToggleTooltip =>
         !Elevation.IsElevated ? "Нужны права администратора: изменения записываются в журнал отката."
+        : IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState)
+            ? "Состоянием этой задачи управляет администратор или групповая политика — MONOLITH его не меняет."
+        : !CanChange ? "Состояние задачи не распознано или имя пакета нестандартное — MONOLITH её не меняет."
         : IsEnabled && !CanDisable ? "Значок защиты Windows или антивируса — MONOLITH его не отключает."
+        : IsPackaged && IsEnabled ? "Отключить, как в Диспетчере задач (State = 1): приложение не будет запускаться при входе. Ничего не удаляется."
+        : IsPackaged ? "Включить (State = 2). Windows запускает такое приложение при входе, если его хотя бы раз открывали."
         : IsEnabled ? "Отключить: программа не будет запускаться при входе. Ничего не удаляется."
         : "Включить: программа снова будет запускаться при входе в Windows.";
 
-    public void Update(bool enabled, DateTime? disabledAtUtc)
+    /// <summary>Takes the state read back after a change (<see cref="StartupScanner.Refresh"/>).</summary>
+    public void Update(StartupEntry fresh)
     {
-        IsEnabled = enabled;
-        DisabledAtUtc = disabledAtUtc;
-        Entry = Entry with { Enabled = enabled, DisabledAtUtc = disabledAtUtc };
+        Entry = fresh;
+        IsEnabled = fresh.Enabled;
+        DisabledAtUtc = fresh.DisabledAtUtc;
+        OnPropertyChanged(nameof(CanChange));
+        OnPropertyChanged(nameof(CanToggle));
+        OnPropertyChanged(nameof(ToggleTooltip));
+        OnPropertyChanged(nameof(StatusDetail));
+        OnPropertyChanged(nameof(LocationTooltip));
         SyncToggle();
     }
 
@@ -142,12 +169,22 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
     public bool CanDisable => StartupClassifier.CanDisable(Info.Risk);
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip))]
+    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip), nameof(ShowBootDelay))]
     private bool _isEnabled;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusDetail))]
     private bool _isJournaled;
+
+    /// <summary>Newest boot slowdown Windows recorded for the task's program (Diagnostics-Performance event 101), if any.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowBootDelay), nameof(BootDelayTooltip))]
+    private BootDelayMatch? _bootDelay;
+
+    /// <summary>The «ЗАМЕДЛЯЕТ ЗАГРУЗКУ» tag: only while the task is enabled.</summary>
+    public bool ShowBootDelay => BootDelay is not null && IsEnabled;
+
+    public string? BootDelayTooltip => BootDelay is { } m ? BootPerformance.DelayTooltip(m) : null;
 
     public string StatusText => IsEnabled ? "ВКЛЮЧЕНА" : "ОТКЛЮЧЕНА";
 

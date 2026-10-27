@@ -62,6 +62,21 @@ public static class StartupClassifier
         return StartupRisk.Normal;
     }
 
+    /// <summary>
+    /// Risk of a packaged app's startup task. Besides the executable and publisher, the package family / task id
+    /// names a security app whose package name is opaque (Microsoft Defender: <c>Microsoft.6365217CE6EB4</c> / <c>microsoftdefender</c>).
+    /// </summary>
+    public static StartupRisk ClassifyPackagedTask(string? familyName, string? taskId, string? targetPath, string? publisher)
+    {
+        var risk = ClassifyEntry(targetPath, publisher);
+        if (risk == StartupRisk.Security) return risk;
+        if (Mentions(familyName, "Defender") || Mentions(taskId, "Defender") || MatchesVendor(familyName?.Replace('.', ' '), SecurityVendors))
+            return StartupRisk.Security;
+        return risk;
+
+        static bool Mentions(string? s, string word) => s?.Contains(word, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
     /// <summary>Risk of a third-party logon / boot task. Updaters are locked like security agents.</summary>
     public static StartupRisk ClassifyTask(string? taskName, string? targetPath, string? publisher)
     {

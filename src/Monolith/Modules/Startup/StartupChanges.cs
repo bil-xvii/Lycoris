@@ -11,9 +11,11 @@ public sealed record StartupChangeOutcome(int Applied, IReadOnlyList<string> Err
 
 /// <summary>
 /// Every autostart change goes through <see cref="ChangeSession"/> (journal + .reg backup + optional restore point).
-/// Disabling/enabling only writes the StartupApproved mark Task Manager uses — Run values and shortcuts are never deleted.
+/// Disabling/enabling only writes the mark Task Manager uses — the StartupApproved REG_BINARY for Run / Startup-folder
+/// entries, the DWORD <c>State</c> (2 on, 1 off) for packaged apps' startup tasks. Run values, shortcuts and packages
+/// are never deleted, packaged task keys are never created, policy-managed tasks are never written.
 /// When an entry is switched back to the state it had before MONOLITH touched it, the journal record is reverted
-/// instead (exact original bytes come back and the journal stays clean).
+/// instead (the exact original value comes back and the journal stays clean).
 /// </summary>
 public static class StartupChanges
 {
@@ -41,9 +43,22 @@ public static class StartupChanges
         var write = new List<StartupEntry>();
         foreach (var e in entries)
         {
-            var record = journal.FindActive(StartupLocations.JournalTarget(e.Source, e.Name));
-            if (record?.Registry is { } snapshot && OriginalEnabled(snapshot) == enable) revert.Add(record);
-            else write.Add(e);
+            var packaged = StartupLocations.IsPackaged(e.Source);
+            // Packaged tasks are checked against the live value right before anything is written (undo included): the
+            // package may have been removed or put under policy since the scan. Nothing is written then — no key is created.
+            if (packaged && PackagedWriteRefusal(e) is { } refusal)
+            {
+                errors.Add($"{e.DisplayName}: {refusal}.");
+                continue;
+            }
+            var record = journal.FindActive(StartupLocations.JournalTarget(e));
+            if (record?.Registry is { } snapshot && OriginalEnabled(e, snapshot) == enable)
+            {
+                revert.Add(record);
+                continue;
+            }
+            if (packaged && PackagedStartup.IsEnabled(PackagedStartup.ReadState(e.PackageFamilyName!, e.Name)) == enable) continue;
+            write.Add(e);
         }
 
         if (write.Count > 0)
@@ -53,8 +68,12 @@ public static class StartupChanges
             foreach (var e in write)
             {
                 progress?.Report($"{(enable ? "Включение" : "Отключение")}: {e.DisplayName}");
-                session.SetRegistry(StartupLocations.ApprovedHive(e.Source), StartupLocations.ApprovedKey(e.Source), e.Name,
-                    RegistryValueKind.Binary, StartupApproved.Build(enable), EntrySource, EntryRecordTitle(e));
+                if (StartupLocations.IsPackaged(e.Source))
+                    session.SetRegistry(RegHive.HKCU, PackagedStartup.KeyPath(e.PackageFamilyName!, e.Name), PackagedStartup.StateValue,
+                        RegistryValueKind.DWord, PackagedStartup.TargetState(enable), EntrySource, EntryRecordTitle(e));
+                else
+                    session.SetRegistry(StartupLocations.ApprovedHive(e.Source), StartupLocations.ApprovedKey(e.Source), e.Name,
+                        RegistryValueKind.Binary, StartupApproved.Build(enable), EntrySource, EntryRecordTitle(e));
             }
             session.Complete();
             applied += session.Applied;
@@ -112,6 +131,21 @@ public static class StartupChanges
 
         return new StartupChangeOutcome(applied, errors);
     }
+
+    /// <summary>Why a packaged task must not be written now (live State re-read), or null.</summary>
+    internal static string? PackagedWriteRefusal(StartupEntry e)
+    {
+        if (!PackagedStartup.IsJournalSafe(e.PackageFamilyName, e.Name))
+            return "нестандартное имя пакета или задачи — такую запись MONOLITH не смог бы откатить, поэтому не меняет";
+        return PackagedStartup.WriteRefusal(PackagedStartup.ReadState(e.PackageFamilyName!, e.Name));
+    }
+
+    /// <summary>
+    /// Was the entry enabled before MONOLITH changed it? Packaged tasks: from the DWORD State (null when unknown, so
+    /// the page writes instead of reverting); everything else: the StartupApproved rule below.
+    /// </summary>
+    public static bool? OriginalEnabled(StartupEntry e, RegistryValueSnapshot snapshot) =>
+        StartupLocations.IsPackaged(e.Source) ? PackagedStartup.OriginalEnabled(snapshot) : OriginalEnabled(snapshot);
 
     /// <summary>Was the entry enabled before MONOLITH changed it? (absent value / non-binary = enabled).</summary>
     public static bool OriginalEnabled(RegistryValueSnapshot snapshot)

@@ -420,3 +420,447 @@ public sealed class StartupScanSmokeTests
     public void Russian_plural(int n, string expected) =>
         Assert.Equal(expected, StartupViewModel.Plural(n, "запись", "записи", "записей"));
 }
+
+public sealed class PackagedStartupTests
+{
+    private const string Teams = "MSTeams_8wekyb3d8bbwe";
+
+    /// <summary>The shape JournalTrust accepts for a packaged startup mark (HKCU, value "State", DWORD).</summary>
+    private static readonly System.Text.RegularExpressions.Regex JournalShape = new(
+        @"^Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\SystemAppData\\" +
+        @"[A-Za-z0-9.\-]{3,50}_[a-z0-9]{13}\\[A-Za-z0-9._\-]{1,128}$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static StartupEntry Packaged(int? state, string family = Teams, string task = "TeamsTfwStartupTask") => new()
+    {
+        Source = StartupSource.PackagedTask, Name = task, PackageFamilyName = family, PackageState = state,
+        DisplayName = "Microsoft Teams", Command = "ms-teams.exe", Enabled = PackagedStartup.IsEnabled(state),
+    };
+
+    [Fact]
+    public void Key_and_journal_target_match_what_change_session_and_journal_trust_use()
+    {
+        var path = PackagedStartup.KeyPath(Teams, "TeamsTfwStartupTask");
+        Assert.Equal(@"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\MSTeams_8wekyb3d8bbwe\TeamsTfwStartupTask", path);
+        Assert.Matches(JournalShape, path);
+        Assert.Equal($@"reg:HKCU\{path}\State", PackagedStartup.JournalTarget(Teams, "TeamsTfwStartupTask"));
+        Assert.Equal(PackagedStartup.JournalTarget(Teams, "TeamsTfwStartupTask"), StartupLocations.JournalTarget(Packaged(2)));
+        Assert.Equal("State", PackagedStartup.StateValue);
+    }
+
+    [Theory]
+    [InlineData(Teams, "TeamsTfwStartupTask", true)]
+    [InlineData("SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "Spotify", true)]
+    [InlineData("Microsoft.6365217CE6EB4_8wekyb3d8bbwe", "microsoftdefender", true)]
+    [InlineData("AppUp.IntelManagementandSecurityStatus_8j3eq9eme6ctt", "IntelManagementandSecurityStatus", true)]
+    [InlineData(@"..\Run_8wekyb3d8bbwe", "x", false)]
+    [InlineData(Teams, @"a\b", false)]
+    [InlineData(Teams, "with space", false)]
+    [InlineData("MSTeams_short", "x", false)]
+    [InlineData(null, "x", false)]
+    [InlineData(Teams, null, false)]
+    public void Only_names_the_journal_can_undo_are_writable(string? family, string? task, bool safe)
+    {
+        Assert.Equal(safe, PackagedStartup.IsJournalSafe(family, task));
+        if (safe) Assert.Matches(JournalShape, PackagedStartup.KeyPath(family!, task!));
+    }
+
+    [Theory]
+    [InlineData(0, false, false, true)]
+    [InlineData(1, false, false, true)]
+    [InlineData(2, true, false, true)]
+    [InlineData(3, false, true, false)]
+    [InlineData(4, true, true, false)]
+    [InlineData(5, false, false, false)]
+    [InlineData(-1, false, false, false)]
+    [InlineData(null, false, false, false)]
+    public void State_values_follow_StartupTaskState(int? state, bool enabled, bool policy, bool changeable)
+    {
+        Assert.Equal(enabled, PackagedStartup.IsEnabled(state));
+        Assert.Equal(policy, PackagedStartup.IsPolicy(state));
+        Assert.Equal(changeable, PackagedStartup.IsUserChangeable(state));
+        Assert.Equal(changeable, Packaged(state).CanChange);
+        Assert.Equal(changeable, PackagedStartup.WriteRefusal(state) is null);
+    }
+
+    [Fact]
+    public void Writes_are_what_task_manager_writes_and_refusals_explain_why()
+    {
+        Assert.Equal(2, PackagedStartup.TargetState(enable: true));
+        Assert.Equal(1, PackagedStartup.TargetState(enable: false)); // DisabledByUser: the app cannot turn itself back on
+        Assert.Contains("не найдена", PackagedStartup.WriteRefusal(null));
+        Assert.Contains("политик", PackagedStartup.WriteRefusal(3));
+        Assert.Contains("политик", PackagedStartup.WriteRefusal(4));
+        Assert.Contains("неизвестное", PackagedStartup.WriteRefusal(9));
+    }
+
+    [Fact]
+    public void Unsafe_names_are_never_changeable_even_in_a_user_state()
+    {
+        Assert.False(Packaged(2, task: "with space").CanChange);
+        Assert.True(Packaged(2).CanChange);
+        // Classic entries are always changeable (security lock is separate: StartupClassifier.CanDisable).
+        Assert.True(new StartupEntry { Source = StartupSource.RunUser, Name = "x", DisplayName = "x", Command = "x" }.CanChange);
+    }
+
+    [Fact]
+    public void Original_state_from_a_dword_snapshot()
+    {
+        static RegistryValueSnapshot Dw(string data) => new() { ValueExisted = true, Kind = RegistryValueKind.DWord, Data = data };
+        Assert.True(PackagedStartup.OriginalEnabled(Dw("2")));
+        Assert.True(PackagedStartup.OriginalEnabled(Dw("4")));
+        Assert.False(PackagedStartup.OriginalEnabled(Dw("1")));
+        Assert.False(PackagedStartup.OriginalEnabled(Dw("0")));
+        Assert.Null(PackagedStartup.OriginalEnabled(Dw("x")));
+        Assert.Null(PackagedStartup.OriginalEnabled(new RegistryValueSnapshot { ValueExisted = false }));
+        Assert.Null(PackagedStartup.OriginalEnabled(new RegistryValueSnapshot { ValueExisted = true, Kind = RegistryValueKind.Binary, Data = "AgAAAA==" }));
+
+        // StartupChanges picks the rule by source: a DWORD is "enabled" for StartupApproved but means State for packaged tasks.
+        Assert.False(StartupChanges.OriginalEnabled(Packaged(2), Dw("1")));
+        Assert.True(StartupChanges.OriginalEnabled(new StartupEntry { Source = StartupSource.RunUser, Name = "x", DisplayName = "x", Command = "x" }, Dw("1")));
+    }
+
+    [Fact]
+    public void Row_identity_and_labels()
+    {
+        var e = Packaged(2);
+        Assert.Equal(@"PackagedTask|MSTeams_8wekyb3d8bbwe\TeamsTfwStartupTask", e.Key);
+        Assert.Equal("RunUser|Steam", new StartupEntry { Source = StartupSource.RunUser, Name = "Steam", DisplayName = "Steam", Command = "s" }.Key);
+        Assert.False(StartupLocations.IsMachine(StartupSource.PackagedTask));
+        Assert.True(StartupLocations.IsPackaged(StartupSource.PackagedTask));
+        Assert.Equal("Приложение MSIX", StartupLocations.ShortLabel(StartupSource.PackagedTask));
+        Assert.EndsWith(@"SystemAppData\MSTeams_8wekyb3d8bbwe\TeamsTfwStartupTask → State", StartupLocations.DescribeMark(e));
+        Assert.Equal("отключено пользователем", PackagedStartup.StateText(1));
+        Assert.Equal("отключено политикой", PackagedStartup.StateText(3));
+    }
+
+    [Theory]
+    [InlineData("MSTeams_24215.1007.3082.1590_x64__8wekyb3d8bbwe", "MSTeams", "x64", "", "8wekyb3d8bbwe", true)]
+    [InlineData("NcsiUwpApp_1000.19041.423.0_neutral_neutral_8wekyb3d8bbwe", "NcsiUwpApp", "neutral", "neutral", "8wekyb3d8bbwe", true)]
+    [InlineData("Microsoft.WindowsTerminal_1.18.0.0_neutral_split.scale-100_8wekyb3d8bbwe", "Microsoft.WindowsTerminal", "neutral", "split.scale-100", "8wekyb3d8bbwe", false)]
+    [InlineData("Microsoft.WindowsTerminal_2023.1.0.0_neutral_~_8wekyb3d8bbwe", "Microsoft.WindowsTerminal", "neutral", "~", "8wekyb3d8bbwe", false)]
+    public void Package_full_names_are_split(string full, string name, string arch, string resource, string publisher, bool main)
+    {
+        var p = PackagedStartup.ParseFullName(full);
+        Assert.NotNull(p);
+        Assert.Equal(name, p!.Name);
+        Assert.Equal(arch, p.Architecture);
+        Assert.Equal(resource, p.ResourceId);
+        Assert.Equal(publisher, p.PublisherId);
+        Assert.Equal($"{name}_{publisher}", p.FamilyName);
+        Assert.Equal(main, p.IsMain);
+    }
+
+    [Fact]
+    public void Bad_full_names_and_the_main_package_choice()
+    {
+        Assert.Null(PackagedStartup.ParseFullName("MSTeams_8wekyb3d8bbwe"));
+        Assert.Null(PackagedStartup.ParseFullName(""));
+        Assert.Null(PackagedStartup.ParseFullName(null));
+
+        var chosen = PackagedStartup.ChooseMainPackage([
+            "Vendor.App_3.0.0.0_neutral_split.scale-150_abcdefghjkmnp",
+            "Vendor.App_1.0.0.0_x64__abcdefghjkmnp",
+            "Vendor.App_2.5.0.0_x64__abcdefghjkmnp",
+            "Vendor.App_9.0.0.0_neutral_~_abcdefghjkmnp",
+        ]);
+        Assert.Equal("Vendor.App_2.5.0.0_x64__abcdefghjkmnp", chosen?.FullName);
+        Assert.Null(PackagedStartup.ChooseMainPackage([]));
+    }
+
+    private const string Manifest = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                 xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+                 xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+                 xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+                 IgnorableNamespaces="uap uap5 desktop">
+          <Identity Name="MSTeams" Publisher="CN=Microsoft Corporation" Version="24215.1007.3082.1590" ProcessorArchitecture="x64" />
+          <Properties>
+            <DisplayName>Microsoft Teams</DisplayName>
+            <PublisherDisplayName>Microsoft Corporation</PublisherDisplayName>
+          </Properties>
+          <Applications>
+            <Application Id="MSTeams" Executable="ms-teams.exe" EntryPoint="Windows.FullTrustApplication">
+              <Extensions>
+                <uap5:Extension Category="windows.startupTask">
+                  <uap5:StartupTask TaskId="TeamsTfwStartupTask" Enabled="true" DisplayName="ms-resource:StartupTaskName" />
+                </uap5:Extension>
+                <uap:Extension Category="windows.protocol"><uap:Protocol Name="msteams" /></uap:Extension>
+              </Extensions>
+            </Application>
+            <Application Id="Helper" Executable="helper\tool.exe" EntryPoint="Windows.FullTrustApplication">
+              <Extensions>
+                <desktop:Extension Category="windows.startupTask" Executable="VFS/ProgramFilesX64/Vendor/tray.exe" EntryPoint="Windows.FullTrustApplication">
+                  <desktop:StartupTask TaskId="TrayTask" Enabled="false" DisplayName="Vendor tray" />
+                </desktop:Extension>
+              </Extensions>
+            </Application>
+          </Applications>
+        </Package>
+        """;
+
+    [Fact]
+    public void Manifest_startup_tasks_are_read_with_their_executable()
+    {
+        var m = PackagedStartup.ParseManifest(Manifest);
+        Assert.NotNull(m);
+        Assert.Equal("MSTeams", m!.Name);
+        Assert.Equal("Microsoft Teams", m.DisplayName);
+        Assert.Equal("Microsoft Corporation", m.PublisherDisplayName);
+        Assert.Equal(2, m.Tasks.Count);
+
+        var teams = m.Tasks[0];
+        Assert.Equal("TeamsTfwStartupTask", teams.TaskId);
+        Assert.Equal("ms-teams.exe", teams.Executable); // from the Application
+        Assert.True(teams.EnabledByDefault);
+        Assert.Equal("ms-resource:StartupTaskName", teams.DisplayName);
+
+        var tray = m.Tasks[1];
+        Assert.Equal("TrayTask", tray.TaskId);
+        Assert.Equal("VFS/ProgramFilesX64/Vendor/tray.exe", tray.Executable); // the extension's own
+        Assert.False(tray.EnabledByDefault);
+        Assert.Equal("Vendor tray", tray.DisplayName);
+    }
+
+    [Fact]
+    public void Manifests_with_a_dtd_or_broken_xml_are_refused()
+    {
+        Assert.Null(PackagedStartup.ParseManifest("<!DOCTYPE Package [<!ENTITY x \"y\">]><Package><Identity Name=\"&x;\" /></Package>"));
+        Assert.Null(PackagedStartup.ParseManifest("<Package><Applications>"));
+        Assert.Null(PackagedStartup.ParseManifest(""));
+        Assert.Empty(PackagedStartup.ParseManifest("<Package xmlns=\"urn:x\"><Identity Name=\"A\" /></Package>")!.Tasks);
+    }
+
+    [Fact]
+    public void Package_paths_are_joined_with_windows_separators_and_never_climb_out()
+    {
+        const string root = @"C:\Program Files\WindowsApps\MSTeams_24215.1007.3082.1590_x64__8wekyb3d8bbwe";
+        Assert.Equal(root + @"\VFS\ProgramFilesX64\Vendor\tray.exe", PackagedStartup.JoinPackagePath(root, "VFS/ProgramFilesX64/Vendor/tray.exe"));
+        Assert.Equal(root + @"\ms-teams.exe", PackagedStartup.JoinPackagePath(root + @"\", @"\ms-teams.exe"));
+        Assert.Null(PackagedStartup.JoinPackagePath(root, @"..\..\Windows\System32\cmd.exe"));
+        Assert.Null(PackagedStartup.JoinPackagePath(null, "a.exe"));
+        Assert.Null(PackagedStartup.JoinPackagePath(root, null));
+        Assert.Equal("MSTeams", PackagedStartup.NamePart(Teams));
+    }
+
+    [Fact]
+    public void Resource_references_become_indirect_strings_and_literals_stay_literal()
+    {
+        const string full = "MSTeams_24215.1007.3082.1590_x64__8wekyb3d8bbwe";
+        Assert.Null(PackagedStartup.IndirectSources("Microsoft Teams", full, "MSTeams"));
+        Assert.Equal(new[] { "@{X?ms-resource://a/b}" }, PackagedStartup.IndirectSources("@{X?ms-resource://a/b}", null, null));
+        Assert.Equal($"@{{{full}?ms-resource://MSTeams/resources/AppName}}", PackagedStartup.IndirectSources("ms-resource:AppName", full, "MSTeams")![0]);
+        Assert.Equal($"@{{{full}?ms-resource://MSTeams/Resources/AppName}}", PackagedStartup.IndirectSources("ms-resource:/Resources/AppName", full, "MSTeams")![0]);
+        Assert.Equal($"@{{{full}?ms-resource://Other/res/x}}", PackagedStartup.IndirectSources("ms-resource://Other/res/x", full, "MSTeams")![0]);
+        var nested = PackagedStartup.IndirectSources("ms-resource:Strings/Name", full, "MSTeams")!;
+        Assert.Equal($"@{{{full}?ms-resource://MSTeams/Strings/Name}}", nested[0]);
+        Assert.Equal($"@{{{full}?ms-resource://MSTeams/resources/Strings/Name}}", nested[1]);
+        Assert.Empty(PackagedStartup.IndirectSources("ms-resource:AppName", null, null)!);
+    }
+
+    [Theory]
+    [InlineData("Microsoft.6365217CE6EB4_8wekyb3d8bbwe", "microsoftdefender", null, "Microsoft Corporation", StartupRisk.Security)]
+    [InlineData("ESET.Security_abcdefghjkmnp", "Tray", null, null, StartupRisk.Security)]
+    [InlineData(Teams, "TeamsTfwStartupTask", @"C:\Program Files\WindowsApps\MSTeams\ms-teams.exe", "Microsoft Corporation", StartupRisk.Microsoft)]
+    [InlineData("SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "Spotify", @"C:\Program Files\WindowsApps\Spotify\Spotify.exe", "Spotify AB", StartupRisk.Normal)]
+    [InlineData("AppUp.IntelManagementandSecurityStatus_8j3eq9eme6ctt", "IntelManagementandSecurityStatus", null, "INTEL CORP", StartupRisk.Driver)]
+    public void Packaged_tasks_are_classified(string family, string task, string? target, string? publisher, StartupRisk expected) =>
+        Assert.Equal(expected, StartupClassifier.ClassifyPackagedTask(family, task, target, publisher));
+}
+
+public sealed class BootPerformanceTests
+{
+    private static readonly DateTime BootA = new(2026, 10, 26, 7, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime BootB = new(2026, 10, 25, 7, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime BootC = new(2026, 10, 20, 7, 0, 0, DateTimeKind.Utc);
+    private static readonly Func<DateTime, DateTime> Utc = t => t;
+
+    /// <summary>The log's format: ISO UTC with nine fraction digits.</summary>
+    private static string Iso(DateTime t) => t.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fffffff'00Z'", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static PerfEvent Boot(DateTime start, int total, int main, int post, bool afterInstall = false, bool degraded = false) =>
+        new(100, start.AddMinutes(3), new Dictionary<string, string>
+        {
+            ["BootStartTime"] = Iso(start), ["BootTime"] = $"{total}", ["MainPathBootTime"] = $"{main}", ["BootPostBootTime"] = $"{post}",
+            ["BootIsRebootAfterInstall"] = afterInstall ? "true" : "false", ["BootIsDegradation"] = degraded ? "True" : "False",
+        });
+
+    private static PerfEvent Delay(int id, DateTime boot, string name, string? path, int total, int degradation, string? friendly = null) =>
+        new(id, boot.AddMinutes(3), new Dictionary<string, string>
+        {
+            ["StartTime"] = Iso(boot), ["Name"] = name, ["FriendlyName"] = friendly ?? "", ["Path"] = path ?? "",
+            ["TotalTime"] = $"{total}", ["DegradationTime"] = $"{degradation}",
+        });
+
+    private const string OneDrive = @"C:\Users\u\AppData\Local\Microsoft\OneDrive\OneDrive.exe";
+
+    [Fact]
+    public void Event_xml_from_the_log_is_parsed()
+    {
+        const string xml = """
+            <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+              <System>
+                <Provider Name="Microsoft-Windows-Diagnostics-Performance" Guid="{cfc18ec0-96b1-4eba-961b-622caee05b0a}" />
+                <EventID>101</EventID>
+                <TimeCreated SystemTime="2023-03-27T08:01:38.1133629Z" />
+                <Channel>Microsoft-Windows-Diagnostics-Performance/Operational</Channel>
+              </System>
+              <EventData>
+                <Data Name="StartTime">2023-03-27T07:53:28.803772500Z</Data>
+                <Data Name="Name">OneDrive.exe</Data>
+                <Data Name="FriendlyName" />
+                <Data Name="TotalTime">9658</Data>
+                <Data Name="DegradationTime">8658</Data>
+                <Data Name="Path">"C:\Users\u\AppData\Local\Microsoft\OneDrive\OneDrive.exe"</Data>
+              </EventData>
+            </Event>
+            """;
+        var e = BootPerformance.ParseEventXml(xml);
+        Assert.NotNull(e);
+        Assert.Equal(101, e!.Id);
+        Assert.Equal(new DateTime(2023, 3, 27, 8, 1, 38, DateTimeKind.Utc).AddTicks(1133629), e.CreatedUtc);
+        Assert.Equal("9658", e.Data["TotalTime"]);
+        Assert.Equal("", e.Data["FriendlyName"]);
+
+        var delay = Assert.Single(BootPerformance.Build([e]).Delays);
+        Assert.Equal(OneDrive, delay.Path); // quotes removed
+        Assert.Null(delay.FriendlyName);
+        Assert.Equal(8658, delay.DegradationMs);
+        Assert.Equal(new DateTime(2023, 3, 27, 7, 53, 28, DateTimeKind.Utc).AddTicks(8037725), delay.BootStartUtc);
+
+        Assert.Null(BootPerformance.ParseEventXml("<Event><System><EventID>x</EventID></System></Event>"));
+        Assert.Null(BootPerformance.ParseEventXml("<!DOCTYPE e [<!ENTITY a \"b\">]><Event />"));
+        Assert.Null(BootPerformance.ParseEventXml(null));
+    }
+
+    [Fact]
+    public void Nine_fraction_digits_are_read_as_utc()
+    {
+        var t = BootPerformance.ParseUtc("2014-03-15T11:56:33.687200400Z");
+        Assert.Equal(new DateTime(2014, 3, 15, 11, 56, 33, DateTimeKind.Utc).AddTicks(6872004), t);
+        Assert.Equal(DateTimeKind.Utc, t!.Value.Kind);
+        Assert.Null(BootPerformance.ParseUtc("not a date"));
+        Assert.Null(BootPerformance.ParseUtc(""));
+    }
+
+    [Fact]
+    public void Boots_are_newest_first_and_slowdowns_are_kept_only_for_those_boots()
+    {
+        var events = new[]
+        {
+            Delay(101, BootA, "OneDrive.exe", OneDrive, 4100, 2400, "Microsoft OneDrive"),
+            Delay(103, BootA, "wsearch", @"C:\Windows\system32\SearchIndexer.exe", 900, 800, "Windows Search"),
+            Boot(BootA, 41234, 18012, 23222),
+            Boot(BootB, 39000, 17000, 22000),
+            Delay(101, BootC, "OneDrive.exe", OneDrive, 3000, 1000),
+            Boot(BootC, 52000, 20000, 32000, afterInstall: true),
+            Boot(BootC, 52000, 20000, 32000, afterInstall: true), // same boot twice
+            Delay(101, new DateTime(2026, 10, 1, 7, 0, 0, DateTimeKind.Utc), "Old.exe", @"C:\Old\Old.exe", 5000, 3000),
+            Boot(new DateTime(2026, 9, 1), 0, 0, 0), // invalid duration
+        };
+
+        var two = BootPerformance.Build(events, maxBoots: 2);
+        Assert.Equal(new[] { BootA, BootB }, two.Boots.Select(b => b.StartUtc));
+        Assert.Equal(new[] { "OneDrive.exe", "wsearch" }, two.Delays.Select(d => d.Name)); // only boot A, biggest delay first
+
+        var all = BootPerformance.Build(events);
+        Assert.Equal(3, all.Boots.Count);
+        Assert.Equal(3, all.Delays.Count); // boot C's slowdown is in, the one before the oldest boot is not
+        Assert.DoesNotContain(all.Delays, d => d.Name == "Old.exe");
+        Assert.True(all.Boots[2].AfterInstall);
+        Assert.Equal(18012, all.Last!.MainPathMs);
+    }
+
+    [Fact]
+    public void Without_boot_events_only_the_newest_boots_slowdowns_are_kept()
+    {
+        var r = BootPerformance.Build([
+            Delay(101, BootA, "A.exe", @"C:\A\A.exe", 2000, 1000),
+            Delay(101, BootB, "B.exe", @"C:\B\B.exe", 2000, 1000),
+            Delay(101, BootC, "C.exe", @"C:\C\C.exe", 2000, 1000),
+        ], maxBoots: 2);
+        Assert.Empty(r.Boots);
+        Assert.Null(r.Last);
+        Assert.Equal(new[] { "A.exe", "B.exe" }, r.Delays.Select(d => d.Name));
+        Assert.Null(BootPerformance.SummaryText(r));
+        Assert.Empty(BootPerformance.Build([]).Delays);
+    }
+
+    [Fact]
+    public void Rows_match_by_full_path_or_by_a_specific_file_name()
+    {
+        var delays = BootPerformance.Build([
+            Delay(101, BootA, "OneDrive.exe", OneDrive, 4100, 2400),
+            Delay(101, BootB, "OneDrive.exe", OneDrive, 3000, 900),
+            Delay(101, BootA, "Update.exe", @"C:\Users\u\AppData\Local\Discord\Update.exe", 3000, 2000),
+            Delay(103, BootA, "Steam.exe", @"C:\Steam\Steam.exe", 3000, 2000), // a service, not an app
+            Boot(BootA, 41234, 18012, 23222), Boot(BootB, 39000, 17000, 22000),
+        ]).Delays;
+
+        var m = BootPerformance.Match(OneDrive.ToUpperInvariant(), delays);
+        Assert.NotNull(m);
+        Assert.Equal(BootA, m!.Latest.BootStartUtc);
+        Assert.Equal(2400, m.Latest.DegradationMs);
+        Assert.Equal(2, m.Boots);
+
+        Assert.NotNull(BootPerformance.Match(@"D:\Other\OneDrive.exe", delays));                       // same specific name
+        Assert.NotNull(BootPerformance.Match("\"" + OneDrive + "\"", delays));                           // quoted
+        Assert.NotNull(BootPerformance.Match(@"C:\Users\u\AppData\Local\Discord\Update.exe", delays));  // generic name, same path
+        Assert.Null(BootPerformance.Match(@"C:\Users\u\AppData\Local\Slack\Update.exe", delays));       // generic name, other path
+        Assert.Null(BootPerformance.Match(@"C:\Steam\Steam.exe", delays));                              // only app events tag rows
+        Assert.Null(BootPerformance.Match(null, delays));
+        Assert.Null(BootPerformance.Match(@"C:\Nothing\here.exe", delays));
+    }
+
+    [Theory]
+    [InlineData(41234, "41,2 с")]
+    [InlineData(18049, "18,0 с")]
+    [InlineData(950, "1,0 с")]
+    [InlineData(0, "0,0 с")]
+    [InlineData(-5, "0,0 с")]
+    [InlineData(110680, "110,7 с")]
+    public void Seconds_use_a_russian_comma(int ms, string expected) => Assert.Equal(expected, BootPerformance.Seconds(ms));
+
+    [Fact]
+    public void Summary_line_and_tooltips()
+    {
+        var two = BootPerformance.Build([
+            Delay(101, BootA, "OneDrive.exe", OneDrive, 4100, 2400, "Microsoft OneDrive"),
+            Boot(BootA, 41234, 18012, 23222), Boot(BootB, 39000, 17000, 22000),
+        ]);
+        Assert.Equal("Последняя загрузка (26.10 07:00): 41,2 с — экран входа через 18,0 с, ещё 23,2 с до готовности",
+            BootPerformance.SummaryText(two, Utc));
+
+        var three = BootPerformance.Build([Boot(BootA, 41000, 18000, 23000, afterInstall: true), Boot(BootB, 39000, 17000, 22000), Boot(BootC, 49000, 20000, 29000)]);
+        Assert.Equal("Последняя загрузка (26.10 07:00): 41,0 с — экран входа через 18,0 с, ещё 23,0 с до готовности, " +
+                     "после установки обновлений · в среднем 43,0 с за 3 загрузки", BootPerformance.SummaryText(three, Utc));
+        Assert.Null(BootPerformance.SummaryText(null));
+
+        var tip = BootPerformance.SummaryTooltip(two, Utc)!;
+        Assert.Contains("26.10 07:00 — 41,2 с", tip);
+        Assert.Contains("25.10 07:00 — 39,0 с", tip);
+        Assert.Contains("Программа Microsoft OneDrive: +2,4 с", tip);
+        Assert.Contains("быстрого запуска", tip);
+        Assert.Null(BootPerformance.SummaryTooltip(null));
+
+        var match = BootPerformance.Match(OneDrive, two.Delays)!;
+        var tag = BootPerformance.DelayTooltip(match, Utc);
+        Assert.Contains("26.10 07:00", tag);
+        Assert.Contains("4,1 с", tag);
+        Assert.Contains("на 2,4 с дольше обычного", tag);
+        Assert.Contains("событие 101", tag);
+        Assert.DoesNotContain("Такое было", tag);
+        Assert.Contains("в 2 загрузках", BootPerformance.DelayTooltip(match with { Boots = 2 }, Utc));
+    }
+
+    [Fact]
+    public void File_names_split_on_windows_separators_on_every_os()
+    {
+        Assert.Equal("OneDrive.exe", BootPerformance.FileName(OneDrive));
+        Assert.Equal("a.exe", BootPerformance.FileName("C:/x/a.exe"));
+        Assert.Null(BootPerformance.FileName(@"C:\dir\"));
+        Assert.Equal(@"C:\x\a.exe", BootPerformance.NormalizePath(@" ""\\?\C:\x\a.exe"" "));
+        Assert.Equal(@"C:\Windows\system32\drivers\x.sys", BootPerformance.NormalizePath(@"\??\C:\Windows\system32\drivers\x.sys"));
+    }
+}
