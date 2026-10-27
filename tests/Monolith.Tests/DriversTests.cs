@@ -265,7 +265,14 @@ public sealed class DriversTests
 
         Assert.True(new WuUpdateItem(U(optional: false)).IsSelected);
         Assert.False(new WuUpdateItem(U(optional: true)).IsSelected);
-        Assert.True(new WuUpdateItem(U(optional: true, problem: 28)).IsSelected);
+
+        // Research drivers.md §1: optional drivers stay unchecked even for a problem device — the user ticks them.
+        var forProblem = new WuUpdateItem(U(optional: true, problem: 28));
+        Assert.False(forProblem.IsSelected);
+        Assert.True(forProblem.FixesProblem);
+        Assert.Contains("отметьте его сами", forProblem.KindHint);
+        forProblem.IsSelected = true;
+        Assert.True(forProblem.IsSelected);
 
         var firmware = new WuUpdateItem(U(optional: false, cls: "Firmware"));
         Assert.False(firmware.IsSelected);
@@ -383,6 +390,7 @@ public sealed class DriversTests
             var packages = DriverBackupService.ScanPackages(dir);
             var p = Assert.Single(packages);
             Assert.Equal("amd3dvcache.inf", p.InfFile);
+            Assert.Equal("amd3dvcache.inf_amd64_abc", p.Folder);
             Assert.Equal("Advanced Micro Devices, Inc.", p.Provider);
             Assert.Equal("1.0.0.9", p.Version);
         }
@@ -390,6 +398,184 @@ public sealed class DriversTests
         {
             Directory.Delete(dir, true);
         }
+    }
+
+    // ───────────── Backup integrity (restore only what MONOLITH exported) ─────────────
+
+    /// <summary>A fake pnputil export: two packages, one with a nested INF, plus a format-2 manifest.</summary>
+    private static string MakeBackup()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "monolith-drv-backup-" + Guid.NewGuid().ToString("N"));
+        var nv = Directory.CreateDirectory(Path.Combine(dir, "nv_dispig.inf_amd64_1"));
+        File.WriteAllText(Path.Combine(nv.FullName, "nv_dispig.inf"), "[Version]\nClass=Display\nProvider=NVIDIA\nDriverVer=10/01/2026,32.0.16.2101\n");
+        File.WriteAllBytes(Path.Combine(nv.FullName, "nvlddmkm.sys"), [1, 2, 3, 4, 5]);
+        var sub = Directory.CreateDirectory(Path.Combine(nv.FullName, "Display.NvContainer"));
+        File.WriteAllText(Path.Combine(sub.FullName, "NvContainer.inf"), "[Version]\nClass=SoftwareComponent\nProvider=NVIDIA\n");
+        var amd = Directory.CreateDirectory(Path.Combine(dir, "amdppm.inf_amd64_2"));
+        File.WriteAllText(Path.Combine(amd.FullName, "amdppm.inf"), "[Version]\nClass=Processor\nProvider=AMD\nDriverVer=04/15/2024,1.0.0.9\n");
+        File.WriteAllBytes(Path.Combine(amd.FullName, "amdppm.cat"), [9, 9, 9]);
+        DriverBackupService.SaveManifest(dir, DriverBackupService.CreateManifest(dir, BackupKind.Full, null, "PC", "Windows 11"));
+        return dir;
+    }
+
+    [Fact]
+    public void Backup_manifest_lists_every_file_with_sha256_and_every_inf_as_a_package()
+    {
+        var dir = MakeBackup();
+        try
+        {
+            var manifest = DriverBackupService.ReadManifest(dir)!;
+            Assert.Equal(BackupManifest.CurrentFormat, manifest.Format);
+            Assert.Equal(5, manifest.Files.Count);
+            Assert.DoesNotContain(manifest.Files, f => f.Path.Contains(BackupFolders.ManifestFile));
+            var sys = manifest.Files.Single(f => f.Path.EndsWith("nvlddmkm.sys"));
+            Assert.Equal(5, sys.Size);
+            Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3, 4, 5 })), sys.Sha256);
+            Assert.Equal(3, manifest.Packages.Count);
+            Assert.Contains(manifest.Packages, p => p.InfFile == "NvContainer.inf" && p.Folder == @"nv_dispig.inf_amd64_1\Display.NvContainer");
+            Assert.Null(DriverBackupService.RestoreBlockedReason(manifest));
+
+            var ok = DriverBackupService.Verify(dir);
+            Assert.True(ok.Ok, ok.Problem);
+            Assert.Equal(5, ok.FileCount);
+            Assert.Equal(3, ok.Packages.Count);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Backup_with_a_changed_file_is_refused()
+    {
+        var dir = MakeBackup();
+        try
+        {
+            File.WriteAllBytes(Path.Combine(dir, "nv_dispig.inf_amd64_1", "nvlddmkm.sys"), [1, 2, 3, 4, 6]);
+            var r = DriverBackupService.Verify(dir);
+            Assert.False(r.Ok);
+            Assert.Contains("изменён", r.Problem);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Backup_with_an_added_driver_is_refused()
+    {
+        var dir = MakeBackup();
+        try
+        {
+            // What an attacker would do: drop an extra signed package into the folder.
+            var evil = Directory.CreateDirectory(Path.Combine(dir, "evil.inf_amd64_3"));
+            File.WriteAllText(Path.Combine(evil.FullName, "evil.inf"), "[Version]\nClass=System\n");
+            var r = DriverBackupService.Verify(dir);
+            Assert.False(r.Ok);
+            Assert.Contains("лишний файл", r.Problem);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Backup_with_a_missing_file_is_refused()
+    {
+        var dir = MakeBackup();
+        try
+        {
+            File.Delete(Path.Combine(dir, "amdppm.inf_amd64_2", "amdppm.cat"));
+            var r = DriverBackupService.Verify(dir);
+            Assert.False(r.Ok);
+            Assert.Contains("нет файла", r.Problem);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Backup_whose_manifest_hides_an_inf_is_refused()
+    {
+        var dir = MakeBackup();
+        try
+        {
+            // Files list matches, but the package list "forgets" one INF that pnputil /subdirs would still install.
+            var manifest = DriverBackupService.ReadManifest(dir)!;
+            manifest.Packages.RemoveAll(p => p.InfFile == "NvContainer.inf");
+            DriverBackupService.SaveManifest(dir, manifest);
+            var r = DriverBackupService.Verify(dir);
+            Assert.False(r.Ok);
+            Assert.Contains("не указан в описи", r.Problem);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Backups_without_an_integrity_list_cannot_be_restored()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "monolith-drv-old-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var pkg = Directory.CreateDirectory(Path.Combine(dir, "a.inf_amd64_1"));
+            File.WriteAllText(Path.Combine(pkg.FullName, "a.inf"), "[Version]\nClass=System\n");
+            Assert.False(DriverBackupService.Verify(dir).Ok);                      // no manifest at all
+            Assert.NotNull(DriverBackupService.RestoreBlockedReason(null));
+
+            // An old (format 1) manifest: packages only, no hashes.
+            File.WriteAllText(Path.Combine(dir, BackupFolders.ManifestFile),
+                """{ "Created": "2026-10-01T10:00:00", "Kind": "full", "Packages": [ { "Folder": "a.inf_amd64_1", "InfFile": "a.inf" } ] }""");
+            var old = DriverBackupService.ReadManifest(dir)!;
+            Assert.Equal(1, old.Format);
+            Assert.Contains("проверки целостности", DriverBackupService.RestoreBlockedReason(old));
+            var r = DriverBackupService.Verify(dir);
+            Assert.False(r.Ok);
+            Assert.Contains("проверки целостности", r.Problem);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Restore_confirmation_describes_each_package()
+    {
+        var line = BackupItem.DescribePackage(new BackupPackage(@"nv_dispig.inf_amd64_1", "nv_dispig.inf", "NVIDIA", "Display", "32.0.16.2101", new DateTime(2026, 10, 1)));
+        Assert.Contains("NVIDIA", line);
+        Assert.Contains("32.0.16.2101", line);
+        Assert.Contains("01.10.2026", line);
+        Assert.EndsWith(@"(nv_dispig.inf_amd64_1\nv_dispig.inf)", line);
+        Assert.Equal("(x.inf)", BackupItem.DescribePackage(new BackupPackage("", "x.inf", null, null, null, null)).Trim());
+    }
+
+    // ───────────── Enable device ─────────────
+
+    [Theory]
+    [InlineData("Включение устройства «X»: код выхода 3010: Устройство будет включено после перезагрузки.", true)]
+    [InlineData("Включение устройства «X»: код выхода 30100: ошибка", false)]
+    [InlineData("Включение устройства «X»: код выхода 1: ошибка", false)]
+    public void Pnputil_reboot_required_exit_is_recognised(string error, bool expected) =>
+        Assert.Equal(expected, DeviceEnable.IsRebootRequiredError(error));
+
+    [Theory]
+    [InlineData("26.10.1", "25.9.1", 1)]
+    [InlineData("26.10.1", "26.10.1", 0)]
+    [InlineData("25.12.1", "26.1.1", -1)]
+    [InlineData("26.10.1", "32.0.21001.9", null)]
+    [InlineData("26.10.1", null, null)]
+    public void Amd_software_versions_compare(string a, string? b, int? expected)
+    {
+        var cmp = GpuDriverVersions.CompareAmd(a, b);
+        Assert.Equal(expected, cmp is null ? null : Math.Sign(cmp.Value));
     }
 
     // ───────────── NVIDIA lookup parsing ─────────────

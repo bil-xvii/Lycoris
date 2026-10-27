@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -70,7 +71,8 @@ public sealed partial class DriversViewModel
                 $"Устройство: {device.Name}",
                 $"ID экземпляра: {device.DeviceId}",
                 "Будет выполнено: pnputil /enable-device \"<ID>\"",
-                "Перед изменением создаётся точка восстановления (если включено в настройках)",
+                ChangeSessionRestorePointLine(),
+                "Иногда Windows включает устройство только после перезагрузки — MONOLITH скажет об этом",
                 "Отменить можно в «Восстановлении»: устройство будет снова отключено",
             ],
             confirmText: "ВКЛЮЧИТЬ");
@@ -78,19 +80,49 @@ public sealed partial class DriversViewModel
 
         await RunBusyAsync("Включение устройства…", async () =>
         {
-            var session = await ChangeSession.BeginAsync($"Включение устройства «{device.Name}»");
+            var title = $"Включение устройства «{device.Name}»";
+            var target = $"device-enable:{device.DeviceId}";
+            var session = await ChangeSession.BeginAsync(title);
             var ok = await session.RunCommandAsync(
-                target: $"device-enable:{device.DeviceId}",
+                target: target,
                 file: pnputil, args: $"/enable-device \"{device.DeviceId}\"",
                 revertFile: pnputil, revertArgs: $"/disable-device \"{device.DeviceId}\"",
                 oldValue: "Отключено", newValue: "Включено",
-                source: Source, title: $"Включение устройства «{device.Name}»");
+                source: Source, title: title);
+
+            var afterReboot = false;
+            if (!ok && session.Errors.Any(DeviceEnable.IsRebootRequiredError))
+            {
+                // pnputil exit code 3010 = ERROR_SUCCESS_REBOOT_REQUIRED: the device IS enabled, Windows finishes after a
+                // restart. ChangeSession counts every non-zero exit as a failure and dropped the undo record, so the
+                // undo is journaled again; the forward command is a read-only query that confirms the device exists.
+                session.Errors.RemoveAll(DeviceEnable.IsRebootRequiredError);
+                Log.Info($"{title}: pnputil вернул 3010 — устройство будет включено после перезагрузки.");
+                ok = afterReboot = await session.RunCommandAsync(
+                    target: target,
+                    file: pnputil, args: $"/enum-devices /instanceid \"{device.DeviceId}\"",
+                    revertFile: pnputil, revertArgs: $"/disable-device \"{device.DeviceId}\"",
+                    oldValue: "Отключено", newValue: "Включено (после перезагрузки)",
+                    source: Source, title: title);
+            }
             session.Complete();
-            if (ok) Ui.Toast($"Устройство «{device.Name}» включено.", ToastKind.Success);
-            else Ui.Toast(session.Errors.FirstOrDefault() ?? "Не удалось включить устройство.", ToastKind.Error);
+            if (afterReboot)
+                Ui.Toast($"Устройство «{device.Name}» будет включено после перезагрузки. Отменить можно в «Восстановлении».", ToastKind.Warning, "НУЖНА ПЕРЕЗАГРУЗКА");
+            else if (ok)
+                Ui.Toast($"Устройство «{device.Name}» включено.", ToastKind.Success);
+            else
+                Ui.Toast(session.Errors.FirstOrDefault() ?? "Не удалось включить устройство.", ToastKind.Error);
             await LoadInventoryAsync();
         });
     }
+
+    /// <summary>The restore point ChangeSession.BeginAsync tries to create — described as it really is.</summary>
+    private static string ChangeSessionRestorePointLine() =>
+        !AppSettings.Current.CreateRestorePoints
+            ? "Точка восстановления не создаётся: это отключено в настройках MONOLITH"
+            : RestorePointService.IsEnabled()
+                ? "Перед изменением MONOLITH попробует создать точку восстановления системы"
+                : "Защита системы отключена — точка восстановления создана не будет";
 
     // ───────────────────────────── Installed drivers ─────────────────────────────
 
@@ -149,4 +181,17 @@ public sealed partial class DriversViewModel
         InstalledSummary = $"ПОКАЗАНО {shown} ИЗ {_installedAll.Count}  ·  УСТРОЙСТВ {devices}";
         InstalledEmpty = InstalledView is not null && shown == 0 && InstalledError is null;
     }
+}
+
+/// <summary>pnputil /enable-device results.</summary>
+internal static partial class DeviceEnable
+{
+    [GeneratedRegex(@"код выхода 3010(?!\d)")]
+    private static partial Regex RebootExitRegex();
+
+    /// <summary>
+    /// True for the ChangeSession error of a command that exited with 3010 (ERROR_SUCCESS_REBOOT_REQUIRED):
+    /// for pnputil that means "done, takes effect after a restart", not a failure.
+    /// </summary>
+    public static bool IsRebootRequiredError(string error) => RebootExitRegex().IsMatch(error);
 }

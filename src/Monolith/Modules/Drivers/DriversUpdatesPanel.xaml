@@ -177,7 +177,7 @@
                         <ProgressBar Margin="0,10,0,0" Height="4" Maximum="100" Value="{Binding InstallPercent}" IsIndeterminate="{Binding InstallIndeterminate}" />
                     </StackPanel>
                     <Button Grid.Column="1" Content="ОТМЕНА" Command="{Binding CancelInstallCommand}" MinWidth="100"
-                            ToolTip="Прервать загрузку или установку (уже установленные драйверы останутся)" />
+                            ToolTip="Прервать загрузку или установку. Драйвер, который уже устанавливается, Windows Update доустановит; уже установленные останутся" />
                 </Grid>
             </Border>
 
@@ -245,7 +245,7 @@
                     </Border>
                     <TextBlock Text="НОВЫХ ДРАЙВЕРОВ НЕТ" Style="{StaticResource Drv.StateTitle}" />
                     <TextBlock Style="{StaticResource Drv.StateText}"
-                               Text="Windows Update не предлагает обновлений драйверов для этого компьютера. Свежие видеодрайверы обычно раньше появляются у производителя — смотрите «Обзор»." />
+                               Text="Windows Update не предлагает обновлений драйверов для этого компьютера. Свежие видеодрайверы обычно раньше появляются у производителя — смотрите вкладку «Видеокарты и чипсет»." />
                 </StackPanel>
 
                 <!-- List -->

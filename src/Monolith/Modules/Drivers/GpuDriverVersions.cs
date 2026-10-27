@@ -29,6 +29,26 @@ internal static class GpuDriverVersions
         return x.CompareTo(y);
     }
 
+    /// <summary>
+    /// Compares two AMD Software (Adrenalin) versions ("26.10.1" vs "25.9.1"; year.month.revision).
+    /// Returns null when either is not such a version.
+    /// </summary>
+    public static int? CompareAmd(string? a, string? b)
+    {
+        if (!TryParseAmd(a, out var x) || !TryParseAmd(b, out var y)) return null;
+        return x.CompareTo(y);
+    }
+
+    private static bool TryParseAmd(string? s, out Version value)
+    {
+        value = new Version();
+        // year.month[.revision] only — a 4-part Windows driver version ("32.0.21001.9") is a different numbering.
+        if (string.IsNullOrWhiteSpace(s) || !Version.TryParse(s.Trim(), out var v) || v.Revision >= 0) return false;
+        if (v.Major is < 10 or > 99 || v.Minor is < 1 or > 12) return false;
+        value = new Version(v.Major, v.Minor, Math.Max(v.Build, 0));
+        return true;
+    }
+
     private static bool TryParseRelease(string? s, out decimal value)
     {
         value = 0;

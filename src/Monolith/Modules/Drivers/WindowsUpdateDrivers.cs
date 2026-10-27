@@ -90,7 +90,12 @@ internal sealed record WuItemResult(string UpdateId, string Title, int ResultCod
     public bool Success => WuText.IsSuccess(ResultCode);
 }
 
-internal sealed record WuInstallResult(IReadOnlyList<WuItemResult> Items, bool RebootRequired, bool Cancelled);
+/// <summary>
+/// Outcome of an install. <paramref name="Cancelled"/>: the user cancelled and Windows Update stopped (items show what
+/// was installed before). <paramref name="StillRunning"/>: Windows Update did not confirm the stop in time and may
+/// still be finishing the current driver in the background.
+/// </summary>
+internal sealed record WuInstallResult(IReadOnlyList<WuItemResult> Items, bool RebootRequired, bool Cancelled, bool StillRunning = false);
 
 internal enum WuStage { Searching, Downloading, Installing }
 
@@ -115,6 +120,11 @@ internal static class WindowsUpdateDrivers
     public static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan AbortGrace = TimeSpan.FromMinutes(2);
+    /// <summary>After a cancel, Windows Update finishes the driver it is installing — a big GPU package can take minutes.</summary>
+    private static readonly TimeSpan InstallAbortGrace = TimeSpan.FromMinutes(15);
+
+    /// <summary>How a WUA job ended. <c>Result</c> is null when there is none (job abandoned or End* failed after an abort).</summary>
+    private readonly record struct JobOutcome(object? Result, bool Cancelled, bool TimedOut, bool Abandoned);
 
     // ───────────── Public API ─────────────
 
@@ -141,10 +151,15 @@ internal static class WindowsUpdateDrivers
     /// Downloads and installs the chosen driver updates. The caller has already confirmed with the user and
     /// created a restore point. Updates whose EULA was not accepted by the user in the UI are skipped.
     /// Firmware is never installed from here.
+    /// Cancelling does not abandon the job: the task completes only when Windows Update has really stopped, and then
+    /// returns the per-driver results (what was installed before the stop, reboot flag). It throws
+    /// OperationCanceledException only when the cancel came before anything was installed.
     /// </summary>
     public static Task<WuInstallResult> InstallAsync(IReadOnlyCollection<string> updateIds, IReadOnlySet<string> eulaApproved,
         int serverSelection, IProgress<WuProgress> progress, CancellationToken ct) =>
-        RunOnMtaThread("WUA install", SearchTimeout + DownloadTimeout + InstallTimeout + TimeSpan.FromMinutes(10), ct, token =>
+        RunOnMtaThread("WUA install",
+            SearchTimeout + AbortGrace + DownloadTimeout + AbortGrace + InstallTimeout + InstallAbortGrace + TimeSpan.FromMinutes(5),
+            ct, token =>
         {
             Elevation.Demand("установка драйверов из Windows Update");
             var wanted = new HashSet<string>(updateIds, StringComparer.OrdinalIgnoreCase);
@@ -196,12 +211,20 @@ internal static class WindowsUpdateDrivers
             var downloader = session.CreateUpdateDownloader();
             TrySet(() => downloader.ClientApplicationID = ClientId);
             downloader.Updates = coll;
-            var (dres, dlCancelled, dlTimedOut) = RunJob(
+            var dl = RunJob(
                 cb => downloader.BeginDownload(new UnknownWrapper(cb), new UnknownWrapper(cb), null),
                 job => downloader.EndDownload(job),
                 () => downloader.Download(),
-                DownloadTimeout, token,
+                DownloadTimeout, AbortGrace, token,
                 args => ReportProgress(progress, WuStage.Downloading, args, order.Count));
+            // Nothing has been installed yet, so a download without a result simply ends the operation.
+            if (dl.Result is null)
+            {
+                if (dl.TimedOut) throw new TimeoutException("Загрузка драйверов из Windows Update не завершилась за отведённое время.");
+                throw new OperationCanceledException(token);
+            }
+            dynamic dres = dl.Result;
+            bool dlCancelled = dl.Cancelled, dlTimedOut = dl.TimedOut;
 
             dynamic installColl = New("Microsoft.Update.UpdateColl");
             var toInstall = new List<string>();
@@ -239,12 +262,25 @@ internal static class WindowsUpdateDrivers
             installer.AllowSourcePrompts = false;
             installer.Updates = installColl;
             progress.Report(new WuProgress(WuStage.Installing, 0, 1, toInstall.Count));
-            var (ires, inCancelled, inTimedOut) = RunJob(
+            var ins = RunJob(
                 cb => installer.BeginInstall(new UnknownWrapper(cb), new UnknownWrapper(cb), null),
                 job => installer.EndInstall(job),
                 () => installer.Install(),
-                InstallTimeout, token,
+                InstallTimeout, InstallAbortGrace, token,
                 args => ReportProgress(progress, WuStage.Installing, args, toInstall.Count));
+
+            if (ins.Result is null)
+            {
+                // Some drivers may already be installed: report honestly instead of "cancelled, nothing changed".
+                var message = ins.Abandoned
+                    ? "Windows Update ещё завершает установку в фоне — дождитесь окончания и нажмите «Обновить»."
+                    : "Установка прервана — Windows Update не сообщил результат. Проверьте «Журнал обновлений» в параметрах Windows.";
+                foreach (var id in toInstall)
+                    results[id] = new WuItemResult(id, titles[id], ins.Abandoned ? WuText.OrcInProgress : WuText.OrcAborted, 0, false, message);
+                return new WuInstallResult(Ordered(results, wanted), ReadRebootPending(), ins.Cancelled, StillRunning: ins.Abandoned);
+            }
+            dynamic ires = ins.Result;
+            bool inCancelled = ins.Cancelled, inTimedOut = ins.TimedOut;
 
             for (var i = 0; i < toInstall.Count; i++)
             {
@@ -263,7 +299,7 @@ internal static class WindowsUpdateDrivers
             }
             bool rebootAll = Try(() => (bool)ires.RebootRequired) || results.Values.Any(r => r.RebootRequired);
             return new WuInstallResult(Ordered(results, wanted), rebootAll, inCancelled);
-        });
+        }, observeCancellation: false);
 
     // ───────────── Internals ─────────────
 
@@ -293,14 +329,15 @@ internal static class WindowsUpdateDrivers
         searcher.Online = true;
         searcher.ServerSelection = serverSelection;
 
-        var (result, cancelled, timedOut) = RunJob(
+        var job = RunJob(
             cb => searcher.BeginSearch(WuText.DriverCriteria, new UnknownWrapper(cb), null),
-            job => searcher.EndSearch(job),
+            j => searcher.EndSearch(j),
             () => searcher.Search(WuText.DriverCriteria),
-            SearchTimeout, ct, null);
+            SearchTimeout, AbortGrace, ct, null);
 
-        if (cancelled) throw new OperationCanceledException(ct);
-        if (timedOut) throw new TimeoutException("Windows Update не ответил за 5 минут.");
+        if (job.TimedOut) throw new TimeoutException("Windows Update не ответил за 5 минут.");
+        if (job.Cancelled || job.Result is null) throw new OperationCanceledException(ct);
+        dynamic result = job.Result;
         int rc = result.ResultCode;
         if (!WuText.IsSuccess(rc))
             throw new WuException(0, $"Windows Update не смог выполнить поиск ({WuText.ResultText(rc).ToLowerInvariant()}).");
@@ -309,11 +346,13 @@ internal static class WindowsUpdateDrivers
 
     /// <summary>
     /// Runs a WUA job through Begin*/End* with a callback (cancellable via RequestAbort, with a timeout).
-    /// If the callback cannot be marshaled on this system, falls back to the synchronous call.
+    /// After an abort it waits up to <paramref name="abortGrace"/> for Windows Update to really stop; if it does not,
+    /// the outcome is <c>Abandoned</c> (no result — the job may still be running). If the callback cannot be
+    /// marshaled on this system, falls back to the synchronous call.
     /// </summary>
-    private static (dynamic Result, bool Cancelled, bool TimedOut) RunJob(
+    private static JobOutcome RunJob(
         Func<WuJobCallback, dynamic> begin, Func<dynamic, dynamic> end, Func<dynamic> sync,
-        TimeSpan timeout, CancellationToken ct, Action<object>? onProgress)
+        TimeSpan timeout, TimeSpan abortGrace, CancellationToken ct, Action<object>? onProgress)
     {
         ct.ThrowIfCancellationRequested();
         var cb = new WuJobCallback { Progress = onProgress };
@@ -325,7 +364,7 @@ internal static class WindowsUpdateDrivers
         catch (Exception ex) when (IsCallbackFailure(ex))
         {
             Log.Info($"Windows Update: асинхронный вызов недоступен ({ex.GetType().Name}) — используется синхронный.");
-            return (sync(), false, false);
+            return new JobOutcome((object)sync(), false, false, false);
         }
 
         bool cancelled = false, timedOut = false;
@@ -335,21 +374,20 @@ internal static class WindowsUpdateDrivers
             cancelled = signaled == 1;
             timedOut = signaled == WaitHandle.WaitTimeout;
             try { job.RequestAbort(); } catch { }
-            if (!cb.Completed.Wait(AbortGrace))
+            if (!cb.Completed.Wait(abortGrace))
             {
-                if (cancelled) throw new OperationCanceledException(ct);
-                throw new TimeoutException("Windows Update не ответил вовремя.");
+                Log.Warn("Windows Update не подтвердил остановку операции — она может завершаться в фоне.");
+                return new JobOutcome(null, cancelled, timedOut, true);
             }
         }
 
         try
         {
-            return (end(job), cancelled, timedOut);
+            return new JobOutcome((object)end(job), cancelled, timedOut, false);
         }
         catch (COMException ex) when (cancelled || timedOut || ex.HResult == WuText.OperationCancelled)
         {
-            if (timedOut) throw new TimeoutException("Windows Update не ответил вовремя.");
-            throw new OperationCanceledException(ct);
+            return new JobOutcome(null, cancelled || ex.HResult == WuText.OperationCancelled, timedOut, false);
         }
         finally
         {
@@ -429,8 +467,14 @@ internal static class WindowsUpdateDrivers
         try { a(); } catch { }
     }
 
-    /// <summary>Runs <paramref name="body"/> on a new background MTA thread with an overall timeout.</summary>
-    private static Task<T> RunOnMtaThread<T>(string name, TimeSpan timeout, CancellationToken ct, Func<CancellationToken, T> body)
+    /// <summary>
+    /// Runs <paramref name="body"/> on a new background MTA thread with an overall timeout. The body receives the
+    /// token and decides itself how to stop. With <paramref name="observeCancellation"/> = false the returned task
+    /// does NOT complete early on cancel — it waits for the body, so the caller sees what really happened
+    /// (used for installs: a driver being installed is always finished by Windows Update).
+    /// </summary>
+    private static Task<T> RunOnMtaThread<T>(string name, TimeSpan timeout, CancellationToken ct, Func<CancellationToken, T> body,
+        bool observeCancellation = true)
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -445,6 +489,6 @@ internal static class WindowsUpdateDrivers
         };
         thread.SetApartmentState(ApartmentState.MTA);
         thread.Start();
-        return tcs.Task.WaitAsync(timeout, ct);
+        return observeCancellation ? tcs.Task.WaitAsync(timeout, ct) : tcs.Task.WaitAsync(timeout);
     }
 }
