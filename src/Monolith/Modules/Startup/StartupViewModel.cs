@@ -13,8 +13,9 @@ using Monolith.UI;
 namespace Monolith.Modules.Startup;
 
 /// <summary>
-/// АВТОЗАПУСК: Run / Run32 / Startup-folder entries (enabled or disabled exactly like Task Manager, never deleted)
-/// and third-party scheduled tasks that start at sign-in or boot.
+/// АВТОЗАПУСК: Run / Run32 / Startup-folder entries and packaged (MSIX) apps' startup tasks (enabled or disabled exactly
+/// like Task Manager, never deleted) and third-party scheduled tasks that start at sign-in or boot. The last measured boot
+/// time and the programs Windows reported as slowing boot come read-only from the Diagnostics-Performance log.
 /// Not a top-level page: <see cref="Services.ServicesViewModel"/> owns it (АВТОЗАПУСК tab; logon tasks on the ЗАДАЧИ tab)
 /// and forwards activation. Key/Title are only used for logs.
 /// </summary>
@@ -47,6 +48,9 @@ public sealed partial class StartupViewModel : PageViewModel
     [ObservableProperty] private bool _isLoaded;
     [ObservableProperty] private string _scanText = "Сканирование…";
     [ObservableProperty] private string? _tasksError;
+    /// <summary>« · Последняя загрузка …» appended to the tab's muted line; empty without data / admin rights.</summary>
+    [ObservableProperty] private string _bootText = "";
+    [ObservableProperty] private string? _bootTooltip;
 
     public StartupViewModel()
     {
@@ -116,6 +120,7 @@ public sealed partial class StartupViewModel : PageViewModel
     {
         var entriesTask = StaWorker.Run(StartupScanner.Scan, "MONOLITH startup scan");
         var tasksTask = StaWorker.Run(() => LogonTaskScanner.Scan(), "MONOLITH task scan");
+        var bootTask = Task.Run(BootPerformance.Read);
 
         var entries = await entriesTask;
         List<LogonTask> tasks;
@@ -139,7 +144,7 @@ public sealed partial class StartupViewModel : PageViewModel
             Items.Clear();
             foreach (var e in entries)
             {
-                var item = new StartupItem(e) { IsSelected = Elevation.IsElevated && selected.Contains($"{e.Source}|{e.Name}") };
+                var item = new StartupItem(e) { IsSelected = Elevation.IsElevated && selected.Contains(e.Key) };
                 item.PropertyChanged += OnItemPropertyChanged;
                 Items.Add(item);
             }
@@ -151,12 +156,36 @@ public sealed partial class StartupViewModel : PageViewModel
             foreach (var t in tasks) Tasks.Add(new LogonTaskItem(t));
         }
 
+        ApplyBootReport(await ReadBootAsync(bootTask));
         UpdateJournalState();
         RefreshView();
         Recount();
-        ScanText = $"Проверено в {DateTime.Now:HH:mm} · реестр, папки автозагрузки, планировщик";
+        ScanText = $"Проверено в {DateTime.Now:HH:mm} · реестр, папки автозагрузки, приложения MSIX, планировщик";
         IsLoaded = true;
         Log.Info($"Автозапуск: записей {TotalCount} (включено {EnabledCount}), задач при входе {TaskCount}.");
+    }
+
+    private static async Task<BootReport?> ReadBootAsync(Task<BootReport?> read)
+    {
+        try
+        {
+            return await read;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Автозапуск: не удалось прочитать время загрузки: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Boot summary for the muted line and «ЗАМЕДЛЯЕТ ЗАГРУЗКУ» tags (nothing at all without data).</summary>
+    private void ApplyBootReport(BootReport? report)
+    {
+        var delays = report?.Delays ?? [];
+        foreach (var i in Items) i.BootDelay = BootPerformance.Match(i.TargetPath, delays);
+        foreach (var t in Tasks) t.BootDelay = BootPerformance.Match(t.TargetPath, delays);
+        BootText = BootPerformance.SummaryText(report) is { } summary ? " · " + summary : "";
+        BootTooltip = BootPerformance.SummaryTooltip(report);
     }
 
     // ───────────────────────────── Toggles ─────────────────────────────
@@ -169,6 +198,11 @@ public sealed partial class StartupViewModel : PageViewModel
         {
             if (!EnsureIdle() || !RequireAdmin("изменение автозапуска")) return;
             var enable = !item.IsEnabled;
+            if (!item.CanChange)
+            {
+                Ui.Toast(item.ToggleTooltip, ToastKind.Warning);
+                return;
+            }
             if (!enable && !item.CanDisable)
             {
                 Ui.Toast($"«{item.DisplayName}» — значок защиты системы. MONOLITH его не отключает.", ToastKind.Warning);
@@ -210,12 +244,12 @@ public sealed partial class StartupViewModel : PageViewModel
     {
         if (!EnsureIdle() || !RequireAdmin("отключение автозапуска")) return;
         var chosen = Items.Where(i => i.IsSelected).ToList();
-        var locked = chosen.Where(i => i.IsEnabled && !i.CanDisable).ToList();
-        var targets = chosen.Where(i => i.IsEnabled && i.CanDisable).ToList();
+        var locked = chosen.Where(i => i.IsEnabled && (!i.CanDisable || !i.CanChange)).ToList();
+        var targets = chosen.Where(i => i.IsEnabled && i.CanDisable && i.CanChange).ToList();
         if (targets.Count == 0)
         {
             Ui.Toast(locked.Count > 0
-                ? "Среди выбранных только защитные записи — их MONOLITH не отключает."
+                ? "Среди выбранных только защитные записи или задачи под управлением политики — их MONOLITH не отключает."
                 : "Все выбранные записи уже отключены.", ToastKind.Info);
             return;
         }
@@ -227,10 +261,12 @@ public sealed partial class StartupViewModel : PageViewModel
     private async Task EnableSelectedAsync()
     {
         if (!EnsureIdle() || !RequireAdmin("включение автозапуска")) return;
-        var targets = Items.Where(i => i.IsSelected && !i.IsEnabled).ToList();
+        var targets = Items.Where(i => i.IsSelected && !i.IsEnabled && i.CanChange).ToList();
         if (targets.Count == 0)
         {
-            Ui.Toast("Все выбранные записи уже включены.", ToastKind.Info);
+            Ui.Toast(Items.Any(i => i.IsSelected && !i.IsEnabled)
+                ? "Выбранные задачи отключены политикой или в неизвестном состоянии — MONOLITH их не меняет."
+                : "Все выбранные записи уже включены.", ToastKind.Info);
             return;
         }
         if (targets.Count > 1 && !await ConfirmEntriesAsync(targets, enable: true)) return;
@@ -263,8 +299,8 @@ public sealed partial class StartupViewModel : PageViewModel
 
             foreach (var item in items)
             {
-                var (on, at) = await Task.Run(() => StartupScanner.ReadState(item.Entry.Source, item.Entry.Name));
-                item.Update(on, at);
+                var fresh = await Task.Run(() => StartupScanner.Refresh(item.Entry));
+                item.Update(fresh);
             }
             UpdateJournalState();
             Recount();
@@ -312,16 +348,23 @@ public sealed partial class StartupViewModel : PageViewModel
         var details = new List<string>();
         foreach (var i in items)
         {
-            if (items.Count == 1)
+            if (items.Count == 1 && i.IsPackaged)
+            {
+                details.Add($"Приложение MSIX: {i.Entry.PackageFamilyName}, задача автозапуска «{i.Entry.Name}»");
+                if (i.TargetPath is not null) details.Add($"Программа: {i.Command}");
+                details.Add($"Отметка: {StartupLocations.DescribeMark(i.Entry)} = " +
+                            (enable ? "2 (включено)" : "1 (отключено пользователем — как в Диспетчере задач)"));
+            }
+            else if (items.Count == 1)
             {
                 details.Add($"Запись: {StartupLocations.Describe(i.Entry.Source)} → {i.Entry.Name}");
                 details.Add($"Команда: {i.Command}");
-                details.Add($"Отметка: {(i.IsMachine ? "HKLM" : "HKCU")}\\{StartupLocations.ApprovedKey(i.Entry.Source)} → «{i.Entry.Name}» = " +
+                details.Add($"Отметка: {StartupLocations.DescribeMark(i.Entry)} = " +
                             (enable ? "02 00 00 00 … (включено)" : "03 00 00 00 + время отключения"));
             }
             else
             {
-                details.Add($"{i.DisplayName} — {(i.IsMachine ? "для всех" : "для меня")}, {i.SourceText.ToLowerInvariant()}");
+                details.Add($"{i.DisplayName} — {(i.IsMachine ? "для всех" : "для меня")}, {LowerFirst(i.SourceText)}");
             }
 
             switch (i.Risk)
@@ -334,8 +377,10 @@ public sealed partial class StartupViewModel : PageViewModel
                     break;
             }
         }
+        if (enable && items.Any(i => i.IsPackaged))
+            details.Add("Приложение MSIX Windows запускает при входе, только если его хотя бы раз открывали.");
         if (skippedLocked > 0)
-            details.Add($"Пропущено защитных записей: {skippedLocked} (Безопасность Windows и антивирусы MONOLITH не отключает).");
+            details.Add($"Пропущено записей: {skippedLocked} (Безопасность Windows, антивирусы и задачи под управлением политики MONOLITH не отключает).");
         if (items.Count > 1)
             details.Add("Перед изменением MONOLITH создаст точку восстановления (если это включено в разделе «Восстановление»).");
 
@@ -379,26 +424,25 @@ public sealed partial class StartupViewModel : PageViewModel
     // ───────────────────────────── Row actions ─────────────────────────────
 
     [RelayCommand]
-    private void OpenLocation(IStartupRow? row)
+    private async Task OpenLocation(IStartupRow? row)
     {
         if (row is null) return;
         try
         {
-            var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
             string? file = null;
             if (row.TargetPath is { } t && Path.IsPathFullyQualified(t) && FileProbe.FileExists(t)) file = t;
             else if (row.ItemPath is { } p && FileProbe.FileExists(p)) file = p;
 
             if (file is not null)
             {
-                Process.Start(new ProcessStartInfo(explorer, $"/select,\"{file}\"") { UseShellExecute = false });
+                await OpenExplorerAsync($"/select,\"{file}\"");
                 return;
             }
 
             var dir = row.TargetPath is { } tp && Path.IsPathFullyQualified(tp) ? Path.GetDirectoryName(tp) : null;
             if (dir is not null && FileProbe.DirectoryExists(dir))
             {
-                Process.Start(new ProcessStartInfo(explorer, $"\"{dir}\"") { UseShellExecute = false });
+                await OpenExplorerAsync($"\"{dir}\"");
                 Ui.Toast($"Файл не найден, открыта папка: {dir}", ToastKind.Warning);
                 return;
             }
@@ -439,30 +483,32 @@ public sealed partial class StartupViewModel : PageViewModel
         }
     }
 
+    /// <summary>Explorer window as the signed-in user (never with MONOLITH's admin token, CLAUDE.md §8).</summary>
+    private static async Task OpenExplorerAsync(string arguments)
+    {
+        var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+        if (!await UnelevatedShell.StartAsUserAsync(explorer, arguments))
+            Ui.Toast("Не удалось открыть Проводник без прав администратора.", ToastKind.Warning);
+    }
+
     [RelayCommand]
-    private void SearchOnline(IStartupRow? row)
+    private async Task SearchOnline(IStartupRow? row)
     {
         if (row is null) return;
-        var term = row.TargetPath is { Length: > 0 } t ? Path.GetFileName(t) : row.DisplayName;
+        var term = BootPerformance.FileName(row.TargetPath) ?? row.DisplayName;
         if (string.IsNullOrWhiteSpace(term)) term = row.DisplayName;
         var url = "https://www.google.com/search?q=" + Uri.EscapeDataString(term);
+        // The browser is started through the desktop shell, so it never runs with administrator rights.
+        if (await UnelevatedShell.OpenAsync(url)) return;
         try
         {
-            if (Elevation.IsElevated)
-            {
-                // Hand the URL to the (non-elevated) shell so the browser does not run with admin rights.
-                var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
-                Process.Start(new ProcessStartInfo(explorer, $"\"{url}\"") { UseShellExecute = false });
-            }
-            else
-            {
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            }
+            Clipboard.SetText(url);
+            Ui.Toast("Не удалось открыть браузер без прав администратора. Ссылка на поиск скопирована в буфер обмена.", ToastKind.Warning);
         }
         catch (Exception ex)
         {
-            Log.Error("Автозапуск: не удалось открыть браузер", ex);
-            Ui.Toast($"Не удалось открыть браузер: {ex.Message}", ToastKind.Error);
+            Log.Warn($"Автозапуск: буфер обмена недоступен: {ex.Message}");
+            Ui.Toast($"Не удалось открыть браузер. Поиск: {term}", ToastKind.Warning);
         }
     }
 
@@ -499,7 +545,7 @@ public sealed partial class StartupViewModel : PageViewModel
     {
         var records = StartupChanges.ActiveRecords();
         var targets = records.Select(r => r.Target).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var i in Items) i.IsJournaled = targets.Contains(StartupLocations.JournalTarget(i.Entry.Source, i.Entry.Name));
+        foreach (var i in Items) i.IsJournaled = targets.Contains(StartupLocations.JournalTarget(i.Entry));
         foreach (var t in Tasks) t.IsJournaled = targets.Contains($"task:{t.Path}");
     }
 
@@ -533,10 +579,13 @@ public sealed partial class StartupViewModel : PageViewModel
 
         var q = Search?.Trim();
         if (string.IsNullOrEmpty(q)) return true;
-        return Contains(i.DisplayName, q) || Contains(i.Entry.Name, q) || Contains(i.Command, q) || Contains(i.Entry.Publisher, q);
+        return Contains(i.DisplayName, q) || Contains(i.Entry.Name, q) || Contains(i.Command, q) || Contains(i.Entry.Publisher, q)
+               || Contains(i.Entry.PackageFamilyName, q);
 
         static bool Contains(string? s, string q) => s?.Contains(q, StringComparison.CurrentCultureIgnoreCase) == true;
     }
+
+    private static string LowerFirst(string s) => s.Length == 0 ? s : char.ToLowerInvariant(s[0]) + s[1..];
 
     internal static string Plural(int n, string one, string few, string many)
     {

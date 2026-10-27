@@ -115,6 +115,7 @@
         <TextBlock Grid.Row="1" Style="{StaticResource T.Caption}" Margin="0,10,0,0" TextWrapping="Wrap">
             <Run Text="Как вкладка «Автозагрузка» Диспетчера задач: отключение не удаляет запись и сработает при следующем входе." />
             <Run Text="{Binding ScanText, Mode=OneWay}" Foreground="{StaticResource B.Text3}" />
+            <Run Text="{Binding BootText, Mode=OneWay}" Foreground="{StaticResource B.Text3}" ToolTip="{Binding BootTooltip}" />
         </TextBlock>
 
         <ScrollViewer Grid.Row="2" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
@@ -202,6 +203,10 @@
                                                             Visibility="{Binding TargetExists, Converter={StaticResource InverseBoolToVis}}">
                                                         <TextBlock Text="НЕТ ФАЙЛА" />
                                                     </Border>
+                                                    <Border Style="{StaticResource Tag}" Margin="8,0,0,0" ToolTip="{Binding BootDelayTooltip}"
+                                                            Visibility="{Binding ShowBootDelay, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="ЗАМЕДЛЯЕТ ЗАГРУЗКУ" />
+                                                    </Border>
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Command}" Style="{StaticResource CommandText}" Margin="0,5,0,0" ToolTip="{Binding Command}" />
                                             </StackPanel>
@@ -265,7 +270,7 @@
                         <Border Background="{StaticResource B.DotGrid}" Padding="15,16" Visibility="{Binding ShowNoItems, Converter={StaticResource BoolToVis}}">
                             <StackPanel>
                                 <TextBlock Text="Автозапуск пуст" Style="{StaticResource T.H3}" />
-                                <TextBlock Text="В ключах Run / Run32 и папках автозагрузки нет ни одной записи — Windows не запускает при входе ничего лишнего."
+                                <TextBlock Text="В ключах Run / Run32, папках автозагрузки и задачах приложений MSIX нет ни одной записи — Windows не запускает при входе ничего лишнего."
                                            Style="{StaticResource T.Body}" Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
