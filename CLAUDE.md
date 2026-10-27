@@ -12,10 +12,13 @@ conflict, safety wins; the advantage comes from evidence-backed tweaks, exact un
 not from riskier changes.
 
 1. **Every system change goes through `Core/ChangeSession`** (`SetRegistry`, `SetServiceStart`, `SetPowerScheme`,
-   `SetTaskEnabled`, `RunCommandAsync`). It records the original value in the undo journal
+   `SetTaskEnabled`, `RunCommandAsync`; device settings: `SetUserParameter` / `SetUserParameterConfirmedAsync` (SPI mouse
+   and keyboard), `SetDisplayModeAsync`, `SetDisplayHdrAsync`, `SetMonitorSettingAsync` (DDC/CI), `SetAudioLevel` (capture
+   endpoints only), `SetNicAdvancedProperty`). It records the original value in the undo journal
    (`%ProgramData%\MONOLITH\journal.json`) *before* changing anything, exports touched registry keys to `.reg`
    backups, and creates a System Restore point per batch. Never write to the registry / services / power plans
-   directly from a module (reading is fine).
+   directly from a module (reading is fine). The device writers (`Core/Devices/DeviceWriters`, implemented in
+   `Modules/Devices/*`) are called only by ChangeSession and `DeviceRestore`, and every mutating call is SafetyLock-guarded.
 2. Only documented, reversible, evidence-backed changes. Research lives in `docs/research/*.md` — its
    classifications (SAFE-DEFAULT / SAFE-OPTIONAL / ADVANCED / DO-NOT-INCLUDE) are binding.
    DO-NOT-INCLUDE items must not be implemented, not even hidden.
@@ -39,6 +42,16 @@ not from riskier changes.
    `Modules/Drivers/DriverDownloads`; the Apps page uses it when winget reports an installer hash mismatch
    (`CatalogEntry.VendorInstaller`) — a confirmation lists host/signer/file, and the installer is then started with
    `UnelevatedShell.StartAsUserAsync`. The winget hash is never bypassed.
+10. Devices («Устройства и сеть»): per-user changes (SPI, microphone level/mute) only when MONOLITH runs as the desktop
+   user (`Elevation.InteractiveUserState`; unknown = refused). Display mode and HDR, very low brightness/contrast, very low
+   pointer speed and the button swap apply only with an on-screen countdown (`DeviceConfirm`, auto-revert after 15 s); a
+   display change is also watched by the `--display-guard` child process (MONOLITH.exe itself, marked so it is never
+   ended as a hung copy), which puts the previous mode/HDR back if MONOLITH dies or nobody confirms. Network adapter
+   properties: only `DeviceTargets.NicKeywords` (speed/duplex, EEE), only values the adapter lists; a change and its
+   undo restart the adapter, so both are refused during Game Boost or while a library game runs
+   (`INicWriter.RunningGame`); an undo whose adapter or keyword is gone is skipped, not failed. Measurements (raw-input
+   polling/DPI, mic level, ping/load test/DNS/Valve) never change anything; the load test refuses on a metered
+   connection or during a game, and no result leaves the PC.
 
 ## Layout
 
@@ -47,7 +60,8 @@ src/Monolith/
   App.xaml(.cs)          startup, optional UAC relaunch, single instance, --snapshot QA mode
   Core/                  system layer (no UI): AppPaths, Log, Elevation, ProcessRunner, RegistryHelper,
                          ChangeJournal, ChangeSession, ServiceControl, PowerSchemes, ScheduledTasks,
-                         RestorePointService, SystemProfile, AppSettings, WingetClient, VendorDownloads
+                         RestorePointService, SystemProfile, AppSettings, WingetClient, VendorDownloads;
+                         Core/Devices: device journal targets, writer interfaces, safe display apply, undo of device records
   Tweaks/                Tweak model (RegistryTweak, ServiceTweak, ScheduledTaskTweak, CustomTweak),
                          TweakEngine (apply/revert via journal), TweakCatalog (+ partial files with items)
   Shell/                 MainWindow (custom chrome, sidebar, console, toasts, dialogs), MainViewModel, PageViewModel
@@ -63,9 +77,13 @@ tools/                   autosave.ps1, make-icon.ps1, extract-research.ps1, publ
 
 Pages (sidebar order): dashboard, optimize, games, services («АВТОЗАПУСК И СЛУЖБЫ»: tabs АВТОЗАПУСК | СЛУЖБЫ |
 ВСЕ СЛУЖБЫ | ЗАДАЧИ; hosts Modules/Startup), maintenance («ОБСЛУЖИВАНИЕ»: tabs ОЧИСТКА | РЕМОНТ И ДИСКИ; hosts
-Modules/Cleaner + Modules/Tools), drivers, apps, restore; settings opens from the gear in the sidebar footer.
+Modules/Cleaner + Modules/Tools), drivers, devices («УСТРОЙСТВА И СЕТЬ»: tabs АВТОНАСТРОЙКА | ВРУЧНУЮ; hosts
+Modules/Devices with Input, Displays, Audio, Network, Vendors — each package adds its provider/writer through the partial
+hooks `DeviceProviders.<Name>.cs` / `DeviceWriters.<Name>.cs`), apps, restore; settings opens from the gear in the sidebar footer.
 Navigation: `Ui.Navigate("optimize")`. Aliases: "startup" → services tab, "cleaner"/"tools" → maintenance tab.
-Deep links: `Ui.RequestFocus(pageKey, id)` (optimize: tweak id; services: "tab:…" or service name). Ctrl+K = command palette.
+Deep links: `Ui.RequestFocus(pageKey, id)` (optimize: tweak id; services: "tab:…" or service name; devices: "tab:auto|manual",
+"kind:monitor", a card key, a setting id, a journal target such as "spi:mouse-speed", "tool:<id>"; drivers: "tab:…",
+"periph:<VID>"). Ctrl+K = command palette.
 
 ## Minimal UI (owner rule)
 
@@ -74,6 +92,13 @@ The UI is minimal but functional: every function lives in exactly ONE place; no 
 - Game-boost options → Games; gaming readiness checks → Dashboard; Windows settings as tweaks → Optimize only
   (Dashboard fix buttons are shortcuts into the same tweaks); DiagTrack → Optimize; vendor driver tools → Drivers;
   hardware facts → Dashboard; services expert mode → ВСЕ СЛУЖБЫ toolbar.
+- Device settings, measurements and network tuning (mouse, keyboard, monitors incl. the refresh rate, sound, network
+  adapter, ping/DPI/polling/mic tests) → Devices only. Windows settings there that are Optimize tweaks
+  (mouse-acceleration-off, vrr-optimization, auto-hdr, audio-ducking, wifi-power-saving-off, tcp-autotuning-normal,
+  delivery-optimization-local, dns-*, ipv6-prefer-ipv4…) are applied by the АВТОНАСТРОЙКА plan through TweakEngine with the
+  tweak's own journal source (like Dashboard fix buttons) and are read-only rows «В ОПТИМИЗАЦИИ» in ВРУЧНУЮ — never a
+  second toggle. Vendor apps (G HUB, Synapse, INZONE Hub) are opened from Devices and installed from Drivers → ПЕРИФЕРИЯ;
+  Drivers → МОНИТОРЫ shows drivers only (the refresh verdict lives on the monitor cards; the Dashboard check is a shortcut).
 - Read-only mode: one global strip under the title bar — no per-page read-only callouts.
 - No explanatory hero blocks, numbered section captions or "how it works" panels on pages; one muted line or a
   tooltip instead. The full safety explanation lives once in Settings → О ПРОГРАММЕ.
@@ -154,6 +179,8 @@ dotnet build src/Monolith/Monolith.csproj -c Debug
 dotnet test tests/Monolith.Tests/Monolith.Tests.csproj
 # QA screenshots of pages (no admin, no UAC): writes PNGs into the folder
 src/Monolith/bin/Debug/net10.0-windows10.0.19041.0/win-x64/MONOLITH.exe --snapshot snapshots/run1 --pages dashboard,optimize --wait 2500
+# tabbed pages are shot once per tab (07-devices-auto.png, 07-devices-manual.png; "--pages devices-manual" = that tab only);
+# --full also saves the page's whole scrolled list (…-full.png). --page devices --tab manual opens a page on a tab.
 # Release single-file exe
 dotnet publish src/Monolith/Monolith.csproj -c Release -r win-x64 --self-contained true -o publish
 ```
@@ -174,15 +201,22 @@ By default the app opens without a UAC prompt (read-only) and `PageViewModel.Req
 admin rights on the same page when a change needs them; Settings → «Запрашивать права администратора при запуске»
 (`AppSettings.ElevateAtStartup`) restores the prompt at startup. `--no-elevate` always stays read-only.
 Never apply real tweaks on the dev machine during automated testing — use read-only paths and unit tests
-(registry tests use `HKCU\Software\MONOLITH-Tests`).
+(registry tests use `HKCU\Software\MONOLITH-Tests`). The same for devices: no display mode/HDR/DDC/SPI/audio level/NIC
+writes on the dev PC — tests use the fakes (`DeviceWriters.OverrideForTests`), the redirected registry and
+`ChangeJournal.ForTests`; read-only probing (enumeration, WMI, EDID) is fine. `--display-guard …` is an internal switch
+(MONOLITH starts it for a display change); never run it by hand against real displays.
 
 ## Status
 
 - Done: core (journal/undo with record validation, restore points, services, power plans, tasks, registry, process
   runner, winget), theme, shell, all modules, tweak catalog, review findings in docs/review-findings.md,
   minimal-UI redesign, command palette, profile export/import, drift detection, Drivers «ПОДБОР ДЛЯ ВАШЕГО ПК»
-  hardware analysis (Modules/Drivers/Hardware, default Drivers tab), direct NVIDIA/AMD installer downloads on the GPU cards.
-- Verified on Windows 11 (27.10.2026): build 0 warnings, all unit tests pass, `--selftest` all pages OK.
+  hardware analysis (Modules/Drivers/Hardware, default Drivers tab), direct NVIDIA/AMD installer downloads on the GPU cards,
+  «Устройства и сеть» (Modules/Devices: core + input, displays, audio, vendors, network; research docs/research/devices_*.md,
+  network_*.md, design docs/research/devices_design.md).
+- Verified on Windows 11 (28.10.2026): build 0 warnings, all unit tests pass, `--selftest` all pages OK (incl.
+  devices/auto and devices/manual). Device writes (SPI, display mode/HDR + guard, DDC, mic level, NIC) and the live
+  measurements are unit-tested with fakes only — the manual pre-ship checks in devices_design.md §5 are still open.
 - Two Claude sessions once developed in parallel (a cloud one on `main`, a local one); the local line is kept on branch
   `local/windows-line` for reference only. Before starting work: `git fetch` and build on top of `origin/main`.
 - Never rename, overwrite or delete MONOLITH.exe while it runs (single-file app: it loads parts of itself from the

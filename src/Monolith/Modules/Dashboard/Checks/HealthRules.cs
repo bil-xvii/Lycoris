@@ -150,12 +150,19 @@ public static partial class HealthRules
     /// <summary>True when the display could run faster. 1 Hz of slack: 239 vs 240 Hz is the same fractional timing.</summary>
     public static bool IsBelowMaxRefresh(int currentHz, int maxHz) => currentHz > 1 && maxHz > currentHz + 1;
 
+    /// <summary>
+    /// Same rules as the monitor cards of «Устройства и сеть» (DisplayAdvice): no refresh verdict on battery, and a laptop's own
+    /// panel is left to Windows (dynamic refresh rate, power mode) — so no warning the page would not back up.
+    /// </summary>
     public static HealthCheckResult? CheckRefreshRate(SystemSnapshot s)
     {
         if (s.Displays.Count == 0) return null;
-        var slow = s.Displays.Where(d => IsBelowMaxRefresh(d.CurrentHz, d.MaxHz)).ToList();
+        var below = s.Displays.Where(d => IsBelowMaxRefresh(d.CurrentHz, d.MaxHz)).ToList();
+        if (below.Count > 0 && s.OnBattery) return null;
+        var slow = below.Where(d => !d.IsInternal).ToList();
         if (slow.Count == 0)
         {
+            if (below.Count > 0) return null; // only the laptop panel is below its maximum: Windows decides, nothing to claim
             var list = string.Join("; ", s.Displays.Select(d => $"{d.Name} — {d.CurrentHz} Гц при {d.Width}×{d.Height}"));
             return new("refresh-rate", "ЧАСТОТА ОБНОВЛЕНИЯ МАКСИМАЛЬНАЯ", list + ".", CheckSeverity.Ok, 10);
         }
