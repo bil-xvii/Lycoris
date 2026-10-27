@@ -796,6 +796,94 @@ public sealed class GamesTests
         Assert.Contains("Только просмотр", GpuPreference.CardTooltip([], null, false, true));
         Assert.Contains("от другой учётной записи", GpuPreference.CardTooltip([], null, true, false));
     }
+
+    // ───────────────────────────── Leftovers of a crashed session ─────────────────────────────
+
+    private static ChangeRecord Plan(string source, string title, string from, string to) => new()
+    {
+        Source = source, Title = title, Kind = ChangeKind.PowerScheme, Target = "power:active", OldValue = from, NewValue = to,
+    };
+
+    private static ChangeRecord Session(string from = "Сбалансированная", string to = "Высокая производительность") =>
+        Plan(GameBoostService.Source, "Игровой сеанс: план питания", from, to);
+
+    private static ChangeRecord LaterTweak(string from = "Высокая производительность") =>
+        Plan("tweak:power-plan-balanced", "Сбалансированная схема питания", from, "Сбалансированная");
+
+    /// <summary>The newer-layer lookup of the real journal, over a fixed record list (journal order).</summary>
+    private static Func<ChangeRecord, ChangeRecord?> Layers(params ChangeRecord[] journal) =>
+        r => ChangeJournal.NewerLayer(journal, r, null);
+
+    [Fact]
+    public void Stale_session_texts_promise_the_original_only_when_nothing_newer_holds_the_plan()
+    {
+        var session = Session();
+        var alone = Layers(session);
+        Assert.Equal(["Игровой сеанс: план питания: Высокая производительность → Сбалансированная"], GameBoostService.StaleLines([session], alone));
+        Assert.Contains("Всё ещё действует: план питания — «Высокая производительность» вместо «Сбалансированная».",
+            GameBoostService.StaleBanner([session], alone));
+        Assert.EndsWith("Вернуть исходные значения?", GameBoostService.StalePrompt([session], alone));
+        Assert.False(GameBoostService.AllKept([session], alone));
+        Assert.Equal("", GameBoostService.StaleBanner([], alone));
+    }
+
+    [Fact]
+    public void Stale_session_texts_say_that_a_plan_chosen_later_stays()
+    {
+        // ПОЗЖЕ after the crash, then «Сбалансированная схема питания» in Optimize: a newer layer holds the plan.
+        var session = Session();
+        var tweak = LaterTweak();
+        var layers = Layers(session, tweak);
+
+        Assert.Equal(["Игровой сеанс: план питания: останется «Сбалансированная» — его позже выбрал «Сбалансированная схема питания»"],
+            GameBoostService.StaleLines([session], layers));
+        var banner = GameBoostService.StaleBanner([session], layers);
+        Assert.DoesNotContain("Всё ещё действует", banner);
+        Assert.DoesNotContain("вместо", banner);
+        Assert.Contains("План питания: останется «Сбалансированная» — его позже выбрал «Сбалансированная схема питания».", banner);
+        Assert.EndsWith("Возврат только закроет запись сеанса, система не изменится.", banner);
+        Assert.EndsWith("Закрыть запись сеанса?", GameBoostService.StalePrompt([session], layers));
+        Assert.True(GameBoostService.AllKept([session], layers));
+    }
+
+    [Fact]
+    public void Stale_session_records_undone_together_do_not_keep_each_other()
+    {
+        // Two leftover sessions: the newer one is undone too, so the older one's original comes back.
+        var first = Session();
+        var second = Session(from: "Экономия энергии");
+        Assert.Null(GameBoostService.Keeper(first, [first, second], Layers(first, second)));
+        Assert.False(GameBoostService.AllKept([first, second], Layers(first, second)));
+
+        // A tweak between them stays: the older session hands its original over to it, the newer one comes back.
+        var tweak = LaterTweak();
+        var layers = Layers(first, tweak, second);
+        Assert.Same(tweak, GameBoostService.Keeper(first, [first, second], layers));
+        Assert.Null(GameBoostService.Keeper(second, [first, second], layers));
+        Assert.Contains("Часть временных изменений всё ещё действует", GameBoostService.StalePrompt([first, second], layers));
+        Assert.Contains("Всё ещё действует: план питания — «Высокая производительность» вместо «Экономия энергии».",
+            GameBoostService.StaleBanner([first, second], layers));
+    }
+
+    [Fact]
+    public void Stale_session_toast_counts_only_what_really_came_back()
+    {
+        Assert.Equal("Исходные настройки возвращены (изменений: 1).", GameBoostService.StaleRevertedText(new RevertResult(1, 0, [])));
+        Assert.Equal("Запись игрового сеанса закрыта, система не изменена: план питания задаёт более позднее изменение, оно остаётся.",
+            GameBoostService.StaleRevertedText(new RevertResult(1, 0, []) { HandedOver = 1 }));
+        Assert.StartsWith("Исходные настройки возвращены (изменений: 1); план питания",
+            GameBoostService.StaleRevertedText(new RevertResult(2, 0, []) { HandedOver = 1 }));
+    }
+
+    [Fact]
+    public void Session_end_names_the_plan_chosen_during_the_session()
+    {
+        var tweak = LaterTweak();
+        Assert.Null(GameBoostService.KeptPlanNote(new RevertResult(1, 0, []), tweak));
+        Assert.Null(GameBoostService.KeptPlanNote(new RevertResult(1, 0, []) { HandedOver = 1 }, null));
+        Assert.Equal("План питания остаётся «Сбалансированная» — его выбрали во время сеанса («Сбалансированная схема питания»).",
+            GameBoostService.KeptPlanNote(new RevertResult(1, 0, []) { HandedOver = 1 }, tweak));
+    }
 }
 
 /// <summary>

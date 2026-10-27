@@ -477,7 +477,7 @@
                                             <TextBlock Text="НЕЗАВЕРШЁННЫЙ СЕАНС" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                             <TextBlock Text="{Binding StaleText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,10" LineHeight="16" />
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Style="{StaticResource Btn.Primary}" Height="30" FontSize="11.5" Padding="9,0" Content="ВЕРНУТЬ НАСТРОЙКИ"
+                                                <Button Style="{StaticResource Btn.Primary}" Height="30" FontSize="11.5" Padding="9,0" Content="{Binding StaleActionText}"
                                                         Command="{Binding RestoreStaleCommand}" IsEnabled="{Binding IsElevated}" />
                                             </StackPanel>
                                         </StackPanel>
