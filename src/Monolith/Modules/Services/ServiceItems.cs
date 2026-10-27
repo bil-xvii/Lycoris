@@ -76,8 +76,19 @@ public sealed partial class RecommendationItem : ObservableObject
     /// <summary>Already where MONOLITH would put it (Disabled also satisfies a Manual target).</summary>
     public bool IsAtTarget => CurrentMode == Entry.Target || (Entry.Target == ServiceStartMode.Manual && CurrentMode == ServiceStartMode.Disabled);
 
-    /// <summary>Research §0.1: already Manual/trigger-start — disabling gains ~nothing, so it counts as optimal.</summary>
-    public bool IsAlreadyManual => !IsAtTarget && CurrentMode == ServiceStartMode.Manual && Entry.Target == ServiceStartMode.Disabled;
+    /// <summary>
+    /// Research §0.1: already Manual/trigger-start — disabling gains ~nothing, so it counts as optimal. Not for a service
+    /// that must stay disabled (Remote Registry): there «Отключена» is the Windows default and a security setting.
+    /// </summary>
+    public bool IsAlreadyManual =>
+        !IsAtTarget && CurrentMode == ServiceStartMode.Manual && Entry.Target == ServiceStartMode.Disabled &&
+        !ServiceGuard.MustStayDisabled(Entry.Name);
+
+    /// <summary>
+    /// The profile pre-selects this row. Research §0.1: a service that already starts only on demand is left for the
+    /// user to tick — «Отключена» saves ~nothing there and only removes the feature.
+    /// </summary>
+    public bool RecommendedIn(ProfileSet profile) => Entry.IsPreselectedIn(profile) && !IsAlreadyManual;
 
     public bool IsBlocked => BlockReason is not null;
     public bool IsChanged => Journal is not null;
@@ -117,7 +128,7 @@ public sealed class RecommendationGroup(ServiceGroup group, IReadOnlyList<Recomm
 /// <summary>One row of the ВСЕ СЛУЖБЫ tab.</summary>
 public sealed partial class ServiceItem : ObservableObject
 {
-    private static readonly IReadOnlyList<StartOption> DisabledOnly = [StartOption.All[3]];
+    private IReadOnlyList<StartOption> _startOptions;
 
     public ServiceItem(ServiceInfo info)
     {
@@ -125,6 +136,8 @@ public sealed partial class ServiceItem : ObservableObject
         _startMode = info.StartMode;
         _delayed = info.Delayed;
         _status = info.Status;
+        StartScope = ServiceStartPolicy.ScopeFor(info.Name, info.IsThirdParty, info.LockReason is not null);
+        _startOptions = ServiceStartPolicy.OptionsFor(StartScope, info.StartMode, info.Delayed);
         _pendingStart = StartOption.For(info.StartMode ?? ServiceStartMode.Manual, info.Delayed);
     }
 
@@ -143,7 +156,15 @@ public sealed partial class ServiceItem : ObservableObject
     public string? LockReason => Info.LockReason;
     public bool IsCurated => ServiceCatalog.IsCurated(Info.Name);
     public bool MustStayDisabled => ServiceGuard.MustStayDisabled(Info.Name);
-    public IReadOnlyList<StartOption> StartOptions => MustStayDisabled ? DisabledOnly : StartOption.All;
+
+    /// <summary>Which start types MONOLITH may set for this service (research services.md §0.4, §2B).</summary>
+    public StartChangeScope StartScope { get; }
+
+    /// <summary>Allowed start types plus the current one.</summary>
+    public IReadOnlyList<StartOption> StartOptions => _startOptions;
+
+    /// <summary>Why «Отключена» (or everything but it) is not offered; null when the full list is available.</summary>
+    public string? StartPolicyNote => ServiceStartPolicy.Note(StartScope, IsCurated);
 
     [ObservableProperty] private ServiceStartMode? _startMode;
     [ObservableProperty] private bool _delayed;
@@ -152,8 +173,26 @@ public sealed partial class ServiceItem : ObservableObject
     [ObservableProperty] private StartOption? _pendingStart;
     [ObservableProperty] private bool _canModify;
 
-    partial void OnStartModeChanged(ServiceStartMode? value) => RaiseComputed();
-    partial void OnDelayedChanged(bool value) => RaiseComputed();
+    partial void OnStartModeChanged(ServiceStartMode? value)
+    {
+        UpdateStartOptions();
+        RaiseComputed();
+    }
+
+    partial void OnDelayedChanged(bool value)
+    {
+        UpdateStartOptions();
+        RaiseComputed();
+    }
+
+    /// <summary>The list contains the current start type, so it changes only when that is a type MONOLITH would not set.</summary>
+    private void UpdateStartOptions()
+    {
+        var options = ServiceStartPolicy.OptionsFor(StartScope, StartMode, Delayed);
+        if (options.SequenceEqual(_startOptions)) return;
+        _startOptions = options;
+        OnPropertyChanged(nameof(StartOptions));
+    }
     partial void OnStatusChanged(ServiceControllerStatus? value) => RaiseComputed();
     partial void OnJournalChanged(ChangeRecord? value) => RaiseComputed();
     partial void OnPendingStartChanged(StartOption? value) => RaiseComputed();
@@ -180,7 +219,7 @@ public sealed partial class ServiceItem : ObservableObject
         PendingStart is not null && StartMode is not null &&
         !(PendingStart.Mode == StartMode && PendingStart.Delayed == (StartMode == ServiceStartMode.Automatic && Delayed));
 
-    public bool CanApplyStart => CanModify && !IsLocked && IsStartDirty;
+    public bool CanApplyStart => CanModify && !IsLocked && IsStartDirty && ServiceStartPolicy.Allows(StartScope, PendingStart);
     public bool CanStart => CanModify && !IsLocked && !MustStayDisabled && !IsDisabled && Status == ServiceControllerStatus.Stopped;
     public bool CanStop => CanModify && !IsLocked && Status == ServiceControllerStatus.Running;
     public bool CanRevert => CanModify && IsChanged;

@@ -224,6 +224,186 @@ public sealed class ServicesTests
         Assert.False(ServiceGuard.MustStayDisabled("Spooler"));
     }
 
+    // ───────────────────────────── Start-type policy (ВСЕ СЛУЖБЫ) ─────────────────────────────
+
+    private static StartOption Option(ServiceStartMode mode, bool delayed = false) => StartOption.For(mode, delayed)!;
+
+    [Theory]
+    [InlineData("W32Time")]
+    [InlineData("Eaphost")]
+    [InlineData("RmSvc")]
+    [InlineData("dot3svc")]
+    public void Windows_services_outside_the_list_are_never_disabled(string name)
+    {
+        var scope = ServiceStartPolicy.ScopeFor(name, isThirdParty: false, isLocked: false);
+        Assert.Equal(StartChangeScope.NoDisable, scope);
+        Assert.False(ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Disabled)));
+        Assert.True(ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Manual)));
+        Assert.True(ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Automatic)));
+        Assert.True(ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Automatic, delayed: true)));
+        Assert.DoesNotContain(ServiceStartPolicy.OptionsFor(scope, ServiceStartMode.Manual, false), o => o.Mode == ServiceStartMode.Disabled);
+        Assert.NotNull(ServiceStartPolicy.Note(scope, isCurated: false));
+    }
+
+    [Fact]
+    public void Already_disabled_windows_service_shows_its_state_but_cannot_be_set_to_it()
+    {
+        var options = ServiceStartPolicy.OptionsFor(StartChangeScope.NoDisable, ServiceStartMode.Disabled, false);
+        Assert.Contains(Option(ServiceStartMode.Disabled), options);
+        Assert.Contains(Option(ServiceStartMode.Manual), options);
+        Assert.False(ServiceStartPolicy.Allows(StartChangeScope.NoDisable, Option(ServiceStartMode.Disabled)));
+    }
+
+    [Fact]
+    public void Third_party_services_may_be_disabled()
+    {
+        var scope = ServiceStartPolicy.ScopeFor("Razer Elevation Service", isThirdParty: true, isLocked: false);
+        Assert.Equal(StartChangeScope.Full, scope);
+        Assert.Equal(StartOption.All.Count, ServiceStartPolicy.OptionsFor(scope, ServiceStartMode.Automatic, false).Count);
+        Assert.True(ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Disabled)));
+        Assert.Null(ServiceStartPolicy.Note(scope, isCurated: false));
+    }
+
+    [Fact]
+    public void Curated_entries_follow_their_researched_target()
+    {
+        foreach (var s in ServiceCatalog.Services.Where(s => !ServiceGuard.MustStayDisabled(s.Name)))
+        {
+            var scope = ServiceStartPolicy.ScopeFor(s.Name, isThirdParty: false, isLocked: false);
+            var disableAllowed = ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Disabled));
+            Assert.Equal(s.Target == ServiceStartMode.Disabled, disableAllowed);
+        }
+        Assert.Equal(StartChangeScope.NoDisable, ServiceStartPolicy.ScopeFor("DiagTrack", false, false));
+        Assert.NotNull(ServiceStartPolicy.Note(StartChangeScope.NoDisable, isCurated: true));
+    }
+
+    [Fact]
+    public void Remote_registry_can_only_be_disabled()
+    {
+        var scope = ServiceStartPolicy.ScopeFor("RemoteRegistry", isThirdParty: false, isLocked: false);
+        Assert.Equal(StartChangeScope.DisabledOnly, scope);
+        Assert.Equal(new[] { Option(ServiceStartMode.Manual), Option(ServiceStartMode.Disabled) },
+            ServiceStartPolicy.OptionsFor(scope, ServiceStartMode.Manual, false));
+        Assert.False(ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Manual)));
+        Assert.True(ServiceStartPolicy.Allows(scope, Option(ServiceStartMode.Disabled)));
+    }
+
+    [Fact]
+    public void Locked_services_allow_nothing()
+    {
+        var scope = ServiceStartPolicy.ScopeFor("Razer Elevation Service", isThirdParty: true, isLocked: true);
+        Assert.Equal(StartChangeScope.None, scope);
+        Assert.All(StartOption.All, o => Assert.False(ServiceStartPolicy.Allows(scope, o)));
+        Assert.False(ServiceStartPolicy.Allows(StartChangeScope.Full, null));
+    }
+
+    private static ServiceInfo Info(string name, ServiceStartMode mode, bool thirdParty, string? lockReason = null) => new()
+    {
+        Name = name, DisplayName = name, StartMode = mode, IsThirdParty = thirdParty, LockReason = lockReason,
+        Status = ServiceControllerStatus.Stopped,
+    };
+
+    [Fact]
+    public void Service_row_cannot_apply_a_start_type_the_policy_refuses()
+    {
+        var item = new ServiceItem(Info("W32Time", ServiceStartMode.Manual, thirdParty: false)) { CanModify = true };
+        Assert.DoesNotContain(item.StartOptions, o => o.Mode == ServiceStartMode.Disabled);
+        item.PendingStart = Option(ServiceStartMode.Disabled);
+        Assert.False(item.CanApplyStart);
+        item.PendingStart = Option(ServiceStartMode.Automatic);
+        Assert.True(item.CanApplyStart);
+
+        var vendor = new ServiceItem(Info("VendorSvc", ServiceStartMode.Automatic, thirdParty: true)) { CanModify = true };
+        vendor.PendingStart = Option(ServiceStartMode.Disabled);
+        Assert.True(vendor.CanApplyStart);
+    }
+
+    [Fact]
+    public void Service_row_options_follow_the_current_start_type()
+    {
+        var item = new ServiceItem(Info("W32Time", ServiceStartMode.Manual, thirdParty: false));
+        Assert.DoesNotContain(Option(ServiceStartMode.Disabled), item.StartOptions);
+        item.Apply(new ServiceLiveState(ServiceStartMode.Disabled, false, false, ServiceControllerStatus.Stopped, null));
+        Assert.Contains(Option(ServiceStartMode.Disabled), item.StartOptions);
+        Assert.Equal(Option(ServiceStartMode.Disabled), item.PendingStart);
+        Assert.False(item.CanApplyStart);
+    }
+
+    // ───────────────────────────── Honest texts ─────────────────────────────
+
+    [Fact]
+    public void DiagTrack_is_opt_in_like_in_optimize()
+    {
+        var s = ServiceCatalog.Find("DiagTrack")!;
+        Assert.Equal(ServiceStartMode.Manual, s.Target);
+        Assert.Equal(TweakRisk.Optional, s.Risk);
+        Assert.True(s.Conditional);
+        foreach (var p in Profiles) Assert.False(s.IsPreselectedIn(p), p.ToString());
+        Assert.Contains("Insider", s.Impact);
+        Assert.DoesNotContain("последствий нет", s.Impact, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static RecommendationItem Rec(string name, ServiceStartMode? current) => new(ServiceCatalog.Find(name)!)
+    {
+        State = new ServiceLiveState(current, false, false, ServiceControllerStatus.Stopped, null),
+    };
+
+    [Fact]
+    public void Profiles_skip_services_that_already_start_on_demand()
+    {
+        var manual = Rec("RetailDemo", ServiceStartMode.Manual);
+        Assert.True(manual.IsAlreadyManual);
+        Assert.False(manual.RecommendedIn(ProfileSet.Recommended));
+        Assert.False(manual.RecommendedIn(ProfileSet.Gaming));
+
+        var automatic = Rec("RetailDemo", ServiceStartMode.Automatic);
+        Assert.False(automatic.IsAlreadyManual);
+        Assert.True(automatic.RecommendedIn(ProfileSet.Recommended));
+
+        var mapsAuto = Rec("MapsBroker", ServiceStartMode.Automatic);
+        Assert.True(mapsAuto.RecommendedIn(ProfileSet.Normal));
+    }
+
+    [Fact]
+    public void Remote_registry_switched_on_is_still_recommended_back_to_disabled()
+    {
+        var rr = Rec("RemoteRegistry", ServiceStartMode.Manual);
+        Assert.False(rr.IsAlreadyManual);
+        Assert.True(rr.RecommendedIn(ProfileSet.Normal));
+        Assert.True(rr.IsSelectable);
+    }
+
+    [Fact]
+    public void Profiles_only_preselect_manual_targets_for_services_in_their_default_state()
+    {
+        // On a default Windows 11 the Disabled-target entries a profile lists are already Manual (or Disabled),
+        // so every profile pre-selection is «Вручную» — matching the page text.
+        foreach (var s in ServiceCatalog.Services.Where(s => s.Target == ServiceStartMode.Disabled))
+        {
+            var item = new RecommendationItem(s) { State = new ServiceLiveState(ServiceStartMode.Manual, false, false, null, null) };
+            foreach (var p in Profiles)
+                if (!ServiceGuard.MustStayDisabled(s.Name))
+                    Assert.False(item.RecommendedIn(p), $"{s.Name} in {p}");
+        }
+    }
+
+    [Fact]
+    public void Restore_point_line_matches_settings_and_protection()
+    {
+        Assert.StartsWith("Перед изменением создаётся точка восстановления.", ServiceText.RestorePointLine(true, true, "Журнал."));
+        Assert.Contains("спросит, продолжать ли без неё", ServiceText.RestorePointLine(true, false, "Журнал."));
+        Assert.Contains("отключена в настройках", ServiceText.RestorePointLine(false, true, "Журнал."));
+        Assert.DoesNotContain("создаётся точка", ServiceText.RestorePointLine(false, false, "Журнал."));
+        Assert.EndsWith("Журнал.", ServiceText.RestorePointLine(true, false, "Журнал."));
+    }
+
+    [Fact]
+    public void Profile_descriptions_do_not_promise_telemetry_changes()
+    {
+        foreach (var p in Profiles)
+            Assert.DoesNotContain("телеметр", ServiceCatalog.ProfileDescription(p), StringComparison.OrdinalIgnoreCase);
+    }
+
     // ───────────────────────────── Filters ─────────────────────────────
 
     private static ServiceFacts Facts(string name, bool running = false, ServiceStartMode? mode = ServiceStartMode.Manual, bool thirdParty = false,

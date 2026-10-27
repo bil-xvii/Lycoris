@@ -102,7 +102,9 @@ public sealed partial class ServicesViewModel
         var selected = TaskItems.Where(t => t.IsSelected && t.CanSelect).ToList();
         if (selected.Count == 0) return;
 
-        var live = await Task.Run(() => selected.Select(t => (Item: t, Info: ScheduledTasks.Query(t.Path))).ToList());
+        var (live, restorePointLine) = await Task.Run(() =>
+            (selected.Select(t => (Item: t, Info: ScheduledTasks.Query(t.Path))).ToList(),
+             RestorePointLine("Исходное состояние сохраняется в журнале.")));
         var plan = live.Where(p => p.Info.Exists && p.Info.Enabled).Select(p => p.Item).ToList();
         if (plan.Count == 0)
         {
@@ -113,8 +115,8 @@ public sealed partial class ServicesViewModel
 
         var details = plan.Select(t => $"{t.Title}: Включена → Отключена").ToList();
         if (!await Ui.ConfirmAsync("ОТКЛЮЧИТЬ ЗАДАЧИ?",
-                "Задачи перестанут запускаться по расписанию. Сами задачи не удаляются — их можно включить обратно. " +
-                "Перед изменением создаётся точка восстановления, исходное состояние сохраняется в журнале.",
+                "Задачи перестанут запускаться — ни по расписанию, ни по другим триггерам. Сами задачи не удаляются — их можно включить обратно. " +
+                restorePointLine,
                 details, "ОТКЛЮЧИТЬ",
                 footnote: "Крупные обновления Windows иногда включают задачи заново — просто отключите их снова."))
             return;
@@ -165,8 +167,10 @@ public sealed partial class ServicesViewModel
         var info = await Task.Run(() => ScheduledTasks.Query(path));
         if (!info.Exists)
         {
-            await Ui.AlertAsync("ЗАДАЧА НЕ НАЙДЕНА",
-                "Задачи больше нет в планировщике (её удалило обновление Windows) — возвращать нечего. Запись можно удалить в разделе «Восстановление».");
+            await Ui.AlertAsync("ЗАДАЧИ БОЛЬШЕ НЕТ",
+                $"Задачи {path} больше нет в планировщике: её удалило обновление Windows или программа. Возвращать нечего.",
+                VanishedHelp("задача"));
+            await ReloadAsync();
             return;
         }
 
