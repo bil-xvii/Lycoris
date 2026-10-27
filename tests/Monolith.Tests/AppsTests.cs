@@ -214,6 +214,17 @@ public sealed class AppsTests
         Assert.Equal(AppCatalog.All.Count - 1, AppCatalog.ForBuild(26100).Count());
     }
 
+    [Theory]
+    [InlineData(14393, false)] // LTSB 2016: NDP481 refuses to install
+    [InlineData(17763, false)] // LTSC 2019
+    [InlineData(19041, false)] // 2004
+    [InlineData(19042, true)]  // 20H2 — the oldest build 4.8.1 supports
+    [InlineData(19045, true)]
+    [InlineData(22000, true)]  // Windows 11 21H2
+    [InlineData(22621, false)] // 22H2+ ships it
+    public void Net_framework_481_is_offered_only_where_it_installs(int build, bool offered) =>
+        Assert.Equal(offered, AppCatalog.ForBuild(build).Any(e => e.Id == "Microsoft.DotNet.Framework.Runtime"));
+
     // ─────────────────────────── winget arguments ───────────────────────────
 
     [Fact]
@@ -390,6 +401,23 @@ public sealed class AppsTests
     [InlineData(unchecked((int)0x8A150105))]
     [InlineData(unchecked((int)0x8A150113))]
     [InlineData(unchecked((int)0x8A150001))]
+    [InlineData(unchecked((int)0x8A15005F))]
+    [InlineData(unchecked((int)0x80190194))]
+    [InlineData(unchecked((int)0x80190193))]
+    [InlineData(unchecked((int)0x8A150049))]
+    [InlineData(unchecked((int)0x8A150052))]
+    [InlineData(unchecked((int)0x8A15005E))]
+    [InlineData(unchecked((int)0x8A150060))]
+    [InlineData(unchecked((int)0x8A150104))]
+    [InlineData(unchecked((int)0x8A150106))]
+    [InlineData(unchecked((int)0x8A150108))]
+    [InlineData(unchecked((int)0x8A150110))]
+    [InlineData(unchecked((int)0x8A150112))]
+    [InlineData(unchecked((int)0x8A150114))]
+    [InlineData(unchecked((int)0x8A150115))]
+    [InlineData(unchecked((int)0x8A15004B))]
+    [InlineData(unchecked((int)0x8A150002))]
+    [InlineData(unchecked((int)0x8A150005))]
     [InlineData(-1)]
     public void Every_researched_exit_code_has_a_russian_description(int code)
     {
@@ -426,6 +454,9 @@ public sealed class AppsTests
     [InlineData(unchecked((int)0x8A15010E), QueueOperation.Upgrade, QueueState.Skipped, false)]
     [InlineData(unchecked((int)0x8A150011), QueueOperation.Install, QueueState.Failed, false)]
     [InlineData(unchecked((int)0x8A150056), QueueOperation.Install, QueueState.Failed, false)]
+    [InlineData(unchecked((int)0x8A15005F), QueueOperation.Install, QueueState.Failed, false)]
+    [InlineData(unchecked((int)0x8A150014), QueueOperation.Install, QueueState.Failed, false)]
+    [InlineData(unchecked((int)0x8A150014), QueueOperation.Upgrade, QueueState.Skipped, false)] // installed some other way (SDK runtime)
     public void Queue_results_are_classified(int code, QueueOperation op, QueueState state, bool reboot)
     {
         var (s, text, r) = AppTexts.DescribeResult(code, op);
@@ -478,8 +509,18 @@ public sealed class AppsTests
         foreach (var e in AppCatalog.All.Where(e => e.RunsUnelevated))
             foreach (var id in e.AllIds)
             {
-                var args = WingetClient.BuildInstallArgs(e.CreateRequest(id));
-                Assert.All(args, a => Assert.True(UnelevatedWinget.IsSafeToken(a), a));
+                var request = e.CreateRequest(id);
+                foreach (var args in new[]
+                {
+                    WingetClient.BuildInstallArgs(request, keepLocationTemplate: true),
+                    WingetClient.BuildUpgradeArgs(request, keepLocationTemplate: true),
+                    // the one retry after 0x8A15005F
+                    WingetClient.BuildInstallArgs(request with { Location = e.DefaultLocationTemplate }, keepLocationTemplate: true),
+                })
+                {
+                    var line = UnelevatedWinget.BuildCommandLine("winget.exe", args, "a.log", "a.exit");
+                    Assert.Contains(id, line);
+                }
             }
     }
 

@@ -23,6 +23,13 @@ public sealed record WingetPackageRequest(string Id, string Source = "winget")
 
     /// <summary>--architecture (x86 / x64 / arm64).</summary>
     public string? Architecture { get; init; }
+
+    /// <summary>
+    /// --location as a template with one known root ("%ProgramFiles(x86)%\Battle.net", "%LOCALAPPDATA%\Programs\X"):
+    /// required by manifests with InstallLocationRequired, which winget cannot ask for with --disable-interactivity
+    /// (0x8A15005F). Expanded by MONOLITH, or by the de-elevated cmd for the signed-in user (<see cref="WingetClient.IsValidLocationTemplate"/>).
+    /// </summary>
+    public string? Location { get; init; }
 }
 
 /// <summary>
@@ -46,6 +53,14 @@ public static partial class WingetClient
     public const int UpgradeVersionNotNewer = unchecked((int)0x8A15004F);
     public const int UpgradeVersionUnknown = unchecked((int)0x8A150050);
     public const int PackageIsPinned = unchecked((int)0x8A150068);
+    /// <summary>APPINSTALLER_CLI_ERROR_INSTALL_LOCATION_REQUIRED: the manifest needs --location and winget may not ask.</summary>
+    public const int InstallLocationRequired = unchecked((int)0x8A15005F);
+    /// <summary>APPINSTALLER_CLI_ERROR_INSTALLER_HASH_MISMATCH: the downloaded installer is not the file the manifest describes.</summary>
+    public const int InstallerHashMismatch = unchecked((int)0x8A150011);
+    public const int DownloadFailed = unchecked((int)0x8A150008);
+    public const int NoNetwork = unchecked((int)0x8A150107);
+    /// <summary>HTTP_E_STATUS_NOT_FOUND: the installer link in the manifest answers 404.</summary>
+    public const int HttpNotFound = unchecked((int)0x80190194);
 
     /// <summary>Oldest winget client MONOLITH relies on (export --include-versions, --disable-interactivity).</summary>
     public static readonly Version MinimumClientVersion = new(1, 6);
@@ -86,7 +101,7 @@ public static partial class WingetClient
     public static Task<WingetResult> UpgradeAsync(string id, string source = "winget", Action<string>? output = null, CancellationToken ct = default)
         => UpgradePackageAsync(new WingetPackageRequest(id, source), output, ct);
 
-    /// <summary>Installs a package with optional installer filters (architecture, installer type).</summary>
+    /// <summary>Installs a package with optional installer filters (architecture, installer type, install location).</summary>
     public static Task<WingetResult> InstallPackageAsync(WingetPackageRequest request, Action<string>? output = null, CancellationToken ct = default)
         => RunBuiltAsync(() => BuildInstallArgs(request), output, ct);
 
@@ -122,28 +137,32 @@ public static partial class WingetClient
     /// (Store installs have no silent switch). Never adds --scope (about 15 manifests declare none and would fail),
     /// --force, --ignore-security-hash or --allow-reboot.
     /// </summary>
-    public static IReadOnlyList<string> BuildInstallArgs(WingetPackageRequest request)
+    /// <param name="keepLocationTemplate">
+    /// true for the de-elevated runner: --location stays "%LOCALAPPDATA%\…" and the signed-in user's cmd expands it
+    /// (an elevated MONOLITH may run under another administrator's profile). Otherwise MONOLITH expands it.
+    /// </param>
+    public static IReadOnlyList<string> BuildInstallArgs(WingetPackageRequest request, bool keepLocationTemplate = false)
     {
         Validate(request);
         var args = new List<string> { "install", "--id", request.Id, "--exact", "--source", request.Source, "--accept-package-agreements" };
         if (request.Source == "winget") args.Add("--silent");
-        AddFilters(args, request);
+        AddFilters(args, request, keepLocationTemplate);
         args.AddRange(Common);
         return args;
     }
 
-    /// <summary>Arguments for "winget upgrade" of one package.</summary>
-    public static IReadOnlyList<string> BuildUpgradeArgs(WingetPackageRequest request)
+    /// <summary>Arguments for "winget upgrade" of one package (same rules as <see cref="BuildInstallArgs"/>).</summary>
+    public static IReadOnlyList<string> BuildUpgradeArgs(WingetPackageRequest request, bool keepLocationTemplate = false)
     {
         Validate(request);
         var args = new List<string> { "upgrade", "--id", request.Id, "--exact", "--source", request.Source, "--accept-package-agreements" };
         if (request.Source == "winget") args.Add("--silent");
-        AddFilters(args, request);
+        AddFilters(args, request, keepLocationTemplate);
         args.AddRange(Common);
         return args;
     }
 
-    private static void AddFilters(List<string> args, WingetPackageRequest request)
+    private static void AddFilters(List<string> args, WingetPackageRequest request, bool keepLocationTemplate)
     {
         if (!string.IsNullOrEmpty(request.Architecture))
         {
@@ -154,6 +173,65 @@ public static partial class WingetClient
         {
             args.Add("--installer-type");
             args.Add(request.InstallerType);
+        }
+        if (!string.IsNullOrEmpty(request.Location))
+        {
+            args.Add("--location");
+            args.Add(keepLocationTemplate
+                ? request.Location
+                : ExpandLocation(request.Location) ?? throw new ArgumentException($"Недопустимая папка установки: «{request.Location}»"));
+        }
+    }
+
+    /// <summary>
+    /// Install-location templates MONOLITH may pass: one known root (%ProgramFiles%, %ProgramFiles(x86)%, %LOCALAPPDATA%)
+    /// followed by 1–4 plain folder names (letters, digits, space . _ + ( ) -; no "..", no trailing dot or space).
+    /// Nothing else can reach winget's --location or the de-elevated cmd line.
+    /// </summary>
+    public static bool IsValidLocationTemplate(string? template)
+    {
+        if (LocationRoot(template) is not { } root) return false;
+        var tail = template![root.Variable.Length..];
+        if (!LocationTailRegex().IsMatch(tail)) return false;
+        foreach (var segment in tail.Split('\\', StringSplitOptions.RemoveEmptyEntries))
+            if (segment.EndsWith('.') || segment.EndsWith(' ')) return false;
+        return true;
+    }
+
+    private static readonly (string Variable, Environment.SpecialFolder Folder)[] LocationRoots =
+    [
+        ("%ProgramFiles%", Environment.SpecialFolder.ProgramFiles),
+        ("%ProgramFiles(x86)%", Environment.SpecialFolder.ProgramFilesX86),
+        ("%LOCALAPPDATA%", Environment.SpecialFolder.LocalApplicationData),
+    ];
+
+    private static (string Variable, Environment.SpecialFolder Folder)? LocationRoot(string? template) =>
+        template is null ? null
+            : LocationRoots.Where(r => template.StartsWith(r.Variable + @"\", StringComparison.OrdinalIgnoreCase))
+                .Select(r => ((string, Environment.SpecialFolder)?)r).FirstOrDefault();
+
+    /// <summary>"\Folder\Sub": 1–4 plain ASCII folder names (case-sensitive class: no Unicode case-folding surprises).</summary>
+    [GeneratedRegex(@"^(\\[A-Za-z0-9][A-Za-z0-9 ._+()\-]{0,63}){1,4}$")]
+    private static partial Regex LocationTailRegex();
+
+    /// <summary>
+    /// Expands a location template for this process ("%ProgramFiles(x86)%\Battle.net" → "C:\Program Files (x86)\Battle.net").
+    /// Null when the template is invalid or the result would leave its root folder.
+    /// </summary>
+    public static string? ExpandLocation(string? template)
+    {
+        if (!IsValidLocationTemplate(template) || LocationRoot(template) is not { } r) return null;
+        var root = Environment.GetFolderPath(r.Folder);
+        if (string.IsNullOrEmpty(root) || !Path.IsPathFullyQualified(root) || root.StartsWith(@"\\", StringComparison.Ordinal)) return null;
+        try
+        {
+            var rootDir = Path.TrimEndingDirectorySeparator(root);
+            var full = Path.GetFullPath(rootDir + template![r.Variable.Length..]);
+            return full.StartsWith(rootDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? full : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
         }
     }
 
@@ -168,6 +246,7 @@ public static partial class WingetClient
         if (!KnownSources.Contains(request.Source)) throw new ArgumentException($"Неизвестный источник winget: «{request.Source}»");
         if (request.Architecture is { Length: > 0 } a && !KnownArchitectures.Contains(a)) throw new ArgumentException($"Неизвестная архитектура: «{a}»");
         if (request.InstallerType is { Length: > 0 } t && !KnownInstallerTypes.Contains(t)) throw new ArgumentException($"Неизвестный тип установщика: «{t}»");
+        if (request.Location is { Length: > 0 } l && !IsValidLocationTemplate(l)) throw new ArgumentException($"Недопустимая папка установки: «{l}»");
     }
 
     /// <summary>
@@ -352,6 +431,12 @@ public static partial class WingetClient
     /// <summary>Upgrade was deliberately not attempted: version not newer, unknown installed version or a pinned package.</summary>
     public static bool IsSkipped(int code) => code is UpgradeVersionNotNewer or UpgradeVersionUnknown or PackageIsPinned;
 
+    /// <summary>HTTP_E_STATUS_* (0x8019xxxx): the download server answered with an HTTP error; low word = status code.</summary>
+    public static bool IsHttpStatus(int code) => (unchecked((uint)code) & 0xFFFF0000u) == 0x80190000u && (code & 0xFFFF) is >= 300 and <= 599;
+
+    /// <summary>The installer could not be downloaded (network, server error, dead link).</summary>
+    public static bool IsDownloadProblem(int code) => code is DownloadFailed or NoNetwork || IsHttpStatus(code);
+
     /// <summary>The installer needs (or started) a reboot. MONOLITH never passes --allow-reboot.</summary>
     public static bool IsRebootRequired(int code) => code is RebootRequiredToFinish or RebootRequiredToInstall or RebootInitiated;
 
@@ -368,8 +453,25 @@ public static partial class WingetClient
         ElevationProhibited => "установщик запрещает запуск от администратора",
         _ when code == unchecked((int)0x8A150019) => "нужны права администратора",
         _ when code == unchecked((int)0x8A150006) => "установщик завершился с ошибкой",
-        _ when code == unchecked((int)0x8A150008) || code == unchecked((int)0x8A150107) => "ошибка загрузки — проверьте интернет",
-        _ when code == unchecked((int)0x8A150011) => "хэш установщика не совпал — установка заблокирована ради безопасности",
+        DownloadFailed or NoNetwork => "ошибка загрузки — проверьте интернет",
+        InstallerHashMismatch => "хэш установщика не совпал с каталогом winget — установка заблокирована ради безопасности",
+        InstallLocationRequired => "нужно указать папку установки",
+        HttpNotFound => "файл установщика не найден на сервере (ошибка 404)",
+        _ when IsHttpStatus(code) => $"сервер установщика ответил ошибкой HTTP {code & 0xFFFF}",
+        _ when code == unchecked((int)0x8A150049) => "установщик MSI завершился с ошибкой",
+        _ when code == unchecked((int)0x8A150052) => "не удалось установить портативный пакет",
+        _ when code == unchecked((int)0x8A15005E) => "сертификат сервера не совпал — соединение перехвачено",
+        _ when code == unchecked((int)0x8A150060) => "архив не прошёл проверку антивирусом",
+        _ when code == unchecked((int)0x8A150104) => "в системе не хватает зависимости пакета",
+        _ when code == unchecked((int)0x8A150106) => "не хватает оперативной памяти",
+        _ when code == unchecked((int)0x8A150108) => "установщик завершился с ошибкой и просит обратиться к производителю",
+        _ when code == unchecked((int)0x8A150110) => "не удалось установить зависимости пакета",
+        _ when code == unchecked((int)0x8A150112) => "установщик не принял параметры",
+        _ when code == unchecked((int)0x8A150114) => "установщик не умеет обновлять установленную версию",
+        _ when code == unchecked((int)0x8A150115) => "установщик завершился с собственной ошибкой",
+        _ when code == unchecked((int)0x8A15004B) => "не удалось открыть источники winget",
+        _ when code == unchecked((int)0x8A150002) => "winget не принял параметры команды",
+        _ when code == unchecked((int)0x8A150005) || code == unchecked((int)0x8A15006A) => "winget прерван",
         _ when code == unchecked((int)0x8A150041) => "не приняты условия пакета",
         _ when code == unchecked((int)0x8A150046) => "не приняты условия источника",
         _ when code == unchecked((int)0x8A150045) => "не удалось открыть источник winget",

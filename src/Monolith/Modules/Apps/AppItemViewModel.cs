@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Monolith.Core;
 
 namespace Monolith.Modules.Apps;
 
@@ -9,11 +10,26 @@ public enum TagKind { Normal, Solid, Hatch, Muted }
 public sealed record AppTagInfo(string Text, TagKind Kind, string? ToolTip = null);
 
 /// <summary>What the main button of a card does.</summary>
-public enum AppAction { Install, Upgrade, Installed, SystemComponent, Website }
+public enum AppAction
+{
+    Install, Upgrade, Installed, SystemComponent, Website,
+    /// <summary>winget cannot install it now; the signed installer is downloaded straight from the vendor.</summary>
+    VendorDownload,
+}
 
 public enum QueueOperation { Install, Upgrade }
 
 public enum QueueState { Queued, Running, Done, Skipped, Failed, Cancelled, Unknown }
+
+/// <summary>The safe way forward a finished queue row offers when winget could not do the job.</summary>
+public enum QueueFallback
+{
+    None,
+    /// <summary>Download the vendor's installer directly and check its signature (<see cref="CatalogEntry.VendorInstaller"/>).</summary>
+    VendorDownload,
+    /// <summary>Open the official download page as the signed-in user.</summary>
+    Website,
+}
 
 /// <summary>One catalog card.</summary>
 public sealed partial class AppItemViewModel : ObservableObject
@@ -48,7 +64,8 @@ public sealed partial class AppItemViewModel : ObservableObject
     /// <summary>null = not installed; "" = installed, version unknown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInstalled), nameof(InstalledText), nameof(Action), nameof(ActionText), nameof(ActionToolTip),
-        nameof(IsPrimaryAction), nameof(CanRunAction), nameof(CanSelect), nameof(HasVariantPicker), nameof(DisplayTags), nameof(ShowSiteButton))]
+        nameof(IsPrimaryAction), nameof(CanRunAction), nameof(CanSelect), nameof(HasVariantPicker), nameof(DisplayTags), nameof(ShowSiteButton),
+        nameof(CanUpgrade))]
     private string? _installedVersion;
 
     /// <summary>At least one detection pass (or the cache) has been applied.</summary>
@@ -74,8 +91,20 @@ public sealed partial class AppItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DisplayTags))]
     private bool _nvidiaMissing;
 
+    /// <summary>
+    /// Installed, but not as a winget package (found only by the read-only cross-checks — e.g. the .NET Desktop
+    /// Runtime that came with the .NET SDK). winget cannot upgrade it, so the card offers no update.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Action), nameof(ActionText), nameof(ActionToolTip), nameof(IsPrimaryAction), nameof(CanRunAction),
+        nameof(CanSelect), nameof(DisplayTags), nameof(ShowSiteButton), nameof(CanUpgrade))]
+    private bool _isUnmanaged;
+
     public bool IsInstalled => InstalledVersion is not null;
     public bool IsChecking => !IsKnown;
+
+    /// <summary>Installed through winget and allowed to be upgraded by it.</summary>
+    public bool CanUpgrade => IsInstalled && Entry.CanUpgrade && !IsUnmanaged;
 
     /// <summary>State tags (checking / installed / no NVIDIA) followed by the static catalog tags.</summary>
     public IReadOnlyList<AppTagInfo> DisplayTags
@@ -88,7 +117,9 @@ public sealed partial class AppItemViewModel : ObservableObject
             else if (IsInstalled)
                 list.Add(new(InstalledText, TagKind.Solid, Entry.Id == "Microsoft.DirectX"
                     ? "Найдены классические библиотеки DirectX: d3dx9_43.dll и xaudio2_7.dll."
-                    : "Программа найдена среди установленных (winget export или системные записи Windows)."));
+                    : IsUnmanaged
+                        ? AppTexts.UnmanagedExplanation
+                        : "Программа найдена среди установленных (winget export или системные записи Windows)."));
             if (NvidiaMissing)
                 list.Add(new("NVIDIA НЕ НАЙДЕНА", TagKind.Hatch, "В этом компьютере не найдена видеокарта NVIDIA — пакет, скорее всего, не нужен."));
             list.AddRange(Tags);
@@ -106,8 +137,9 @@ public sealed partial class AppItemViewModel : ObservableObject
         get
         {
             if (Entry.SystemComponent) return AppAction.SystemComponent;
-            if (IsInstalled) return Entry.CanUpgrade ? AppAction.Upgrade : AppAction.Installed;
-            return Entry.WebsiteOnly ? AppAction.Website : AppAction.Install;
+            if (IsInstalled) return CanUpgrade ? AppAction.Upgrade : AppAction.Installed;
+            if (Entry.WebsiteOnly) return Entry.VendorInstaller is not null ? AppAction.VendorDownload : AppAction.Website;
+            return AppAction.Install;
         }
     }
 
@@ -117,10 +149,12 @@ public sealed partial class AppItemViewModel : ObservableObject
         AppAction.Upgrade => "ОБНОВИТЬ",
         AppAction.SystemComponent => "ВСТРОЕН В WINDOWS",
         AppAction.Website => "СКАЧАТЬ С САЙТА",
+        // Without admin rights the verified copy cannot be kept safe: the button opens the official site instead.
+        AppAction.VendorDownload => Elevation.IsElevated ? "СКАЧАТЬ НАПРЯМУЮ" : "СКАЧАТЬ С САЙТА",
         _ => "УСТАНОВЛЕНО",
     };
 
-    public bool IsPrimaryAction => Action is AppAction.Install or AppAction.Website;
+    public bool IsPrimaryAction => Action is AppAction.Install or AppAction.Website or AppAction.VendorDownload;
 
     /// <summary>The separate "САЙТ" link is redundant when the main button already opens the download page.</summary>
     public bool ShowSiteButton => Action != AppAction.Website;
@@ -128,6 +162,7 @@ public sealed partial class AppItemViewModel : ObservableObject
     public bool CanRunAction => Action switch
     {
         AppAction.Website => true,
+        AppAction.VendorDownload => !QueueBusy,
         AppAction.Install or AppAction.Upgrade => IsKnown && WingetReady && !QueueBusy,
         _ => false,
     };
@@ -199,14 +234,44 @@ public sealed partial class QueueItemViewModel : ObservableObject
     private QueueState _state = QueueState.Queued;
 
     [ObservableProperty] private string _statusText = "В ОЧЕРЕДИ";
-    [ObservableProperty] private string? _detail;
+
+    /// <summary>For a finished row: what happened and what the user can do, in plain Russian (shown under the status).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowDetail))]
+    private string? _detail;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFallback), nameof(FallbackText), nameof(FallbackToolTip))]
+    private QueueFallback _fallback;
+
+    /// <summary>The vendor installer for this row is being downloaded (the fallback button then cancels it).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFallback), nameof(FallbackText), nameof(FallbackToolTip), nameof(ShowDetail))]
+    private bool _isDownloading;
 
     public bool NeedsReboot { get; set; }
     public bool IsActive => State is QueueState.Queued or QueueState.Running;
     public bool IsRunning => State == QueueState.Running;
     public bool IsFinished => !IsActive;
+    public bool ShowDetail => !string.IsNullOrWhiteSpace(Detail) && (IsFinished || IsDownloading);
+    public bool HasFallback => IsDownloading || (Fallback != QueueFallback.None && IsFinished);
 
-    partial void OnStateChanged(QueueState value) => App.NotifyJobChanged();
+    public string FallbackText => IsDownloading ? "ОТМЕНИТЬ ЗАГРУЗКУ"
+        : Fallback == QueueFallback.VendorDownload ? "СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ"
+        : "ОТКРЫТЬ САЙТ";
+
+    public string FallbackToolTip => IsDownloading
+        ? "Прервать загрузку. Недокачанный файл будет удалён."
+        : Fallback == QueueFallback.VendorDownload
+            ? AppTexts.VendorDownloadToolTip(App.Entry)
+            : $"Открыть официальную страницу загрузки: {App.Entry.Website}";
+
+    partial void OnStateChanged(QueueState value)
+    {
+        OnPropertyChanged(nameof(ShowDetail));
+        OnPropertyChanged(nameof(HasFallback));
+        App.NotifyJobChanged();
+    }
 }
 
 public sealed partial class AppItemViewModel
