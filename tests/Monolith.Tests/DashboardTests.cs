@@ -741,6 +741,30 @@ public sealed class DashboardBootSecurityTests
     }
 
     [Theory]
+    [InlineData("Call of Duty®")]                  // the HQ app that hosts Black Ops 7 and Warzone
+    [InlineData("Call of Duty HQ")]
+    [InlineData("Call of Duty®: Black Ops 7")]
+    [InlineData("Call of Duty: Black Ops 7 - Vault Edition")]
+    [InlineData("Call of Duty®: Warzone™")]
+    public void Call_of_duty_titles_that_need_ricochet_requirements_match(string title) =>
+        Assert.Equal("Call of Duty", Assert.Single(HealthRules.AntiCheatGames([title], 26100)).Title);
+
+    [Fact]
+    public void Older_call_of_duty_titles_and_lookalikes_do_not_match()
+    {
+        // Per Activision only Black Ops 7 and Warzone need TPM 2.0 + Secure Boot; older titles start without them.
+        Assert.Empty(HealthRules.AntiCheatGames(
+            ["Call of Duty®: Black Ops III", "Call of Duty: WWII", "Call of Duty 4: Modern Warfare", "Call of Duty®: Black Ops 6",
+             "Call of Duty®: Modern Warfare® III", "Call of Duty: Black Ops 70", "Warzone 2100", "Battlefield 60", "Battlefield 2042"], 26100));
+
+        var r = HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, false, TpmState.NotFound, 26100, "Call of Duty®: Black Ops III"))!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Equal(0, r.Weight);
+        Assert.DoesNotContain("не запустятся", r.Detail);
+        Assert.Contains("Black Ops 7 и Warzone", r.Detail);
+    }
+
+    [Theory]
     [InlineData("SB=ON\r\n", true)]
     [InlineData("SB=OFF", false)]
     [InlineData("SB=UNKNOWN", null)]
@@ -814,6 +838,26 @@ public sealed class DashboardKernelProtectionTests
         Assert.Equal(CheckSeverity.Info, r.Severity);
         Assert.Null(r.Action);
         Assert.Contains("действует всегда", r.Detail);
+    }
+
+    [Fact]
+    public void Smart_app_control_on_implies_the_blocklist()
+    {
+        // Documented: Smart App Control on enforces the blocklist too, whatever CiTool lists.
+        var r = HealthRules.CheckVbs(new SystemSnapshot
+        {
+            Vbs = VbsState.Off, SmartAppControl = SmartAppControlState.On, DriverBlocklistEnforced = false,
+        })!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Null(r.Action);
+        Assert.Contains("список блокировки уязвимых драйверов Microsoft действует", r.Detail);
+
+        // Evaluation mode does not enforce anything yet: the warning stays.
+        var eval = HealthRules.CheckVbs(new SystemSnapshot
+        {
+            Vbs = VbsState.Off, SmartAppControl = SmartAppControlState.Evaluation, DriverBlocklistEnforced = false,
+        })!;
+        Assert.Equal(CheckSeverity.Warning, eval.Severity);
     }
 
     [Fact]
@@ -1240,6 +1284,71 @@ public sealed class DashboardGpuLinkTests
         Assert.Contains("16 ГБ", on.Detail);
     }
 
+    [Theory]
+    [InlineData("NVIDIA GeForce GTX 1660 SUPER", true)]
+    [InlineData("NVIDIA GeForce RTX 2070", true)]
+    [InlineData("NVIDIA GeForce RTX 2080 Ti", true)]
+    [InlineData("NVIDIA GeForce GTX 1080", true)]
+    [InlineData("NVIDIA GeForce GT 1030", true)]
+    [InlineData("NVIDIA GeForce MX450", true)]
+    [InlineData("NVIDIA TITAN RTX", true)]
+    [InlineData("Quadro RTX 4000", true)]
+    [InlineData("NVIDIA T1000", true)]
+    [InlineData("NVIDIA GeForce RTX 3070", false)]
+    [InlineData("NVIDIA GeForce RTX 4060 Laptop GPU", false)]
+    [InlineData("NVIDIA GeForce RTX 5070 Ti", false)]
+    [InlineData("NVIDIA RTX A4000", false)]
+    [InlineData("NVIDIA RTX PRO 6000 Blackwell", false)]
+    [InlineData("RTX", false)]
+    [InlineData(null, false)]
+    public void Nvidia_cards_without_rebar_are_recognized(string? name, bool expected) =>
+        Assert.Equal(expected, HealthRules.NvidiaCardLacksRebar(name));
+
+    [Fact]
+    public void Cards_that_cannot_use_rebar_get_no_bios_advice()
+    {
+        foreach (var name in new[] { "NVIDIA GeForce GTX 1660 SUPER", "NVIDIA GeForce RTX 2070" })
+        {
+            var link = new GpuLinkFacts(name, 256 * MiB, 8192 * MiB);
+            Assert.Null(HealthRules.CheckRebar(new SystemSnapshot { GpuLink = link, Firmware = FirmwareKind.Uefi }));
+        }
+        var rtx30 = HealthRules.CheckRebar(new SystemSnapshot
+        {
+            GpuLink = new GpuLinkFacts("NVIDIA GeForce RTX 3070", 256 * MiB, 8192 * MiB), Firmware = FirmwareKind.Uefi,
+        })!;
+        Assert.Contains("Above 4G Decoding", rtx30.Detail);
+        Assert.Contains("только RTX 30 и новее", rtx30.Detail); // unknown names still hear that the card may be the cause
+    }
+
+    [Fact]
+    public void Lower_generation_under_load_is_never_called_full_speed()
+    {
+        var gen3 = new GpuLinkFacts("RTX 4070", CurrentGen: 3, CurrentWidth: 16, MaxGen: 4, MaxWidth: 16, UnderLoad: true);
+        Assert.True(HealthRules.IsLinkGenLowered(gen3));
+        Assert.False(HealthRules.IsLinkDegraded(gen3));
+        var r = HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = gen3 })!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Equal("ЛИНИЯ PCIE ВИДЕОКАРТЫ: 3.0 ВМЕСТО 4.0", r.Title);
+        Assert.Contains("PCIe 3.0 ×16", r.Detail);
+        Assert.Contains("райзер", r.Detail);
+        Assert.DoesNotContain("работает полностью", r.Detail);
+        Assert.Null(r.Action);
+
+        // Narrower and slower: the width warning names both.
+        var both = HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = gen3 with { CurrentWidth = 8 } })!;
+        Assert.Equal(CheckSeverity.Warning, both.Severity);
+        Assert.Contains("PCIe 3.0 ×8", both.Detail);
+        Assert.Contains("4.0 ×16", both.Detail);
+
+        // At idle a lower generation is power saving; the full-speed claim needs the generation sampled under load.
+        Assert.False(HealthRules.IsLinkGenLowered(gen3 with { UnderLoad = false }));
+        Assert.Equal(CheckSeverity.Ok, HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = gen3 with { UnderLoad = false } })!.Severity);
+        Assert.Contains("работает полностью", HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = gen3 with { CurrentGen = 4 } })!.Detail);
+        var noGen = HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = gen3 with { CurrentGen = null } })!;
+        Assert.DoesNotContain("работает полностью", noGen.Detail);
+        Assert.Contains("на полную ширину", noGen.Detail);
+    }
+
     [Fact]
     public void Narrow_link_warns_only_under_load()
     {
@@ -1346,5 +1455,42 @@ public sealed class DashboardReadinessEvaluateTests
                 Assert.True(a.Kind == CheckActionKind.Navigate || (a.Kind == CheckActionKind.OpenUri && a.Target!.StartsWith("ms-settings:", StringComparison.Ordinal)));
             }
         });
+    }
+}
+
+public sealed class DashboardProbeTests
+{
+    [Fact]
+    public async Task A_late_result_is_cached_so_the_slow_source_is_not_read_again()
+    {
+        var name = "test-late-" + Guid.NewGuid().ToString("N");
+        var release = new TaskCompletionSource();
+        var reads = 0;
+        async Task<string?> Slow()
+        {
+            Interlocked.Increment(ref reads);
+            await release.Task;
+            return "late";
+        }
+
+        var first = await Probe.RunAsync<string?>(name, Slow, TimeSpan.FromMilliseconds(50), null, TimeSpan.FromMinutes(30));
+        Assert.Null(first);                                   // over the limit: unknown for now
+        release.SetResult();
+        for (var i = 0; i < 200 && await Probe.RunAsync<string?>(name, Slow, TimeSpan.FromSeconds(5), null, TimeSpan.FromMinutes(30)) is null; i++)
+            await Task.Delay(10);
+
+        Assert.Equal("late", await Probe.RunAsync<string?>(name, Slow, TimeSpan.FromSeconds(5), null, TimeSpan.FromMinutes(30)));
+        Assert.Equal(1, Volatile.Read(ref reads));            // answered from the cache, never read a second time
+    }
+
+    [Fact]
+    public async Task Fallback_and_failed_reads_are_never_cached()
+    {
+        var name = "test-fail-" + Guid.NewGuid().ToString("N");
+        var reads = 0;
+        Task<string?> Failing() { Interlocked.Increment(ref reads); throw new InvalidOperationException("no"); }
+        Assert.Null(await Probe.RunAsync<string?>(name, Failing, TimeSpan.FromSeconds(5), null, TimeSpan.FromMinutes(30)));
+        Assert.Null(await Probe.RunAsync<string?>(name, Failing, TimeSpan.FromSeconds(5), null, TimeSpan.FromMinutes(30)));
+        Assert.Equal(2, reads);
     }
 }
