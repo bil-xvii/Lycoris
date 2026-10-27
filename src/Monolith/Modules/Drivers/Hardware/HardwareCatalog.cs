@@ -16,8 +16,21 @@ internal sealed record VendorSoftware(
     string Description,
     IReadOnlyList<string> InstalledNames)
 {
-    public bool IsInstalled(IEnumerable<UninstallEntry> apps) =>
-        apps.Any(a => InstalledNames.Any(n => a.DisplayName.Contains(n, StringComparison.OrdinalIgnoreCase)));
+    /// <summary>
+    /// Text the "Apps &amp; features" Publisher must contain (verified on a real install, e.g. "Logitech", "Sony"); null when not
+    /// verified — then the display name alone decides. Stops look-alikes ("OpenInzone Hub" from another publisher).
+    /// </summary>
+    public string? InstalledPublisher { get; init; }
+
+    public bool IsInstalled(IEnumerable<UninstallEntry> apps) => apps.Any(a => Matches(a, InstalledNames, InstalledPublisher));
+
+    /// <summary>
+    /// The one match rule of Drivers and «Устройства и сеть»: the display name contains one of <paramref name="names"/> and,
+    /// when <paramref name="publisher"/> is given, the entry's Publisher contains it (ordinal, ignoring case).
+    /// </summary>
+    public static bool Matches(UninstallEntry a, IEnumerable<string> names, string? publisher) =>
+        names.Any(n => n.Length > 0 && a.DisplayName.Contains(n, StringComparison.OrdinalIgnoreCase))
+        && (string.IsNullOrEmpty(publisher) || (a.Publisher?.Contains(publisher, StringComparison.OrdinalIgnoreCase) ?? false));
 }
 
 /// <summary>A USB peripheral maker identified by its USB vendor id.</summary>
@@ -60,7 +73,10 @@ internal static class HardwareCatalog
     public static readonly VendorSoftware GHub = new("Logitech G HUB", "Logitech, Inc.", LogitechGHub, null,
         "https://www.logitechg.com/innovation/g-hub.html",
         "Настройка игровых мышей, клавиатур и гарнитур Logitech G: кнопки, DPI, подсветка, обновление прошивки.",
-        ["Logitech G HUB"]);
+        ["Logitech G HUB"])
+    {
+        InstalledPublisher = "Logitech", // verified: Publisher "Logitech" (2026-10-27)
+    };
 
     public static readonly VendorSoftware OptionsPlus = new("Logi Options+", "Logitech", LogiOptionsPlus, null, null,
         "Для офисных мышей и клавиатур Logitech (серии MX, ERGO) — G HUB их не настраивает.",
@@ -69,7 +85,10 @@ internal static class HardwareCatalog
     public static readonly VendorSoftware Synapse = new("Razer Synapse 4", "Razer Inc.", RazerSynapse4, null,
         "https://www.razer.com/synapse-4",
         "Настройка устройств Razer: кнопки, подсветка, звук микрофона, прошивки. Часть старых устройств работает только с Synapse 3.",
-        ["Razer Synapse"]);
+        ["Razer Synapse"])
+    {
+        InstalledPublisher = "Razer", // verified: Publisher "Razer Inc." (WOW6432Node)
+    };
 
     public static readonly VendorSoftware SteelSeriesGgApp = new("SteelSeries GG", "SteelSeries ApS", SteelSeriesGg, null,
         "https://steelseries.com/gg",
@@ -99,7 +118,19 @@ internal static class HardwareCatalog
     public static readonly VendorSoftware InzoneHub = new("INZONE Hub", "Sony", null, null,
         "https://www.sony.ca/en/electronics/support/others-software/inzone-hub/software/00279252",
         "Настройка звука и профилей игровых устройств Sony INZONE. В winget пакета нет — только с сайта Sony.",
-        ["INZONE Hub"]);
+        ["INZONE Hub"])
+    {
+        InstalledPublisher = "Sony", // verified: Publisher "Sony Corporation"; third-party look-alikes are not INZONE Hub
+    };
+
+    /// <summary>
+    /// MSI Center (Mystic Light module) — link-first: the winget package is an unversioned zip (likely hash mismatches) and
+    /// the product page could not be verified, so the button opens MSI's support site.
+    /// </summary>
+    public static readonly VendorSoftware MsiCenter = new("MSI Center", "Micro-Star International", null, null,
+        "https://www.msi.com/support",
+        "Подсветка Mystic Light и настройки платы MSI. Скачивается на сайте MSI (поддержка вашей платы). Ставит свои службы и SDK — нужен, только если вы что-то настраиваете.",
+        ["MSI Center"]);
 
     public static readonly VendorSoftware SamsungMagician = new("Samsung Magician", "Samsung Electronics Co. Ltd.", null, SamsungMagicianStoreId,
         "https://semiconductor.samsung.com/consumer-storage/magician/",
@@ -146,6 +177,8 @@ internal static class HardwareCatalog
             SoftwareNameFilter = "INZONE",
         },
         new("045E", "Microsoft", [], "Устройства Microsoft и геймпады Xbox работают на драйверах Windows — отдельное ПО не нужно."),
+        // 0DB0:0076 «MYSTIC LIGHT» = the board's RGB controller (internal USB header); MSI Wi-Fi / BT modules are not peripherals.
+        new("0DB0", "MSI", [MsiCenter]),
     ];
 
     public static PeripheralVendor? PeripheralByVid(string? vid) =>

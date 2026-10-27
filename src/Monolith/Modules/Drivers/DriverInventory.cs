@@ -47,8 +47,11 @@ internal sealed record ProblemDeviceInfo(
 /// <summary>Installed details from the display class key (HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-…}\00NN).</summary>
 internal sealed record GpuRegistryInfo(string? InfPath, string? Provider, string? RadeonSoftwareVersion, string? RadeonSoftwareEdition);
 
-/// <summary>An "Apps &amp; features" (Uninstall key) entry.</summary>
-internal sealed record UninstallEntry(string DisplayName, string? Version, string? InstallLocation, string? DisplayIcon);
+/// <summary>
+/// An "Apps &amp; features" (Uninstall key) entry. <see cref="Publisher"/> lets the vendor-software match require the
+/// real publisher too (VendorSoftware.Matches — one rule for Drivers and «Устройства и сеть»).
+/// </summary>
+internal sealed record UninstallEntry(string DisplayName, string? Version, string? InstallLocation, string? DisplayIcon, string? Publisher = null);
 
 /// <summary>Read-only Windows Update driver policy state (research §1.1 "Policies to read and display").</summary>
 internal sealed record WuPolicyInfo(bool ExcludedByPolicy, bool ExcludedByMdm, int? SearchOrderConfig, bool UsesWsus, string? WsusServer)
@@ -202,7 +205,8 @@ internal static class DriverInventory
                         var name = k?.GetValue("DisplayName")?.ToString();
                         if (string.IsNullOrWhiteSpace(name)) continue;
                         result.Add(new UninstallEntry(name.Trim(), k!.GetValue("DisplayVersion")?.ToString(),
-                            k.GetValue("InstallLocation")?.ToString(), k.GetValue("DisplayIcon")?.ToString()));
+                            k.GetValue("InstallLocation")?.ToString(), k.GetValue("DisplayIcon")?.ToString(),
+                            k.GetValue("Publisher")?.ToString()?.Trim()));
                     }
                     catch { }
                 }

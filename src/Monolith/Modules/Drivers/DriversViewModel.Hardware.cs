@@ -75,6 +75,7 @@ public sealed partial class DriversViewModel
     private partial Task StartHardwareScanAsync()
     {
         HookHardwareEvents();
+        ApplyDriversFocus(Ui.TakeFocusRequest(Key));
         return ScanHardwareAsync();
     }
 
@@ -82,6 +83,11 @@ public sealed partial class DriversViewModel
     {
         if (_hwHooked) return;
         _hwHooked = true;
+        // Links from other pages: «УСТАНОВИТЬ В «ДРАЙВЕРАХ»» on «Устройства и сеть» asks for "periph:<VID>", --tab for "tab:<name>".
+        Ui.FocusRequested += r =>
+        {
+            if (r.PageKey == Key) ApplyDriversFocus(Ui.TakeFocusRequest(Key));
+        };
         PropertyChanged += OnHardwarePageChanged;
         Updates.CollectionChanged += (_, _) => QueueHardwareRebuild();
         HardwareResults.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasHardwareResults));
@@ -162,6 +168,7 @@ public sealed partial class DriversViewModel
         {
             IsHardwareScanning = false;
             HardwareScanStage = "";
+            _hwPendingFocus = null; // the row never appeared (e.g. the device was unplugged): the tab switch stays
         }
     }
 
@@ -269,6 +276,62 @@ public sealed partial class DriversViewModel
         HwCurrentCaption = rest.Count > 0 ? string.Join(" · ", rest) : "проверено у производителей";
 
         RecountHardwareSelection();
+
+        // A link that arrived before the analysis finished: its row exists now.
+        if (_hwPendingFocus is { } pending && FindHardwareComponent(pending) is not null)
+        {
+            _hwPendingFocus = null;
+            ApplyDriversFocus(pending);
+        }
+    }
+
+    // ───────────────────────────── Focus (links from other pages) ─────────────────────────────
+
+    private string? _hwPendingFocus;
+    private HwComponentItem? _hwHighlighted;
+    private DispatcherTimer? _hwHighlightTimer;
+
+    /// <summary>The row the hardware panel brings into view (one-shot: the panel clears it).</summary>
+    [ObservableProperty] private HwComponentItem? _hardwareFocusTarget;
+
+    private HwComponentItem? FindHardwareComponent(string key) =>
+        HardwareGroups.SelectMany(g => g.Components).FirstOrDefault(c => string.Equals(c.Key, key, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// "tab:&lt;name&gt;" switches the Drivers tab. A component key ("periph:046D" from «УСТАНОВИТЬ В «ДРАЙВЕРАХ»», "net:…")
+    /// opens «Подбор для вашего ПК», scrolls to that row and frames it for 2 s — after the analysis when it is still running.
+    /// </summary>
+    private void ApplyDriversFocus(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        if (id.StartsWith("tab:", StringComparison.OrdinalIgnoreCase))
+        {
+            GoToTab(id[4..]);
+            return;
+        }
+        SelectedTab = DriversTab.Hardware;
+        if (FindHardwareComponent(id) is not { } item)
+        {
+            // Not there yet (first analysis running) — remembered until the row appears; otherwise the tab is enough.
+            _hwPendingFocus = HardwareScanned && !IsHardwareScanning ? null : id;
+            return;
+        }
+
+        if (_hwHighlighted is not null && !ReferenceEquals(_hwHighlighted, item)) _hwHighlighted.IsHighlighted = false;
+        _hwHighlighted = item;
+        item.IsHighlighted = true;
+        HardwareFocusTarget = null; // re-raise for the same row
+        HardwareFocusTarget = item;
+
+        _hwHighlightTimer?.Stop();
+        _hwHighlightTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _hwHighlightTimer.Tick += (_, _) =>
+        {
+            _hwHighlightTimer?.Stop();
+            if (_hwHighlighted is not null) _hwHighlighted.IsHighlighted = false;
+            _hwHighlighted = null;
+        };
+        _hwHighlightTimer.Start();
     }
 
     private IEnumerable<HwActionItem> AllHardwareActions() =>
@@ -309,6 +372,12 @@ public sealed partial class DriversViewModel
         {
             case HwActionKind.GoToTab:
                 GoToTab(target);
+                return;
+            case HwActionKind.GoToPage:
+                // Only «Устройства и сеть» (where display modes and vendor apps live); the click itself changes nothing.
+                if (!string.Equals(target, "devices", StringComparison.Ordinal)) return;
+                if (a.FocusId is { Length: > 0 } focus) Ui.RequestFocus(target, focus);
+                Ui.Navigate(target);
                 return;
             case HwActionKind.OpenSettings:
                 if (!target.StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase)) return;

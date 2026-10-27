@@ -14,7 +14,11 @@ internal sealed record PnpDevice(
     string Service,
     int ErrorCode,
     bool? Present,
-    IReadOnlyList<string> HardwareIds);
+    IReadOnlyList<string> HardwareIds)
+{
+    /// <summary>A software device (G HUB virtual mouse / keyboard…): no physical bus in its parent chain (PnpTree.IsVirtual).</summary>
+    public bool Virtual { get; init; }
+}
 
 internal sealed record CpuInfo(string Name, string Vendor, int Cores, int Threads, int MaxMhz)
 {
@@ -136,6 +140,8 @@ public enum HwActionKind
     OpenSettings,
     /// <summary>Advice only (BIOS settings, …).</summary>
     Note,
+    /// <summary>Another MONOLITH page (Url = page key, only "devices"; <see cref="HwAction.FocusId"/> = item there). Never installs.</summary>
+    GoToPage,
 }
 
 public enum HwGroupKind { Platform, Gpu, Memory, Storage, Network, Audio, Monitors, Peripherals, Runtimes }
@@ -156,6 +162,8 @@ internal sealed record HwAction(
     /// <summary>The program is already on this PC (the action then only opens it / its page).</summary>
     public bool AlreadyInstalled { get; init; }
     public string? Url { get; init; }
+    /// <summary><see cref="HwActionKind.GoToPage"/>: the item to bring into view on that page ("kind:monitor").</summary>
+    public string? FocusId { get; init; }
     public string? ButtonText { get; init; }
     public WingetPackageRequest? Winget { get; init; }
     public DriverPackage? Package { get; init; }
