@@ -182,13 +182,21 @@ public partial class MainWindow : Window
         foreach (var page in _vm.Pages)
         {
             n++;
-            // Host pages are shot once per tab ("05-maintenance-cleaner.png"); a tab key in --pages selects that tab only.
-            var tabs = page is MaintenanceViewModel host ? host.Tabs.Select(t => t.Key).ToList() : [];
+            // Host pages are shot once per tab ("05-maintenance-cleaner.png", "08-devices-manual.png"); a tab key in --pages
+            // ("cleaner", "devices-manual") selects that tab only.
+            var tabs = page switch
+            {
+                MaintenanceViewModel host => host.Tabs.Select(t => t.Key).ToList(),
+                Monolith.Modules.Devices.DevicesViewModel => Monolith.Modules.Devices.DevicesViewModel.TabKeys.ToList(),
+                _ => [],
+            };
             if (tabs.Count == 0) tabs.Add("");
             foreach (var tab in tabs)
             {
-                if (only is { Count: > 0 } && !only.Contains(page.Key) && !(tab.Length > 0 && only.Contains(tab))) continue;
+                if (only is { Count: > 0 } && !only.Contains(page.Key) && !(tab.Length > 0 && (only.Contains(tab) || only.Contains($"{page.Key}-{tab}"))))
+                    continue;
                 if (page is MaintenanceViewModel m) m.SelectTab(tab);
+                if (page is Monolith.Modules.Devices.DevicesViewModel dev) dev.SelectedTab = tab;
                 _vm.CurrentPage = page;
                 await Task.Delay(waitMs);
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);

@@ -143,6 +143,49 @@ public static class Ui
         });
     }
 
+    /// <summary>
+    /// The «keep or go back» countdown of a device change (DeviceConfirm.Countdown): a topmost window on a monitor other
+    /// than the one being changed, default «go back». True = keep. Cancelling <paramref name="ct"/> closes it (= go back).
+    /// Self-test (<see cref="AutoAnswer"/>): recorded and answered «go back» without a window.
+    /// </summary>
+    public static Task<bool> CountdownConfirmAsync(Monolith.Core.Devices.CountdownRequest request, CancellationToken ct)
+    {
+        if (AutoAnswer is not null)
+        {
+            lock (AutoAnswered) AutoAnswered.Add(request.Title);
+            return Task.FromResult(false);
+        }
+        var d = Dispatcher;
+        if (d is null) return Task.FromResult(false);
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        d.BeginInvoke(() =>
+        {
+            if (ct.IsCancellationRequested)
+            {
+                tcs.TrySetResult(false);
+                return;
+            }
+            try
+            {
+                var window = new CountdownWindow(request);
+                var registration = ct.Register(() => d.BeginInvoke(() => window.CloseAsRevert()));
+                window.Closed += (_, _) =>
+                {
+                    registration.Dispose();
+                    tcs.TrySetResult(window.Kept);
+                };
+                window.Show();
+                window.Activate();
+            }
+            catch (Exception ex)
+            {
+                Monolith.Core.Log.Warn($"Окно подтверждения не открылось: {ex.Message}");
+                tcs.TrySetResult(false);
+            }
+        });
+        return tcs.Task;
+    }
+
     public static void Toast(string message, ToastKind kind = ToastKind.Info, string? title = null, string? navigateTo = null)
     {
         var d = Dispatcher;

@@ -49,6 +49,15 @@ public static class Glyphs
     public const string Completed = "";
     public const string Component = "";
 
+    // Devices («Устройства и сеть»). Gamepads use Game.
+    public const string Mouse = "";
+    public const string Keyboard = "";
+    public const string Speaker = "";
+    public const string Microphone = "";
+    public const string Headphone = "";
+    public const string Lightbulb = "";
+    public const string Ethernet = "";
+
     public const string Minimize = "";
     public const string Maximize = "";
     public const string Restore = "";
