@@ -7,7 +7,7 @@ namespace Monolith.Modules.Dashboard.Checks;
 /// Runs one read-only probe on a worker thread with a time limit. A probe that does not answer in time reads as
 /// "unknown" (the fallback) and is left to finish on its own; it is not started again while it is still running, so a
 /// hung WMI provider or event log query can never pile up threads. Optional caching keeps slow sources (drive SMART
-/// data can spin up sleeping HDDs) from being read on every visit of the dashboard.
+/// data can spin up sleeping HDDs) from being read on every visit of the dashboard; a late answer is cached as well.
 /// </summary>
 internal static class Probe
 {
@@ -26,12 +26,17 @@ internal static class Probe
 
         var work = Task.Run(async () =>
         {
-            try { return await read().ConfigureAwait(false); }
+            T value;
+            try { value = await read().ConfigureAwait(false); }
             catch (Exception ex)
             {
                 Log.Warn($"Проверка системы ({name}): {ex.Message}");
                 return fallback;
             }
+            // Cached here, not by the caller: a result that arrives after the limit is kept too, so a slow source is
+            // answered from the cache next time instead of being read again (and again timing out).
+            if (cacheFor is not null && value is not null && !Equals(value, fallback)) Cache[name] = (DateTime.UtcNow, value);
+            return value;
         });
         InFlight[name] = work;
         if (await Task.WhenAny(work, Task.Delay(limit)).ConfigureAwait(false) != work)
@@ -39,8 +44,6 @@ internal static class Probe
             Log.Warn($"Проверка системы: «{name}» не ответила за {limit.TotalSeconds:0} с — пропущено.");
             return fallback;
         }
-        var value = await work.ConfigureAwait(false);
-        if (cacheFor is not null && value is not null && !Equals(value, fallback)) Cache[name] = (DateTime.UtcNow, value);
-        return value;
+        return await work.ConfigureAwait(false);
     }
 }
