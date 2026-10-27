@@ -89,25 +89,37 @@ public static class GamingReadiness
 
     public static ReadinessCheck PowerPlan(SystemProfile sp)
     {
-        const string title = "ПЛАН ПИТАНИЯ";
         var active = PowerSchemes.GetActive();
         var name = active == Guid.Empty ? "Не удалось определить" : PowerSchemes.GetName(active);
-        if (BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores))
+        return PowerPlanFromFacts(active, name, BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores),
+            GameBoostService.IsPortable(sp), GamesNative.IsOnBattery());
+    }
+
+    /// <summary>The power-plan check from plain facts (unit-tested). Laptops are never pushed to High performance.</summary>
+    public static ReadinessCheck PowerPlanFromFacts(Guid active, string name, bool dualCcdX3D, bool laptop, bool onBattery)
+    {
+        const string title = "ПЛАН ПИТАНИЯ";
+        if (dualCcdX3D)
         {
             return active == PowerSchemes.Balanced
                 ? new ReadinessCheck(title, name, ReadinessState.Ok,
-                    "Для Ryzen X3D с двумя кристаллами AMD рекомендует именно эту схему.")
+                    "Для Ryzen X3D с двумя CCD AMD рекомендует именно эту схему.")
                 : new ReadinessCheck(title, name, ReadinessState.Attention,
-                    "Для Ryzen X3D с двумя кристаллами AMD рекомендует «Сбалансированную»: иначе игра может попасть не на тот кристалл.");
+                    "Для Ryzen X3D с двумя CCD AMD рекомендует «Сбалансированную»: иначе игра может попасть не на те ядра.");
         }
         if (active == PowerSchemes.PowerSaver)
             return new ReadinessCheck(title, name, ReadinessState.Attention,
                 "Экономия энергии ограничивает частоты процессора — для игр не подходит.");
-        if (GamesNative.IsOnBattery())
-            return new ReadinessCheck(title, name, ReadinessState.Info, "Ноутбук работает от батареи — для игр подключите зарядку.");
+        if (onBattery)
+            return new ReadinessCheck(title, name, ReadinessState.Info,
+                "Компьютер работает от батареи — для игр подключите зарядку: от батареи Windows ограничивает мощность.");
+        if (laptop)
+            return new ReadinessCheck(title, name, ReadinessState.Info,
+                "Для ноутбука «Высокая производительность» почти не добавляет FPS (0–2 %), но греет — ускорение игры схему не меняет. " +
+                "Для игр подключите зарядку и выберите режим питания «Максимальная производительность» в Параметрах Windows.");
         if (active == PowerSchemes.Balanced)
             return new ReadinessCheck(title, name, ReadinessState.Info,
-                "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. Игровой режим MONOLITH переключает схему на время игры.");
+                "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. Ускорение игры в MONOLITH включает её на время сеанса.");
         return new ReadinessCheck(title, name, ReadinessState.Info,
             "Максимальные частоты процессора; в простое компьютер потребляет больше энергии.");
     }
@@ -132,7 +144,7 @@ public static class GamingReadiness
         var detail = $"Драйвер {(ver.Length > 0 ? ver + " · " : "")}{date:dd.MM.yyyy}";
         return days > DriverAgeAttentionDays
             ? new ReadinessCheck(title, shortName, ReadinessState.Attention,
-                $"Драйверу {days} {GameText.Plural(days, "день", "дня", "дней")} — проверьте обновление в разделе «Драйверы».", detail)
+                $"Драйверу {days} {GameText.Plural(days, "день", "дня", "дней")} — проверьте обновление в разделе «Железо и драйверы».", detail)
             : new ReadinessCheck(title, shortName, ReadinessState.Ok,
                 $"{name}: драйвер установлен {days} {GameText.Plural(days, "день", "дня", "дней")} назад.", detail);
     }
