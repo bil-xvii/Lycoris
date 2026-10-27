@@ -95,10 +95,45 @@ public sealed class DriftDetectorTests
     [InlineData("Binary: 02 00 00 00 00 00 00 00 00 00 00 00", true)]
     [InlineData("удалено", true)]
     [InlineData("отсутствовало", true)]
-    [InlineData("DWord: 3", null)]
+    [InlineData("DWord: 0", false)] // packaged startup task: disabled by the app
+    [InlineData("DWord: 1", false)] // disabled by the user
+    [InlineData("DWord: 2", true)]  // enabled
+    [InlineData("DWord: 3", false)] // disabled by policy
+    [InlineData("DWord: 4", true)]  // enabled by policy
+    [InlineData("DWord: 7", null)]
     [InlineData("—", null)]
     public void Startup_mark_state_is_parsed(string text, bool? enabled) =>
         Assert.Equal(enabled, DriftDetector.StartupEnabledOf(text));
+
+    private static ChangeRecord Packaged(string newValue) => new()
+    {
+        Kind = ChangeKind.Registry, Source = "startup", Title = "Teams", NewValue = newValue,
+        Target = @"reg:HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\MSTeams_8wekyb3d8bbwe\TeamsTfwStartupTask\State",
+        Registry = new RegistryValueSnapshot
+        {
+            Hive = RegHive.HKCU, Name = "State", KeyExisted = true, ValueExisted = true, Kind = Microsoft.Win32.RegistryValueKind.DWord, Data = "2",
+            Path = @"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\MSTeams_8wekyb3d8bbwe\TeamsTfwStartupTask",
+        },
+    };
+
+    [Fact]
+    public void Packaged_startup_task_drift_is_reported_and_reapplied_as_a_dword()
+    {
+        var r = Packaged("DWord: 1"); // MONOLITH turned it off
+        Assert.True(DriftDetector.IsPackagedMark(r));
+
+        var d = Assert.Single(Detect([r], _ => new("DWord: 2", true)));   // turned back on in Settings
+        Assert.Equal(DriftFix.StartupEntry, d.Fix);
+        Assert.Equal("автозапуск отключён", d.Applied);
+        Assert.Equal("автозапуск включён", d.Live);
+
+        var policy = Assert.Single(Detect([r], _ => new("DWord: 4", true))); // a policy turned it on: never written
+        Assert.Equal(DriftFix.None, policy.Fix);
+        Assert.Equal("автозапуск включён политикой", policy.Live);
+
+        Assert.Empty(Detect([r], _ => new("DWord: 0", true)));   // still off (the app's own off state)
+        Assert.Empty(Detect([r], _ => new("удалено", true)));    // the app is gone: nothing to compare
+    }
 
     [Fact]
     public void Startup_mark_with_new_timestamp_is_not_drift()

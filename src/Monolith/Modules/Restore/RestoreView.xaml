@@ -176,7 +176,8 @@
                             <TextBlock Text="СОЗДАТЬ ТОЧКУ" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Btn.Danger}" Command="{Binding RevertAllCommand}">
+                    <Button Style="{StaticResource Btn.Danger}" Command="{Binding RevertAllCommand}"
+                            ToolTip="{Binding RevertAllHint}" ToolTipService.ShowOnDisabled="True">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="ОТКАТИТЬ ВСЁ" VerticalAlignment="Center" />

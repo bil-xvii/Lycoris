@@ -42,7 +42,8 @@ public static class DriftReapply
         if (direct.Count > 0)
         {
             var session = await ChangeSession.BeginAsync(BatchTitle).ConfigureAwait(false);
-            foreach (var d in direct) ApplyDirect(session, d);
+            // Under the journal gate: a packaged task's live state is checked right before it is written.
+            foreach (var d in direct) session.Exclusive(() => ApplyDirect(session, d));
             session.Complete();
             applied += session.Applied;
             errors.AddRange(session.Errors);
@@ -75,8 +76,22 @@ public static class DriftReapply
                 if (path.Length > 0) session.SetTaskEnabled(path, enabled, source, r.Title);
                 break;
             case DriftFix.StartupEntry when r.Registry is { } loc && DriftDetector.StartupEnabledOf(r.NewValue) is { } on:
-                session.SetRegistry(loc.Hive, loc.Path, loc.Name, RegistryValueKind.Binary, StartupApproved.Build(on), source, r.Title);
+                if (JournalTrust.IsPackagedStartupMark(loc))
+                {
+                    // A packaged app's startup task: DWORD State 2 or 1, as Task Manager writes it — never over a state set
+                    // by policy (3/4), and never into a task that is gone (the key would be created).
+                    if (PackagedRefusal(loc) is { } refusal) session.Errors.Add($"{r.Title}: {refusal}.");
+                    else session.SetRegistry(loc.Hive, loc.Path, loc.Name, RegistryValueKind.DWord, PackagedStartup.TargetState(on), source, r.Title);
+                }
+                else if (DriftDetector.PackagedStateOf(r.NewValue) is null)
+                    session.SetRegistry(loc.Hive, loc.Path, loc.Name, RegistryValueKind.Binary, StartupApproved.Build(on), source, r.Title);
+                else
+                    session.Errors.Add($"{r.Title}: не удалось определить вид отметки автозапуска — значение не записано.");
                 break;
         }
     }
+
+    /// <summary>Why a packaged task's State must not be written now (live value re-read), or null.</summary>
+    private static string? PackagedRefusal(RegistryValueSnapshot loc) =>
+        PackagedStartup.WriteRefusal(RegistryHelper.Read(loc.Hive, loc.Path, loc.Name) is int state ? state : null);
 }
