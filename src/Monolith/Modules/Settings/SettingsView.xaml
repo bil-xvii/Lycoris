@@ -69,6 +69,20 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,17,0">
+                                        <TextBlock Text="Запрашивать права администратора при запуске" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Выключено: MONOLITH открывается сразу, без окна UAC, а права спрашивает только когда вы что-то меняете. Включено: запрос UAC при каждом запуске. Действует со следующего запуска." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ElevateAtStartup}" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,17,0">
                                         <TextBlock Text="Интервал обновления мониторинга" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
                                                    Text="Как часто «Панель» опрашивает загрузку процессора, видеокарты, памяти и дисков. Реже — меньше нагрузка от самого MONOLITH." />
