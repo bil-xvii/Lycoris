@@ -9,6 +9,14 @@ namespace Monolith.Modules.Apps;
 public sealed record InstalledSnapshot(IReadOnlyDictionary<string, string> Packages, DateTime CheckedAt, bool FromCache)
 {
     public static InstalledSnapshot Empty { get; } = new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), DateTime.MinValue, false);
+
+    /// <summary>
+    /// Ids found only by the read-only cross-checks, not by winget: the component is on the PC, but winget does not
+    /// list it as its package (e.g. the .NET Desktop Runtime that the .NET SDK or Visual Studio brought along — winget
+    /// sees only "Microsoft.DotNet.SDK.10"). "winget upgrade --id" answers "no package found" (0x8A150014) for these,
+    /// so the page never offers to update them.
+    /// </summary>
+    public IReadOnlySet<string> Unmanaged { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -42,9 +50,13 @@ public static class InstalledDetector
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (id, version) in exported)
             if (ids.Contains(id)) map[id] = version;
+        var managed = new HashSet<string>(map.Keys, StringComparer.OrdinalIgnoreCase);
 
         await Task.Run(() => ApplyCrossChecks(map), ct).ConfigureAwait(false);
-        progress?.Invoke(new InstalledSnapshot(new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase), DateTime.Now, false));
+        progress?.Invoke(new InstalledSnapshot(new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase), DateTime.Now, false)
+        {
+            Unmanaged = UnmanagedIds(map, managed),
+        });
 
         // Store apps are often missing from the export; "winget list --id X -e" exit 0 = installed (verified).
         foreach (var store in catalog.Where(e => e.Source == PackageSource.MsStore))
@@ -52,13 +64,20 @@ public static class InstalledDetector
             ct.ThrowIfCancellationRequested();
             if (map.ContainsKey(store.Id)) continue;
             if (await WingetClient.IsInstalledAsync(store.Id, ct).ConfigureAwait(false))
+            {
                 map[store.Id] = "";
+                managed.Add(store.Id);
+            }
         }
 
-        var snapshot = new InstalledSnapshot(map, DateTime.Now, false);
+        var snapshot = new InstalledSnapshot(map, DateTime.Now, false) { Unmanaged = UnmanagedIds(map, managed) };
         SaveCache(snapshot);
         return snapshot;
     }
+
+    /// <summary>Installed ids that winget itself did not report (found only by the cross-checks).</summary>
+    internal static HashSet<string> UnmanagedIds(IReadOnlyDictionary<string, string> installed, IReadOnlySet<string> fromWinget) =>
+        new(installed.Keys.Where(id => !fromWinget.Contains(id)), StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Read-only checks documented by Microsoft for components that winget does not always correlate.</summary>
     internal static void ApplyCrossChecks(Dictionary<string, string> map)
@@ -158,6 +177,7 @@ public static class InstalledDetector
     {
         public DateTime CheckedAt { get; set; }
         public Dictionary<string, string> Packages { get; set; } = new();
+        public List<string>? Unmanaged { get; set; }
     }
 
     public static InstalledSnapshot? LoadCache()
@@ -166,8 +186,11 @@ public static class InstalledDetector
         {
             if (!File.Exists(CacheFile)) return null;
             var dto = JsonSerializer.Deserialize<CacheDto>(File.ReadAllText(CacheFile));
-            if (dto is null) return null;
-            return new InstalledSnapshot(new Dictionary<string, string>(dto.Packages, StringComparer.OrdinalIgnoreCase), dto.CheckedAt, true);
+            if (dto?.Packages is null) return null;
+            return new InstalledSnapshot(new Dictionary<string, string>(dto.Packages, StringComparer.OrdinalIgnoreCase), dto.CheckedAt, true)
+            {
+                Unmanaged = new HashSet<string>(dto.Unmanaged ?? [], StringComparer.OrdinalIgnoreCase),
+            };
         }
         catch (Exception ex)
         {
@@ -181,7 +204,12 @@ public static class InstalledDetector
         try
         {
             if (!AppPaths.TryEnsureDir(AppPaths.CacheDir)) return;
-            var dto = new CacheDto { CheckedAt = snapshot.CheckedAt, Packages = new Dictionary<string, string>(snapshot.Packages) };
+            var dto = new CacheDto
+            {
+                CheckedAt = snapshot.CheckedAt,
+                Packages = new Dictionary<string, string>(snapshot.Packages),
+                Unmanaged = snapshot.Unmanaged.ToList(),
+            };
             var tmp = CacheFile + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(dto));
             File.Move(tmp, CacheFile, overwrite: true);

@@ -44,6 +44,33 @@ public sealed record AppVariant(string Label, string Id)
     public override string ToString() => Label;
 }
 
+/// <summary>
+/// The vendor's own installer link, for the direct download through <see cref="VendorDownloads"/> when winget cannot
+/// install the package (hash mismatch after the vendor replaced the file behind an unversioned link, or a manifest
+/// winget-pkgs has not caught up with yet). Never a bypass of a hash: the file must carry a valid signature of one
+/// of <paramref name="Signers"/>.
+/// </summary>
+/// <param name="Url">Official HTTPS link to the .exe on the vendor's download server.</param>
+/// <param name="Signers">Organizations whose valid Authenticode signature the file must carry.</param>
+public sealed record VendorInstaller(string Url, IReadOnlyList<string> Signers)
+{
+    /// <summary>Hosts the file may come from (the link's host plus documented redirect targets). Empty = the link's host.</summary>
+    public IReadOnlyList<string> Hosts { get; init; } = [];
+
+    public IReadOnlyList<string> AllowedHosts =>
+        Hosts.Count > 0 ? Hosts : Uri.TryCreate(Url, UriKind.Absolute, out var u) ? [u.Host] : [];
+
+    public string Host => Uri.TryCreate(Url, UriKind.Absolute, out var u) ? u.Host : "";
+
+    /// <summary>The download request, or null when the link, file name or signer list is not acceptable.</summary>
+    public VendorDownloadRequest? ToRequest(string label)
+    {
+        if (!Uri.TryCreate(Url, UriKind.Absolute, out var url) || VendorDownloads.SafeFileName(url) is not { } file) return null;
+        var request = new VendorDownloadRequest(url, file, AllowedHosts, Signers, VendorDownloads.AppsDir) { Label = label };
+        return VendorDownloads.Validate(request) is null ? request : null;
+    }
+}
+
 /// <param name="Tag">Short singular label used as a tag on cards.</param>
 public sealed record CategoryInfo(AppCategory Category, string Key, string Title, string Description, string Tag);
 
@@ -56,13 +83,29 @@ public sealed record CatalogEntry(
     public IReadOnlyList<AppVariant> Variants { get; init; } = [];
 
     /// <summary>
-    /// Research: the Roblox manifest is "portable" — winget only drops RobloxPlayerInstaller.exe into WinGet\Packages,
-    /// it still has to be run by hand. The page sends the user to the official download page instead.
+    /// winget cannot install this package right now (see <see cref="WebsiteReason"/>): the page sends the user to the
+    /// official download page — or, with <see cref="VendorInstaller"/>, downloads the signed vendor installer directly.
     /// </summary>
     public bool WebsiteOnly { get; init; }
 
+    /// <summary>Plain-language reason for <see cref="WebsiteOnly"/>, shown on the card.</summary>
+    public string? WebsiteReason { get; init; }
+
     /// <summary>Research: Microsoft Edge is a preinstalled system component — never offer install or uninstall.</summary>
     public bool SystemComponent { get; init; }
+
+    /// <summary>
+    /// winget --location template for manifests with InstallLocationRequired (Battle.net): winget cannot ask for the
+    /// folder with --disable-interactivity and stops with 0x8A15005F. A known root variable + folder names,
+    /// expanded at run time (<see cref="WingetClient.IsValidLocationTemplate"/>).
+    /// </summary>
+    public string? InstallLocation { get; init; }
+
+    /// <summary>Official installer for the direct, signature-checked download when winget's manifest is outdated.</summary>
+    public VendorInstaller? VendorInstaller { get; init; }
+
+    /// <summary>Oldest Windows build the package installs on (0 = no limit), e.g. .NET Framework 4.8.1 needs 20H2 (19042).</summary>
+    public int MinOsBuild { get; init; }
 
     public string SourceName => Source == PackageSource.MsStore ? "msstore" : "winget";
 
@@ -70,10 +113,11 @@ public sealed record CatalogEntry(
 
     /// <summary>
     /// When MONOLITH itself runs elevated, these packages are started de-elevated through the desktop shell:
-    /// elevation-prohibited installers, Store apps and user-scope installers (research §13: they would otherwise
-    /// land in the elevating account's profile or fail with 0x8A150056).
+    /// elevation-prohibited installers, Store apps, user-scope installers and winget portables (research §13: they would
+    /// otherwise land in the elevating account's profile or fail with 0x8A150056; winget installs portables per user).
     /// </summary>
-    public bool RunsUnelevated => Has(AppFlags.NoElevation) || Source == PackageSource.MsStore || Scope == InstallScope.User;
+    public bool RunsUnelevated => Has(AppFlags.NoElevation) || Source == PackageSource.MsStore || Scope == InstallScope.User
+                                  || (Has(AppFlags.Portable) && !WebsiteOnly);
 
     /// <summary>Updates itself (EdgeUpdate, built-in updaters) — "ОБНОВИТЬ ВСЁ" leaves it alone.</summary>
     public bool SelfUpdating => Has(AppFlags.Preinstalled) || Has(AppFlags.ExplicitUpgrade) || SystemComponent || WebsiteOnly;
@@ -88,7 +132,31 @@ public sealed record CatalogEntry(
     public IEnumerable<string> AllIds => Variants.Count > 0 ? Variants.Select(v => v.Id) : [Id];
 
     public WingetPackageRequest CreateRequest(string packageId) =>
-        new(packageId, SourceName) { InstallerType = Has(AppFlags.ForceExe) ? "exe" : null };
+        new(packageId, SourceName) { InstallerType = Has(AppFlags.ForceExe) ? "exe" : null, Location = InstallLocation };
+
+    /// <summary>
+    /// Folder for the one retry after winget answered 0x8A15005F for a package without a catalog location:
+    /// "%LOCALAPPDATA%\Programs\&lt;Name&gt;" for packages installed per user, "%ProgramFiles%\&lt;Name&gt;" otherwise.
+    /// </summary>
+    public string DefaultLocationTemplate =>
+        (RunsUnelevated ? @"%LOCALAPPDATA%\Programs\" : @"%ProgramFiles%\") + FolderName(Name, Id);
+
+    /// <summary>Plain folder name from the program name ("osu!(lazer)" → "osu(lazer)"); falls back to the package id.</summary>
+    internal static string FolderName(string name, string id)
+    {
+        static string Clean(string s)
+        {
+            var kept = new string(s.Where(c => char.IsAsciiLetterOrDigit(c) || c is ' ' or '.' or '_' or '+' or '(' or ')' or '-').ToArray());
+            kept = string.Join(' ', kept.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            var start = 0;
+            while (start < kept.Length && !char.IsAsciiLetterOrDigit(kept[start])) start++;
+            kept = kept[start..];
+            if (kept.Length > 64) kept = kept[..64];
+            return kept.TrimEnd('.', ' ');
+        }
+        var n = Clean(name);
+        return n.Length >= 2 && char.IsAsciiLetterOrDigit(n[0]) ? n : Clean(id);
+    }
 }
 
 /// <summary>
@@ -164,18 +232,28 @@ public static class AppCatalog
         W("EpicGames.EpicGamesLauncher", "Epic Games Launcher", L, "Магазин Epic Games с еженедельными бесплатными играми", "https://epicgames.com/download", Machine),
         W("GOG.Galaxy", "GOG GALAXY", L, "Лаунчер GOG: игры без DRM и объединённая библиотека", "https://www.gog.com/galaxy", Machine),
         W("ElectronicArts.EADesktop", "EA app", L, "Официальный лаунчер игр Electronic Arts", "https://www.ea.com/ea-app", Machine),
-        W("Ubisoft.Connect", "Ubisoft Connect", L, "Лаунчер и магазин игр Ubisoft", "https://ubisoftconnect.com/", Machine),
-        W("Blizzard.BattleNet", "Battle.net", L, "Лаунчер игр Blizzard и Activision", "https://download.battle.net/en-us/desktop", Machine),
+        // Unversioned "latest" link: every Ubisoft release breaks the winget hash until the bot PR merges.
+        W("Ubisoft.Connect", "Ubisoft Connect", L, "Лаунчер и магазин игр Ubisoft", "https://ubisoftconnect.com/", Machine) with
+        {
+            VendorInstaller = new("https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe",
+                ["Ubisoft Entertainment", "Ubisoft Entertainment Sweden AB", "Ubisoft Entertainment SA"]),
+        },
+        // Manifest: InstallLocationRequired (--installpath), default %PROGRAMFILES(X86)%\Battle.net (x86 installer).
+        W("Blizzard.BattleNet", "Battle.net", L, "Лаунчер игр Blizzard и Activision", "https://download.battle.net/en-us/desktop", Machine) with
+        {
+            InstallLocation = @"%ProgramFiles(x86)%\Battle.net",
+        },
         W("RockstarGames.Launcher", "Rockstar Games Launcher", L, "Лаунчер игр Rockstar (GTA, RDR)", "https://socialclub.rockstargames.com/rockstar-games-launcher", Any),
         W("Amazon.Games", "Amazon Games", L, "Лаунчер Amazon и Prime Gaming", "https://gaming.amazon.com/home", User),
         W("Wargaming.GameCenter", "Wargaming.net Game Center", L, "Лаунчер игр Wargaming", "https://wargaming.net/wgc", Any),
+        // All regional manifests: RequireExplicitUpgrade — Riot Client updates the game itself.
         W("RiotGames.LeagueOfLegends.EUW", "League of Legends", L, "League of Legends вместе с Riot Client, выбор региона", "https://www.leagueoflegends.com/", User,
-            AppFlags.Region | AppFlags.Anticheat | AppFlags.KernelDriver | AppFlags.Reboot) with
+            AppFlags.Region | AppFlags.Anticheat | AppFlags.KernelDriver | AppFlags.Reboot | AppFlags.ExplicitUpgrade) with
         {
             Variants = Regions("RiotGames.LeagueOfLegends", "EUW", "EUNE", "RU", "NA", "BR", "JP", "KR", "LA1", "LA2", "OC1", "TR", "TW2", "VN2", "SG2", "PBE"),
         },
         W("RiotGames.Valorant.EU", "VALORANT", L, "Тактический шутер Riot вместе с Riot Client и Vanguard", "https://playvalorant.com/", User,
-            AppFlags.Region | AppFlags.Anticheat | AppFlags.KernelDriver | AppFlags.Reboot) with
+            AppFlags.Region | AppFlags.Anticheat | AppFlags.KernelDriver | AppFlags.Reboot | AppFlags.ExplicitUpgrade) with
         {
             Variants = Regions("RiotGames.Valorant", "EU", "AP", "BR", "KR", "LATAM", "NA"),
         },
@@ -184,7 +262,11 @@ public static class AppCatalog
         W("PrismLauncher.PrismLauncher", "Prism Launcher", L, "Открытый лаунчер Minecraft с модами и несколькими сборками", "https://prismlauncher.org/", User),
         W("Overwolf.CurseForge", "CurseForge", L, "Менеджер модов и сборок для игр", "https://curseforge.overwolf.com/", Both),
         W("ppy.osu", "osu!(lazer)", L, "Ритм-игра osu!", "https://osu.ppy.sh/", User),
-        W("Roblox.Roblox", "Roblox Player", L, "Клиент Roblox (установщик запускается отдельно)", "https://www.roblox.com/download", Both, AppFlags.Portable) with { WebsiteOnly = true },
+        W("Roblox.Roblox", "Roblox Player", L, "Клиент Roblox (установщик запускается отдельно)", "https://www.roblox.com/download", Any, AppFlags.Portable) with
+        {
+            WebsiteOnly = true,
+            WebsiteReason = "winget только скачивает установщик Roblox — запускать его всё равно придётся вручную. Надёжнее скачать с официального сайта.",
+        },
         W("Playnite.Playnite", "Playnite", L, "Единая библиотека всех лаунчеров", "https://playnite.link/", User),
         W("HeroicGamesLauncher.HeroicGamesLauncher", "Heroic", L, "Открытый клиент для Epic, GOG и Amazon", "https://heroicgameslauncher.com/", Both),
         W("ItchIo.Itch", "itch", L, "Клиент инди-магазина itch.io", "https://itch.io/app", User),
@@ -230,7 +312,11 @@ public static class AppCatalog
         W("Microsoft.DotNet.DesktopRuntime.9", ".NET Desktop Runtime 9", R, "Среда .NET 9 (поддержка до 10.11.2026)", "https://dotnet.microsoft.com", Machine, AppFlags.Eol),
         W("Microsoft.DotNet.DesktopRuntime.8", ".NET Desktop Runtime 8", R, "Среда .NET 8 (поддержка до 10.11.2026)", "https://dotnet.microsoft.com", Machine, AppFlags.Eol),
         W("Microsoft.DotNet.DesktopRuntime.6", ".NET Desktop Runtime 6", R, "Среда .NET 6 для старых программ (без поддержки)", "https://dotnet.microsoft.com/download/dotnet/6.0", Machine, AppFlags.Eol),
-        W("Microsoft.DotNet.Framework.Runtime", ".NET Framework 4.8.1", R, ".NET Framework 4.8.1 (встроен в Windows 11)", "https://dotnet.microsoft.com/download/dotnet-framework/net481", Any, AppFlags.Win10Only),
+        // NDP481 installs only on Windows 10 20H2 (19042) and later; Windows 11 22H2+ ships it.
+        W("Microsoft.DotNet.Framework.Runtime", ".NET Framework 4.8.1", R, ".NET Framework 4.8.1 (встроен в Windows 11)", "https://dotnet.microsoft.com/download/dotnet-framework/net481", Any, AppFlags.Win10Only) with
+        {
+            MinOsBuild = 19042,
+        },
         W("Microsoft.XNARedist", "XNA Framework 4.0", R, "Среда XNA для инди-игр (Terraria и др.)", "https://www.microsoft.com/download/details.aspx?id=20914", Any),
         W("CreativeTechnology.OpenAL", "OpenAL", R, "Звуковая библиотека OpenAL для старых игр", "https://openal.org/", Any),
         W("EclipseAdoptium.Temurin.21.JRE", "Java 21 (Temurin JRE)", R, "Java 21 для Minecraft 1.20.5+ и модов", "https://adoptium.net/", Machine),
@@ -249,17 +335,28 @@ public static class AppCatalog
         W("TechPowerUp.GPU-Z", "GPU-Z", G, "Информация о видеокарте", "https://www.techpowerup.com/gpuz/", Machine),
         W("CrystalDewWorld.CrystalDiskInfo", "CrystalDiskInfo", G, "Здоровье и SMART дисков", "https://crystalmark.info/en/software/crystaldiskinfo/", Machine),
         W("CrystalDewWorld.CrystalDiskMark", "CrystalDiskMark", G, "Тест скорости дисков", "https://crystalmark.info/en/software/crystaldiskmark/", Machine),
-        W("OCBase.OCCT.Personal", "OCCT", G, "Стресс-тест стабильности CPU, GPU и RAM", "https://www.ocbase.com/", Both, AppFlags.Portable | AppFlags.Expert),
-        W("Resplendence.LatencyMon", "LatencyMon", G, "Анализ задержек DPC/ISR (заикания звука и кадров)", "https://www.resplendence.com/latencymon", Machine),
+        // Manifests declare no scope (portable / zip-portable): winget installs them per user.
+        W("OCBase.OCCT.Personal", "OCCT", G, "Стресс-тест стабильности CPU, GPU и RAM", "https://www.ocbase.com/", Any, AppFlags.Portable | AppFlags.Expert),
+        // winget-pkgs is stuck at 7.31 while the unversioned link serves 7.40 (hash mismatch, no open PR): the signed
+        // vendor installer is downloaded directly instead.
+        W("Resplendence.LatencyMon", "LatencyMon", G, "Анализ задержек DPC/ISR (заикания звука и кадров)", "https://www.resplendence.com/latencymon", Machine) with
+        {
+            WebsiteOnly = true,
+            WebsiteReason = "Производитель выложил LatencyMon 7.40 по той же ссылке, а каталог winget всё ещё описывает 7.31 со старой контрольной суммой — winget откажется ставить.",
+            VendorInstaller = new("https://www.resplendence.com/download/LatencyMon.exe", ["SOFTREV LABS S.R.L.S."]),
+        },
         W("Intel.PresentMon", "Intel PresentMon", G, "Замер FPS, frametime и задержек", "https://game.intel.com/intel-presentmon/", Machine),
-        W("CXWorld.CapFrameX", "CapFrameX", G, "Запись и анализ frametime", "https://www.capframex.com/", Both, AppFlags.Portable),
-        W("Rem0o.FanControl", "FanControl", G, "Гибкое управление вентиляторами", "https://getfancontrol.com/", Both, AppFlags.Portable | AppFlags.KernelDriver | AppFlags.Anticheat),
-        W("LibreHardwareMonitor.LibreHardwareMonitor", "LibreHardwareMonitor", G, "Открытый мониторинг датчиков", "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor", Both, AppFlags.Portable | AppFlags.KernelDriver),
-        W("Orbmu2k.nvidiaProfileInspector", "NVIDIA Profile Inspector", G, "Расширенные профили драйвера NVIDIA", "https://github.com/Orbmu2k/nvidiaProfileInspector", Both, AppFlags.Portable | AppFlags.Expert | AppFlags.NvidiaOnly),
+        // winget picks the Burn bootstrapper (a real installer), not the portable zip; no scope declared.
+        W("CXWorld.CapFrameX", "CapFrameX", G, "Запись и анализ frametime", "https://www.capframex.com/", Any),
+        // winget picks the Inno installer (elevationRequired), not the portable zip; no scope declared.
+        W("Rem0o.FanControl", "FanControl", G, "Гибкое управление вентиляторами", "https://getfancontrol.com/", Any, AppFlags.KernelDriver | AppFlags.Anticheat),
+        W("LibreHardwareMonitor.LibreHardwareMonitor", "LibreHardwareMonitor", G, "Открытый мониторинг датчиков", "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor", Any, AppFlags.Portable | AppFlags.KernelDriver),
+        W("Orbmu2k.nvidiaProfileInspector", "NVIDIA Profile Inspector", G, "Расширенные профили драйвера NVIDIA", "https://github.com/Orbmu2k/nvidiaProfileInspector", Any, AppFlags.Portable | AppFlags.Expert | AppFlags.NvidiaOnly),
         W("Wagnardsoft.DisplayDriverUninstaller", "Display Driver Uninstaller", G, "Полное удаление видеодрайверов (лучше в безопасном режиме)", "https://www.wagnardsoft.com/display-driver-uninstaller-ddu", Machine, AppFlags.Expert),
         W("TechPowerUp.NVCleanstall", "NVCleanstall", G, "Установка драйвера NVIDIA без лишних компонентов", "https://www.techpowerup.com/download/techpowerup-nvcleanstall/", Machine, AppFlags.Expert | AppFlags.NvidiaOnly),
         W("SpecialK.SpecialK", "Special K", G, "Моддинг-фреймворк: HDR, лимитер кадров (внедряется в игры)", "https://special-k.info/", Both, AppFlags.Expert | AppFlags.Anticheat),
-        W("Geeks3D.FurMark.2", "FurMark 2", G, "Стресс-тест видеокарты", "https://geeks3d.com/furmark/", Both, AppFlags.Expert),
+        // winget picks the Inno installer (Scope: machine, elevatesSelf) on x64.
+        W("Geeks3D.FurMark.2", "FurMark 2", G, "Стресс-тест видеокарты", "https://geeks3d.com/furmark/", Machine, AppFlags.Expert),
         W("BitSum.ProcessLasso", "Process Lasso", G, "Автоматическое управление приоритетами процессов", "https://bitsum.com/", Machine, AppFlags.Expert),
         W("Rufus.Rufus", "Rufus", G, "Создание загрузочных USB-флешек", "https://rufus.ie/", Both, AppFlags.Portable),
         Store("9NF8H0H7WMLT", "NVIDIA Control Panel", G, "Панель управления NVIDIA (если её нет после установки драйвера)", "https://apps.microsoft.com/detail/9NF8H0H7WMLT", User, AppFlags.NvidiaOnly),
@@ -269,28 +366,46 @@ public static class AppCatalog
         // ───────────── Streaming, recording, peripherals ─────────────
         W("OBSProject.OBSStudio", "OBS Studio", S, "Запись и стриминг экрана", "https://obsproject.com/", Machine),
         W("Streamlabs.Streamlabs", "Streamlabs Desktop", S, "Стриминг с готовыми оверлеями и алертами", "https://streamlabs.com/", Machine),
-        W("MedalB.V.Medal", "Medal", S, "Запись игровых клипов", "https://medal.tv/", User),
+        // The only manifest (4.2309.0, January 2024) links to an installer that now answers 404.
+        W("MedalB.V.Medal", "Medal", S, "Запись игровых клипов", "https://medal.tv/download", User) with
+        {
+            WebsiteOnly = true,
+            WebsiteReason = "Каталог winget знает только версию 2024 года, а её установщик удалён с сервера Medal (ошибка 404) — winget не сможет его скачать.",
+        },
         W("VB-Audio.Voicemeeter", "Voicemeeter", S, "Виртуальный аудиомикшер", "https://vb-audio.com/Voicemeeter/", Machine, AppFlags.KernelDriver | AppFlags.Reboot),
         W("VB-Audio.Voicemeeter.Banana", "Voicemeeter Banana", S, "Расширенный виртуальный аудиомикшер", "https://vb-audio.com/Voicemeeter/banana.htm", Machine, AppFlags.KernelDriver | AppFlags.Reboot),
         W("SteelSeries.GG", "SteelSeries GG", S, "ПО для периферии SteelSeries и Sonar", "https://steelseries.com/gg", Machine),
-        W("Logitech.GHUB", "Logitech G HUB", S, "ПО для игровой периферии Logitech", "https://www.logitechg.com/innovation/g-hub.html", Machine),
+        // Unversioned "latest" link: Logitech replaces the file before winget-pkgs updates the hash (0x8A150011).
+        W("Logitech.GHUB", "Logitech G HUB", S, "ПО для игровой периферии Logitech", "https://www.logitechg.com/innovation/g-hub.html", Machine) with
+        {
+            VendorInstaller = new("https://download01.logi.com/web/ftp/pub/techsupport/gaming/lghub_installer.exe", ["Logitech", "Logitech Europe S.A."]),
+        },
         W("RazerInc.RazerInstaller.Synapse4", "Razer Synapse 4", S, "ПО для периферии Razer", "https://www.razer.com/synapse-4", Any),
         W("Corsair.iCUE.5", "Corsair iCUE 5", S, "ПО для периферии и подсветки Corsair", "https://www.corsair.com/icue", Machine),
         W("Elgato.StreamDeck", "Elgato Stream Deck", S, "ПО для пультов Stream Deck", "https://www.elgato.com/s/downloads", Machine),
         W("LizardByte.Sunshine", "Sunshine", S, "Сервер стриминга игр с ПК (для Moonlight)", "https://github.com/LizardByte/Sunshine", Machine, AppFlags.Expert),
-        W("MoonlightGameStreamingProject.Moonlight", "Moonlight", S, "Клиент стриминга игр", "https://moonlight-stream.org/", User),
+        // The manifest says Scope: user, but the Burn bundle installs per machine into %ProgramFiles% (and would ask for
+        // UAC itself when de-elevated): run it like a machine installer. MONOLITH never passes --scope, so this does not
+        // change which installer winget picks.
+        W("MoonlightGameStreamingProject.Moonlight", "Moonlight", S, "Клиент стриминга игр", "https://moonlight-stream.org/", Machine),
 
         // ───────────── Utilities ─────────────
         W("7zip.7zip", "7-Zip", U, "Бесплатный архиватор", "https://7-zip.org/", Machine),
         W("RARLab.WinRAR", "WinRAR", U, "Архиватор RAR и ZIP", "https://www.win-rar.com/", Machine, AppFlags.Trialware),
-        W("M2Team.NanaZip", "NanaZip", U, "Современный форк 7-Zip для Windows 11", "https://github.com/M2Team/NanaZip", Both),
+        // MSIX bundle: registered per user, like a Store app — install it as the signed-in user.
+        W("M2Team.NanaZip", "NanaZip", U, "Современный форк 7-Zip для Windows 11", "https://github.com/M2Team/NanaZip", User),
         W("Microsoft.PowerToys", "PowerToys", U, "Набор утилит Microsoft для продвинутых пользователей", "https://github.com/microsoft/PowerToys", Both),
         W("voidtools.Everything", "Everything", U, "Мгновенный поиск файлов", "https://www.voidtools.com/", Machine),
         W("ShareX.ShareX", "ShareX", U, "Скриншоты и запись экрана", "https://getsharex.com/", Both),
         W("Notepad++.Notepad++", "Notepad++", U, "Текстовый редактор", "https://notepad-plus-plus.org/", Machine),
         W("VideoLAN.VLC", "VLC", U, "Универсальный медиаплеер", "https://www.videolan.org/vlc/", Machine),
         W("Daum.PotPlayer", "PotPlayer", U, "Мощный видеоплеер", "https://potplayer.tv/", Machine),
-        W("AIMP.AIMP", "AIMP", U, "Аудиоплеер", "https://www.aimp.ru", Machine),
+        // AIMP moved its builds from /files/windows/ to /files/desktop/: the manifest's links (5.10.2418) answer 404.
+        W("AIMP.AIMP", "AIMP", U, "Аудиоплеер", "https://www.aimp.ru", Machine) with
+        {
+            WebsiteOnly = true,
+            WebsiteReason = "Ссылки в каталоге winget ведут на старую версию 5.10, которой больше нет на сервере AIMP (ошибка 404), — winget не сможет скачать установщик.",
+        },
         W("CodecGuide.K-LiteCodecPack.Standard", "K-Lite Codec Pack Standard", U, "Набор кодеков и MPC-HC", "https://codecguide.com/", Machine),
         W("qBittorrent.qBittorrent", "qBittorrent", U, "Открытый торрент-клиент без рекламы", "https://www.qbittorrent.org/", Machine),
         W("Spotify.Spotify", "Spotify", U, "Музыкальный стриминг", "https://www.spotify.com/download/windows/", User, AppFlags.NoElevation),
@@ -304,9 +419,12 @@ public static class AppCatalog
         W("TeamViewer.TeamViewer", "TeamViewer", U, "Удалённый доступ (давайте его только тем, кому доверяете)", "https://www.teamviewer.com/", Machine, AppFlags.RemoteAccess),
     ];
 
-    /// <summary>Entries offered on this machine: Windows-10-only runtimes are hidden where Windows already ships them (Win11 22H2+).</summary>
+    /// <summary>
+    /// Entries offered on this machine: Windows-10-only runtimes are hidden where Windows already ships them (Win11 22H2+),
+    /// packages whose installer refuses older builds are hidden there (<see cref="CatalogEntry.MinOsBuild"/>).
+    /// </summary>
     public static IEnumerable<CatalogEntry> ForBuild(int osBuild) =>
-        All.Where(e => !e.Has(AppFlags.Win10Only) || osBuild < 22621);
+        All.Where(e => (!e.Has(AppFlags.Win10Only) || osBuild < 22621) && osBuild >= e.MinOsBuild);
 
     public static CatalogEntry? Find(string id) =>
         All.FirstOrDefault(e => e.AllIds.Contains(id, StringComparer.OrdinalIgnoreCase));
