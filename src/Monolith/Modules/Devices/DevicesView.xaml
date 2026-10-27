@@ -210,11 +210,11 @@
                         </StackPanel>
 
                         <!-- Per-row actions -->
-                        <WrapPanel Grid.Column="3" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                            <Button Style="{StaticResource Dev.SmallBtn}" Margin="0,0,6,0" Content="ПРИМЕНИТЬ" IsEnabled="{Binding CanApply}"
+                        <WrapPanel Grid.Column="3" Orientation="Horizontal" Margin="6,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Button Style="{StaticResource Dev.SmallBtn}" Margin="6,0,0,0" Content="ПРИМЕНИТЬ" IsEnabled="{Binding CanApply}"
                                     Command="{Binding DataContext.ApplySettingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                     Visibility="{Binding IsReadOnly, Converter={StaticResource InverseBoolToVis}}" ToolTip="Применить только эту настройку (через журнал)" />
-                            <Button Style="{StaticResource Dev.SmallGhost}" Margin="0,0,6,0"
+                            <Button Style="{StaticResource Dev.SmallGhost}" Margin="6,0,0,0"
                                     Command="{Binding DataContext.RevertSettingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                     Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}" ToolTip="Вернуть значение, которое было до изменения в MONOLITH">
                                 <StackPanel Orientation="Horizontal">
@@ -222,10 +222,10 @@
                                     <TextBlock Text="ОТКАТИТЬ" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource Dev.SmallGhost}" Margin="0,0,6,0" Content="В ОПТИМИЗАЦИИ" ToolTip="Эта настройка — пункт раздела «Оптимизация»: откроется он, ничего не меняется"
+                            <Button Style="{StaticResource Dev.SmallGhost}" Margin="6,0,0,0" Content="В ОПТИМИЗАЦИИ" ToolTip="Эта настройка — пункт раздела «Оптимизация»: откроется он, ничего не меняется"
                                     Command="{Binding DataContext.OpenTweakCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding TweakId}"
                                     Visibility="{Binding IsTweakRow, Converter={StaticResource BoolToVis}}" />
-                            <Button Style="{StaticResource Dev.SmallGhost}" Content="{Binding Link.Label}"
+                            <Button Style="{StaticResource Dev.SmallGhost}" Margin="6,0,0,0" Content="{Binding Link.Label}"
                                     Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Link}"
                                     Visibility="{Binding Link, Converter={StaticResource NullToVis}}" />
                         </WrapPanel>
