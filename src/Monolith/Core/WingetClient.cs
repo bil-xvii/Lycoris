@@ -6,8 +6,11 @@ namespace Monolith.Core;
 
 public sealed record WingetResult(int ExitCode, string Output, bool Cancelled = false)
 {
-    public bool Success => ExitCode is 0 || WingetClient.IsBenign(ExitCode);
-    public string Message => Cancelled ? "Отменено" : WingetClient.Describe(ExitCode);
+    /// <summary>A read-only call (list / show / export / --version) did not answer in time and was stopped.</summary>
+    public bool TimedOut { get; init; }
+
+    public bool Success => !TimedOut && !Cancelled && (ExitCode is 0 || WingetClient.IsBenign(ExitCode));
+    public string Message => Cancelled ? "Отменено" : TimedOut ? "winget не ответил вовремя" : WingetClient.Describe(ExitCode);
 }
 
 /// <summary>One package to install or upgrade, plus the optional installer filters.</summary>
@@ -263,6 +266,19 @@ public static partial class WingetClient
         args.Count > 0 && args[0].ToLowerInvariant() is "install" or "add" or "upgrade" or "update" or "uninstall" or "remove" or "rm"
             or "import" or "repair" or "configure" or "pin" or "source";
 
+    /// <summary>
+    /// How long a call may run before it is stopped. Install / upgrade / uninstall and every other modifying command
+    /// have no limit: killing winget kills the installer it started and can leave a program half-installed, so they
+    /// run until they finish or the user cancels them explicitly. Read-only calls get a timeout so a hung source
+    /// never blocks the page.
+    /// </summary>
+    public static TimeSpan? TimeoutFor(IReadOnlyList<string> args)
+    {
+        if (IsModifying(args)) return null;
+        if (args.Count == 1 && args[0] is "--version" or "-v") return TimeSpan.FromMinutes(1);
+        return TimeSpan.FromMinutes(10);
+    }
+
     /// <summary>Runs winget with the given arguments (serialized; retried once on internal error).</summary>
     public static async Task<WingetResult> RunAsync(IEnumerable<string> args, Action<string>? output, CancellationToken ct, bool log = true)
     {
@@ -281,7 +297,7 @@ public static partial class WingetClient
                 {
                     Encoding = OutputEncoding.Utf8,
                     LogCommand = log,
-                    Timeout = TimeSpan.FromMinutes(30),
+                    Timeout = TimeoutFor(list),
                     OnOutput = line =>
                     {
                         if (IsNoise(line)) return;
@@ -291,6 +307,11 @@ public static partial class WingetClient
 
                 var text = string.Join(Environment.NewLine, r.Combined.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => !IsNoise(l)));
                 if (r.Cancelled) return new WingetResult(r.ExitCode, text, Cancelled: true);
+                if (r.TimedOut)
+                {
+                    if (log) Log.Warn($"winget {list.FirstOrDefault()} {ArgId(list)}: не ответил вовремя.");
+                    return new WingetResult(r.ExitCode, text) { TimedOut = true };
+                }
                 if (r.ExitCode == InternalError && attempt == 0)
                 {
                     await Task.Delay(1500, ct).ConfigureAwait(false);

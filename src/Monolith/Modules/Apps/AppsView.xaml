@@ -571,7 +571,7 @@
                         <TextBlock Text="{x:Static ui:Glyphs.Lock}" Style="{StaticResource T.Icon}" FontSize="13" Foreground="{StaticResource B.Text3}"
                                    VerticalAlignment="Top" Margin="0,1,12,0" />
                         <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" MaxWidth="860" HorizontalAlignment="Left"
-                                   Text="Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком, установщик скачивается с его сервера, а SHA256 сверяется с манифестом. MONOLITH никогда не передаёт winget флаги --force, --ignore-security-hash и --allow-reboot. Удалить программу можно в «Параметры → Приложения»." />
+                                   Text="Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком. Установщики пакетов winget скачиваются по ссылкам из манифестов и сверяются с их SHA256; пакеты Microsoft Store (метка MS STORE) приходят из каталога Store. Установка принимает лицензии издателей от вашего имени — об этом сказано в каждом подтверждении. MONOLITH никогда не передаёт winget флаги --force, --ignore-security-hash и --allow-reboot и не прерывает установщик по таймеру. Удалить программу можно в «Параметры → Приложения»." />
                     </Grid>
                 </StackPanel>
             </ScrollViewer>

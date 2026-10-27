@@ -3,6 +3,19 @@ using Monolith.Core;
 
 namespace Monolith.Modules.Apps;
 
+/// <summary>Restore point before an install queue: what the confirmation promises and the queue then does.</summary>
+public enum RestorePointPlan
+{
+    /// <summary>MONOLITH is not elevated: no restore point possible.</summary>
+    NotElevated,
+    /// <summary>Turned off in MONOLITH settings.</summary>
+    OffInSettings,
+    /// <summary>Windows System Protection is off (or blocked by policy).</summary>
+    ProtectionOff,
+    /// <summary>A restore point is created first; if Windows does not create one, the user decides whether to go on.</summary>
+    WillTry,
+}
+
 /// <summary>Plain-language texts of the page (tags, tooltips, confirmation lines) and small pure helpers.</summary>
 public static class AppTexts
 {
@@ -75,12 +88,61 @@ public static class AppTexts
 
     private static string InstallHint(CatalogEntry e)
     {
+        var store = e.Source == PackageSource.MsStore;
         if (Elevation.IsElevated && e.RunsUnelevated)
-            return "Установка через winget без прав администратора — в профиль текущего пользователя.";
+            return store
+                ? "Установка из Microsoft Store через winget без прав администратора — для текущего пользователя."
+                : "Установка через winget без прав администратора — в профиль текущего пользователя.";
         if (!Elevation.IsElevated && e.Scope is InstallScope.Machine)
             return "Установка через winget. Установщик для всех пользователей сам покажет запрос UAC.";
-        return "Установка через winget. Установщик скачивается с сервера разработчика и проверяется по SHA256.";
+        return store
+            ? "Установка из Microsoft Store через winget: пакет приходит из каталога Store."
+            : "Установка через winget. Установщик скачивается по ссылке из манифеста и сверяется с его SHA256.";
     }
+
+    /// <summary>
+    /// How the packages of a plan are obtained and checked. The SHA256 check of a winget manifest applies only to
+    /// packages of the winget source; Microsoft Store packages come from the Store catalog.
+    /// </summary>
+    public static string VerificationText(IEnumerable<CatalogEntry> entries)
+    {
+        var list = entries.ToList();
+        var store = list.Count(e => e.Source == PackageSource.MsStore);
+        var winget = list.Count - store;
+        const string wingetText = "Установщики пакетов winget скачиваются по ссылкам из их манифестов и сверяются с SHA256 из манифеста — при несовпадении установка блокируется.";
+        const string storeText = "Пакеты Microsoft Store приходят из каталога Store, сверка SHA256 из манифеста winget к ним не относится.";
+        if (store == 0) return wingetText;
+        if (winget == 0) return storeText;
+        return wingetText + " " + storeText;
+    }
+
+    /// <summary>
+    /// winget is always called with --accept-package-agreements and --accept-source-agreements, so the confirmation
+    /// must say that pressing the button accepts these terms on the user's behalf.
+    /// </summary>
+    public static string AgreementText(IEnumerable<CatalogEntry> entries, string confirmText)
+    {
+        var store = entries.Any(e => e.Source == PackageSource.MsStore);
+        return $"Нажимая «{confirmText}», вы принимаете лицензионные соглашения издателей этих программ" +
+               (store ? " и условия Microsoft Store" : "") +
+               ": winget подтвердит их от вашего имени, отдельных окон с соглашениями не будет.";
+    }
+
+    /// <summary>What happens about a restore point before a queue runs.</summary>
+    public static RestorePointPlan PlanRestorePoint(bool elevated, bool enabledInSettings, bool protectionOn) =>
+        !elevated ? RestorePointPlan.NotElevated
+        : !enabledInSettings ? RestorePointPlan.OffInSettings
+        : !protectionOn ? RestorePointPlan.ProtectionOff
+        : RestorePointPlan.WillTry;
+
+    /// <summary>Footnote of the install confirmation — only what will really happen.</summary>
+    public static string RestorePointFootnote(RestorePointPlan plan) => plan switch
+    {
+        RestorePointPlan.NotElevated => "Без прав администратора точка восстановления не создаётся.",
+        RestorePointPlan.OffInSettings => "Точки восстановления отключены в настройках MONOLITH — точка создана не будет.",
+        RestorePointPlan.ProtectionOff => "Защита системы Windows выключена — точка восстановления создана не будет.",
+        _ => "Перед началом MONOLITH создаст точку восстановления. Если Windows её не создаст, установка не начнётся без вашего согласия.",
+    };
 
     /// <summary>"Steam — Valve.Steam · winget · установка".</summary>
     public static string QueueLine(CatalogEntry e, string packageId, QueueOperation op, string? installedVersion = null)

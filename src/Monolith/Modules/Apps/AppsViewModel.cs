@@ -484,7 +484,10 @@ public sealed partial class AppsViewModel : PageViewModel
             return;
         }
 
-        if (!await ConfirmAsync(plan, kind)) return;
+        // Known before the dialog, so the footnote promises only what will really happen.
+        var protectionOn = Elevation.IsElevated && await Task.Run(RestorePointService.IsEnabled);
+        var restorePlan = AppTexts.PlanRestorePoint(Elevation.IsElevated, AppSettings.Current.CreateRestorePoints, protectionOn);
+        if (!await ConfirmAsync(plan, kind, restorePlan)) return;
 
         foreach (var old in Queue) if (ReferenceEquals(old.App.Job, old)) old.App.Job = null;
         Queue.Clear();
@@ -503,10 +506,11 @@ public sealed partial class AppsViewModel : PageViewModel
             QueueKind.UpdateAll => "ОБНОВЛЕНИЕ ВСЕГО",
             _ => plan.All(p => p.Op == QueueOperation.Upgrade) ? "ОБНОВЛЕНИЕ" : "УСТАНОВКА",
         };
-        await RunQueueAsync();
+        await RunQueueAsync(restorePlan);
     }
 
-    private static Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
+    private static Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind,
+        RestorePointPlan restorePlan)
     {
         var details = plan.Select(p => AppTexts.QueueLine(p.Item.Entry, p.Item.PackageId, p.Op, p.Item.InstalledVersion)).ToList();
         details.AddRange(AppTexts.Warnings(plan.Select(p => p.Item)));
@@ -526,23 +530,46 @@ public sealed partial class AppsViewModel : PageViewModel
                                    "Программы, которые обновляются сами (Discord, Edge, WebView2), и «Установщик приложений» MONOLITH не трогает. ",
             _ => $"По очереди будет обработано: {AppTexts.Packages(plan.Count)}. ",
         };
-        var how = "Установщики скачиваются с серверов разработчиков и проверяются по SHA256 из манифеста winget. ";
+        var entries = plan.Select(p => p.Item.Entry).ToList();
+        var how = AppTexts.VerificationText(entries) + " ";
         var elevation = Elevation.IsElevated
             ? "Программы для всех пользователей ставятся с правами администратора, пакеты для текущего пользователя и из Microsoft Store — без них. "
             : "MONOLITH работает без прав администратора: установщик каждой программы для всех пользователей сам покажет запрос UAC. ";
+        var confirm = upgradeOnly ? "ОБНОВИТЬ" : "УСТАНОВИТЬ";
+        var agreement = AppTexts.AgreementText(entries, confirm) + " ";
         var undo = "Удалить программу можно в «Параметры → Приложения».";
 
-        string footnote;
-        if (!Elevation.IsElevated) footnote = "Без прав администратора точка восстановления не создаётся.";
-        else if (!AppSettings.Current.CreateRestorePoints) footnote = "Точки восстановления отключены в настройках.";
-        else footnote = "Перед началом будет создана точка восстановления.";
-
         var danger = plan.Any(p => AppTexts.IsRisky(p.Item.Entry));
-        var confirm = upgradeOnly ? "ОБНОВИТЬ" : "УСТАНОВИТЬ";
-        return Ui.ConfirmAsync(title, lead + how + elevation + undo, details, confirm, "ОТМЕНА", danger, footnote);
+        return Ui.ConfirmAsync(title, lead + how + elevation + agreement + undo, details, confirm, "ОТМЕНА", danger,
+            AppTexts.RestorePointFootnote(restorePlan));
     }
 
-    private async Task RunQueueAsync()
+    /// <summary>
+    /// Creates the restore point the confirmation promised. If Windows does not create one, the queue starts only
+    /// after the user explicitly agrees to continue without it.
+    /// </summary>
+    private async Task<bool> EnsureRestorePointAsync()
+    {
+        AppendLog("Создание точки восстановления…");
+        SetBusyText("Создание точки восстановления…");
+        var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
+        AppendLog(rp.Message);
+        if (rp.Created)
+        {
+            Ui.Toast(rp.Message, ToastKind.Success, "ТОЧКА ВОССТАНОВЛЕНИЯ");
+            return true;
+        }
+        Log.Warn($"Приложения: {rp.Message}");
+        var go = await Ui.ConfirmAsync(
+            "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
+            $"{rp.Message} Без неё вернуть систему к состоянию до установки можно будет только удалением программ " +
+            "в «Параметры → Приложения». Продолжить без точки восстановления?",
+            null, "ПРОДОЛЖИТЬ", "ОТМЕНИТЬ УСТАНОВКУ", danger: true);
+        AppendLog(go ? "Продолжение без точки восстановления — по вашему решению." : "Установка отменена: точка восстановления не создана.");
+        return go;
+    }
+
+    private async Task RunQueueAsync(RestorePointPlan restorePlan)
     {
         IsQueueRunning = true;
         StopRequested = false;
@@ -551,17 +578,16 @@ public sealed partial class AppsViewModel : PageViewModel
         var ct = _queueCts.Token;
         BeginBusy($"{QueueTitle}: подготовка…");
         var total = Queue.Count;
+        var started = true;
         try
         {
-            if (Elevation.IsElevated && AppSettings.Current.CreateRestorePoints)
-            {
-                AppendLog("Создание точки восстановления…");
-                SetBusyText("Создание точки восстановления…");
-                var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
-                AppendLog(rp.Message);
-            }
+            if (restorePlan == RestorePointPlan.WillTry)
+                started = await EnsureRestorePointAsync();
+            else
+                AppendLog(AppTexts.RestorePointFootnote(restorePlan));
+            if (!started) CancelRemaining();
 
-            for (var i = 0; i < total; i++)
+            for (var i = 0; started && i < total; i++)
             {
                 var job = Queue[i];
                 if (StopRequested || ct.IsCancellationRequested)
@@ -600,6 +626,13 @@ public sealed partial class AppsViewModel : PageViewModel
             EndBusy();
         }
 
+        if (!started)
+        {
+            Ui.Toast("Ничего не установлено: точка восстановления не создана, а продолжать без неё вы не стали.",
+                ToastKind.Warning, $"{QueueTitle}: ОТМЕНЕНО");
+            return;
+        }
+
         AppendLog("");
         AppendLog("Проверка установленных программ…");
         BeginBusy("Проверка установленных программ…");
@@ -626,8 +659,13 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private sealed record RunOutcome(UnelevatedOutcome Outcome, WingetResult Result);
 
+    /// <summary>After this long a still-running installer gets a note in the queue (it is never stopped automatically).</summary>
+    private static readonly TimeSpan LongRunNotice = TimeSpan.FromMinutes(30);
+
     private async Task<RunOutcome> ExecuteAsync(QueueItemViewModel job, CancellationToken ct)
     {
+        using var noticeCts = new CancellationTokenSource();
+        _ = NoticeLongRunAsync(job, noticeCts.Token);
         try
         {
             return await ExecuteCoreAsync(job, ct);
@@ -636,6 +674,31 @@ public sealed partial class AppsViewModel : PageViewModel
         {
             return new RunOutcome(UnelevatedOutcome.Cancelled, new WingetResult(-1, "", Cancelled: true));
         }
+        finally
+        {
+            noticeCts.Cancel();
+        }
+    }
+
+    /// <summary>
+    /// Online installers (launchers, peripheral software) can download for a long time. MONOLITH never kills them on
+    /// a timer — it only tells the user what is going on and how to stop it if they want to.
+    /// </summary>
+    private async Task NoticeLongRunAsync(QueueItemViewModel job, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(LongRunNotice, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        if (job.State != QueueState.Running) return;
+        job.StatusText = job.Operation == QueueOperation.Install ? "УСТАНОВКА… ИДЁТ ДОЛЬШЕ 30 МИНУТ" : "ОБНОВЛЕНИЕ… ИДЁТ ДОЛЬШЕ 30 МИНУТ";
+        AppendLog($"{job.Name}: установщик работает дольше 30 минут — возможно, он докачивает файлы. MONOLITH не прерывает его сам. " +
+                  "Можно подождать или остановить: «ОСТАНОВИТЬ ПОСЛЕ ТЕКУЩЕГО», затем «ПРЕРВАТЬ СЕЙЧАС».");
+        Log.Warn($"Приложения: {job.Name} устанавливается дольше 30 минут.");
     }
 
     private async Task<RunOutcome> ExecuteCoreAsync(QueueItemViewModel job, CancellationToken ct)

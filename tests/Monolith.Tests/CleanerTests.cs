@@ -74,6 +74,19 @@ public sealed class CleanerTests : IDisposable
 
     private static CleanTally Clean(TargetManifest m) => CleanEngine.Clean(m, PathGuard.Default, CancellationToken.None);
 
+    /// <summary>The file as a walk would list it now.</summary>
+    private static FileCandidate Candidate(string path)
+    {
+        var i = new FileInfo(path);
+        return new FileCandidate(i.FullName, i.Length, i.LastWriteTimeUtc.ToFileTimeUtc(), i.CreationTimeUtc.ToFileTimeUtc());
+    }
+
+    private static void SetTimes(string path, DateTime utc)
+    {
+        File.SetCreationTimeUtc(path, utc);
+        File.SetLastWriteTimeUtc(path, utc);
+    }
+
     // ───────────────────────────── Path guard: pure checks ─────────────────────────────
 
     public static TheoryData<string> ProtectedPaths()
@@ -205,11 +218,29 @@ public sealed class CleanerTests : IDisposable
         var m = Analyze(new CleanTarget { Base = b, MinAge = TimeSpan.FromDays(1) });
 
         Assert.Null(m.Refused);
-        Assert.Single(m.Files);
-        Assert.Equal(old, m.Files[0].Path, ignoreCase: true);
+        Assert.Equal(1, m.Count);
+        Assert.Equal(ApprovalMatch.Approved, m.Match(Candidate(old)));
+        Assert.Equal(ApprovalMatch.NotApproved, m.Match(Candidate(fresh)));
         Assert.Equal(300, m.Bytes);
         Assert.Equal(1, m.TooNew);
         Assert.True(File.Exists(old) && File.Exists(fresh), "analysis must never delete");
+    }
+
+    [Fact]
+    public void Analysis_keeps_a_fingerprint_per_file_not_the_paths()
+    {
+        var b = Dir("fingerprints");
+        for (var i = 0; i < 50; i++) OldFile(Path.Combine(b, $"d{i % 5}", $"f{i}.tmp"), 10);
+        var m = Analyze(new CleanTarget { Base = b });
+
+        Assert.Equal(50, m.Count);
+        Assert.Equal(50, m.RetainedFingerprints);
+        Assert.DoesNotContain(typeof(TargetManifest).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public),
+            f => f.FieldType == typeof(List<FileCandidate>) || f.FieldType == typeof(List<string>) || f.FieldType == typeof(string[]));
+
+        m.Release();
+        Assert.Equal(0, m.RetainedFingerprints);
+        Assert.Equal(50, m.Count); // the counters stay for display
     }
 
     [Fact]
@@ -280,9 +311,9 @@ public sealed class CleanerTests : IDisposable
         var link = Junction(Path.Combine(b, "link"), outside);
 
         var m = Analyze(new CleanTarget { Base = b });
-        Assert.Single(m.Files);
-        Assert.Equal(mine, m.Files[0].Path, ignoreCase: true);
-        Assert.DoesNotContain(m.Dirs, d => d.Path.Equals(link, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(1, m.Count);
+        Assert.Equal(ApprovalMatch.Approved, m.Match(Candidate(mine)));
+        Assert.Equal(0, m.DirCount); // the junction is not an empty-folder candidate
 
         Clean(m);
         Assert.False(File.Exists(mine));
@@ -299,7 +330,7 @@ public sealed class CleanerTests : IDisposable
 
         var m = Analyze(new CleanTarget { Base = link });
         Assert.Equal(GuardVerdict.ReparsePoint, m.Refused);
-        Assert.Empty(m.Files);
+        Assert.Equal(0, m.Count);
         Clean(m);
         Assert.True(File.Exists(file));
     }
@@ -322,21 +353,73 @@ public sealed class CleanerTests : IDisposable
         var b = Dir("swap");
         var sub = Path.Combine(b, "sub");
         var victimDir = Dir("victim");
-        OldFile(Path.Combine(sub, "file.dat"), 64);
+        var original = Candidate(OldFile(Path.Combine(sub, "file.dat"), 64));
         var m = Analyze(new CleanTarget { Base = b });
-        Assert.Single(m.Files);
+        Assert.Equal(1, m.Count);
 
         // Attacker: replace the analysed folder with a junction to another folder holding an identical-looking file.
         var victim = OldFile(Path.Combine(victimDir, "file.dat"), 64);
-        File.SetCreationTimeUtc(victim, DateTime.FromFileTimeUtc(m.Files[0].CreationFileTime));
-        File.SetLastWriteTimeUtc(victim, DateTime.FromFileTimeUtc(m.Files[0].LastWriteFileTime));
+        File.SetCreationTimeUtc(victim, DateTime.FromFileTimeUtc(original.CreationFileTime));
+        File.SetLastWriteTimeUtc(victim, DateTime.FromFileTimeUtc(original.LastWriteFileTime));
         Directory.Delete(sub, recursive: true);
         Junction(sub, victimDir);
 
         var t = Clean(m);
         Assert.Equal(0, t.Deleted);
-        Assert.Equal(1, t.Refused);
+        Assert.Equal(1, t.Gone); // the walk never enters the junction, so the approved file is simply not found
         Assert.True(File.Exists(victim), "the file behind the swapped-in junction must survive");
+    }
+
+    [Fact]
+    public void File_moved_in_after_analysis_is_never_deleted()
+    {
+        var b = Dir("movedin");
+        var approved = OldFile(Path.Combine(b, "approved.tmp"));
+        var m = Analyze(new CleanTarget { Base = b, MinAge = TimeSpan.FromDays(1) });
+
+        // Same folder, same rules, old timestamps (a move keeps them) — but it was not in the confirmed analysis.
+        var later = OldFile(Path.Combine(b, "sub", "later.tmp"), 500, 30);
+        var fresh = Path.Combine(b, "fresh.tmp");
+        File.WriteAllBytes(fresh, new byte[10]);
+
+        var t = Clean(m);
+        Assert.Equal(1, t.Deleted);
+        Assert.Equal(100, t.DeletedLogicalBytes);
+        Assert.False(File.Exists(approved));
+        Assert.True(File.Exists(later), "a file that appeared after the analysis must survive");
+        Assert.True(File.Exists(fresh));
+    }
+
+    [Fact]
+    public void Approved_path_with_different_size_is_changed_and_kept()
+    {
+        var b = Dir("samepath");
+        var f = OldFile(Path.Combine(b, "cache.bin"), 64);
+        var times = File.GetLastWriteTimeUtc(f);
+        var m = Analyze(new CleanTarget { Base = b });
+
+        // Rewritten in place with the old timestamps restored: same path, different content.
+        File.WriteAllBytes(f, new byte[128]);
+        SetTimes(f, times);
+        Assert.Equal(ApprovalMatch.Changed, m.Match(Candidate(f)));
+
+        var t = Clean(m);
+        Assert.Equal(1, t.Changed);
+        Assert.Equal(0, t.Deleted);
+        Assert.True(File.Exists(f));
+    }
+
+    [Fact]
+    public void Released_approval_deletes_nothing()
+    {
+        var b = Dir("released");
+        var f = OldFile(Path.Combine(b, "x.tmp"));
+        var m = Analyze(new CleanTarget { Base = b });
+        m.Release();
+
+        var t = Clean(m);
+        Assert.Equal(0, t.Deleted);
+        Assert.True(File.Exists(f));
     }
 
     [Fact]
@@ -371,8 +454,19 @@ public sealed class CleanerTests : IDisposable
         var text = OldFile(Path.Combine(b, "readme.txt"), 10, 90);
 
         var m = Analyze(new CleanTarget { Base = b, Patterns = ["*.dmp"], Recurse = false, MinAge = TimeSpan.FromDays(30), KeepNewest = 5 });
-        var names = m.Files.Select(f => Path.GetFileName(f.Path)).OrderBy(n => n).ToList();
-        Assert.Equal(["dump5.dmp", "dump6.dmp"], names); // the two oldest; the five newest are always kept
+        Assert.Equal(2, m.Count); // the two oldest; the five newest are always kept
+        Assert.Equal(ApprovalMatch.Approved, m.Match(Candidate(Path.Combine(b, "dump5.dmp"))));
+        Assert.Equal(ApprovalMatch.Approved, m.Match(Candidate(Path.Combine(b, "dump6.dmp"))));
+        Assert.Equal(ApprovalMatch.NotApproved, m.Match(Candidate(Path.Combine(b, "dump4.dmp"))));
+
+        // An even older dump moved in after the analysis is not part of the approval.
+        var movedIn = OldFile(Path.Combine(b, "dump7.dmp"), 10, 60);
+        var t = Clean(m);
+        Assert.Equal(2, t.Deleted);
+        Assert.False(File.Exists(Path.Combine(b, "dump5.dmp")));
+        Assert.False(File.Exists(Path.Combine(b, "dump6.dmp")));
+        for (var i = 0; i < 5; i++) Assert.True(File.Exists(Path.Combine(b, $"dump{i}.dmp")));
+        Assert.True(File.Exists(movedIn));
         Assert.True(File.Exists(text));
     }
 
@@ -383,8 +477,8 @@ public sealed class CleanerTests : IDisposable
         OldFile(Path.Combine(b, "a.txt"));
         var nested = OldFile(Path.Combine(b, "nested", "b.txt"));
         var m = Analyze(new CleanTarget { Base = b, Recurse = false });
-        Assert.Single(m.Files);
-        Assert.Empty(m.Dirs);
+        Assert.Equal(1, m.Count);
+        Assert.Equal(0, m.DirCount);
         Clean(m);
         Assert.True(File.Exists(nested));
     }
@@ -398,10 +492,10 @@ public sealed class CleanerTests : IDisposable
         var loose = OldFile(Path.Combine(b, "loose.bin"));
         AgeDir(Path.Combine(b, "100"));
 
-        Assert.Empty(Analyze(new CleanTarget { Base = b, OnlyTopDirs = [] }).Files);
+        Assert.Equal(0, Analyze(new CleanTarget { Base = b, OnlyTopDirs = [] }).Count);
 
         var m = Analyze(new CleanTarget { Base = b, OnlyTopDirs = ["100"] });
-        Assert.Single(m.Files);
+        Assert.Equal(1, m.Count);
         Clean(m);
         Assert.False(File.Exists(orphan));
         Assert.False(Directory.Exists(Path.Combine(b, "100")));
@@ -430,7 +524,7 @@ public sealed class CleanerTests : IDisposable
         var dump = OldFile(Path.Combine(b, "MEMORY.DMP"), 1000, 20);
         var other = OldFile(Path.Combine(b, "other.dmp"), 1000, 20);
         var m = Analyze(new CleanTarget { Base = b, Patterns = ["MEMORY.DMP"], Recurse = false, SingleFile = true, RemoveEmptyDirs = false, MinAge = TimeSpan.FromDays(14) });
-        Assert.Single(m.Files);
+        Assert.Equal(1, m.Count);
         Clean(m);
         Assert.False(File.Exists(dump));
         Assert.True(File.Exists(other));
@@ -444,7 +538,7 @@ public sealed class CleanerTests : IDisposable
     {
         var profile = Analyze(new CleanTarget { Base = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) });
         Assert.Equal(GuardVerdict.ProtectedFolder, profile.Refused);
-        Assert.Empty(profile.Files);
+        Assert.Equal(0, profile.Count);
         Assert.Equal(0, Clean(profile).Deleted);
 
         var root = Analyze(new CleanTarget { Base = @"C:\" });
@@ -477,6 +571,98 @@ public sealed class CleanerTests : IDisposable
         Assert.False(AppOwner.IsLockHeld(f));
         Assert.False(AppOwner.IsLockHeld(Path.Combine(_root, "absent")));
     }
+
+    // ───────────────────────────── Approval: only what was confirmed ─────────────────────────────
+
+    private static CleanDefinition FilesItem(Func<CleanEnvironment, IReadOnlyList<CleanTarget>> targets) => new()
+    {
+        Id = "test.item", Name = "Тест", Description = "Тестовый пункт", Effect = "Нет", Category = CleanCategory.Apps,
+        Tier = CleanTier.Optional, Targets = targets,
+    };
+
+    [Fact]
+    public void Cache_of_an_app_running_during_analysis_is_not_deleted_after_it_closes()
+    {
+        var b = Dir("ownercache");
+        var cached = OldFile(Path.Combine(b, "cache.bin"));
+        var lockFile = Path.Combine(Dir("ownerlock"), "lockfile");
+        File.WriteAllText(lockFile, "");
+        var owner = new AppOwner { Name = "Тестовое приложение", LockFiles = [lockFile] };
+        var def = FilesItem(_ => [new CleanTarget { Base = b, Owner = owner }]);
+        var env = FakeEnvironment(Dir("OLocal"), Dir("ORoaming"));
+
+        ItemAnalysis a;
+        using (new FileStream(lockFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            a = CleanRunner.Analyze(def, env, PathGuard.Default, CancellationToken.None);
+        Assert.True(a.HasRunningApps);
+        Assert.Equal(0, a.CleanableFiles);
+        Assert.Equal(0, a.RetainedFingerprints);
+
+        // The app is closed now, but its cache was not in the confirmation.
+        var r = CleanRunner.CleanFiles(def, a, env, PathGuard.Default, CancellationToken.None);
+        Assert.Equal(0, r.Tally.Deleted);
+        Assert.True(File.Exists(cached));
+        Assert.Contains(r.Notes, n => n.Contains("не входил в подтверждение"));
+    }
+
+    [Fact]
+    public void Clean_result_releases_the_approval()
+    {
+        var b = Dir("itemrelease");
+        OldFile(Path.Combine(b, "a.tmp"));
+        OldFile(Path.Combine(b, "b.tmp"));
+        var def = FilesItem(_ => [new CleanTarget { Base = b }]);
+        var env = FakeEnvironment(Dir("RLocal"), Dir("RRoaming"));
+        var a = CleanRunner.Analyze(def, env, PathGuard.Default, CancellationToken.None);
+        Assert.Equal(2, a.CleanableFiles);
+        Assert.Equal(2, a.RetainedFingerprints);
+
+        var item = new CleanItem(def);
+        item.ApplyAnalysis(a, env);
+        item.ApplyCleanResult(CleanRunner.CleanFiles(def, a, env, PathGuard.Default, CancellationToken.None));
+        Assert.Equal(0, a.RetainedFingerprints);
+        Assert.True(item.NeedsFreshAnalysis(TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public void Stale_analysis_is_released_but_a_fresh_one_is_kept()
+    {
+        var b = Dir("stale");
+        OldFile(Path.Combine(b, "a.tmp"));
+        var def = FilesItem(_ => [new CleanTarget { Base = b }]);
+        var env = FakeEnvironment(Dir("SLocal"), Dir("SRoaming"));
+        var item = new CleanItem(def);
+        item.ApplyAnalysis(CleanRunner.Analyze(def, env, PathGuard.Default, CancellationToken.None), env);
+
+        item.ReleaseIfStale(TimeSpan.FromHours(1));
+        Assert.Equal(1, item.Analysis!.RetainedFingerprints);
+        item.ReleaseIfStale(TimeSpan.Zero);
+        Assert.Equal(0, item.Analysis!.RetainedFingerprints);
+    }
+
+    [Fact]
+    public void Tool_items_keep_no_file_approval()
+    {
+        var b = Dir("toolcache");
+        OldFile(Path.Combine(b, "pkg.bin"));
+        var def = new CleanDefinition
+        {
+            Id = "test.tool", Name = "Тест", Description = "Тест", Effect = "Нет", Category = CleanCategory.Apps, Tier = CleanTier.Optional,
+            Method = CleanMethod.Tools, Targets = _ => [new CleanTarget { Base = b }],
+        };
+        var a = CleanRunner.Analyze(def, FakeEnvironment(Dir("TLocal"), Dir("TRoaming")), PathGuard.Default, CancellationToken.None);
+        Assert.Equal(100, a.Bytes);
+        Assert.Equal(0, a.RetainedFingerprints);
+    }
+
+    [Theory]
+    [InlineData(1000, 3, 1000, 3, RecycleBinChange.Unchanged)]
+    [InlineData(1000, 3, 5000, 4, RecycleBinChange.Changed)]   // something was deleted to the bin after the analysis
+    [InlineData(1000, 3, 1500, 3, RecycleBinChange.Changed)]   // same count, different content
+    [InlineData(1000, 3, 400, 2, RecycleBinChange.Changed)]    // restored or swapped items: ask again too
+    [InlineData(1000, 3, 0, 0, RecycleBinChange.Empty)]
+    public void Recycle_bin_is_emptied_only_when_it_holds_exactly_what_was_confirmed(long bytes, long items, long nowBytes, long nowItems, RecycleBinChange expected) =>
+        Assert.Equal(expected, CleanRunner.CompareRecycleBin(new RecycleBinState(bytes, items), new RecycleBinState(nowBytes, nowItems)));
 
     // ───────────────────────────── Catalog ─────────────────────────────
 
@@ -726,6 +912,26 @@ public sealed class CleanerTests : IDisposable
     [InlineData(1004, "1 004 файла")]
     public void Russian_plurals(long n, string expected) =>
         Assert.Equal(expected, CleanFormat.Files(n).Replace('\u00A0', ' ').Replace('\u202F', ' '));
+
+    [Theory]
+    [InlineData(1, "1 файл был занят программами и пропущен")]
+    [InlineData(3, "3 файла были заняты программами и пропущены")]
+    [InlineData(5, "5 файлов были заняты программами и пропущены")]
+    [InlineData(21, "21 файл был занят программами и пропущен")]
+    public void In_use_result_agrees_with_the_number(long n, string expected) =>
+        Assert.Equal(expected, $"{CleanFormat.Count(n)} {CleanFormat.InUseSkipped(n)}");
+
+    [Fact]
+    public void Never_deleted_card_does_not_promise_what_the_catalog_deletes()
+    {
+        // The catalog deletes downloaded update packages (wu.download) and the delivery-optimization copies of updates
+        // (do.cache), so no "never deleted" heading may claim that update files are never touched.
+        Assert.Contains(CleanCatalog.All, d => d.Id == "wu.download");
+        Assert.Contains(CleanCatalog.All, d => d.Id == "do.cache");
+        var card = new CleanerViewModel().NeverTouched;
+        Assert.DoesNotContain(card, l => l.Title.Contains("обновлен", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(card, l => l.Reason.Contains("Центра обновления", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void Byte_stat_is_split_into_value_and_unit()

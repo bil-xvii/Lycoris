@@ -621,7 +621,8 @@ public static partial class CleanCatalog
             Id = "recyclebin", Name = "Корзина", Category = CleanCategory.Extra, Tier = CleanTier.Optional, AlwaysShow = true,
             Method = CleanMethod.RecycleBin,
             Description = "Файлы, которые вы удалили в корзину, на всех дисках.",
-            Effect = "После очистки вернуть эти файлы будет нельзя. Перед удалением MONOLITH покажет число объектов и их размер.",
+            Effect = "После очистки вернуть эти файлы будет нельзя. Перед удалением MONOLITH покажет число объектов и их размер, " +
+                     "а если корзина изменится после подтверждения — не тронет её и спросит снова.",
         });
         list.Add(new CleanDefinition
         {

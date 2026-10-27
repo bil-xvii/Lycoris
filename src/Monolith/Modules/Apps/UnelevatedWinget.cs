@@ -27,11 +27,14 @@ public sealed record UnelevatedResult(UnelevatedOutcome Outcome, int ExitCode, s
 /// Explorer starts "cmd /c winget … &gt; %TEMP%\MONOLITH-winget-&lt;token&gt;.log" hidden; the token makes the process
 /// findable (WMI command line) for cancelling, the .log file is tailed for live output and a second file
 /// receives winget's exit code. Holds the winget gate, so it never overlaps other winget calls.
+/// A running installer is never killed by a timer: the run lasts until winget finishes, its process disappears
+/// without a result, or the user cancels explicitly.
 /// </summary>
 public static partial class UnelevatedWinget
 {
     private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(25);
-    private static readonly TimeSpan RunTimeout = TimeSpan.FromMinutes(30);
+    /// <summary>How often the still-running cmd/winget process is looked up (instead of a hard time limit).</summary>
+    private static readonly TimeSpan LivenessInterval = TimeSpan.FromSeconds(20);
     private const string FilePrefix = "MONOLITH-winget-";
 
     public static Task<UnelevatedResult> RunAsync(IReadOnlyList<string> wingetArgs, Action<string>? output, CancellationToken ct) =>
@@ -69,6 +72,15 @@ public static partial class UnelevatedWinget
             all.AppendLine(line);
             output?.Invoke(line);
         });
+        var lastLiveness = started;
+
+        UnelevatedResult Completed(int code)
+        {
+            tail.Pump(final: true);
+            if (code == 0 || WingetClient.IsBenign(code)) Log.Success($"winget {wingetArgs.FirstOrDefault()} (без прав администратора): {WingetClient.Describe(code)}");
+            else Log.Warn($"winget {wingetArgs.FirstOrDefault()} (без прав администратора): {WingetClient.Describe(code)}");
+            return new UnelevatedResult(UnelevatedOutcome.Completed, code, all.ToString());
+        }
 
         try
         {
@@ -76,6 +88,7 @@ public static partial class UnelevatedWinget
             {
                 if (ct.IsCancellationRequested)
                 {
+                    // Only on the user's explicit, confirmed request.
                     await KillAsync(token).ConfigureAwait(false);
                     tail.Pump(final: true);
                     return new UnelevatedResult(UnelevatedOutcome.Cancelled, -1, all.ToString());
@@ -86,25 +99,28 @@ public static partial class UnelevatedWinget
                 if (TryReadExitCode(exitPath, out var code))
                 {
                     await Task.Delay(150, CancellationToken.None).ConfigureAwait(false);
-                    tail.Pump(final: true);
-                    if (code == 0 || WingetClient.IsBenign(code)) Log.Success($"winget {wingetArgs.FirstOrDefault()} (без прав администратора): {WingetClient.Describe(code)}");
-                    else Log.Warn($"winget {wingetArgs.FirstOrDefault()} (без прав администратора): {WingetClient.Describe(code)}");
-                    return new UnelevatedResult(UnelevatedOutcome.Completed, code, all.ToString());
+                    return Completed(code);
                 }
 
-                var elapsed = DateTime.UtcNow - started;
-                if (!tail.Exists && elapsed > StartTimeout)
+                var now = DateTime.UtcNow;
+                if (!tail.Exists && now - started > StartTimeout)
                 {
                     // The shell did not start it, or it runs under another account's TEMP folder.
                     Log.Warn("winget без прав администратора: не удалось отследить выполнение — результат будет проверен повторно.");
                     return new UnelevatedResult(UnelevatedOutcome.Untracked, -1, all.ToString());
                 }
-                if (elapsed > RunTimeout)
+                if (tail.Exists && now - lastLiveness > LivenessInterval)
                 {
-                    await KillAsync(token).ConfigureAwait(false);
-                    tail.Pump(final: true);
-                    Log.Warn("winget без прав администратора: превышено время ожидания (30 мин).");
-                    return new UnelevatedResult(UnelevatedOutcome.Untracked, -1, all.ToString());
+                    // No time limit — but if the process is gone without writing its exit code, stop waiting.
+                    lastLiveness = now;
+                    if (await IsRunningAsync(token).ConfigureAwait(false) == false)
+                    {
+                        await Task.Delay(500, CancellationToken.None).ConfigureAwait(false);
+                        if (TryReadExitCode(exitPath, out code)) return Completed(code);
+                        tail.Pump(final: true);
+                        Log.Warn("winget без прав администратора: процесс завершился, не сообщив результат — результат будет проверен повторно.");
+                        return new UnelevatedResult(UnelevatedOutcome.Untracked, -1, all.ToString());
+                    }
                 }
 
                 try { await Task.Delay(400, ct).ConfigureAwait(false); }
@@ -172,6 +188,31 @@ public static partial class UnelevatedWinget
             return false;
         }
     }
+
+    /// <summary>
+    /// True while the hidden cmd.exe that runs this winget call still exists, false when it is gone,
+    /// null when WMI could not answer (then the caller keeps waiting).
+    /// </summary>
+    private static Task<bool?> IsRunningAsync(string token) => Task.Run<bool?>(() =>
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                $"SELECT ProcessId FROM Win32_Process WHERE Name = 'cmd.exe' AND CommandLine LIKE '%{FilePrefix}{token}%'");
+            using var results = searcher.Get();
+            var any = false;
+            foreach (var mo in results)
+            {
+                using (mo) any = true;
+            }
+            return any;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"winget без прав администратора: не удалось проверить процесс ({ex.Message}).");
+            return null;
+        }
+    });
 
     private static async Task KillAsync(string token)
     {
