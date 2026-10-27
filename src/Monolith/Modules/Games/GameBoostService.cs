@@ -447,9 +447,12 @@ public sealed partial class GameBoostService : ObservableObject
         var raised = TakeRaised();
         var restoredPriority = await Task.Run(() => RestorePriorities(raised));
         RevertResult result;
+        ChangeRecord? planNow = null;
         try
         {
             result = await Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source));
+            // A plan chosen during the session (e.g. in Optimize) took over the session's original: it stays.
+            if (result.HandedOver > 0) planNow = ChangeJournal.Instance.FindActive("power:active");
         }
         catch (Exception ex)
         {
@@ -463,6 +466,7 @@ public sealed partial class GameBoostService : ObservableObject
         ProcessText = null;
 
         var msg = reason;
+        if (KeptPlanNote(result, planNow) is { } kept) msg += " " + kept;
         if (restoredPriority > 0) msg += " Приоритет игры возвращён.";
         if (result.Failed > 0) msg += $" Не удалось отменить изменений: {result.Failed} — откройте раздел «Восстановление».";
         if (_closedApps.Count > 0)
@@ -537,6 +541,89 @@ public sealed partial class GameBoostService : ObservableObject
         }
         _sessionOpen = false;
         IsActive = false;
+    }
+
+    // ───────────────────────────── Leftovers of a crashed session ─────────────────────────────
+
+    /// <summary>
+    /// The later change that keeps <paramref name="r"/>'s target when the <paramref name="undone"/> records are reverted
+    /// together: the next newer active layer that is not undone with them. Null: r's original comes back. A plan chosen
+    /// after the session (e.g. in Optimize) stays; the session's record only hands its original over to it.
+    /// </summary>
+    public static ChangeRecord? Keeper(ChangeRecord r, IReadOnlyCollection<ChangeRecord> undone, Func<ChangeRecord, ChangeRecord?> newerLayer)
+    {
+        var n = newerLayer(r);
+        while (n is not null && undone.Contains(n, ChangeJournal.ByReference)) n = newerLayer(n);
+        return n;
+    }
+
+    /// <summary>True when undoing the session's records changes nothing in the system: a later change keeps every target.</summary>
+    public static bool AllKept(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer) =>
+        records.Count > 0 && records.All(r => Keeper(r, records, newerLayer) is not null);
+
+    /// <summary>One line per leftover session record for the stale-session prompts: what undoing it will do.</summary>
+    public static IReadOnlyList<string> StaleLines(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer) =>
+        records.Select(r => Keeper(r, records, newerLayer) is { } keeper
+            ? $"{r.Title}: останется «{keeper.NewValue}» — его позже выбрал «{keeper.Title}»"
+            // Records of older builds could carry a tweak merged into the session's record: say that it goes too.
+            : $"{r.Title}: {r.NewValue} → {r.OldValue}" + (r.IsLegacyMerged
+                ? $" (также откатит: {string.Join(", ", r.AlsoSources.Distinct().Select(Monolith.Modules.Restore.RestoreFormat.SourceTitle))})"
+                : "")).ToList();
+
+    /// <summary>The Games page banner about leftover session records.</summary>
+    public static string StaleBanner(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer)
+    {
+        if (records.Count == 0) return "";
+        var text = "Прошлый игровой сеанс не завершился (MONOLITH был закрыт аварийно).";
+        var live = records.Where(r => Keeper(r, records, newerLayer) is null).ToList();
+        if (live.Count > 0)
+            text += " Всё ещё действует: " + string.Join("; ", live.Select(r => $"{ShortTitle(r.Title)} — «{r.NewValue}» вместо «{r.OldValue}»")) + ".";
+        foreach (var r in records)
+        {
+            if (Keeper(r, records, newerLayer) is not { } keeper) continue;
+            var what = ShortTitle(r.Title);
+            if (what.Length > 0) what = char.ToUpperInvariant(what[0]) + what[1..];
+            text += $" {what}: останется «{keeper.NewValue}» — его позже выбрал «{keeper.Title}».";
+        }
+        if (live.Count == 0) text += " Возврат только закроет запись сеанса, система не изменится.";
+        return text;
+    }
+
+    /// <summary>The question of the stale-session dialog.</summary>
+    public static string StalePrompt(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer)
+    {
+        const string head = "Прошлый игровой сеанс не завершился — MONOLITH был закрыт аварийно. ";
+        var kept = records.Count(r => Keeper(r, records, newerLayer) is not null);
+        return kept == 0 ? head + "Эти временные изменения всё ещё действуют. Вернуть исходные значения?"
+            : kept == records.Count ? head + "Его изменения уже заменены более поздними, они останутся. Закрыть запись сеанса?"
+            : head + "Часть временных изменений всё ещё действует, остальные заменены более поздними — те останутся. Вернуть исходные значения?";
+    }
+
+    /// <summary>The toast after the session's records were undone: what came back and what a later change keeps.</summary>
+    public static string StaleRevertedText(RevertResult r)
+    {
+        var restored = r.Reverted - r.HandedOver;
+        if (r.HandedOver == 0) return $"Исходные настройки возвращены (изменений: {restored}).";
+        const string kept = "план питания задаёт более позднее изменение, оно остаётся";
+        return restored == 0
+            ? $"Запись игрового сеанса закрыта, система не изменена: {kept}."
+            : $"Исходные настройки возвращены (изменений: {restored}); {kept}.";
+    }
+
+    /// <summary>
+    /// For the end-of-session toast: the plan chosen while the session ran (a newer layer took over the session's
+    /// original, so the plan did not go back). Null when every change of the session was undone in the system.
+    /// </summary>
+    public static string? KeptPlanNote(RevertResult r, ChangeRecord? planNow) =>
+        r.HandedOver > 0 && planNow is not null
+            ? $"План питания остаётся «{planNow.NewValue}» — его выбрали во время сеанса («{planNow.Title}»)."
+            : null;
+
+    /// <summary>"Игровой сеанс: план питания" → "план питания".</summary>
+    private static string ShortTitle(string title)
+    {
+        var t = title.Replace("Игровой сеанс: ", "").Replace("Игровой режим: ", "");
+        return t.Length == 0 ? title : t;
     }
 
     // ───────────────────────────── Helpers ─────────────────────────────

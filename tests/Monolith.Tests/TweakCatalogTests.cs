@@ -854,6 +854,199 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.Null(RegistryHelper.ReadString(RegHive.HKCU, keyPath, "Settings"));
     }
 
+    private const string DxKey = @"Software\Microsoft\DirectX\UserGpuPreferences";
+    private const string DxParent = @"Software\Microsoft\DirectX";
+
+    /// <summary>A per-game GPU choice of the Games page, as ChangeSession.SetRegistry journals it.</summary>
+    internal static ChangeRecord GpuChoice(string? createdRoot, bool keyExisted, string keyPath = DxKey, RegHive hive = RegHive.HKCU,
+        string? sid = null) => new()
+    {
+        Source = "games", Kind = ChangeKind.Registry, Target = $@"reg:{hive}\{keyPath}\D:\Games\X\x.exe", UserSid = sid,
+        Registry = new RegistryValueSnapshot
+        {
+            Hive = hive, Path = keyPath, Name = @"D:\Games\X\x.exe", KeyExisted = keyExisted, ValueExisted = false, CreatedKeyRoot = createdRoot,
+        },
+    };
+
+    /// <summary>A DirectX-token record whose undo removes the key it created ($mk) and its parent ($mp).</summary>
+    internal static ChangeRecord DxToken(bool key, bool parent, string keyPath = DxKey, string? sid = null) => new()
+    {
+        Source = "tweak:x", Kind = ChangeKind.Command, Target = "cmd:dx:VRROptimizeEnable", UserSid = sid, RevertFile = TweakCatalog.PowerShellExe,
+        RevertArgs = TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("VRROptimizeEnable", null, @"HKCU:\" + keyPath,
+            createdKey: key, createdParent: parent)),
+    };
+
+    [Fact]
+    public void DirectX_ownership_counts_a_gpu_choice_that_created_the_key()
+    {
+        // The Games page created UserGpuPreferences (or, inherited from a token, the DirectX parent): the token cleans up too.
+        Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(DxKey, keyExisted: false)]));
+        Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(null, keyExisted: false)])); // own key only
+        Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(DxKey, keyExisted: true)])); // inherited root
+        Assert.Equal((true, true), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(DxParent, keyExisted: true)]));
+        // The key was there before MONOLITH, the record is closed, or it is not the current account's HKCU: no claim.
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(null, keyExisted: true)]));
+        var closed = GpuChoice(DxKey, keyExisted: false);
+        closed.Reverted = true;
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [closed]));
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(DxKey, false, hive: RegHive.HKLM)]));
+        // A key created deeper than UserGpuPreferences says nothing about it.
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(DxKey + @"\Sub", false, keyPath: DxKey + @"\Sub")]));
+    }
+
+    [Fact]
+    public void A_gpu_choice_inherits_the_key_a_directx_token_created()
+    {
+        Assert.Equal(DxParent, TweakCatalog.DxCreatedKeyRoot(DxToken(key: true, parent: true)));
+        Assert.Equal(DxKey, TweakCatalog.DxCreatedKeyRoot(DxToken(key: true, parent: false)));
+        Assert.Null(TweakCatalog.DxCreatedKeyRoot(DxToken(key: false, parent: false)));
+        Assert.Null(TweakCatalog.DxCreatedKeyRoot(GpuChoice(DxKey, keyExisted: false)));
+        var spi = new ChangeRecord
+        {
+            Source = "tweak:y", Kind = ChangeKind.Command, Target = "cmd:spi:visual-effects", RevertFile = TweakCatalog.PowerShellExe,
+            RevertArgs = TweakCatalog.PowerShellArgs("$mk=$true;$mp=$true;"),
+        };
+        Assert.Null(TweakCatalog.DxCreatedKeyRoot(spi));
+
+        // A GPU choice carrying either root is still a record the journal replays.
+        foreach (var root in new[] { DxKey, DxParent })
+            Assert.Null(JournalTrust.Check(GpuChoice(root, keyExisted: true)));
+    }
+
+    [Fact]
+    public async Task DirectX_tokens_and_gpu_choices_remove_the_key_monolith_created_in_any_revert_order()
+    {
+        var parentPath = $@"{_testKey}\DirectX";
+        var keyPath = $@"{parentPath}\UserGpuPreferences";
+        const string exe = @"D:\Games\X\x.exe";
+
+        async Task Run(string script)
+        {
+            var r = await ProcessRunner.RunAsync(TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(script),
+                new ProcessRunOptions { Encoding = OutputEncoding.Utf8, LogCommand = false, Timeout = TimeSpan.FromSeconds(60) });
+            Assert.True(r.Success, r.Combined);
+        }
+        bool Exists(string path) => RegistryHelper.KeyExists(RegHive.HKCU, path);
+        string Apply() => TweakCatalog.DxTokenScript("VRROptimizeEnable", "1", @"HKCU:\" + keyPath);
+
+        foreach (var tokenFirst in new[] { true, false })
+        foreach (var undoTokenFirst in new[] { true, false })
+        {
+            Assert.False(Exists(parentPath));
+            ChangeRecord token;
+            RegistryValueSnapshot gpu;
+            if (tokenFirst)
+            {
+                // Neither key exists: the token creates both, and the GPU choice inherits the token's created root
+                // (what ChangeJournal.InheritedKeyRoot hands to ChangeSession.SetRegistry).
+                var (k, p) = TweakCatalog.DxUndoOwnership(Exists(keyPath), Exists(parentPath), [], keyPath);
+                await Run(Apply());
+                token = DxToken(k, p, keyPath);
+                var snap = RegistryHelper.Snapshot(RegHive.HKCU, keyPath, exe);
+                gpu = snap.WithCreatedKeyRoot(RegistryHelper.ShallowerRoot(snap.CreatedKeyRoot, TweakCatalog.DxCreatedKeyRoot(token, keyPath)));
+                RegistryHelper.Write(RegHive.HKCU, keyPath, exe, RegistryValueKind.String, "GpuPreference=2;");
+            }
+            else
+            {
+                // DirectX exists (as on every PC that ran a game): the GPU choice creates UserGpuPreferences, the token inherits it.
+                RegistryHelper.Write(RegHive.HKCU, parentPath, "Keep", RegistryValueKind.String, "1");
+                gpu = RegistryHelper.Snapshot(RegHive.HKCU, keyPath, exe);
+                RegistryHelper.Write(RegHive.HKCU, keyPath, exe, RegistryValueKind.String, "GpuPreference=2;");
+                var (k, p) = TweakCatalog.DxUndoOwnership(Exists(keyPath), Exists(parentPath), [GpuChoice(gpu.CreatedKeyRoot, gpu.KeyExisted, keyPath)], keyPath);
+                Assert.Equal((true, false), (k, p));
+                await Run(Apply());
+                token = DxToken(k, p, keyPath);
+            }
+
+            if (undoTokenFirst)
+            {
+                await Run(TweakCatalog.DecodePowerShellArgs(token.RevertArgs)!);
+                Assert.True(Exists(keyPath)); // the game's value keeps it
+                RegistryHelper.Restore(gpu);
+            }
+            else
+            {
+                RegistryHelper.Restore(gpu);
+                Assert.True(Exists(keyPath)); // the token keeps it
+                await Run(TweakCatalog.DecodePowerShellArgs(token.RevertArgs)!);
+            }
+
+            Assert.False(Exists(keyPath));
+            if (tokenFirst) Assert.False(Exists(parentPath));
+            else
+            {
+                Assert.Equal("1", RegistryHelper.ReadString(RegHive.HKCU, parentPath, "Keep")); // existed before: kept
+                Registry.CurrentUser.DeleteSubKeyTree(parentPath, false);
+            }
+        }
+    }
+
+    // ───────────────────────────── Power plans during a game session ─────────────────────────────
+
+    [Fact]
+    public void Plan_items_never_count_the_game_session_plan_as_applied()
+    {
+        var high = PowerSchemes.HighPerformance;
+        var balanced = PowerSchemes.Balanced;
+        Assert.Equal(TweakState.Applied, TweakCatalog.SchemeState(high, high, sessionPlan: false, _ => true));
+        // The session's temporary plan ends with it: the item stays selectable.
+        Assert.Equal(TweakState.NotApplied, TweakCatalog.SchemeState(high, high, sessionPlan: true, _ => true));
+        Assert.Equal(TweakState.NotApplied, TweakCatalog.SchemeState(high, balanced, sessionPlan: true, _ => true));
+        Assert.Equal(TweakState.NotApplicable, TweakCatalog.SchemeState(balanced, high, sessionPlan: false, _ => false));
+        Assert.Equal(TweakState.Unknown, TweakCatalog.SchemeState(Guid.Empty, high, sessionPlan: false, _ => true));
+
+        Assert.False(TweakCatalog.SchemeChangeNeeded(high, high, sessionPlan: false));
+        Assert.True(TweakCatalog.SchemeChangeNeeded(high, high, sessionPlan: true)); // recorded as the user's own layer
+        Assert.True(TweakCatalog.SchemeChangeNeeded(balanced, high, sessionPlan: false));
+    }
+
+    private sealed class PlanSystem : IJournalSystem
+    {
+        public Guid Active { get; set; } = PowerSchemes.Balanced;
+
+        public Task<RevertOutcome> RestoreAsync(ChangeRecord r)
+        {
+            Active = r.PowerSchemeOriginal ?? PowerSchemes.Balanced;
+            return Task.FromResult(RevertOutcome.Done);
+        }
+
+        public Guid ActivePowerScheme() => Active;
+        public bool? PowerSchemeExists(Guid scheme) => true;
+        public void DeletePowerScheme(Guid scheme) { }
+    }
+
+    [Fact]
+    public async Task A_plan_chosen_during_a_game_session_is_its_own_layer_and_outlasts_the_session()
+    {
+        var system = new PlanSystem();
+        var journal = ChangeJournal.ForTests();
+        journal.SystemAccess = system;
+        ChangeRecord SetPlan(string source, Guid scheme)
+        {
+            var (rec, _) = journal.Add(new ChangeRecord
+            {
+                BatchId = journal.BeginBatch(source).Id, Source = source, Title = source, Kind = ChangeKind.PowerScheme, Target = "power:active",
+                OldValue = system.Active.ToString(), NewValue = scheme.ToString(), PowerSchemeOriginal = system.Active,
+            });
+            system.Active = scheme;
+            return rec;
+        }
+
+        var session = SetPlan("gameboost", PowerSchemes.HighPerformance);
+        // «Высокая производительность» chosen in Optimize while the session's High plan is live: a High → High layer.
+        Assert.True(TweakCatalog.SchemeChangeNeeded(system.Active, PowerSchemes.HighPerformance, sessionPlan: true));
+        var tweak = SetPlan("tweak:power-plan-performance", PowerSchemes.HighPerformance);
+        Assert.NotSame(session, tweak);
+
+        var end = await journal.RevertSourceAsync("gameboost"); // the session ends
+        Assert.Equal(1, end.HandedOver);
+        Assert.Equal(PowerSchemes.HighPerformance, system.Active); // the user's choice stays
+        Assert.Equal(PowerSchemes.Balanced, tweak.PowerSchemeOriginal);
+
+        await journal.RevertSourceAsync("tweak:power-plan-performance");
+        Assert.Equal(PowerSchemes.Balanced, system.Active); // and its own undo goes back to the plan from before both
+    }
+
     // ───────────────────────────── DNS registration ─────────────────────────────
 
     [Fact]
@@ -1036,4 +1229,32 @@ public sealed class CustomTweakApplyRevertTests : IDisposable
         var s = RegistryHelper.Snapshot(RegHive.HKCU, p, "Flags");
         return $"{p} = {(s.ValueExisted ? $"{s.Kind}:{s.Data}" : "absent")}";
     }));
+}
+
+/// <summary>DirectX key ownership is per Windows account: another account's records describe another profile's HKCU.</summary>
+[Collection("Registry")] // changes the process-wide test account (UserScope.CurrentSidForTests)
+public sealed class DirectXOwnershipAccountTests : IDisposable
+{
+    private const string Me = "S-1-5-21-1000000001-1000000002-1000000003-1001";
+    private const string Other = "S-1-5-21-1000000001-1000000002-1000000003-1002";
+
+    public DirectXOwnershipAccountTests() => UserScope.CurrentSidForTests = () => Me;
+    public void Dispose() => UserScope.CurrentSidForTests = null;
+
+    [Fact]
+    public void Only_this_accounts_records_claim_the_directx_key()
+    {
+        // Another account created ITS key: this account's key existed before MONOLITH and is never removed.
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [TweakCatalogTests.DxToken(true, true, sid: Other)]));
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true,
+            [TweakCatalogTests.GpuChoice(@"Software\Microsoft\DirectX", keyExisted: false, sid: Other)]));
+        // Missing key, existing parent of this account: another account's $mp says nothing about it.
+        Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(false, true, [TweakCatalogTests.DxToken(true, true, sid: Other)]));
+
+        Assert.Equal((true, true), TweakCatalog.DxUndoOwnership(true, true, [TweakCatalogTests.DxToken(true, true, sid: Me)]));
+        Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(true, true,
+            [TweakCatalogTests.GpuChoice(@"Software\Microsoft\DirectX\UserGpuPreferences", keyExisted: false, sid: Me)]));
+        // Records of older builds name no account: they were written into this account's HKCU.
+        Assert.Equal((true, true), TweakCatalog.DxUndoOwnership(true, true, [TweakCatalogTests.DxToken(true, true)]));
+    }
 }
