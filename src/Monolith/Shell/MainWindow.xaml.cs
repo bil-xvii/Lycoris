@@ -178,6 +178,7 @@ public partial class MainWindow : Window
     public async Task SnapshotPagesAsync(string outDir, IReadOnlyCollection<string>? only, int waitMs)
     {
         Directory.CreateDirectory(outDir);
+        Monolith.Modules.Devices.DevicesViewModel.RememberTab = false; // shooting both tabs must not change the user's last tab
         var n = 0;
         foreach (var page in _vm.Pages)
         {
