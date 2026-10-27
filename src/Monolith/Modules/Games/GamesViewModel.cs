@@ -80,6 +80,7 @@ public sealed partial class GamesViewModel : PageViewModel
     [ObservableProperty] private string _closeListSummary = "";
     [ObservableProperty] private bool _hasStaleBoost;
     [ObservableProperty] private string _staleText = "";
+    [ObservableProperty] private string _staleActionText = "ВЕРНУТЬ НАСТРОЙКИ";
 
     public bool CanStartBoost => IsElevated && !Boost.IsActive && !Boost.IsTransitioning;
     public bool CanLaunchBoosted => IsElevated && !Boost.IsActive && !Boost.IsTransitioning;
@@ -695,22 +696,27 @@ public sealed partial class GamesViewModel : PageViewModel
             HasStaleBoost = false;
             return;
         }
-        var records = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == GameBoostService.Source).ToList();
+        var records = StaleRecords();
         HasStaleBoost = records.Count > 0;
-        StaleText = records.Count == 0 ? ""
-            : "Прошлый игровой сеанс не завершился (MONOLITH был закрыт аварийно). Всё ещё действует: " +
-              string.Join("; ", records.Select(r => $"{r.Title.Replace("Игровой сеанс: ", "").Replace("Игровой режим: ", "")} — «{r.NewValue}» вместо «{r.OldValue}»")) + ".";
+        // A plan chosen after the crash (e.g. in Optimize) is a newer layer: it stays, the session's record only hands over.
+        StaleText = GameBoostService.StaleBanner(records, NewerLayer);
+        StaleActionText = GameBoostService.AllKept(records, NewerLayer) ? "ЗАКРЫТЬ ЗАПИСЬ СЕАНСА" : "ВЕРНУТЬ НАСТРОЙКИ";
     }
+
+    private static List<ChangeRecord> StaleRecords() =>
+        ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == GameBoostService.Source).ToList();
+
+    private static ChangeRecord? NewerLayer(ChangeRecord r) => ChangeJournal.Instance.NewerLayer(r);
 
     private async Task OfferStaleRestoreAsync()
     {
         if (!HasStaleBoost || _staleOffered || !IsElevated) return;
         _staleOffered = true;
-        var details = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == GameBoostService.Source)
-            .Select(r => $"{r.Title}: сейчас «{r.NewValue}», было «{r.OldValue}»").ToList();
-        var ok = await Ui.ConfirmAsync("ВЕРНУТЬ НАСТРОЙКИ?",
-            "Прошлый игровой сеанс не завершился — MONOLITH был закрыт аварийно. Эти временные изменения всё ещё действуют. Вернуть исходные значения?",
-            details, "ВЕРНУТЬ", "ПОЗЖЕ",
+        var records = StaleRecords();
+        if (records.Count == 0) return;
+        var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ СЕАНС",
+            GameBoostService.StalePrompt(records, NewerLayer), GameBoostService.StaleLines(records, NewerLayer),
+            GameBoostService.AllKept(records, NewerLayer) ? "ЗАКРЫТЬ ЗАПИСЬ" : "ВЕРНУТЬ", "ПОЗЖЕ",
             footnote: "Это можно сделать и позже: здесь или в «Восстановлении».");
         if (ok) await RestoreStale();
     }
@@ -722,7 +728,7 @@ public sealed partial class GamesViewModel : PageViewModel
         await RunBusyAsync("Откат игрового сеанса…", async () =>
         {
             var r = await Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(GameBoostService.Source));
-            if (r.Success) Ui.Toast($"Исходные настройки возвращены (изменений: {r.Reverted}).", ToastKind.Success, "ИГРОВОЙ СЕАНС");
+            if (r.Success) Ui.Toast(GameBoostService.StaleRevertedText(r), ToastKind.Success, "ИГРОВОЙ СЕАНС");
             else Ui.Toast($"Не удалось вернуть: {string.Join("; ", r.Errors)}", ToastKind.Error, "ИГРОВОЙ СЕАНС");
         });
         CheckStale();

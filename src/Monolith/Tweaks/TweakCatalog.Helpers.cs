@@ -449,21 +449,63 @@ public static partial class TweakCatalog
 
     /// <summary>
     /// Whether the undo of a new DirectX token must also remove the key / its DirectX parent: true when the key (parent) is
-    /// absent now, or when an active DirectX record already promised to remove it — then the key only exists because
-    /// MONOLITH created it, and whichever token is reverted last must clean it up, in any revert order.
+    /// absent now, or when an active change of this account already claims to have created it — a DirectX token whose undo
+    /// removes it, or a registry change (the Games page's per-game GPU choice) whose created key covers it. Then the key
+    /// only exists because MONOLITH created it, and whichever change is reverted last must clean it up, in any revert
+    /// order. Other accounts' records never count: their claims are about another profile's HKCU.
     /// </summary>
     internal static (bool CreatedKey, bool CreatedParent) DxUndoOwnership(bool keyExists, bool parentExists,
-        IEnumerable<ChangeRecord> activeRecords)
+        IEnumerable<ChangeRecord> activeRecords, string keyPath = DxPreferencesPath)
     {
         bool key = !keyExists, parent = !parentExists;
+        var parentPath = ParentKeyPath(keyPath);
         foreach (var r in activeRecords)
         {
-            if (r.Kind != ChangeKind.Command || !r.Target.StartsWith("cmd:dx:", StringComparison.Ordinal)) continue;
-            if (DecodePowerShellArgs(r.RevertArgs) is not { } script) continue;
-            if (script.Contains("$mk=$true;", StringComparison.Ordinal)) key = true;
-            if (script.Contains("$mk=$true;$mp=$true;", StringComparison.Ordinal)) parent = true;
+            if (r.Reverted || !ChangeJournal.IsMine(r)) continue;
+            if (r.Kind == ChangeKind.Command)
+            {
+                var (k, p) = DxClaim(r);
+                key |= k;
+                parent |= p;
+            }
+            else if (r.Kind == ChangeKind.Registry && r.Registry is { Hive: RegHive.HKCU } s
+                     && (s.CreatedKeyRoot ?? (!s.KeyExisted ? s.Path : null)) is { } root
+                     && RegistryHelper.IsSameOrAncestor(root, keyPath))
+            {
+                key = true;
+                parent |= RegistryHelper.IsSameOrAncestor(root, parentPath);
+            }
         }
         return (key, key && parent);
+    }
+
+    /// <summary>
+    /// The key a DirectX-token record created and its undo removes once it is empty: the DirectX parent ($mp) or
+    /// UserGpuPreferences itself ($mk); null for any other record. A per-game GPU choice written into that key later
+    /// carries it as its created root (<see cref="ChangeJournal.InheritedKeyRoot"/>), so whichever of the two changes is
+    /// reverted last removes the key, in any order.
+    /// </summary>
+    internal static string? DxCreatedKeyRoot(ChangeRecord r, string keyPath = DxPreferencesPath) => DxClaim(r) switch
+    {
+        (true, true) => ParentKeyPath(keyPath),
+        (true, false) => keyPath,
+        _ => null,
+    };
+
+    /// <summary>"Software\Microsoft\DirectX\UserGpuPreferences" → "Software\Microsoft\DirectX" (registry paths, any OS).</summary>
+    private static string ParentKeyPath(string path)
+    {
+        var trimmed = path.TrimEnd('\\');
+        var i = trimmed.LastIndexOf('\\');
+        return i > 0 ? trimmed[..i] : trimmed;
+    }
+
+    /// <summary>What a DirectX-token record's undo promises to remove: the key it created ($mk) and its parent ($mp).</summary>
+    private static (bool Key, bool Parent) DxClaim(ChangeRecord r)
+    {
+        if (r.Kind != ChangeKind.Command || !r.Target.StartsWith("cmd:dx:", StringComparison.Ordinal)) return (false, false);
+        if (DecodePowerShellArgs(r.RevertArgs) is not { } script) return (false, false);
+        return (script.Contains("$mk=$true;", StringComparison.Ordinal), script.Contains("$mk=$true;$mp=$true;", StringComparison.Ordinal));
     }
 
     /// <summary>The script inside <see cref="PowerShellArgs"/> output (null when the arguments are not such a line).</summary>
@@ -554,21 +596,43 @@ public static partial class TweakCatalog
 
     // ───────────────────────────── Power plan helpers ─────────────────────────────
 
-    /// <summary>Activates a built-in power plan through the journal (no-op when it is already active).</summary>
+    /// <summary>Journal source of a game session (GameBoostService.Source).</summary>
+    private const string GameSessionSource = "gameboost";
+
+    /// <summary>
+    /// True while the live plan is a game session's temporary one: the session's record is the newest layer of the active
+    /// plan (also after a crash, until the session is undone). That plan goes back when the session ends.
+    /// </summary>
+    private static bool SessionHoldsPlan() => ChangeJournal.Instance.FindActive("power:active")?.Source == GameSessionSource;
+
+    /// <summary>
+    /// Whether choosing <paramref name="scheme"/> has to record a change: it is not the live plan, or it is live only for a
+    /// game session. Then the choice becomes a newer layer that takes over the session's original, so it stays after the
+    /// session instead of silently ending with it.
+    /// </summary>
+    internal static bool SchemeChangeNeeded(Guid active, Guid scheme, bool sessionPlan) => active != scheme || sessionPlan;
+
+    /// <summary>Activates a built-in power plan through the journal (no-op when it is already the user's live plan).</summary>
     private static void ActivateScheme(TweakContext ctx, Guid scheme, string missingMessage)
     {
-        if (PowerSchemes.GetActive() == scheme) return;
+        if (!SchemeChangeNeeded(PowerSchemes.GetActive(), scheme, SessionHoldsPlan())) return;
         if (!PowerSchemes.Exists(scheme)) throw new InvalidOperationException(missingMessage);
         ctx.SetPowerScheme(scheme);
     }
 
-    private static TweakState SchemeState(Guid scheme)
+    /// <summary>
+    /// A plan item's state. The session's temporary plan never counts as applied: it ends with the session, so the item
+    /// stays selectable and applying it records the user's own choice (<see cref="SchemeChangeNeeded"/>).
+    /// </summary>
+    internal static TweakState SchemeState(Guid active, Guid scheme, bool sessionPlan, Func<Guid, bool> exists)
     {
-        var active = PowerSchemes.GetActive();
         if (active == Guid.Empty) return TweakState.Unknown;
-        if (active == scheme) return TweakState.Applied;
-        return PowerSchemes.Exists(scheme) ? TweakState.NotApplied : TweakState.NotApplicable;
+        if (active == scheme) return sessionPlan ? TweakState.NotApplied : TweakState.Applied;
+        return exists(scheme) ? TweakState.NotApplied : TweakState.NotApplicable;
     }
+
+    private static TweakState SchemeState(Guid scheme) =>
+        SchemeState(PowerSchemes.GetActive(), scheme, SessionHoldsPlan(), PowerSchemes.Exists);
 
     /// <summary>
     /// powercfg command line that writes the AC value and re-applies the active scheme. With <paramref name="rollbackTo"/>,
@@ -632,7 +696,7 @@ public static partial class TweakCatalog
         {
             // During a game session the active plan is the session's temporary one: a setting changed now would be
             // recorded against that plan and silently stop applying when the session ends.
-            if (ChangeJournal.Instance.FindActive("power:active")?.Source == "gameboost")
+            if (SessionHoldsPlan())
                 throw new InvalidOperationException("сначала завершите игровой сеанс — сейчас действует его временная схема питания");
             var scheme = PowerSchemes.GetActive();
             if (scheme == Guid.Empty) throw new InvalidOperationException("не удалось определить активную схему питания");
