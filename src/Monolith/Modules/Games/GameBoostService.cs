@@ -34,9 +34,18 @@ public sealed partial class GameBoostService : ObservableObject
     private static readonly TimeSpan DetectTimeout = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(8);
 
+    /// <summary>Raised game processes. Guarded by <see cref="_raisedLock"/>: filled on a pool thread, emptied by every stop path.</summary>
     private readonly Dictionary<int, (SafeProcessHandle Handle, uint Original)> _raised = new();
+    private readonly object _raisedLock = new();
     private readonly List<string> _closedApps = [];
     private CancellationTokenSource? _watchCts;
+    /// <summary>
+    /// True from the first change of a session until it was reverted — also during the start phase, before
+    /// <see cref="IsActive"/> (the power plan is already switched while apps are still being closed).
+    /// </summary>
+    private bool _sessionOpen;
+    /// <summary>Power-plan switch or priority raise still running on a pool thread; an exit waits for it before reverting.</summary>
+    private Task? _pendingChange;
 
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private bool _isTransitioning;
@@ -114,6 +123,7 @@ public sealed partial class GameBoostService : ObservableObject
         if (IsActive || IsTransitioning) return false;
         Elevation.Demand("Игровой сеанс");
         IsTransitioning = true;
+        _sessionOpen = true;
         Changes.Clear();
         _closedApps.Clear();
         HasGame = game is not null;
@@ -168,12 +178,14 @@ public sealed partial class GameBoostService : ObservableObject
         finally
         {
             IsTransitioning = false;
+            // Not started (or already stopped above): nothing of this session is left to revert.
+            if (!IsActive) _sessionOpen = false;
         }
     }
 
     private async Task SwitchPowerPlanAsync()
     {
-        var (ok, from, to, error) = await Task.Run(async () =>
+        var work = Task.Run(async () =>
         {
             var fromName = PowerSchemes.GetName(PowerSchemes.GetActive());
             var session = await ChangeSession.BeginAsync(SessionTitle, createRestorePoint: false).ConfigureAwait(false);
@@ -181,6 +193,8 @@ public sealed partial class GameBoostService : ObservableObject
             session.Complete();
             return (r, fromName, PowerSchemes.GetName(PowerSchemes.HighPerformance), session.Errors.FirstOrDefault());
         });
+        _pendingChange = work;
+        var (ok, from, to, error) = await work;
         Changes.Add(ok
             ? new BoostChange("План питания", $"«{from}» → «{to}». Вернётся после игры.", BoostChangeKind.Changed)
             : new BoostChange("План питания не изменён", error ?? "Windows отклонила смену схемы.", BoostChangeKind.Skipped));
@@ -293,7 +307,7 @@ public sealed partial class GameBoostService : ObservableObject
                     if (procs.Count > 0)
                     {
                         mainPid = procs[0].Pid;
-                        await OnGameDetectedAsync(procs[0]);
+                        await OnGameDetectedAsync(procs[0], ct);
                     }
                     else if (DateTime.UtcNow - started > DetectTimeout)
                     {
@@ -318,7 +332,7 @@ public sealed partial class GameBoostService : ObservableObject
                 {
                     // The launcher stub handed over to the real game process (or the game restarted itself).
                     mainPid = procs[0].Pid;
-                    await OnGameDetectedAsync(procs[0]);
+                    await OnGameDetectedAsync(procs[0], ct);
                 }
             }
         }
@@ -329,20 +343,28 @@ public sealed partial class GameBoostService : ObservableObject
         catch (Exception ex)
         {
             Log.Error("Игровой сеанс: ошибка слежения за игрой", ex);
+            // Nobody would notice the game closing any more: end the session now instead of leaving its changes behind.
+            if (!ct.IsCancellationRequested)
+                await StopAsync("Слежение за игрой прервалось из-за ошибки — игровой сеанс завершён, изменения отменены.", ToastKind.Warning);
         }
     }
 
-    private async Task OnGameDetectedAsync(GameProcess gp)
+    private async Task OnGameDetectedAsync(GameProcess gp, CancellationToken ct)
     {
         PhaseText = "ИГРА ЗАПУЩЕНА";
         ProcessText = $"{GameProcessFinder.ExeName(gp)} · PID {gp.Pid}";
         Log.Info($"Игровой сеанс: процесс игры {GameProcessFinder.ExeName(gp)} (PID {gp.Pid})");
-        if (!AppSettings.Current.GameBoostPriority || _raised.ContainsKey(gp.Pid)) return;
+        if (!AppSettings.Current.GameBoostPriority) return;
+        lock (_raisedLock)
+            if (_raised.ContainsKey(gp.Pid)) return;
 
-        var r = await Task.Run(() => RaisePriority(gp.Pid));
+        var work = Task.Run(() => RaisePriority(gp.Pid, ct));
+        _pendingChange = work;
+        var r = await work;
+        // The session ended meanwhile: RaisePriority or the stop path has already put the priority back.
+        if (ct.IsCancellationRequested) return;
         if (r.Handle is not null)
         {
-            _raised[gp.Pid] = (r.Handle, r.Original);
             Changes.Add(new BoostChange("Приоритет игры",
                 $"{GameProcessFinder.ExeName(gp)}: {GamesNative.PriorityName(r.Original)} → Высокий. Сбросится вместе с игрой.", BoostChangeKind.Changed));
             Log.Info($"Игровой сеанс: приоритет {GameProcessFinder.ExeName(gp)} → Высокий");
@@ -354,9 +376,15 @@ public sealed partial class GameBoostService : ObservableObject
         }
     }
 
-    /// <summary>Opens the game with PROCESS_SET_INFORMATION | QUERY_LIMITED only (no VM access, anti-cheat friendly).</summary>
-    private static (SafeProcessHandle? Handle, uint Original, string Message) RaisePriority(int pid)
+    /// <summary>
+    /// Opens the game with PROCESS_SET_INFORMATION | QUERY_LIMITED only (no VM access, anti-cheat friendly), raises it
+    /// to High and registers the handle for the stop paths. Every stop cancels <paramref name="ct"/> before it empties
+    /// <see cref="_raised"/>, so the check under the lock either hands the handle to that stop or puts the priority
+    /// back right here: a STOP during the raise never leaves the game at High.
+    /// </summary>
+    private (SafeProcessHandle? Handle, uint Original, string Message) RaisePriority(int pid, CancellationToken ct)
     {
+        if (ct.IsCancellationRequested) return (null, 0, "Игровой сеанс уже завершён.");
         var h = GamesNative.Open(pid, GamesNative.PROCESS_SET_INFORMATION | GamesNative.PROCESS_QUERY_LIMITED_INFORMATION);
         if (h.IsInvalid)
         {
@@ -381,7 +409,17 @@ public sealed partial class GameBoostService : ObservableObject
             h.Dispose();
             return (null, original, err == 5 ? "Игра или её античит запрещают менять приоритет — игра работает как обычно." : $"Windows отклонила изменение (код {err}).");
         }
-        return (h, original, "ok");
+        lock (_raisedLock)
+        {
+            if (!ct.IsCancellationRequested)
+            {
+                _raised[pid] = (h, original);
+                return (h, original, "ok");
+            }
+        }
+        // Stopped while raising: undo at once.
+        using (h) RestoreOne(h, original);
+        return (null, original, "Игровой сеанс уже завершён — приоритет возвращён.");
     }
 
     // ───────────────────────────── Stop ─────────────────────────────
@@ -406,7 +444,8 @@ public sealed partial class GameBoostService : ObservableObject
         _watchCts = null;
         PhaseText = "ОСТАНОВКА";
 
-        var restoredPriority = await Task.Run(RestorePriorities);
+        var raised = TakeRaised();
+        var restoredPriority = await Task.Run(() => RestorePriorities(raised));
         RevertResult result;
         try
         {
@@ -419,6 +458,7 @@ public sealed partial class GameBoostService : ObservableObject
         }
 
         IsActive = false;
+        _sessionOpen = false;
         PhaseText = "";
         ProcessText = null;
 
@@ -432,36 +472,62 @@ public sealed partial class GameBoostService : ObservableObject
         Ended?.Invoke();
     }
 
+    /// <summary>Takes every raised process out of the session at once, so two stop paths never restore the same handle.</summary>
+    private List<(SafeProcessHandle Handle, uint Original)> TakeRaised()
+    {
+        lock (_raisedLock)
+        {
+            var list = _raised.Values.ToList();
+            _raised.Clear();
+            return list;
+        }
+    }
+
     /// <summary>Returns the number of still-running processes whose priority was put back.</summary>
-    private int RestorePriorities()
+    private static int RestorePriorities(List<(SafeProcessHandle Handle, uint Original)> raised)
     {
         var restored = 0;
-        foreach (var (_, (handle, original)) in _raised.ToList())
+        foreach (var (handle, original) in raised)
         {
             try
             {
                 using (handle)
-                {
-                    // Fails harmlessly when the process has already exited.
-                    if (GamesNative.GetPriorityClass(handle) == GamesNative.HIGH_PRIORITY_CLASS &&
-                        GamesNative.SetPriorityClass(handle, original))
-                        restored++;
-                }
+                    if (RestoreOne(handle, original)) restored++;
             }
             catch { }
         }
-        _raised.Clear();
         return restored;
     }
 
-    /// <summary>MONOLITH is closing during a session: nobody would watch the game any more, so undo everything now.</summary>
+    /// <summary>Puts the original class back while the game is still at High (fails harmlessly when it has exited).</summary>
+    private static bool RestoreOne(SafeProcessHandle handle, uint original)
+    {
+        try
+        {
+            return GamesNative.GetPriorityClass(handle) == GamesNative.HIGH_PRIORITY_CLASS &&
+                   GamesNative.SetPriorityClass(handle, original);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// MONOLITH is closing during a session — also during the start phase (power plan already switched, apps still
+    /// being closed): nobody would watch the game any more, so undo everything now.
+    /// </summary>
     public void StopOnExit()
     {
-        if (!IsActive) return;
+        if (!IsActive && !_sessionOpen) return;
         try
         {
             _watchCts?.Cancel();
-            RestorePriorities();
+            // A power-plan switch or priority raise still on a pool thread: let it finish, so its journal record exists
+            // and its handle is registered (or already put back) before the undo below.
+            try { _pendingChange?.Wait(TimeSpan.FromSeconds(5)); }
+            catch { /* its own error handling reports it */ }
+            RestorePriorities(TakeRaised());
             Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source)).Wait(TimeSpan.FromSeconds(5));
             Log.Info("Игровой сеанс: MONOLITH закрыт во время сеанса — изменения отменены.");
         }
@@ -469,6 +535,7 @@ public sealed partial class GameBoostService : ObservableObject
         {
             Log.Error("Игровой сеанс: не удалось отменить изменения при выходе", ex);
         }
+        _sessionOpen = false;
         IsActive = false;
     }
 

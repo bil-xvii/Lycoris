@@ -102,6 +102,20 @@ public sealed partial class GamesViewModel : PageViewModel
     [ObservableProperty] private string _readinessText = "";
     [ObservableProperty] private bool _readinessLoaded;
 
+    // ───────────────────────────── Per-game GPU state (hybrid PCs) ─────────────────────────────
+
+    /// <summary>Two or more real GPUs (iGPU + dGPU) on Windows 10 1803+: only then the per-game switch is shown.</summary>
+    [ObservableProperty] private bool _showGpuToggle;
+    /// <summary>False when MONOLITH runs as another admin account (HKCU is not the player's): state is shown read-only.</summary>
+    [ObservableProperty] private bool _gpuWritable;
+    [ObservableProperty] private bool _isGpuChanging;
+    private string? _dgpuName;
+    private IReadOnlyDictionary<string, string> _gpuValues = new Dictionary<string, string>();
+
+    public bool CanChangeGpu => IsElevated && GpuWritable && !IsGpuChanging;
+    partial void OnGpuWritableChanged(bool value) => OnPropertyChanged(nameof(CanChangeGpu));
+    partial void OnIsGpuChangingChanged(bool value) => OnPropertyChanged(nameof(CanChangeGpu));
+
     // ───────────────────────────── Close-list editor state ─────────────────────────────
 
     public ObservableCollection<string> EditorList { get; } = [];
@@ -121,7 +135,7 @@ public sealed partial class GamesViewModel : PageViewModel
         if (cache is not null) ApplyScan(cache);
 
         CheckStale();
-        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), ScanAsync());
+        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync());
         await OfferStaleRestoreAsync();
     }
 
@@ -132,7 +146,8 @@ public sealed partial class GamesViewModel : PageViewModel
         CheckStale();
         // Library changes rarely: rescan on return only when the last scan is a few minutes old (ОБНОВИТЬ forces it).
         var rescan = DateTime.Now - _lastScan > TimeSpan.FromMinutes(3) ? ScanAsync() : Task.CompletedTask;
-        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), rescan);
+        // The GPU choice may have been changed in Windows Settings or undone in «Восстановление» meanwhile.
+        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), rescan);
     }
 
     public override void Deactivate()
@@ -190,6 +205,7 @@ public sealed partial class GamesViewModel : PageViewModel
                         (missing.Count > 0 ? "Не найдены: " + string.Join(", ", missing) + "." : "");
         HasLibrary = true;
         ApplyFilter();
+        _ = ApplyGpuStateAsync();
     }
 
     private void OnPlatformSelected(PlatformFilterItem item)
@@ -317,6 +333,227 @@ public sealed partial class GamesViewModel : PageViewModel
             Log.Error($"Не удалось запустить «{card.Name}»", ex);
             Ui.Toast(ex.Message, ToastKind.Error, "ЗАПУСК ИГРЫ");
         }
+    }
+
+    // ───────────────────────────── Per-game GPU (hybrid PCs) ─────────────────────────────
+
+    /// <summary>Reads whether this PC is hybrid and the user's per-app GPU choices (read-only, also without admin).</summary>
+    private async Task RefreshGpuAsync()
+    {
+        try
+        {
+            var sp = await SystemProfile.LoadAsync();
+            var hybrid = !sp.MissingFacts.Contains("gpu") && GpuPreference.IsHybrid(sp.Gpus, sp.OsBuild);
+            ShowGpuToggle = hybrid;
+            if (!hybrid) return;
+            _dgpuName = sp.PrimaryGpu is { IsIntegrated: false } dgpu ? GamingReadiness.ShortGpuName(dgpu.Name) : null;
+            var (values, writable) = await Task.Run(() => (GpuPreferenceStore.ReadAll(), GpuPreferenceStore.Location().Writable));
+            _gpuValues = values;
+            GpuWritable = writable;
+            await ApplyGpuStateAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Видеокарта для игр: состояние не прочитано — {ex.Message}");
+        }
+    }
+
+    private async Task ApplyGpuStateAsync()
+    {
+        if (!ShowGpuToggle) return;
+        var cards = _all;
+        var values = _gpuValues;
+        var (dgpu, elevated, writable) = (_dgpuName, IsElevated, GpuWritable);
+        try
+        {
+            var states = await Task.Run(() => cards.Select(c =>
+            {
+                var v = GpuPreferenceStore.ValuesFor(c.Entry, values);
+                return (Card: c, Values: v, Tip: GpuPreference.CardTooltip(v, dgpu, elevated, writable));
+            }).ToList());
+            foreach (var (card, v, tip) in states) card.SetGpu(v, tip);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Видеокарта для игр: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task ToggleGpu(GameCardViewModel? card)
+    {
+        if (card is null) return;
+        if (IsGpuChanging || !RequireAdmin("Высокопроизводительный GPU для игры"))
+        {
+            card.SyncGpuToggle();
+            return;
+        }
+        if (!GpuWritable)
+        {
+            Ui.Toast("MONOLITH запущен от другой учётной записи администратора — выберите видеокарту в «Параметры → Система → Дисплей → Графика».",
+                ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+            card.SyncGpuToggle();
+            return;
+        }
+        IsGpuChanging = true;
+        try
+        {
+            // The switch already shows the clicked state; the card still holds the real one.
+            if (card.IsGpuHigh) await DisableGpuAsync(card);
+            else await EnableGpuAsync(card);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Видеокарта для «{card.Name}»", ex);
+            Ui.Toast(ex.Message, ToastKind.Error, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+        }
+        finally
+        {
+            IsGpuChanging = false;
+            await RefreshGpuAsync();
+            card.SyncGpuToggle();
+        }
+    }
+
+    private async Task EnableGpuAsync(GameCardViewModel card)
+    {
+        var game = card.Entry;
+        var dir = GamePaths.NormalizeDir(game.InstallDir);
+
+        // The preference only works for the exact exe that renders the game: never a launcher or a URL.
+        var (exe, how) = (GpuPreference.KnownExe(game, dir), game.Platform == GamePlatform.Custom
+            ? "файл игры, который вы добавили" : "основной файл игры из GOG Galaxy");
+        if (exe is null)
+        {
+            var running = await Task.Run(() => GameProcessFinder.Find(game, null));
+            if (running.Count > 0) (exe, how) = (running[0].Path, "файл игры, запущенной сейчас");
+        }
+        if (exe is null && card.GpuValues.Count > 0)
+            (exe, how) = (card.GpuValues[0].Exe, "файл игры, для которого видеокарту уже выбирали в параметрах Windows");
+        if (exe is null)
+        {
+            exe = await PickGameExeAsync(game, dir);
+            how = "файл, который вы указали";
+            if (exe is null) return;
+        }
+        if (!GpuPreference.IsValidExePath(exe))
+        {
+            Ui.Toast($"Путь «{exe}» не подходит для настройки видеокарты (нужен .exe на локальном диске).", ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+            return;
+        }
+
+        var current = _gpuValues.TryGetValue(exe, out var data) ? data : null;
+        var record = ChangeJournal.Instance.FindActive(GpuPreference.JournalTarget(exe));
+        var action = GpuPreference.Decide(true, GpuPreference.Parse(current), record?.Registry);
+        if (action == GpuChange.None)
+        {
+            Ui.Toast($"Для «{game.Name}» уже выбрана высокая производительность.", ToastKind.Info, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+            return;
+        }
+        var after = action == GpuChange.Revert && record?.Registry is { } original
+            ? (original.ValueExisted ? $"«{original.Data}» (значение до MONOLITH)" : "параметр удаляется (его не было до MONOLITH)")
+            : $"«{GpuPreference.Merge(current, GpuPreference.HighPerformance)}»";
+        var gpu = _dgpuName is null ? "дискретной видеокарте" : $"дискретной видеокарте ({_dgpuName})";
+        var ok = await Ui.ConfirmAsync("ВЫСОКОПРОИЗВОДИТЕЛЬНЫЙ GPU ДЛЯ ИГРЫ?",
+            $"Windows будет запускать «{game.Name}» на {gpu}, а не на встроенной. Это та же настройка, что «Высокая производительность» " +
+            "в «Параметры → Система → Дисплей → Графика»; другие игры и общие настройки не меняются. Подействует со следующего запуска игры. " +
+            "Риск: от батареи ноутбук разрядится быстрее, пока игра запущена.",
+            [
+                $"Файл: {exe} ({how})",
+                $@"Реестр вашей учётной записи: HKCU\{GpuPreference.KeyPath}",
+                $"Сейчас: {GpuPreference.ShowValue(current)} — {GpuPreference.Describe(GpuPreference.Parse(current))}",
+                $"Станет: {after}",
+            ],
+            "ВКЛЮЧИТЬ",
+            footnote: "Прежнее значение записывается в журнал. Выключите переключатель или откатите строку в «Восстановлении» — " +
+                      "вернётся ровно прежняя строка, а если параметра не было, он будет удалён.");
+        if (!ok) return;
+
+        var outcome = await Task.Run(() => GpuPreferenceStore.SetAsync([exe], true, game.Name));
+        ReportGpu(outcome, $"«{game.Name}» будет запускаться на {gpu} — со следующего запуска игры.");
+    }
+
+    private async Task DisableGpuAsync(GameCardViewModel card)
+    {
+        var game = card.Entry;
+        var high = card.GpuValues.Where(v => v.IsHigh).ToList();
+        if (high.Count == 0) return;
+
+        // Undoing MONOLITH's own change needs no question (it is the undo). A choice made in Windows Settings is
+        // changed only after the user saw exactly what happens — and is journaled like any other change.
+        var foreign = high.Where(v => GpuPreference.Decide(false, v.Preference,
+            ChangeJournal.Instance.FindActive(GpuPreference.JournalTarget(v.Exe))?.Registry) == GpuChange.Write).ToList();
+        if (foreign.Count > 0)
+        {
+            var details = foreign.SelectMany(v => new[]
+            {
+                $"Файл: {v.Exe}",
+                $"Сейчас: «{v.Data}» → станет: «{GpuPreference.Merge(v.Data, GpuPreference.Auto)}»",
+            }).Prepend($@"Реестр вашей учётной записи: HKCU\{GpuPreference.KeyPath}");
+            var ok = await Ui.ConfirmAsync("ВЕРНУТЬ ВЫБОР ВИДЕОКАРТЫ WINDOWS?",
+                $"Высокую производительность для «{game.Name}» задал не MONOLITH — скорее всего, это выбор в параметрах графики Windows. " +
+                "MONOLITH поставит «Пусть решает Windows», как в «Параметры → Система → Дисплей → Графика».",
+                details, "ВЫКЛЮЧИТЬ",
+                footnote: "Это изменение тоже записывается в журнал и откатывается в «Восстановлении».");
+            if (!ok) return;
+        }
+
+        var outcome = await Task.Run(() => GpuPreferenceStore.SetAsync(high.Select(v => v.Exe).ToList(), false, game.Name));
+        ReportGpu(outcome, $"«{game.Name}»: выбор видеокарты возвращён — со следующего запуска игры.");
+    }
+
+    private static void ReportGpu(GpuChangeOutcome outcome, string success)
+    {
+        if (outcome.Success) Ui.Toast(success, ToastKind.Success, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+        else Ui.Toast("Не удалось: " + string.Join("; ", outcome.Errors), ToastKind.Error, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+    }
+
+    /// <summary>
+    /// Launchers start Steam/Epic/Ubisoft games by URL, so the game's exe is unknown until it runs: explain that and
+    /// let the user pick the exe inside the game folder (with the most likely file pre-selected).
+    /// </summary>
+    private async Task<string?> PickGameExeAsync(GameEntry game, string dir)
+    {
+        if (!GamePaths.IsSpecificDir(dir) || !await Task.Run(() => Directory.Exists(dir)))
+        {
+            Ui.Toast($"Папка «{game.Name}» не найдена. Запустите игру и включите переключатель снова — MONOLITH возьмёт файл работающей игры.",
+                ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+            return null;
+        }
+        var ask = await Ui.ConfirmAsync("КАКОЙ ФАЙЛ ЗАПУСКАЕТ ИГРУ?",
+            $"Настройка Windows действует только для файла, который рисует картинку, а «{game.Name}» запускается через {GameText.SourceName(game.Platform)} — " +
+            "точный .exe MONOLITH не знает. Проще всего: запустите игру и включите переключатель снова, MONOLITH возьмёт файл работающей игры. " +
+            "Или укажите .exe в папке игры сами.",
+            [dir], "УКАЗАТЬ .EXE", "ОТМЕНА");
+        if (!ask) return null;
+
+        var guess = await Task.Run(() => GpuPreferenceStore.GuessExe(dir));
+        var dlg = new OpenFileDialog
+        {
+            Title = $"MONOLITH — .exe игры «{game.Name}»",
+            Filter = "Исполняемые файлы (*.exe)|*.exe",
+            CheckFileExists = true,
+            Multiselect = false,
+            DereferenceLinks = true,
+            InitialDirectory = guess is null ? dir : Path.GetDirectoryName(guess) ?? dir,
+            FileName = guess is null ? "" : Path.GetFileName(guess),
+        };
+        if (dlg.ShowDialog(Application.Current?.MainWindow) != true) return null;
+
+        string exe;
+        try { exe = Path.GetFullPath(dlg.FileName); }
+        catch (Exception ex) { Ui.Toast(ex.Message, ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ"); return null; }
+        if (!GamePaths.IsUnder(exe, dir) || !exe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            Ui.Toast($"Выберите .exe внутри папки игры: {dir}", ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+            return null;
+        }
+        if (GameProcessFinder.IsHelper(Path.GetFileNameWithoutExtension(exe)))
+        {
+            Ui.Toast($"{Path.GetFileName(exe)} — вспомогательная программа (отчёты об ошибках, античит), а не сама игра.", ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
+            return null;
+        }
+        return exe;
     }
 
     // ───────────────────────────── Game Boost ─────────────────────────────

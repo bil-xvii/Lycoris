@@ -90,6 +90,21 @@
                         </Grid>
                         <TextBlock Text="{Binding PathText}" Style="{StaticResource T.Mono}" FontSize="10.5" Foreground="{StaticResource B.Text4}"
                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding PathText}" Margin="0,2,0,0" />
+                        <!-- Hybrid PCs only: Windows' per-app GPU preference for this game (state readable without admin) -->
+                        <CheckBox Style="{StaticResource Toggle}" Margin="0,9,0,0" HorizontalAlignment="Left"
+                                  IsChecked="{Binding IsGpuHigh, Mode=OneWay}" ToolTip="{Binding GpuTooltip}" ToolTipService.ShowOnDisabled="True"
+                                  Visibility="{Binding DataContext.ShowGpuToggle, RelativeSource={RelativeSource AncestorType=local:GamesView}, Converter={StaticResource BoolToVis}}"
+                                  Command="{Binding DataContext.ToggleGpuCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                  CommandParameter="{Binding}" AutomationProperties.Name="Высокопроизводительный GPU">
+                            <CheckBox.IsEnabled>
+                                <MultiBinding Converter="{x:Static local:AllTrueConverter.Instance}">
+                                    <Binding Path="IsAvailable" />
+                                    <Binding Path="DataContext.CanChangeGpu" RelativeSource="{RelativeSource AncestorType=local:GamesView}" />
+                                </MultiBinding>
+                            </CheckBox.IsEnabled>
+                            <TextBlock Text="Высокопроизводительный GPU" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
+                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                        </CheckBox>
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
