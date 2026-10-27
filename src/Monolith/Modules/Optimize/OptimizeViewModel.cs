@@ -444,7 +444,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             if (!_sections.TryGetValue(category, out var section)) _sections[category] = section = new SectionRow(this, category);
             section.SetItems(group);
             desired.Add(section);
-            for (var k = 0; k < group.Count; k++) group[k].IsFirstInGroup = k == 0;
+            for (var k = 0; k < group.Count; k++) { group[k].IsFirstInGroup = k == 0; group[k].IsLastInGroup = k == group.Count - 1; }
             desired.AddRange(group);
         }
 
@@ -458,7 +458,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             desired.Add(_expertRow);
             if (open)
             {
-                for (var k = 0; k < expert.Count; k++) expert[k].IsFirstInGroup = k == 0;
+                for (var k = 0; k < expert.Count; k++) { expert[k].IsFirstInGroup = k == 0; expert[k].IsLastInGroup = k == expert.Count - 1; }
                 desired.AddRange(expert);
             }
         }
