@@ -77,7 +77,7 @@ public static class NetworkCards
             var regions = sdr is null ? null : NetFindings.RegionsFinding(sdr);
             card.Settings.Add(new DeviceSetting
             {
-                Id = "net-valve", Title = "Регионы Valve", Order = 3,
+                Id = "net-valve", Title = "Ближайший регион Valve", Order = 3,
                 Hint = "Пинг до ретрансляторов Steam (CS2, Dota 2): какой регион ближе. Регион задаёт расстояние, не ПК",
                 Tool = NetworkTools.Valve(results), Current = regions is null ? null : DeviceValue.Of(regions.Value),
                 Recommended = regions is null ? null : Advice(regions),
@@ -139,7 +139,7 @@ public static class NetworkCards
     private static Recommendation? MeasureRequest(NetCheckResult? check, NetSnapshot s)
     {
         if (s.BestInterface is null && !s.ViaVpn) return null;
-        var link = new DeviceLink(DeviceLinkKind.Tool, check is null ? "ЗАМЕРИТЬ И ПОДОБРАТЬ" : "ЗАМЕРИТЬ СНОВА", ConnectionKey, "net-ping");
+        var link = new DeviceLink(DeviceLinkKind.Tool, check is null ? "ЗАМЕРИТЬ" : "ЗАМЕРИТЬ СНОВА", ConnectionKey, "net-ping");
         if (check is null)
             return new Recommendation(DeviceValue.Of("замер"),
                 "30 с пинга до роутера и интернета, DNS и MTU — без нагрузки на сеть. Предложено будет только то, что поможет",
@@ -324,12 +324,16 @@ public static class NetworkCards
         return ApplyOutcome.Applied;
     };
 
+    /// <summary>The link of an adapter after a change (tests replace it, with a shorter poll).</summary>
+    internal static Func<Guid, (bool Connected, bool? FullDuplex, long? SpeedBps)?> LinkReader = NetSystem.ReadLink;
+    internal static TimeSpan LinkPoll = TimeSpan.FromSeconds(1);
+
     private static async Task CheckLinkAsync(Guid adapter, string name, DeviceResultStore results)
     {
         for (var i = 0; i < 20; i++)
         {
-            await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
-            if (NetSystem.ReadLink(adapter) is not { Connected: true } link) continue;
+            await Task.Delay(LinkPoll).ConfigureAwait(false);
+            if (LinkReader(adapter) is not { Connected: true } link) continue;
             if (link.FullDuplex == false)
             {
                 results.Set(NetKeys.DuplexRegression(adapter), true);

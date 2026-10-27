@@ -50,11 +50,14 @@ public static class NetSystem
             {
                 var props = best.GetIPProperties();
                 gateway = props.GatewayAddresses.Select(a => a.Address).FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork && !a.Equals(IPAddress.Any))?.ToString();
-                dns.AddRange(props.DnsAddresses.Where(a => !a.IsIPv6SiteLocal).Select(a => a.ToString()).Distinct());
+                // IPv4 resolvers first: the router's IPv4 address is what people recognise, and the benchmark uses IPv4.
+                dns.AddRange(props.DnsAddresses.Where(a => !a.IsIPv6SiteLocal)
+                    .OrderBy(a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1).Select(a => a.ToString()).Distinct());
                 suffix = string.IsNullOrWhiteSpace(props.DnsSuffix) ? null : props.DnsSuffix;
                 ipv6 = props.UnicastAddresses.Any(u => IsGlobalV6(u.Address))
                        && props.GatewayAddresses.Any(a => a.Address.AddressFamily == AddressFamily.InterNetworkV6);
-                mtu = props.GetIPv4Properties()?.Mtu;
+                // .NET reports one MTU for both families (here the router-advertised IPv6 1460); the IPv4 NlMtu is exact.
+                mtu = bestIndex is { } ix ? Ipv4Mtu(ix) ?? props.GetIPv4Properties()?.Mtu : props.GetIPv4Properties()?.Mtu;
             }
             catch (NetworkInformationException) { }
         }
@@ -65,6 +68,20 @@ public static class NetSystem
             HasIpv6 = ipv6, DnsServers = dns, DnsSuffix = suffix, DohConfigured = bestGuid is { } guid && DohConfigured(guid), Mtu = mtu,
             RunningGame = NetGames.RunningGame(), SteamInstalled = SteamInstalled(), Fingerprint = Fingerprint(bestGuid, dns),
         };
+    }
+
+    /// <summary>MSFT_NetIPInterface.NlMtu of the IPv4 interface (AddressFamily 2).</summary>
+    private static int? Ipv4Mtu(int interfaceIndex)
+    {
+        try
+        {
+            using var searcher = SystemProfile.Searcher(Cim, $"SELECT NlMtu FROM MSFT_NetIPInterface WHERE InterfaceIndex = {interfaceIndex} AND AddressFamily = 2");
+            foreach (ManagementObject mo in searcher.Get())
+                using (mo)
+                    if (mo["NlMtu"] is { } v && Convert.ToInt64(v) is >= 576 and <= 65535 and var mtu) return (int)mtu;
+        }
+        catch (Exception ex) when (ex is ManagementException or System.Runtime.InteropServices.COMException) { }
+        return null;
     }
 
     private static NetworkInterface[] SafeInterfaces()

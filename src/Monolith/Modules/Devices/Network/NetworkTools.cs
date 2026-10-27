@@ -23,7 +23,7 @@ internal static class NetworkTools
         var tool = new DeviceTool
         {
             Id = "net-ping", Title = "Замер пинга", ButtonText = "ЗАМЕРИТЬ И ПОДОБРАТЬ",
-            Description = "Роутер и интернет по 2 запроса в секунду, затем DNS и MTU. Нагрузки на сеть почти нет.",
+            Description = "Пинг, затем DNS и MTU. По результату — план во вкладке «Автонастройка».",
             Options = [new DeviceOption(DeviceValue.Of(30), "30 секунд"), new DeviceOption(DeviceValue.Of(120), "2 минуты")],
             Run = RunCheckAsync,
         };
@@ -38,8 +38,7 @@ internal static class NetworkTools
         var tool = new DeviceTool
         {
             Id = "net-load", Title = "Тест под нагрузкой", ButtonText = "ЗАПУСТИТЬ ТЕСТ",
-            Description = "Скачивает выбранный объём с speed.cloudflare.com (не дольше 8 с) и замеряет пинг во время загрузки. " +
-                          "Другие устройства в сети на это время заметят замедление. Результат никуда не отправляется.",
+            Description = "Загрузка с speed.cloudflare.com, не дольше 8 с. Другие устройства в сети заметят замедление; результат никуда не отправляется.",
             Options = [new DeviceOption(DeviceValue.Of(300_000_000), "до 300 МБ"), new DeviceOption(DeviceValue.Of(100_000_000), "до 100 МБ")],
             Run = RunLoadAsync,
         };
@@ -53,7 +52,7 @@ internal static class NetworkTools
         var tool = new DeviceTool
         {
             Id = "net-dns", Title = "Скорость DNS", ButtonText = "ПРОВЕРИТЬ",
-            Description = "Время ответа на запросы имён: ваш DNS против Cloudflare, Google и Quad9. Только поиск имён — на пинг в игре не влияет.",
+            Description = "Ваш DNS против Cloudflare, Google и Quad9: 12 запросов имён к каждому.",
             Run = RunDnsAsync,
         };
         if (results.Get<DnsBenchResult>(NetKeys.Dns) is { } dns) (tool.ResultText, tool.ResultDetail) = DnsTexts(dns);
@@ -65,7 +64,7 @@ internal static class NetworkTools
         var tool = new DeviceTool
         {
             Id = "net-valve", Title = "Регионы Valve", ButtonText = "ЗАМЕРИТЬ",
-            Description = "Пинг до ретрансляторов Steam по публичному списку Valve, 4 запроса на регион. В игре цифры могут отличаться на несколько мс.",
+            Description = "4 запроса на регион по публичному списку Valve. В игре цифры могут отличаться на несколько мс.",
             Run = RunValveAsync,
         };
         if (results.Get<SdrResult>(NetKeys.Sdr) is { } sdr) (tool.ResultText, tool.ResultDetail) = ValveTexts(sdr);
