@@ -1,5 +1,23 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!--
+        Shape tokens: slightly rounded corners (owner: «не таким квадратным, чуть более округлым»).
+        R.Sm  tags, checkboxes, scroll thumbs, small chips
+        R.Md  buttons, inputs, combo boxes, toggles, row highlights
+        R.Lg  cards, callouts, tiles, list panels
+        R.Xl  popups, dialogs, toasts, the window itself
+        *.D   the same radius as a double (Rectangle.RadiusX/RadiusY, clip geometries).
+    -->
+    <CornerRadius x:Key="R.Sm">3</CornerRadius>
+    <CornerRadius x:Key="R.Md">4</CornerRadius>
+    <CornerRadius x:Key="R.Lg">6</CornerRadius>
+    <CornerRadius x:Key="R.Xl">8</CornerRadius>
+    <sys:Double x:Key="R.Sm.D">3</sys:Double>
+    <sys:Double x:Key="R.Md.D">4</sys:Double>
+    <sys:Double x:Key="R.Lg.D">6</sys:Double>
+    <sys:Double x:Key="R.Xl.D">8</sys:Double>
 
     <!--
         MONOLITH palette — strictly monochrome.
