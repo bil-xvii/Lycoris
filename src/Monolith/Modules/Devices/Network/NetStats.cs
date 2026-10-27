@@ -77,6 +77,9 @@ public static class NetStats
 
     public static string Percent(double v) => (v < 10 && v % 1 != 0 ? v.ToString("0.0", Ru) : v.ToString("0", Ru)) + " %";
 
+    /// <summary>«42» / «1,2» (Mbit/s without the unit).</summary>
+    public static string Number(double v) => v < 10 ? v.ToString("0.0", Ru) : v.ToString("0", Ru);
+
     public static string Mbps(double v) => v < 10 ? v.ToString("0.0", Ru) + " Мбит/с" : v.ToString("0", Ru) + " Мбит/с";
 
     // ───────────────────────────── Bufferbloat ─────────────────────────────
@@ -102,41 +105,6 @@ public static class NetStats
         "C" => NetSeverity.Warning,
         _ => NetSeverity.Critical,
     };
-
-    /// <summary>Cloudflare AIM points for a latency or a latency increase: &lt;10 → 20, &lt;20 → 10, &lt;50 → 5, &lt;100 → 0, &lt;500 → −10, else −20.</summary>
-    public static int AimLatencyPoints(double ms) => ms switch
-    {
-        < 10 => 20,
-        < 20 => 10,
-        < 50 => 5,
-        < 100 => 0,
-        < 500 => -10,
-        _ => -20,
-    };
-
-    /// <summary>Cloudflare AIM points for packet loss (%): &lt;1 → 10, &lt;5 → 5, &lt;25 → 0, &lt;50 → −10, else −20.</summary>
-    public static int AimLossPoints(double percent) => percent switch
-    {
-        < 1 => 10,
-        < 5 => 5,
-        < 25 => 0,
-        < 50 => -10,
-        _ => -20,
-    };
-
-    /// <summary>Cloudflare AIM «gaming» class (thresholds 5/15/25/30 of latency + loss + loaded increase points), in Russian.</summary>
-    public static string AimGamingClass(double latencyMs, double lossPercent, double increaseMs)
-    {
-        var points = AimLatencyPoints(latencyMs) + AimLossPoints(lossPercent) + AimLatencyPoints(increaseMs);
-        return points switch
-        {
-            < 5 => "плохо",
-            < 15 => "слабо",
-            < 25 => "средне",
-            < 30 => "хорошо",
-            _ => "отлично",
-        };
-    }
 
     // ───────────────────────────── Before / after ─────────────────────────────
 

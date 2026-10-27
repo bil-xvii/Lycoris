@@ -63,13 +63,13 @@ public static class DnsAdvice
 
     /// <summary>
     /// Why no public resolver may be offered here, or null. A filter on the LAN (Pi-hole / AdGuard: a private resolver
-    /// that is not the gateway), DoH, a VPN or a corporate suffix means the current DNS is deliberate.
+    /// that is not the gateway), DoH, a VPN or an organisation's domain means the current DNS is deliberate.
     /// </summary>
     public static string? SkipReason(NetSnapshot s)
     {
         if (s.ViaVpn) return "трафик идёт через VPN — у него свой DNS";
         if (s.DohConfigured) return "настроено шифрование DNS (DoH)";
-        if (!string.IsNullOrWhiteSpace(s.DnsSuffix)) return "сеть организации со своим DNS-суффиксом";
+        if (!string.IsNullOrWhiteSpace(s.Domain)) return "компьютер в домене организации — у неё свой DNS";
         foreach (var server in s.DnsServers)
         {
             if (!IPAddress.TryParse(server, out var ip)) continue;

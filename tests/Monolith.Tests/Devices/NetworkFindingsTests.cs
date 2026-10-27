@@ -347,7 +347,12 @@ public sealed class NetworkFindingsTests
         Assert.Equal("ВАЖНО", findings[0].StateTag);
         Assert.All(findings, f => Assert.Equal(RecommendPolicy.Advice, f.Recommended!.Policy));
         Assert.All(findings, f => Assert.True(f.IsReadOnly));
-        Assert.Equal(RecommendPolicy.Advice, Row(conn, "net-load").Recommended!.Policy); // bufferbloat rides on its own row
+        Assert.Equal(RecommendPolicy.Advice, Row(conn, "net-load").Recommended!.Policy); // bufferbloat rides on its own row…
+        Assert.DoesNotContain(conn.Settings, s => s.Id == "finding:bufferbloat");            // …and is not listed twice
+        Assert.StartsWith("Роутер: ", findings[0].Recommended!.Reason);                      // the plan line shows the measured value
+        Assert.Contains("Оценка C", Row(conn, "net-load").Recommended!.Reason);
+        Assert.True(Row(conn, "net-load").Order > findings[0].Order);                        // advice is listed by severity (critical first)
+        Assert.True(Row(conn, "net-load").Order < conn.Settings.Single(s => s.Id == "finding:high-base").Order);
         Assert.Equal(RecommendPolicy.Suggest, Row(conn, "tweak:tcp-autotuning-normal").TweakPolicy); // not pre-checked on a bloated line
 
         var plan = DevicePlan.Build([conn], interactiveUser: true);

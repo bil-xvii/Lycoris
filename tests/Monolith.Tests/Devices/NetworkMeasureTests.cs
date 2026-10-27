@@ -69,19 +69,6 @@ public sealed class NetworkMeasureTests
     }
 
     [Fact]
-    public void Aim_gaming_score_matches_cloudflare_bands()
-    {
-        // research §2.3: latency 2,4 → 20, loss 0 → 10, increase 0,3 → 20 = 50 → great
-        Assert.Equal("отлично", NetStats.AimGamingClass(2.4, 0, 0.3));
-        Assert.Equal(20, NetStats.AimLatencyPoints(9.9));
-        Assert.Equal(10, NetStats.AimLatencyPoints(10));
-        Assert.Equal(-20, NetStats.AimLatencyPoints(500));
-        Assert.Equal(5, NetStats.AimLossPoints(1));
-        // 60 ms base (0) + 2 % loss (5) + 250 ms bloat (−10) = −5 → bad
-        Assert.Equal("плохо", NetStats.AimGamingClass(60, 2, 250));
-    }
-
-    [Fact]
     public void Before_after_needs_a_clear_and_large_enough_change()
     {
         var before = Enumerable.Range(0, 60).Select(i => 20.0 + (i % 5) * 0.2).ToList();
@@ -155,8 +142,8 @@ public sealed class NetworkMeasureTests
         Assert.Null(DnsAdvice.Offer(Bench(60, 5, 9, skip: "VPN")));
     }
 
-    private static NetSnapshot Snap(string[] dns, string? gateway = "192.168.1.1", bool vpn = false, bool doh = false, string? suffix = null) =>
-        new() { DnsServers = dns, Gateway = gateway, ViaVpn = vpn, DohConfigured = doh, DnsSuffix = suffix };
+    private static NetSnapshot Snap(string[] dns, string? gateway = "192.168.1.1", bool vpn = false, bool doh = false, string? domain = null) =>
+        new() { DnsServers = dns, Gateway = gateway, ViaVpn = vpn, DohConfigured = doh, Domain = domain };
 
     [Fact]
     public void Dns_offer_is_skipped_when_the_current_dns_is_deliberate()
@@ -164,7 +151,7 @@ public sealed class NetworkMeasureTests
         Assert.Null(DnsAdvice.SkipReason(Snap(["192.168.1.1"])));
         Assert.NotNull(DnsAdvice.SkipReason(Snap(["192.168.1.1"], vpn: true)));
         Assert.NotNull(DnsAdvice.SkipReason(Snap(["192.168.1.1"], doh: true)));
-        Assert.NotNull(DnsAdvice.SkipReason(Snap(["10.0.0.5"], suffix: "corp.example")));
+        Assert.NotNull(DnsAdvice.SkipReason(Snap(["10.0.0.5"], domain: "corp.example")));
         Assert.Contains("фильтр", DnsAdvice.SkipReason(Snap(["192.168.1.53"]))); // Pi-hole on the LAN
         Assert.NotNull(DnsAdvice.SkipReason(Snap(["8.8.8.8"])));
         Assert.Null(DnsAdvice.SkipReason(Snap(["203.0.113.53"]))); // the ISP's resolver
