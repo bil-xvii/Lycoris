@@ -85,10 +85,11 @@ public sealed class DisplayProvider : IDeviceProvider
                     "HDR для игр DirectX 11/12 без своего HDR; яркость по играм — в Game Bar (Win+G)", order: 40));
             if (VrrInfo(m) is { } vrr) card.Settings.Add(vrr);
             if (m.MonitorPath == vrrOn)
+                // Shown, never planned: its risk (flicker on OLED and VA panels) cannot be ruled out from Windows, and a row the
+                // user may rightly leave alone must not keep the plan from ever being empty. It stays an Optimize item.
                 card.Settings.Add(DeviceSetting.ForTweak(VrrTweak, "VRR в играх DirectX 11",
                     "Windows включает VRR в играх без своей поддержки G-SYNC/FreeSync; на OLED и VA бывает мерцание", order: 51,
-                    // A SAFE-OPTIONAL tweak whose risk (flicker) applies to this panel is shown, never planned.
-                    policy: DisplayAdvice.LooksLikeOled(m.Name) ? RecommendPolicy.None : null));
+                    policy: RecommendPolicy.None));
 
             card.Notes = Notes(m, env, primaryShouldBe == m.MonitorPath);
             cards.Add(card);
@@ -151,7 +152,7 @@ public sealed class DisplayProvider : IDeviceProvider
         var sizes = m.Modes.Select(x => x.Size).Distinct()
             .OrderByDescending(s => native is { } n && s == n.Size)
             .ThenByDescending(s => s.Pixels).ThenByDescending(s => s.Width).ToList();
-        var options = sizes.Select(s => new DeviceOption(DeviceValue.Of(s.Key), native is { } n && s == n.Size ? $"{s} (родное)" : s.ToString())).ToList();
+        var options = sizes.Select(s => new DeviceOption(DeviceValue.Of(s.Key), native is { } n && s == n.Size ? $"{s} · родное" : s.ToString())).ToList();
         var modes = m.Modes;
         IReadOnlyList<DeviceOption> Rates(DeviceValue primary) =>
             DisplaySize.FromKey(primary.Text) is { } size
