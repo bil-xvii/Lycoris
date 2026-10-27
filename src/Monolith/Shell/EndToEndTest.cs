@@ -23,6 +23,7 @@ public static class EndToEndTest
         "hibernation-off",            // deletes/recreates hiberfil.sys (several GB of writes)
         "visual-effects-performance", // broadcasts UI changes: whole desktop repaints twice
         "dns-google",                 // same mechanism as dns-cloudflare, which is tested
+        "recall-snapshots-off",       // the policy deletes existing Recall snapshots (user data) — never, not even for a test
     };
 
     private sealed record Row(string Id, string Title, string Before, string AfterApply, string AfterRevert, bool Ok, string Note);
