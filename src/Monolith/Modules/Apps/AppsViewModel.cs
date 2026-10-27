@@ -33,6 +33,8 @@ public sealed partial class AppsViewModel : PageViewModel
     private int _osUbr;
     private PeripheralScanResult _peripherals = PeripheralScanResult.Unknown;
     private bool _scanningPeripherals;
+    /// <summary>A full detection result (or the cache) is applied: Store apps were checked too, not only the fast pass.</summary>
+    private bool _storeKnown;
 
     public override string Key => "apps";
     public override string Index => "08";
@@ -128,13 +130,16 @@ public sealed partial class AppsViewModel : PageViewModel
 
     public string NoResultsTitle => !EmptyRecommendedTab ? "Ничего не найдено"
         : HasDetection ? "Всё рекомендуемое уже установлено"
+        : WingetMissing ? "Советов пока нет"
         : "Советы появятся после проверки";
 
     public string NoResultsText => !EmptyRecommendedTab
         ? "Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store."
         : HasDetection
             ? "Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ»."
-            : "MONOLITH ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.";
+            : WingetMissing
+                ? "Без winget MONOLITH не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Проверить снова»."
+                : "MONOLITH ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.";
 
     partial void OnHasDetectionChanged(bool value) => NotifyNoResultsText();
     public string VisibleText => VisibleCount == TotalCount ? AppTexts.Programs(TotalCount) : $"{VisibleCount} из {TotalCount}";
@@ -172,6 +177,7 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         foreach (var item in _items) item.WingetReady = value == WingetState.Available;
         RefreshCommandStates();
+        NotifyNoResultsText();
     }
 
     partial void OnIsQueueRunningChanged(bool value) => UpdateBusyItems();
@@ -213,6 +219,8 @@ public sealed partial class AppsViewModel : PageViewModel
 
     protected override async Task OnReturnAsync()
     {
+        // The profile may have been incomplete on the first visit (slow WMI after a cold boot): read it again (cheap: cached).
+        if (!_gpuKnown || _osUbr == 0) _ = LoadProfileAsync();
         if (IsQueueRunning || _detecting || WingetState == WingetState.Checking) return;
         if (DateTime.Now - _lastCheck > TimeSpan.FromMinutes(3))
         {
@@ -274,6 +282,7 @@ public sealed partial class AppsViewModel : PageViewModel
         OsBuild = _osBuild,
         OsUbr = _osUbr,
         InstalledKnown = HasDetection,
+        StoreKnown = _storeKnown,
         // Every id of an installed entry (regional variants too), including components found outside winget.
         InstalledIds = _items.Where(i => i.IsInstalled).SelectMany(i => i.Entry.AllIds).ToHashSet(StringComparer.OrdinalIgnoreCase),
         PeripheralsKnown = _peripherals.Known,
@@ -403,6 +412,7 @@ public sealed partial class AppsViewModel : PageViewModel
         InstalledCount = _items.Count(i => i.IsInstalled);
         SelectedCount = _items.Count(i => i.IsSelected);
         HasDetection = true;
+        if (!partial) _storeKnown = true;
         UpdateAdvice();
 
         if (!partial)
@@ -477,6 +487,7 @@ public sealed partial class AppsViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private Task Refresh()
     {
+        if (!_gpuKnown || _osUbr == 0) _ = LoadProfileAsync();
         _ = ScanPeripheralsAsync();
         return CheckWingetAndDetectAsync();
     }
@@ -618,10 +629,11 @@ public sealed partial class AppsViewModel : PageViewModel
     private static async Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
     {
         // Packages MONOLITH does not advise installing now go first, with the reason; the install is never blocked.
-        var notes = AppTexts.AdviceNotes(plan.Where(p => p.Op == QueueOperation.Install).Select(p => (p.Item.Entry, p.Item.ShownAdvice)));
+        var installs = plan.Where(p => p.Op == QueueOperation.Install).Select(p => (p.Item.Entry, p.Item.ShownAdvice)).ToList();
+        var notes = AppTexts.AdviceNotes(installs);
         var details = notes.ToList();
         details.AddRange(plan.Select(p => AppTexts.QueueLine(p.Item.Entry, p.Item.PackageId, p.Op, p.Item.InstalledVersion)));
-        details.AddRange(AppTexts.Warnings(plan.Select(p => p.Item)));
+        details.AddRange(AppTexts.Warnings(plan.Select(p => p.Item), AppTexts.NotedEntries(installs)));
 
         var upgradeOnly = plan.All(p => p.Op == QueueOperation.Upgrade);
         var title = kind switch

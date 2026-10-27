@@ -146,13 +146,18 @@ public static class AppTexts
         return line;
     }
 
-    /// <summary>Warnings shown under the package list of the confirmation dialog.</summary>
-    public static IReadOnlyList<string> Warnings(IEnumerable<AppItemViewModel> items)
+    /// <summary>
+    /// Warnings shown under the package list of the confirmation dialog. <paramref name="noted"/>: entries already listed
+    /// with a ПОКА НЕ НУЖНО / НЕ НУЖНО reason — their expert, end-of-support and paid lines would only repeat it (the
+    /// ВНИМАНИЕ lines about remote access, kernel drivers and anti-cheat always stay).
+    /// </summary>
+    public static IReadOnlyList<string> Warnings(IEnumerable<AppItemViewModel> items, IReadOnlySet<CatalogEntry>? noted = null)
     {
         var list = new List<string>();
         foreach (var item in items)
         {
             var e = item.Entry;
+            var repeats = noted?.Contains(e) == true;
             if (e.Has(AppFlags.RemoteAccess))
                 list.Add($"ВНИМАНИЕ — {e.Name}: программа удалённого доступа. Не устанавливайте её по просьбе незнакомцев, «службы поддержки» или «банка».");
             if (e.Has(AppFlags.Anticheat) && e.Has(AppFlags.KernelDriver) && e.Has(AppFlags.Region))
@@ -161,13 +166,13 @@ public static class AppTexts
                 list.Add($"ВНИМАНИЕ — {e.Name}: устанавливает драйвер ядра.");
             else if (e.Has(AppFlags.Anticheat))
                 list.Add($"ВНИМАНИЕ — {e.Name}: может вызвать срабатывание античита в онлайн-играх.");
-            if (e.Has(AppFlags.Expert))
+            if (e.Has(AppFlags.Expert) && !repeats)
                 list.Add($"{e.Name}: инструмент для опытных пользователей.");
             if (e.Has(AppFlags.Reboot))
                 list.Add($"{e.Name}: после установки понадобится перезагрузка (MONOLITH сам не перезагружает).");
-            if (e.Has(AppFlags.Eol))
+            if (e.Has(AppFlags.Eol) && !repeats)
                 list.Add($"{e.Name}: версия без поддержки или с заканчивающейся поддержкой Microsoft.");
-            if (e.Has(AppFlags.Trialware) || e.Has(AppFlags.Paid))
+            if ((e.Has(AppFlags.Trialware) || e.Has(AppFlags.Paid)) && !repeats)
                 list.Add($"{e.Name}: платная программа или пробная версия.");
             if (e.Has(AppFlags.Portable))
                 list.Add($"{e.Name}: портативная программа — ярлыка в меню «Пуск» может не быть.");
@@ -204,6 +209,10 @@ public static class AppTexts
             .OrderBy(x => x.Advice!.Level == AdviceLevel.NotNeeded ? 0 : 1)
             .Select(x => $"{x.Advice!.TagText} — {x.Entry.Name}: {x.Advice.Reason}")
             .ToList();
+
+    /// <summary>The entries <see cref="AdviceNotes"/> lists (for <see cref="Warnings"/>, so a reason is not repeated).</summary>
+    public static IReadOnlySet<CatalogEntry> NotedEntries(IEnumerable<(CatalogEntry Entry, AppAdvice? Advice)> installs) =>
+        installs.Where(x => x.Advice is { IsDiscouraged: true }).Select(x => x.Entry).ToHashSet();
 
     /// <summary>The sentence before the package list when some packages are not advised; empty when all are fine.</summary>
     public static string AdviceLead(int discouraged) => discouraged switch

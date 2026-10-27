@@ -427,16 +427,26 @@ description); ПО ЖЕЛАНИЮ shows its reason, if any, only in the tooltip.
 Every input has a "known" flag; an unknown input never gives a confident claim — the rule falls back to ПО ЖЕЛАНИЮ with a
 neutral sentence.
 - **Graphics cards** (`GpuKnown`, `GpuVendors`): `SystemProfile` (Win32_VideoController, vendor from the PCI id `VEN_10DE` /
-  `VEN_1002` / `VEN_8086`, so a card without a driver still counts). Known when the "gpu" section was read and listed at least one adapter.
+  `VEN_1002` / `VEN_8086`, so a card without a driver still counts). Known when the "gpu" section was read and listed at least
+  one adapter. An incomplete profile (slow WMI after a cold boot) is read again on «Проверить» and on return to the page.
 - **Windows build and UBR**: `SystemProfile` (CurrentBuildNumber, UBR); the UBR counts only when the "os" section was read.
 - **Installed programs** (`InstalledKnown`, `InstalledIds`): every id of every installed catalog entry from the detection
   snapshot (§10), regional variants included, also components found outside winget ("unmanaged"). Known after the first
   detection pass or the cached one.
-- **Peripherals** (`PeripheralsKnown`, `Peripherals`): `PeripheralScan` reads `Win32_PnPEntity.DeviceID` (read-only WMI, off the
-  UI thread), parses the USB-IF vendor id with the Drivers page's `HardwareRules.UsbId` (USB/HID `VID_xxxx`, Bluetooth
-  `VID&0002xxxx` classic and `VID&02xxxx` LE — vendor id source 2 = USB-IF; source 1 = Bluetooth SIG ids are ignored) and skips
-  devices that are not connected (`Present = false`, `CM_PROB_PHANTOM` 45). Known = false on any error or when no device carries
-  a USB vendor id at all. Vendor ids: Logitech `046D`, Razer `1532`, Corsair `1B1C`, SteelSeries `1038`, Elgato `0FD9`.
+- **Store apps checked** (`StoreKnown`): the fast detection pass comes before the one-by-one Microsoft Store checks; until a
+  full result (or the cache) is applied, a Store app missing from the list (the Xbox app) may still be installed.
+- **Peripherals** (`PeripheralsKnown`, `Peripherals`): `PeripheralScan` reads `Win32_PnPEntity.DeviceID` and `PNPClass`
+  (read-only WMI, off the UI thread), parses the USB-IF vendor and product id with the Drivers page's `HardwareRules.UsbId`
+  (USB/HID `VID_xxxx`, Bluetooth `VID&0002xxxx` classic and `VID&02xxxx` LE — vendor id source 2 = USB-IF; source 1 =
+  Bluetooth SIG ids are ignored) and skips devices that are not connected (`Present = false`, `CM_PROB_PHANTOM` 45).
+  A maker counts only for nodes of a peripheral class — the Drivers page's list HIDClass, Keyboard, Mouse, MEDIA, Camera,
+  Image — so a Corsair flash drive (`USB\VID_1B1C&PID_1A03`, class USB/WPD), hubs and composite parents do not count.
+  Logitech counts input devices only (HIDClass, Keyboard, Mouse: G HUB is not for its webcams); Elgato counts only Stream
+  Deck product ids (capture cards, Cam Link, Facecam and Wave mics share vendor id 0FD9 but don't use the Stream Deck app).
+  A node without a class (no driver) is not ruled out. Known = false on any error or when no device carries a USB vendor id
+  at all. Vendor ids: Logitech `046D` and Blue Microphones `B58E` (Logitech; Yeti mics are configured in G HUB), Razer `1532`,
+  Corsair `1B1C`, SteelSeries `1038`, Elgato `0FD9` with Stream Deck PIDs 0060, 0063, 006C, 006D, 0080, 0084, 0086, 008F,
+  0090, 009A, 00A5, 00AA, 00B3, 00B8, 00B9, 00BA, 00C6.
 - **Today** (`DateOnly`, injected) for the end-of-support dates.
 
 The advice is recomputed (pure, cheap) whenever an input changes: profile loaded, detection pass, device scan (page load,
@@ -455,18 +465,25 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
 3. The entry's own rule (table below).
 4. Anything else → ПО ЖЕЛАНИЮ.
 5. **Hard safety rule:** an entry flagged KernelDriver, Anticheat, RemoteAccess, Expert, Trialware, Paid or Eol is never НУЖНО
-   or РЕКОМЕНДУЕТСЯ — a rule result above is lowered to ПО ЖЕЛАНИЮ (`AppAdvisor.NeverSuggested`; tested over all entries and
-   2 376 input combinations).
+   or РЕКОМЕНДУЕТСЯ — a rule result above is lowered to ПО ЖЕЛАНИЮ (`AppAdvisor.NeverSuggested`). Tested over all entries and
+   2 772 input combinations, and the clamp itself with synthetic flagged copies of Steam, Visual C++ 2015+, .NET 10, G HUB and
+   Gaming Services (each of the 7 flags → ПО ЖЕЛАНИЮ, out of the kit).
+   **Gaming Services is a deliberate, documented case:** it installs Microsoft's own drivers xvdd.sys ("XVD Disk Driver",
+   virtual disks of Xbox game packages) and gameflt.sys ("Gaming Install Filter"). They are the component itself, signed by
+   Microsoft and required by the Xbox app, not a third-party driver risk like Vanguard, WinRing0 or a virtual audio driver, so
+   the entry carries no KernelDriver flag and is НУЖНО when the Xbox app is installed (Game Pass games do not install or start
+   without it); without the Xbox app it is ПОКА НЕ НУЖНО.
 
 ### Rules
 
 | Entry | Condition | Level |
 |---|---|---|
 | Visual C++ 2015–2022 x64 and x86 | always | НУЖНО |
-| Visual C++ 2005–2013 x86/x64, DirectX End-User Runtime (June 2010) | always (Windows ships no D3DX9, XAudio 2.7, XInput 1.3 or old VC++) | РЕКОМЕНДУЕТСЯ |
+| Visual C++ 2005–2013 x86/x64 | always — out of Microsoft support, and the reason says so («Microsoft её больше не обновляет, но замены для таких игр нет»); no Eol flag on purpose, see fact 10 | РЕКОМЕНДУЕТСЯ |
+| DirectX End-User Runtime (June 2010) | always (Windows ships no D3DX9, XAudio 2.7, XInput 1.3) | РЕКОМЕНДУЕТСЯ |
 | WebView2 Runtime | not installed (installed programs known) / unknown / installed | НУЖНО / ПО ЖЕЛАНИЮ / no advice |
-| Gaming Services | Xbox app installed / not installed / unknown | НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
-| .NET Desktop Runtime 10 | before its end of support (14.11.2028) / after | РЕКОМЕНДУЕТСЯ / ПОКА НЕ НУЖНО |
+| Gaming Services | Xbox app installed / not installed (Store apps checked) / installed programs or Store apps not checked yet | НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| .NET Desktop Runtime 10 | before its end of support (14.11.2028) / after | РЕКОМЕНДУЕТСЯ («её просят новые программы, а другие версии .NET её не заменяют») / ПОКА НЕ НУЖНО |
 | .NET Desktop Runtime 8 and 9 | before 10.11.2026 / from that date (reason names the date) | ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
 | .NET Desktop Runtime 6 | ended 12.11.2024 | ПОКА НЕ НУЖНО |
 | .NET Framework 4.8.1 | Windows 10 20H2+ or Windows 11 21H2 (where the catalog offers it) / build too old / 22H2+ (built in) / unknown | РЕКОМЕНДУЕТСЯ / НЕ НУЖНО / НЕ НУЖНО / ПО ЖЕЛАНИЮ |
@@ -474,8 +491,12 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
 | Java 21 / 17 / 8 | Prism Launcher installed | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
 | Java 21 / 17 / 8 | CurseForge only, or neither (official launcher) / unknown | ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
 | NVIDIA PhysX, NVIDIA Control Panel, Profile Inspector, NVCleanstall | no NVIDIA card («Видеокарта NVIDIA не найдена.») / NVIDIA present / cards unknown | НЕ НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
-| Logitech G HUB, Razer Synapse 4, Corsair iCUE 5, SteelSeries GG, Elgato Stream Deck | a device of that maker connected / devices known, none of that maker / unknown | РЕКОМЕНДУЕТСЯ / НЕ НУЖНО / ПО ЖЕЛАНИЮ |
-| 7-Zip | Windows 10, Windows 11 21H2, 22H2 before 22621.2506, 23H2 before 22631.2506 / 22H2 ≥ 2715, 23H2 ≥ 2506, 24H2+ / 22H2 2506–2714, Insider 2262x, UBR unknown | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ «Windows уже открывает RAR и 7z» / ПО ЖЕЛАНИЮ (neutral) |
+| Logitech G HUB, Razer Synapse 4, Corsair iCUE 5, SteelSeries GG, Elgato Stream Deck | a device of that maker connected (Elgato: a Stream Deck) / scan unknown | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ |
+| Logitech G HUB, Razer Synapse 4 | scan known, no device of that maker | НЕ НУЖНО |
+| SteelSeries GG | scan known, no SteelSeries device — the Sonar mixer is free and works with any headset (fact 7) | ПО ЖЕЛАНИЮ |
+| Corsair iCUE 5 | scan known, no Corsair USB device — iCUE also drives Corsair RGB memory, which is on SMBus, not USB (fact 7) | ПО ЖЕЛАНИЮ |
+| Elgato Stream Deck | scan known, no Stream Deck — the app is also needed for Stream Deck Mobile on a phone (fact 7) | ПОКА НЕ НУЖНО |
+| 7-Zip | Windows 10, Windows 11 21H2, 22H2 before 22621.2361 / 22H2 ≥ 2715, 23H2 ≥ 2506, 24H2+ / 22H2 2361–2714 (toggle-gated), 23H2 before 2506 (pre-release), Insider 2262x, UBR unknown | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ «Windows уже открывает RAR и 7z» / ПО ЖЕЛАНИЮ (neutral) |
 | WinRAR | no other archiver (paid after the trial; 7-Zip is free) | ПОКА НЕ НУЖНО |
 | Process Lasso | always (both it and MONOLITH's game mode change process priorities, §5) | НЕ НУЖНО |
 | Autoruns | expert; the basics are on «Автозапуск и службы» | ПОКА НЕ НУЖНО |
@@ -499,28 +520,37 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
   trimmed caption line with the reason for every level except ПО ЖЕЛАНИЮ; НЕ НУЖНО cards dimmed. Cards are not reordered.
   The former «NVIDIA НЕ НАЙДЕНА» badge is replaced by this advice.
 - **Tab «РЕКОМЕНДУЕМ · N»** next to «ВСЕ»: not installed, installable НУЖНО + РЕКОМЕНДУЕТСЯ cards; empty groups hidden.
-  Before the first detection it says the advice appears after the check (no "everything installed" claim).
+  Before the first detection it says the advice appears after the check (no "everything installed" claim); without winget it
+  says that nothing can be checked until «Установщик приложений» is installed.
 - **«Набор геймера»:** the same row and button; its set is computed: runtime-category entries that are НУЖНО or
   РЕКОМЕНДУЕТСЯ for this PC (`AppAdvisor.Kit`). So no end-of-life .NET 6/8/9, WebView2 only once installed programs are
   known, Gaming Services only with the Xbox app, .NET Framework 4.8.1 only where offered, Java 21 only with Prism Launcher.
   The tooltip names what is in the kit and which runtimes are left out.
 - **Install confirmation:** ПОКА НЕ НУЖНО / НЕ НУЖНО packages of the plan are listed first with their reason
-  («НЕ НУЖНО — NVIDIA PhysX: Видеокарта NVIDIA не найдена.»), with one lead sentence; the install is never blocked.
+  («НЕ НУЖНО — NVIDIA PhysX: Видеокарта NVIDIA не найдена.»), with one lead sentence; the install is never blocked. For those
+  packages the warning lines that would repeat the reason (expert tool, end of support, paid/trial) are left out; the
+  ВНИМАНИЕ lines (remote access, kernel driver, anti-cheat) always stay. The direct vendor-download confirmation started from a
+  card (LatencyMon and other website-only entries) lists the advice the same way.
 
 ### Verified facts (checked 27.10.2026)
 
 1. **.NET end of support** (Microsoft policy page): .NET 10 LTS — 14 Nov 2028; .NET 9 STS and .NET 8 LTS — both
    10 Nov 2026; .NET 6 — 12 Nov 2024. https://dotnet.microsoft.com/platform/support/policy/dotnet-core,
    https://devblogs.microsoft.com/dotnet/dotnet-8-9-end-of-support/
-2. **Native RAR / 7z in File Explorer** came with KB5031455 (31 Oct 2023, OS builds 22621.2506 and 22631.2506, libarchive;
-   password-protected archives are not supported). On 22H2 it was an optional preview whose new features reached everyone with
-   the November 2023 security update KB5032190 (22621.2715 / 22631.2715, "Moment 4 features enabled by default").
-   24H2 (26100) and 25H2 (26200) include it. **Correction to the task text:** "22621 UBR ≥ 2506" is not enough to claim
-   support on 22H2 — between 2506 and 2714 MONOLITH says nothing confident.
+2. **Native RAR / 7z in File Explorer** (libarchive; password-protected archives are not supported) first shipped with the
+   "Moment 4" update: the optional preview KB5030310 (26 Sep 2023, 22621.2361) and the October security update KB5031354
+   (22621.2428), both only with "Get the latest updates as soon as they're available" switched on (Impress Forest: the team
+   confirmed it works with KB5030310). Then the preview KB5031455 (31 Oct 2023, 22621.2506 / 22631.2506 — the first 23H2 release
+   build); for everyone with the November 2023 security update KB5032190 (22621.2715 / 22631.2715, "Moment 4 features enabled by
+   default"). 24H2 (26100) and 25H2 (26200) include it. So MONOLITH claims "no native support" only below 22621.2361, "supported"
+   from 22621.2715 / 22631.2506 / any later build, and says nothing confident in between (or for pre-release 22631 builds).
+   **Correction to the task text:** "22621 UBR ≥ 2506" is not enough to claim support on 22H2, and below 2506 the feature may
+   already be on. https://forest.watch.impress.co.jp/docs/news/1534610.html,
+   https://www.neowin.net/news/windows-11-moment-4-features-are-now-available-to-all-in-the-latest-non-security-update,
+   https://www.bleepingcomputer.com/tag/kb5031455/,
    https://www.techspot.com/news/100663-windows-11-extends-support-archive-formats-thanks-open.html,
    https://www.elevenforum.com/t/kb5032190-windows-11-cumulative-update-build-22621-2715-22h2-and-22631-2715-23h2.19801,
-   https://windowslatest.com/2023/11/14/windows-11-kb5032190-cumulative-update,
-   https://pureinfotech.com/windows-11-kb5032190-23h2-22h2/
+   https://windowslatest.com/2023/11/14/windows-11-kb5032190-cumulative-update
 3. **Minecraft and Java:** the official launcher uses its bundled Java runtime; 1.20.5–1.21.x need Java 21, 1.18–1.20.4
    need 17, Minecraft 26.1+ needs Java 25 (Temurin 25 is not in the catalog yet).
    https://hopper.minecraft.net/help/installing-java, https://minecraft.wiki/w/Java_Edition_26.1-snapshot-1,
@@ -533,22 +563,45 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
    https://prismlauncher.org/wiki/getting-started/installing-java, https://prismlauncher.org/wiki/help-pages/java-settings
 6. **PhysX ships inside the NVIDIA driver:** NVIDIA's standalone PhysX System Software 9.26.0703 is "the PhysX System Software
    bundled with NVIDIA Release 615 GA1 drivers". https://www.nvidia.com/en-us/drivers/physx/physx-9-26-0703-driver/
-7. **USB vendor ids** (usb.ids): 046d Logitech, 1532 Razer USA, 1b1c Corsair, 1038 SteelSeries ApS, 0fd9 Elgato Systems.
-   0fd9 covers all Elgato hardware (capture cards, cameras), 046d all Logitech devices (office mice, webcams): the
-   РЕКОМЕНДУЕТСЯ sentence says the program is for Stream Deck / Logitech G devices only. http://www.linux-usb.org/usb.ids
+7. **Peripherals and their software.** USB vendor ids (usb.ids): 046d Logitech, b58e Blue Microphones, 1532 Razer USA, 1b1c
+   Corsair, 1038 SteelSeries ApS, 0fd9 Elgato Systems; usb.ids lists 0fd9:0060/0063/006c/006d as Stream Deck models and
+   python-elgato-streamdeck the newer ones (0080 MK.2, 0084 Plus, 0086 Pedal, 008f XL V2, 0090 Mini MK.2, 009a Neo, 00a5, 00aa
+   Studio, 00b3, 00b8, 00b9, 00ba, 00c6 Plus XL). 0fd9 also covers Elgato capture cards and cameras, 1b1c Corsair flash drives
+   (Flash Voyager), 046d Logitech webcams and office devices — hence the class and PID filters. The scan cannot see three uses
+   of the makers' software, so those cases are not НЕ НУЖНО: **SteelSeries Sonar** (in GG) is free and works with any headset
+   and mic; **Corsair iCUE** controls Vengeance RGB / Dominator memory over SMBus, without a USB device; **Stream Deck Mobile**
+   on a phone needs the Stream Deck app on the PC. **G HUB** configures Blue Yeti microphones (Blue VO!CE, Logitech, 28 Sep
+   2021), which carry the Blue vendor id b58e. The РЕКОМЕНДУЕТСЯ sentence for Logitech says G HUB is for Logitech G devices
+   and Yeti mics (Logitech office mice use Logi Options+). https://github.com/usbids/usbids/blob/master/usb.ids,
+   https://github.com/abcminiuser/python-elgato-streamdeck/blob/master/src/StreamDeck/ProductIDs.py,
+   https://steelseries.com/gg/sonar, https://help.elgato.com/hc/en-us/articles/17162153663117-Elgato-Stream-Deck-Mobile-System-Requirements
 8. **WebView2** is part of Windows 11 and is what the new Teams / Outlook and Microsoft 365 render with; Steam draws its UI with
    its own Chromium (CEF, steamwebhelper). **Correction to the task text:** no source shows that Steam, Battle.net or the
    EA app need WebView2, so the reason does not name them. https://developer.microsoft.com/microsoft-edge/webview2/,
    https://developer.valvesoftware.com/wiki/CEF
-9. Gaming Services for Xbox / Game Pass (§4), Process Lasso vs MONOLITH's priorities (§5), DirectX June 2010 contents (§4),
-   remote-access scams (§7), Sunshine service and ports (§6) — from this report.
+9. **Gaming Services drivers:** the package installs the "XVD Disk Driver" (xvdd.sys, shown as "Xvdd SCSI Miniport") and the
+   "Gaming Install Filter" (gameflt.sys); the GamingServices service loads them (rule 5 above).
+   https://learn.microsoft.com/en-us/answers/questions/4340819/gaming-service-startup-issue,
+   https://windowsreport.com/xvdd-scsi-miniport/
+10. **Visual C++ 2005–2013 are out of Microsoft support:** Visual Studio 2013 ended 9 Apr 2024, 2012 on 10 Jan 2023, 2010 on
+    14 Jul 2020, 2008 on 10 Apr 2018, 2005 on 12 Apr 2016; Microsoft's redistributable page marks 2013 and older "no longer
+    supported". They are still the only way to run games built with them, so they stay РЕКОМЕНДУЕТСЯ (and in the kit) and the
+    reason says Microsoft no longer updates them. The Eol flag is deliberately not set: it would push them below the games'
+    needs through the hard safety rule, while .NET 6 (Eol) has a supported successor programs can move to.
+    https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist, https://learn.microsoft.com/lifecycle/faq/visual-c-faq,
+    https://www.neowin.net/news/microsoft-reminds-us-that-visual-studio-2013-support-ends-on-april-9-2024/
+11. Gaming Services for Xbox / Game Pass (§4), Process Lasso vs MONOLITH's priorities (§5), DirectX June 2010 contents (§4),
+    remote-access scams (§7), Sunshine service and ports (§6) — from this report.
 
 ### Known limits
 
-- Peripherals are matched by maker, not model: a Logitech office mouse or an Elgato capture card also makes G HUB / Stream Deck
-  РЕКОМЕНДУЕТСЯ; the sentence says who the program is for.
-- Gaming Services: Store entries are checked one by one after the fast detection pass, so the Xbox app may be found a few
-  seconds later (the advice then switches to НУЖНО).
+- Peripherals are matched by maker (Elgato: by Stream Deck model), not by model: a Logitech office mouse or its Unifying
+  receiver also makes G HUB РЕКОМЕНДУЕТСЯ; the sentence says who the program is for.
+- **Drivers page alignment (open):** «Драйверы → Подбор для вашего ПК» still words the same components its own way — the
+  peripheral note says the maker's program is «по желанию», and .NET 10 next to another installed .NET is offered as optional
+  «только если программа просит». The levels should come from `AppAdvisor.Assess` (same tag strings) so both pages agree; this
+  is a change in `Modules/Drivers/Hardware/HardwareAdvisor.cs`, outside the Apps module. The Apps .NET 10 reason already
+  states the Drivers page's fact (other .NET versions do not replace it).
 
 ## Sources
 - https://learn.microsoft.com/en-us/windows/package-manager/winget/

@@ -76,10 +76,15 @@ public sealed partial class AppsViewModel
         }
 
         var restore = AppSettings.Current.CreateRestorePoints && await Task.Run(RestorePointService.IsEnabled);
+        // Started from the card: the ПОКА НЕ НУЖНО / НЕ НУЖНО reason goes first, as in the winget confirmation (a queue row
+        // already went through it). The download is never blocked.
+        var notes = job is null ? AppTexts.AdviceNotes([(entry, item.ShownAdvice)]) : [];
+        var plan = notes.ToList();
+        plan.AddRange(AppTexts.VendorPlan(request, restore));
         var confirmed = await Ui.ConfirmAsync(
             $"СКАЧАТЬ {entry.Name.ToUpperInvariant()} У ПРОИЗВОДИТЕЛЯ?",
-            AppTexts.VendorLead(entry, afterHashMismatch),
-            AppTexts.VendorPlan(request, restore),
+            AppTexts.AdviceLead(notes.Count) + AppTexts.VendorLead(entry, afterHashMismatch),
+            plan,
             confirmText: "СКАЧАТЬ И ЗАПУСТИТЬ", cancelText: "ОТМЕНА",
             footnote: "Если подпись не подтвердится, файл будет удалён и не запустится.");
         if (!confirmed || IsQueueRunning || IsVendorDownloadRunning) return;

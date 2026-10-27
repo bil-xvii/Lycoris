@@ -46,6 +46,12 @@ public sealed record AdviceContext
     public bool InstalledKnown { get; init; }
 
     /// <summary>
+    /// Microsoft Store apps were checked too. The fast detection pass comes before the one-by-one Store checks, so until
+    /// they finish a Store app (the Xbox app) missing from <see cref="InstalledIds"/> may still be installed.
+    /// </summary>
+    public bool StoreKnown { get; init; }
+
+    /// <summary>
     /// Installed package ids, case-insensitive: every id found (regional variants included), also components installed
     /// outside winget (found by the read-only cross-checks).
     /// </summary>
@@ -102,12 +108,14 @@ public static class AppAdvisor
     public const string CurrentDotNetId = "Microsoft.DotNet.DesktopRuntime.10";
 
     /// <summary>
-    /// Windows 11 23H2 (22631) reads .rar and .7z in File Explorer from its first release build 22631.2506 (KB5031455,
-    /// libarchive). On 22H2 (22621) KB5031455 shipped it as an optional preview whose new features were switched on for
-    /// everyone only by the November 2023 security update KB5032190 (22621.2715). Every later Windows 11 has it.
+    /// File Explorer opens .rar and .7z itself (libarchive) since the "Moment 4" update: first in the optional September
+    /// 2023 preview KB5030310 (22621.2361) and the October security update KB5031354 (22621.2428), both only with
+    /// "Get the latest updates as soon as they're available"; then the preview KB5031455 (22621.2506 / 22631.2506, the
+    /// first 23H2 release build); for everyone with the November 2023 security update KB5032190 (22621.2715 / 22631.2715).
+    /// Every later Windows 11 has it. Between the first and the default-on build MONOLITH cannot tell.
     /// </summary>
+    public const int NativeArchivesFirstUbr = 2361;
     public const int NativeArchivesUbr23H2 = 2506;
-    public const int NativeArchivesPreviewUbr22H2 = 2506;
     public const int NativeArchivesUbr22H2 = 2715;
 
     /// <summary>Peripheral software → the maker whose devices it configures.</summary>
@@ -217,10 +225,14 @@ public static class AppAdvisor
                     ? Required("Веб-движок Windows: на нём работают окна многих программ (новые Teams и Outlook, Microsoft 365), а здесь он не найден.")
                     : Optional("Веб-движок Windows для окон многих программ; в Windows 11 он встроен, в Windows 10 обычно уже установлен.");
             case GamingServicesId:
-                if (!ctx.InstalledKnown) return Optional("Нужны для игр из приложения Xbox и Game Pass.");
-                return ctx.IsInstalled(XboxAppId)
-                    ? Required("Установлено приложение Xbox: без игровых служб игры Game Pass не устанавливаются и не запускаются.")
-                    : NotNow("Нужны только для игр из приложения Xbox и Game Pass — приложение Xbox само предложит их поставить.");
+                // Gaming Services installs Microsoft's own drivers (xvdd.sys "XVD Disk Driver", gameflt.sys "Gaming Install
+                // Filter") for Xbox game packages. That is the component itself, not a third-party risk, so the entry has no
+                // KernelDriver flag and may be НУЖНО: the installed Xbox app cannot install or start games without it (§14).
+                if (ctx.IsInstalled(XboxAppId))
+                    return Required("Установлено приложение Xbox: без игровых служб игры Game Pass не устанавливаются и не запускаются.");
+                // The Xbox app is a Store app: "not installed" counts only once the Store checks have finished.
+                if (!ctx.InstalledKnown || !ctx.StoreKnown) return Optional("Нужны для игр из приложения Xbox и Game Pass.");
+                return NotNow("Нужны только для игр из приложения Xbox и Game Pass — приложение Xbox само предложит их поставить.");
             case "Microsoft.DotNet.Framework.Runtime":
                 if (ctx.OsBuild <= 0) return Optional("Последняя версия .NET Framework для старых программ и лаунчеров.");
                 if (ctx.OsBuild >= 22621) return NotNeeded("Уже встроен в эту версию Windows.");
@@ -279,7 +291,9 @@ public static class AppAdvisor
             return id.EndsWith(".x86", StringComparison.OrdinalIgnoreCase)
                 ? Required("Её требуют 32-битные игры и программы — их много даже на 64-битной Windows.")
                 : Required("Без неё не запускается большинство современных игр и программ (ошибка «MSVCP140.dll не найден»).");
-        return Recommended("Старые игры ищут именно эту версию Visual C++ — в Windows её нет, а сама игра ставит её не всегда.");
+        // Visual Studio 2005–2013 are out of Microsoft support (2013: 09.04.2024), but nothing replaces them for the old games
+        // built with them, so they stay РЕКОМЕНДУЕТСЯ without the Eol flag — and the reason says so (§14).
+        return Recommended("Старые игры ищут именно эту версию Visual C++, а в Windows её нет. Microsoft её больше не обновляет, но замены для таких игр нет.");
     }
 
     private static AppAdvice Nvidia(CatalogEntry e, AdviceContext ctx)
@@ -309,15 +323,23 @@ public static class AppAdvisor
     {
         var name = BrandName(b);
         if (!ctx.PeripheralsKnown) return Optional($"Нужна только владельцам устройств {name}.");
-        if (!ctx.Peripherals.Contains(b)) return NotNeeded($"Устройства {name} сейчас не подключены — программа нужна только для них.");
-        return Recommended(b switch
+        if (ctx.Peripherals.Contains(b))
+            return Recommended(b switch
+            {
+                PeripheralBrand.Logitech => "Найдено устройство Logitech: G HUB настраивает игровые мыши, клавиатуры, гарнитуры Logitech G и микрофоны Yeti (офисным моделям и веб-камерам не нужен).",
+                PeripheralBrand.Razer => "Найдено устройство Razer: Synapse настраивает его кнопки, подсветку и прошивку.",
+                PeripheralBrand.Corsair => "Найдено устройство Corsair: iCUE настраивает его кнопки, подсветку и вентиляторы.",
+                PeripheralBrand.SteelSeries => "Найдено устройство SteelSeries: GG настраивает его и добавляет звуковой микшер Sonar.",
+                _ => "Найден пульт Elgato Stream Deck: программа назначает действия его кнопкам.",
+            });
+        // The scan sees USB/Bluetooth devices only. "НЕ НУЖНО" only where the program has no use without them.
+        return b switch
         {
-            PeripheralBrand.Logitech => "Найдено устройство Logitech: G HUB настраивает игровые мыши, клавиатуры и гарнитуры Logitech G (офисным моделям и веб-камерам не нужен).",
-            PeripheralBrand.Razer => "Найдено устройство Razer: Synapse настраивает его кнопки, подсветку и чувствительность.",
-            PeripheralBrand.Corsair => "Найдено устройство Corsair: iCUE настраивает его кнопки, подсветку и вентиляторы.",
-            PeripheralBrand.SteelSeries => "Найдено устройство SteelSeries: GG настраивает его и добавляет звуковой микшер Sonar.",
-            _ => "Найдено устройство Elgato: программа нужна, если это пульт Stream Deck (картам захвата, камерам и микрофонам не нужна).",
-        });
+            PeripheralBrand.SteelSeries => Optional("Устройств SteelSeries нет, но микшер Sonar в GG бесплатен и работает с любыми наушниками."),
+            PeripheralBrand.Corsair => Optional("USB-устройств Corsair нет; iCUE пригодится, если в ПК стоит память Corsair с подсветкой — она подключена не по USB."),
+            PeripheralBrand.Elgato => NotNow("Пульт Stream Deck не найден: программа нужна только для него или для Stream Deck Mobile на телефоне."),
+            _ => NotNeeded($"Устройства {name} сейчас не подключены — программа нужна только для них."),
+        };
     }
 
     private static AppAdvice DotNet(string id, DateOnly end, AdviceContext ctx)
@@ -325,7 +347,7 @@ public static class AppAdvisor
         if (ctx.Today >= end)
             return NotNow($"Без обновлений безопасности с {FormatDate(end)} — ставьте, только если программа просит именно эту версию.");
         return string.Equals(id, CurrentDotNetId, StringComparison.OrdinalIgnoreCase)
-            ? Recommended($"Актуальная версия .NET (поддержка Microsoft до {FormatDate(end)}): на ней работают новые программы и утилиты.")
+            ? Recommended($"Актуальная версия .NET (поддержка Microsoft до {FormatDate(end)}): её просят новые программы, а другие версии .NET её не заменяют.")
             : Optional($"Поддержка Microsoft заканчивается {FormatDate(end)} — ставьте, если программа просит именно эту версию.");
     }
 
@@ -357,9 +379,10 @@ public static class AppAdvisor
         if (build < 22621) return false;              // Windows 10 and Windows 11 21H2 (22000)
         if (build > 22631) return true;               // 23H2 Insider (22635), 24H2 (26100), 25H2 (26200) and later
         if (build is not (22621 or 22631) || ubr <= 0) return null;
-        if (build == 22631) return ubr >= NativeArchivesUbr23H2;
+        if (build == 22631) return ubr >= NativeArchivesUbr23H2 ? true : null; // pre-release 23H2 builds: can't tell
         if (ubr >= NativeArchivesUbr22H2) return true;
-        return ubr >= NativeArchivesPreviewUbr22H2 ? null : false; // optional preview: on only with "get the latest updates"
+        // From KB5030310 on the feature is there, but switched on only with "get the latest updates as soon as they're available".
+        return ubr >= NativeArchivesFirstUbr ? null : false;
     }
 
     private static AppAdvice SevenZip(AdviceContext ctx) => HasNativeArchives(ctx.OsBuild, ctx.OsUbr) switch
@@ -367,7 +390,7 @@ public static class AppAdvisor
         true => Optional("Windows уже открывает RAR и 7z (кроме архивов с паролем)."),
         false => Recommended(ctx.OsBuild < 22000
             ? "Бесплатный архиватор: Windows 10 сама не открывает RAR и 7z."
-            : "Бесплатный архиватор: эта сборка Windows ещё не открывает RAR и 7z сама."),
+            : "Бесплатный архиватор: эта сборка Windows сама не открывает RAR и 7z."),
         _ => Optional("Бесплатный архиватор для RAR, 7z и архивов с паролем."),
     };
 }
