@@ -20,18 +20,39 @@ namespace Monolith;
 /// Command line:
 ///  --no-elevate            stay in read-only mode (no UAC prompt, even with the setting on)
 ///  --page &lt;key&gt;           open a specific page
-///  --snapshot &lt;dir&gt;       render every page to PNG and exit (QA)
-///  --pages a,b,c --wait ms limit / tune --snapshot
+///  --tab &lt;key&gt;            with --page: open that page's tab ("--page devices --tab manual", "--page services --tab tasks")
+///  --snapshot &lt;dir&gt;       render every page to PNG and exit (QA); tabbed pages once per tab ("devices-auto", "devices-manual")
+///  --pages a,b,c --wait ms limit / tune --snapshot (a page key shoots all its tabs, "devices-manual" only that tab)
 ///  --selftest &lt;dir&gt;       exercise every page with all system writes locked; report.md + exit code = failed pages
+///  --display-guard …       INTERNAL: the guard of a display change (Core/Devices/DisplaySafeApply). Started by MONOLITH
+///                          itself, no window; it reverts the display mode/HDR if MONOLITH dies or the user never
+///                          confirms. Runs before every other startup step and marks itself (DisplayGuardProcess) so a
+///                          new MONOLITH never mistakes it for a hung copy.
 /// </summary>
 public partial class App : Application
 {
     private Mutex? _singleInstance;
     private bool _ownsMutex;
     private const string SingleInstanceName = @"Local\MONOLITH.SingleInstance";
+    /// <summary>The display guard's marker, held for the life of the guard process.</summary>
+    private static IDisposable? _guardMarker;
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // The display guard: before the instance lock, settings, UAC and logging setup. It only waits and, if needed,
+        // puts the previous display mode back.
+        if (e.Args.Length > 0 && e.Args[0] == Monolith.Core.Devices.DisplayGuardProcess.Switch)
+        {
+            _guardMarker = Monolith.Core.Devices.DisplayGuardProcess.MarkCurrentProcess();
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            int code;
+            try { code = Monolith.Core.Devices.DeviceWriters.Display?.RunGuard(e.Args) ?? 2; }
+            catch { code = 3; }
+            Shutdown(code);
+            return;
+        }
+
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("Необработанная ошибка: " + ex.ExceptionObject);
@@ -136,6 +157,9 @@ public partial class App : Application
         if (!snapshot) window.Closed += (_, _) => StartExitWatchdog();
 
         var startPage = ArgValue(args, "--page") ?? "dashboard";
+        // A tab of the start page ("--tab manual"): a focus request the page takes on its first load.
+        if (ArgValue(args, "--tab") is { Length: > 0 } tab)
+            Ui.RequestFocus(MainViewModel.ResolvePageKey(startPage), "tab:" + tab);
         vm.NavigateTo(startPage);
 
         if (snapshot)
@@ -334,10 +358,15 @@ public partial class App : Application
         return false;
     }
 
+    /// <summary>
+    /// Other MONOLITH copies — never a display guard: it has no window by design, must finish its job (it may be about to
+    /// put the old display mode back) and ends by itself at its deadline. It is neither activated nor offered to be ended.
+    /// </summary>
     private static IEnumerable<Process> OtherInstances()
     {
         var current = Process.GetCurrentProcess();
-        return Process.GetProcessesByName(current.ProcessName).Where(p => p.Id != current.Id);
+        return Process.GetProcessesByName(current.ProcessName)
+            .Where(p => p.Id != current.Id && !Monolith.Core.Devices.DisplayGuardProcess.IsGuard(p.Id));
     }
 
     private static bool SafeHasNoWindow(Process p)

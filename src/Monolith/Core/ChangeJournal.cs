@@ -7,12 +7,29 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Monolith.Core.Devices;
 using Monolith.Modules.Services;
 using Monolith.Tweaks;
 
 namespace Monolith.Core;
 
-public enum ChangeKind { Registry, Service, PowerScheme, ScheduledTask, Command }
+/// <summary>Append only: the journal stores the names, and older builds cannot read names they do not know.</summary>
+public enum ChangeKind
+{
+    Registry, Service, PowerScheme, ScheduledTask, Command,
+    /// <summary>A per-user Windows input parameter (SystemParametersInfo + its HKCU value) — «Устройства и сеть».</summary>
+    UserParameter,
+    /// <summary>Resolution and refresh rate of one monitor (confirmed on screen).</summary>
+    DisplayMode,
+    /// <summary>HDR of one monitor (confirmed on screen).</summary>
+    DisplayHdr,
+    /// <summary>Monitor brightness or contrast over DDC/CI.</summary>
+    MonitorSetting,
+    /// <summary>Level or mute of a capture endpoint (microphone).</summary>
+    AudioLevel,
+    /// <summary>An NDIS advanced property of a network adapter (speed/duplex, EEE).</summary>
+    NicProperty,
+}
 
 /// <summary>
 /// One reversible change MONOLITH made to the system, with everything needed to undo it.
@@ -61,6 +78,17 @@ public sealed class ChangeRecord
     public string? TaskPath { get; init; }
     public string? RevertFile { get; set; }
     public string? RevertArgs { get; set; }
+
+    // Device changes (source "devices"): the original state of one setting of one device.
+    public SpiSnapshot? Spi { get; set; }
+    public DisplayModeSnapshot? DisplayMode { get; set; }
+    public DisplayHdrSnapshot? DisplayHdr { get; set; }
+    public MonitorVcpSnapshot? Monitor { get; set; }
+    public AudioLevelSnapshot? Audio { get; set; }
+    public NicPropertySnapshot? Nic { get; set; }
+
+    /// <summary>A display change applied temporarily and not confirmed on screen yet (see DisplaySafeApply).</summary>
+    [JsonIgnore] public bool IsPendingConfirm => DisplayMode?.PendingConfirm == true || DisplayHdr?.PendingConfirm == true;
 
     public bool Reverted { get; set; }
     public DateTime? RevertedUtc { get; set; }
@@ -163,6 +191,7 @@ public static class UserScope
     {
         ChangeKind.Registry => reg is not null ? reg.Hive == RegHive.HKCU : target.StartsWith(@"reg:HKCU\", StringComparison.OrdinalIgnoreCase),
         ChangeKind.Command => target.StartsWith("cmd:", StringComparison.Ordinal) && IsPerUserCommand(target[4..]),
+        ChangeKind.UserParameter => true,
         _ => false,
     };
 
@@ -295,7 +324,14 @@ public sealed class ChangeJournal
     /// <summary>TESTS ONLY: a journal outside %ProgramData% (no folder ACL checks); a null path keeps it in memory.</summary>
     internal static ChangeJournal ForTests(string? path = null) => new(path, false);
 
-    private bool CanWrite => !IsUnavailable && (!_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests);
+    /// <summary>
+    /// This process may write the journal: it is available and, for the real one in %ProgramData%, elevated. A process that
+    /// cannot write it never reverts anything either (an undo it could not record would come back after a restart).
+    /// </summary>
+    public bool CanWrite => !IsUnavailable && (!_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests);
+
+    private const string CannotWriteRevert =
+        "журнал изменений нельзя записать (нужны права администратора) — откат не выполнен, система не изменена";
 
     public IReadOnlyList<ChangeRecord> Records { get { lock (_lock) return _data.Records.ToList(); } }
     public IReadOnlyList<ChangeBatch> Batches { get { lock (_lock) return _data.Batches.ToList(); } }
@@ -631,6 +667,48 @@ public sealed class ChangeJournal
         Changed?.Invoke();
     }
 
+    // ───────────────────────────── Display changes awaiting confirmation ─────────────────────────────
+
+    /// <summary>A display change was confirmed on screen (or found saved after a crash): no longer pending; <paramref name="newValue"/> is the live mode.</summary>
+    public bool ConfirmPending(ChangeRecord r, string newValue)
+    {
+        bool saved;
+        lock (_lock)
+        {
+            if (r.DisplayMode is { } mode) mode.PendingConfirm = false;
+            if (r.DisplayHdr is { } hdr) hdr.PendingConfirm = false;
+            r.NewValue = newValue;
+            saved = SaveLocked();
+        }
+        Changed?.Invoke();
+        return saved;
+    }
+
+    /// <summary>Active display records applied temporarily and never confirmed (MONOLITH or the PC died during the countdown).</summary>
+    public IReadOnlyList<ChangeRecord> PendingDisplayRecords()
+    {
+        lock (_lock) return _data.Records.Where(r => !r.Reverted && r.IsPendingConfirm).ToList();
+    }
+
+    /// <summary>A pending display record whose change is not in effect any more: closed as reverted, with <paramref name="note"/>.</summary>
+    public bool ClosePending(ChangeRecord r, string note)
+    {
+        bool saved;
+        lock (_lock)
+        {
+            if (r.DisplayMode is { } mode) mode.PendingConfirm = false;
+            if (r.DisplayHdr is { } hdr) hdr.PendingConfirm = false;
+            r.Reverted = true;
+            r.RevertedUtc = DateTime.UtcNow;
+            r.RevertError = null;
+            r.RevertNote = note;
+            saved = SaveLocked();
+        }
+        JournalLog.Info($"«{r.Title}»: {note}");
+        Changed?.Invoke();
+        return saved;
+    }
+
     // ───────────────────────────── Revert ─────────────────────────────
 
     /// <summary>
@@ -667,10 +745,13 @@ public sealed class ChangeJournal
 
     /// <summary>What a revert reads to put a record back: compared after the restore as a backstop to the gate.</summary>
     private readonly record struct RestoreInputs(string OldValue, RegistryValueSnapshot? Registry, ServiceStartSnapshot? Service,
-        Guid? PlanOriginal, Guid? PlanCreated, string PlansMore, bool? TaskWasEnabled, string? RevertFile, string? RevertArgs)
+        Guid? PlanOriginal, Guid? PlanCreated, string PlansMore, bool? TaskWasEnabled, string? RevertFile, string? RevertArgs,
+        SpiSnapshot? Spi, DisplayModeSnapshot? DisplayMode, DisplayHdrSnapshot? DisplayHdr, MonitorVcpSnapshot? Monitor,
+        AudioLevelSnapshot? Audio, NicPropertySnapshot? Nic)
     {
         public static RestoreInputs Of(ChangeRecord r) => new(r.OldValue, r.Registry, r.Service, r.PowerSchemeOriginal,
-            r.PowerSchemeCreated, string.Join(",", r.PowerSchemesCreatedMore ?? []), r.TaskWasEnabled, r.RevertFile, r.RevertArgs);
+            r.PowerSchemeCreated, string.Join(",", r.PowerSchemesCreatedMore ?? []), r.TaskWasEnabled, r.RevertFile, r.RevertArgs,
+            r.Spi, r.DisplayMode, r.DisplayHdr, r.Monitor, r.Audio, r.Nic);
     }
 
     private async Task<RevertResult> RevertCoreAsync(IEnumerable<ChangeRecord> records, Func<ChangeRecord, RevertCheck>? verify)
@@ -697,6 +778,8 @@ public sealed class ChangeJournal
             if (r.Reverted) continue; // closed meanwhile (a setting of a power plan deleted by an earlier record)
             try
             {
+                // Checked before any system write: an undo that cannot be recorded must not happen at all.
+                if (!CanWrite) throw new InvalidOperationException(CannotWriteRevert);
                 if (IsOtherUser(r, sid)) throw new InvalidOperationException(UserScope.OtherAccountMessage(r.UserSid!));
                 // The journal file is input, not authority: refuse anything MONOLITH's own code could not have recorded.
                 if (JournalTrust.Check(r) is { } refusal)
@@ -829,6 +912,7 @@ public sealed class ChangeJournal
         {
             var backup = (newer.OldValue, newer.Registry, newer.Service, newer.PowerSchemeOriginal, newer.PowerSchemeCreated,
                 More: newer.PowerSchemesCreatedMore?.ToList(), newer.TaskWasEnabled, newer.RevertFile, newer.RevertArgs);
+            var deviceBackup = (newer.Spi, newer.DisplayMode, newer.DisplayHdr, newer.Monitor, newer.Audio, newer.Nic);
             newer.OldValue = r.OldValue;
             switch (r.Kind)
             {
@@ -840,6 +924,26 @@ public sealed class ChangeJournal
                     newer.RevertFile = r.RevertFile;
                     newer.RevertArgs = r.RevertArgs;
                     break;
+                // Device records: only the ORIGINAL part moves; the newer layer keeps what it set (its target).
+                case ChangeKind.UserParameter: newer.Spi = r.Spi; break;
+                case ChangeKind.DisplayMode when r.DisplayMode is { } older && newer.DisplayMode is { } mine:
+                    newer.DisplayMode = new DisplayModeSnapshot
+                    {
+                        MonitorPath = mine.MonitorPath, MonitorName = mine.MonitorName, Original = older.Original, Target = mine.Target,
+                        PendingConfirm = mine.PendingConfirm,
+                    };
+                    break;
+                case ChangeKind.DisplayHdr when r.DisplayHdr is { } older && newer.DisplayHdr is { } mine:
+                    newer.DisplayHdr = new DisplayHdrSnapshot
+                    {
+                        MonitorPath = mine.MonitorPath, MonitorName = mine.MonitorName, OriginalEnabled = older.OriginalEnabled,
+                        TargetEnabled = mine.TargetEnabled, PendingConfirm = mine.PendingConfirm,
+                        ModeBefore = older.ModeBefore, AcmBefore = older.AcmBefore,
+                    };
+                    break;
+                case ChangeKind.MonitorSetting: newer.Monitor = r.Monitor; break;
+                case ChangeKind.AudioLevel: newer.Audio = r.Audio; break;
+                case ChangeKind.NicProperty: newer.Nic = r.Nic; break;
             }
             if (newerMayOwnPlans)
             {
@@ -861,6 +965,7 @@ public sealed class ChangeJournal
                 newer.TaskWasEnabled = backup.TaskWasEnabled;
                 newer.RevertFile = backup.RevertFile;
                 newer.RevertArgs = backup.RevertArgs;
+                (newer.Spi, newer.DisplayMode, newer.DisplayHdr, newer.Monitor, newer.Audio, newer.Nic) = deviceBackup;
                 throw new InvalidOperationException($"Отказано: {refusal}. Исходное значение нельзя передать более позднему изменению.");
             }
             r.Reverted = true;
@@ -1259,6 +1364,26 @@ internal sealed class WindowsJournalSystem : IJournalSystem
                 if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
                 return RevertOutcome.Done;
 
+            // Device records: the writers re-validate against the live device (monitor present, mode offered, range…).
+            case ChangeKind.UserParameter:
+                SafetyLock.ThrowIfLocked("откат параметра Windows");
+                return await Task.Run(() => DeviceRestore.RestoreUserParameter(r)).ConfigureAwait(false);
+            case ChangeKind.DisplayMode:
+                SafetyLock.ThrowIfLocked("откат параметров экрана");
+                return await DisplaySafeApply.RestoreModeAsync(r).ConfigureAwait(false);
+            case ChangeKind.DisplayHdr:
+                SafetyLock.ThrowIfLocked("откат HDR");
+                return await DisplaySafeApply.RestoreHdrAsync(r).ConfigureAwait(false);
+            case ChangeKind.MonitorSetting:
+                SafetyLock.ThrowIfLocked("откат настройки монитора");
+                return await Task.Run(() => DeviceRestore.RestoreMonitor(r)).ConfigureAwait(false);
+            case ChangeKind.AudioLevel:
+                SafetyLock.ThrowIfLocked("откат уровня звука");
+                return await Task.Run(() => DeviceRestore.RestoreAudio(r)).ConfigureAwait(false);
+            case ChangeKind.NicProperty:
+                SafetyLock.ThrowIfLocked("откат свойства сетевого адаптера");
+                return await Task.Run(() => DeviceRestore.RestoreNic(r)).ConfigureAwait(false);
+
             default:
                 throw new InvalidOperationException("Запись журнала не содержит данных для отката.");
         }
@@ -1282,8 +1407,12 @@ internal static class JournalTrust
 {
     private static readonly HashSet<string> ModuleSources = new(StringComparer.Ordinal)
     {
-        "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers", "games",
+        "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers", "games", DeviceTargets.Source,
     };
+
+    /// <summary>Kinds only the «Устройства и сеть» page writes (and the only kinds it writes).</summary>
+    internal static bool IsDeviceKind(ChangeKind kind) => kind is ChangeKind.UserParameter or ChangeKind.DisplayMode or ChangeKind.DisplayHdr
+        or ChangeKind.MonitorSetting or ChangeKind.AudioLevel or ChangeKind.NicProperty;
 
     private static readonly Regex TweakSource = new(@"^tweak:[a-z0-9][a-z0-9-]{0,80}$", RegexOptions.CultureInvariant);
 
@@ -1312,6 +1441,10 @@ internal static class JournalTrust
             _ => null,
         };
         if (expected is { } kind && r.Kind != kind) return $"источник «{r.Source}» не создаёт записи типа {r.Kind}";
+        var deviceKind = IsDeviceKind(r.Kind);
+        if (r.Source == DeviceTargets.Source && !deviceKind) return $"источник «{r.Source}» не создаёт записи типа {r.Kind}";
+        if (deviceKind && (r.Source != DeviceTargets.Source || r.AlsoSources.Count > 0))
+            return $"записи типа {r.Kind} создаёт только раздел «Устройства и сеть»";
 
         // An account is recorded only for changes in one account's profile.
         if (r.UserSid is { } sid)
@@ -1367,9 +1500,100 @@ internal static class JournalTrust
             case ChangeKind.Command:
                 return CheckCommand(r, isTweak);
 
+            case ChangeKind.UserParameter: return CheckSpi(r);
+            case ChangeKind.DisplayMode: return CheckDisplayMode(r);
+            case ChangeKind.DisplayHdr: return CheckDisplayHdr(r);
+            case ChangeKind.MonitorSetting: return CheckMonitor(r);
+            case ChangeKind.AudioLevel: return CheckAudio(r);
+            case ChangeKind.NicProperty: return CheckNic(r);
+
             default:
                 return null; // no data to revert: the system side reports that itself
         }
+    }
+
+    // ───────────────────────────── Device records ─────────────────────────────
+
+    private static bool SameText(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Names are only shown, never used to find a device; still: short and printable.</summary>
+    private static bool PlainName(string? name) => name is { Length: <= 200 } && !name.Any(char.IsControl);
+
+    private static string? CheckSpi(ChangeRecord r)
+    {
+        if (r.Spi is not { } s) return "в записи параметра нет данных";
+        if (SpiCatalog.Find(s.Id) is not { } entry) return $"неизвестный параметр «{s.Id}»";
+        if (!string.Equals(r.Target, DeviceTargets.Spi(s.Id), StringComparison.Ordinal)) return "цель записи не совпадает с параметром";
+        if (!entry.IsValidOriginal(s.Value)) return "исходное значение параметра вне допустимого диапазона";
+        if (r.UserSid is null) return "для параметра пользователя не указана учётная запись";
+        if ((s.Persisted is null) != (entry.Persisted is null)) return "сохранённое значение параметра не совпадает с каталогом";
+        if (s.Persisted is { } p && entry.Persisted is { } catalog)
+        {
+            if (p.Hive != RegHive.HKCU || !SameText(p.Path.TrimEnd('\\'), catalog.Path) || !SameText(p.Name, catalog.Name))
+                return "место сохранённого значения не совпадает с каталогом";
+            if (p.CreatedKeyRoot is not null) return "для параметра указан созданный раздел реестра";
+            // Windows writes REG_SZ; a third-party tool may have left a DWORD: both are put back exactly as they were.
+            if (p.ValueExisted && (!DeviceRestore.IsPersistedKind(p.Kind) || (p.Data?.Length ?? 0) > 64))
+                return "тип или размер сохранённого значения не тот";
+        }
+        return null;
+    }
+
+    private static string? CheckDisplayMode(ChangeRecord r)
+    {
+        if (r.DisplayMode is not { Original: not null, Target: not null } d) return "в записи режима экрана нет данных";
+        if (!DeviceTargets.IsMonitorPath(d.MonitorPath)) return "некорректный путь монитора";
+        if (!SameText(r.Target, DeviceTargets.DisplayMode(d.MonitorPath))) return "цель записи не совпадает с монитором";
+        if (!d.Original.IsSane || !d.Target.IsSane) return "недопустимый режим экрана";
+        if (!PlainName(d.MonitorName)) return "некорректное имя монитора";
+        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+    }
+
+    private static string? CheckDisplayHdr(ChangeRecord r)
+    {
+        if (r.DisplayHdr is not { } h) return "в записи HDR нет данных";
+        if (!DeviceTargets.IsMonitorPath(h.MonitorPath)) return "некорректный путь монитора";
+        if (!SameText(r.Target, DeviceTargets.DisplayHdr(h.MonitorPath))) return "цель записи не совпадает с монитором";
+        if (h.ModeBefore is { IsSane: false }) return "недопустимый режим экрана";
+        if (!PlainName(h.MonitorName)) return "некорректное имя монитора";
+        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+    }
+
+    private static string? CheckMonitor(ChangeRecord r)
+    {
+        if (r.Monitor is not { } m) return "в записи монитора нет данных";
+        if (m.Code is not (MonitorVcp.Brightness or MonitorVcp.Contrast)) return "MONOLITH меняет по DDC/CI только яркость и контраст";
+        // VCP values are 16-bit: the whole range a real monitor can report is accepted.
+        if (m.Max is < 1 or > 65535 || m.Value > m.Max || m.Min > m.Value) return "значение вне диапазона монитора";
+        if (!DeviceTargets.IsMonitorPath(m.MonitorPath)) return "некорректный путь монитора";
+        if (!SameText(r.Target, DeviceTargets.Monitor(m.MonitorPath, m.Code))) return "цель записи не совпадает с монитором";
+        if (!PlainName(m.MonitorName)) return "некорректное имя монитора";
+        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+    }
+
+    private static string? CheckAudio(ChangeRecord r)
+    {
+        if (r.Audio is not { } a) return "в записи звука нет данных";
+        if (!DeviceTargets.IsCaptureEndpointId(a.EndpointId)) return "MONOLITH меняет уровень только у устройств записи";
+        if (a.Component is not (AudioComponent.Level or AudioComponent.Mute)) return "неизвестная часть настройки звука";
+        var scalar = a.Scalar;
+        if (!float.IsFinite(scalar) || scalar < 0f || scalar > 1f) return "уровень вне диапазона 0–100 %";
+        if (!SameText(r.Target, DeviceTargets.Audio(a.EndpointId, a.Component))) return "цель записи не совпадает с устройством";
+        if (!PlainName(a.EndpointName)) return "некорректное имя устройства";
+        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+    }
+
+    private static string? CheckNic(ChangeRecord r)
+    {
+        if (r.Nic is not { } n) return "в записи сетевого адаптера нет данных";
+        if (n.InterfaceGuid == Guid.Empty) return "не указан сетевой адаптер";
+        if (!DeviceTargets.IsNicKeyword(n.Keyword)) return $"свойство «{n.Keyword}» MONOLITH не меняет";
+        if ((n.Value is not null && !DeviceTargets.IsNicValue(n.Value)) || (n.DefaultValue is not null && !DeviceTargets.IsNicValue(n.DefaultValue)))
+            return "значение свойства не число";
+        if (n.RestoreValue is null) return "в записи нет прежнего значения";
+        if (!SameText(r.Target, DeviceTargets.NicProperty(n.InterfaceGuid, n.Keyword))) return "цель записи не совпадает с адаптером";
+        if (!PlainName(n.AdapterName)) return "некорректное имя адаптера";
+        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
     }
 
     private const string StartupApprovedRoot = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\";

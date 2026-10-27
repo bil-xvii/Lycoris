@@ -116,6 +116,16 @@ public sealed class SelfTestRunner
                 }
                 host.SelectTab(MaintenanceViewModel.CleanerTab);
             }
+            else if (page is Monolith.Modules.Devices.DevicesViewModel devices)
+            {
+                // АВТОНАСТРОЙКА and ВРУЧНУЮ are separate views: each is opened and exercised.
+                foreach (var tab in Monolith.Modules.Devices.DevicesViewModel.TabKeys)
+                {
+                    devices.SelectedTab = tab;
+                    reports.Add(await TestPageAsync(page, $"{page.Key}/{tab}", $"{page.Title} · {tab}", $"{n:00}-{page.Key}-{tab}.png"));
+                }
+                devices.SelectedTab = Monolith.Modules.Devices.DevicesViewModel.TabAuto;
+            }
             else
             {
                 reports.Add(await TestPageAsync(page, page.Key, page.Title, $"{n:00}-{page.Key}.png"));

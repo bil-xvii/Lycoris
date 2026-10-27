@@ -77,8 +77,12 @@ public static class DriftDetector
         return result;
     }
 
+    /// <summary>
+    /// Device settings are never drift: users change pointer speed, brightness, mic level or the display mode on purpose
+    /// and often, so a «changed outside MONOLITH» notice would only be noise.
+    /// </summary>
     public static bool IsCandidate(ChangeRecord r) =>
-        !r.Reverted && r.Kind != ChangeKind.Command && !r.TouchedBy(GameBoostSource);
+        !r.Reverted && r.Kind != ChangeKind.Command && !r.TouchedBy(GameBoostSource) && !JournalTrust.IsDeviceKind(r.Kind);
 
     /// <summary>The source of the last change of the target (its NewValue): the newest AlsoSource of an older merged record, else Source.</summary>
     public static string LatestSource(ChangeRecord r) => r.AlsoSources.Count > 0 ? r.AlsoSources[^1] : r.Source;
@@ -116,8 +120,11 @@ public static class DriftDetector
         StartupSource or StartupTaskSource => "startup",
         "drivers" => "drivers",
         GamesSource => "games",
+        DevicesSource => "devices",
         _ => null,
     };
+
+    public const string DevicesSource = Monolith.Core.Devices.DeviceTargets.Source;
 
     /// <summary>Key of an accepted drift: the record and the live value the user accepted.</summary>
     public static string IgnoreKey(ChangeRecord r, string live) => $"{r.Id:N}|{live.Trim()}";
