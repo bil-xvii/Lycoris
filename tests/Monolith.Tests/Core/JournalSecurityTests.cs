@@ -109,6 +109,40 @@ public sealed class JournalSecurityTests : IDisposable
     }
 
     [Fact]
+    public void New_catalog_undo_commands_are_accepted_and_tampering_is_refused()
+    {
+        var ps = TweakCatalog.PowerShellExe;
+        // Windows 11 power mode overlay: only the three documented modes.
+        foreach (var mode in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency, TweakCatalog.PowerModeBestPerformance })
+            Assert.Null(JournalTrust.Check(Command("tweak:power-mode-best-performance", "powermode:ac", ps,
+                TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(mode)))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:power-mode-best-performance", "powermode:ac", ps,
+            TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced) + ";Start-Process calc"))));
+
+        // TCP auto-tuning: System32 netsh with one of the five levels, nothing else.
+        var netsh = ProcessRunner.Sys("netsh.exe");
+        foreach (var level in TweakCatalog.TcpAutotuningLevels)
+            Assert.Null(JournalTrust.Check(Command("tweak:tcp-autotuning-normal", "tcp-autotuning", netsh, TweakCatalog.TcpAutotuningArgs(level))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:tcp-autotuning-normal", "tcp-autotuning", netsh,
+            TweakCatalog.TcpAutotuningArgs("normal") + " & calc")));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:tcp-autotuning-normal", "tcp-autotuning", Cmd,
+            TweakCatalog.CmdArgs("netsh interface tcp set global autotuninglevel=normal"))));
+
+        // DNS: both the new script (keeps the registration flags) and the older one rebuild exactly.
+        var g = $"{{{Guid.NewGuid()}}}";
+        foreach (var keep in new[] { true, false })
+            Assert.Null(JournalTrust.Check(Command("tweak:dns", $"dns4:{g}", ps,
+                TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv4", g, ["1.1.1.1"], keepRegistration: keep)))));
+
+        // DirectX tokens: scripts that also remove a key MONOLITH created rebuild exactly; appended payloads do not.
+        foreach (var (key, parent) in new[] { (false, false), (true, false), (true, true) })
+            Assert.Null(JournalTrust.Check(Command("tweak:dx", "dx:VRROptimizeEnable", ps,
+                TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("VRROptimizeEnable", null, createdKey: key, createdParent: parent)))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:dx", "dx:VRROptimizeEnable", ps,
+            TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("VRROptimizeEnable", null, createdKey: true) + ";Start-Process calc"))));
+    }
+
+    [Fact]
     public void Tampered_undo_commands_are_refused()
     {
         var pc = Q("powercfg.exe");
@@ -185,7 +219,8 @@ public sealed class JournalSecurityTests : IDisposable
         };
         const string task = @"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\SpotifyStartupTask";
         Assert.Null(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State")));
-        Assert.Null(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State", existed: false)));
+        // MONOLITH never creates the State value and never records a policy state (3/4) as an original.
+        Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State", existed: false)));
         Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "Other")));
         Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKLM, task, "State")));
         Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State", RegistryValueKind.String)));

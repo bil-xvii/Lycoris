@@ -163,12 +163,15 @@ public sealed partial class ServicesViewModel
     private async Task RevertTaskAsync(string? path)
     {
         if (string.IsNullOrEmpty(path) || !RequireAdmin("откат изменения задачи")) return;
-        var record = ChangeJournal.Instance.FindActive("task:" + path);
+        // The row means «back to how it was before MONOLITH»: every active change of this task, newest first.
+        var layers = ChangeJournal.Instance.ActiveLayers("task:" + path);
+        var record = layers.LastOrDefault();
         if (record is null)
         {
             RefreshJournal();
             return;
         }
+        var original = layers[0].OldValue;
 
         var info = await Task.Run(() => ScheduledTasks.Query(path));
         if (!info.Exists)
@@ -181,14 +184,14 @@ public sealed partial class ServicesViewModel
         var current = info.Enabled ? "Включена" : "Отключена";
         var drift = !string.Equals(current, record.NewValue, StringComparison.Ordinal);
         var message = drift
-            ? $"Состояние задачи уже изменено без MONOLITH: сейчас «{current}». Всё равно вернуть исходное «{record.OldValue}»?"
+            ? $"Состояние задачи уже изменено без MONOLITH: сейчас «{current}». Всё равно вернуть исходное «{original}»?"
             : "Задача вернётся в исходное состояние из журнала.";
-        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {record.OldValue}"], "ОТКАТИТЬ", danger: drift))
+        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;
 
         await RunBusyAsync("Откат изменения задачи…", async () =>
         {
-            var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync([record]));
+            var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(layers));
             await ReportRevertAsync(result);
             await RefreshStatesAsync();
         });

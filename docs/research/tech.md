@@ -334,7 +334,7 @@ for (uint i = 0; ; i++) { var b = new byte[16]; uint sz = 16;
 - **Classification: DEBATED.**
   - Desktop gain is usually ≤1 %, at the cost of more idle power and heat.
   - AMD recommends Balanced for **dual-CCD X3D** chips (7950X3D/9950X3D), because the 3D V-Cache optimizer depends on Balanced and Game Bar. Single-CCD chips like the 9800X3D aren't affected.
-  - Never apply on battery or Modern Standby. On Modern Standby (`GetPwrCapabilities().AoAc`), only Balanced exists; use the Settings "Power mode" overlay instead (Best performance overlay `ded574b5-45a0-4f42-8737-46345c09c238`, set through `ms-settings:powersleep`).
+  - Never apply on battery or Modern Standby. On Modern Standby (`GetPwrCapabilities().AoAc`), only Balanced exists; use the Windows 11 "Power mode" overlay instead (Best performance `ded574b5-45a0-4f42-8737-46345c09c238`). It is set with the documented `PowerSetUserConfiguredACPowerMode` / read with `PowerGetUserConfiguredACPowerMode` (Microsoft Learn, three GUIDs) — MONOLITH's `power-mode-best-performance` tweak does this through the journal; see gaming_tweaks.md §2 C.
 
 ---
 

@@ -100,7 +100,7 @@ public sealed class SentenceCaseConverter : IValueConverter
         "GPU", "CPU", "RAM", "VRAM", "SSD", "HDD", "NVME", "SATA", "USB", "DNS", "IP", "TCP", "UDP", "VPN", "LAN", "WI-FI",
         "SFC", "DISM", "CBS", "TEMP", "ID", "PC", "OS", "AI", "UAC", "TPM", "VBS", "HVCI", "BIOS", "UEFI", "XMP", "EXPO",
         "FPS", "HDR", "VRR", "HAGS", "DLSS", "RTX", "GTX", "AMD", "NVIDIA", "DDU", "OEM", "MSI", "OBS", "MDM", "CCD", "X3D",
-        "IFEO", "MMCSS", "SMB", "LLMNR", "QOS", "NTFS", "WSL", "DX", "DXGI", "PCIE", "ACPI", "WU", "UWP", "MS", "EA", "GOG",
+        "IFEO", "MMCSS", "SMB", "LLMNR", "QOS", "NTFS", "WSL", "DX", "DXGI", "BAR", "ACPI", "WU", "UWP", "MS", "EA", "GOG",
         "CPU-Z", "GPU-Z", "HWINFO", "MONOLITH", "VR", "4K", "HTML", "JSON", "WMI", "COM", "PDF", "LTSC", "KB",
     };
 
@@ -109,7 +109,7 @@ public sealed class SentenceCaseConverter : IValueConverter
         ["DIRECTX"] = "DirectX", ["GEFORCE"] = "GeForce", ["ONEDRIVE"] = "OneDrive", ["WININET"] = "WinINet", ["WINGET"] = "winget",
         ["IPV6"] = "IPv6", ["IPV4"] = "IPv4", ["G-SYNC"] = "G-SYNC", ["FREESYNC"] = "FreeSync", ["BATTLE.NET"] = "Battle.net",
         ["NETBIOS"] = "NetBIOS", ["POWERSHELL"] = "PowerShell", ["SYSMAIN"] = "SysMain", ["DIAGTRACK"] = "DiagTrack",
-        ["XBOX"] = "Xbox", ["YOUTUBE"] = "YouTube", ["MACOS"] = "macOS", ["IOS"] = "iOS",
+        ["XBOX"] = "Xbox", ["PCIE"] = "PCIe", ["YOUTUBE"] = "YouTube", ["MACOS"] = "macOS", ["IOS"] = "iOS",
     };
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => Apply(value as string);

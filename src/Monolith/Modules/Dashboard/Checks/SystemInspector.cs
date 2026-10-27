@@ -202,6 +202,7 @@ public static class SystemInspector
         n += CountRunKey(RegHive.HKLM, @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run", StartupApproved + @"\Run32");
         n += CountFolder(Environment.GetFolderPath(Environment.SpecialFolder.Startup), RegHive.HKCU);
         n += CountFolder(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup), RegHive.HKLM);
+        n += Monolith.Modules.Startup.PackagedStartup.Scan().Count(e => e.Enabled); // Store apps (new Teams…), as on АВТОЗАПУСК
         return n;
     }
 

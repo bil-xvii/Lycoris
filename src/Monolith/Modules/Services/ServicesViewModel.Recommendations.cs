@@ -214,12 +214,15 @@ public sealed partial class ServicesViewModel
     private async Task RevertServiceAsync(string? name)
     {
         if (string.IsNullOrEmpty(name) || !RequireAdmin("откат изменения службы")) return;
-        var record = ChangeJournal.Instance.FindActive("svc:" + name);
+        // The row means «back to how it was before MONOLITH»: every active change of this service, newest first.
+        var layers = ChangeJournal.Instance.ActiveLayers("svc:" + name);
+        var record = layers.LastOrDefault();
         if (record is null)
         {
             RefreshJournal();
             return;
         }
+        var original = layers[0].OldValue;
 
         var live = await Task.Run(() => ServiceControl.Query(name));
         if (live is null)
@@ -234,12 +237,12 @@ public sealed partial class ServicesViewModel
         var message = drift
             ? $"Тип запуска уже изменён без MONOLITH (обновлением Windows, политикой или вручную): сейчас «{current}», MONOLITH ставил «{record.NewValue}». Всё равно вернуть исходное значение?"
             : "Служба вернётся к исходному типу запуска из журнала. Работающая служба не останавливается.";
-        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {record.OldValue}"], "ОТКАТИТЬ", danger: drift))
+        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;
 
         await RunBusyAsync("Откат изменения службы…", async () =>
         {
-            var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync([record]));
+            var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(layers));
             await ReportRevertAsync(result);
             await RefreshStatesAsync();
         });

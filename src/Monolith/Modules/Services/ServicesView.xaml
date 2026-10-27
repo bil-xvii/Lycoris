@@ -956,6 +956,10 @@
                                                                     Visibility="{Binding TargetExists, Converter={StaticResource InverseBoolToVis}}">
                                                                 <TextBlock Text="НЕТ ФАЙЛА" />
                                                             </Border>
+                                                            <Border Style="{StaticResource Tag}" Margin="8,0,0,0" ToolTip="{Binding BootDelayTooltip}"
+                                                                    Visibility="{Binding ShowBootDelay, Converter={StaticResource BoolToVis}}">
+                                                                <TextBlock Text="ЗАМЕДЛЯЕТ ЗАГРУЗКУ" />
+                                                            </Border>
                                                         </StackPanel>
                                                         <TextBlock Text="{Binding Command}" Style="{StaticResource CommandText}" Margin="0,5,0,0" ToolTip="{Binding Command}" />
                                                     </StackPanel>
