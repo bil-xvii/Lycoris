@@ -160,10 +160,10 @@ public static partial class HealthRules
             return new("refresh-rate", "ЧАСТОТА ОБНОВЛЕНИЯ МАКСИМАЛЬНАЯ", list + ".", CheckSeverity.Ok, 10);
         }
         var what = string.Join("; ", slow.Select(d => $"{d.Name}: сейчас {d.CurrentHz} Гц, доступно {d.MaxHz} Гц при {d.Width}×{d.Height}"));
-        var detail = what + ". Выберите максимальную частоту: «Параметры → Дисплей → Расширенные параметры дисплея → " +
-                     "Частота обновления». Игры и интерфейс станут плавнее; изменение мгновенное, вернуть можно там же.";
+        var detail = what + ". Выберите максимальную частоту в разделе «Устройства и сеть»: MONOLITH переключит её с подтверждением " +
+                     "на экране, а откатить можно там же или в «Восстановлении». Игры и интерфейс станут плавнее.";
         return new("refresh-rate", "МОНИТОР НЕ НА МАКСИМАЛЬНОЙ ЧАСТОТЕ", detail, CheckSeverity.Warning, 10,
-            new CheckAction(CheckActionKind.OpenUri, "ОТКРЫТЬ ПАРАМЕТРЫ", "ms-settings:display-advanced"));
+            new CheckAction(CheckActionKind.FocusDevice, "К МОНИТОРАМ", "kind:monitor"));
     }
 
     // ───────────────────────────── System Restore ─────────────────────────────

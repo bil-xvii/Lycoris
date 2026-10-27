@@ -99,6 +99,23 @@ public static partial class TweakCatalog
             risk: TweakRisk.Optional,
             defaults: ProfileSet.None);
 
+        // SAFE-OPTIONAL, only while HDR is on for at least one monitor (devices_displays.md display-auto-hdr). The 24H2 Auto HDR
+        // bug (safeguard 55382406) was fixed by KB5051987 = build 26100.3194.
+        yield return DxTokenTweak(
+            id: "auto-hdr",
+            title: "Auto HDR для игр",
+            description: "Windows добавляет HDR играм DirectX 11/12, которые сами его не поддерживают. Работает только на мониторе с включённым HDR.",
+            details: "Параметры → Дисплей → Графика → «Auto HDR». Силу эффекта можно задать для каждой игры в Game Bar (Win+G → Параметры → " +
+                     "Игровые функции → «Настроить интенсивность HDR»). Некоторые игры выглядят перенасыщенными — тогда отключите Auto HDR для них " +
+                     "в Game Bar или откатите пункт. MONOLITH меняет только флаг AutoHDREnable в строке настроек DirectX, остальные настройки " +
+                     "не трогает. Действует со следующего запуска игры.",
+            token: "AutoHDREnable",
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            appliesTo: sp => AutoHdrBuildSupported(sp) && HdrEnabledProbe() != false,
+            notApplicableReason: "Нужен включённый HDR хотя бы на одном мониторе («Устройства и сеть» → Мониторы) и Windows 11; " +
+                                 "для 24H2 — с обновлением KB5051987 (февраль 2025) или новее.");
+
         // SAFE-DEFAULT (ensure OFF). Absent means OFF on Windows 11.
         yield return new CustomTweak
         {
@@ -152,6 +169,15 @@ public static partial class TweakCatalog
             Values = [Lm(@"SOFTWARE\Microsoft\Windows\Dwm", "OverlayTestMode", 5)],
         };
     }
+
+    /// <summary>Auto HDR works from Windows 11; on 24H2 (26100) only with KB5051987 (UBR 3194) or newer.</summary>
+    internal static bool AutoHdrBuildSupported(SystemProfile sp) => sp.IsWindows11 && !(sp.OsBuild == 26100 && sp.OsUbr < 3194);
+
+    /// <summary>
+    /// Is HDR on for at least one active monitor? A cheap CCD read (null = cannot tell, then the tweak stays offered).
+    /// Tests replace it.
+    /// </summary>
+    internal static Func<bool?> HdrEnabledProbe { get; set; } = Monolith.Modules.Devices.Displays.DisplayInventory.AnyHdrEnabled;
 
     private static bool BackgroundRecordingOff()
     {

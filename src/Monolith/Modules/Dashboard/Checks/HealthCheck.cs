@@ -20,6 +20,11 @@ public enum CheckActionKind
     FocusTweak,
     /// <summary>Apply a catalog tweak by id through the journal (admin). Falls back to the Optimize page.</summary>
     ApplyTweak,
+    /// <summary>
+    /// Open «Устройства и сеть» focused on <see cref="CheckAction.Target"/> (a card key or "kind:&lt;kind&gt;", e.g. "kind:monitor").
+    /// Changes nothing: the change itself is made there, through the journal and with an on-screen confirmation.
+    /// </summary>
+    FocusDevice,
 }
 
 /// <summary>What the button next to a check does. Nothing here touches the system by itself.</summary>
