@@ -197,9 +197,14 @@ internal static class VendorApps
             problem = app.IsRgbUnifier ? "программа без цифровой подписи — MONOLITH её не запускает" : "нет проверенного способа запуска";
             return null;
         }
-        if (string.IsNullOrWhiteSpace(env.ProgramFiles) || Path.IsPathRooted(rel))
+        if (string.IsNullOrWhiteSpace(env.ProgramFiles))
         {
             problem = "папка Program Files не найдена";
+            return null;
+        }
+        if (Path.IsPathRooted(rel))
+        {
+            problem = "путь ведёт за пределы Program Files";
             return null;
         }
         string full, root;
