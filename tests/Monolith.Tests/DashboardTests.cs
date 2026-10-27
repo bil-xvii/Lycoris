@@ -571,7 +571,13 @@ public sealed class DashboardRulesTests
         Assert.Equal(CheckSeverity.Info, r.Severity);
         Assert.Null(r.Action); // never offered to switch off
         Assert.Equal(0, r.Weight);
-        Assert.Null(HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Off }));
+        Assert.Contains("«Оптимизации»", r.Detail); // the only way to turn it off stays the expert item
+        // Memory integrity off is reported too (information only, no score penalty), but only when the state is known.
+        var off = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Off })!;
+        Assert.Equal(CheckSeverity.Info, off.Severity);
+        Assert.Equal(0, off.Weight);
+        Assert.Null(off.Action);
+        Assert.Null(HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Unknown }));
     }
 
     [Fact]
@@ -614,6 +620,7 @@ public sealed class DashboardRulesTests
         var results = HealthRules.Evaluate(snapshot);
 
         Assert.True(results.Count >= 12);
+        Assert.Contains(results, r => r.Id == "vbs" && r.Severity == CheckSeverity.Info && r.Weight == 0);
         Assert.All(results, r =>
         {
             Assert.False(string.IsNullOrWhiteSpace(r.Title));
@@ -629,7 +636,8 @@ public sealed class DashboardRulesTests
     {
         var results = HealthRules.Evaluate(new SystemSnapshot());
         // Only checks with defined defaults remain (pending reboot list is empty → OK).
-        Assert.DoesNotContain(results, r => r.Id is "ram-speed" or "refresh-rate" or "restore" or "trim" or "devices" or "vbs");
+        Assert.DoesNotContain(results, r => r.Id is "ram-speed" or "refresh-rate" or "restore" or "trim" or "devices" or "vbs"
+            or "boot-security" or "monitor-gpu" or "disk-health" or "stability" or "rebar" or "pcie-link");
     }
 
     [Theory]
@@ -642,4 +650,698 @@ public sealed class DashboardRulesTests
     [InlineData("", "")]
     public void Capital_headings_become_sentence_case(string input, string expected) =>
         Assert.Equal(expected, Monolith.UI.SentenceCaseConverter.Apply(input));
+}
+
+public sealed class DashboardBootSecurityTests
+{
+    private static SystemSnapshot Pc(FirmwareKind fw, bool? secureBoot, TpmState tpm, int build = 26100, params string[] games) =>
+        new() { Firmware = fw, SecureBootOn = secureBoot, Tpm = tpm, OsBuild = build, InstalledGames = games };
+
+    [Fact]
+    public void Uefi_secure_boot_and_tpm2_are_ok()
+    {
+        var r = HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, true, TpmState.V20))!;
+        Assert.Equal(CheckSeverity.Ok, r.Severity);
+        Assert.Equal("boot-security", r.Id);
+        Assert.Null(r.Action);
+    }
+
+    [Fact]
+    public void Unknown_state_gives_no_verdict()
+    {
+        Assert.Null(HealthRules.CheckBootSecurity(new SystemSnapshot()));
+        Assert.Null(HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, null, TpmState.V20)));   // no admin, no registry value
+        Assert.Null(HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, true, TpmState.Unknown)));
+    }
+
+    [Fact]
+    public void Secure_boot_off_without_a_game_that_needs_it_is_information_without_penalty()
+    {
+        var r = HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, false, TpmState.V20, 26100, "Counter-Strike 2"))!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Equal(0, r.Weight);
+        Assert.Equal("SECURE BOOT ВЫКЛЮЧЕН", r.Title);
+        Assert.Contains("Install default keys", r.Detail);
+        Assert.Contains("aka.ms/myrecoverykey", r.Detail);   // BitLocker recovery warning before any BIOS step
+        Assert.Contains("MONOLITH прошивку", r.Detail);
+        Assert.Null(r.Action);                               // firmware is changed by the user only
+    }
+
+    [Fact]
+    public void A_library_game_that_needs_secure_boot_makes_it_a_warning()
+    {
+        var r = HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, false, TpmState.V20, 26100, "Battlefield™ 6"))!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Contains("Battlefield 6 (EA Javelin)", r.Detail);
+        Assert.Null(r.Action);
+    }
+
+    [Fact]
+    public void Legacy_bios_warns_about_mbr_and_never_offers_a_conversion()
+    {
+        var r = HealthRules.CheckBootSecurity(Pc(FirmwareKind.LegacyBios, null, TpmState.V20))!;
+        Assert.Equal("ЗАГРУЗКА В РЕЖИМЕ LEGACY BIOS", r.Title);
+        Assert.Contains("MBR", r.Detail);
+        Assert.Contains("mbr2gpt /validate", r.Detail);
+        Assert.Null(r.Action);
+    }
+
+    [Fact]
+    public void Vanguard_requirement_applies_on_windows_11_only()
+    {
+        var win10 = HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, true, TpmState.NotFound, 19045, "VALORANT"))!;
+        var win11 = HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, true, TpmState.NotFound, 22631, "VALORANT"))!;
+        Assert.Equal(CheckSeverity.Info, win10.Severity);
+        Assert.Equal(CheckSeverity.Warning, win11.Severity);
+        Assert.Equal("TPM 2.0 НЕДОСТУПЕН", win11.Title);
+        Assert.Contains("fTPM/PTT", win11.Detail);
+        Assert.Contains("Clear TPM", win11.Detail); // told never to clear it
+    }
+
+    [Fact]
+    public void Tpm_12_and_secure_boot_off_together()
+    {
+        var r = HealthRules.CheckBootSecurity(Pc(FirmwareKind.Uefi, false, TpmState.V12, 26100, "Call of Duty®"))!;
+        Assert.Equal("SECURE BOOT И TPM 2.0 НЕДОСТУПНЫ", r.Title);
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Contains("TPM 1.2", r.Detail);
+        Assert.Contains("Call of Duty (Ricochet)", r.Detail);
+    }
+
+    [Fact]
+    public void Anti_cheat_games_are_matched_by_name()
+    {
+        var found = HealthRules.AntiCheatGames(["Battlefield™  6", "call of duty®", "VALORANT", "Dota 2", "Battlefield 2042"], 26100);
+        Assert.Equal(["Battlefield 6", "Call of Duty", "VALORANT"], found.Select(g => g.Title));
+        Assert.DoesNotContain(HealthRules.AntiCheatGames(["VALORANT"], 19045), g => g.Title == "VALORANT");
+        Assert.Empty(HealthRules.AntiCheatGames([], 26100));
+    }
+
+    [Theory]
+    [InlineData("SB=ON\r\n", true)]
+    [InlineData("SB=OFF", false)]
+    [InlineData("SB=UNKNOWN", null)]
+    [InlineData("Cmdlet not supported on this platform", null)]
+    [InlineData("", null)]
+    public void Confirm_secure_boot_output(string output, bool? expected) => Assert.Equal(expected, HealthRules.ParseSecureBootOutput(output));
+}
+
+public sealed class DashboardKernelProtectionTests
+{
+    private const string Blocklist = "{d2bda982-ccf6-4344-ac5b-0b44427b6816}";
+
+    private static string Json(params (string Id, bool Enforced)[] policies) =>
+        "{\"Policies\":[" + string.Join(",", policies.Select(p =>
+            $"{{\"PolicyID\":\"{p.Id}\",\"FriendlyName\":\"x\",\"IsEnforced\":{(p.Enforced ? "true" : "false")},\"IsAuthorized\":true}}")) +
+        "],\"OperationResult\":0}";
+
+    [Fact]
+    public void Citool_json_states_are_parsed()
+    {
+        var on = HealthRules.ParseCiPolicies(Json((Blocklist, true), ("0283ac0f-fff1-49ae-ada1-8a933130cad6", true)))!;
+        Assert.True(on.Blocklist);
+        Assert.Equal(SmartAppControlState.On, on.Sac);
+
+        var eval = HealthRules.ParseCiPolicies(Json((Blocklist, false), ("1283AC0F-FFF1-49AE-ADA1-8A933130CAD6", true)))!;
+        Assert.False(eval.Blocklist);
+        Assert.Equal(SmartAppControlState.Evaluation, eval.Sac);
+
+        // The newer WHCP driver policy is a different policy and must not count as the blocklist.
+        var other = HealthRules.ParseCiPolicies(Json(("784c4414-79f4-4c32-a6a5-f0fb42a51d0d", true)))!;
+        Assert.False(other.Blocklist);
+        Assert.Equal(SmartAppControlState.Off, other.Sac);
+    }
+
+    [Fact]
+    public void Citool_output_with_noise_and_lowercase_keys_is_accepted()
+    {
+        var r = HealthRules.ParseCiPolicies("Operation successful\r\n{\"policies\":[{\"policyid\":\"d2bda982-ccf6-4344-ac5b-0b44427b6816\",\"isenforced\":\"True\"}]}\r\n");
+        Assert.True(r!.Blocklist);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("Доступ запрещён")]
+    [InlineData("{not json}")]
+    [InlineData("{\"Policies\":[]}")]
+    [InlineData("{\"OperationResult\":0}")]
+    public void Unusable_citool_output_is_unknown(string? output) => Assert.Null(HealthRules.ParseCiPolicies(output));
+
+    [Fact]
+    public void Blocklist_off_with_memory_integrity_off_is_the_only_warning()
+    {
+        var r = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Off, DriverBlocklistEnforced = false })!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Equal("vbs", r.Id);
+        Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
+        Assert.Equal("ms-settings:windowsdefender", r.Action.Target);
+        Assert.False(r.Action.RequiresAdmin);
+        Assert.Contains("MONOLITH эту защиту не меняет", r.Detail);
+
+        var vbsOnly = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.VbsOnly, DriverBlocklistEnforced = false })!;
+        Assert.Equal(CheckSeverity.Warning, vbsOnly.Severity);
+    }
+
+    [Fact]
+    public void Memory_integrity_on_implies_the_blocklist()
+    {
+        // Documented: HVCI on enforces the blocklist, whatever an unreadable or odd CiTool answer says.
+        var r = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.MemoryIntegrity, DriverBlocklistEnforced = false })!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Null(r.Action);
+        Assert.Contains("действует всегда", r.Detail);
+    }
+
+    [Fact]
+    public void Unknown_blocklist_makes_no_claim()
+    {
+        var r = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Off })!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.DoesNotContain("список блокировки", r.Detail);
+
+        var known = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Off, DriverBlocklistEnforced = true })!;
+        Assert.Equal(CheckSeverity.Info, known.Severity);
+        Assert.Contains("список блокировки уязвимых драйверов Microsoft действует", known.Detail);
+    }
+
+    [Fact]
+    public void Smart_app_control_is_mentioned_when_active()
+    {
+        var on = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.MemoryIntegrity, SmartAppControl = SmartAppControlState.On })!;
+        Assert.Contains("Интеллектуальное управление приложениями включено", on.Detail);
+        var off = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.MemoryIntegrity, SmartAppControl = SmartAppControlState.Off })!;
+        Assert.DoesNotContain("Интеллектуальное управление", off.Detail);
+    }
+}
+
+public sealed class DashboardMonitorGpuTests
+{
+    private const string DKey = "0x00000000_0x0000e1ae", IKey = "0x00000000_0x0000f00d";
+    private static readonly GpuInfo Rtx = new("NVIDIA GeForce RTX 5070 Ti", GpuVendor.Nvidia, "32.0.15.8180", DateTime.Today, 16UL << 30, "PCI\\VEN_10DE");
+    private static readonly GpuInfo Apu = new("AMD Radeon(TM) Graphics", GpuVendor.Amd, "31.0.24033.1003", DateTime.Today, 512UL << 20, "PCI\\VEN_1002");
+
+    private static DisplayInfo Display(string name, string key, int hz, bool primary = false, bool internalPanel = false) =>
+        new(name, 2560, 1440, hz, hz, null, key, internalPanel, primary);
+
+    private static SystemSnapshot Pc(int cardOutputs = 4, bool laptop = false, params DisplayInfo[] displays) => new()
+    {
+        IsLaptop = laptop,
+        Gpus = [Rtx, Apu],
+        Adapters = [new GpuAdapter(DKey, "NVIDIA GeForce RTX 5070 Ti", cardOutputs), new GpuAdapter(IKey, "AMD Radeon(TM) Graphics", 3)],
+        Displays = displays,
+    };
+
+    [Fact]
+    public void Primary_monitor_on_the_igpu_warns()
+    {
+        var r = HealthRules.CheckMonitorOnGpu(Pc(4, false, Display("X27U", IKey, 240, primary: true)))!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Equal("monitor-gpu", r.Id);
+        Assert.Contains("X27U", r.Detail);
+        Assert.Contains("AMD Radeon(TM) Graphics", r.Detail);
+        Assert.Contains("NVIDIA GeForce RTX 5070 Ti", r.Detail);
+        Assert.Contains("кабель монитора", r.Detail);
+        Assert.Null(r.Action); // a physical fix: nothing to click
+    }
+
+    [Fact]
+    public void Monitor_on_the_card_is_ok()
+    {
+        var r = HealthRules.CheckMonitorOnGpu(Pc(4, false, Display("X27U", DKey, 240, primary: true)))!;
+        Assert.Equal(CheckSeverity.Ok, r.Severity);
+        Assert.Contains("NVIDIA GeForce RTX 5070 Ti", r.Detail);
+    }
+
+    [Fact]
+    public void A_second_monitor_on_the_igpu_is_a_normal_setup()
+    {
+        var r = HealthRules.CheckMonitorOnGpu(Pc(4, false,
+            Display("X27U", DKey, 240, primary: true), Display("Office 60", IKey, 60)))!;
+        Assert.Equal(CheckSeverity.Ok, r.Severity);
+    }
+
+    [Fact]
+    public void The_fastest_monitor_counts_even_when_it_is_not_primary()
+    {
+        var r = HealthRules.CheckMonitorOnGpu(Pc(4, false,
+            Display("Office 60", DKey, 60, primary: true), Display("Gaming 240", IKey, 240)))!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Contains("Gaming 240", r.Detail);
+    }
+
+    [Fact]
+    public void Laptops_internal_panels_unknown_adapters_and_cards_without_outputs_never_warn()
+    {
+        Assert.Null(HealthRules.CheckMonitorOnGpu(Pc(4, true, Display("Panel", IKey, 165, primary: true))));
+        Assert.Null(HealthRules.CheckMonitorOnGpu(Pc(4, false, Display("Встроенный дисплей", IKey, 60, primary: true, internalPanel: true))));
+        Assert.Null(HealthRules.CheckMonitorOnGpu(Pc(4, false, Display("Parsec Virtual", "0x00000000_0x00001234", 60, primary: true))));
+        Assert.Null(HealthRules.CheckMonitorOnGpu(Pc(0, false, Display("X27U", IKey, 240, primary: true)))); // dGPU with no outputs
+        Assert.Null(HealthRules.CheckMonitorOnGpu(Pc(4, false, Display("X27U", "", 240, primary: true))));      // adapter unknown
+    }
+
+    [Fact]
+    public void Pcs_without_a_graphics_card_get_no_row()
+    {
+        var s = Pc(4, false, Display("X27U", IKey, 144, primary: true)) with { Gpus = [Apu], Adapters = [new GpuAdapter(IKey, Apu.Name, 3)] };
+        Assert.Null(HealthRules.CheckMonitorOnGpu(s));
+    }
+
+    [Fact]
+    public void Basic_display_adapter_is_neither_integrated_nor_a_card()
+    {
+        var basic = new GpuInfo("Microsoft Basic Display Adapter", GpuVendor.Microsoft, "10.0", null, 0, "PCI\\VEN_10DE");
+        Assert.False(HealthRules.IsOnboardGpu(basic));
+        Assert.False(HealthRules.IsDiscreteCard(basic));
+        var s = Pc(4, false, Display("X27U", IKey, 144, primary: true)) with
+        {
+            Gpus = [Rtx, basic],
+            Adapters = [new GpuAdapter(DKey, Rtx.Name, 4), new GpuAdapter(IKey, basic.Name, 2)],
+        };
+        Assert.Null(HealthRules.CheckMonitorOnGpu(s));
+    }
+
+    [Theory]
+    [InlineData("AMD Radeon(TM) Graphics", true)]
+    [InlineData("AMD Radeon(TM) 780M Graphics", true)]
+    [InlineData("AMD Radeon(TM) RX Vega 11 Graphics", true)]
+    [InlineData("AMD Radeon RX 7900 XTX", false)]
+    [InlineData("Radeon RX Vega", false)]
+    [InlineData("AMD Radeon RX 9070 XT", false)]
+    [InlineData(null, false)]
+    public void Amd_apus_are_recognised_by_name(string? name, bool apu) => Assert.Equal(apu, HealthRules.IsAmdApuName(name));
+}
+
+public sealed class DashboardDiskHealthTests
+{
+    private static DiskHealth Nvme(int? wear = 3, int? temp = 41, int? max = 82, ulong? read = 0, ulong? write = 0,
+        DiskHealthStatus status = DiskHealthStatus.Healthy) =>
+        new("Samsung SSD 990 PRO 2TB", "NVMe", "SSD", status, wear, temp, max, read, write);
+
+    [Fact]
+    public void Healthy_drives_are_ok_and_list_their_counters()
+    {
+        var r = HealthRules.CheckDiskHealth(new SystemSnapshot { Elevated = true, Disks = [Nvme()] })!;
+        Assert.Equal(CheckSeverity.Ok, r.Severity);
+        Assert.Equal("disk-health", r.Id);
+        Assert.Contains("Samsung SSD 990 PRO 2TB: износ 3 %, 41 °C, ошибок нет", r.Detail);
+        Assert.Null(r.Action);
+    }
+
+    [Fact]
+    public void Wear_errors_and_status_warn()
+    {
+        var worn = HealthRules.CheckDiskHealth(new SystemSnapshot { Elevated = true, Disks = [Nvme(wear: 85)] })!;
+        Assert.Equal(CheckSeverity.Warning, worn.Severity);
+        Assert.Equal(12, worn.Weight);
+        Assert.Contains("износ 85 %", worn.Detail);
+        Assert.Contains("резервную копию", worn.Detail);
+
+        var dead = HealthRules.CheckDiskHealth(new SystemSnapshot { Elevated = true, Disks = [Nvme(wear: 100)] })!;
+        Assert.Equal(20, dead.Weight);
+
+        var errors = HealthRules.CheckDiskHealth(new SystemSnapshot { Elevated = true, Disks = [Nvme(read: 2, write: 1)] })!;
+        Assert.Equal(CheckSeverity.Warning, errors.Severity);
+        Assert.Contains("3 неисправленные ошибки", errors.Detail);
+
+        var unhealthy = HealthRules.CheckDiskHealth(new SystemSnapshot { Disks = [new DiskHealth("WD Blue", "SATA", "HDD", DiskHealthStatus.Unhealthy)] })!;
+        Assert.Equal(CheckSeverity.Warning, unhealthy.Severity);
+        Assert.Equal(20, unhealthy.Weight);
+        Assert.Contains("неисправный", unhealthy.Detail);
+    }
+
+    [Fact]
+    public void Hot_drive_gets_cooling_advice()
+    {
+        var r = HealthRules.CheckDiskHealth(new SystemSnapshot { Elevated = true, Disks = [Nvme(temp: 79, max: 82)] })!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Contains("79 °C при пределе 82 °C", r.Detail);
+        Assert.Contains("обдув", r.Detail);
+        Assert.DoesNotContain("резервную копию", r.Detail);
+        Assert.False(HealthRules.IsDiskHot(Nvme(temp: 60, max: 82)));
+        Assert.False(HealthRules.IsDiskHot(Nvme(temp: 80, max: null))); // unknown limit: never "hot"
+    }
+
+    [Fact]
+    public void Without_admin_only_the_windows_verdict_is_shown()
+    {
+        var r = HealthRules.CheckDiskHealth(new SystemSnapshot
+        {
+            Elevated = false,
+            Disks = [new DiskHealth("Samsung SSD 990 PRO 2TB", "NVMe", "SSD", DiskHealthStatus.Healthy)],
+        })!;
+        Assert.Equal(CheckSeverity.Ok, r.Severity);
+        Assert.Contains("исправен по данным Windows", r.Detail);
+        Assert.Contains("правами администратора", r.Detail);
+        Assert.DoesNotContain("ошибок нет", r.Detail); // never claimed without the counters
+    }
+
+    [Fact]
+    public void Missing_values_are_unknown_not_zero()
+    {
+        var hdd = new DiskHealth("WD Blue", "SATA", "HDD", DiskHealthStatus.Healthy, WearPercent: null, TemperatureC: 35, ReadErrorsUncorrected: 0);
+        var text = HealthRules.DiskSummary(hdd);
+        Assert.DoesNotContain("износ", text);      // HDDs report no wear
+        Assert.DoesNotContain("ошибок нет", text);  // only one of the two error counters is known
+        Assert.Contains("35 °C", text);
+        Assert.Null(HealthRules.CheckDiskHealth(new SystemSnapshot { Disks = [new DiskHealth("USB", "USB", "", DiskHealthStatus.Unknown)] }));
+        Assert.Null(HealthRules.CheckDiskHealth(new SystemSnapshot { Disks = [] }));
+        Assert.Null(HealthRules.CheckDiskHealth(new SystemSnapshot()));
+    }
+
+    [Theory]
+    [InlineData((ushort)0, DiskHealthStatus.Healthy)]
+    [InlineData((ushort)1, DiskHealthStatus.Warning)]
+    [InlineData((ushort)2, DiskHealthStatus.Unhealthy)]
+    [InlineData((ushort)5, DiskHealthStatus.Unknown)]
+    [InlineData(null, DiskHealthStatus.Unknown)]
+    public void Wmi_health_status(ushort? value, DiskHealthStatus expected) => Assert.Equal(expected, HealthRules.DiskStatusFromWmi(value));
+}
+
+public sealed class DashboardStabilityTests
+{
+    private static readonly DateTime Now = new(2026, 10, 27, 12, 0, 0);
+
+    private static SystemSnapshot Log(DateTime? oldest = null, params StabilityEvent[] events) =>
+        new() { Now = Now, Stability = new StabilityLog(Now.AddDays(-30), oldest, events) };
+
+    private static StabilityEvent Whea(int id, int level, int daysAgo = 3) => new(Now.AddDays(-daysAgo), StabilityEventKind.Whea, id, level);
+
+    [Theory]
+    [InlineData(0x1000007Eu, 0x7Eu)]
+    [InlineData(0x124u, 0x124u)]
+    [InlineData(0u, 0u)]
+    public void Bug_check_variants_are_normalized(uint raw, uint code) => Assert.Equal(code, HealthRules.NormalizeBugCheck(raw));
+
+    [Theory]
+    [InlineData("0x0000009f (0xffffffffc000009a, 0x0000000000000001, 0x0000000000000000, 0x0000000000000000)", 0x9Fu)]
+    [InlineData("0x00000124 (0x0, 0x1, 0x2, 0x3)", 0x124u)]
+    [InlineData("0x1000007e (0x1, 0x2)", 0x7Eu)]
+    [InlineData("", 0u)]
+    [InlineData(null, 0u)]
+    [InlineData("нет данных", 0u)]
+    public void Wer_bug_check_codes_are_parsed(string? param1, uint code) => Assert.Equal(code, HealthRules.ParseWerBugCheck(param1));
+
+    [Fact]
+    public void Bug_check_names_and_causes()
+    {
+        Assert.Equal("0x124 WHEA_UNCORRECTABLE_ERROR", HealthRules.BugCheckText(0x124));
+        Assert.Equal("0x1C4", HealthRules.BugCheckText(0x1C4));
+        Assert.Equal(CrashCause.Gpu, HealthRules.BugCheckCause(0x116));
+        Assert.Equal(CrashCause.Memory, HealthRules.BugCheckCause(0x1A));
+        Assert.Equal(CrashCause.Unknown, HealthRules.BugCheckCause(0x1C4));
+    }
+
+    [Theory]
+    [InlineData(19, 3, WheaComponent.Processor, WheaSeverity.Corrected)]
+    [InlineData(18, 2, WheaComponent.Processor, WheaSeverity.Fatal)]
+    [InlineData(17, 3, WheaComponent.Pcie, WheaSeverity.Corrected)]
+    [InlineData(47, 3, WheaComponent.Memory, WheaSeverity.Corrected)]
+    [InlineData(46, 1, WheaComponent.Memory, WheaSeverity.Fatal)]
+    [InlineData(1, 4, WheaComponent.Other, WheaSeverity.Ignored)]
+    public void Whea_is_classified_by_level_not_by_a_fixed_id_list(int id, int level, WheaComponent component, WheaSeverity severity) =>
+        Assert.Equal((component, severity), HealthRules.ClassifyWhea(id, level));
+
+    [Fact]
+    public void One_crash_is_one_incident_and_a_crash_loop_is_several()
+    {
+        var t = Now.AddDays(-2);
+        var merged = HealthRules.MergeCrashes(
+        [
+            new StabilityEvent(t, StabilityEventKind.KernelPower41, 41, 1, BugCheck: 0x9F),
+            new StabilityEvent(t.AddSeconds(5), StabilityEventKind.UnexpectedShutdown, 6008, 2),
+            new StabilityEvent(t.AddMinutes(2), StabilityEventKind.BugCheckReport, 1001, 2, BugCheck: 0x9F),
+            // Crash loop: the next boot crashed again three minutes later.
+            new StabilityEvent(t.AddMinutes(3), StabilityEventKind.KernelPower41, 41, 1, BugCheck: 0),
+            // Hours later: a hard power-off.
+            new StabilityEvent(t.AddHours(5), StabilityEventKind.KernelPower41, 41, 1, BugCheck: 0, PowerButton: true),
+        ]);
+        Assert.Equal(3, merged.Count);
+        Assert.Equal(0x9Fu, merged[0].BugCheck);
+        Assert.Equal(0u, merged[1].BugCheck);
+        Assert.True(merged[2].PowerButton);
+    }
+
+    [Fact]
+    public void Gpu_reset_records_within_a_minute_are_one_reset()
+    {
+        var t = Now.AddDays(-1);
+        StabilityEvent R(double seconds) => new(t.AddSeconds(seconds), StabilityEventKind.GpuReset, 4101, 3);
+        Assert.Equal(2, HealthRules.CountGpuResets([R(0), R(4), R(9), R(300)]));
+        Assert.Equal(0, HealthRules.CountGpuResets([]));
+    }
+
+    [Fact]
+    public void A_clean_log_is_ok_and_names_the_period()
+    {
+        var r = HealthRules.CheckStability(Log())!;
+        Assert.Equal(CheckSeverity.Ok, r.Severity);
+        Assert.Equal("СИСТЕМА РАБОТАЕТ СТАБИЛЬНО", r.Title);
+        Assert.StartsWith("За 30 дней не было", r.Detail);
+        Assert.Null(HealthRules.CheckStability(new SystemSnapshot()));
+    }
+
+    [Fact]
+    public void A_short_log_reports_the_real_window()
+    {
+        var r = HealthRules.CheckStability(Log(Now.AddDays(-12)))!;
+        Assert.StartsWith("За 12 дней (журнал Windows хранит события с 15.10.2026)", r.Detail);
+    }
+
+    [Fact]
+    public void Blue_screens_warn_with_codes_and_point_to_drivers()
+    {
+        var r = HealthRules.CheckStability(Log(null,
+            new StabilityEvent(Now.AddDays(-4), StabilityEventKind.KernelPower41, 41, 1, BugCheck: 0x116),
+            new StabilityEvent(Now.AddDays(-4).AddMinutes(1), StabilityEventKind.BugCheckReport, 1001, 2, BugCheck: 0x116)))!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Equal(15, r.Weight);
+        Assert.Equal("СБОИ ЗА 30 ДНЕЙ", r.Title);
+        Assert.Contains("1 синий экран (0x116 VIDEO_TDR_FAILURE)", r.Detail);
+        Assert.Equal(CheckActionKind.Navigate, r.Action!.Kind);
+        Assert.Equal("drivers", r.Action.Target);
+    }
+
+    [Fact]
+    public void Corrected_memory_errors_are_information_pointing_to_the_memory_test()
+    {
+        var r = HealthRules.CheckStability(Log(null, Whea(47, 3), Whea(47, 3, 5), Whea(47, 3, 6)))!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Contains("3 исправленные ошибки памяти (WHEA)", r.Detail);
+        Assert.Equal("tools", r.Action!.Target);
+        Assert.False(r.Action.RequiresAdmin);
+    }
+
+    [Fact]
+    public void Processor_errors_get_bios_advice_not_the_memory_test()
+    {
+        var r = HealthRules.CheckStability(Log(null, Whea(19, 3)))!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Contains("Диагностика памяти такие ошибки не находит", r.Detail);
+        Assert.Contains("MONOLITH настройки BIOS не меняет", r.Detail);
+        Assert.Null(r.Action);
+
+        var fatal = HealthRules.CheckStability(Log(null, Whea(18, 2)))!;
+        Assert.Equal(CheckSeverity.Warning, fatal.Severity);
+        Assert.Contains("неисправимая аппаратная ошибка WHEA", fatal.Detail);
+    }
+
+    [Fact]
+    public void A_few_corrected_pcie_errors_are_normal()
+    {
+        var few = HealthRules.CheckStability(Log(null, Enumerable.Range(0, 5).Select(_ => Whea(17, 3)).ToArray()))!;
+        Assert.Equal(CheckSeverity.Ok, few.Severity);
+        Assert.Contains("это нормально", few.Detail);
+
+        var burst = HealthRules.CheckStability(Log(null, Enumerable.Range(0, HealthRules.PcieBurst).Select(_ => Whea(17, 3)).ToArray()))!;
+        Assert.Equal(CheckSeverity.Info, burst.Severity);
+        Assert.Contains("шины PCIe", burst.Detail);
+    }
+
+    [Fact]
+    public void Restarts_without_a_code_explain_the_three_causes()
+    {
+        var one = HealthRules.CheckStability(Log(null, new StabilityEvent(Now.AddDays(-3), StabilityEventKind.KernelPower41, 41, 1)))!;
+        Assert.Equal(CheckSeverity.Info, one.Severity);
+        Assert.Contains("пропадание питания", one.Detail);
+        Assert.Contains("после зависания", one.Detail);
+        Assert.Contains("не успела записать код", one.Detail);
+
+        var two = HealthRules.CheckStability(Log(null,
+            new StabilityEvent(Now.AddDays(-3), StabilityEventKind.KernelPower41, 41, 1),
+            new StabilityEvent(Now.AddDays(-9), StabilityEventKind.KernelPower41, 41, 1, PowerButton: true)))!;
+        Assert.Equal(CheckSeverity.Warning, two.Severity);
+        Assert.Equal(10, two.Weight);
+        Assert.Contains("выключений кнопкой питания: 1", two.Detail);
+    }
+
+    [Fact]
+    public void Gpu_driver_resets_point_to_the_drivers_page()
+    {
+        var one = HealthRules.CheckStability(Log(null, new StabilityEvent(Now.AddDays(-1), StabilityEventKind.GpuReset, 4101, 3)))!;
+        Assert.Equal(CheckSeverity.Info, one.Severity);
+        Assert.Equal("drivers", one.Action!.Target);
+
+        var two = HealthRules.CheckStability(Log(null,
+            new StabilityEvent(Now.AddDays(-1), StabilityEventKind.GpuReset, 4101, 3),
+            new StabilityEvent(Now.AddDays(-2), StabilityEventKind.GpuReset, 4101, 3)))!;
+        Assert.Equal(CheckSeverity.Warning, two.Severity);
+        Assert.Contains("2 сброса драйвера видеокарты", two.Detail);
+    }
+}
+
+public sealed class DashboardGpuLinkTests
+{
+    private const ulong MiB = 1UL << 20;
+
+    [Theory]
+    [InlineData(16384 * MiB, 16303 * MiB, RebarState.On)]
+    [InlineData(256 * MiB, 8192 * MiB, RebarState.NotActive)]
+    [InlineData(512 * MiB, 8192 * MiB, RebarState.Unknown)]
+    [InlineData(256 * MiB, 512 * MiB, RebarState.Unknown)]
+    [InlineData(0UL, 8192 * MiB, RebarState.Unknown)]
+    public void Rebar_is_classified_from_bar1_and_vram(ulong bar1, ulong vram, RebarState expected) =>
+        Assert.Equal(expected, HealthRules.ClassifyRebar(bar1, vram));
+
+    [Fact]
+    public void Rebar_unknown_values_give_no_row()
+    {
+        Assert.Equal(RebarState.Unknown, HealthRules.ClassifyRebar(null, 8192 * MiB));
+        Assert.Null(HealthRules.CheckRebar(new SystemSnapshot()));
+        Assert.Null(HealthRules.CheckRebar(new SystemSnapshot { GpuLink = new GpuLinkFacts("RTX", 512 * MiB, 8192 * MiB) }));
+    }
+
+    [Fact]
+    public void Rebar_not_active_is_low_weight_information_with_safe_bios_advice()
+    {
+        var link = new GpuLinkFacts("NVIDIA GeForce RTX 3070", 256 * MiB, 8192 * MiB);
+        var uefi = HealthRules.CheckRebar(new SystemSnapshot { GpuLink = link, Firmware = FirmwareKind.Uefi })!;
+        Assert.Equal(CheckSeverity.Info, uefi.Severity);
+        Assert.Equal("RESIZABLE BAR НЕ АКТИВЕН", uefi.Title);
+        Assert.True(uefi.Weight <= 3);
+        Assert.Contains("Above 4G Decoding", uefi.Detail);
+        Assert.Contains("выключите его", uefi.Detail);
+        Assert.DoesNotContain("выключен в BIOS", uefi.Detail); // a cause, not a claim
+        Assert.Null(uefi.Action);
+
+        // Legacy boot: turning CSM off would make Windows unbootable — never suggested.
+        var legacy = HealthRules.CheckRebar(new SystemSnapshot { GpuLink = link, Firmware = FirmwareKind.LegacyBios })!;
+        Assert.Contains("Не выключайте CSM", legacy.Detail);
+        Assert.DoesNotContain("выключите его", legacy.Detail);
+
+        var unknown = HealthRules.CheckRebar(new SystemSnapshot { GpuLink = link })!;
+        Assert.DoesNotContain("CSM", unknown.Detail);
+
+        var on = HealthRules.CheckRebar(new SystemSnapshot { GpuLink = new GpuLinkFacts("RTX", 16384 * MiB, 16303 * MiB) })!;
+        Assert.Equal(CheckSeverity.Ok, on.Severity);
+        Assert.Contains("16 ГБ", on.Detail);
+    }
+
+    [Fact]
+    public void Narrow_link_warns_only_under_load()
+    {
+        var loaded = new GpuLinkFacts("RTX 5070 Ti", CurrentGen: 5, CurrentWidth: 8, MaxGen: 5, MaxWidth: 16, UnderLoad: true);
+        Assert.True(HealthRules.IsLinkDegraded(loaded));
+        var r = HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = loaded })!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Contains("×8", r.Detail);
+        Assert.Contains("ниже возможностей карты", r.Detail);
+        Assert.DoesNotContain("неправильн", r.Detail);
+        Assert.Null(r.Action);
+
+        // At idle the driver slows the link down: never a warning.
+        var idle = loaded with { UnderLoad = false, CurrentGen = 1 };
+        Assert.False(HealthRules.IsLinkDegraded(idle));
+        var ok = HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = idle })!;
+        Assert.Equal(CheckSeverity.Ok, ok.Severity);
+        Assert.Equal("ЛИНИЯ PCIE ВИДЕОКАРТЫ: 5.0 ×16", ok.Title);
+    }
+
+    [Fact]
+    public void Board_limited_generation_and_narrow_slots_are_explained_not_flagged()
+    {
+        var r = HealthRules.CheckPcieLink(new SystemSnapshot
+        {
+            GpuLink = new GpuLinkFacts("RTX 5060 Ti", CurrentGen: 4, CurrentWidth: 8, MaxGen: 4, MaxWidth: 8, GpuMaxGen: 5, UnderLoad: true),
+        })!;
+        Assert.Equal(CheckSeverity.Ok, r.Severity);
+        Assert.Contains("Сама карта поддерживает PCIe 5.0", r.Detail);
+        Assert.Contains("Если карта рассчитана на ×16", r.Detail); // natively ×8 cards exist: only a hint
+        Assert.Null(HealthRules.CheckPcieLink(new SystemSnapshot { GpuLink = new GpuLinkFacts("RTX") }));
+    }
+}
+
+public sealed class DashboardReadinessEvaluateTests
+{
+    [Fact]
+    public void A_healthy_gaming_pc_passes_every_new_check()
+    {
+        const string dKey = "0x00000000_0x0000e1ae";
+        var rtx = new GpuInfo("NVIDIA GeForce RTX 5070 Ti", GpuVendor.Nvidia, "32.0.15.8180", DateTime.Today, 16UL << 30, "PCI\\VEN_10DE");
+        var now = new DateTime(2026, 10, 27, 12, 0, 0);
+        var s = new SystemSnapshot
+        {
+            Now = now,
+            Elevated = true,
+            OsBuild = 26100,
+            Gpus = [rtx],
+            Adapters = [new GpuAdapter(dKey, rtx.Name, 4)],
+            Displays = [new DisplayInfo("X27U", 2560, 1440, 240, 240, 239.97, dKey, false, true)],
+            Firmware = FirmwareKind.Uefi,
+            SecureBootOn = true,
+            Tpm = TpmState.V20,
+            InstalledGames = ["Battlefield 6"],
+            Disks = [new DiskHealth("Samsung SSD 990 PRO 2TB", "NVMe", "SSD", DiskHealthStatus.Healthy, 3, 41, 82, 0, 0)],
+            Stability = new StabilityLog(now.AddDays(-30), now.AddDays(-90), []),
+            Vbs = VbsState.MemoryIntegrity,
+            GpuLink = new GpuLinkFacts(rtx.Name, 16384UL << 20, 16303UL << 20, 5, 16, 5, 16, 5, true),
+        };
+
+        var results = HealthRules.Evaluate(s);
+        string[] ids = ["boot-security", "monitor-gpu", "disk-health", "stability", "rebar", "pcie-link"];
+        foreach (var id in ids)
+            Assert.Equal(CheckSeverity.Ok, Assert.Single(results, r => r.Id == id).Severity);
+        Assert.Equal(results.Count, results.Select(r => r.Id).Distinct().Count());
+        Assert.All(results, r =>
+        {
+            Assert.Equal(r.Title.ToUpperInvariant(), r.Title);
+            Assert.False(string.IsNullOrWhiteSpace(r.Detail));
+        });
+        Assert.Equal(100, HealthScore.Calculate(results));
+    }
+
+    [Fact]
+    public void New_checks_never_offer_a_button_that_changes_the_system()
+    {
+        var now = new DateTime(2026, 10, 27);
+        var bad = new SystemSnapshot
+        {
+            Now = now,
+            Firmware = FirmwareKind.LegacyBios,
+            Tpm = TpmState.NotFound,
+            OsBuild = 26100,
+            InstalledGames = ["VALORANT"],
+            Disks = [new DiskHealth("WD Blue", "SATA", "HDD", DiskHealthStatus.Unhealthy)],
+            Stability = new StabilityLog(now.AddDays(-30), null,
+            [
+                new StabilityEvent(now.AddDays(-1), StabilityEventKind.KernelPower41, 41, 1, 0x1A),
+                new StabilityEvent(now.AddDays(-2), StabilityEventKind.GpuReset, 4101, 3),
+                new StabilityEvent(now.AddDays(-2), StabilityEventKind.Whea, 18, 2),
+            ]),
+            Vbs = VbsState.Off,
+            DriverBlocklistEnforced = false,
+            GpuLink = new GpuLinkFacts("RTX", 256UL << 20, 8192UL << 20, 4, 4, 4, 16, 4, true),
+        };
+        var results = HealthRules.Evaluate(bad).Where(r => r.Id is "boot-security" or "disk-health" or "stability" or "rebar" or "pcie-link" or "vbs").ToList();
+        Assert.Equal(6, results.Count);
+        Assert.All(results, r =>
+        {
+            Assert.NotEqual(CheckSeverity.Ok, r.Severity);
+            if (r.Action is { } a)
+            {
+                Assert.False(a.RequiresAdmin);
+                Assert.True(a.Kind == CheckActionKind.Navigate || (a.Kind == CheckActionKind.OpenUri && a.Target!.StartsWith("ms-settings:", StringComparison.Ordinal)));
+            }
+        });
+    }
 }

@@ -3,12 +3,14 @@ using System.Management;
 using Microsoft.Win32;
 using Monolith.Core;
 using Monolith.Modules.Dashboard.Monitoring;
+using Monolith.Modules.Games;
 
 namespace Monolith.Modules.Dashboard.Checks;
 
 /// <summary>
 /// Collects a <see cref="SystemSnapshot"/> with read-only calls only (WMI, registry reads, user32/gdi32 queries,
-/// "fsutil behavior query"). Runs entirely on a background thread; every part degrades to "unknown" on failure.
+/// "fsutil behavior query", event log queries, tbs/kernel32/NVML queries, "CiTool -lp -json" with admin rights).
+/// Runs entirely on background threads; every part has a time limit and degrades to "unknown" on failure.
 /// </summary>
 public static class SystemInspector
 {
@@ -16,13 +18,43 @@ public static class SystemInspector
     /// <summary>Power saver GUID (tech.md §4).</summary>
     private static readonly Guid PowerSaverScheme = new("a1841308-3541-4fab-bc81-f71556f20b4a");
 
+    /// <summary>Drive SMART data is re-read at most this often: reading it can spin up sleeping HDDs.</summary>
+    private static readonly TimeSpan DiskHealthCacheFor = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan EventsCacheFor = TimeSpan.FromMinutes(5);
+
     public static async Task<SystemSnapshot> CollectAsync()
     {
         var profile = await SystemProfile.LoadAsync().ConfigureAwait(false);
+        var elevated = Elevation.IsElevated;
         var trimTask = ReadTrimDisabledAsync();
+        var bootTask = Probe.RunAsync("загрузка и TPM", () => FirmwareProbe.ReadAsync(elevated), TimeSpan.FromSeconds(25),
+            (FirmwareKind.Unknown, (bool?)null, TpmState.Unknown));
+        var kernelTask = Probe.RunAsync("защита ядра", () => KernelProtectionProbe.ReadAsync(elevated), TimeSpan.FromSeconds(20),
+            ((bool?)null, SmartAppControlState.Unknown));
+        var disksTask = Probe.RunAsync<IReadOnlyList<DiskHealth>?>(elevated ? "накопители (админ)" : "накопители",
+            () => DiskHealthProbe.Read(elevated), TimeSpan.FromSeconds(30), null, DiskHealthCacheFor);
+        var eventsTask = Probe.RunAsync("журнал событий", () => StabilityProbe.Read(DateTime.Now), TimeSpan.FromSeconds(20), null, EventsCacheFor);
+        var linkTask = profile.PrimaryGpu is { Vendor: GpuVendor.Nvidia } nv
+            ? Probe.RunAsync("NVML", () => ReadGpuLink(nv.Name), TimeSpan.FromSeconds(10), null)
+            : Task.FromResult<GpuLinkFacts?>(null);
+
         var snapshot = await Task.Run(() => Collect(profile)).ConfigureAwait(false);
         var trim = await trimTask.ConfigureAwait(false);
-        return snapshot with { TrimDisabled = trim };
+        var (firmware, secureBoot, tpm) = await bootTask.ConfigureAwait(false);
+        var (blocklist, sac) = await kernelTask.ConfigureAwait(false);
+        return snapshot with
+        {
+            TrimDisabled = trim,
+            Elevated = elevated,
+            Firmware = firmware,
+            SecureBootOn = secureBoot,
+            Tpm = tpm,
+            DriverBlocklistEnforced = blocklist,
+            SmartAppControl = sac,
+            Disks = await disksTask.ConfigureAwait(false),
+            Stability = await eventsTask.ConfigureAwait(false),
+            GpuLink = await linkTask.ConfigureAwait(false),
+        };
     }
 
     private static SystemSnapshot Collect(SystemProfile p)
@@ -31,6 +63,10 @@ public static class SystemInspector
         return new SystemSnapshot
         {
             Now = DateTime.Now,
+            OsBuild = p.OsBuild,
+            Gpus = p.Gpus,
+            Adapters = Safe(ReadAdapters, []),
+            InstalledGames = Safe(ReadGameNames, []),
             Uptime = TimeSpan.FromMilliseconds(Environment.TickCount64),
             IsLaptop = p.IsLaptop,
             CpuName = p.CpuName,
@@ -201,6 +237,36 @@ public static class SystemInspector
     }
 
     // ───────────────────────────── GPU / power / TRIM ─────────────────────────────
+
+    /// <summary>Hardware adapters by LUID (names as the display driver reports them) with their number of display outputs.</summary>
+    private static IReadOnlyList<GpuAdapter> ReadAdapters()
+    {
+        var outputs = DisplayProbe.TargetsPerAdapter();
+        var adapters = D3dkmt.OpenAdapters();
+        try
+        {
+            return adapters.Where(a => !a.IsSoftware && a.Name.Length > 0)
+                .Select(a => new GpuAdapter(a.LuidKey, a.Name, outputs.GetValueOrDefault(a.LuidKey)))
+                .ToList();
+        }
+        finally
+        {
+            D3dkmt.Close(adapters);
+        }
+    }
+
+    /// <summary>Game names from the library cache only: the dashboard never starts a library scan.</summary>
+    private static IReadOnlyList<string> ReadGameNames() =>
+        GameLibrary.LoadCache()?.Games.Select(g => g.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList() ?? [];
+
+    /// <summary>NVML (System32 only, query functions only): BAR1 vs VRAM and the PCIe link of the primary NVIDIA card.</summary>
+    private static GpuLinkFacts? ReadGpuLink(string gpuName)
+    {
+        using var nvml = NvmlSensor.TryCreate(gpuName);
+        if (nvml is null) return null;
+        var l = nvml.ReadLink();
+        return new GpuLinkFacts(gpuName, l.Bar1Total, l.VramTotal, l.CurrentGen, l.CurrentWidth, l.MaxGen, l.MaxWidth, l.GpuMaxGen, l.UnderLoad);
+    }
 
     /// <summary>HAGS from the WDDM 2.7 caps of every hardware adapter; registry HwSchMode only as a fallback.</summary>
     private static HagsState ReadHags()
