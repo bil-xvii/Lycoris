@@ -16,7 +16,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line}" BorderThickness="1"
-                                Padding="10,9,9,9" SnapsToDevicePixels="True">
+                                CornerRadius="{StaticResource R.Lg}" Padding="10,9,9,9" SnapsToDevicePixels="True">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="26" />
@@ -80,7 +80,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Border Width="44" Height="44" VerticalAlignment="Top" BorderThickness="1">
+                    <Border Width="44" Height="44" VerticalAlignment="Top" BorderThickness="1" CornerRadius="{StaticResource R.Md}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
@@ -127,6 +127,7 @@
 
                     <!-- Boot-time check status (chkdsk card): read from BootExecute, works without admin rights -->
                     <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="11,4,0,8" Padding="10,10" Background="{StaticResource B.Surface2}"
+                            CornerRadius="{StaticResource R.Md}"
                             Visibility="{Binding HasBootCheck, Converter={StaticResource BoolToVis}}">
                         <Grid>
                             <Grid.ColumnDefinitions>

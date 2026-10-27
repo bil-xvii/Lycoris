@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
@@ -57,7 +58,8 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type local:GpuCardItem}">
-                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,10,10">
+                        <!-- RoundClip: the primary-GPU bar runs along the top edge -->
+                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,10,10" ui:RoundClip.Content="True">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -114,7 +116,7 @@
                                 <StackPanel Grid.Row="1" Margin="14,10,14,0">
                                     <TextBlock Style="{StaticResource T.Caption}" Text="Проверка последней версии на nvidia.com…"
                                                Visibility="{Binding IsCheckingLatest, Converter={StaticResource BoolToVis}}" />
-                                    <Border Padding="10,10" Visibility="{Binding HasLatest, Converter={StaticResource BoolToVis}}">
+                                    <Border Padding="10,10" CornerRadius="{StaticResource R.Md}" Visibility="{Binding HasLatest, Converter={StaticResource BoolToVis}}">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="{StaticResource B.Surface2}" />
@@ -358,7 +360,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <Border Style="{StaticResource Callout}" Padding="0" Margin="14,10,14,0"
+                        <Border Style="{StaticResource Callout}" Padding="0" Margin="14,10,14,0" ui:RoundClip.Content="True"
                                 Visibility="{Binding ChipsetNote, Converter={StaticResource NullToVis}}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
