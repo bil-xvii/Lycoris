@@ -28,6 +28,13 @@ internal static class OptimizeLogic
         _ => null,
     };
 
+    /// <summary>
+    /// Whether "select all" of a section may tick this item: applicable, not expert (needs its warning accepted) and not
+    /// deleting user data (needs a deliberate click and its own confirmation).
+    /// </summary>
+    public static bool IsBulkSelectable(Tweak tweak, bool applicable) =>
+        applicable && tweak.Risk != TweakRisk.Advanced && TweakCatalog.DataLossNote(tweak) is null;
+
     /// <summary>States in which "apply" would actually change something.</summary>
     public static bool WillChange(TweakState state) => state is TweakState.NotApplied or TweakState.Partial or TweakState.Unknown;
 
@@ -142,6 +149,90 @@ internal static class OptimizeLogic
             "cmd" => $"Параметр {rest}",
             _ => target,
         };
+    }
+
+    // ───────────────────────────── Shared journal records ─────────────────────────────
+
+    /// <summary>Journal source of an Optimize item: "tweak:&lt;id&gt;".</summary>
+    public static string SourceOf(string tweakId) => "tweak:" + tweakId;
+
+    /// <summary>Active records that undoing these sources reverts: every record any of them touched (first owner or merged in).</summary>
+    public static IReadOnlyList<ChangeRecord> RecordsTouchedBy(IEnumerable<ChangeRecord> records, IReadOnlyCollection<string> sources) =>
+        records.Where(r => !r.Reverted && sources.Any(r.TouchedBy)).ToList();
+
+    /// <summary>
+    /// Other sources that reverting these records also undoes. Two items that changed the same setting share one record
+    /// (it keeps the true original value), so restoring it takes back both changes.
+    /// </summary>
+    public static IReadOnlyList<string> SharedSources(IEnumerable<ChangeRecord> records, IReadOnlyCollection<string> own) =>
+        records.SelectMany(r => r.AlsoSources.Prepend(r.Source))
+               .Where(s => !string.IsNullOrWhiteSpace(s) && !own.Contains(s))
+               .Distinct(StringComparer.Ordinal)
+               .ToList();
+
+    /// <summary>A journal source in words, for "также откатится: …" lines.</summary>
+    public static string DescribeSource(string source, Func<string, string?> tweakTitle)
+    {
+        if (source.StartsWith("tweak:", StringComparison.Ordinal))
+        {
+            var id = source["tweak:".Length..];
+            return tweakTitle(id) is { } title ? $"«{title}»" : $"пункт {id}";
+        }
+        return source switch
+        {
+            "services" => "изменение в разделе «Службы»",
+            "services-tasks" => "изменение задач в разделе «Службы»",
+            "startup" or "startup-tasks" => "изменение в разделе «Автозапуск»",
+            "gameboost" => "игровой сеанс MONOLITH",
+            "drivers" => "изменение в разделе «Железо и драйверы»",
+            _ => $"изменение «{source}»",
+        };
+    }
+
+    /// <summary>
+    /// The row's «КАК ОТКАТИТЬ» text. Never promises more than the journal can do: when the item deletes data,
+    /// the text says plainly that only the setting comes back.
+    /// </summary>
+    public static string UndoText(string? restartText, string? dataLossNote)
+    {
+        const string where = "Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление».";
+        var restart = restartText is null ? "" : $" После отката тоже {restartText}.";
+        if (dataLossNote is not null)
+            return $"{where} Откат вернёт прежнее значение настройки, но не удалённые данные.{restart} {dataLossNote}";
+        return restartText is null
+            ? $"{where} Перед изменением MONOLITH сохраняет исходные значения и возвращает их точно такими, какими они были."
+            : $"{where} Исходные значения сохраняются перед изменением.{restart}";
+    }
+
+    // ───────────────────────────── Restore point wording ─────────────────────────────
+
+    /// <summary>
+    /// Action-bar note about the restore point. Honest about what will happen: nothing when the setting is off or System
+    /// Protection is off; otherwise MONOLITH only asks Windows for one (Windows may still decline).
+    /// </summary>
+    public static string RestorePointBarNote(bool settingOn, bool? protectionOn) =>
+        !settingOn ? "точка восстановления отключена в настройках"
+        : protectionOn == false ? "защита системы выключена — точки восстановления не будет, откат через журнал"
+        : "перед изменениями MONOLITH запросит точку восстановления Windows";
+
+    /// <summary>Footnote of the apply confirmation.</summary>
+    public static string RestorePointFootnote(bool settingOn, bool protectionOn) =>
+        !settingOn ? "Точка восстановления отключена в настройках. Откат настроек — через журнал MONOLITH."
+        : !protectionOn ? "Защита системы выключена — точки восстановления не будет. Откат настроек — через журнал MONOLITH."
+        : "Перед изменениями MONOLITH запросит у Windows точку восстановления; создана ли она, покажет итог. " +
+          "Откат настроек — через журнал MONOLITH в любом случае.";
+
+    /// <summary>First line of the apply result: what really happened with the restore point.</summary>
+    public static string RestorePointResultLine(string? outcome, bool settingOn)
+    {
+        if (string.IsNullOrWhiteSpace(outcome))
+            return settingOn
+                ? "Точка восстановления не создавалась. Откат настроек — через журнал MONOLITH."
+                : "Точка восстановления не создавалась: отключено в настройках. Откат настроек — через журнал MONOLITH.";
+        var text = outcome.Trim();
+        return Monolith.Modules.Restore.RestoreFormat.IsRestorePointCreated(text)
+            ? text
+            : $"{text.TrimEnd('.')}. Откат настроек — через журнал MONOLITH.";
     }
 
     public static string RegistryTarget(RegHive hive, string path, string name) =>

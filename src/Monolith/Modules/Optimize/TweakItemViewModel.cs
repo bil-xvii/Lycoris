@@ -44,9 +44,14 @@ public sealed partial class TweakItemViewModel : ObservableObject
     public string WarningText => string.IsNullOrWhiteSpace(Tweak.Warning)
         ? "Это настройка с реальным компромиссом (безопасность или совместимость). Она не входит ни в один профиль."
         : Tweak.Warning!;
-    public string UndoText => Tweak.Restart == RestartRequirement.None
-        ? "Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Перед изменением MONOLITH сохраняет исходные значения и возвращает их точно такими, какими они были."
-        : $"Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Исходные значения сохраняются перед изменением. После отката тоже {Tweak.RestartText}.";
+
+    /// <summary>What applying this item deletes for good (null when the change is fully reversible).</summary>
+    public string? DataLossNote => TweakCatalog.DataLossNote(Tweak);
+    public bool HasDataLoss => DataLossNote is not null;
+    /// <summary>May be ticked by "select all" of its section (never expert or data-deleting items).</summary>
+    public bool IsBulkSelectable => OptimizeLogic.IsBulkSelectable(Tweak, IsApplicable);
+
+    public string UndoText => OptimizeLogic.UndoText(Tweak.Restart == RestartRequirement.None ? null : Tweak.RestartText, DataLossNote);
 
     /// <summary>Detected state; null while detection is running.</summary>
     [ObservableProperty]

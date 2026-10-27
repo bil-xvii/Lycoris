@@ -8,6 +8,9 @@ public static partial class TweakCatalog
 {
     private const string WindowsAiPolicy = @"Software\Policies\Microsoft\Windows\WindowsAI";
 
+    private const string RecallDataLossNote =
+        "Уже сохранённые снимки Recall будут удалены — откат их не вернёт, он только снова разрешит сохранять новые.";
+
     private static IEnumerable<Tweak> PrivacyTweaks()
     {
         // SAFE-DEFAULT (Recommended) through the Settings-backed value; never raises a lower level.
@@ -193,15 +196,17 @@ public static partial class TweakCatalog
             Values = [Lm(@"SYSTEM\CurrentControlSet\Control\Remote Assistance", "fAllowToGetHelp", 0)],
         };
 
-        // Research marks it SAFE-DEFAULT, but the policy deletes existing Recall snapshots (user data):
-        // MONOLITH never deletes user data by default, so it is offered unchecked.
+        // Research marks it SAFE-DEFAULT, but the policy deletes existing Recall snapshots (user data, irreversibly):
+        // MONOLITH never deletes user data by default, so it is offered unchecked, is never bulk-selected and always
+        // gets its own danger confirmation (see DataLossNotes).
         yield return new RegistryTweak
         {
             Id = "recall-snapshots-off",
             Title = "Отключить снимки Recall",
-            Description = "Запрещает Windows Recall сохранять снимки экрана. Уже сохранённые снимки будут удалены.",
-            Details = "Recall есть только на Copilot+ PC с NPU; на остальных компьютерах политика ничего не меняет. Работает в Windows 11 24H2 " +
-                      "и новее. Удалённые снимки откат не вернёт — он лишь снова разрешит их сохранение. Действует после выхода из системы.",
+            Description = "Запрещает Windows Recall сохранять снимки экрана. Уже сохранённые снимки будут удалены без возможности восстановления.",
+            Details = "Recall есть только на Copilot+ PC с NPU; на остальных компьютерах политика ничего не меняет и удалять нечего. Работает " +
+                      "в Windows 11 24H2 и новее. Откат возвращает только настройку: Recall снова сможет сохранять новые снимки, но удалённые " +
+                      "уже не вернутся. Действует после выхода из системы.",
             Category = TweakCategory.Privacy,
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.SignOut,
@@ -224,20 +229,22 @@ public static partial class TweakCatalog
             Values = [Cu(WindowsAiPolicy, "DisableClickToDo", 1)],
         };
 
-        // ADVANCED. Manual (not Disabled): the service can still be started on demand.
+        // Same change and the same classification as the DiagTrack entry on the Services page (one journal target, svc:DiagTrack):
+        // ПО ЖЕЛАНИЮ, never pre-selected by a profile. Manual (not Disabled): the service can still be started on demand,
+        // and a stricter "Disabled" the user chose is never loosened (ServiceTweak.Satisfies).
         yield return new ServiceTweak
         {
             Id = "diagtrack-manual",
             Title = "Служба телеметрии — вручную",
             Description = "Служба «Функциональные возможности для подключённых пользователей и телеметрия» (DiagTrack) больше не запускается автоматически.",
-            Details = "После перезагрузки фоновая отправка диагностики не стартует сама. Поддерживаемый способ уменьшить телеметрию — пункт " +
-                      "«Только обязательная диагностика»; служба — дополнительная мера. Служба остаётся в системе и может быть запущена " +
-                      "по требованию. Откат возвращает прежний тип запуска.",
+            Details = "После перезагрузки фоновая отправка диагностики не стартует сама; служба остаётся в системе и может быть запущена " +
+                      "по требованию. Часть функций Центра отзывов и средств диагностики может работать хуже. Поддерживаемый способ " +
+                      "уменьшить телеметрию — пункт «Только обязательная диагностика»; служба — дополнительная мера, используйте её вместе " +
+                      "с ним, а не вместо него. Участникам программы Windows Insider пункт не предлагается. Если служба уже отключена, " +
+                      "MONOLITH её не включает. Откат возвращает прежний тип запуска.",
             Category = TweakCategory.Privacy,
-            Risk = TweakRisk.Advanced,
+            Risk = TweakRisk.Optional,
             Restart = RestartRequirement.Reboot,
-            Warning = "Перестанут нормально работать программа предварительной оценки Windows (Insider), часть функций Центра отзывов " +
-                      "и средств диагностики. Используйте вместе с пунктом «Только обязательная диагностика», а не вместо него.",
             AppliesTo = _ => !IsInsider(),
             NotApplicableReason = "ПК участвует в программе Windows Insider — ей нужна служба телеметрии.",
             Services = [("DiagTrack", ServiceStartMode.Manual)],

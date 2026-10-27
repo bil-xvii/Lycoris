@@ -42,6 +42,24 @@ public static partial class TweakCatalog
     private static void SetDword(TweakContext ctx, RegHive hive, string path, string name, int value) =>
         ctx.SetRegistry(hive, path, name, RegistryValueKind.DWord, value);
 
+    // ───────────────────────────── Irreversible side effects ─────────────────────────────
+
+    /// <summary>
+    /// Tweaks whose effect includes deleting user data that no undo can bring back. The setting itself is journaled and
+    /// reversible; the deleted data is not. The UI never selects these in bulk, never restores them from a saved selection
+    /// and always shows a danger confirmation before applying them — even when confirmations are turned off in Settings.
+    /// </summary>
+    private static readonly Dictionary<string, string> DataLossNotes = new(StringComparer.Ordinal)
+    {
+        ["recall-snapshots-off"] = RecallDataLossNote,
+    };
+
+    /// <summary>What applying this tweak deletes for good (null = nothing: the change is fully reversible).</summary>
+    public static string? DataLossNote(Tweak tweak) => DataLossNotes.GetValueOrDefault(tweak.Id);
+
+    /// <summary>Ids of the tweaks that delete user data irreversibly.</summary>
+    public static IReadOnlyCollection<string> DataLossIds => DataLossNotes.Keys;
+
     /// <summary>Applied / Partial / NotApplied from a count of checks that already match.</summary>
     internal static TweakState StateOf(int matches, int total) =>
         total <= 0 ? TweakState.NotApplicable
@@ -472,14 +490,55 @@ public static partial class TweakCatalog
     /// PowerShell that sets the UI-effect flags and the window animation (SPI_SETANIMATION) with
     /// SPIF_UPDATEINIFILE | SPIF_SENDCHANGE, exactly as the Performance Options dialog does.
     /// </summary>
-    internal static string SpiScript(IReadOnlyList<(uint SetAction, bool On)> flags, int minAnimate)
+    internal static string SpiScript(IReadOnlyList<(uint SetAction, bool On)> flags, int minAnimate) =>
+        SpiTypeDefinition + SpiBody(flags, minAnimate);
+
+    /// <summary>
+    /// The visual-effects change with self-rollback: if Windows rejects one flag after others were already changed,
+    /// the original flags are written back before the command fails (see <see cref="SelfRollbackScript"/>).
+    /// The type definition stays outside the rollback block: if it fails, nothing has been changed yet.
+    /// </summary>
+    internal static string SpiApplyScript(IReadOnlyList<(uint SetAction, bool On)> flags, int minAnimate,
+        IReadOnlyList<(uint SetAction, bool On)> original, int originalMinAnimate) =>
+        SpiTypeDefinition + SelfRollbackScript(SpiBody(flags, minAnimate), SpiBody(original, originalMinAnimate),
+            "Прежние визуальные эффекты вернуть не удалось — изменение оставлено в журнале, его можно откатить позже.");
+
+    /// <summary>
+    /// One SystemParametersInfo call per flag (actions in <c>$fl</c>, values in <c>$fv</c>, same order), then the window animation.
+    /// Every successful call counts as a change (<c>$mChanged</c>).
+    /// </summary>
+    private static string SpiBody(IReadOnlyList<(uint SetAction, bool On)> flags, int minAnimate)
     {
-        var sb = new StringBuilder(SpiTypeDefinition);
-        foreach (var (action, on) in flags)
-            sb.Append($"if(-not [Monolith.Spi]::Set(0x{action:X},0,[IntPtr]{(on ? 1 : 0)},3)){{throw 'Windows отклонила изменение эффекта 0x{action:X}'}};");
-        sb.Append($"if(-not [Monolith.Spi]::SetAnimation(0x49,8,[int[]]@(8,{minAnimate}),3)){{throw 'Windows отклонила изменение анимации окон'}};");
-        return sb.ToString();
+        var actions = string.Join(",", flags.Select(f => $"0x{f.SetAction:X}"));
+        var values = string.Join(",", flags.Select(f => f.On ? "1" : "0"));
+        return $"$fl=@({actions});$fv=@({values});" +
+               "for($k=0;$k -lt $fl.Count;$k++){if(-not [Monolith.Spi]::Set($fl[$k],0,[IntPtr]($fv[$k]),3))" +
+               "{throw ('Windows отклонила изменение эффекта 0x{0:X}' -f $fl[$k])};$mChanged++};" +
+               $"if(-not [Monolith.Spi]::SetAnimation(0x49,8,[int[]]@(8,{minAnimate}),3)){{throw 'Windows отклонила изменение анимации окон'}};$mChanged++;";
     }
+
+    /// <summary>
+    /// Wraps a multi-step change so a journaled command never leaves the system changed without its journal record:
+    /// <list type="bullet">
+    /// <item>a failure before the first step succeeded (<c>$mChanged</c> = 0) changed nothing: the script fails, the record is dropped;</item>
+    /// <item>a failure after that runs <paramref name="rollback"/>; when it succeeds the system is back to the original and the script fails;</item>
+    /// <item>if the rollback fails too, the script ends successfully (with <paramref name="keptMessage"/> on stderr), so the journal
+    /// keeps the record and the change stays revertible from MONOLITH.</item>
+    /// </list>
+    /// Each step of <paramref name="change"/> must end with <c>$mChanged++</c>.
+    /// </summary>
+    internal static string SelfRollbackScript(string change, string rollback, string keptMessage) =>
+        "$mChanged=0;try{" + change + "}catch{$mError=$_;if($mChanged -eq 0){throw $mError};$mBack=$true;" +
+        "try{" + rollback + "}catch{$mBack=$false};if($mBack){throw $mError};" +
+        "[Console]::Error.WriteLine(" + Ps(keptMessage) + "+' '+$mError.Exception.Message)}";
+
+    /// <summary>
+    /// cmd line for "write a value, then make it take effect" with the same guarantee as <see cref="SelfRollbackScript"/>:
+    /// a failed <paramref name="write"/> changed nothing and fails the command; a failed <paramref name="activate"/> writes the old
+    /// value back (<paramref name="writeBack"/>) and fails; if even that fails, the command succeeds so the journal keeps the record.
+    /// </summary>
+    internal static string WriteActivateOrRollbackCmd(string write, string activate, string writeBack) =>
+        $"{write} && ({activate} || ({writeBack} && ({activate} & exit /b 1)) || exit /b 0)";
 
     // ───────────────────────────── Power plan helpers ─────────────────────────────
 
@@ -498,6 +557,24 @@ public static partial class TweakCatalog
         if (active == scheme) return TweakState.Applied;
         return PowerSchemes.Exists(scheme) ? TweakState.NotApplied : TweakState.NotApplicable;
     }
+
+    private static string PowercfgSetAc(Guid scheme, Guid subgroup, Guid setting, uint value) =>
+        $"{SysTool("powercfg.exe")} /setacvalueindex {scheme:D} {subgroup:D} {setting:D} {value}";
+
+    private static string PowercfgReactivate => $"{SysTool("powercfg.exe")} /setactive SCHEME_CURRENT";
+
+    /// <summary>
+    /// Writes the AC value and re-activates the plan so it takes effect now. If the re-activation fails after the value was
+    /// written, the old value is written back and the command fails; if that fails too, the command succeeds and the journal
+    /// keeps the record, so the change can still be undone.
+    /// </summary>
+    internal static string PowerSettingApplyCmd(Guid scheme, Guid subgroup, Guid setting, uint target, uint original) =>
+        WriteActivateOrRollbackCmd(PowercfgSetAc(scheme, subgroup, setting, target), PowercfgReactivate,
+            PowercfgSetAc(scheme, subgroup, setting, original));
+
+    /// <summary>The journaled undo: the original AC value, then re-activation of the plan.</summary>
+    internal static string PowerSettingRevertCmd(Guid scheme, Guid subgroup, Guid setting, uint original) =>
+        $"{PowercfgSetAc(scheme, subgroup, setting, original)} && {PowercfgReactivate}";
 
     /// <summary>
     /// A tweak that changes the "plugged in" (AC) value of one power setting in the ACTIVE plan via powercfg.
@@ -534,10 +611,10 @@ public static partial class TweakCatalog
                           ?? throw new InvalidOperationException("параметр отсутствует в текущей схеме питания");
             if (current == target) return;
 
-            var powercfg = SysTool("powercfg.exe");
-            string Set(uint v) => $"{powercfg} /setacvalueindex {scheme:D} {subgroup:D} {setting:D} {v} && {powercfg} /setactive SCHEME_CURRENT";
             var plan = PowerSchemes.GetName(scheme);
-            RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac", CmdExe, CmdArgs(Set(target)), CmdExe, CmdArgs(Set(current)),
+            RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac",
+                CmdExe, CmdArgs(PowerSettingApplyCmd(scheme, subgroup, setting, target, current)),
+                CmdExe, CmdArgs(PowerSettingRevertCmd(scheme, subgroup, setting, current)),
                 $"{plan}, от сети: {describe(current)}", $"{plan}, от сети: {describe(target)}");
         },
     };
