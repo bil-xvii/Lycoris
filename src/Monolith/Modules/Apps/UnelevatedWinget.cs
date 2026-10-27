@@ -143,25 +143,39 @@ public static partial class UnelevatedWinget
     /// <summary>
     /// cmd.exe arguments: /d (no AutoRun), /v:on (delayed !ERRORLEVEL!), /s /c "…". %TEMP% is expanded by the
     /// de-elevated cmd itself. Every winget argument must be a plain token (validated) — nothing reaches cmd unquoted
-    /// that could act as a shell metacharacter.
+    /// that could act as a shell metacharacter. The one exception is the value after --location: it must be a
+    /// validated location template (<see cref="WingetClient.IsValidLocationTemplate"/>: one known %ROOT% variable plus
+    /// plain folder names), is quoted, and the signed-in user's cmd expands the variable to that user's folders.
     /// </summary>
     public static string BuildCommandLine(string wingetExe, IReadOnlyList<string> wingetArgs, string logFileName, string exitFileName)
     {
         if (string.IsNullOrWhiteSpace(wingetExe) || wingetExe.IndexOfAny(['"', '%', '!', '^', '\r', '\n']) >= 0)
             throw new ArgumentException("Недопустимый путь к winget.");
-        foreach (var a in wingetArgs)
-            if (!IsSafeToken(a)) throw new ArgumentException($"Недопустимый аргумент winget: «{a}»");
+        for (var i = 0; i < wingetArgs.Count; i++)
+        {
+            var a = wingetArgs[i];
+            var ok = IsLocationValue(wingetArgs, i) ? WingetClient.IsValidLocationTemplate(a) : IsSafeToken(a);
+            if (!ok) throw new ArgumentException($"Недопустимый аргумент winget: «{a}»");
+        }
         foreach (var f in new[] { logFileName, exitFileName })
             if (!IsSafeToken(f)) throw new ArgumentException($"Недопустимое имя файла: «{f}»");
 
         var sb = new StringBuilder("/d /v:on /s /c \"");
         sb.Append('"').Append(wingetExe).Append('"');
-        foreach (var a in wingetArgs) sb.Append(' ').Append(a);
+        for (var i = 0; i < wingetArgs.Count; i++)
+        {
+            sb.Append(' ');
+            if (IsLocationValue(wingetArgs, i)) sb.Append('"').Append(wingetArgs[i]).Append('"');
+            else sb.Append(wingetArgs[i]);
+        }
         sb.Append(" >\"%TEMP%\\").Append(logFileName).Append("\" 2>&1");
         sb.Append(" & (echo !ERRORLEVEL!)>\"%TEMP%\\").Append(exitFileName).Append('"');
         sb.Append('"');
         return sb.ToString();
     }
+
+    private static bool IsLocationValue(IReadOnlyList<string> args, int index) =>
+        index > 0 && string.Equals(args[index - 1], "--location", StringComparison.Ordinal);
 
     /// <summary>Letters, digits and . + _ - (winget switches, package ids, sources, file names).</summary>
     public static bool IsSafeToken(string s) =>
