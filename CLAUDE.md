@@ -115,7 +115,11 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   `EqualsToVis`, `Upper`, `Sentence` (all-caps → sentence case, keeps acronyms/brands), `Percent`.
 - Controls (`xmlns:c="clr-namespace:Monolith.UI.Controls"`): `c:PageHeader` (Index/Title/Subtitle/Actions),
   `c:Meter` (segmented bar 0–100), `c:Sparkline` (Values = ObservableCollection<double>), `c:ArcGauge` (0–100).
-- Square corners everywhere (no CornerRadius). COMPACT spacing (owner: «слишком разбросано»): cards 14 px padding,
+- Slightly rounded corners (owner: «не таким квадратным, чуть более округлым», same style otherwise): only the shape
+  tokens from Theme/Colors.xaml — `R.Sm` 3 (tags, checkboxes), `R.Md` 4 (buttons, inputs, toggles), `R.Lg` 6 (cards,
+  callouts, tiles), `R.Xl` 8 (popups, dialogs, toasts, window); `*.D` doubles for Rectangle radii. No ad-hoc radius values.
+  Children painted to the edge of a rounded surface (bars, inverted headers) get matching corner radii.
+- COMPACT spacing (owner: «слишком разбросано»): cards 14 px padding,
   rows 12/8, 8–16 px gaps, buttons/inputs 30 px high, page title 24 px. The main list of a page must get most of the
   screen — no big hero blocks above it.
   Risk shown as tags: БЕЗОПАСНО (`Tag`), ПО ЖЕЛАНИЮ (`Tag.Muted`), ЭКСПЕРТ (`Tag.Hatch`).
