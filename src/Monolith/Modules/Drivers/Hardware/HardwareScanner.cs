@@ -150,9 +150,27 @@ internal static class HardwareScanner
                 bool? present = withPresent && mo["Present"] is bool p ? p : null;
                 if (present == false) continue;
                 list.Add(new PnpDevice(Str(mo["Name"]), id, Str(mo["PNPClass"]), Str(mo["Manufacturer"]), Str(mo["Service"]),
-                    Convert.ToInt32(mo["ConfigManagerErrorCode"] ?? 0), present, mo["HardwareID"] as string[] ?? []));
+                    Convert.ToInt32(mo["ConfigManagerErrorCode"] ?? 0), present, mo["HardwareID"] as string[] ?? [])
+                {
+                    Virtual = IsVirtual(id),
+                });
             }
         return list;
+    }
+
+    /// <summary>
+    /// G HUB's virtual mouse / keyboard (HID\VID_046D&amp;PID_C231 under LGHUBDevice\…) look like USB peripherals by id. Only ids
+    /// with a USB vendor id are checked (CfgMgr32, read-only); any failure counts as "not virtual".
+    /// </summary>
+    private static bool IsVirtual(string deviceId)
+    {
+        if (HardwareRules.UsbId(deviceId) is null) return false;
+        try
+        {
+            // A node whose parent cannot be read is not judged (an unreadable chain would look "virtual").
+            return Core.Devices.PnpTree.Get(deviceId)?.ParentId is { Length: > 0 } && Core.Devices.PnpTree.IsVirtual(deviceId);
+        }
+        catch { return false; }
     }
 
     // ───────────────────────────── GPUs ─────────────────────────────

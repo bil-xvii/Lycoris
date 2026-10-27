@@ -110,6 +110,17 @@
         <!-- ═══════════ Detected component ═══════════ -->
         <DataTemplate x:Key="Hw.ComponentTemplate" DataType="{x:Type hw:HwComponentItem}">
             <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,14,22,12">
+                <!-- Opened from «Устройства и сеть» (УСТАНОВИТЬ В «ДРАЙВЕРАХ»): the row lights up for a moment -->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource B.Surface3}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="168" />
@@ -340,7 +351,7 @@
                 </ItemsControl>
 
                 <TextBlock Style="{StaticResource T.Caption}" Margin="2,0,0,0" Visibility="{Binding HardwareScanned, Converter={StaticResource BoolToVis}}"
-                           Text="Источники: серверы NVIDIA и AMD (с проверкой цифровой подписи производителя), winget — только пакеты, проверенные у издателя, Windows Update и официальные сайты. Сторонние базы драйверов не используются; BIOS, профиль памяти и частота монитора меняются только вручную." />
+                           Text="Источники: серверы NVIDIA и AMD (с проверкой цифровой подписи производителя), winget — только пакеты, проверенные у издателя, Windows Update и официальные сайты. Сторонние базы драйверов не используются; BIOS и профиль памяти меняются только вручную." />
             </StackPanel>
         </ScrollViewer>
 
