@@ -17,7 +17,7 @@
             <Rectangle Height="6" VerticalAlignment="Top" Fill="{StaticResource B.White}" />
             <StackPanel Margin="28,30,28,0">
                 <TextBlock x:Name="TitleText" Style="{StaticResource T.H1}" TextWrapping="Wrap" />
-                <TextBlock x:Name="MessageText" Style="{StaticResource T.Body}" Margin="0,10,0,0" />
+                <TextBlock x:Name="MessageText" Style="{StaticResource T.Body}" Margin="0,10,0,0" TextWrapping="Wrap" />
                 <TextBlock x:Name="CountdownText" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,14,0,0" />
                 <ProgressBar x:Name="Remaining" Margin="0,8,0,0" Minimum="0" Maximum="1" Value="1" />
             </StackPanel>
