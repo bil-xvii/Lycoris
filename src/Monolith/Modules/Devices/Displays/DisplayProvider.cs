@@ -38,6 +38,8 @@ public sealed class DisplayProvider : IDeviceProvider
     public const string AutoHdrTweak = "auto-hdr";
     public const string VrrTweak = "vrr-optimization";
 
+    private const string NoDisplayWriter = "Эта версия MONOLITH не умеет менять параметры экрана.";
+
     public Task<IReadOnlyList<DeviceCard>> DetectAsync(DeviceScanContext ctx, CancellationToken ct) => Task.Run(() =>
     {
         var monitors = DisplayInventory.Read(ctx.Profile.OsBuild);
@@ -116,6 +118,8 @@ public sealed class DisplayProvider : IDeviceProvider
         {
             facts.Add($"{c.Width.ToString(CultureInfo.InvariantCulture)}×{c.Height.ToString(CultureInfo.InvariantCulture)}");
             facts.Add(c.HzText());
+            if (DisplayAdvice.NativeSize(m.Modes, m.PreferredSize, m.EdidFirstSize) is { } native && native.Size != new DisplaySize(c.Width, c.Height))
+                facts.Add($"родное {native.Size}");
         }
         if (m.Color is { Bpc: > 0 } bpc) facts.Add($"{bpc.Bpc.ToString(CultureInfo.InvariantCulture)} бит");
         if (m.Color is { HdrSupported: true } color)
@@ -152,21 +156,24 @@ public sealed class DisplayProvider : IDeviceProvider
         var sizes = m.Modes.Select(x => x.Size).Distinct()
             .OrderByDescending(s => native is { } n && s == n.Size)
             .ThenByDescending(s => s.Pixels).ThenByDescending(s => s.Width).ToList();
-        var options = sizes.Select(s => new DeviceOption(DeviceValue.Of(s.Key), native is { } n && s == n.Size ? $"{s} · родное" : s.ToString())).ToList();
+        var options = sizes.Select(s => new DeviceOption(DeviceValue.Of(s.Key), s.ToString())).ToList();
         var modes = m.Modes;
-        IReadOnlyList<DeviceOption> Rates(DeviceValue primary) =>
-            DisplaySize.FromKey(primary.Text) is { } size
-                ? modes.Where(x => x.Size == size).Select(x => x.Hz).Distinct().OrderByDescending(h => h)
-                    .Select(h => new DeviceOption(DeviceValue.Of(h), $"{h.ToString(CultureInfo.InvariantCulture)} Гц")).ToList()
-                : [];
-
-        string Format(DeviceValue v)
+        var currentSize = new DisplaySize(current.Width, current.Height);
+        IReadOnlyList<DeviceOption> Rates(DeviceValue primary)
         {
-            if (ParseMode(v) is not { } mode) return v.Key;
-            var hz = mode.Size.Width == current.Width && mode.Size.Height == current.Height && mode.Hz == current.Frequency
-                ? current.HzText() : $"{mode.Hz.ToString(CultureInfo.InvariantCulture)} Гц";
-            return $"{mode.Size}, {hz}";
+            if (DisplaySize.FromKey(primary.Text) is not { } size) return [];
+            var rates = modes.Where(x => x.Size == size).Select(x => x.Hz).ToHashSet();
+            // The live rate is always listed for the live size (so the list never shows an empty box), even when the
+            // driver does not offer it as a separate mode; choosing it changes nothing.
+            if (size == currentSize && current.Frequency > 1) rates.Add(current.Frequency);
+            return rates.OrderByDescending(h => h).Select(h => new DeviceOption(DeviceValue.Of(h), $"{h.ToString(CultureInfo.InvariantCulture)} Гц")).ToList();
         }
+
+        // The integer rate, as in the list (239,97 Гц is the 240 Гц mode; the exact rate is in the facts line).
+        static string Format(DeviceValue v) =>
+            ParseMode(v) is { } mode ? $"{mode.Size}, {mode.Hz.ToString(CultureInfo.InvariantCulture)} Гц"
+            : v.SplitDual() is { } split && DisplaySize.FromKey(split.Primary) is { } size ? $"{size}, частота по умолчанию"
+            : v.Key;
 
         var path = m.MonitorPath;
         var name = m.Name;
@@ -178,7 +185,7 @@ public sealed class DisplayProvider : IDeviceProvider
         {
             Id = SettingMode,
             Title = "Разрешение и частота",
-            Hint = "Родное разрешение — самое чёткое. Новое значение нужно подтвердить за 15 с, иначе вернётся прежнее",
+            Hint = "Первым в списке — родное разрешение, самое чёткое. Новый режим нужно подтвердить за 15 с, иначе вернётся прежний",
             Control = writable ? SettingControl.DualChoice : SettingControl.Info,
             Options = options,
             SecondaryOptions = Rates,
@@ -189,7 +196,7 @@ public sealed class DisplayProvider : IDeviceProvider
             ReadCurrent = () => DeviceWriters.Display?.ReadCurrentMode(path) is { } live ? ModeValue(live.Width, live.Height, live.Frequency) : null,
             Apply = writable ? (s, v, ct) => ApplyModeAsync(s, path, name, modes, v, ct) : null,
             Current = ModeValue(current.Width, current.Height, current.Frequency),
-            DisabledReason = DeviceWriters.Display is null ? DeviceWriters.NoWriterApply : null,
+            DisabledReason = DeviceWriters.Display is null ? NoDisplayWriter : null,
         };
         if (writable && advice is { } a)
             setting.Recommended = new Recommendation(ModeValue(a.Target.Width, a.Target.Height, a.Target.Hz), a.Reason, a.Policy);
@@ -250,7 +257,7 @@ public sealed class DisplayProvider : IDeviceProvider
             Current = DeviceValue.Of(color.HdrEnabled),
             ReadCurrent = () => DeviceWriters.Display?.ReadHdrEnabled(path) is { } on ? DeviceValue.Of(on) : null,
             DisabledReason = color.LimitedByPolicy ? "HDR запрещён политикой или драйвером видеокарты — MONOLITH его не включает."
-                : DeviceWriters.Display is null ? DeviceWriters.NoWriterApply : null,
+                : DeviceWriters.Display is null ? NoDisplayWriter : null,
             Apply = writable
                 ? async (s, v, ct) =>
                 {
@@ -300,7 +307,7 @@ public sealed class DisplayProvider : IDeviceProvider
             Order = contrast ? 31 : 30,
             Current = DeviceValue.Of(r.Value),
             ReadCurrent = () => DeviceWriters.Monitor?.Get(path, code) is { } now ? DeviceValue.Of(now.Value) : null,
-            DisabledReason = writable ? null : DeviceWriters.NoWriterApply,
+            DisabledReason = writable ? null : "Эта версия MONOLITH не умеет менять яркость и контраст монитора.",
             Apply = writable
                 ? async (s, v, ct) =>
                 {
