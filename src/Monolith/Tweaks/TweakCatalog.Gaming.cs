@@ -200,8 +200,13 @@ public static partial class TweakCatalog
         {
             var current = GetDxToken(RegistryHelper.ReadString(RegHive.HKCU, DxPreferencesPath, DxGlobalSettings), token);
             if (current == "1") return;
+            // The apply may create UserGpuPreferences (and Software\Microsoft\DirectX): the undo removes them again.
+            var (createdKey, createdParent) = DxUndoOwnership(
+                RegistryHelper.KeyExists(RegHive.HKCU, DxPreferencesPath),
+                RegistryHelper.KeyExists(RegHive.HKCU, DxParentPath),
+                ChangeJournal.Instance.ActiveRecords);
             RunJournaled(ctx, $"dx:{token}", PowerShellExe, PowerShellArgs(DxTokenScript(token, "1")),
-                PowerShellExe, PowerShellArgs(DxTokenScript(token, current)),
+                PowerShellExe, PowerShellArgs(DxTokenScript(token, current, createdKey: createdKey, createdParent: createdParent)),
                 current is null ? $"{token}: не задан" : $"{token}={current}", $"{token}=1", OutputEncoding.Utf8);
         },
     };

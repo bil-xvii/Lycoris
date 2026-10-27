@@ -30,7 +30,7 @@ public sealed class TweakCatalogTests : IDisposable
     {
         "game-mode", "hags", "gamedvr-off", "power-plan-performance", "mouse-acceleration-off", "windowed-games-optimization",
         "visual-effects-performance", "ads-suggestions-off", "telemetry-required", "bing-start-search-off", "storage-sense-on",
-        "delivery-optimization-local",
+        "delivery-optimization-local", "trim-on",
     };
 
     // ───────────────────────────── Catalog integrity ─────────────────────────────
@@ -313,6 +313,11 @@ public sealed class TweakCatalogTests : IDisposable
             TweakCatalog.DnsScript("ipv4", DnsGuid, ["192.168.1.1"]),
             TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", "1"),
             TweakCatalog.DxTokenScript("VRROptimizeEnable", null),
+            TweakCatalog.DxTokenScript("VRROptimizeEnable", null, createdKey: true),
+            TweakCatalog.DxTokenScript("VRROptimizeEnable", "0", createdKey: true, createdParent: true),
+            TweakCatalog.DnsScript("ipv4", DnsGuid, ["1.1.1.1"], keepRegistration: false),
+            TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBestPerformance),
+            TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced),
         ];
         foreach (var script in scripts)
         {
@@ -337,6 +342,8 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv6", DnsGuid,
             ["2606:4700:4700::1111", "2606:4700:4700::1001"], rollbackTo: ["fd00::1", "fd00::2", "fd00::3"])).Length < 8000);
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", "1")).Length < 8000);
+        Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", null, createdKey: true, createdParent: true)).Length < 8000);
+        Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBestEfficiency)).Length < 8000);
     }
 
     [Fact]
@@ -519,6 +526,382 @@ public sealed class TweakCatalogTests : IDisposable
     public void State_is_derived_from_matching_checks(int matches, int total, TweakState expected) =>
         Assert.Equal(expected, TweakCatalog.StateOf(matches, total));
 
+    // ───────────────────────────── New catalog items (research classification is binding) ─────────────────────────────
+
+    public static readonly TheoryData<string, TweakRisk, ProfileSet, TweakCategory> NewTweaks = new()
+    {
+        { "accessibility-hotkeys-off", TweakRisk.Optional, ProfileSet.Gaming, TweakCategory.Input },
+        { "edge-background-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Performance },
+        { "trim-on", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.System },
+        { "drive-optimize-schedule-on", TweakRisk.Optional, ProfileSet.None, TweakCategory.System },
+        { "paint-ai-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Privacy },
+        { "notepad-ai-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Privacy },
+        { "start-web-recommendations-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
+        { "start-phone-panel-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
+        { "spotlight-third-party-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
+        { "explorer-home-private", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
+        { "news-interests-off", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.Interface },
+        { "power-mode-best-performance", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
+        { "tcp-autotuning-normal", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.Network },
+    };
+
+    [Theory]
+    [MemberData(nameof(NewTweaks))]
+    public void New_tweaks_have_the_researched_risk_profiles_and_category(string id, TweakRisk risk, ProfileSet profiles, TweakCategory category)
+    {
+        var t = TweakCatalog.Find(id);
+        Assert.NotNull(t);
+        Assert.Equal(risk, t!.Risk);
+        Assert.Equal(profiles, t.DefaultIn);
+        Assert.Equal(category, t.Category);
+        Assert.Equal(1, TweakCatalog.All.Count(x => x.Id == id));
+    }
+
+    public static readonly TheoryData<string, RegHive, string, string, int> NewRegistryValues = new()
+    {
+        { "edge-background-off", RegHive.HKLM, @"SOFTWARE\Policies\Microsoft\Edge", "StartupBoostEnabled", 0 },
+        { "edge-background-off", RegHive.HKLM, @"SOFTWARE\Policies\Microsoft\Edge", "BackgroundModeEnabled", 0 },
+        { "paint-ai-off", RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint", "DisableCocreator", 1 },
+        { "paint-ai-off", RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint", "DisableGenerativeFill", 1 },
+        { "paint-ai-off", RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint", "DisableImageCreator", 1 },
+        { "notepad-ai-off", RegHive.HKLM, @"SOFTWARE\Policies\WindowsNotepad", "DisableAIFeatures", 1 },
+        { "start-web-recommendations-off", RegHive.HKCU, @"Software\Policies\Microsoft\Windows\Explorer", "HideRecommendedPersonalizedSites", 1 },
+        { "start-phone-panel-off", RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\Start\Companions\Microsoft.YourPhone_8wekyb3d8bbwe", "IsEnabled", 0 },
+        { "spotlight-third-party-off", RegHive.HKCU, @"Software\Policies\Microsoft\Windows\CloudContent", "DisableThirdPartySuggestions", 1 },
+        { "explorer-home-private", RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\Explorer", "ShowRecent", 0 },
+        { "explorer-home-private", RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\Explorer", "ShowCloudFilesInQuickAccess", 0 },
+        { "explorer-home-private", RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\Explorer", "ShowRecommendations", 0 },
+        { "news-interests-off", RegHive.HKLM, @"SOFTWARE\Policies\Microsoft\Windows\Windows Feeds", "EnableFeeds", 0 },
+    };
+
+    [Theory]
+    [MemberData(nameof(NewRegistryValues))]
+    public void New_registry_tweaks_write_exactly_the_documented_dword(string id, RegHive hive, string path, string name, int value)
+    {
+        // RegistryTweak, so TweakApplyRevertTests applies and reverts every value automatically.
+        var t = Assert.IsType<RegistryTweak>(TweakCatalog.Find(id));
+        var v = Assert.Single(t.Values, x => x.Name == name);
+        Assert.Equal(hive, v.Hive);
+        Assert.Equal(path, v.Path);
+        Assert.Equal(RegistryValueKind.DWord, v.Kind);
+        Assert.Equal(value, v.Value);
+    }
+
+    [Fact]
+    public void New_registry_tweaks_write_nothing_else()
+    {
+        var expected = NewRegistryValues.Select(row => ((string)row[0], (string)row[3])).ToHashSet();
+        foreach (var id in expected.Select(e => e.Item1).Distinct())
+            Assert.All(((RegistryTweak)TweakCatalog.Find(id)!).Values, v => Assert.Contains((id, v.Name), expected));
+        // ShowFrequent stays: with recent files, frequent folders and cloud files all off, Explorer Home renders blank.
+        Assert.DoesNotContain(((RegistryTweak)TweakCatalog.Find("explorer-home-private")!).Values, v => v.Name == "ShowFrequent");
+    }
+
+    [Fact]
+    public void Duplicate_proposals_are_merged_into_one_tweak()
+    {
+        string[] Writers(string name) => TweakCatalog.All.OfType<RegistryTweak>()
+            .Where(t => t.Values.Any(v => v.Name == name)).Select(t => t.Id).ToArray();
+        Assert.Equal(["edge-background-off"], Writers("StartupBoostEnabled"));
+        Assert.Equal(["edge-background-off"], Writers("BackgroundModeEnabled"));
+        Assert.Single(TweakCatalog.All, t => t.Id.Contains("accessibility", StringComparison.Ordinal) || t.Id.Contains("sticky", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rejected_research_items_are_not_in_the_catalog()
+    {
+        string[] rejected =
+        [
+            "PowerThrottlingOff", "DisableUserPresenceQos", "NonBestEffortLimit", "ShellFeedsTaskbarViewMode", "HideAIActionsMenu",
+            "DisableWindowsSpotlightFeatures", "DisableWindowsConsumerFeatures", "DisableSoftLanding", "DisableCloudOptimizedContent",
+            "RefsDisableDeleteNotification", "DisableGraphRecentItems", "ActiveOverlayAcPowerScheme",
+        ];
+        Assert.DoesNotContain(TweakCatalog.All.OfType<RegistryTweak>().SelectMany(t => t.Values), v => rejected.Contains(v.Name));
+    }
+
+    private static SystemProfile Profile(int build, int ubr = 0, string edition = "Professional", string cpu = "AMD Ryzen 7 9800X3D 8-Core Processor", int cores = 8)
+    {
+        var sp = new SystemProfile();
+        void Set(string name, object value) => typeof(SystemProfile).GetProperty(name)!.SetValue(sp, value);
+        Set(nameof(SystemProfile.OsBuild), build);
+        Set(nameof(SystemProfile.OsUbr), ubr);
+        Set(nameof(SystemProfile.OsEdition), edition);
+        Set(nameof(SystemProfile.CpuName), cpu);
+        Set(nameof(SystemProfile.CpuCores), cores);
+        return sp;
+    }
+
+    [Theory]
+    [InlineData(19045, true, false)]
+    [InlineData(22631, false, true)]
+    [InlineData(26100, false, true)]
+    public void News_and_interests_and_widgets_never_show_together(int build, bool news, bool widgets)
+    {
+        var sp = Profile(build);
+        Assert.Equal(news, TweakCatalog.Find("news-interests-off")!.IsApplicable(sp));
+        Assert.Equal(widgets, TweakCatalog.Find("widgets-off")!.IsApplicable(sp));
+    }
+
+    [Fact]
+    public void Edition_and_build_gates_follow_the_policy_documentation()
+    {
+        var spotlight = TweakCatalog.Find("spotlight-third-party-off")!;
+        Assert.False(spotlight.IsApplicable(Profile(26100, edition: "Core")));        // Home: the policy is ignored
+        Assert.True(spotlight.IsApplicable(Profile(26100, edition: "Professional")));
+
+        var web = TweakCatalog.Find("start-web-recommendations-off")!;
+        Assert.False(web.IsApplicable(Profile(22621, ubr: 1927)));                     // before KB5027303
+        Assert.True(web.IsApplicable(Profile(22621, ubr: 1928)));
+        Assert.True(web.IsApplicable(Profile(26100)));
+        Assert.False(web.IsApplicable(Profile(19045, ubr: 6000)));
+
+        foreach (var id in new[] { "paint-ai-off", "notepad-ai-off" })
+        {
+            Assert.False(TweakCatalog.Find(id)!.IsApplicable(Profile(19045)), id);
+            Assert.True(TweakCatalog.Find(id)!.IsApplicable(Profile(22621)), id);
+        }
+
+        var mode = TweakCatalog.Find("power-mode-best-performance")!;
+        Assert.False(mode.IsApplicable(Profile(19045)));
+        Assert.True(mode.IsApplicable(Profile(26100)));
+        Assert.False(mode.IsApplicable(Profile(26100, cpu: "AMD Ryzen 9 9950X3D 16-Core Processor", cores: 16)));
+    }
+
+    [Fact]
+    public void Power_setting_tweaks_say_that_undo_writes_the_value_explicitly()
+    {
+        foreach (var id in new[] { "cpu-min-state-100", "usb-selective-suspend-off", "pcie-aspm-off", "wifi-power-saving-off" })
+            Assert.Contains(TweakCatalog.PowerSettingUndoNote, TweakCatalog.Find(id)!.Details);
+    }
+
+    // ───────────────────────────── Accessibility shortcuts ─────────────────────────────
+
+    [Theory]
+    [InlineData("510", 510, 506)]  // Sticky Keys default → shortcut off
+    [InlineData("126", 126, 122)]  // Filter Keys
+    [InlineData("62", 62, 58)]     // Toggle Keys
+    [InlineData("506", 510, 506)]  // already off: unchanged
+    [InlineData(" 122 ", 126, 122)]
+    public void Only_the_shortcut_bit_is_cleared(string raw, int defaultValue, int expected)
+    {
+        var flags = TweakCatalog.ChangeableAccessibilityFlags(raw, defaultValue);
+        Assert.NotNull(flags);
+        Assert.Equal(expected, TweakCatalog.ClearAccessibilityHotkey(flags!.Value));
+    }
+
+    [Fact]
+    public void Accessibility_flags_are_read_like_windows_and_features_in_use_are_left_alone()
+    {
+        Assert.Equal(510, TweakCatalog.ChangeableAccessibilityFlags(null, 510));      // absent = Windows default
+        Assert.Equal(506, TweakCatalog.ChangeableAccessibilityFlags(506, 510));       // DWORD written by other tools
+        Assert.Null(TweakCatalog.ChangeableAccessibilityFlags("511", 510));           // Sticky Keys is ON: user relies on it
+        Assert.Null(TweakCatalog.ChangeableAccessibilityFlags("63", 62));
+        Assert.Null(TweakCatalog.ChangeableAccessibilityFlags("abc", 510));           // unreadable: never touched
+        Assert.Null(TweakCatalog.ChangeableAccessibilityFlags("-5", 510));
+        Assert.Null(TweakCatalog.ChangeableAccessibilityFlags(new byte[] { 1 }, 510));
+        Assert.Equal(["StickyKeys", "Keyboard Response", "ToggleKeys"],
+            TweakCatalog.AccessibilityHotkeyKeys.Select(k => k.Path.Split('\\').Last()).ToArray());
+        Assert.All(TweakCatalog.AccessibilityHotkeyKeys, k => Assert.StartsWith(@"Control Panel\Accessibility\", k.Path));
+    }
+
+    // ───────────────────────────── TCP auto-tuning repair ─────────────────────────────
+
+    [Fact]
+    public void Tcp_autotuning_command_accepts_only_the_five_netsh_levels()
+    {
+        Assert.Equal(["disabled", "highlyrestricted", "restricted", "normal", "experimental"], TweakCatalog.TcpAutotuningLevels.ToArray());
+        Assert.Equal("interface tcp set global autotuninglevel=normal", TweakCatalog.TcpAutotuningArgs("normal"));
+        Assert.Equal("interface tcp set global autotuninglevel=disabled", TweakCatalog.TcpAutotuningArgs("disabled"));
+        Assert.Throws<ArgumentException>(() => TweakCatalog.TcpAutotuningArgs("normal & calc"));
+        Assert.Throws<ArgumentException>(() => TweakCatalog.TcpAutotuningArgs("Normal"));
+    }
+
+    [Fact]
+    public void Tcp_autotuning_is_repaired_only_when_one_undo_line_restores_every_template()
+    {
+        TweakCatalog.TcpAutotuningState State(bool policy, params int[] levels) =>
+            new(levels.Select((l, i) => ($"T{i}", l)).ToList(), policy);
+
+        Assert.Equal(TweakCatalog.TcpAutotuningPlan.AlreadyNormal, TweakCatalog.PlanTcpAutotuning(State(false, 3, 3, 3, 3, 3)));
+        Assert.Equal(TweakCatalog.TcpAutotuningPlan.Repair, TweakCatalog.PlanTcpAutotuning(State(false, 0, 0, 0, 0, 0)));
+        Assert.Equal(TweakCatalog.TcpAutotuningPlan.Repair, TweakCatalog.PlanTcpAutotuning(State(false, 4, 4)));
+        Assert.Equal(TweakCatalog.TcpAutotuningPlan.Mixed, TweakCatalog.PlanTcpAutotuning(State(false, 0, 3, 3)));
+        Assert.Equal(TweakCatalog.TcpAutotuningPlan.ByPolicy, TweakCatalog.PlanTcpAutotuning(State(true, 0, 0)));
+        Assert.Equal(TweakCatalog.TcpAutotuningPlan.ByPolicy, TweakCatalog.PlanTcpAutotuning(State(true, 3, 3)));
+    }
+
+    // ───────────────────────────── Windows 11 power mode ─────────────────────────────
+
+    [Fact]
+    public void Power_mode_script_sets_only_documented_modes()
+    {
+        foreach (var mode in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency, TweakCatalog.PowerModeBestPerformance })
+        {
+            Assert.True(TweakCatalog.IsDocumentedPowerMode(mode));
+            var script = TweakCatalog.PowerModeScript(mode);
+            Assert.StartsWith(TweakCatalog.PowerModeTypeDefinition, script);
+            Assert.Contains($"$g=[Guid]'{mode:D}';", script);
+            Assert.Contains("[Monolith.PowerMode]::SetAc([ref]$g)", script);
+            Assert.Contains("if($r -ne 0){throw", script);
+        }
+        Assert.Equal(Guid.Parse("ded574b5-45a0-4f42-8737-46345c09c238"), TweakCatalog.PowerModeBestPerformance);
+        Assert.Equal(Guid.Parse("961cc777-2547-4f9d-8174-7d86181b8a7a"), TweakCatalog.PowerModeBestEfficiency);
+        Assert.Equal(Guid.Empty, TweakCatalog.PowerModeBalanced);
+        Assert.False(TweakCatalog.IsDocumentedPowerMode(Guid.NewGuid()));
+        Assert.Throws<ArgumentException>(() => TweakCatalog.PowerModeScript(Guid.NewGuid()));
+        Assert.Contains("EntryPoint=\"PowerSetUserConfiguredACPowerMode\"", TweakCatalog.PowerModeTypeDefinition);
+    }
+
+    [Fact]
+    public async Task Power_mode_interop_type_compiles()
+    {
+        // Only declares the P/Invoke type; the power mode is not changed.
+        var r = await ProcessRunner.RunPowerShellAsync(TweakCatalog.PowerModeTypeDefinition + "Write-Output ('PM-TYPE=' + [bool]('Monolith.PowerMode' -as [type]))",
+            new ProcessRunOptions { LogCommand = false, Timeout = TimeSpan.FromSeconds(90) });
+        Assert.True(r.Success, r.Combined);
+        Assert.Contains("PM-TYPE=True", r.StdOut);
+    }
+
+    // ───────────────────────────── DirectX key ownership ─────────────────────────────
+
+    [Fact]
+    public void DirectX_script_without_ownership_is_unchanged_for_old_journal_records()
+    {
+        foreach (var value in new[] { null, "0", "1" })
+        {
+            var plain = TweakCatalog.DxTokenScript("VRROptimizeEnable", value);
+            Assert.DoesNotContain("$mk", plain);
+            Assert.DoesNotContain("Remove-Item ", plain);
+            Assert.Equal(plain, TweakCatalog.DxTokenScript("VRROptimizeEnable", value, createdParent: true)); // parent needs the key
+            Assert.StartsWith("$p='HKCU:\\Software\\Microsoft\\DirectX\\UserGpuPreferences';", plain);
+        }
+    }
+
+    [Fact]
+    public void DirectX_undo_removes_only_an_empty_key_it_created()
+    {
+        var key = TweakCatalog.DxTokenScript("VRROptimizeEnable", null, createdKey: true);
+        Assert.StartsWith("$mk=$true;$mp=$false;$p=", key);
+        var empty = key.IndexOf("if($t.Count -eq 0){", StringComparison.Ordinal);
+        var other = key.IndexOf("else{", empty, StringComparison.Ordinal);
+        var cleanup = key.IndexOf("if($mk){", StringComparison.Ordinal);
+        Assert.True(empty > 0 && cleanup > empty && cleanup < other, "cleanup must run only when the last token is gone");
+        Assert.Contains("$ki.ValueCount -eq 0 -and $ki.SubKeyCount -eq 0", key); // per-app GPU preferences keep the key
+
+        var parent = TweakCatalog.DxTokenScript("VRROptimizeEnable", "0", createdKey: true, createdParent: true);
+        Assert.StartsWith("$mk=$true;$mp=$true;$p=", parent);
+        Assert.Contains("$kq.ValueCount -eq 0 -and $kq.SubKeyCount -eq 0", parent);
+    }
+
+    [Fact]
+    public void DirectX_ownership_follows_the_first_token_that_created_the_key()
+    {
+        ChangeRecord Dx(string token, bool key, bool parent, string source = "tweak:x") => new()
+        {
+            Source = source, Kind = ChangeKind.Command, Target = "cmd:dx:" + token, RevertFile = TweakCatalog.PowerShellExe,
+            RevertArgs = TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript(token, null, createdKey: key, createdParent: parent)),
+        };
+
+        Assert.Equal((true, true), TweakCatalog.DxUndoOwnership(keyExists: false, parentExists: false, []));
+        Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(keyExists: false, parentExists: true, []));
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(keyExists: true, parentExists: true, []));
+        // A second token applied after the first one created the key (and its parent) inherits the cleanup duty.
+        Assert.Equal((true, true), TweakCatalog.DxUndoOwnership(true, true, [Dx("SwapEffectUpgradeEnable", key: true, parent: true)]));
+        Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(true, true, [Dx("SwapEffectUpgradeEnable", key: true, parent: false)]));
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [Dx("SwapEffectUpgradeEnable", key: false, parent: false)]));
+        // Records of other kinds or targets never count.
+        var foreign = new ChangeRecord
+        {
+            Source = "tweak:y", Kind = ChangeKind.Command, Target = "cmd:spi:visual-effects", RevertFile = TweakCatalog.PowerShellExe,
+            RevertArgs = TweakCatalog.PowerShellArgs("$mk=$true;$mp=$true;"),
+        };
+        Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [foreign]));
+    }
+
+    [Fact]
+    public async Task DirectX_undo_scripts_remove_the_created_key_in_any_revert_order()
+    {
+        var parentPath = $@"{_testKey}\DirectX";
+        var keyPath = $@"{parentPath}\UserGpuPreferences";
+        var ps = $@"HKCU:\{keyPath}";
+
+        async Task Run(string script)
+        {
+            var r = await ProcessRunner.RunAsync(TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(script),
+                new ProcessRunOptions { Encoding = OutputEncoding.Utf8, LogCommand = false, Timeout = TimeSpan.FromSeconds(60) });
+            Assert.True(r.Success, r.Combined);
+        }
+
+        foreach (var aFirst in new[] { true, false })
+        {
+            Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, parentPath));
+            await Run(TweakCatalog.DxTokenScript("A", "1", ps, "Settings"));
+            await Run(TweakCatalog.DxTokenScript("B", "1", ps, "Settings"));
+            var undoA = TweakCatalog.DxTokenScript("A", null, ps, "Settings", createdKey: true, createdParent: true);
+            var undoB = TweakCatalog.DxTokenScript("B", null, ps, "Settings", createdKey: true, createdParent: true);
+            await Run(aFirst ? undoA : undoB);
+            Assert.True(RegistryHelper.KeyExists(RegHive.HKCU, keyPath)); // the other token is still there
+            await Run(aFirst ? undoB : undoA);
+            Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, keyPath));
+            Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, parentPath));
+        }
+
+        // A per-app GPU preference added meanwhile keeps the key.
+        await Run(TweakCatalog.DxTokenScript("A", "1", ps, "Settings"));
+        RegistryHelper.Write(RegHive.HKCU, keyPath, @"C:\Games\game.exe", RegistryValueKind.String, "GpuPreference=2;");
+        await Run(TweakCatalog.DxTokenScript("A", null, ps, "Settings", createdKey: true, createdParent: true));
+        Assert.Equal("GpuPreference=2;", RegistryHelper.ReadString(RegHive.HKCU, keyPath, @"C:\Games\game.exe"));
+        Assert.Null(RegistryHelper.ReadString(RegHive.HKCU, keyPath, "Settings"));
+    }
+
+    // ───────────────────────────── DNS registration ─────────────────────────────
+
+    [Fact]
+    public void Dns_scripts_keep_the_adapter_dns_registration()
+    {
+        string[] scripts =
+        [
+            TweakCatalog.DnsScript("ipv4", DnsGuid, []),
+            TweakCatalog.DnsScript("ipv6", DnsGuid, ["2606:4700:4700::1111"]),
+            TweakCatalog.DnsScript("ipv4", DnsGuid, ["1.1.1.1", "1.0.0.1"], rollbackTo: []),
+            TweakCatalog.DnsScript("ipv6", DnsGuid, [], rollbackTo: ["fd00::1"]),
+        ];
+        foreach (var s in scripts)
+        {
+            var capture = s.IndexOf(TweakCatalog.DnsRegistrationCapture, StringComparison.Ordinal);
+            var netsh = s.IndexOf("Invoke-Netsh @(", StringComparison.Ordinal);
+            var restore = s.IndexOf(TweakCatalog.DnsRegistrationRestore, StringComparison.Ordinal);
+            Assert.True(capture > 0 && capture < netsh, "flags must be read before netsh runs");
+            Assert.True(restore > netsh, "flags must be put back after netsh");
+        }
+        Assert.Contains("Get-DnsClient -InterfaceIndex $i", TweakCatalog.DnsRegistrationCapture);
+        Assert.Contains("-RegisterThisConnectionsAddress:$re -UseSuffixWhenRegistering:$us", TweakCatalog.DnsRegistrationRestore);
+
+        // The rollback puts the flags back too, after the previous server list.
+        var forward = TweakCatalog.DnsScript("ipv4", DnsGuid, ["1.1.1.1"], rollbackTo: ["192.168.1.1"]);
+        var catchAt = forward.IndexOf("}catch{$e=$_;", StringComparison.Ordinal);
+        Assert.Contains(TweakCatalog.DnsRegistrationRestore, forward[..catchAt]);
+        var rollback = forward[catchAt..];
+        Assert.True(rollback.IndexOf(TweakCatalog.DnsRegistrationRestore, StringComparison.Ordinal) > rollback.IndexOf("'address=192.168.1.1'", StringComparison.Ordinal));
+        Assert.Contains("throw $e", rollback);
+    }
+
+    [Fact]
+    public void Dns_script_of_older_builds_can_still_be_rebuilt()
+    {
+        // keepRegistration: false is exactly the text older builds journaled (checked by JournalTrust before an undo).
+        var g = DnsGuid;
+        foreach (var (servers, rollback) in new (string[], string[]?)[] { ([], null), (["1.1.1.1", "8.8.8.8"], null), (["1.1.1.1"], []) })
+        {
+            var legacy = TweakCatalog.DnsScript("ipv4", g, servers, rollback, keepRegistration: false);
+            Assert.DoesNotContain("DnsClient", legacy);
+            var current = TweakCatalog.DnsScript("ipv4", g, servers, rollback);
+            var stripped = current.Replace(TweakCatalog.DnsRegistrationCapture, "").Replace(TweakCatalog.DnsRegistrationRestore, "")
+                .Replace("try{}catch{};", "");
+            Assert.Equal(legacy, stripped);
+        }
+    }
+
     // ───────────────────────────── Helpers ─────────────────────────────
 
     private static readonly string[] ForbiddenPathFragments =
@@ -542,4 +925,115 @@ public sealed class TweakCatalogTests : IDisposable
     private static bool IsForbidden(RegSet v) =>
         ForbiddenPathFragments.Any(f => v.Path.Contains(f, StringComparison.OrdinalIgnoreCase)) ||
         ForbiddenValueNames.Any(n => string.Equals(v.Name, n, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>
+/// Registry-backed CustomTweaks are not covered by TweakApplyRevertTests (it only runs RegistryTweak): apply and revert
+/// them against a redirected registry (HKCU\Software\MONOLITH-Tests\Redirect-*) and check every value comes back exactly.
+/// </summary>
+[Collection("Registry")]
+public sealed class CustomTweakApplyRevertTests : IDisposable
+{
+    private readonly string _root = $@"Software\MONOLITH-Tests\Redirect-{Guid.NewGuid():N}";
+    private readonly string _journalPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"monolith-customtweak-{Guid.NewGuid():N}.json");
+
+    public CustomTweakApplyRevertTests()
+    {
+        RegistryHelper.Redirect = (hive, path) => (RegHive.HKCU, $@"{_root}\{hive}\{path}");
+        ChangeSession.BypassElevationForTests = true;
+    }
+
+    public void Dispose()
+    {
+        RegistryHelper.Redirect = null;
+        ChangeSession.BypassElevationForTests = false;
+        try { Registry.CurrentUser.DeleteSubKeyTree(_root, false); } catch { }
+        foreach (var f in new[] { _journalPath, _journalPath + ".bak", _journalPath + ".tmp" })
+            try { System.IO.File.Delete(f); } catch { }
+    }
+
+    private const string Sticky = @"Control Panel\Accessibility\StickyKeys";
+    private const string Filter = @"Control Panel\Accessibility\Keyboard Response";
+    private const string Toggle = @"Control Panel\Accessibility\ToggleKeys";
+    private const string FileSystem = @"SYSTEM\CurrentControlSet\Control\FileSystem";
+
+    [Fact]
+    public async Task Accessibility_shortcuts_are_cleared_and_restored_byte_for_byte()
+    {
+        RegistryHelper.Write(RegHive.HKCU, Sticky, "Flags", RegistryValueKind.String, "510");
+        RegistryHelper.Write(RegHive.HKCU, Filter, "Flags", RegistryValueKind.String, "126");
+        RegistryHelper.Write(RegHive.HKCU, Toggle, "Flags", RegistryValueKind.String, "62");
+        var before = Capture();
+
+        var tweak = TweakCatalog.Find("accessibility-hotkeys-off")!;
+        Assert.Equal(TweakState.NotApplied, tweak.Detect());
+        await Apply(tweak);
+        Assert.Equal(TweakState.Applied, tweak.Detect());
+        Assert.Equal("506", RegistryHelper.ReadString(RegHive.HKCU, Sticky, "Flags"));
+        Assert.Equal("122", RegistryHelper.ReadString(RegHive.HKCU, Filter, "Flags"));
+        Assert.Equal("58", RegistryHelper.ReadString(RegHive.HKCU, Toggle, "Flags"));
+        Assert.Equal(RegistryValueKind.String, RegistryHelper.Snapshot(RegHive.HKCU, Sticky, "Flags").Kind);
+
+        await RevertAll();
+        Assert.Equal(before, Capture());
+    }
+
+    [Fact]
+    public async Task Accessibility_feature_in_use_and_absent_values_are_handled()
+    {
+        RegistryHelper.Write(RegHive.HKCU, Sticky, "Flags", RegistryValueKind.String, "511"); // Sticky Keys itself is on
+        var before = Capture();                                                               // Filter/Toggle: absent
+
+        var tweak = TweakCatalog.Find("accessibility-hotkeys-off")!;
+        await Apply(tweak);
+        Assert.Equal("511", RegistryHelper.ReadString(RegHive.HKCU, Sticky, "Flags"));
+        Assert.Equal("122", RegistryHelper.ReadString(RegHive.HKCU, Filter, "Flags"));
+        Assert.Equal("58", RegistryHelper.ReadString(RegHive.HKCU, Toggle, "Flags"));
+
+        await RevertAll();
+        Assert.Equal(before, Capture());
+        Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, Toggle)); // the key MONOLITH created is gone again
+    }
+
+    [Fact]
+    public async Task Trim_is_repaired_only_when_disabled_and_restored_exactly()
+    {
+        var tweak = TweakCatalog.Find("trim-on")!;
+        RegistryHelper.Write(RegHive.HKLM, FileSystem, "DisableDeleteNotification", RegistryValueKind.DWord, 0);
+        Assert.Equal(TweakState.Applied, tweak.Detect());
+        await Apply(tweak, expectChanges: 0);
+
+        RegistryHelper.Write(RegHive.HKLM, FileSystem, "DisableDeleteNotification", RegistryValueKind.DWord, 1);
+        RegistryHelper.Write(RegHive.HKLM, FileSystem, "RefsDisableDeleteNotification", RegistryValueKind.DWord, 1);
+        Assert.Equal(TweakState.NotApplied, tweak.Detect());
+        await Apply(tweak, expectChanges: 1);
+        Assert.Equal(0, RegistryHelper.ReadInt(RegHive.HKLM, FileSystem, "DisableDeleteNotification"));
+        Assert.Equal(1, RegistryHelper.ReadInt(RegHive.HKLM, FileSystem, "RefsDisableDeleteNotification")); // ReFS untouched
+
+        await RevertAll();
+        Assert.Equal(1, RegistryHelper.ReadInt(RegHive.HKLM, FileSystem, "DisableDeleteNotification"));
+    }
+
+    private async Task Apply(Tweak tweak, int? expectChanges = null)
+    {
+        var journal = new ChangeJournal(_journalPath);
+        var session = await ChangeSession.BeginAsync("test " + tweak.Id, createRestorePoint: false, journal: journal);
+        tweak.Apply(new TweakContext { Session = session, System = SystemProfile.Current, Tweak = tweak });
+        session.Complete();
+        Assert.Empty(session.Errors);
+        if (expectChanges is { } n) Assert.Equal(n, session.Applied);
+    }
+
+    private async Task RevertAll()
+    {
+        var journal = new ChangeJournal(_journalPath);
+        var result = await journal.RevertAllAsync();
+        Assert.True(result.Success, string.Join("; ", result.Errors));
+    }
+
+    private static string Capture() => string.Join("\n", new[] { Sticky, Filter, Toggle }.Select(p =>
+    {
+        var s = RegistryHelper.Snapshot(RegHive.HKCU, p, "Flags");
+        return $"{p} = {(s.ValueExisted ? $"{s.Kind}:{s.Data}" : "absent")}";
+    }));
 }

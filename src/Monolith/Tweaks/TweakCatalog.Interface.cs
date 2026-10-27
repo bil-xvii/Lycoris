@@ -1,3 +1,5 @@
+using System.Globalization;
+using Microsoft.Win32;
 using Monolith.Core;
 
 namespace Monolith.Tweaks;
@@ -116,6 +118,62 @@ public static partial class TweakCatalog
             Values = [Lm(@"SOFTWARE\Policies\Microsoft\Windows\Explorer", "HideRecommendedSection", 1)],
         };
 
+        // SAFE-OPTIONAL (Policy CSP Start, User scope, Windows 11 22H2 KB5027303+).
+        yield return new RegistryTweak
+        {
+            Id = "start-web-recommendations-off",
+            Title = "«Пуск» без рекомендаций сайтов",
+            Description = "Убирает из раздела «Рекомендуем» меню «Пуск» сайты, которые Windows подбирает по журналу браузера.",
+            Details = "Официальная политика Windows (HideRecommendedPersonalizedSites) для текущего пользователя. Такие рекомендации " +
+                      "появляются, только если журнал браузера передаётся Windows и в нём достаточно сайтов, — иначе пункт ничего заметного " +
+                      "не изменит. Недавние файлы и приложения в «Рекомендуем» остаются. Переключатель «Показывать веб-сайты из журнала " +
+                      "браузера» в Параметрах станет недоступен с пометкой об управлении организацией. Официально поддерживается в Pro и " +
+                      "старших редакциях. Откат удаляет политику. Применяется после перезапуска Проводника.",
+            Category = TweakCategory.Interface,
+            Risk = TweakRisk.Optional,
+            Restart = RestartRequirement.Explorer,
+            AppliesTo = sp => sp.OsBuild > 22621 || sp.OsBuild == 22621 && sp.OsUbr >= 1928,
+            NotApplicableReason = "Нужна Windows 11 22H2 с обновлением KB5027303 или новее.",
+            Values = [Cu(@"Software\Policies\Microsoft\Windows\Explorer", "HideRecommendedPersonalizedSites", 1)],
+        };
+
+        // SAFE-OPTIONAL (Windows 11). The user's own Settings toggle, not a policy.
+        yield return new RegistryTweak
+        {
+            Id = "start-phone-panel-off",
+            Title = "«Пуск» без панели телефона",
+            Description = "Убирает из меню «Пуск» боковую панель «Связи с телефоном» с сообщениями, звонками и фото телефона.",
+            Details = "Тот же переключатель, что Параметры → Персонализация → Пуск → «Показывать мобильное устройство в меню «Пуск»»: " +
+                      "это не политика, поэтому вернуть панель можно и там. Само приложение «Связь с телефоном» работает как прежде. Пункт " +
+                      "показывается, только если панель есть в вашей версии Windows и «Связи с телефоном». Применяется после перезапуска " +
+                      "Проводника.",
+            Category = TweakCategory.Interface,
+            Risk = TweakRisk.Optional,
+            Restart = RestartRequirement.Explorer,
+            AppliesTo = sp => sp.IsWindows11 && RegistryHelper.KeyExists(RegHive.HKCU, StartPhoneCompanion),
+            NotApplicableReason = "Панели телефона в меню «Пуск» нет: нужна Windows 11 и новая версия «Связи с телефоном».",
+            Values = [Cu(StartPhoneCompanion, "IsEnabled", 0)],
+        };
+
+        // SAFE-OPTIONAL, Pro+ (Policy CSP Experience; Home ignores it, so it is not offered there).
+        yield return new RegistryTweak
+        {
+            Id = "spotlight-third-party-off",
+            Title = "Без рекламы сторонних приложений в «Интересном»",
+            Description = "«Windows: интересное» и советы Windows перестают продвигать приложения и содержимое сторонних издателей.",
+            Details = "Официальная политика Windows (DisableThirdPartySuggestions) для текущего пользователя; работает в Pro и старших " +
+                      "редакциях. Сами картинки «Windows: интересное» на экране блокировки и рабочем столе остаются. Эффект узкий: основную " +
+                      "рекламу уже убирают пункты «Советы и предложения Windows» и «Советы на экране блокировки», этот закрывает ещё и " +
+                      "продвижение сторонних приложений. Остальные политики «интересного» работают только в Enterprise и Education, поэтому " +
+                      "MONOLITH их не предлагает. Откат удаляет политику. Действует после выхода из системы.",
+            Category = TweakCategory.Interface,
+            Risk = TweakRisk.Optional,
+            Restart = RestartRequirement.SignOut,
+            AppliesTo = sp => !IsHomeEdition(sp.OsEdition),
+            NotApplicableReason = "Windows Home не поддерживает эту политику.",
+            Values = [Cu(@"Software\Policies\Microsoft\Windows\CloudContent", "DisableThirdPartySuggestions", 1)],
+        };
+
         // ───── Search, Widgets, Copilot ─────
 
         yield return new RegistryTweak
@@ -154,8 +212,9 @@ public static partial class TweakCatalog
             Id = "widgets-off",
             Title = "Отключить Виджеты",
             Description = "Убирает доску виджетов, её кнопку на панели задач и фоновые процессы WebView2, которые её обслуживают.",
-            Details = "Используется официальная политика Microsoft (AllowNewsAndInterests). Пакет виджетов не удаляется, поэтому всё " +
-                      "возвращается откатом. Применяется после перезапуска Проводника.",
+            Details = "Используется официальная политика Microsoft (AllowNewsAndInterests). По данным Microsoft, она также убирает " +
+                      "«погоду и другое» с экрана блокировки. Пакет виджетов не удаляется, поэтому всё возвращается откатом. Применяется " +
+                      "после перезапуска Проводника.",
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Recommended,
@@ -163,6 +222,26 @@ public static partial class TweakCatalog
             AppliesTo = sp => sp.IsWindows11,
             NotApplicableReason = "Только для Windows 11.",
             Values = [Lm(@"SOFTWARE\Policies\Microsoft\Dsh", "AllowNewsAndInterests", 0)],
+        };
+
+        // SAFE-DEFAULT (Recommended), Windows 10 only: the Windows 10 counterpart of widgets-off (Policy CSP Feeds).
+        yield return new RegistryTweak
+        {
+            Id = "news-interests-off",
+            Title = "Отключить «Новости и интересы»",
+            Description = "Windows 10: убирает с панели задач ленту новостей и погоды вместе с её фоновыми процессами.",
+            Details = "Официальная политика Microsoft (EnableFeeds = 0) — то же, что пункт «Отключить Виджеты» для Windows 11. По данным " +
+                      "Microsoft, в Windows 10 она также убирает «погоду и другое» с экрана блокировки, а пункт «Новости и интересы» " +
+                      "пропадает из меню панели задач до отката. Официально политика поддерживается в Pro и старших редакциях; Home её " +
+                      "обычно тоже соблюдает, но Microsoft это не гарантирует. Откат удаляет политику, и возвращается ваша прежняя " +
+                      "настройка ленты. Применяется после перезапуска Проводника.",
+            Category = TweakCategory.Interface,
+            Risk = TweakRisk.Safe,
+            DefaultIn = ProfileSet.Recommended,
+            Restart = RestartRequirement.Explorer,
+            AppliesTo = sp => sp.OsBuild is >= 19041 and < 22000,
+            NotApplicableReason = "Только для Windows 10 — в Windows 11 используется пункт «Отключить Виджеты».",
+            Values = [Lm(@"SOFTWARE\Policies\Microsoft\Windows\Windows Feeds", "EnableFeeds", 0)],
         };
 
         yield return new RegistryTweak
@@ -221,6 +300,30 @@ public static partial class TweakCatalog
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.Explorer,
             Values = [Cu(ExplorerAdvanced, "LaunchTo", 1)],
+        };
+
+        // SAFE-OPTIONAL. Settings-backed user values (no policy, no UI lock); ShowFrequent stays on (Home renders blank otherwise).
+        yield return new RegistryTweak
+        {
+            Id = "explorer-home-private",
+            Title = "«Главная» Проводника без недавних файлов",
+            Description = "На «Главной» Проводника (в Windows 10 — на панели быстрого доступа) не показываются недавно открытые файлы и " +
+                          "файлы из учётной записи Microsoft 365 / OneDrive.",
+            Details = "Те же флажки, что Параметры папок → Конфиденциальность: «Показывать недавно использовавшиеся файлы», «Показывать " +
+                      "файлы с Office.com» и в новых сборках Windows 11 «Показать раздел рекомендаций» (если флажка в вашей версии нет, " +
+                      "значение ни на что не влияет). Полезно при демонстрации экрана: недавние документы не видны посторонним, а Проводник " +
+                      "не запрашивает облачные рекомендации. Закреплённые и часто используемые папки остаются — «часто используемые папки» " +
+                      "MONOLITH не выключает, иначе «Главная» становится пустой. Журнал и списки переходов не удаляются. Политика не " +
+                      "используется, поэтому флажки можно вернуть и вручную. Применяется после перезапуска Проводника.",
+            Category = TweakCategory.Interface,
+            Risk = TweakRisk.Optional,
+            Restart = RestartRequirement.Explorer,
+            Values =
+            [
+                Cu(ExplorerKey, "ShowRecent", 0),
+                Cu(ExplorerKey, "ShowCloudFilesInQuickAccess", 0),
+                Cu(ExplorerKey, "ShowRecommendations", 0),
+            ],
         };
 
         yield return new RegistryTweak
@@ -343,6 +446,88 @@ public static partial class TweakCatalog
                 RegSet.Str(RegHive.HKCU, @"Control Panel\Mouse", "MouseThreshold2", "0"),
             ],
         };
+
+        // SAFE-OPTIONAL, pre-checked in the Gaming profile (like mouse-acceleration-off). Clears only the shortcut bit.
+        yield return new CustomTweak
+        {
+            Id = "accessibility-hotkeys-off",
+            Title = "Без окна «Залипание клавиш» в играх",
+            Description = "Пятикратное нажатие Shift, долгое удержание правого Shift или Num Lock больше не открывает окна «Залипание " +
+                          "клавиш», «Фильтрация ввода» и «Озвучивание переключения», которые сворачивают игру.",
+            Details = "Выключаются только сочетания клавиш — как переключатели «Сочетание клавиш для …» в Параметрах → Специальные " +
+                      "возможности → Клавиатура. Сами функции остаются доступны там же, а если какая-то из них у вас уже включена, MONOLITH " +
+                      "её не трогает. Остальные настройки этих функций сохраняются. FPS не меняется — пропадают только окна, которые " +
+                      "отбирают фокус у игры. Откат возвращает прежние значения в точности; если после применения вы меняли эти функции " +
+                      "в Параметрах, откат вернёт и их прежнее состояние (Восстановление покажет такие изменения). Действует после выхода " +
+                      "из системы.",
+            Category = TweakCategory.Input,
+            Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Gaming,
+            Restart = RestartRequirement.SignOut,
+            NotApplicableReason = "Залипание клавиш, фильтрация ввода и озвучивание переключения у вас включены — MONOLITH их не трогает.",
+            DetectFunc = () =>
+            {
+                var keys = AccessibilityHotkeyTargets();
+                return StateOf(keys.Count(k => (k.Flags & AccessibilityHotkeyBit) == 0), keys.Count);
+            },
+            ApplyAction = ctx =>
+            {
+                foreach (var (path, flags) in AccessibilityHotkeyTargets())
+                {
+                    if ((flags & AccessibilityHotkeyBit) == 0) continue;
+                    // Kept as REG_SZ, the type Windows itself writes here.
+                    ctx.SetRegistry(RegHive.HKCU, path, "Flags", RegistryValueKind.String,
+                        ClearAccessibilityHotkey(flags).ToString(CultureInfo.InvariantCulture));
+                }
+            },
+        };
+    }
+
+    private const string ExplorerKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer";
+    private const string StartPhoneCompanion = @"Software\Microsoft\Windows\CurrentVersion\Start\Companions\Microsoft.YourPhone_8wekyb3d8bbwe";
+
+    // ───────────────────────────── Accessibility shortcuts ─────────────────────────────
+
+    /// <summary>SKF_HOTKEYACTIVE / FKF_HOTKEYACTIVE / TKF_HOTKEYACTIVE: the keyboard shortcut that turns the feature on.</summary>
+    internal const int AccessibilityHotkeyBit = 0x4;
+    /// <summary>SKF_STICKYKEYSON / FKF_FILTERKEYSON / TKF_TOGGLEKEYSON: the feature itself is on.</summary>
+    internal const int AccessibilityFeatureOnBit = 0x1;
+
+    /// <summary>Sticky Keys, Filter Keys, Toggle Keys and the Windows defaults of their Flags (REG_SZ) values.</summary>
+    internal static readonly (string Path, int Default)[] AccessibilityHotkeyKeys =
+    [
+        (@"Control Panel\Accessibility\StickyKeys", 510),
+        (@"Control Panel\Accessibility\Keyboard Response", 126),
+        (@"Control Panel\Accessibility\ToggleKeys", 62),
+    ];
+
+    /// <summary>Flags value as Windows reads it: an absent value means the default; anything unreadable is left alone (null).</summary>
+    internal static int? ParseAccessibilityFlags(object? raw, int defaultValue) => raw switch
+    {
+        null => defaultValue,
+        string s when int.TryParse(s.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var v) => v,
+        int i when i >= 0 => i,
+        _ => null,
+    };
+
+    /// <summary>Only the shortcut bit is cleared; every other bit (including the feature's own on/off) is kept.</summary>
+    internal static int ClearAccessibilityHotkey(int flags) => flags & ~AccessibilityHotkeyBit;
+
+    /// <summary>
+    /// The Flags MONOLITH may change for one feature, or null: unreadable values and features that are switched on
+    /// (the user relies on them, shortcut included) are left exactly as they are.
+    /// </summary>
+    internal static int? ChangeableAccessibilityFlags(object? raw, int defaultValue) =>
+        ParseAccessibilityFlags(raw, defaultValue) is { } flags && (flags & AccessibilityFeatureOnBit) == 0 ? flags : null;
+
+    /// <summary>The features MONOLITH may change, with their current Flags.</summary>
+    internal static IReadOnlyList<(string Path, int Flags)> AccessibilityHotkeyTargets()
+    {
+        var result = new List<(string, int)>();
+        foreach (var (path, defaultValue) in AccessibilityHotkeyKeys)
+            if (ChangeableAccessibilityFlags(RegistryHelper.Read(RegHive.HKCU, path, "Flags"), defaultValue) is { } flags)
+                result.Add((path, flags));
+        return result;
     }
 
     /// <summary>Explorer/DWM parts of the "performance" visual preset (thumbnails, font smoothing and full-window drag are kept).</summary>
