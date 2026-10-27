@@ -951,6 +951,14 @@ internal sealed class WindowsJournalSystem : IJournalSystem
             case ChangeKind.Registry when r.Registry is not null:
                 if (ChangeJournal.IsForbiddenRestoreTarget(r.Registry))
                     throw new InvalidOperationException($"Отказано: {r.Registry.FullName} — защищённое место реестра. Такую запись MONOLITH создать не мог.");
+                if (r.Source == "startup" && JournalTrust.IsPackagedStartupMark(r.Registry))
+                {
+                    // Never recreate the key of an uninstalled app, and never override a state set by policy.
+                    if (!RegistryHelper.KeyExists(r.Registry.Hive, r.Registry.Path))
+                        return new RevertOutcome("Приложения больше нет — откатывать нечего.", Skipped: true);
+                    if (RegistryHelper.Read(r.Registry.Hive, r.Registry.Path, "State") is int live && live is 3 or 4)
+                        return new RevertOutcome("Состояние задано политикой организации — MONOLITH его не меняет.", Skipped: true);
+                }
                 RegistryHelper.Restore(r.Registry);
                 return RevertOutcome.Done;
 
@@ -1156,9 +1164,17 @@ internal static class JournalTrust
         var p = reg.Path.TrimEnd('\\');
         if (new[] { "Run", "Run32", "StartupFolder" }.Any(sub => string.Equals(p, StartupApprovedRoot + sub, StringComparison.OrdinalIgnoreCase)))
             return true;
-        return reg.Hive == RegHive.HKCU && PackagedStartupTask.IsMatch(p) && reg.Name == "State"
-               && (!reg.ValueExisted || reg.Kind == Microsoft.Win32.RegistryValueKind.DWord);
+        return IsPackagedStartupMark(reg);
     }
+
+    /// <summary>
+    /// A packaged app's startup task state as the startup page writes it: the value always existed (MONOLITH never
+    /// creates it) and the original is one of the user states 0–2 (3/4 are set by policy and never touched).
+    /// </summary>
+    internal static bool IsPackagedStartupMark(RegistryValueSnapshot reg) =>
+        reg.Hive == RegHive.HKCU && PackagedStartupTask.IsMatch(reg.Path.TrimEnd('\\')) && reg.Name == "State"
+        && reg.ValueExisted && reg.Kind == Microsoft.Win32.RegistryValueKind.DWord
+        && uint.TryParse(reg.Data, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var v) && v <= 2;
 
     /// <summary>The games page's per-game GPU choice: HKCU …\DirectX\UserGpuPreferences, a value named by the game's exe path (REG_SZ).</summary>
     private static bool IsGpuPreference(RegistryValueSnapshot reg) =>
@@ -1204,6 +1220,20 @@ internal static class JournalTrust
             var rebuilt = target == "spi:visual-effects" ? RebuildSpi(script) : RebuildDx(target[3..], script);
             return rebuilt == args ? null : Unknown;
         }
+
+        // Windows 11 power mode overlay: PowerShell that sets one of the three documented modes.
+        if (target == "powermode:ac")
+        {
+            if (!SameFile(file, TweakCatalog.PowerShellExe) || PsScript(args) is not { } pm) return Unknown;
+            var g = Regex.Match(pm, $@"\$g=\[Guid\]'({GuidPattern})';");
+            if (!g.Success || !Guid.TryParse(g.Groups[1].Value, out var mode) || !TweakCatalog.IsDocumentedPowerMode(mode)) return Unknown;
+            return TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(mode)) == args ? null : Unknown;
+        }
+
+        // TCP receive-window auto-tuning: netsh with one of the five documented levels, nothing else.
+        if (target == "tcp-autotuning")
+            return SameFile(file, ProcessRunner.Sys("netsh.exe")) && TweakCatalog.TcpAutotuningLevels.Any(l => args == TweakCatalog.TcpAutotuningArgs(l))
+                ? null : Unknown;
 
         var dns = Regex.Match(target, $@"^dns([46]):(\{{?{GuidPattern}\}}?)$");
         if (dns.Success)
@@ -1347,7 +1377,8 @@ internal static class JournalTrust
         var servers = new List<string>();
         foreach (Match m in Regex.Matches(script, "'address=([0-9A-Fa-f:.%]+)'"))
             servers.Add(m.Groups[1].Value);
-        try { return TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript(family, guid, servers)); }
+        var keep = script.Contains("Get-DnsClient -InterfaceIndex $i", StringComparison.Ordinal);
+        try { return TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript(family, guid, servers, keepRegistration: keep)); }
         catch (Exception e) when (e is InvalidOperationException or ArgumentException) { return null; }
     }
 
@@ -1358,7 +1389,9 @@ internal static class JournalTrust
         if (!m.Success) return null;
         var raw = m.Groups[1].Value;
         var value = raw == "$null" ? null : raw[1..^1].Replace("''", "'");
-        return TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript(token, value));
+        var own = Regex.Match(script, @"\$mk=\$true;\$mp=\$(true|false);");
+        return TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript(token, value,
+            createdKey: own.Success, createdParent: own.Success && own.Groups[1].Value == "true"));
     }
 
     private static string? RebuildSpi(string script)

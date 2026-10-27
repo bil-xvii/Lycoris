@@ -630,6 +630,10 @@ public static partial class TweakCatalog
         },
         ApplyAction = ctx =>
         {
+            // During a game session the active plan is the session's temporary one: a setting changed now would be
+            // recorded against that plan and silently stop applying when the session ends.
+            if (ChangeJournal.Instance.FindActive("power:active")?.Source == "gameboost")
+                throw new InvalidOperationException("сначала завершите игровой сеанс — сейчас действует его временная схема питания");
             var scheme = PowerSchemes.GetActive();
             if (scheme == Guid.Empty) throw new InvalidOperationException("не удалось определить активную схему питания");
             var current = ReadAcIndex(scheme, subgroup, setting)

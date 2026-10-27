@@ -16,6 +16,7 @@ public static partial class HealthRules
     public const string TweakGameMode = "game-mode";
     public const string TweakHags = "hags";
     public const string TweakHagsOther = "hags-other-gpu";
+    public const string TweakTrim = "trim-on";
     public const string TweakGameDvr = "gamedvr-off";
     public const string TweakBalancedPlan = "power-plan-balanced";
     public const string TweakBalancedPlanX3D = "power-plan-balanced-x3d";
@@ -400,8 +401,8 @@ public static partial class HealthRules
             return new("trim", "TRIM ВКЛЮЧЁН", "SSD получает команды очистки освобождённых блоков — скорость записи не деградирует.", CheckSeverity.Ok, 10);
         return new("trim", "TRIM ВЫКЛЮЧЕН",
             "SSD не получает команды очистки освобождённых блоков: со временем запись замедляется, а износ растёт. " +
-            "Обычно его выключают сторонние «твикеры». Включить можно командой «fsutil behavior set DisableDeleteNotify 0» " +
-            "в терминале от имени администратора.", CheckSeverity.Warning, 10);
+            "Обычно его выключают сторонние «твикеры». Кнопка включает его через журнал MONOLITH — откат вернёт прежнее значение.",
+            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakTrim));
     }
 
     // ───────────────────────────── GPU driver ─────────────────────────────

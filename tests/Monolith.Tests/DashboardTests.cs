@@ -364,7 +364,10 @@ public sealed class DashboardRulesTests
         var nvme = new SystemDisk("Samsung 990 PRO", "", "NVMe", 1, 2);
         Assert.Null(HealthRules.CheckTrim(new SystemSnapshot { TrimDisabled = true, SystemDisk = hdd }));
         Assert.Equal(CheckSeverity.Warning, HealthRules.CheckTrim(new SystemSnapshot { TrimDisabled = true, SystemDisk = nvme })!.Severity);
-        Assert.Null(HealthRules.CheckTrim(new SystemSnapshot { TrimDisabled = true, SystemDisk = nvme })!.Action); // read-only advice
+        var fix = HealthRules.CheckTrim(new SystemSnapshot { TrimDisabled = true, SystemDisk = nvme })!.Action!;
+        Assert.Equal(CheckActionKind.ApplyTweak, fix.Kind); // fixed through the journaled «trim-on» tweak
+        Assert.Equal(HealthRules.TweakTrim, fix.Target);
+        Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakTrim));
         Assert.Equal(CheckSeverity.Ok, HealthRules.CheckTrim(new SystemSnapshot { TrimDisabled = false, SystemDisk = nvme })!.Severity);
     }
 

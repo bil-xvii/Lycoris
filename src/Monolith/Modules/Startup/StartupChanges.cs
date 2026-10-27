@@ -51,10 +51,11 @@ public static class StartupChanges
                 errors.Add($"{e.DisplayName}: {refusal}.");
                 continue;
             }
-            var record = journal.FindActive(StartupLocations.JournalTarget(e));
-            if (record?.Registry is { } snapshot && OriginalEnabled(e, snapshot) == enable)
+            // Back to how it was before MONOLITH: undo every layer of this entry instead of stacking a new one.
+            var layers = journal.ActiveLayers(StartupLocations.JournalTarget(e));
+            if (layers.Count > 0 && layers[0].Registry is { } snapshot && OriginalEnabled(e, snapshot) == enable)
             {
-                revert.Add(record);
+                revert.AddRange(layers);
                 continue;
             }
             if (packaged && PackagedStartup.IsEnabled(PackagedStartup.ReadState(e.PackageFamilyName!, e.Name)) == enable) continue;
@@ -102,8 +103,8 @@ public static class StartupChanges
         var write = new List<LogonTask>();
         foreach (var t in tasks)
         {
-            var record = journal.FindActive($"task:{t.Path}");
-            if (record?.TaskWasEnabled is { } wasEnabled && wasEnabled == enable) revert.Add(record);
+            var layers = journal.ActiveLayers($"task:{t.Path}");
+            if (layers.Count > 0 && layers[0].TaskWasEnabled is { } wasEnabled && wasEnabled == enable) revert.AddRange(layers);
             else write.Add(t);
         }
 
