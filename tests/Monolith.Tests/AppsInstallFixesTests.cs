@@ -14,6 +14,22 @@ public sealed class AppsInstallFixesTests
 {
     private static readonly Regex Cyrillic = new("[А-Яа-яЁё]");
 
+    /// <summary>
+    /// Signer names read with Get-AuthenticodeSignature from the vendors' current installers (27.10.2026, all Valid):
+    /// the catalog's expected signers must accept them, or the «СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ» button would always fail.
+    /// </summary>
+    [Theory]
+    [InlineData("Logitech.GHUB", "Logitech Inc")]
+    [InlineData("Ubisoft.Connect", "UBISOFT ENTERTAINMENT INC.")]
+    [InlineData("Resplendence.LatencyMon", "SOFTREV LABS S.R.L.S.")]
+    public void Catalog_signers_accept_the_real_vendor_certificates(string id, string realSubject)
+    {
+        var signers = AppCatalog.All.Single(e => e.Id == id).VendorInstaller!.Signers;
+        Assert.Contains(signers, expected => VendorDownloads.SignerMatches(realSubject, expected));
+        // …and nothing looser: a lookalike company is still refused.
+        Assert.DoesNotContain(signers, expected => VendorDownloads.SignerMatches("Not " + realSubject, expected));
+    }
+
     private static CatalogEntry Entry(string id) => AppCatalog.Find(id) ?? throw new InvalidOperationException(id);
 
     // ─────────────────────────── install location (0x8A15005F) ───────────────────────────
