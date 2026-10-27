@@ -366,7 +366,9 @@ public sealed class ChangeSession
             if (entry.Persisted is { } p)
             {
                 ExportOnce(RegHive.HKCU, p.Path);
-                persisted = RegistryHelper.Snapshot(RegHive.HKCU, p.Path, p.Name);
+                // Windows creates the value (and, on a fresh profile, its Control Panel key) itself; an undo only deletes the
+                // value it created and never removes a Control Panel key, so no created-key root is recorded.
+                persisted = RegistryHelper.Snapshot(RegHive.HKCU, p.Path, p.Name).WithCreatedKeyRoot(null);
             }
             var incoming = new ChangeRecord
             {
