@@ -105,8 +105,8 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   `T.Caption`, `T.Mono`, `T.Stat` + `T.StatUnit` (big numbers), `T.Icon`.
 - Buttons: default outline `Btn`, `Btn.Primary` (white block), `Btn.Hero` (big primary), `Btn.Ghost`,
   `Btn.Danger` (hatched on hover), `Btn.Icon` (content = glyph), `Btn.Link`.
-- Inputs: CheckBox (square), `Toggle` (CheckBox style, rectangular switch), `Segment` (RadioButton tabs with
-  underline), `Tile` (RadioButton card), TextBox (`Tag` = placeholder), ComboBox, Slider, ProgressBar (thin),
+- Inputs: CheckBox (R.Xs box), `Toggle` (CheckBox style, R.Md rounded-rect switch with R.Xs knob), `Segment` (RadioButton
+  tabs with underline), `Tile` (RadioButton card), TextBox (`Tag` = placeholder), ComboBox, Slider, ProgressBar (thin),
   TabControl/TabItem (underline), Expander.
 - Surfaces: `Card`, `Card.Flush`, `Card.Hover`, `Card.Inverted`, `Callout`, `Row` (list row with hover + bottom
   hairline), `Divider`, `DividerV`, tags `Tag`, `Tag.Solid`, `Tag.Hatch` (risk/expert), `Tag.Muted`.
@@ -115,11 +115,25 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   `EqualsToVis`, `Upper`, `Sentence` (all-caps → sentence case, keeps acronyms/brands), `Percent`.
 - Controls (`xmlns:c="clr-namespace:Monolith.UI.Controls"`): `c:PageHeader` (Index/Title/Subtitle/Actions),
   `c:Meter` (segmented bar 0–100), `c:Sparkline` (Values = ObservableCollection<double>), `c:ArcGauge` (0–100).
-- Slightly rounded corners (owner: «не таким квадратным, чуть более округлым», same style otherwise): only the shape
-  tokens from Theme/Colors.xaml — `R.Sm` 3 (tags, checkboxes), `R.Md` 4 (buttons, inputs, toggles), `R.Lg` 6 (cards,
-  callouts, tiles), `R.Xl` 8 (popups, dialogs, toasts, window); `*.D` doubles for Rectangle radii. No ad-hoc radius values.
-  Children painted to the edge of a rounded surface (bars, inverted headers, hatched bands) are clipped with
-  `ui:RoundClip.Content="True"` on the Border (UI/RoundClip.cs) or get matching per-corner radii.
+- Clearly rounded corners, still strict (owner, 27.10: «вообще не округлен… сделай ещё более круглым, не такой
+  заостренный, но строгим, агрессивным и профессиональным»). Only the shape tokens from Theme/Colors.xaml, via
+  `{StaticResource R.*}` — never a literal radius, never change the values:
+  `R.Xs` 4 — checkboxes, progress bars, scroll thumbs, slider track/thumb, meter segments, tiny badges, selection markers;
+  `R.Sm` 6 — tags/chips (`Tag*`), small icon buttons (`Btn.Icon`);
+  `R.Md` 8 — buttons, inputs, combo boxes, toggles, nav items, row/menu/palette highlights, tooltips, focus ring;
+  `R.Lg` 12 — cards (`Card*`), callouts, tiles, list panels, stat strips, sticky bars, the read-only strip, the console panel;
+  `R.Xl` 16 — popups, dialogs, toasts, menus, the command palette, the ComboBox dropdown.
+  `*.D` doubles (`R.Xs.D` …) for Rectangle.RadiusX/RadiusY and drawn shapes (Meter cells: R.Xs, capped at ¼ of the cell).
+  The window uses the Windows 11 rounded frame (`DWMWCP_ROUND` in MainWindow.ApplyDwmStyle).
+  Highlights inside a rounded container are inset (nav items 10/8 px, palette rows and menu/dropdown items 4–8 px) and
+  carry the selection marker as a short rounded bar on their left edge. No pills except toggles/badges.
+  Hairlines stay straight: single-edge borders (`Row` bottom line, underline tabs, dividers, title/status bar lines) are
+  never rounded; rows stacked in a card stay square — the card rounds and clips them.
+  Children painted to the edge of a rounded surface (bars, inverted headers, hatched bands, first/last rows) are clipped
+  with `ui:RoundClip.Content="True"` on the Border (UI/RoundClip.cs; `Card`, `Card.*` and `Callout` already set it). The clip
+  is the border's inner area, so padded content is never cut. A filled rounded box with a same-colour outline must not be
+  one Border with both (it shows a seam in the corners): CheckBox/Toggle draw fill and outline as two layers, Btn.Primary
+  turns its border width into padding.
 - COMPACT spacing (owner: «слишком разбросано»): cards 14 px padding,
   rows 12/8, 8–16 px gaps, buttons/inputs 30 px high, page title 24 px. The main list of a page must get most of the
   screen — no big hero blocks above it.
