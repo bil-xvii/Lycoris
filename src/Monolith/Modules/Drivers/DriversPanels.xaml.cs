@@ -31,8 +31,11 @@ public partial class DriversBackupPanel : UserControl
         // Keep the newest pnputil line in view while output streams in.
         ((INotifyCollectionChanged)OutputList.Items).CollectionChanged += (_, e) =>
         {
-            if (e.Action == NotifyCollectionChangedAction.Add && OutputList.Items.Count > 0)
-                OutputList.ScrollIntoView(OutputList.Items[^1]);
+            if (e.Action == NotifyCollectionChangedAction.Add)
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (OutputList.Items.Count > 0) OutputList.ScrollIntoView(OutputList.Items[^1]);
+                }, System.Windows.Threading.DispatcherPriority.Background);
         };
     }
 }

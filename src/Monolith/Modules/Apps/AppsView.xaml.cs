@@ -39,12 +39,23 @@ public partial class AppsView : UserControl
         QueueScroll.MaxHeight = Math.Max(96, (e.NewSize.Height - chrome) * 0.42);
     }
 
-    /// <summary>Keeps the newest winget output line in view.</summary>
+    /// <summary>
+    /// Keeps the newest winget output line in view. Deferred: this handler can run before the list itself has seen
+    /// the new line, and scrolling then (a layout pass inside CollectionChanged) made WPF terminate the app with
+    /// "ItemsControl is inconsistent with its items source".
+    /// </summary>
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.Action != NotifyCollectionChangedAction.Add || LogList.Items.Count == 0) return;
-        LogList.ScrollIntoView(LogList.Items[^1]);
+        if (e.Action != NotifyCollectionChangedAction.Add || _scrollQueued) return;
+        _scrollQueued = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            _scrollQueued = false;
+            if (LogList.Items.Count > 0) LogList.ScrollIntoView(LogList.Items[^1]);
+        }, System.Windows.Threading.DispatcherPriority.Background);
     }
+
+    private bool _scrollQueued;
 
     private sealed class AllTrueConverter : IMultiValueConverter
     {

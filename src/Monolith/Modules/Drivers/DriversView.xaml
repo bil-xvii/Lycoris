@@ -51,6 +51,10 @@
             <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
             <StackPanel Orientation="Horizontal">
                 <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,19,0"
+                             IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Hardware}">
+                    <TextBlock Text="ПОДБОР ДЛЯ ВАШЕГО ПК" />
+                </RadioButton>
+                <RadioButton Style="{StaticResource Segment}" Padding="0" Margin="0,0,19,0"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=Overview}">
                     <TextBlock Text="ВИДЕОКАРТЫ И ЧИПСЕТ" />
                 </RadioButton>
@@ -94,8 +98,8 @@
         </Grid>
 
         <!-- ═══════════ Tab content ═══════════ -->
-        <!-- The «ПОДБОР ДЛЯ ВАШЕГО ПК» tab (DriversHardwarePanel) is hidden until the hardware analysis exists. -->
         <Grid Grid.Row="2" Margin="0,11,0,0">
+            <local:DriversHardwarePanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Hardware}" />
             <local:DriversOverviewPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Overview}" />
             <local:DriversUpdatesPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Updates}" />
             <local:DriversProblemsPanel Visibility="{Binding SelectedTab, Converter={StaticResource EqualsToVis}, ConverterParameter=Problems}" />

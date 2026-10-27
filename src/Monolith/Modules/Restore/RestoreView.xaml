@@ -334,6 +334,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Button Style="{StaticResource Btn.Ghost}" Command="{Binding ShowMoreBatchesCommand}" HorizontalAlignment="Left"
+                                Content="{Binding ShowMoreText}" Visibility="{Binding HasMoreBatches, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
 
                     <!-- System Restore -->

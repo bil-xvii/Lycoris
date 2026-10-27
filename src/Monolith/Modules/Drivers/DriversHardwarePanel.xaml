@@ -4,7 +4,396 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
+             xmlns:hw="clr-namespace:Monolith.Modules.Drivers.Hardware"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
-    <!-- "ПОДБОР ДЛЯ ВАШЕГО ПК": hardware analysis + recommended official components (built in DriversViewModel.Hardware.cs) -->
-    <TextBlock Style="{StaticResource T.Caption}" Text="Анализ железа — в разработке." />
+    <!-- "ПОДБОР ДЛЯ ВАШЕГО ПК": hardware analysis + recommended official components (DriversViewModel.Hardware.cs) -->
+    <UserControl.Resources>
+        <Style x:Key="Hw.StatValue" TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
+            <Setter Property="FontSize" Value="34" />
+            <Setter Property="Margin" Value="0,8,0,0" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="Hw.StatCaption" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+
+        <!-- Component status: white block = update, hatch = missing, strong outline = manual step -->
+        <Style x:Key="Hw.StatusTag" TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusKey}" Value="ok">
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKey}" Value="update">
+                    <Setter Property="Background" Value="{StaticResource B.White}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKey}" Value="missing">
+                    <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKey}" Value="manual">
+                    <Setter Property="Background" Value="{StaticResource B.Surface3}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Hw.GroupTag" TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SummaryKey}" Value="attention">
+                    <Setter Property="Background" Value="{StaticResource B.White}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Hw.SmallButton" TargetType="Button" BasedOn="{StaticResource Btn}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <!-- ═══════════ Recommended action ═══════════ -->
+        <DataTemplate x:Key="Hw.ActionTemplate" DataType="{x:Type hw:HwActionItem}">
+            <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Md}" Padding="14,10" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="30" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox VerticalAlignment="Top" Margin="0,1,0,0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanToggle}"
+                              Visibility="{Binding IsInstallable, Converter={StaticResource BoolToVis}}"
+                              ToolTip="Отметить для установки (кнопка «Установить выбранное» внизу)" />
+                    <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
+                               VerticalAlignment="Top" Margin="1,3,0,0"
+                               Visibility="{Binding IsInstallable, Converter={StaticResource InverseBoolToVis}}" />
+                    <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                        <WrapPanel>
+                            <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="13" TextWrapping="NoWrap" />
+                            <TextBlock Text="{Binding Publisher, StringFormat='   ·   {0}'}" Style="{StaticResource T.Caption}" TextWrapping="NoWrap"
+                                       VerticalAlignment="Center" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding Reason}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17" />
+                        <TextBlock Text="{Binding JobText}" Style="{StaticResource T.Mono}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource B.Text}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding JobText, Converter={StaticResource NullToVis}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,1,0,0">
+                        <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" Visibility="{Binding IsOptional, Converter={StaticResource BoolToVis}}"
+                                ToolTip="Не обязательно: ставьте, если нужны функции этой программы">
+                            <TextBlock Text="ПО ЖЕЛАНИЮ" />
+                        </Border>
+                        <Border Style="{StaticResource Tag}" ToolTip="Источник">
+                            <TextBlock Text="{Binding SourceText}" />
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="3" Style="{StaticResource Hw.SmallButton}" Margin="10,0,0,0" VerticalAlignment="Top"
+                            Visibility="{Binding HasButton, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding DataContext.HardwareActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}" Content="{Binding ButtonText}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- ═══════════ Detected component ═══════════ -->
+        <DataTemplate x:Key="Hw.ComponentTemplate" DataType="{x:Type hw:HwComponentItem}">
+            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,14,22,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="168" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="{Binding Kind}" Style="{StaticResource T.Label}" TextWrapping="Wrap" Margin="0,3,16,0" />
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource T.H3}" FontSize="15" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                        <TextBlock Text="{Binding Details}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" Visibility="{Binding Details, Converter={StaticResource NullToVis}}" />
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,6,0,0"
+                                   Visibility="{Binding Note, Converter={StaticResource NullToVis}}" />
+                    </StackPanel>
+                    <Border Grid.Column="2" Style="{StaticResource Hw.StatusTag}">
+                        <TextBlock Text="{Binding StatusText}" />
+                    </Border>
+                    <ItemsControl Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,10,0,0" Focusable="False"
+                                  ItemsSource="{Binding Actions}" ItemTemplate="{StaticResource Hw.ActionTemplate}"
+                                  Visibility="{Binding HasActions, Converter={StaticResource BoolToVis}}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════ Summary strip + scan ═══════════ -->
+        <Border Style="{StaticResource Card.Flush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="1.7*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Margin="20,16,16,16" ToolTip="Устройства, найденные на этом ПК, и библиотеки для игр">
+                    <TextBlock Text="КОМПОНЕНТОВ" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{Binding HwComponentsStat}" Style="{StaticResource Hw.StatValue}" />
+                    <TextBlock Text="{Binding HwComponentsCaption}" Style="{StaticResource Hw.StatCaption}" />
+                </StackPanel>
+                <Rectangle Grid.Column="1" Style="{StaticResource DividerV}" />
+
+                <Grid Grid.Column="2">
+                    <Rectangle Height="3" VerticalAlignment="Top" Fill="{StaticResource B.White}"
+                               Visibility="{Binding HwHasRecommendations, Converter={StaticResource BoolToVis}}" />
+                    <StackPanel Margin="20,16,16,16" ToolTip="Компоненты, которым нужно обновление, установка или ручной шаг">
+                        <TextBlock Text="РЕКОМЕНДАЦИЙ" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{Binding HwRecommendationsStat}" Style="{StaticResource Hw.StatValue}" />
+                        <TextBlock Text="{Binding HwRecommendationsCaption}" Style="{StaticResource Hw.StatCaption}" />
+                    </StackPanel>
+                </Grid>
+                <Rectangle Grid.Column="3" Style="{StaticResource DividerV}" />
+
+                <StackPanel Grid.Column="4" Margin="20,16,16,16"
+                            ToolTip="Версия сверена с производителем или Windows Update: новее нет">
+                    <TextBlock Text="АКТУАЛЬНО" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{Binding HwCurrentStat}" Style="{StaticResource Hw.StatValue}" />
+                    <TextBlock Text="{Binding HwCurrentCaption}" Style="{StaticResource Hw.StatCaption}" />
+                </StackPanel>
+                <Rectangle Grid.Column="5" Style="{StaticResource DividerV}" />
+
+                <Grid Grid.Column="6" Margin="20,16,20,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="АНАЛИЗ ЖЕЛЕЗА" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{Binding HardwareScanTime}" Style="{StaticResource Hw.StatValue}" Foreground="{StaticResource B.Text2}" />
+                        <TextBlock Text="{Binding HardwareScanCaption}" Style="{StaticResource Hw.StatCaption}"
+                                   Visibility="{Binding IsHardwareScanning, Converter={StaticResource InverseBoolToVis}}" />
+                        <TextBlock Text="{Binding HardwareScanStage}" Style="{StaticResource Hw.StatCaption}" Foreground="{StaticResource B.Text}"
+                                   Visibility="{Binding IsHardwareScanning, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0" Command="{Binding RescanHardwareCommand}"
+                            ToolTip="Заново прочитать железо, версии драйверов, библиотеки и программы (только чтение)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="СКАНИРОВАТЬ СНОВА" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <ProgressBar Grid.ColumnSpan="7" VerticalAlignment="Bottom" IsIndeterminate="{Binding IsHardwareScanning}"
+                             Visibility="{Binding IsHardwareScanning, Converter={StaticResource BoolToVis}}" />
+            </Grid>
+        </Border>
+
+        <!-- ═══════════ Groups ═══════════ -->
+        <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="0,0,12,8">
+
+                <!-- First scan in progress -->
+                <Border Style="{StaticResource Card}" Padding="14,20" Margin="0,0,0,10"
+                        Visibility="{Binding HardwareScanned, Converter={StaticResource InverseBoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="АНАЛИЗ ЖЕЛЕЗА" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{Binding HardwareScanStage}" Style="{StaticResource T.H2}" Margin="0,8,0,0" />
+                        <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0"
+                                   Text="MONOLITH читает сведения о процессоре, плате, видеокартах, памяти, накопителях, сети, звуке, мониторах и периферии и подбирает для них официальные драйверы и программы. Только чтение — ничего не меняется и не устанавливается." />
+                    </StackPanel>
+                </Border>
+
+                <!-- Result of the last installation -->
+                <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,10"
+                        Visibility="{Binding HasHardwareResults, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <Grid Margin="22,16,16,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="РЕЗУЛЬТАТ УСТАНОВКИ" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding HwResultsSummary}" Style="{StaticResource T.Caption}" VerticalAlignment="Center"
+                                       Margin="16,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Height="30" Command="{Binding DismissHardwareResultsCommand}">
+                                <TextBlock Text="СКРЫТЬ" />
+                            </Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding HardwareResults}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type hw:HwResultItem}">
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,9">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="26" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="&#xE7BA;" />
+                                                        <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOk}" Value="True">
+                                                                <Setter Property="Text" Value="&#xE73E;" />
+                                                                <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                                                <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" />
+                                                <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}"
+                                                           Visibility="{Binding Detail, Converter={StaticResource NullToVis}}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="2" VerticalAlignment="Top">
+                                                <Border.Style>
+                                                    <Style TargetType="Border" BasedOn="{StaticResource Tag.Hatch}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOk}" Value="True">
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
+                                                                <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Text="{Binding ResultText}" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- Component groups -->
+                <ItemsControl ItemsSource="{Binding HardwareGroups}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type hw:HwGroupItem}">
+                            <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <Grid Margin="14,10,14,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                                        <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="14,0"
+                                                   SnapsToDevicePixels="True" />
+                                        <Border Grid.Column="2" Style="{StaticResource Hw.GroupTag}">
+                                            <TextBlock Text="{Binding SummaryText}" />
+                                        </Border>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Components}" ItemTemplate="{StaticResource Hw.ComponentTemplate}" Focusable="False" />
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,10"
+                                            Visibility="{Binding WuExtraText, Converter={StaticResource NullToVis}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding WuExtraText}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Style="{StaticResource Hw.SmallButton}" Margin="12,0,0,0"
+                                                    Command="{Binding DataContext.GoToTabCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="Updates" Content="К ОБНОВЛЕНИЯМ" />
+                                        </Grid>
+                                    </Border>
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,10"
+                                            Visibility="{Binding Footer, Converter={StaticResource NullToVis}}">
+                                        <TextBlock Text="{Binding Footer}" Style="{StaticResource T.Caption}" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Style="{StaticResource T.Caption}" Margin="2,0,0,0" Visibility="{Binding HardwareScanned, Converter={StaticResource BoolToVis}}"
+                           Text="Источники: серверы NVIDIA и AMD (с проверкой цифровой подписи производителя), winget — только пакеты, проверенные у издателя, Windows Update и официальные сайты. Сторонние базы драйверов не используются; BIOS, профиль памяти и частота монитора меняются только вручную." />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ═══════════ Sticky install bar ═══════════ -->
+        <!-- Read-only: hidden (the global strip under the title bar already offers the restart with admin rights). -->
+        <Border Grid.Row="2" Margin="0,10,0,0" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1"
+                CornerRadius="{StaticResource R.Lg}" Visibility="{Binding IsElevated, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <!-- Idle -->
+                <Grid Visibility="{Binding IsHwInstalling, Converter={StaticResource InverseBoolToVis}}">
+                    <!-- Admin: selection + install -->
+                    <Grid Margin="14,10" Visibility="{Binding IsElevated, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="К УСТАНОВКЕ" Style="{StaticResource T.Label}" />
+                            <TextBlock Text="{Binding HwSelectionText}" Style="{StaticResource T.Body}" FontSize="12.5" Foreground="{StaticResource B.Text}"
+                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" ToolTip="{Binding HwSelectionText}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{StaticResource Btn.Ghost}" Margin="0,0,10,0" Command="{Binding ClearHardwareSelectionCommand}"
+                                Visibility="{Binding HwSelectedCount, Converter={StaticResource NullToVis}}">
+                            <TextBlock Text="СНЯТЬ ОТМЕТКИ" />
+                        </Button>
+                        <Button Grid.Column="2" Style="{StaticResource Btn.Hero}" Command="{Binding InstallHardwareCommand}"
+                                ToolTip="Сначала — список того, что будет установлено, и подтверждение">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="15" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <TextBlock Text="{Binding HwInstallButtonText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Grid>
+
+                <!-- Installing -->
+                <Grid Margin="14,10" Visibility="{Binding IsHwInstalling, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
+                        <TextBlock Text="{Binding HwInstallStage}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding HwInstallDetail}" Style="{StaticResource T.Mono}" FontSize="11" Margin="0,4,0,8"
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding HwInstallDetail}" />
+                        <ProgressBar Value="{Binding HwInstallPercent}" Maximum="100" IsIndeterminate="{Binding HwInstallIndeterminate}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Style="{StaticResource Btn.Danger}" VerticalAlignment="Center" Command="{Binding CancelHardwareInstallCommand}"
+                            ToolTip="Остановить очередь. Уже открытый установщик драйвера не прерывается.">
+                        <TextBlock Text="ОТМЕНИТЬ" />
+                    </Button>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
 </UserControl>

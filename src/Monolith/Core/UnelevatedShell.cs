@@ -182,6 +182,12 @@ public static class UnelevatedShell
             using var _ = Process.Start(psi);
             return true;
         }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // The program asked for admin rights and the user said no in the UAC window: not an error.
+            Log.Warn($"Запуск отменён в окне контроля учётных записей: {fileOrUri}");
+            return false;
+        }
         catch (Exception ex)
         {
             Log.Error($"Не удалось запустить {fileOrUri}", ex);

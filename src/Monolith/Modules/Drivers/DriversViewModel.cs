@@ -27,7 +27,7 @@ public sealed partial class DriversViewModel : PageViewModel
     private List<UninstallEntry> _apps = [];
     private readonly CancellationTokenSource _lifetime = new();
 
-    [ObservableProperty] private DriversTab _selectedTab = DriversTab.Overview;
+    [ObservableProperty] private DriversTab _selectedTab = DriversTab.Hardware;
     [ObservableProperty] private bool _inventoryLoaded;
     [ObservableProperty] private string _inventoryTime = "";
 
@@ -82,7 +82,8 @@ public sealed partial class DriversViewModel : PageViewModel
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
-        if (e.PropertyName == nameof(IsBusy)) RefreshCommandStates();
+        if (e.PropertyName is nameof(IsBusy) or nameof(IsInstalling) or nameof(IsBackupRunning) or nameof(IsDriverDownloadRunning))
+            RefreshCommandStates();
     }
 
     partial void OnSelectedTabChanged(DriversTab value)
@@ -100,9 +101,11 @@ public sealed partial class DriversViewModel : PageViewModel
         ExportBackupCommand.NotifyCanExecuteChanged();
         RestoreBackupCommand.NotifyCanExecuteChanged();
         DeleteBackupCommand.NotifyCanExecuteChanged();
+        DownloadDriverCommand.NotifyCanExecuteChanged();
     }
 
-    private bool CanModify() => Elevation.IsElevated && !IsBusy && !IsInstalling && !IsBackupRunning;
+    /// <summary>One system-changing operation at a time: WU install, backup/restore, direct driver download.</summary>
+    private bool CanModify() => Elevation.IsElevated && !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
 
     // ───────────────────────────── Inventory ─────────────────────────────
 
@@ -121,7 +124,8 @@ public sealed partial class DriversViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private Task RefreshAsync() => RunBusyAsync("Обновление сведений о драйверах…", LoadInventoryAsync);
 
-    private bool CanRefresh() => !IsBusy && !IsInstalling && !IsBackupRunning;
+    /// <summary>A refresh rebuilds the GPU cards, so it waits while a card is downloading a driver.</summary>
+    private bool CanRefresh() => !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
 
     private async Task LoadInventoryAsync()
     {
@@ -131,6 +135,7 @@ public sealed partial class DriversViewModel : PageViewModel
         InventoryLoaded = true;
         InventoryTime = $"ДАННЫЕ ОТ {DateTime.Now:HH:mm}";
         _ = CheckNvidiaLatestAsync();
+        _ = OfferAmdInstallerAsync();
     }
 
     private static InventoryData Collect(SystemProfile profile)
@@ -211,6 +216,8 @@ public sealed partial class DriversViewModel : PageViewModel
             try { release = await NvidiaLookup.GetLatestAsync(card.Name, _lifetime.Token); }
             catch (OperationCanceledException) { }
             card.ApplyLatest(release, DateTime.Now);
+            DownloadDriverCommand.NotifyCanExecuteChanged(); // the card may now offer a download
+            if (card.Package is { SizeBytes: null } package) await FillSizeAsync(card, package);
         }
         UpdateStats();
     }

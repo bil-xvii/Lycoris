@@ -38,6 +38,11 @@ public static class LiveState
                 _ => new LiveValue(Unknown, null),
             };
         }
+        catch (Exception ex) when (!Elevation.IsElevated && ex is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            // Machine-wide keys of system accounts are readable only by administrators: unknown, not a problem.
+            return new LiveValue(Unknown, null);
+        }
         catch (Exception ex)
         {
             Log.Warn($"Не удалось прочитать текущее значение «{r.Title}»: {ex.Message}");
