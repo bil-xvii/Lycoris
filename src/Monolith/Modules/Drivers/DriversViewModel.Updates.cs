@@ -39,6 +39,10 @@ public sealed partial class DriversViewModel
     [NotifyCanExecuteChangedFor(nameof(SearchUpdatesCommand), nameof(InstallUpdatesCommand), nameof(CancelInstallCommand), nameof(RefreshCommand))]
     private bool _isInstalling;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelInstallCommand))]
+    private bool _installCancelRequested;
+
     [ObservableProperty] private double _installPercent;
     [ObservableProperty] private bool _installIndeterminate;
     [ObservableProperty] private string _installStage = "";
@@ -201,8 +205,10 @@ public sealed partial class DriversViewModel
         var details = selected.Select(u =>
                 $"{u.Title} — {u.ClassText.ToLowerInvariant()}, {u.SizeText}{(u.IsOptional ? ", необязательное" : "")}{(u.NeedsEula && !eulaApproved.Contains(u.Id) ? " (лицензия не принята — будет пропущено)" : "")}")
             .ToList();
-        details.Add("Сначала: точка восстановления системы и копия текущих драйверов этих устройств");
+        details.Add(RestorePointPlanLine());
+        details.Add("Текущие драйверы этих устройств сохраняются в «Резервную копию» — на случай, если драйвер пропадёт (более новый драйвер копия не заменяет)");
         details.Add("Затем: загрузка и установка через Windows Update с отображением хода");
+        details.Add("Отмена прерывает загрузку; драйвер, который уже устанавливается, Windows Update доустановит");
         details.Add("Компьютер не будет перезагружен автоматически");
         if (RebootPending) details.Add("Windows уже ожидает перезагрузки — лучше перезагрузить компьютер до установки");
 
@@ -211,7 +217,7 @@ public sealed partial class DriversViewModel
             $"Драйверы будут загружены с серверов Windows Update (около {DriverFormat.Size(totalSize)}) и установлены. " +
             "Во время установки экран может мигнуть, а устройство — ненадолго отключиться.",
             details, confirmText: "УСТАНОВИТЬ",
-            footnote: "Откат: точка восстановления, резервная копия или «Откатить драйвер» в диспетчере устройств.");
+            footnote: "Откат: точка восстановления или «Откатить драйвер» в диспетчере устройств.");
         if (!confirmed) return;
 
         var ids = selected.Select(u => u.Id).ToList();
@@ -227,6 +233,7 @@ public sealed partial class DriversViewModel
             _installCts?.Dispose();
             _installCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             var ct = _installCts.Token;
+            InstallCancelRequested = false;
             IsInstalling = true;
             InstallPercent = 0;
             InstallIndeterminate = true;
@@ -247,7 +254,8 @@ public sealed partial class DriversViewModel
                 InstallDetail = "Сохранение текущих драйверов устройств…";
                 await BackupAffectedDriversAsync(selected, ct);
 
-                // 3. Download + install.
+                // 3. Download + install. A cancel does not end this await early: it returns once Windows Update has
+                //    really stopped, with the result of every driver (including one that was finished after the cancel).
                 var progress = new Progress<WuProgress>(OnInstallProgress);
                 attempted = true;
                 var result = await WindowsUpdateDrivers.InstallAsync(ids, eulaApproved, ServerSelection, progress, ct);
@@ -255,7 +263,8 @@ public sealed partial class DriversViewModel
             }
             catch (Exception ex) when (ex is OperationCanceledException && ct.IsCancellationRequested)
             {
-                InstallSummary = "Установка отменена. Уже установленные драйверы остались на месте.";
+                // Thrown only before the install stage started (check, backup, download).
+                InstallSummary = "Установка отменена — драйверы не устанавливались.";
                 Ui.Toast(InstallSummary, ToastKind.Warning);
                 Log.Warn(InstallSummary);
             }
@@ -269,6 +278,7 @@ public sealed partial class DriversViewModel
             finally
             {
                 IsInstalling = false;
+                InstallCancelRequested = false;
                 InstallIndeterminate = false;
             }
         });
@@ -277,36 +287,46 @@ public sealed partial class DriversViewModel
         if (attempted) await RunBusyAsync("Обновление сведений о драйверах…", LoadInventoryAsync);
     }
 
-    [RelayCommand(CanExecute = nameof(IsInstalling))]
+    private bool CanCancelInstall() => IsInstalling && !InstallCancelRequested;
+
+    [RelayCommand(CanExecute = nameof(CanCancelInstall))]
     private void CancelInstall()
     {
         if (_installCts is null || _installCts.IsCancellationRequested) return;
-        InstallDetail = "Отмена… Windows Update завершает текущий шаг.";
+        InstallCancelRequested = true;
+        InstallDetail = CancelDetail;
         _installCts.Cancel();
     }
 
+    private const string CancelDetail = "Отмена… драйвер, который уже устанавливается, Windows Update доустановит";
+
     private void OnInstallProgress(WuProgress p)
     {
+        string detail;
         switch (p.Stage)
         {
             case WuStage.Searching:
                 InstallIndeterminate = true;
                 InstallStage = "ПРОВЕРКА";
-                InstallDetail = "Windows Update проверяет, что выбранные драйверы всё ещё актуальны…";
+                detail = "Windows Update проверяет, что выбранные драйверы всё ещё актуальны…";
                 break;
             case WuStage.Downloading:
                 InstallIndeterminate = false;
                 InstallPercent = p.Percent * 0.5;
                 InstallStage = $"ЗАГРУЗКА · {p.Current} ИЗ {p.Total}";
-                InstallDetail = $"Загружено {p.Percent}%";
+                detail = $"Загружено {p.Percent}%";
                 break;
             case WuStage.Installing:
                 InstallIndeterminate = false;
                 InstallPercent = 50 + p.Percent * 0.5;
                 InstallStage = $"УСТАНОВКА · {p.Current} ИЗ {p.Total}";
-                InstallDetail = $"Установлено {p.Percent}%";
+                detail = $"Установлено {p.Percent}%";
                 break;
+            default:
+                return;
         }
+        // After a cancel the stage still moves, but the line keeps telling what is going on.
+        InstallDetail = InstallCancelRequested ? CancelDetail : detail;
     }
 
     /// <summary>Exports the oemNN.inf packages of the devices the selected updates will replace.</summary>
@@ -352,12 +372,15 @@ public sealed partial class DriversViewModel
         var failed = result.Items.Count - ok;
         if (result.RebootRequired) RebootRequiredAfterInstall = true;
 
-        InstallSummary = result.Cancelled
-            ? $"Установка прервана. Установлено: {ok}, не установлено: {failed}."
-            : failed == 0
-                ? $"Готово: установлено {ok} {DriverFormat.Plural(ok, "драйвер", "драйвера", "драйверов")}."
-                : $"Установлено: {ok}, с ошибками: {failed}. Подробности — у каждого драйвера в списке.";
+        InstallSummary = result.StillRunning
+            ? "Windows Update не подтвердил остановку и, возможно, ещё доустанавливает драйвер в фоне. Не запускайте установку повторно " +
+              "несколько минут, затем нажмите «Обновить» — список драйверов покажет, что установилось."
+            : result.Cancelled
+                ? $"Установка прервана. Установлено: {ok}, не установлено: {failed}."
+                : failed == 0
+                    ? $"Готово: установлено {ok} {DriverFormat.Plural(ok, "драйвер", "драйвера", "драйверов")}."
+                    : $"Установлено: {ok}, с ошибками: {failed}. Подробности — у каждого драйвера в списке.";
         Ui.Toast(InstallSummary + (result.RebootRequired ? " Требуется перезагрузка." : ""),
-            failed == 0 && !result.Cancelled ? ToastKind.Success : ToastKind.Warning, "ДРАЙВЕРЫ");
+            failed == 0 && !result.Cancelled && !result.StillRunning ? ToastKind.Success : ToastKind.Warning, "ДРАЙВЕРЫ");
     }
 }

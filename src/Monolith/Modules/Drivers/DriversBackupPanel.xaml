@@ -30,7 +30,7 @@
                     <StackPanel Margin="24,24,24,22">
                         <TextBlock Text="РЕЗЕРВНАЯ КОПИЯ ДРАЙВЕРОВ" Style="{StaticResource T.H1}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="660" HorizontalAlignment="Left"
-                                   Text="Сохраняет все сторонние драйверы — видеокарты, чипсета, сети, звука — в отдельную папку встроенной утилитой Windows pnputil. Пригодится после переустановки системы или неудачного обновления: из копии драйверы возвращаются одной кнопкой." />
+                                   Text="Сохраняет все сторонние драйверы — видеокарты, чипсета, сети, звука — в отдельную папку встроенной утилитой Windows pnputil. Пригодится после переустановки Windows или если драйвер пропал: из копии драйверы ставятся одной кнопкой. Более новый драйвер копия не заменяет — чтобы откатить неудачное обновление, используйте «Откатить драйвер» в диспетчере устройств или точку восстановления." />
                         <WrapPanel Margin="0,18,0,0">
                             <StackPanel Style="{StaticResource Drv.Fact}">
                                 <TextBlock Text="ПАКЕТОВ К СОХРАНЕНИЮ" Style="{StaticResource T.Label}" />
@@ -64,7 +64,7 @@
                             </StackPanel>
                         </Button>
                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,10,0,0" TextAlignment="Center"
-                                   Text="Копирование не меняет систему. Восстановление — с точкой восстановления." />
+                                   Text="Копирование не меняет систему. Восстановление — после проверки целостности и с точкой восстановления." />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -186,6 +186,11 @@
                                             </Border.Style>
                                             <TextBlock Text="{Binding KindText}" />
                                         </Border>
+                                        <Border Style="{StaticResource Tag.Hatch}" Margin="0,6,0,0"
+                                                Visibility="{Binding CanRestore, Converter={StaticResource InverseBoolToVis}}"
+                                                ToolTip="{Binding RestoreBlockedReason}">
+                                            <TextBlock Text="БЕЗ ОПИСИ" />
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -202,6 +207,8 @@
                                     <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" TextWrapping="NoWrap"
                                                TextTrimming="CharacterEllipsis" ToolTip="{Binding Note}"
                                                Visibility="{Binding Note, Converter={StaticResource NullToVis}}" />
+                                    <TextBlock Text="{Binding RestoreBlockedReason}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
+                                               Margin="0,4,0,0" Visibility="{Binding RestoreBlockedReason, Converter={StaticResource NullToVis}}" />
                                     <Expander Margin="0,12,0,0">
                                         <Expander.Header>
                                             <TextBlock Text="{Binding PackagesHeader}" Style="{StaticResource T.Label}" />
@@ -236,7 +243,7 @@
                                     <Button Style="{StaticResource Btn.Danger}" HorizontalAlignment="Stretch"
                                             Command="{Binding DataContext.RestoreBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}" ToolTipService.ShowOnDisabled="True"
-                                            ToolTip="pnputil /add-driver … /subdirs /install — после точки восстановления">
+                                            ToolTip="{Binding RestoreHint}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                                             <TextBlock Text="ВОССТАНОВИТЬ" VerticalAlignment="Center" />

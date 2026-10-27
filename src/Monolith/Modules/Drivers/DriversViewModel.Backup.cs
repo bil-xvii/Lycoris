@@ -39,6 +39,12 @@ public sealed partial class DriversViewModel
 
     public string BackupsRoot => DriverBackupService.Root;
 
+    /// <summary>What a backup is good for — and what it cannot do (pnputil never replaces a newer driver with an older one).</summary>
+    public const string BackupPurposeText =
+        "Копия пригодится после переустановки Windows или если драйвер пропал: из неё драйверы ставятся одной кнопкой. " +
+        "Более новый драйвер копия не заменяет — чтобы откатить неудачное обновление, используйте «Откатить драйвер» " +
+        "в диспетчере устройств или точку восстановления.";
+
     private void ApplyBackups(IReadOnlyList<DriverBackupInfo> list, int oemPackages)
     {
         Backups.Clear();
@@ -84,14 +90,14 @@ public sealed partial class DriversViewModel
             "Встроенные драйверы Windows не копируются: они и так есть в любой установке системы",
             $"Куда: {Path.Combine(BackupsRoot, DateTime.Now.ToString("yyyyMMdd-HHmm"))}",
             "Будет выполнено: pnputil /export-driver * <папка>",
+            "Затем MONOLITH запишет опись копии — SHA-256 каждого файла: восстановление ставит драйверы, только если копия не изменилась",
             $"Объём — до нескольких гигабайт (пакет NVIDIA — 1–2 ГБ). Свободно на диске: {(free == 0 ? "—" : SystemProfile.FormatBytes(free))}",
             "Система при этом не изменяется",
         };
         if (free > 0 && free < LowSpaceBytes) details.Add("Внимание: на системном диске меньше 5 ГБ — копия может не поместиться");
 
         var confirmed = await Ui.ConfirmAsync("СОЗДАТЬ РЕЗЕРВНУЮ КОПИЮ ДРАЙВЕРОВ?",
-            "Копия пригодится после переустановки Windows или неудачного обновления: драйверы из неё возвращаются одной кнопкой.",
-            details, confirmText: "СОЗДАТЬ");
+            BackupPurposeText, details, confirmText: "СОЗДАТЬ");
         if (!confirmed) return;
 
         await RunBusyAsync("Резервное копирование драйверов…", async () =>
@@ -152,24 +158,41 @@ public sealed partial class DriversViewModel
 
     // ───────────────────────────── Restore ─────────────────────────────
 
-    [RelayCommand(CanExecute = nameof(CanModify))]
+    private bool CanRestoreBackup(BackupItem? item) => item is { CanRestore: true } && CanModify();
+
+    /// <summary>
+    /// Installs drivers from a backup. Only folders MONOLITH created qualify: right before pnputil, every file is
+    /// compared with the backup's manifest (SHA-256, nothing extra, no links); the confirmation lists every package.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRestoreBackup))]
     private async Task RestoreBackupAsync(BackupItem? item)
     {
         if (item is null) return;
         if (!RequireAdmin("восстановление драйверов")) return;
+        if (!item.CanRestore)
+        {
+            await Ui.AlertAsync("ВОССТАНОВЛЕНИЕ НЕДОСТУПНО", item.RestoreBlockedReason!);
+            return;
+        }
+
+        var details = new List<string>
+        {
+            $"Копия: {item.Name} от {item.DateText} — {item.SizeText}",
+            "Сначала каждый файл копии сверяется с её описью (SHA-256): если что-то добавлено, изменено или пропало, ничего не устанавливается",
+            RestorePointPlanLine(),
+            $"Будет выполнено: pnputil /add-driver \"{Path.Combine(item.Path, "*.inf")}\" /subdirs /install",
+            "Во время установки экран может мигать, а сеть и звук — пропадать на несколько секунд",
+            "Компьютер не будет перезагружен автоматически",
+            $"Пакеты драйверов в копии ({item.Packages.Count}) — Windows поставит только те, что лучше установленных:",
+        };
+        details.AddRange(item.Info.Packages.Select(BackupItem.DescribePackage));
+
         var confirmed = await Ui.ConfirmAsync(
             "ВОССТАНОВИТЬ ДРАЙВЕРЫ ИЗ КОПИИ?",
-            "Windows добавит пакеты из копии в хранилище драйверов и установит их на подходящие устройства — только там, где они лучше текущих. Более новые драйверы старыми не заменяются.",
-            [
-                $"Копия: {item.Name} от {item.DateText}",
-                $"Содержимое: {item.InfCountText}, {item.SizeText} — {item.ProvidersText}",
-                "Сначала будет создана точка восстановления системы",
-                $"Будет выполнено: pnputil /add-driver \"{Path.Combine(item.Path, "*.inf")}\" /subdirs /install",
-                "Во время установки экран может мигать, а сеть и звук — пропадать на несколько секунд",
-                "Компьютер не будет перезагружен автоматически",
-            ],
-            confirmText: "ВОССТАНОВИТЬ", danger: true,
-            footnote: "Откат — через точку восстановления системы.");
+            "Windows добавит пакеты из копии в хранилище драйверов и установит их на подходящие устройства — только там, где они лучше текущих. " +
+            "Более новые драйверы старыми не заменяются: для отката обновления используйте «Откатить драйвер» в диспетчере устройств.",
+            details, confirmText: "ВОССТАНОВИТЬ", danger: true,
+            footnote: "Откат — через точку восстановления системы или «Откатить драйвер» в диспетчере устройств.");
         if (!confirmed) return;
 
         var attempted = false;
@@ -181,19 +204,36 @@ public sealed partial class DriversViewModel
             HasBackupOutput = false;
             BackupResult = null;
             BackupIndeterminate = true;
-            BackupStage = "ТОЧКА ВОССТАНОВЛЕНИЯ";
+            BackupStage = "ПРОВЕРКА ЦЕЛОСТНОСТИ КОПИИ";
             try
             {
-                if (!await EnsureRestorePointAsync("MONOLITH: восстановление драйверов"))
+                Log.Info($"Восстановление драйверов из {item.Path}");
+                var (outcome, verification) = await DriverBackupService.RestoreAsync(item.Path,
+                    line => Ui.Post(() => AppendOutput(line)),
+                    async _ =>
+                    {
+                        // Runs on a worker thread (between the check and pnputil): UI updates go through the dispatcher.
+                        Ui.Post(() => BackupStage = "ТОЧКА ВОССТАНОВЛЕНИЯ");
+                        if (!await EnsureRestorePointAsync("MONOLITH: восстановление драйверов")) return false;
+                        Ui.Post(() => BackupStage = $"УСТАНОВКА ИЗ КОПИИ {item.Name}");
+                        attempted = true;
+                        return true;
+                    },
+                    CancellationToken.None);
+
+                if (!verification.Ok)
                 {
-                    BackupResult = "Восстановление отменено.";
                     BackupResultOk = false;
+                    BackupResult = $"Копия не прошла проверку: {verification.Problem}. Ничего не установлено.";
+                    Ui.Toast(BackupResult, ToastKind.Error, "ВОССТАНОВЛЕНИЕ ДРАЙВЕРОВ");
                     return;
                 }
-                BackupStage = $"УСТАНОВКА ИЗ КОПИИ {item.Name}";
-                Log.Info($"Восстановление драйверов из {item.Path}");
-                attempted = true;
-                var outcome = await DriverBackupService.RestoreAsync(item.Path, line => Ui.Post(() => AppendOutput(line)), CancellationToken.None);
+                if (outcome is null)
+                {
+                    BackupResultOk = false;
+                    BackupResult = "Восстановление отменено.";
+                    return;
+                }
                 BackupResultOk = outcome.Success;
                 BackupResult = outcome.Message;
                 if (outcome.RebootRequired) BackupRebootRequired = true;
@@ -233,18 +273,18 @@ public sealed partial class DriversViewModel
     }
 
     [RelayCommand]
-    private void OpenBackupsFolder()
+    private async Task OpenBackupsFolderAsync()
     {
         if (!Directory.Exists(BackupsRoot) && !AppPaths.TryEnsureDir(BackupsRoot))
         {
             Ui.Toast("Папка резервных копий ещё не создана — она появится вместе с первой копией.", ToastKind.Info);
             return;
         }
-        ShellOpen(BackupsRoot, "папку резервных копий");
+        await ShellOpenAsync(BackupsRoot, "папку резервных копий");
     }
 
     [RelayCommand]
-    private void OpenBackup(BackupItem? item)
+    private async Task OpenBackupAsync(BackupItem? item)
     {
         if (item is null) return;
         if (!BackupFolders.IsDirectChild(BackupsRoot, item.Path) || !Directory.Exists(item.Path))
@@ -252,6 +292,6 @@ public sealed partial class DriversViewModel
             Ui.Toast("Папка копии не найдена.", ToastKind.Warning);
             return;
         }
-        ShellOpen(item.Path, "папку копии");
+        await ShellOpenAsync(item.Path, "папку копии");
     }
 }

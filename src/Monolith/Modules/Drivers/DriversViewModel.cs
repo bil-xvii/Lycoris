@@ -105,7 +105,8 @@ public sealed partial class DriversViewModel : PageViewModel
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
-        if (e.PropertyName == nameof(IsBusy)) RefreshCommandStates();
+        if (e.PropertyName is nameof(IsBusy) or nameof(IsInstalling) or nameof(IsBackupRunning) or nameof(IsDriverDownloadRunning))
+            RefreshCommandStates();
     }
 
     partial void OnSelectedTabChanged(DriversTab value)
@@ -123,9 +124,11 @@ public sealed partial class DriversViewModel : PageViewModel
         ExportBackupCommand.NotifyCanExecuteChanged();
         RestoreBackupCommand.NotifyCanExecuteChanged();
         DeleteBackupCommand.NotifyCanExecuteChanged();
+        DownloadDriverCommand.NotifyCanExecuteChanged();
     }
 
-    private bool CanModify() => Elevation.IsElevated && !IsBusy && !IsInstalling && !IsBackupRunning;
+    /// <summary>One system-changing operation at a time: WU install, backup/restore, direct driver download.</summary>
+    private bool CanModify() => Elevation.IsElevated && !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
 
     // ───────────────────────────── Inventory ─────────────────────────────
 
@@ -144,7 +147,8 @@ public sealed partial class DriversViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private Task RefreshAsync() => RunBusyAsync("Обновление сведений о драйверах…", LoadInventoryAsync);
 
-    private bool CanRefresh() => !IsBusy && !IsInstalling && !IsBackupRunning;
+    /// <summary>A refresh rebuilds the GPU cards, so it waits while a card is downloading a driver.</summary>
+    private bool CanRefresh() => !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
 
     private async Task LoadInventoryAsync()
     {
@@ -154,6 +158,7 @@ public sealed partial class DriversViewModel : PageViewModel
         InventoryLoaded = true;
         InventoryTime = $"ДАННЫЕ ОТ {DateTime.Now:HH:mm}";
         _ = CheckNvidiaLatestAsync();
+        _ = OfferAmdInstallerAsync();
     }
 
     private static InventoryData Collect(SystemProfile profile)
@@ -234,6 +239,8 @@ public sealed partial class DriversViewModel : PageViewModel
             try { release = await NvidiaLookup.GetLatestAsync(card.Name, _lifetime.Token); }
             catch (OperationCanceledException) { }
             card.ApplyLatest(release, DateTime.Now);
+            DownloadDriverCommand.NotifyCanExecuteChanged(); // the card may now offer a download
+            if (card.Package is { SizeBytes: null } package) await FillSizeAsync(card, package);
         }
         UpdateStats();
     }
@@ -309,18 +316,70 @@ public sealed partial class DriversViewModel : PageViewModel
         if (Enum.TryParse<DriversTab>(tab, true, out var t)) SelectedTab = t;
     }
 
+    /// <summary>Device Manager is meant to run with MONOLITH's rights (it changes drivers) — the only elevated shell start here.</summary>
     [RelayCommand]
-    private void OpenDeviceManager() => ShellOpen(ProcessRunner.Sys("devmgmt.msc"), "диспетчер устройств");
+    private void OpenDeviceManager()
+    {
+        try
+        {
+            using var _ = Process.Start(new ProcessStartInfo(ProcessRunner.Sys("mmc.exe"), $"\"{ProcessRunner.Sys("devmgmt.msc")}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Не удалось открыть диспетчер устройств", ex);
+            Ui.Toast($"Не удалось открыть диспетчер устройств: {ex.Message}", ToastKind.Error);
+        }
+    }
 
+    /// <summary>Opens an official vendor page or a Windows settings page. Never through MONOLITH's admin token (CLAUDE.md §8).</summary>
     [RelayCommand]
-    private void OpenUrl(string? url)
+    private void OpenUrl(string? url) => _ = OpenUrlAsync(url);
+
+    private static async Task OpenUrlAsync(string? url)
     {
         if (!DriverSources.IsAllowedUrl(url))
         {
             Log.Warn($"Ссылка не открыта (не официальный источник): {url}");
             return;
         }
-        ShellOpen(url!, url!);
+        // ms-settings: pages open in the Settings app (an AppContainer app that never runs elevated).
+        if (url is DriverSources.OptionalUpdatesUri or DriverSources.WindowsUpdateUri)
+        {
+            if (!await UnelevatedShell.StartAsUserAsync(url))
+                Ui.Toast("Не удалось открыть «Параметры Windows». Откройте «Параметры → Windows Update» вручную.", ToastKind.Warning);
+            return;
+        }
+        if (await UnelevatedShell.OpenAsync(url!)) return;
+        try
+        {
+            Clipboard.SetText(url!);
+            Ui.Toast($"Не удалось открыть ссылку без прав администратора. Адрес скопирован в буфер обмена: {url}", ToastKind.Warning);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Буфер обмена недоступен: {ex.Message}");
+            Ui.Toast($"Не удалось открыть ссылку без прав администратора: {url}", ToastKind.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Opens a web page, folder or program for the user — always without MONOLITH's admin token (CLAUDE.md §8):
+    /// a file manager, browser or vendor app must not inherit administrator rights. Web pages go through
+    /// <see cref="UnelevatedShell.OpenAsync"/>, everything else through <see cref="UnelevatedShell.StartAsUserAsync"/>.
+    /// The page's general "open" helper for every partial file.
+    /// </summary>
+    private static void ShellOpen(string target, string what) => _ = ShellOpenAsync(target, what);
+
+    private static async Task ShellOpenAsync(string target, string what)
+    {
+        bool ok;
+        if (Uri.TryCreate(target, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps)
+            ok = await UnelevatedShell.OpenAsync(uri.AbsoluteUri);
+        else if (System.IO.Directory.Exists(target))
+            ok = await UnelevatedShell.StartAsUserAsync(target, "", target);
+        else
+            ok = await UnelevatedShell.StartAsUserAsync(target, "", System.IO.Path.GetDirectoryName(target));
+        if (!ok) Ui.Toast($"Не удалось открыть {what} без прав администратора. Путь: {target}", ToastKind.Warning);
     }
 
     [RelayCommand]
@@ -328,19 +387,6 @@ public sealed partial class DriversViewModel : PageViewModel
     {
         if (Elevation.TryRelaunchElevated(["--page", Key]))
             Application.Current.Shutdown();
-    }
-
-    private static void ShellOpen(string target, string what)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Не удалось открыть {what}", ex);
-            Ui.Toast($"Не удалось открыть {what}: {ex.Message}", ToastKind.Error);
-        }
     }
 
     // ───────────────────────────── Vendor tools ─────────────────────────────
@@ -351,13 +397,14 @@ public sealed partial class DriversViewModel : PageViewModel
         if (card?.Tool is not { } tool) return;
         if (tool.WingetId is null)
         {
-            OpenUrl(tool.SiteUrl);
+            await OpenUrlAsync(tool.SiteUrl);
             return;
         }
         if (card.ToolInstalled)
         {
-            if (card.ToolExePath is not null) ShellOpen(card.ToolExePath, tool.Name);
-            else OpenUrl(tool.SiteUrl);
+            // The vendor app embeds a browser: start it as the signed-in user, it asks for rights itself if it needs them.
+            if (card.ToolExePath is not null) await ShellOpenAsync(card.ToolExePath, tool.Name);
+            else await OpenUrlAsync(tool.SiteUrl);
             return;
         }
         if (await InstallToolAsync(tool))
@@ -372,7 +419,8 @@ public sealed partial class DriversViewModel : PageViewModel
     {
         if (IntelDsaInstalled)
         {
-            OpenUrl(DriverSources.IntelDsa.SiteUrl);
+            // Intel DSA works in the browser: its page is opened as the signed-in user.
+            await OpenUrlAsync(DriverSources.IntelDsa.SiteUrl);
             return;
         }
         if (await InstallToolAsync(DriverSources.IntelDsa))
@@ -444,7 +492,16 @@ public sealed partial class DriversViewModel : PageViewModel
         Log.Warn(rp.Message);
         return await Ui.ConfirmAsync(
             "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
-            $"{rp.Message} Без неё откатить драйверы можно будет только через диспетчер устройств или резервную копию драйверов. Продолжить?",
+            $"{rp.Message} Без неё вернуть прежний драйвер можно будет только кнопкой «Откатить драйвер» в диспетчере устройств — " +
+            "и только если Windows сохранила предыдущую версию. Продолжить?",
             confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true);
     }
+
+    /// <summary>
+    /// Confirmation line about the restore point made by <see cref="EnsureRestorePointAsync"/>: promised only when
+    /// System Protection is on (the honest alternative otherwise).
+    /// </summary>
+    private static string RestorePointPlanLine() => RestorePointService.IsEnabled()
+        ? "Перед установкой будет создана точка восстановления системы (если Windows её не создаст, MONOLITH спросит, продолжать ли)"
+        : "Защита системы отключена — точка восстановления создана не будет; MONOLITH спросит, продолжать ли без неё";
 }
