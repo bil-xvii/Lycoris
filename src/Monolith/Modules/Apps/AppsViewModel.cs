@@ -57,7 +57,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
         Categories.Add(new CategoryFilterViewModel(null, "ВСЕ") { IsSelected = true });
         Categories.Add(new CategoryFilterViewModel(null, "РЕКОМЕНДУЕМ", isRecommended: true));
-        foreach (var g in Groups) Categories.Add(new CategoryFilterViewModel(g.Info.Category, g.Info.Title));
+        foreach (var g in Groups) Categories.Add(new CategoryFilterViewModel(g.Info.Category, g.Info.TabTitle));
         _selectedCategory = Categories[0];
 
         TotalCount = _items.Count;

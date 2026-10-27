@@ -73,7 +73,13 @@ public sealed record VendorInstaller(string Url, IReadOnlyList<string> Signers)
 }
 
 /// <param name="Tag">Short singular label used as a tag on cards.</param>
-public sealed record CategoryInfo(AppCategory Category, string Key, string Title, string Description, string Tag);
+public sealed record CategoryInfo(AppCategory Category, string Key, string Title, string Description, string Tag)
+{
+    /// <summary>Shorter title for the category tab, so all tabs fit one row on a 1366–1440 px window.</summary>
+    public string? ShortTitle { get; init; }
+
+    public string TabTitle => ShortTitle ?? Title;
+}
 
 /// <summary>One verified winget / Microsoft Store package.</summary>
 public sealed record CatalogEntry(
@@ -171,11 +177,11 @@ public static class AppCatalog
     public static IReadOnlyList<CategoryInfo> Categories { get; } =
     [
         new(AppCategory.Launchers, "launchers", "ЛАУНЧЕРЫ", "Магазины и клиенты игровых платформ", "ЛАУНЧЕР"),
-        new(AppCategory.Runtimes, "runtimes", "БИБЛИОТЕКИ ДЛЯ ИГР", "Среды выполнения, без которых игры не запускаются", "БИБЛИОТЕКА"),
-        new(AppCategory.GamerTools, "gamertools", "ИНСТРУМЕНТЫ ГЕЙМЕРА", "Мониторинг, тесты, разгон и диагностика", "ИНСТРУМЕНТ"),
+        new(AppCategory.Runtimes, "runtimes", "БИБЛИОТЕКИ ДЛЯ ИГР", "Среды выполнения, без которых игры не запускаются", "БИБЛИОТЕКА") { ShortTitle = "БИБЛИОТЕКИ" },
+        new(AppCategory.GamerTools, "gamertools", "ИНСТРУМЕНТЫ ГЕЙМЕРА", "Мониторинг, тесты, разгон и диагностика", "ИНСТРУМЕНТ") { ShortTitle = "ИНСТРУМЕНТЫ" },
         new(AppCategory.Communication, "communication", "ОБЩЕНИЕ", "Голосовые чаты и мессенджеры", "ОБЩЕНИЕ"),
         new(AppCategory.Browsers, "browsers", "БРАУЗЕРЫ", "Браузеры от разработчиков, без сборок третьих лиц", "БРАУЗЕР"),
-        new(AppCategory.Streaming, "streaming", "СТРИМИНГ И ЗАПИСЬ", "Запись, трансляции, звук и ПО для периферии", "СТРИМИНГ"),
+        new(AppCategory.Streaming, "streaming", "СТРИМИНГ И ЗАПИСЬ", "Запись, трансляции, звук и ПО для периферии", "СТРИМИНГ") { ShortTitle = "СТРИМИНГ" },
         new(AppCategory.Utilities, "utilities", "УТИЛИТЫ", "Архиваторы, плееры, поиск и полезные мелочи", "УТИЛИТА"),
     ];
 
