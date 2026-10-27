@@ -36,11 +36,11 @@ public static class NetSystem
             best = nics.FirstOrDefault(n => TryIndex(n) == bi);
 
         Guid? bestGuid = best is not null && Guid.TryParse(best.Id, out var g) ? g : null;
+        // A tunnel or a VPN client's adapter. A Hyper-V / WSL virtual switch on the route is not a VPN (the physical NIC sits behind it).
         var vpn = best is not null && (best.NetworkInterfaceType is NetworkInterfaceType.Tunnel or NetworkInterfaceType.Ppp
-                                       || VpnMarkers.Any((best.Name + " " + best.Description).ToLowerInvariant().Contains)
-                                       || (bestGuid is { } bg && adapters.All(a => a.InterfaceGuid != bg)));
+                                       || VpnMarkers.Any((best.Name + " " + best.Description).ToLowerInvariant().Contains));
 
-        string? gateway = null, suffix = null;
+        string? gateway = null;
         var dns = new List<string>();
         var ipv6 = false;
         int? mtu = null;
@@ -53,7 +53,6 @@ public static class NetSystem
                 // IPv4 resolvers first: the router's IPv4 address is what people recognise, and the benchmark uses IPv4.
                 dns.AddRange(props.DnsAddresses.Where(a => !a.IsIPv6SiteLocal)
                     .OrderBy(a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1).Select(a => a.ToString()).Distinct());
-                suffix = string.IsNullOrWhiteSpace(props.DnsSuffix) ? null : props.DnsSuffix;
                 ipv6 = props.UnicastAddresses.Any(u => IsGlobalV6(u.Address))
                        && props.GatewayAddresses.Any(a => a.Address.AddressFamily == AddressFamily.InterNetworkV6);
                 // .NET reports one MTU for both families (here the router-advertised IPv6 1460); the IPv4 NlMtu is exact.
@@ -65,9 +64,15 @@ public static class NetSystem
         return new NetSnapshot
         {
             Adapters = adapters, BestInterface = bestGuid, BestDescription = best?.Description, ViaVpn = vpn, Gateway = gateway,
-            HasIpv6 = ipv6, DnsServers = dns, DnsSuffix = suffix, DohConfigured = bestGuid is { } guid && DohConfigured(guid), Mtu = mtu,
+            HasIpv6 = ipv6, DnsServers = dns, Domain = DomainName(), DohConfigured = bestGuid is { } guid && DohConfigured(guid), Mtu = mtu,
             RunningGame = NetGames.RunningGame(), SteamInstalled = SteamInstalled(), Fingerprint = Fingerprint(bestGuid, dns),
         };
+    }
+
+    private static string? DomainName()
+    {
+        try { return IPGlobalProperties.GetIPGlobalProperties().DomainName is { Length: > 0 } d ? d : null; }
+        catch (NetworkInformationException) { return null; }
     }
 
     /// <summary>MSFT_NetIPInterface.NlMtu of the IPv4 interface (AddressFamily 2).</summary>
@@ -366,7 +371,7 @@ public static class NetSystem
             .Where(c => !IPAddress.IsLoopback(c.Remote) && c.Pid > 4)
             .Take(256).ToList();
         counting = false;
-        if (!Elevation.IsElevated) return conns;
+        if (!Elevation.IsElevated || SafetyLock.IsLocked) return conns;
         foreach (var c in conns)
             if (NetNative.SetCollection(c, true)) counting = true;
         return conns;
@@ -461,12 +466,18 @@ public static class NetGames
                 var path = GamesNative.GetImagePath(p.Id);
                 if (path is null) continue;
                 var hit = dirs.FirstOrDefault(d => path.StartsWith(d.Dir, StringComparison.OrdinalIgnoreCase));
-                if (hit.Name is null) continue;
+                if (hit.Name is null || !HasWindow(p)) continue; // tray utilities from a library (wallpapers, desktop tools) are not a game
                 if (!found.TryGetValue(hit.Name, out var pids)) found[hit.Name] = pids = [];
                 pids.Add(p.Id);
             }
         }
         return found.Select(kv => (kv.Key, (IReadOnlyList<int>)kv.Value)).ToList();
+    }
+
+    private static bool HasWindow(Process p)
+    {
+        try { return p.MainWindowHandle != IntPtr.Zero; }
+        catch (InvalidOperationException) { return false; }
     }
 
     /// <summary>

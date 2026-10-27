@@ -271,10 +271,8 @@ internal static class NetworkTools
 
     public static (string Text, string Detail) LoadTexts(LoadTestResult l, NetCheckResult? check)
     {
-        var loss = check?.BestInternet?.Stats.LossPercent ?? 0;
         var text = $"Оценка {l.Grade}: под нагрузкой пинг {NetStats.DeltaMs(l.Increase)} ({NetStats.Ms(l.IdleMedian)} → {NetStats.Ms(l.LoadedMedian)}).";
-        var detail = $"Скачано {NetFindings.Mb(l.Bytes)}, {NetStats.Mbps(l.Mbps)}; замеров под нагрузкой: {l.LoadedSamples}. " +
-                     $"Для игр по шкале Cloudflare: {NetStats.AimGamingClass(l.IdleMedian, loss, l.Increase)}." +
+        var detail = $"Скачано {NetFindings.Mb(l.Bytes)}, {NetStats.Mbps(l.Mbps)}; замеров под нагрузкой: {l.LoadedSamples}." +
                      (NetStats.GradeSeverity(l.Grade) == NetSeverity.Ok ? " Очереди в роутере не раздуваются." : " Лечится на роутере (SQM), не на ПК.");
         return (text, detail);
     }

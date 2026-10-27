@@ -80,7 +80,7 @@ public static class NetFindings
     // ───────────────────────────── Measured ─────────────────────────────
 
     /// <summary>Findings of «Замер пинга» (the probe set, the Wi-Fi link, the traffic, MTU).</summary>
-    public static IReadOnlyList<NetFinding> ForCheck(NetCheckResult r, LoadTestResult? load = null)
+    public static IReadOnlyList<NetFinding> ForCheck(NetCheckResult r, LoadTestResult? load = null, bool includeLoad = true)
     {
         var list = new List<NetFinding>();
         var gw = r.Gateway?.Stats;
@@ -141,11 +141,11 @@ public static class NetFindings
             var who = t.Top.Where(p => p.Bytes is null or > 0).Take(3).Select(p => p.Bytes is { } b ? $"{p.Name} ({Mb(b)})" : p.Name).ToList();
             var wu = t.WindowsUpdateJobs is > 0;
             list.Add(new NetFinding("background", load is null ? NetSeverity.Info : NetSeverity.Warning, "Фоновые загрузки во время замера",
-                $"↓ {NetStats.Mbps(t.DownMbps)} · ↑ {NetStats.Mbps(t.UpMbps)}", "Загрузки забивают канал и поднимают пинг в игре",
+                $"↓ {NetStats.Number(t.DownMbps)} · ↑ {NetStats.Mbps(t.UpMbps)}", "Загрузки забивают канал и поднимают пинг в игре",
                 (wu ? "Windows Update скачивает обновления. " : "") +
                 (who.Count > 0 ? $"Больше всего трафика: {string.Join(", ", who)}. " : "") +
                 "Поставьте загрузки на паузу во время игры или ограничьте скорость в лаунчере.",
-                wu ? new DeviceLink(DeviceLinkKind.Settings, "ОГРАНИЧИТЬ ОБНОВЛЕНИЯ", "ms-settings:delivery-optimization-advanced") : null));
+                wu ? new DeviceLink(DeviceLinkKind.Settings, "ЛИМИТ ОБНОВЛЕНИЙ", "ms-settings:delivery-optimization-advanced") : null));
         }
 
         // F16 / F17 — Wi-Fi signal and band.
@@ -162,7 +162,7 @@ public static class NetFindings
             if (w.Error is { } err)
                 list.Add(new NetFinding("wifi-location", NetSeverity.Info, "Сигнал Wi-Fi не прочитан", "нет доступа",
                     "Windows 11 скрывает данные Wi-Fi без доступа к расположению", err + ".",
-                    new DeviceLink(DeviceLinkKind.Settings, "ДОСТУП К РАСПОЛОЖЕНИЮ", "ms-settings:privacy-location")));
+                    new DeviceLink(DeviceLinkKind.Settings, "РАСПОЛОЖЕНИЕ", "ms-settings:privacy-location")));
         }
 
         // F20 — a PMTU black hole (not merely a smaller path MTU).
@@ -171,7 +171,7 @@ public static class NetFindings
                 "Роутер не сообщает о слишком больших пакетах",
                 "Некоторые загрузки могут зависать. Это настраивается на роутере (MSS clamping); MONOLITH MTU не меняет."));
 
-        if (load is not null && LoadFinding(load) is { } lf) list.Add(lf);
+        if (includeLoad && load is not null && LoadFinding(load) is { } lf) list.Add(lf);
         return list;
     }
 
@@ -182,8 +182,9 @@ public static class NetFindings
         if (severity == NetSeverity.Ok) return null;
         return new NetFinding("bufferbloat", severity, "Пинг растёт под нагрузкой (bufferbloat)", $"оценка {l.Grade} · {NetStats.DeltaMs(l.Increase)}",
             "Очередь в роутере или у провайдера переполняется, когда канал занят",
-            (severity >= NetSeverity.Warning ? "Важно: " : "") + (backgroundToo ? "Сначала остановите фоновые загрузки. " : "") +
-            "Включите SQM / Smart Queue / QoS на роутере или ограничьте скорость на 5–10 % ниже тарифа.");
+            (severity >= NetSeverity.Warning ? "Важно: " : "") +
+            (backgroundToo ? "сначала остановите фоновые загрузки, затем включите" : severity >= NetSeverity.Warning ? "включите" : "Включите") +
+            " SQM / Smart Queue / QoS на роутере или ограничьте скорость на 5–10 % ниже тарифа.");
     }
 
     /// <summary>Receive buffers below the maximum while the adapter dropped packets under load (skeptic: audit only, MONOLITH writes nothing).</summary>

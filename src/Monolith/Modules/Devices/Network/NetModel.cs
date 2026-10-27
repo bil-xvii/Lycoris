@@ -48,7 +48,8 @@ public sealed record NetSnapshot
     /// <summary>A global IPv6 address and an IPv6 gateway exist on the default-route interface.</summary>
     public bool HasIpv6 { get; init; }
     public IReadOnlyList<string> DnsServers { get; init; } = [];
-    public string? DnsSuffix { get; init; }
+    /// <summary>The PC's Active Directory domain (a DHCP suffix such as «lan» from a home router does not count).</summary>
+    public string? Domain { get; init; }
     public bool DohConfigured { get; init; }
     public int? Mtu { get; init; }
     /// <summary>A game (Game Boost session or a running game from the library) — nothing restarts the adapter then.</summary>

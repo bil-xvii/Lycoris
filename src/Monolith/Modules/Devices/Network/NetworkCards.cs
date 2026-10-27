@@ -42,7 +42,8 @@ public static class NetworkCards
         {
             Key = ConnectionKey, Kind = DeviceKind.Network, Title = "Подключение к интернету", Order = Order, GlyphOverride = Glyphs.Globe,
             Subtitle = best is not null ? $"{(best.Medium == NetMedium.WiFi ? "Wi-Fi" : "Ethernet")} · {NetFindings.Short(best.Description)}"
-                : s.ViaVpn ? $"VPN · {NetFindings.Short(s.BestDescription ?? "")}" : "нет подключения",
+                : s.ViaVpn ? $"VPN · {NetFindings.Short(s.BestDescription ?? "")}"
+                : s.BestInterface is not null ? $"через {NetFindings.Short(s.BestDescription ?? "виртуальный адаптер")}" : "нет подключения",
             Facts = ConnectionFacts(s),
         };
 
@@ -51,15 +52,25 @@ public static class NetworkCards
         {
             Id = "net-ping", Title = "Пинг до роутера и интернета", Order = 0,
             Hint = "Роутер, 1.1.1.1 и 8.8.8.8 по 2 запроса в секунду. Это не пинг до игрового сервера",
-            Tool = NetworkTools.Ping(results), Current = check is null ? null : DeviceValue.Of(CheckSummary(check)),
+            Tool = NetworkTools.Ping(results), Current = check is null ? null : DeviceValue.Of(PingCurrent(check)),
         };
         ping.Recommended = MeasureRequest(check, s);
         card.Settings.Add(ping);
 
+        // Findings (advice rows in «НАХОДКИ»): the measured ones of the connection, bufferbloat on its own row, the Valve
+        // regions on theirs. The plan lists advice by Order, so they get their Order by severity (the view keeps this order).
         var loadFinding = load is null ? null : NetFindings.LoadFinding(load, backgroundToo: check is not null && NetFindings.ForCheck(check).Any(f => f.Id == "background"));
+        var regions = s.SteamInstalled && sdr is not null ? NetFindings.RegionsFinding(sdr) : null;
+        var findings = new List<NetFinding>();
+        findings.AddRange(NetFindings.ForSnapshot(s).Where(f => f.Adapter is null));
+        if (check is not null) findings.AddRange(NetFindings.ForCheck(check, load, includeLoad: false));
+        if (load is not null && NetFindings.BuffersFinding(load, best) is { } buffers) findings.Add(buffers);
+        var ranked = findings.Concat(new[] { loadFinding, regions }.OfType<NetFinding>()).OrderByDescending(f => f.Severity).Select(f => f.Id).ToList();
+        int OrderOf(NetFinding? f, int fallback) => f is null ? fallback : 100 + ranked.IndexOf(f.Id);
+
         card.Settings.Add(new DeviceSetting
         {
-            Id = "net-load", Title = "Пинг под нагрузкой", Order = 1,
+            Id = "net-load", Title = "Пинг под нагрузкой", Order = OrderOf(loadFinding, 1),
             Hint = "Скачивает данные и смотрит, растёт ли пинг: так находят bufferbloat — главную причину лагов при загрузках",
             Tool = NetworkTools.Load(results), Current = load is null ? null : DeviceValue.Of($"оценка {load.Grade} · {NetStats.DeltaMs(load.Increase)}"),
             Recommended = loadFinding is null ? null : Advice(loadFinding),
@@ -74,10 +85,9 @@ public static class NetworkCards
 
         if (s.SteamInstalled)
         {
-            var regions = sdr is null ? null : NetFindings.RegionsFinding(sdr);
             card.Settings.Add(new DeviceSetting
             {
-                Id = "net-valve", Title = "Ближайший регион Valve", Order = 3,
+                Id = "net-valve", Title = "Ближайший регион Valve", Order = OrderOf(regions, 3),
                 Hint = "Пинг до ретрансляторов Steam (CS2, Dota 2): какой регион ближе. Регион задаёт расстояние, не ПК",
                 Tool = NetworkTools.Valve(results), Current = regions is null ? null : DeviceValue.Of(regions.Value),
                 Recommended = regions is null ? null : Advice(regions),
@@ -85,13 +95,8 @@ public static class NetworkCards
         }
 
         // Measured findings, most severe first.
-        var findings = new List<NetFinding>();
-        findings.AddRange(NetFindings.ForSnapshot(s).Where(f => f.Adapter is null));
-        if (check is not null) findings.AddRange(NetFindings.ForCheck(check, load));
-        if (load is not null && NetFindings.BuffersFinding(load, best) is { } buffers) findings.Add(buffers);
-        var order = 100;
         foreach (var f in findings.OrderByDescending(f => f.Severity))
-            card.Settings.Add(FindingRow(f, order++));
+            card.Settings.Add(FindingRow(f, OrderOf(f, 100)));
 
         // Optimize tweaks shown here read-only («В ОПТИМИЗАЦИИ»); the plan applies them through TweakEngine.
         var offer = dns is null ? null : DnsAdvice.Offer(dns with { SkipReason = dns.SkipReason ?? DnsAdvice.SkipReason(s) });
@@ -180,11 +185,24 @@ public static class NetworkCards
     private static string DnsHint(DnsBenchResult? dns, string address)
     {
         if (dns?.Servers.FirstOrDefault(x => x.Address == address) is { MedianMs: { } ms } && dns.Current is { MedianMs: { } cur })
-            return $"Замер: {NetStats.Ms(ms)} против {NetStats.Ms(cur)} у вашего DNS — менять не нужно. На пинг не влияет";
+            return ms < cur
+                ? $"Замер: {NetStats.Ms(ms)} против {NetStats.Ms(cur)} у вашего DNS — разница мала, менять не нужно. На пинг не влияет"
+                : $"Замер: {NetStats.Ms(ms)} против {NetStats.Ms(cur)} у вашего DNS — ваш быстрее. На пинг не влияет";
         return "Только если замер DNS покажет, что он заметно быстрее вашего. На пинг в играх не влияет";
     }
 
-    private static Recommendation Advice(NetFinding f) => new(DeviceValue.Of(f.Value), f.Reason, RecommendPolicy.Advice, f.Link);
+    private static Recommendation Advice(NetFinding f) => new(DeviceValue.Of(f.Value), AdviceText(f), RecommendPolicy.Advice, f.Link);
+
+    /// <summary>The plan's finding line: the measured value, then what to do («Роутер: 5 % · Важно: …»).</summary>
+    public static string AdviceText(NetFinding f) =>
+        f.Value.Length == 0 || f.Reason.Contains(f.Value, StringComparison.OrdinalIgnoreCase) ? f.Reason : $"{char.ToUpper(f.Value[0], Ru)}{f.Value[1..]} · {f.Reason}";
+
+    /// <summary>The ping row's short «сейчас»: the internet latency, and the loss when there is any.</summary>
+    public static string PingCurrent(NetCheckResult r)
+    {
+        if (r.BestInternet?.Stats is not { } st) return "нет ответа";
+        return $"интернет {NetStats.Ms(st.P50)}" + (st.Lost > 0 ? $" · потери {NetStats.Percent(st.LossPercent)}" : "");
+    }
 
     /// <summary>A finding as an Info row: the value is «сейчас», the advice is the plan's «НАХОДКИ» row.</summary>
     public static DeviceSetting FindingRow(NetFinding f, int order) => new()
