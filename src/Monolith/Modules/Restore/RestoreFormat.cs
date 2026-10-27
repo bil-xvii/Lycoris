@@ -11,6 +11,8 @@ public enum RecordState { Active, Reverted, Failed }
 public sealed record JournalGroup(ChangeBatch Batch, IReadOnlyList<ChangeRecord> Records, int ActiveCount, int TotalCount)
 {
     public bool IsSynthetic => Batch.Id == Guid.Empty;
+    /// <summary>Active records «ОТКАТИТЬ ПАКЕТ» reverts (not another account's, not an older per-user record without an account).</summary>
+    public int RevertibleCount { get; init; }
 }
 
 /// <summary>Pure helpers for the undo center: grouping, filtering and Russian labels.</summary>
@@ -84,8 +86,9 @@ public static class RestoreFormat
     /// "Drifted" keeps the active records whose id is in <paramref name="drifted"/>.
     /// </summary>
     public static IReadOnlyList<JournalGroup> Group(IEnumerable<ChangeBatch> batches, IEnumerable<ChangeRecord> records, JournalFilter filter,
-        IReadOnlySet<Guid>? drifted = null)
+        IReadOnlySet<Guid>? drifted = null, Func<ChangeRecord, bool>? bulkRevertible = null)
     {
+        bulkRevertible ??= r => !r.Reverted;
         var batchList = batches.ToList();
         var known = batchList.Select(b => b.Id).ToHashSet();
         var byBatch = records.GroupBy(r => known.Contains(r.BatchId) ? r.BatchId : Guid.Empty)
@@ -106,9 +109,74 @@ public static class RestoreFormat
                 _ => all,
             };
             if (filter != JournalFilter.All && visible.Count == 0) continue;
-            result.Add(new JournalGroup(b, visible, all.Count(r => !r.Reverted), all.Count));
+            result.Add(new JournalGroup(b, visible, all.Count(r => !r.Reverted), all.Count)
+            {
+                RevertibleCount = all.Count(r => !r.Reverted && bulkRevertible(r)),
+            });
         }
         return result;
+    }
+
+    /// <summary>
+    /// For every active record that is an older layer (a newer active change of the same target and account exists):
+    /// the record that sets the live value now. Records that set their target themselves are not in the map.
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, ChangeRecord> CoveredBy(IReadOnlyList<ChangeRecord> records, string? currentSid)
+    {
+        var tops = ChangeJournal.TopLayers(records, currentSid);
+        var topSet = new HashSet<ChangeRecord>(tops, ChangeJournal.ByReference);
+        var byKey = new Dictionary<string, ChangeRecord>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in tops.Where(t => t.Target.Length > 0)) byKey[ChangeJournal.ScopeOf(t, currentSid) + "|" + t.Target] = t;
+        var result = new Dictionary<Guid, ChangeRecord>();
+        foreach (var r in records)
+        {
+            if (r.Reverted || topSet.Contains(r) || r.Target.Length == 0) continue;
+            if (byKey.TryGetValue(ChangeJournal.ScopeOf(r, currentSid) + "|" + r.Target, out var top)) result[r.Id] = top;
+        }
+        return result;
+    }
+
+    /// <summary>A journal source as the user knows it: the tweak's title, or the page that made the change.</summary>
+    public static string SourceTitle(string source)
+    {
+        const string prefix = "tweak:";
+        if (source.StartsWith(prefix, StringComparison.Ordinal))
+            return Tweaks.TweakCatalog.Find(source[prefix.Length..])?.Title is { } t ? $"«{t}»" : $"«{source[prefix.Length..]}»";
+        return $"изменение раздела «{Optimize.OptimizeLogic.SourceLabel(source)}»";
+    }
+
+    /// <summary>
+    /// The explanation under a record: whose change it is, whether a newer change now sets the value, how the revert
+    /// went and whether it was confirmed by reading the value back. Empty when there is nothing to add.
+    /// </summary>
+    public static string RecordNote(ChangeRecord r, string? currentSid, ChangeRecord? coveredBy, string? handedToTitle,
+        Func<string, string>? accountName = null)
+    {
+        accountName ??= UserScope.AccountName;
+        var parts = new List<string>();
+        if (!r.Reverted)
+        {
+            if (ChangeJournal.IsOtherUser(r, currentSid))
+                parts.Add($"Изменение сделано для учётной записи {accountName(r.UserSid!)}; войдите под ней, чтобы отменить.");
+            else if (r.IsLegacyPerUser)
+                parts.Add("Записано старой версией MONOLITH без учётной записи: откат вернёт значение в профиль текущей учётной записи. " +
+                          "«ОТКАТИТЬ ВСЁ» и откат пакета эту запись пропускают.");
+            if (coveredBy is not null)
+                parts.Add($"Сейчас значение задаёт более позднее изменение «{coveredBy.Title}»: откат этой записи систему не изменит, " +
+                          "а исходное значение перейдёт к нему.");
+            if (r.IsLegacyMerged)
+                parts.Add($"Запись старой версии: откат вернёт значение до MONOLITH и отменит также {string.Join(", ", r.AlsoSources.Distinct().Select(SourceTitle))}.");
+            return string.Join(" ", parts);
+        }
+
+        if (r.HandedTo is not null)
+            parts.Add(handedToTitle is null
+                ? "Откат передан более позднему изменению той же настройки: система не менялась, его откат вернёт исходное значение."
+                : $"Откат передан: значение задаёт более позднее изменение «{handedToTitle}», его откат вернёт исходное значение.");
+        if (!string.IsNullOrWhiteSpace(r.RevertNote)) parts.Add(r.RevertNote!);
+        if (r.RevertMismatch is { } mismatch) parts.Add($"Не совпадает: {mismatch}.");
+        else if (r.RevertVerifiedUtc is not null) parts.Add("Откат подтверждён: значение совпадает с исходным.");
+        return string.Join(" ", parts);
     }
 
     /// <summary>Russian plural: 1 изменение, 2 изменения, 5 изменений.</summary>

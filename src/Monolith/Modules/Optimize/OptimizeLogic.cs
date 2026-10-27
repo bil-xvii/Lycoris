@@ -63,6 +63,7 @@ internal static class OptimizeLogic
         "services" or "services-tasks" => "Службы",
         "startup" or "startup-tasks" => "Автозапуск",
         "gameboost" => "Игровой сеанс",
+        "games" => "Игры",
         "drivers" => "Драйверы",
         _ => source,
     };

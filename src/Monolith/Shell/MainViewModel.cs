@@ -110,9 +110,16 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
         {
+            // A plan chosen later (e.g. in Optimize) stays: the session's record only hands its original over to it.
+            // Records of older builds could carry a tweak merged into the session's plan record: say that it goes too.
+            var lines = stale.Select(r => ChangeJournal.Instance.NewerLayer(r) is { } newer
+                ? $"{r.Title}: останется «{newer.NewValue}» — его позже выбрал «{newer.Title}»"
+                : $"{r.Title}: {r.NewValue} → {r.OldValue}" + (r.IsLegacyMerged
+                    ? $" (также откатит: {string.Join(", ", r.AlsoSources.Distinct().Select(Monolith.Modules.Restore.RestoreFormat.SourceTitle))})"
+                    : "")).ToList();
             var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ СЕАНС",
                 "Прошлая игровая сессия не завершилась штатно, и её временные изменения всё ещё действуют. Вернуть всё как было?",
-                stale.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}"), confirmText: "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
+                lines, confirmText: "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
             if (ok)
             {
                 var result = await ChangeJournal.Instance.RevertAsync(stale);

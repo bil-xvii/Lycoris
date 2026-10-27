@@ -78,16 +78,22 @@ public static class TweakEngine
         return t.IsApplicable(sp);
     }
 
-    /// <summary>Reverts everything a tweak changed (from the journal), restoring the original values.</summary>
-    public static Task<RevertResult> RevertAsync(Tweak tweak) => ChangeJournal.Instance.RevertSourceAsync("tweak:" + tweak.Id);
+    /// <summary>
+    /// Reverts exactly what this tweak changed (its own journal records, for this account), restoring the state from
+    /// before it. Where another change was made later to the same setting, that later change keeps its value and takes
+    /// over the original (see <see cref="ChangeJournal.RevertAsync"/>). <paramref name="verify"/> reads each target back.
+    /// </summary>
+    public static Task<RevertResult> RevertAsync(Tweak tweak, Func<ChangeRecord, RevertCheck>? verify = null) =>
+        ChangeJournal.Instance.RevertSourceAsync("tweak:" + tweak.Id, verify);
 
-    public static async Task<RevertResult> RevertAsync(IEnumerable<Tweak> tweaks)
+    public static async Task<RevertResult> RevertAsync(IEnumerable<Tweak> tweaks, Func<ChangeRecord, RevertCheck>? verify = null)
     {
         var sources = tweaks.Select(t => "tweak:" + t.Id).ToHashSet();
-        var records = ChangeJournal.Instance.ActiveRecords.Where(r => sources.Contains(r.Source) || r.AlsoSources.Any(sources.Contains));
-        return await ChangeJournal.Instance.RevertAsync(records).ConfigureAwait(false);
+        var records = ChangeJournal.Instance.ActiveRecords
+            .Where(r => (sources.Contains(r.Source) || r.AlsoSources.Any(sources.Contains)) && ChangeJournal.IsMine(r));
+        return await ChangeJournal.Instance.RevertAsync(records, verify).ConfigureAwait(false);
     }
 
-    /// <summary>True if MONOLITH has an active (not reverted) change for this tweak — i.e. "Undo" is available.</summary>
+    /// <summary>True if this account has an active (not reverted) change of this tweak — i.e. "Undo" is available.</summary>
     public static bool CanRevert(Tweak tweak) => ChangeJournal.Instance.HasActiveSource("tweak:" + tweak.Id);
 }
