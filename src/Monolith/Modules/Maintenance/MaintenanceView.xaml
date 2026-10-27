@@ -20,8 +20,8 @@
         <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
 
         <!-- The tab's own header shows only its actions (right); the tabs share that line on the left. -->
-        <ContentControl Grid.Row="1" Margin="0,22,0,0" Content="{Binding ActiveTab}" Focusable="False" c:PageHeader.IsEmbedded="True" />
-        <StackPanel Grid.Row="1" Margin="0,22,0,0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1">
+        <ContentControl Grid.Row="1" Margin="0,14,0,0" Content="{Binding ActiveTab}" Focusable="False" c:PageHeader.IsEmbedded="True" />
+        <StackPanel Grid.Row="1" Margin="0,14,0,0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1">
             <RadioButton Style="{StaticResource Segment}" Content="ОЧИСТКА" GroupName="MaintenanceTabs"
                          IsChecked="{Binding TabKey, Converter={StaticResource Equals}, ConverterParameter=cleaner}" />
             <RadioButton Style="{StaticResource Segment}" Content="РЕМОНТ И ДИСКИ" GroupName="MaintenanceTabs"

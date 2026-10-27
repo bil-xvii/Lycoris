@@ -20,8 +20,8 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="16,0" />
-        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Height" Value="30" />
         <Setter Property="MinWidth" Value="36" />
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -99,8 +99,8 @@
 
     <!-- Big hero action (e.g. "ОПТИМИЗИРОВАТЬ") -->
     <Style x:Key="Btn.Hero" TargetType="Button" BasedOn="{StaticResource Btn.Primary}">
-        <Setter Property="Height" Value="52" />
-        <Setter Property="Padding" Value="28,0" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="20,0" />
         <Setter Property="FontSize" Value="16" />
         <Setter Property="FontStretch" Value="Condensed" />
     </Style>
@@ -109,7 +109,7 @@
     <Style x:Key="Btn.Ghost" TargetType="Button" BasedOn="{StaticResource Btn}">
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
-        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Padding" Value="8,0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -164,8 +164,8 @@
 
     <!-- Square icon button: Content = glyph string -->
     <Style x:Key="Btn.Icon" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
-        <Setter Property="Width" Value="34" />
-        <Setter Property="Height" Value="34" />
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="FontFamily" Value="{StaticResource F.Icons}" />
         <Setter Property="FontSize" Value="14" />
@@ -331,8 +331,8 @@
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontStretch" Value="SemiCondensed" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="Padding" Value="18,0" />
-        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Height" Value="32" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
@@ -360,7 +360,7 @@
     <Style x:Key="Tile" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Padding" Value="18" />
+        <Setter Property="Padding" Value="12" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
@@ -485,7 +485,7 @@
         <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Padding" Value="10,0" />
-        <Setter Property="Height" Value="36" />
+        <Setter Property="Height" Value="30" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
@@ -540,7 +540,7 @@
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="Height" Value="36" />
+        <Setter Property="Height" Value="30" />
         <Setter Property="MinWidth" Value="140" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
@@ -720,7 +720,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Line}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
-        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="Padding" Value="12,8" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource B.Surface2}" />
@@ -733,7 +733,7 @@
         <Setter Property="Background" Value="{StaticResource B.Surface}" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Line}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="20" />
+        <Setter Property="Padding" Value="14" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
@@ -753,7 +753,7 @@
     <!-- Inverted block: white panel, black text (key callouts) -->
     <Style x:Key="Card.Inverted" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource B.White}" />
-        <Setter Property="Padding" Value="20" />
+        <Setter Property="Padding" Value="14" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
     </Style>
 
@@ -762,7 +762,7 @@
         <Setter Property="Background" Value="{StaticResource B.Surface2}" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="Padding" Value="12,8" />
     </Style>
 
     <!-- Tags / badges -->
@@ -816,7 +816,7 @@
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="ListBoxItem">
-                                <Grid x:Name="Root" Background="Transparent" Height="42">
+                                <Grid x:Name="Root" Background="Transparent" Height="36">
                                     <Rectangle x:Name="Bar" Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}" Visibility="Hidden" />
                                     <ContentPresenter x:Name="Cp" Margin="20,0,12,0" VerticalAlignment="Center" TextElement.Foreground="{StaticResource B.Text3}" />
                                 </Grid>
@@ -872,7 +872,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Grid Background="Transparent" Height="38" Margin="0,0,6,0">
+                    <Grid Background="Transparent" Height="32" Margin="0,0,4,0">
                         <ContentPresenter ContentSource="Header" Margin="14,0" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
                         <Rectangle x:Name="Bar" Height="2" VerticalAlignment="Bottom" Fill="{StaticResource B.White}" Visibility="Hidden" />
                     </Grid>

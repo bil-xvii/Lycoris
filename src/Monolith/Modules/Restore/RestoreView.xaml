@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="Monolith.Modules.Restore.RestoreView"
+<UserControl x:Class="Monolith.Modules.Restore.RestoreView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -10,7 +10,7 @@
 
         <!-- One journal record -->
         <DataTemplate x:Key="RecordTemplate" DataType="{x:Type local:RecordItem}">
-            <Border Style="{StaticResource Row}" BorderThickness="0,1,0,0" Padding="20,14,20,14">
+            <Border Style="{StaticResource Row}" BorderThickness="0,1,0,0" Padding="12,10,12,10">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="22" />
@@ -39,7 +39,7 @@
                         </Rectangle.Style>
                     </Rectangle>
 
-                    <StackPanel Grid.Column="1" Margin="0,0,20,0">
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center" TextWrapping="NoWrap"
                                        TextTrimming="CharacterEllipsis" />
@@ -179,9 +179,9 @@
             </c:PageHeader.Actions>
         </c:PageHeader>
 
-        <ScrollViewer x:Name="MainScroll" Grid.Row="1" Margin="0,26,-14,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+        <ScrollViewer x:Name="MainScroll" Grid.Row="1" Margin="0,16,-10,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       Focusable="False">
-            <StackPanel Margin="0,0,14,0">
+            <StackPanel Margin="0,0,10,0">
                 <!-- ═══════════════ Journal + System Restore ═══════════════ -->
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -198,7 +198,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="ЖУРНАЛ ИЗМЕНЕНИЙ" Style="{StaticResource T.H1}" VerticalAlignment="Center" />
+                            <TextBlock Text="Журнал изменений" Style="{StaticResource T.H1}" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
                                 <RadioButton Style="{StaticResource Segment}" GroupName="JournalFilter"
                                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=All}">
@@ -226,10 +226,10 @@
                                 </RadioButton>
                             </StackPanel>
                         </Grid>
-                        <Rectangle Height="1" Fill="{StaticResource B.Line2}" Margin="0,0,0,16" />
+                        <Rectangle Height="1" Fill="{StaticResource B.Line2}" Margin="0,0,0,10" />
 
                         <!-- Drift: one compact line; the records themselves are tagged in the list below -->
-                        <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,16"
+                        <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,10"
                                 Visibility="{Binding HasDrift, Converter={StaticResource BoolToVis}}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -239,11 +239,11 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Rectangle Fill="{StaticResource B.HatchStrong}" />
-                                <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="18,12,14,12"
+                                <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="11,9,10,9"
                                            Text="{Binding DriftCount, StringFormat=ИЗМЕНЕНО ВНЕ MONOLITH · {0}}" />
                                 <TextBlock Grid.Column="2" Text="{Binding DriftLine}" Style="{StaticResource T.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
-                                           Margin="0,12,14,12" />
-                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,14,8">
+                                           Margin="0,9,10,9" />
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,10,8">
                                     <Button Content="ПОКАЗАТЬ" Height="30" FontSize="11.5" Margin="0,0,8,0" Command="{Binding ShowDriftedCommand}" />
                                     <Button Style="{StaticResource Btn.Primary}" Content="ПРИМЕНИТЬ СНОВА ВСЁ" Height="30" FontSize="11.5"
                                             Visibility="{Binding HasReapplicableDrift, Converter={StaticResource BoolToVis}}"
@@ -255,7 +255,7 @@
                         <!-- Empty journal / filter matched nothing: one line -->
                         <Border Style="{StaticResource Card}" Visibility="{Binding IsFilterEmpty, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal">
-                                <Rectangle Width="10" Height="10" Stroke="{StaticResource B.Text3}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <Rectangle Width="10" Height="10" Stroke="{StaticResource B.Text3}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,9,0" />
                                 <TextBlock Text="{Binding FilterEmptyText}" Style="{StaticResource T.Body}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Border>
@@ -264,17 +264,17 @@
                         <ItemsControl ItemsSource="{Binding Batches}" Focusable="False">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:BatchItem}">
-                                    <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,14">
+                                    <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,10">
                                         <StackPanel>
-                                            <Grid Margin="20,16,20,16">
+                                            <Grid Margin="12,10,12,10">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Margin="0,0,16,0">
+                                                <StackPanel Margin="0,0,10,0">
                                                     <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" />
-                                                    <TextBlock Text="{Binding Title, Converter={StaticResource Upper}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
-                                                               FontStretch="Condensed" FontSize="20" Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
+                                                               FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap" />
                                                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                                         <Rectangle Width="8" Height="8" VerticalAlignment="Center" Margin="0,1,8,0">
                                                             <Rectangle.Style>
@@ -316,7 +316,7 @@
                                                 </StackPanel>
                                             </Grid>
                                             <ItemsControl ItemsSource="{Binding Records}" ItemTemplate="{StaticResource RecordTemplate}" Focusable="False" />
-                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="20,12"
+                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="12,9"
                                                     Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
                                                 <TextBlock Style="{StaticResource T.Caption}"
                                                            Text="В пакете нет записей для отката: действие выполнено напрямую (например, сброс сети) или изменения не применились. Вернуть прежнее состояние можно точкой восстановления, если она создана." />
@@ -330,11 +330,11 @@
 
                     <!-- System Restore -->
                     <StackPanel Grid.Column="2">
-                        <Border Style="{StaticResource Card}" Padding="22,20">
+                        <Border Style="{StaticResource Card}" Padding="14,12">
                             <StackPanel>
                                 <TextBlock Text="ЗАЩИТА СИСТЕМЫ WINDOWS" Style="{StaticResource T.Label}" />
                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                    <Rectangle Width="14" Height="14" VerticalAlignment="Center" Margin="0,2,12,0">
+                                    <Rectangle Width="14" Height="14" VerticalAlignment="Center" Margin="0,2,9,0">
                                         <Rectangle.Style>
                                             <Style TargetType="Rectangle">
                                                 <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
@@ -349,10 +349,10 @@
                                             </Style>
                                         </Rectangle.Style>
                                     </Rectangle>
-                                    <TextBlock Text="{Binding ProtectionTitle}" Style="{StaticResource T.Display}" FontSize="32" LineHeight="34" />
+                                    <TextBlock Text="{Binding ProtectionTitle, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" FontSize="24" LineHeight="34" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding ProtectionText}" Style="{StaticResource T.Body}" Margin="0,10,0,0" />
-                                <Grid Margin="0,16,0,0">
+                                <Grid Margin="0,10,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="8" />
@@ -365,13 +365,13 @@
                                     <Button Content="ОБНОВИТЬ" Command="{Binding RefreshPointsCommand}"
                                             Visibility="{Binding CanOfferEnable, Converter={StaticResource InverseBoolToVis}}" />
                                 </Grid>
-                                <Grid Margin="0,18,0,0">
+                                <Grid Margin="0,11,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0,0,16,0">
-                                        <TextBlock Text="ТОЧКА ПЕРЕД ИЗМЕНЕНИЯМИ" Style="{StaticResource T.H3}" />
+                                    <StackPanel Margin="0,0,10,0">
+                                        <TextBlock Text="Точка перед изменениями" Style="{StaticResource T.H3}" />
                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17"
                                                    Text="MONOLITH создаёт точку восстановления перед каждым пакетом изменений (если защита включена)." />
                                     </StackPanel>
@@ -379,14 +379,14 @@
                                               ToolTip="Рекомендуется держать включённым" />
                                 </Grid>
 
-                                <Grid Margin="0,22,0,8">
+                                <Grid Margin="0,14,0,8">
                                     <TextBlock Style="{StaticResource T.Label}" VerticalAlignment="Center">
                                         <Run Text="ТОЧКИ ВОССТАНОВЛЕНИЯ" /><Run Text="  " /><Run Text="{Binding PointsCountText, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
                                     </TextBlock>
                                 </Grid>
                                 <TextBlock Text="Загрузка списка…" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
                                            Visibility="{Binding PointsLoading, Converter={StaticResource BoolToVis}}" />
-                                <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,12,0,0"
+                                <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,9,0,0"
                                         Visibility="{Binding PointsMessage, Converter={StaticResource NullToVis}}">
                                     <TextBlock Text="{Binding PointsMessage}" Style="{StaticResource T.Caption}" LineHeight="17" />
                                 </Border>

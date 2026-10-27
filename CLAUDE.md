@@ -81,7 +81,9 @@ Before adding UI, check whether the function already exists elsewhere and extend
   progress bar, logs and toasts errors.
 - **Threading:** never block the UI thread. WMI, registry scans, `ChangeSession` calls, file IO → `Task.Run`.
   Update bound collections on the UI thread (`Ui.Post` or await back on the dispatcher).
-- **Text:** all UI text in Russian. Headings/labels/buttons in UPPER CASE; body text in sentence case.
+- **Text:** all UI text in Russian. Page titles, section headings and item titles in sentence case («Временные файлы
+  Windows»; bound all-caps titles go through the `Sentence` converter). UPPER CASE only for small labels (`T.Label`),
+  tags, tabs and buttons. Body text in sentence case.
   Explain every action in plain language (what it does, why, risk, how to undo).
 - **Logging:** `Log.Info/Success/Warn/Error` (shows in the in-app console + daily file).
 - **External tools:** `ProcessRunner.RunAsync(ProcessRunner.Sys("tool.exe"), …)` with the right
@@ -110,13 +112,15 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   hairline), `Divider`, `DividerV`, tags `Tag`, `Tag.Solid`, `Tag.Hatch` (risk/expert), `Tag.Muted`.
 - Lists: `List.Plain` (ListBox without selection chrome).
 - Converters: `BoolToVis`, `InverseBoolToVis`, `NullToVis` (param "invert"), `InverseBool`, `Bytes`, `Equals`,
-  `EqualsToVis`, `Upper`, `Percent`.
+  `EqualsToVis`, `Upper`, `Sentence` (all-caps → sentence case, keeps acronyms/brands), `Percent`.
 - Controls (`xmlns:c="clr-namespace:Monolith.UI.Controls"`): `c:PageHeader` (Index/Title/Subtitle/Actions),
   `c:Meter` (segmented bar 0–100), `c:Sparkline` (Values = ObservableCollection<double>), `c:ArcGauge` (0–100).
-- Square corners everywhere (no CornerRadius). Generous spacing (cards 20 px padding, 16–24 px gaps).
+- Square corners everywhere (no CornerRadius). COMPACT spacing (owner: «слишком разбросано»): cards 14 px padding,
+  rows 12/8, 8–16 px gaps, buttons/inputs 30 px high, page title 24 px. The main list of a page must get most of the
+  screen — no big hero blocks above it.
   Risk shown as tags: БЕЗОПАСНО (`Tag`), ПО ЖЕЛАНИЮ (`Tag.Muted`), ЭКСПЕРТ (`Tag.Hatch`).
 - Page root: `Grid` with `c:PageHeader` on top (bind Title/Subtitle; Index is no longer shown), content below with
-  its own `ScrollViewer` when needed. The shell already adds 40/30 px margins.
+  its own `ScrollViewer` when needed. The shell already adds 24/16 px margins.
 
 ## Build, run, verify
 
@@ -138,6 +142,9 @@ On Linux (cloud sessions): build with `-p:EnableWindowsTargeting=true`; `tools/t
 Unit tests include `TweakApplyRevertTests`: every RegistryTweak is applied and reverted against a redirected
 registry (`RegistryHelper.Redirect`, tests only) and must restore every value exactly.
 
+Screenshots on Linux: publish win-x64 self-contained and run `MONOLITH.exe --snapshot` under Wine (wine64 + xvfb-run) with
+Liberation/DejaVu fonts renamed to Segoe UI/Bahnschrift/Consolas and registered in the prefix (WPF needs them in
+HKLM\...\Fonts, else it FailFasts in text shaping). Icons render as boxes there (no Segoe Fluent Icons).
 Running the app normally triggers a UAC prompt; use `--no-elevate` to test without admin.
 Never apply real tweaks on the dev machine during automated testing — use read-only paths and unit tests
 (registry tests use `HKCU\Software\MONOLITH-Tests`).

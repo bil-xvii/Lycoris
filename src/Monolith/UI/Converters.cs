@@ -85,6 +85,67 @@ public sealed class UpperConverter : IValueConverter
 }
 
 /// <summary>Percent number → "42%" with no decimals.</summary>
+/// <summary>
+/// Headings written in capitals → sentence case: «ВРЕМЕННЫЕ ФАЙЛЫ WINDOWS» → «Временные файлы Windows».
+/// Text that already has lower-case letters is left as is. Acronyms (ПК, GPU, DNS…) and brand spellings
+/// (DirectX, NVIDIA, GeForce…) are kept; other Latin words become «Steam», «Edge».
+/// </summary>
+public sealed class SentenceCaseConverter : IValueConverter
+{
+    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
+
+    private static readonly HashSet<string> Acronyms = new(StringComparer.Ordinal)
+    {
+        "ПК", "ЦП", "ОС", "ИИ", "ОЗУ", "ГБ", "МБ", "КБ", "ТБ", "ГЦ", "МГЦ", "ГГЦ", "СМИ", "ЕС",
+        "GPU", "CPU", "RAM", "VRAM", "SSD", "HDD", "NVME", "SATA", "USB", "DNS", "IP", "TCP", "UDP", "VPN", "LAN", "WI-FI",
+        "SFC", "DISM", "CBS", "TEMP", "ID", "PC", "OS", "AI", "UAC", "TPM", "VBS", "HVCI", "BIOS", "UEFI", "XMP", "EXPO",
+        "FPS", "HDR", "VRR", "HAGS", "DLSS", "RTX", "GTX", "AMD", "NVIDIA", "DDU", "OEM", "MSI", "OBS", "MDM", "CCD", "X3D",
+        "IFEO", "MMCSS", "SMB", "LLMNR", "QOS", "NTFS", "WSL", "DX", "DXGI", "PCIE", "ACPI", "WU", "UWP", "MS", "EA", "GOG",
+        "CPU-Z", "GPU-Z", "HWINFO", "MONOLITH", "VR", "4K", "HTML", "JSON", "WMI", "COM", "PDF", "LTSC", "KB",
+    };
+
+    private static readonly Dictionary<string, string> Brands = new(StringComparer.Ordinal)
+    {
+        ["DIRECTX"] = "DirectX", ["GEFORCE"] = "GeForce", ["ONEDRIVE"] = "OneDrive", ["WININET"] = "WinINet", ["WINGET"] = "winget",
+        ["IPV6"] = "IPv6", ["IPV4"] = "IPv4", ["G-SYNC"] = "G-SYNC", ["FREESYNC"] = "FreeSync", ["BATTLE.NET"] = "Battle.net",
+        ["NETBIOS"] = "NetBIOS", ["POWERSHELL"] = "PowerShell", ["SYSMAIN"] = "SysMain", ["DIAGTRACK"] = "DiagTrack",
+        ["XBOX"] = "Xbox", ["YOUTUBE"] = "YouTube", ["MACOS"] = "macOS", ["IOS"] = "iOS",
+    };
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => Apply(value as string);
+
+    public static string Apply(string? s)
+    {
+        if (string.IsNullOrEmpty(s) || s.Any(char.IsLower)) return s ?? "";
+        var sb = new System.Text.StringBuilder(s.Length);
+        var first = true;
+        var i = 0;
+        while (i < s.Length)
+        {
+            if (!char.IsLetterOrDigit(s[i])) { sb.Append(s[i]); i++; continue; }
+            var j = i;
+            while (j < s.Length && (char.IsLetterOrDigit(s[j]) || ((s[j] is '-' or '.') && j + 1 < s.Length && char.IsLetterOrDigit(s[j + 1])))) j++;
+            sb.Append(Word(s[i..j], first));
+            first = false;
+            i = j;
+        }
+        return sb.ToString();
+    }
+
+    private static string Word(string w, bool first)
+    {
+        if (Acronyms.Contains(w)) return w;
+        if (Brands.TryGetValue(w, out var brand)) return brand;
+        if (w.Any(char.IsDigit)) return w;                      // X3D, 10/11, RTX40
+        var latin = w.All(c => c < 128);
+        var lower = w.ToLower(Ru);
+        if (latin || first) return char.ToUpper(lower[0], Ru) + lower[1..];
+        return lower;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+}
+
 public sealed class PercentConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>

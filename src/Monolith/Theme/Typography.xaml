@@ -12,15 +12,15 @@
     <FontFamily x:Key="F.Mono">Cascadia Mono, Consolas</FontFamily>
     <FontFamily x:Key="F.Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-    <!-- Huge condensed title, e.g. page names -->
+    <!-- Page title (compact header) -->
     <Style x:Key="T.Display" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontStretch" Value="Condensed" />
-        <Setter Property="FontSize" Value="40" />
+        <Setter Property="FontSize" Value="24" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-        <Setter Property="LineHeight" Value="40" />
+        <Setter Property="LineHeight" Value="28" />
         <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
     </Style>
 
@@ -28,7 +28,7 @@
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontStretch" Value="Condensed" />
-        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontSize" Value="19" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
     </Style>
 
@@ -36,14 +36,14 @@
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontStretch" Value="SemiCondensed" />
-        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontSize" Value="15" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
     </Style>
 
     <Style x:Key="T.H3" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
     </Style>
 
@@ -61,7 +61,7 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
         <Setter Property="TextWrapping" Value="Wrap" />
-        <Setter Property="LineHeight" Value="19" />
+        <Setter Property="LineHeight" Value="18" />
     </Style>
 
     <Style x:Key="T.BodyStrong" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
@@ -87,7 +87,7 @@
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontStretch" Value="Condensed" />
-        <Setter Property="FontSize" Value="36" />
+        <Setter Property="FontSize" Value="26" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
     </Style>
@@ -96,9 +96,9 @@
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontStretch" Value="Condensed" />
-        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
-        <Setter Property="Margin" Value="4,0,0,5" />
+        <Setter Property="Margin" Value="3,0,0,3" />
         <Setter Property="VerticalAlignment" Value="Bottom" />
     </Style>
 

@@ -21,8 +21,8 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                <TextBlock Text="ПРОБЛЕМНЫЕ УСТРОЙСТВА" Style="{StaticResource T.H2}" />
+            <StackPanel VerticalAlignment="Center" Margin="0,0,15,0">
+                <TextBlock Text="Проблемные устройства" Style="{StaticResource T.H2}" />
                 <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0"
                            Text="Устройства, для которых Windows сообщает ошибку в диспетчере устройств, — с объяснением кода и тем, что с ним делать." />
             </StackPanel>
@@ -42,11 +42,11 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Style="{StaticResource Callout}" Margin="0,16,0,0" Visibility="{Binding ProblemsError, Converter={StaticResource NullToVis}}">
+        <Border Grid.Row="1" Style="{StaticResource Callout}" Margin="0,10,0,0" Visibility="{Binding ProblemsError, Converter={StaticResource NullToVis}}">
             <TextBlock Text="{Binding ProblemsError}" Style="{StaticResource T.Body}" />
         </Border>
 
-        <Grid Grid.Row="2" Margin="0,16,0,0">
+        <Grid Grid.Row="2" Margin="0,10,0,0">
             <!-- ═══════════ All good ═══════════ -->
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ScrollViewer.Visibility>
@@ -55,21 +55,21 @@
                         <Binding Path="InventoryLoaded" />
                     </MultiBinding>
                 </ScrollViewer.Visibility>
-            <StackPanel Margin="0,0,12,20">
-            <Border Style="{StaticResource Card}" Background="{StaticResource B.DotGrid}" Padding="40,40">
+            <StackPanel Margin="0,0,9,12">
+            <Border Style="{StaticResource Card}" Background="{StaticResource B.DotGrid}" Padding="25,25">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Border Width="72" Height="72" Background="{StaticResource B.White}" VerticalAlignment="Top">
-                        <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="32" Foreground="{StaticResource B.Ink}" />
+                        <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="24" Foreground="{StaticResource B.Ink}" />
                     </Border>
-                    <StackPanel Grid.Column="1" Margin="28,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="ВСЕ УСТРОЙСТВА РАБОТАЮТ НОРМАЛЬНО" Style="{StaticResource T.Display}" FontSize="32" LineHeight="34" TextWrapping="Wrap" />
+                    <StackPanel Grid.Column="1" Margin="17,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Все устройства работают нормально" Style="{StaticResource T.Display}" FontSize="24" LineHeight="34" TextWrapping="Wrap" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,10,0,0" MaxWidth="640" HorizontalAlignment="Left"
                                    Text="Windows не сообщает об ошибках ни для одного подключённого устройства. Отключённые сейчас устройства (код 45) ошибкой не считаются." />
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                             <Border Style="{StaticResource Tag}">
                                 <TextBlock Text="{Binding InventoryTime}" />
                             </Border>
@@ -83,10 +83,10 @@
             <!-- ═══════════ List ═══════════ -->
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Visibility="{Binding HasProblems, Converter={StaticResource BoolToVis}}">
-                <ItemsControl ItemsSource="{Binding Problems}" Margin="0,0,12,16" Focusable="False">
+                <ItemsControl ItemsSource="{Binding Problems}" Margin="0,0,9,10" Focusable="False">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:ProblemDeviceItem}">
-                            <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12">
+                            <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,9">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="96" />
@@ -111,30 +111,30 @@
                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                             <TextBlock Text="КОД" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="11"
                                                        HorizontalAlignment="Center" Opacity="0.7" />
-                                            <TextBlock Text="{Binding Code}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
-                                                       FontSize="40" HorizontalAlignment="Center" />
+                                            <TextBlock Text="{Binding Code, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
+                                                       FontSize="30" HorizontalAlignment="Center" />
                                         </StackPanel>
                                     </Border>
 
-                                    <StackPanel Grid.Column="1" Margin="22,18,16,18">
-                                        <TextBlock Text="{Binding Name}" Style="{StaticResource T.H3}" FontSize="16" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                    <StackPanel Grid.Column="1" Margin="14,11,10,11">
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontSize="16" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,2,0,0">
                                             <Run Text="{Binding ClassText, Mode=OneWay}" />
                                             <Run Text="  ·  " />
                                             <Run Text="{Binding Vendor, Mode=OneWay}" />
                                         </TextBlock>
-                                        <TextBlock Text="{Binding ProblemTitle, Converter={StaticResource Upper}}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold"
-                                                   FontStretch="SemiCondensed" FontSize="14" Foreground="{StaticResource B.Text}" Margin="0,12,0,0" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ProblemTitle}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold"
+                                                   FontStretch="SemiCondensed" FontSize="14" Foreground="{StaticResource B.Text}" Margin="0,9,0,0" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding Explanation}" Style="{StaticResource T.Body}" Margin="0,4,0,0" />
                                         <Grid Margin="0,10,0,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="ЧТО ДЕЛАТЬ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" Margin="0,3,12,0" />
+                                            <TextBlock Text="ЧТО ДЕЛАТЬ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" Margin="0,3,9,0" />
                                             <TextBlock Grid.Column="1" Text="{Binding Action}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" />
                                         </Grid>
-                                        <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Margin="0,12,0,0"
+                                        <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Margin="0,9,0,0"
                                                 Padding="10,0,2,0" HorizontalAlignment="Left">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="ID" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
@@ -148,7 +148,7 @@
                                         </Border>
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="2" Margin="0,18,20,18" VerticalAlignment="Top">
+                                    <StackPanel Grid.Column="2" Margin="0,11,12,11" VerticalAlignment="Top">
                                         <Button Style="{StaticResource Btn.Primary}" MinWidth="176" Margin="0,0,0,8"
                                                 Visibility="{Binding CanEnable, Converter={StaticResource BoolToVis}}"
                                                 Command="{Binding DataContext.EnableDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"

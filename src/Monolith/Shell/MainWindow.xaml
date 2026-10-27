@@ -53,14 +53,14 @@
     <Border x:Name="RootBorder" BorderBrush="{StaticResource B.Line2}" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="44" />
+                <RowDefinition Height="40" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="28" />
+                <RowDefinition Height="26" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="248" />
+                <ColumnDefinition Width="212" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -132,10 +132,19 @@
                         <!-- Same marker as a selected nav item while Settings is open -->
                         <Rectangle Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
                                    Visibility="{Binding IsSettingsOpen, Converter={StaticResource BoolToVis}}" />
-                        <Button Command="{Binding NavigateCommand}" CommandParameter="settings" Content="&#xE713;" ToolTip="Настройки"
-                                HorizontalAlignment="Left" Margin="12,0,0,0">
+                        <Button Command="{Binding NavigateCommand}" CommandParameter="settings" ToolTip="Настройки MONOLITH"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="10,0,8,0" Height="34">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE713;" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="Настройки" FontFamily="{StaticResource F.Body}" FontWeight="SemiBold" FontSize="13.5"
+                                           VerticalAlignment="Center" />
+                            </Grid>
                             <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource Btn.Icon}">
+                                <Style TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsSettingsOpen}" Value="True">
                                             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
@@ -155,8 +164,8 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold"
-                                               FontStretch="SemiCondensed" FontSize="13.5" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}"
+                                               FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -168,7 +177,7 @@
             <Grid Grid.Row="2" Grid.Column="1" ClipToBounds="True">
                 <ProgressBar VerticalAlignment="Top" IsIndeterminate="True" Height="2" Panel.ZIndex="5"
                              Visibility="{Binding CurrentPage.IsBusy, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
-                <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" Margin="40,30,40,24" Focusable="False">
+                <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" Margin="24,16,24,14" Focusable="False">
                     <ContentControl.RenderTransform>
                         <TranslateTransform />
                     </ContentControl.RenderTransform>
@@ -176,13 +185,15 @@
             </Grid>
 
             <!-- ═══════════════ Console ═══════════════ -->
-            <Grid Grid.Row="3" Grid.Column="1" Background="{StaticResource B.Surface}">
+            <!-- Shown only when expanded; the toggle lives in the status bar. -->
+            <Grid Grid.Row="3" Grid.Column="1" Background="{StaticResource B.Surface}"
+                  Visibility="{Binding ConsoleExpanded, Converter={StaticResource BoolToVis}}">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="32" />
+                    <RowDefinition Height="28" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Rectangle Height="1" VerticalAlignment="Top" Fill="{StaticResource B.Line}" />
-                <Grid Margin="40,0,24,0">
+                <Grid Margin="24,0,16,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Border Width="6" Height="6" Background="{StaticResource B.White}" VerticalAlignment="Center" />
                         <TextBlock Text="КОНСОЛЬ" Style="{StaticResource T.Label}" Margin="10,0,0,0" VerticalAlignment="Center" />
@@ -210,7 +221,7 @@
                     </StackPanel>
                 </Grid>
                 <ListBox x:Name="ConsoleList" Grid.Row="1" Height="128" Style="{StaticResource List.Plain}" ItemsSource="{Binding LogEntries}"
-                         Margin="40,0,24,10" Visibility="{Binding ConsoleExpanded, Converter={StaticResource BoolToVis}}"
+                         Margin="24,0,16,8"
                          VirtualizingPanel.IsVirtualizing="True">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -277,8 +288,12 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,20,0" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" Text="CTRL+K — ПОИСК" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" Text="CTRL+K — ПОИСК" VerticalAlignment="Center" />
+                    <Button Style="{StaticResource Btn.Ghost}" Height="22" FontSize="10.5" Margin="14,0,0,0" Command="{Binding ToggleConsoleCommand}"
+                            ToolTip="Журнал действий MONOLITH">
+                        <TextBlock Text="{Binding LogEntries.Count, StringFormat=КОНСОЛЬ · {0}}" />
+                    </Button>
                 </StackPanel>
             </Grid>
 
@@ -363,7 +378,7 @@
                                                     <ColumnDefinition Width="96" />
                                                 </Grid.ColumnDefinitions>
                                                 <Rectangle x:Name="Bar" Fill="{StaticResource B.White}" Visibility="Hidden" Margin="-16,-9,0,-9" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Entry.Title}" Margin="10,0,12,0" VerticalAlignment="Center"
+                                                <TextBlock Grid.Column="1" Text="{Binding Entry.Title, Converter={StaticResource Sentence}}" Margin="10,0,12,0" VerticalAlignment="Center"
                                                            FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="14"
                                                            Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" />
                                                 <Border x:Name="Risk" Grid.Column="2" Margin="0,0,12,0" Style="{StaticResource Tag}"
@@ -431,7 +446,7 @@
                             </Rectangle.Style>
                         </Rectangle>
                         <StackPanel Margin="28,30,28,0">
-                            <TextBlock Text="{Binding Title}" Style="{StaticResource T.H1}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" TextWrapping="Wrap" />
                             <TextBlock Text="{Binding Message}" Style="{StaticResource T.Body}" Margin="0,10,0,0" />
                         </StackPanel>
                         <Border Grid.Row="1" Margin="28,16,28,0" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}"
