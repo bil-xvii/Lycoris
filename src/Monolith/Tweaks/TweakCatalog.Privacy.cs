@@ -7,6 +7,7 @@ namespace Monolith.Tweaks;
 public static partial class TweakCatalog
 {
     private const string WindowsAiPolicy = @"Software\Policies\Microsoft\Windows\WindowsAI";
+    private const string PaintPolicy = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint";
 
     private static IEnumerable<Tweak> PrivacyTweaks()
     {
@@ -222,6 +223,45 @@ public static partial class TweakCatalog
             AppliesTo = sp => sp.OsBuild >= 26100,
             NotApplicableReason = "Click to Do появился в Windows 11 24H2.",
             Values = [Cu(WindowsAiPolicy, "DisableClickToDo", 1)],
+        };
+
+        // SAFE-OPTIONAL (Policy CSP WindowsAI, device scope; officially Pro and higher).
+        yield return new RegistryTweak
+        {
+            Id = "paint-ai-off",
+            Title = "Paint без функций ИИ",
+            Description = "Отключает в Paint облачные функции ИИ: Cocreator, Image Creator и генеративную заливку.",
+            Details = "Официальные политики Microsoft (DisableCocreator, DisableImageCreator, DisableGenerativeFill) для всех пользователей " +
+                      "ПК. Paint работает как прежде — пропадают только кнопки ИИ, отправлять рисунки в облачный сервис ИИ из него больше нельзя. Официально " +
+                      "поддерживается в Pro и старших редакциях Windows 11 (22H2 со сборки 22621.4870, 24H2 — 26100.3360); Paint в Home " +
+                      "обычно тоже соблюдает политики, но Microsoft это не гарантирует. Откат удаляет политики. Действует после " +
+                      "перезапуска Paint.",
+            Category = TweakCategory.Privacy,
+            Risk = TweakRisk.Optional,
+            AppliesTo = sp => sp.OsBuild >= 22621,
+            NotApplicableReason = "Функции ИИ в Paint есть только в Windows 11 22H2 и новее.",
+            Values =
+            [
+                Lm(PaintPolicy, "DisableCocreator", 1),
+                Lm(PaintPolicy, "DisableGenerativeFill", 1),
+                Lm(PaintPolicy, "DisableImageCreator", 1),
+            ],
+        };
+
+        // SAFE-OPTIONAL (documented Notepad policy value, machine-wide, Notepad 11.2503.16+).
+        yield return new RegistryTweak
+        {
+            Id = "notepad-ai-off",
+            Title = "Блокнот без функций ИИ",
+            Description = "Отключает в Блокноте инструменты письма Copilot: «Переписать», «Кратко изложить» и другие функции ИИ.",
+            Details = "Официальный способ Microsoft — значение DisableAIFeatures в политиках Блокнота, для всех пользователей ПК. Блокнот " +
+                      "работает как прежде, пропадают только функции ИИ, отправлять текст в облачный сервис ИИ из него больше нельзя. Действует в Блокноте " +
+                      "11.2503.16 и новее на Windows 11 после его перезапуска. Откат удаляет значение.",
+            Category = TweakCategory.Privacy,
+            Risk = TweakRisk.Optional,
+            AppliesTo = sp => sp.OsBuild >= 22621,
+            NotApplicableReason = "Функции ИИ в Блокноте есть только в Windows 11 22H2 и новее.",
+            Values = [Lm(@"SOFTWARE\Policies\WindowsNotepad", "DisableAIFeatures", 1)],
         };
 
         // ADVANCED. Manual (not Disabled): the service can still be started on demand.

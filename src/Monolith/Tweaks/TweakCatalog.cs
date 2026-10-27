@@ -8,7 +8,7 @@ public enum ProfileKind { Normal, Gaming, Recommended }
 /// Canonical ids (other modules reference these — keep them stable):
 ///   game-mode, hags, gamedvr-off, power-plan-performance, mouse-acceleration-off,
 ///   windowed-games-optimization, visual-effects-performance, ads-suggestions-off,
-///   telemetry-required, bing-start-search-off, storage-sense-on, delivery-optimization-local
+///   telemetry-required, bing-start-search-off, storage-sense-on, delivery-optimization-local, trim-on
 /// </summary>
 public static partial class TweakCatalog
 {

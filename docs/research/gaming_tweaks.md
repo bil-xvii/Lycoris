@@ -90,6 +90,7 @@ On **dual-CCD** X3D chips (7900X3D, 7950X3D, 9900X3D, 9950X3D) the driver parks 
   - **Parse and merge tokens** (`VRROptimizeEnable`, `AutoHDREnable`, …) separated by `;`. Never overwrite the whole string.
   - Per-game opt-out: a value named after the full exe path with `SwapEffectUpgradeEnable=0;`.
 - **Default / revert:** the string is absent, which means the OS default (the toggle is off by default; turning on Auto HDR forces it on). Revert = restore the exact previous string, or delete it if it was absent.
+- **Key cleanup on revert:** when `UserGpuPreferences` (and `Software\Microsoft\DirectX`) did not exist, the first token's apply creates them (`New-Item -Force`). The undo script then carries `$mk=$true;$mp=…;` and, once the last token is gone, removes the key and that parent again — only while they hold no values and no subkeys (per-app `GpuPreference` values live in the same key). A second token applied later inherits the cleanup duty from the active record, so any revert order leaves nothing behind. Without the flags the script text is byte-identical to older builds' records.
 - **Applies:** after restarting the game.
 - **Risk:** rare incompatibilities or tearing in individual games. **Win11 only.**
 
@@ -149,7 +150,21 @@ On **dual-CCD** X3D chips (7900X3D, 7950X3D, 9900X3D, 9950X3D) the driver parks 
 - **Default / revert:** the default is Balanced `381b4222-f694-41f0-9685-ff5bb260df2e`. Save the previous GUID from `PowerGetActiveScheme`. No reboot.
 - **Modern Standby (S0):** only Balanced exists. Detect with `CallNtPowerInformation(SystemPowerCapabilities).AoAc` or `powercfg /a`.
 - **Evidence:** on CPPC2/EPP CPUs the average FPS gain is about 0–2 %, at the cost of higher idle power.
-- **Alternative:** on Balanced, use Settings → Power mode "Best performance". This is the overlay `ded574b5-45a0-4f42-8737-46345c09c238`, stored in HKLM `SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes` → `ActiveOverlayAcPowerScheme`. It is the official route and works with Modern Standby. The setter API is undocumented, so open `ms-settings:powersleep` instead. Its compatibility with X3D steering is unverified.
+- **Alternative:** on Balanced, use Settings → Power mode "Best performance" (catalog item `power-mode-best-performance`, below). It is the official route and works with Modern Standby. Its compatibility with X3D steering is unverified.
+
+#### `power-mode-best-performance`: Режим питания «Максимальная производительность» / Windows 11 power mode → **SAFE-OPTIONAL (Windows 11, Balanced plan, AC only; not on dual-CCD X3D)**
+- **What it is:** the Settings → System → Power → «Режим питания» choice. Microsoft calls each mode a "lite power plan" (CPU PPM settings + power throttling) on top of Balanced or plans derived from it; the Balanced plan stays active. The honest alternative to switching plans on laptops.
+- **Mechanism (documented since Feb 2025, powrprof.dll, Windows 11 desktop apps):** `PowerGetUserConfiguredACPowerMode` reads, `PowerSetUserConfiguredACPowerMode(GUID)` sets it and "immediately updates" the mode. The only supported values: `GUID_POWER_MODE_NONE` 00000000-0000-0000-0000-000000000000 (Balanced), `GUID_POWER_MODE_BEST_EFFICIENCY` 961cc777-2547-4f9d-8174-7d86181b8a7a, `GUID_POWER_MODE_BEST_PERFORMANCE` ded574b5-45a0-4f42-8737-46345c09c238. Earlier notes ("setter undocumented, open ms-settings:powersleep") are obsolete.
+- **AC only.** The DC setter is never called (laptops: touch AC only).
+- **Never** write `ActiveOverlayAcPowerScheme` under `…\Control\Power\User\PowerSchemes` directly: undocumented and not applied live.
+- **Apply / undo:** a journaled PowerShell snippet (P/Invoke, like the DirectX script) through `ChangeSession.RunCommandAsync`, target `powermode:ac`. The undo carries the original GUID read before the change; the journal check accepts only the three documented GUIDs, rebuilt by the catalog code. If Windows ever reports another GUID, MONOLITH refuses to change the mode (it could not journal an exact undo). Older Windows 11 builds without the export → not applicable.
+- **Applies to:** Windows 11, active scheme = Balanced (the mode exists only there), not dual-CCD X3D (interplay with the AMD driver's EffectivePowerMode steering is undocumented).
+- **Evidence / effect:** measurable mainly on laptops and OEM-tuned systems; often small on desktops. Slightly higher idle power. Not pre-selected in any profile; the Games boost stays as it is.
+
+#### `power-throttling-off`: «Turn off Power Throttling» → **DO-NOT-INCLUDE on desktops (placebo); laptops at most ADVANCED, not offered**
+- **Mechanism:** `HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling\PowerThrottlingOff` DWORD 1 (ADMX Power, Pro+; a plain value, so it also works on Home). Absent by default.
+- **Reason:** per Microsoft's Quality of Service table, Low/Utility QoS throttling (EcoQoS) applies only on battery, and a focused game window is already High QoS. On desktops it changes nothing; on laptops it only costs battery.
+- `DisableUserPresenceQos` (24H2 2025.05+) matters only for unattended benchmarks on battery: not offered.
 
 #### `power-plan-ultimate`: Максимальная производительность / Ultimate Performance → **ADVANCED (desktop only, not dual-CCD X3D)**
 - **Mechanism:** `powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61` returns a **new GUID**. Then run `/setactive <new>`.
@@ -165,6 +180,7 @@ On **dual-CCD** X3D chips (7900X3D, 7950X3D, 9900X3D, 9950X3D) the driver parks 
 - **Mechanism:** `powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96c1-47b60b740d00 893dee8e-2bef-41e0-89c6-b55d0929964c 100`, then `powercfg /setactive SCHEME_CURRENT`.
 - **Defaults:** Balanced AC 5 % in stock Windows (**0 % here**, set by the AMD PPM provisioning), DC 5 %. High performance 100 %. Save the AC and DC indexes for revert.
 - **Evidence:** C-states and CPPC still apply, so this doesn't pin clocks. The effect is about zero.
+- **Undo precision (all powercfg AC items: cpu-min-state, usb-selective-suspend, pcie-aspm, Wi-Fi power):** Windows stores only modified values under `HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\{scheme}\{subgroup}\{setting}\ACSettingIndex`; stock plans take the rest from `PowerSettings\…\DefaultPowerSchemeValues`. `PowerReadACValueIndex` returns the effective value either way, and powercfg has no per-setting "back to default". The undo therefore writes the original number explicitly: same effective value, but an override where there was none. Do **not** delete the override from the registry (the keys belong to the Power service; Administrators can only read them, so a journaled delete would fail at revert time) and do not call `PowerRestoreIndividualDefaultPowerScheme` (it resets every setting of the plan). MONOLITH reads (read-only) whether an override existed, says so in the journal record («по умолчанию схемы; при откате будет записано явно»), and the Details text tells the user that «Восстановить для схемы параметры по умолчанию» in Control Panel → Power Options restores the defaults (for the whole plan).
 
 #### `core-parking-off`: Отключение парковки ядер / Disable core parking → **DO-NOT-INCLUDE**
 - **Mechanism:** setting `CPMINCORES` `0cc5b647-c1df-4637-891a-dec35c318583`, hidden; read it with `powercfg /qh`. Here Balanced AC is already 100 % and DC 10 %.
@@ -188,6 +204,15 @@ On **dual-CCD** X3D chips (7900X3D, 7950X3D, 9900X3D, 9950X3D) the driver parks 
 - **Apply live:** `SystemParametersInfo(SPI_SETMOUSE, 0, int[3]{0,0,0}, SPIF_UPDATEINIFILE|SPIF_SENDCHANGE)`. Writing only the registry needs a sign-out.
 - **Leave alone:** `MouseSensitivity` and `SmoothMouseX/YCurve` (the "MarkC fix" is not needed).
 - **Evidence:** most games use Raw Input and are unaffected. It matters on the desktop and in games that use the system cursor.
+
+#### `accessibility-hotkeys-off`: Сочетания клавиш специальных возможностей / Sticky, Filter and Toggle Keys shortcuts → **SAFE-OPTIONAL (pre-checked in the Gaming profile, like `mouse-accel-off`)**
+- **Problem:** Shift ×5 (Sticky Keys), holding right Shift ~8 s (Filter Keys) or holding Num Lock (Toggle Keys) opens a modal dialog; in exclusive fullscreen it minimizes the game.
+- **Mechanism:** HKCU `Control Panel\Accessibility\StickyKeys`, `…\Keyboard Response`, `…\ToggleKeys` → REG_SZ `Flags`. Windows defaults "510" / "126" / "62". Clear **only bit 0x4** (`SKF_HOTKEYACTIVE` / `FKF_HOTKEYACTIVE` / `TKF_HOTKEYACTIVE`, Microsoft Learn STICKYKEYS/FILTERKEYS/TOGGLEKEYS) from the current value, keeping every other bit → "506" / "122" / "58" from the defaults; never hard-code. Keep REG_SZ (WinUtil writes a DWORD here: wrong type). An absent value is read as the Windows default.
+- **Feature in use:** if bit 0x1 (`*_STICKYKEYSON` / `FILTERKEYSON` / `TOGGLEKEYSON`) is set, the user relies on the feature: that key is left alone. The logon screen (`HKU\.DEFAULT`) is not touched.
+- Same as the Settings → Accessibility → Keyboard toggles «Сочетание клавиш для …» (Win11 Settings writes exactly 506; community tests on several PCs). Microsoft documents the struct bits, not the registry path; the registry side rests on community sources plus that Settings test.
+- **Applies:** after sign-out. **Not** applied live through `SystemParametersInfo(SPI_SET*KEYS)`: that would bypass ChangeSession, and `SPI_SETFILTERKEYS` with `SPIF_UPDATEINIFILE` rewrites every Keyboard Response value (DelayBeforeAcceptance, AutoRepeatDelay, AutoRepeatRate, BounceTime) without journaling them.
+- **Undo:** each Flags value is journaled with its original REG_SZ and restored byte for byte, or deleted if it was absent (and the key removed if MONOLITH created it). Undo restores the whole original string, so a later change of another bit (e.g. turning Sticky Keys on in Settings) is rolled back too — the drift detector shows that beforehand, and Details say so. A CustomTweak: `TweakApplyRevertTests` does not cover it, so it has its own redirected-registry test.
+- **Effect:** no FPS gain; removes a focus-stealing dialog. Do not claim more.
 
 ### E. Scheduler, MMCSS and timer
 
@@ -335,13 +360,16 @@ On **dual-CCD** X3D chips (7900X3D, 7950X3D, 9900X3D, 9950X3D) the driver parks 
 | Realtime priority for a game | Starves input and audio threads |
 | Disabling NIC offloads, interrupt moderation, RSS | NIC-dependent; raises CPU load |
 | Core-unparking tools, `PlatformAoAcOverride` | Break X3D/hybrid scheduling and Modern Standby |
+| `PowerThrottlingOff` on desktops, `DisableUserPresenceQos` | Placebo: EcoQoS throttling applies only on battery and a focused game is High QoS (see §2 C) |
+| Writing `ActiveOverlayAcPowerScheme` directly | Undocumented and not applied live; use `PowerSetUserConfiguredACPowerMode` (§2 C) |
+| Live `SPI_SETFILTERKEYS` for the accessibility-shortcut item | Rewrites unjournaled Keyboard Response values (§2 D) |
 
 ## 4. Where each tweak is stored (HKCU vs HKLM)
 
-- **HKCU (per user):** game-mode, windowed-optimizations, VRR, GPU preference, FSO per game, GameDVR/AppCapture/Historical, mouse, visual effects, transparency, background apps, startup delay, DND.
+- **HKCU (per user):** game-mode, windowed-optimizations, VRR, GPU preference, FSO per game, GameDVR/AppCapture/Historical, mouse, accessibility shortcuts, visual effects, transparency, background apps, startup delay, DND.
 - **HKLM (machine, needs admin):** HAGS, MPO, AllowGameDVR, MMCSS (SystemResponsiveness, NetworkThrottlingIndex, Games task), Win32PrioritySeparation, GlobalTimerResolutionRequests, Tcpip Interfaces, HVCI, WU active hours, DO policies.
 - **NETWORK SERVICE hive (`HKU\S-1-5-20`):** Delivery Optimization user settings.
-- **Power plans (powercfg/PowrProf API, per machine):** active plan, PROCTHROTTLEMIN, CPMINCORES, USB selective suspend, ASPM.
+- **Power plans (powercfg/PowrProf API, per machine):** active plan, PROCTHROTTLEMIN, CPMINCORES, USB selective suspend, ASPM, Windows 11 power mode (PowerSetUserConfiguredACPowerMode).
 
 ## Sources
 - https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service
@@ -369,3 +397,13 @@ On **dual-CCD** X3D chips (7900X3D, 7950X3D, 9900X3D, 9950X3D) the driver parks 
 - https://news.xbox.com/en-us/2018/10/02/latest-october-2018-windows-update-gaming-features-3/
 - https://community.acer.com/en/discussion/670776
 - https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/
+- https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-powersetuserconfiguredacpowermode
+- https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-powergetuserconfiguredacpowermode
+- https://learn.microsoft.com/en-us/windows-hardware/customize/desktop/customize-power-slider
+- https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service
+- https://gpsearch.extrememanual.net/en/computer/System/PowerManagementCat/PowerThrottlingSettingsCat/PowerThrottlingTurnOff
+- https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-stickykeys
+- https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-filterkeys
+- https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-togglekeys
+- https://winutil.christitus.com/code-reference/tweaks/customize-preferences/stickykeys/
+- https://www.pcrisk.com/blog/windows/12938-cant-turn-off-sticky-keys
