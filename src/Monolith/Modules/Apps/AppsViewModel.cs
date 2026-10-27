@@ -105,8 +105,8 @@ public sealed partial class AppsViewModel : PageViewModel
     public bool WingetMissing => WingetState == WingetState.Missing;
     public bool WingetReady => WingetState == WingetState.Available;
     public bool WingetChecking => WingetState == WingetState.Checking;
-    public bool CanStartQueue => !IsQueueRunning;
-    public bool CanCloseQueue => !IsQueueRunning;
+    public bool CanStartQueue => !IsQueueRunning && !IsVendorDownloadRunning;
+    public bool CanCloseQueue => !IsQueueRunning && !IsVendorDownloadRunning;
     public bool HasSelection => SelectedCount > 0;
     public bool HasNoResults => VisibleCount == 0;
     public bool HasSearch => SearchText.Trim().Length > 0;
@@ -138,9 +138,13 @@ public sealed partial class AppsViewModel : PageViewModel
         RefreshCommandStates();
     }
 
-    partial void OnIsQueueRunningChanged(bool value)
+    partial void OnIsQueueRunningChanged(bool value) => UpdateBusyItems();
+
+    /// <summary>Install buttons wait while the queue or a direct vendor download runs.</summary>
+    private void UpdateBusyItems()
     {
-        foreach (var item in _items) item.QueueBusy = value;
+        var busy = IsQueueRunning || IsVendorDownloadRunning;
+        foreach (var item in _items) item.QueueBusy = busy;
         RefreshCommandStates();
     }
 
@@ -150,6 +154,8 @@ public sealed partial class AppsViewModel : PageViewModel
         InstallKitCommand.NotifyCanExecuteChanged();
         UpdateAllCommand.NotifyCanExecuteChanged();
         RefreshCommand.NotifyCanExecuteChanged();
+        RunFallbackCommand.NotifyCanExecuteChanged();
+        CloseQueueCommand.NotifyCanExecuteChanged();
     }
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -279,13 +285,16 @@ public sealed partial class AppsViewModel : PageViewModel
 
             string? found = null;
             AppVariant? variant = null;
+            var unmanaged = false;
             foreach (var id in item.Entry.AllIds)
             {
                 if (!snapshot.Packages.TryGetValue(id, out var version)) continue;
                 found = InstalledDetector.CleanVersion(version);
                 variant = item.Variants.FirstOrDefault(v => string.Equals(v.Id, id, StringComparison.OrdinalIgnoreCase));
+                unmanaged = snapshot.Unmanaged.Contains(id);
                 break;
             }
+            item.IsUnmanaged = unmanaged;
             item.InstalledVersion = found;
             if (variant is not null) item.SelectedVariant = variant;
             item.IsKnown = true;
@@ -380,6 +389,9 @@ public sealed partial class AppsViewModel : PageViewModel
             case AppAction.Website:
                 await OpenSite(item);
                 return;
+            case AppAction.VendorDownload:
+                await DownloadFromVendorAsync(item, null, afterHashMismatch: false);
+                return;
             case AppAction.Install:
                 await StartQueueAsync([(item, QueueOperation.Install)], QueueKind.Single);
                 return;
@@ -417,8 +429,9 @@ public sealed partial class AppsViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanUpdateAll))]
     private async Task UpdateAll()
     {
+        // Only packages winget itself manages: a runtime that came with the .NET SDK is "not found" for winget upgrade.
         var candidates = _items
-            .Where(i => i.IsInstalled && i.Entry.CanUpgrade
+            .Where(i => i.CanUpgrade
                         && !string.Equals(i.PackageId, AppCatalog.AppInstallerId, StringComparison.OrdinalIgnoreCase))
             .Select(i => (i, QueueOperation.Upgrade))
             .ToList();
@@ -464,9 +477,11 @@ public sealed partial class AppsViewModel : PageViewModel
     private async Task StartQueueAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
     {
         if (plan.Count == 0) return;
-        if (IsQueueRunning)
+        if (IsQueueRunning || IsVendorDownloadRunning)
         {
-            Ui.Toast("Дождитесь окончания текущей очереди установки.", ToastKind.Warning);
+            Ui.Toast(IsVendorDownloadRunning
+                ? "Дождитесь окончания загрузки установщика у производителя."
+                : "Дождитесь окончания текущей очереди установки.", ToastKind.Warning);
             return;
         }
         if (!WingetReady)
@@ -514,7 +529,8 @@ public sealed partial class AppsViewModel : PageViewModel
         {
             QueueKind.Kit => $"Будут установлены недостающие библиотеки ({AppTexts.Packages(plan.Count)}). Уже установленные пропускаются. ",
             QueueKind.UpdateAll => $"winget проверит обновления установленных программ из каталога ({plan.Count}) и поставит новые версии. " +
-                                   "Программы, которые обновляются сами (Discord, Edge, WebView2), и «Установщик приложений» MONOLITH не трогает. ",
+                                   "Программы, которые обновляются сами (Discord, игры Riot, Edge, WebView2), компоненты, поставленные не через winget " +
+                                   "(например, среда .NET из .NET SDK), и «Установщик приложений» MONOLITH не трогает. ",
             _ => $"По очереди будет обработано: {AppTexts.Packages(plan.Count)}. ",
         };
         var how = AppTexts.VerificationText(plan.Select(p => p.Item.Entry)) + " ";
@@ -628,17 +644,24 @@ public sealed partial class AppsViewModel : PageViewModel
         }
     }
 
-    private sealed record RunOutcome(UnelevatedOutcome Outcome, WingetResult Result);
+    /// <param name="Error">MONOLITH itself failed to run winget for this package (the queue goes on with the next one).</param>
+    private sealed record RunOutcome(UnelevatedOutcome Outcome, WingetResult Result, string? Error = null);
 
+    /// <summary>Never throws: a failure of one package must not stop (or crash) the queue.</summary>
     private async Task<RunOutcome> ExecuteAsync(QueueItemViewModel job, CancellationToken ct)
     {
         try
         {
             return await ExecuteCoreAsync(job, ct);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             return new RunOutcome(UnelevatedOutcome.Cancelled, new WingetResult(-1, "", Cancelled: true));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Приложения: {job.Name} ({job.PackageId})", ex);
+            return new RunOutcome(UnelevatedOutcome.LaunchFailed, new WingetResult(-1, ex.Message), ex.Message);
         }
     }
 
@@ -646,40 +669,88 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         var entry = job.App.Entry;
         var request = entry.CreateRequest(job.PackageId);
-        var args = job.Operation == QueueOperation.Install ? WingetClient.BuildInstallArgs(request) : WingetClient.BuildUpgradeArgs(request);
+        if (job.Operation == QueueOperation.Upgrade && request.Location is { } known && !LocationExists(known))
+        {
+            // The program was installed into another folder: the standard one would put a second copy next to it.
+            request = request with { Location = null };
+        }
+        if (WingetClient.ExpandLocation(request.Location) is { } folder) AppendLog($"Папка установки: {folder}");
+
+        var outcome = await RunWingetAsync(job, request, ct);
+
+        // INSTALL_LOCATION_REQUIRED for a package the catalog has no folder for: winget may not ask with
+        // --disable-interactivity, so retry once with a standard folder (and say which one).
+        if (outcome.Outcome == UnelevatedOutcome.Completed && outcome.Result.ExitCode == WingetClient.InstallLocationRequired
+            && job.Operation == QueueOperation.Install && request.Location is null && !ct.IsCancellationRequested)
+        {
+            var retry = request with { Location = entry.DefaultLocationTemplate };
+            var shown = Elevation.IsElevated && entry.RunsUnelevated
+                ? retry.Location!
+                : WingetClient.ExpandLocation(retry.Location) ?? retry.Location!;
+            AppendLog($"Установщик требует папку установки — повтор с папкой «{shown}».");
+            Log.Info($"winget install {job.PackageId}: пакет требует папку установки (0x8A15005F) — повтор с --location «{shown}».");
+            outcome = await RunWingetAsync(job, retry, ct);
+        }
+        return outcome;
+    }
+
+    private static bool LocationExists(string template) =>
+        WingetClient.ExpandLocation(template) is { } path && System.IO.Directory.Exists(path);
+
+    /// <summary>One winget run with the elevation rules: de-elevated for user-scope packages, retried de-elevated on 0x8A150056.</summary>
+    private async Task<RunOutcome> RunWingetAsync(QueueItemViewModel job, WingetPackageRequest request, CancellationToken ct)
+    {
+        var entry = job.App.Entry;
+        var install = job.Operation == QueueOperation.Install;
         void Output(string line) => Ui.Post(() => AppendLog(line));
 
         if (Elevation.IsElevated && entry.RunsUnelevated)
         {
             AppendLog("Запуск без прав администратора — пакет ставится в профиль текущего пользователя.");
-            var r = await Task.Run(() => UnelevatedWinget.RunAsync(args, Output, ct), CancellationToken.None);
-            return new RunOutcome(r.Outcome, r.ToWinget());
+            return await RunUnelevatedAsync(request, install, Output, ct);
         }
 
-        var result = await Task.Run(() => job.Operation == QueueOperation.Install
+        var result = await Task.Run(() => install
             ? WingetClient.InstallPackageAsync(request, Output, ct)
             : WingetClient.UpgradePackageAsync(request, Output, ct), CancellationToken.None);
 
         if (result.ExitCode == WingetClient.ElevationProhibited && Elevation.IsElevated && !ct.IsCancellationRequested)
         {
             AppendLog("Установщик запрещает запуск от администратора — повтор без прав администратора…");
-            var r = await Task.Run(() => UnelevatedWinget.RunAsync(args, Output, ct), CancellationToken.None);
-            return new RunOutcome(r.Outcome, r.ToWinget());
+            return await RunUnelevatedAsync(request, install, Output, ct);
         }
         return new RunOutcome(result.Cancelled ? UnelevatedOutcome.Cancelled
             : result.StillRunning ? UnelevatedOutcome.Untracked
             : UnelevatedOutcome.Completed, result);
     }
 
+    private static async Task<RunOutcome> RunUnelevatedAsync(WingetPackageRequest request, bool install, Action<string> output, CancellationToken ct)
+    {
+        // --location stays "%LOCALAPPDATA%\…": the signed-in user's cmd expands it to that user's profile, not the admin's.
+        var args = install
+            ? WingetClient.BuildInstallArgs(request, keepLocationTemplate: true)
+            : WingetClient.BuildUpgradeArgs(request, keepLocationTemplate: true);
+        var r = await Task.Run(() => UnelevatedWinget.RunAsync(args, output, ct), CancellationToken.None);
+        return new RunOutcome(r.Outcome, r.ToWinget());
+    }
+
     private void ApplyOutcome(QueueItemViewModel job, RunOutcome outcome)
     {
         switch (outcome.Outcome)
         {
+            case UnelevatedOutcome.LaunchFailed when outcome.Error is not null:
+                job.State = QueueState.Failed;
+                job.StatusText = "ОШИБКА: MONOLITH не смог запустить winget";
+                job.Detail = $"{outcome.Error} Повторите установку; если ошибка повторяется — установите программу с официального сайта.";
+                job.Fallback = QueueFallback.Website;
+                AppendLog(job.Detail);
+                return;
             case UnelevatedOutcome.LaunchFailed:
                 job.State = QueueState.Failed;
                 job.StatusText = "ОШИБКА: не удалось запустить без прав администратора";
-                job.Detail = "Рабочий стол Windows недоступен для запуска. Откройте сайт программы (кнопка «САЙТ») " +
+                job.Detail = "Рабочий стол Windows недоступен для запуска. Откройте сайт программы (кнопка «ОТКРЫТЬ САЙТ») " +
                              "или запустите MONOLITH без прав администратора и повторите.";
+                job.Fallback = QueueFallback.Website;
                 AppendLog(job.Detail);
                 return;
             case UnelevatedOutcome.Untracked when outcome.Result.StillRunning:
@@ -704,21 +775,27 @@ public sealed partial class AppsViewModel : PageViewModel
                 AppendLog(job.Detail);
                 return;
             case UnelevatedOutcome.Cancelled:
+                job.Detail = "Установка прервана вами. Программа могла остаться установленной не полностью — повторите установку " +
+                             "или удалите её в «Параметры → Приложения».";
                 job.State = QueueState.Cancelled;
                 job.StatusText = "ПРЕРВАНО";
                 AppendLog("Прервано пользователем.");
                 return;
         }
 
-        var (state, text, reboot) = AppTexts.DescribeResult(outcome.Result.ExitCode, job.Operation);
+        var code = outcome.Result.ExitCode;
+        var (state, text, reboot) = AppTexts.DescribeResult(code, job.Operation);
+        if (state != QueueState.Done)
+        {
+            // Set before the state, so the row shows the explanation and the way forward together.
+            job.Detail = AppTexts.ResultDetail(code, job.Operation, job.App.Entry);
+            job.Fallback = AppTexts.FallbackFor(code, job.Operation, job.App.Entry);
+        }
         job.State = state;
         job.StatusText = text;
         job.NeedsReboot = reboot || (state == QueueState.Done && job.Operation == QueueOperation.Install && job.App.Entry.Has(AppFlags.Reboot));
-        AppendLog(state == QueueState.Done ? $"Готово: {WingetClient.Describe(outcome.Result.ExitCode)}." : $"Итог: {WingetClient.Describe(outcome.Result.ExitCode)}.");
-        if (state == QueueState.Failed)
-            job.Detail = outcome.Result.ExitCode == WingetClient.NoApplicableInstaller
-                ? "Для этой системы нет подходящего установщика (архитектура или версия Windows)."
-                : WingetClient.Describe(outcome.Result.ExitCode);
+        AppendLog(state == QueueState.Done ? $"Готово: {WingetClient.Describe(code)}." : $"Итог: {WingetClient.Describe(code)}.");
+        if (state != QueueState.Done && job.Detail is { } detail) AppendLog(detail);
     }
 
     /// <summary>
@@ -729,10 +806,11 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         var job = Queue.FirstOrDefault(q => q.App.Entry.Has(AppFlags.ForceExe) && q.State == QueueState.Done);
         if (job is null || job.App.IsInstalled) return;
+        job.Detail = "winget сообщил об успехе, но классических файлов DirectX (d3dx9_43.dll, xaudio2_7.dll) нет. " +
+                     "Скачайте установщик с сайта Microsoft (кнопка «ОТКРЫТЬ САЙТ»).";
+        job.Fallback = QueueFallback.Website;
         job.State = QueueState.Failed;
         job.StatusText = "ОШИБКА: библиотеки D3DX9 не появились";
-        job.Detail = "winget сообщил об успехе, но классических файлов DirectX (d3dx9_43.dll, xaudio2_7.dll) нет. " +
-                     "Скачайте установщик с сайта Microsoft (кнопка «САЙТ» у DirectX).";
         AppendLog(job.Detail);
     }
 
@@ -779,10 +857,10 @@ public sealed partial class AppsViewModel : PageViewModel
         _queueCts.Cancel();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanCloseQueue))]
     private void CloseQueue()
     {
-        if (IsQueueRunning) return;
+        if (IsQueueRunning || IsVendorDownloadRunning) return;
         foreach (var q in Queue) if (ReferenceEquals(q.App.Job, q)) q.App.Job = null;
         Queue.Clear();
         QueueLog.Clear();

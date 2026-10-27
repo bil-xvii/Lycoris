@@ -32,8 +32,12 @@ not from riskier changes.
    tools and autostart/hijack registry locations are refused (`ChangeJournal.IsForbiddenRestoreTarget`).
 8. Browsers, games and launchers are never started with MONOLITH's admin token: use
    `UnelevatedShell.OpenAsync` (web pages) / `UnelevatedShell.StartAsUserAsync` (programs, launcher URIs).
-9. Downloads of driver installers only via `Modules/Drivers/DriverDownloads` (vendor HTTPS hosts allow-list +
-   valid vendor Authenticode signature, files kept in the admin-only machine folder).
+9. Installers are downloaded only through the shared `Core/VendorDownloads` mechanism (per-request vendor HTTPS hosts
+   allow-list, also after redirects + valid Authenticode signature of an expected vendor signer, files kept in the
+   admin-only `%ProgramData%\MONOLITH\Downloads`; refused without admin rights). Drivers use it via
+   `Modules/Drivers/DriverDownloads`; the Apps page uses it when winget reports an installer hash mismatch
+   (`CatalogEntry.VendorInstaller`) — a confirmation lists host/signer/file, and the installer is then started with
+   `UnelevatedShell.StartAsUserAsync`. The winget hash is never bypassed.
 
 ## Layout
 
@@ -42,7 +46,7 @@ src/Monolith/
   App.xaml(.cs)          startup, UAC relaunch, single instance, --snapshot QA mode
   Core/                  system layer (no UI): AppPaths, Log, Elevation, ProcessRunner, RegistryHelper,
                          ChangeJournal, ChangeSession, ServiceControl, PowerSchemes, ScheduledTasks,
-                         RestorePointService, SystemProfile, AppSettings, WingetClient
+                         RestorePointService, SystemProfile, AppSettings, WingetClient, VendorDownloads
   Tweaks/                Tweak model (RegistryTweak, ServiceTweak, ScheduledTaskTweak, CustomTweak),
                          TweakEngine (apply/revert via journal), TweakCatalog (+ partial files with items)
   Shell/                 MainWindow (custom chrome, sidebar, console, toasts, dialogs), MainViewModel, PageViewModel

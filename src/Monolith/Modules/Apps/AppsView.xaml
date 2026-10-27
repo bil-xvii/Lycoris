@@ -236,6 +236,14 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <!-- what happened and what to do -->
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Visibility="{Binding ShowDetail, Converter={StaticResource BoolToVis}}" />
+                        <!-- safe way forward: vendor download / official site / cancel the download -->
+                        <Button Style="{StaticResource Btn}" HorizontalAlignment="Left" Margin="0,7,0,0" Content="{Binding FallbackText}"
+                                Command="{Binding DataContext.RunFallbackCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" ToolTip="{Binding FallbackToolTip}" ToolTipService.ShowOnDisabled="True"
+                                Visibility="{Binding HasFallback, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                 </Grid>
             </Grid>
