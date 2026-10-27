@@ -43,7 +43,7 @@
 
         <!-- ═══════════════ Catalog card ═══════════════ -->
         <DataTemplate x:Key="CardTemplate" DataType="{x:Type local:AppItemViewModel}">
-            <Border>
+            <Border ui:RoundClip.Content="True">
                 <Border.Style>
                     <Style TargetType="Border" BasedOn="{StaticResource Card.Hover}">
                         <Setter Property="Padding" Value="0" />
@@ -115,7 +115,7 @@
 
                         <!-- queued / running -->
                         <Border Height="36" MinWidth="118" Padding="9,0" BorderBrush="{StaticResource B.Line3}" BorderThickness="1"
-                                Background="{StaticResource B.Surface3}"
+                                Background="{StaticResource B.Surface3}" CornerRadius="{StaticResource R.Md}"
                                 Visibility="{Binding HasActiveJob, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="{x:Static ui:Glyphs.Sync}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center"
@@ -284,7 +284,7 @@
                                Text="Установка работает и без прав администратора: установщики сами запросят UAC. Точка восстановления в этом режиме не создаётся." />
 
                     <!-- ═══════════════ Outdated winget ═══════════════ -->
-                    <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,10"
+                    <Border Style="{StaticResource Callout}" Padding="0" Margin="0,0,0,10" ui:RoundClip.Content="True"
                             Visibility="{Binding WingetOutdated, Converter={StaticResource BoolToVis}}">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -306,7 +306,7 @@
                     </Border>
 
                     <!-- ═══════════════ winget missing ═══════════════ -->
-                    <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,17"
+                    <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,17" ui:RoundClip.Content="True"
                             Visibility="{Binding WingetMissing, Converter={StaticResource BoolToVis}}">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -490,6 +490,7 @@
             <!-- ═══════════════ Install queue ═══════════════ -->
             <Border x:Name="QueuePanel" Grid.Column="1" Width="372" Margin="12,0,0,0" Background="{StaticResource B.Surface}"
                     BorderBrush="{StaticResource B.Line2}" BorderThickness="1" SizeChanged="QueuePanel_SizeChanged"
+                    CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True"
                     Visibility="{Binding HasQueue, Converter={StaticResource BoolToVis}}">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -550,7 +551,8 @@
                         <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" Margin="10,1,0,0" VerticalAlignment="Center" />
                     </Grid>
 
-                    <Border Grid.Row="4" Margin="12,0,12,0" MinHeight="72" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line}" BorderThickness="1">
+                    <Border Grid.Row="4" Margin="12,0,12,0" MinHeight="72" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line}" BorderThickness="1"
+                            CornerRadius="{StaticResource R.Md}" ui:RoundClip.Content="True">
                         <ListBox x:Name="LogList" Style="{StaticResource List.Plain}" ItemsSource="{Binding QueueLog}" Padding="10,8"
                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListBox.ItemTemplate>

@@ -12,6 +12,10 @@
 
         <!-- ═══════════════ Local styles (built only from theme brushes/fonts) ═══════════════ -->
 
+        <!-- Card corners for rows of a section: only the outer corners of the stack are rounded (built from R.Lg) -->
+        <CornerRadius x:Key="Opt.RowTop" TopLeft="{StaticResource R.Lg.D}" TopRight="{StaticResource R.Lg.D}" />
+        <CornerRadius x:Key="Opt.RowBottom" BottomRight="{StaticResource R.Lg.D}" BottomLeft="{StaticResource R.Lg.D}" />
+
         <!-- One tweak row; rows of a section share borders and read as one card -->
         <Style x:Key="Opt.RowCard" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource B.Surface}" />
@@ -21,7 +25,18 @@
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsFirstInGroup}" Value="True">
                     <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="{StaticResource Opt.RowTop}" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsLastInGroup}" Value="True">
+                    <Setter Property="CornerRadius" Value="{StaticResource Opt.RowBottom}" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsFirstInGroup}" Value="True" />
+                        <Condition Binding="{Binding IsLastInGroup}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="CornerRadius" Value="{StaticResource R.Lg}" />
+                </MultiDataTrigger>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{StaticResource B.Surface2}" />
                 </Trigger>
@@ -83,6 +98,8 @@
         <Style x:Key="Opt.StateMark" TargetType="Rectangle">
             <Setter Property="Width" Value="10" />
             <Setter Property="Height" Value="10" />
+            <Setter Property="RadiusX" Value="{StaticResource R.Xs.D}" />
+            <Setter Property="RadiusY" Value="{StaticResource R.Xs.D}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Fill" Value="Transparent" />
@@ -267,7 +284,8 @@
                         ToolTip="Реальные компромиссы: безопасность, совместимость, античиты. Не входят ни в один профиль, каждый пункт требует отдельного подтверждения.">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Background="{StaticResource B.Base}">
+                            <Border x:Name="Bd" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Background="{StaticResource B.Base}"
+                                    CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True">
                                 <Grid Height="60">
                                     <Border x:Name="Hatch" Background="{StaticResource B.HatchStrong}" Opacity="0.45" />
                                     <Grid Margin="9">
@@ -276,7 +294,8 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <Border Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Padding="10,0">
+                                        <Border Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Padding="10,0"
+                                                CornerRadius="{StaticResource R.Sm}">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <TextBlock Text="{x:Static ui:Glyphs.Warning}" FontFamily="{StaticResource F.Icons}" FontSize="15"
                                                            Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
@@ -285,7 +304,7 @@
                                             </StackPanel>
                                         </Border>
                                         <Border Grid.Column="2" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1"
-                                                Padding="10,0">
+                                                Padding="10,0" CornerRadius="{StaticResource R.Sm}">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding CountText}" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}" FontSize="11"
                                                            Foreground="{StaticResource B.Text2}" />
@@ -317,7 +336,8 @@
 
         <!-- Nothing matches the filter (or the catalog is empty) -->
         <DataTemplate DataType="{x:Type local:EmptyRow}">
-            <Border Margin="0,15,10,0" Background="{StaticResource B.DotGrid}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Padding="17,21">
+            <Border Margin="0,15,10,0" Background="{StaticResource B.DotGrid}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Padding="17,21"
+                    CornerRadius="{StaticResource R.Lg}">
                 <StackPanel HorizontalAlignment="Left">
                     <TextBlock x:Name="Head" Text="Ничего не найдено" Style="{StaticResource T.H1}" />
                     <TextBlock x:Name="Body" Text="Под этот запрос не подходит ни один пункт. Измените запрос или выберите раздел «ВСЕ»." Style="{StaticResource T.Body}"
@@ -338,8 +358,10 @@
         <DataTemplate DataType="{x:Type local:TweakItemViewModel}">
             <Border Style="{StaticResource Opt.RowCard}" Margin="0,0,10,0">
                 <Grid>
-                    <Rectangle x:Name="Bar" Width="3" HorizontalAlignment="Left" Fill="{StaticResource B.White}"
-                               Visibility="{Binding IsChecked, Converter={StaticResource BoolToVis}}" />
+                    <!-- Left selection bar: a left-only border that follows the row's rounded outer corners -->
+                    <Border x:Name="Bar" BorderThickness="3,0,0,0" BorderBrush="{StaticResource B.White}"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource AncestorType=Border}}"
+                            Visibility="{Binding IsChecked, Converter={StaticResource BoolToVis}}" />
                     <Grid Margin="9,9,9,9">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="34" />
@@ -394,7 +416,7 @@
 
                             <!-- Expanded details -->
                             <Border Margin="0,10,0,2" Padding="10,10" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1"
-                                    Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                                    CornerRadius="{StaticResource R.Md}" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
                                 <StackPanel>
                                     <TextBlock Text="{Binding Details}" Style="{StaticResource T.Body}" Margin="0,0,0,10"
                                                Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}" />
@@ -421,7 +443,7 @@
                                                Text="Особая процедура: каждый её шаг записывается в журнал при применении и откатывается из него." />
 
                                     <Border Margin="0,10,0,0" BorderBrush="{StaticResource B.Text3}" BorderThickness="1"
-                                            Visibility="{Binding IsAdvanced, Converter={StaticResource BoolToVis}}">
+                                            CornerRadius="{StaticResource R.Md}" ui:RoundClip.Content="True" Visibility="{Binding IsAdvanced, Converter={StaticResource BoolToVis}}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="8" />
@@ -448,7 +470,8 @@
                                 <TextBlock Text="{Binding StateText}" Style="{StaticResource Opt.StateText}" Margin="9,0,0,0" />
                             </StackPanel>
                             <Grid Margin="0,9,0,0" HorizontalAlignment="Left" Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
-                                <Rectangle Stroke="{StaticResource B.Text2}" StrokeThickness="1" StrokeDashArray="3 2" SnapsToDevicePixels="True" />
+                                <Rectangle Stroke="{StaticResource B.Text2}" StrokeThickness="1" StrokeDashArray="3 2" SnapsToDevicePixels="True"
+                                           RadiusX="{StaticResource R.Sm.D}" RadiusY="{StaticResource R.Sm.D}" />
                                 <StackPanel Orientation="Horizontal" Margin="7,2,8,3">
                                     <TextBlock Text="&#xE72A;" FontFamily="{StaticResource F.Icons}" FontSize="9" VerticalAlignment="Center" Margin="0,1,5,0"
                                                Foreground="{StaticResource B.Text}" />
@@ -477,7 +500,7 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
                     <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
-                    <Setter TargetName="Bar" Property="Width" Value="5" />
+                    <Setter TargetName="Bar" Property="BorderThickness" Value="5,0,0,0" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -557,7 +580,8 @@
         </Rectangle>
 
         <!-- Sticky summary / action bar -->
-        <Border Grid.Row="2" Margin="0,9,0,0" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1">
+        <Border Grid.Row="2" Margin="0,9,0,0" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1"
+                CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True">
             <Grid>
                 <ProgressBar VerticalAlignment="Top" Height="2" IsIndeterminate="True"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />

@@ -70,6 +70,9 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// <summary>First visible row of its section (draws the top border of the card).</summary>
     [ObservableProperty] private bool _isFirstInGroup;
 
+    /// <summary>Last visible row of its section (rounds the bottom corners of the card).</summary>
+    [ObservableProperty] private bool _isLastInGroup;
+
     [ObservableProperty] private IReadOnlyList<ChangeLineViewModel> _changes = [];
     [ObservableProperty] private bool _hasPlannedChanges = true;
 

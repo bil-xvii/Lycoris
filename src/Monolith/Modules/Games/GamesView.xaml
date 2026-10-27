@@ -13,6 +13,8 @@
         <Style x:Key="Games.Marker" TargetType="Rectangle">
             <Setter Property="Width" Value="8" />
             <Setter Property="Height" Value="8" />
+            <Setter Property="RadiusX" Value="{StaticResource R.Xs.D}" />
+            <Setter Property="RadiusY" Value="{StaticResource R.Xs.D}" />
             <Setter Property="Fill" Value="Transparent" />
             <Setter Property="Stroke" Value="{StaticResource B.Text3}" />
             <Setter Property="StrokeThickness" Value="1" />
@@ -38,7 +40,7 @@
 
         <!-- ═══════════════ Game card ═══════════════ -->
         <DataTemplate x:Key="Games.Card" DataType="{x:Type local:GameCardViewModel}">
-            <Border x:Name="Card" Margin="0,0,9,9" Padding="0" Style="{StaticResource Card.Hover}">
+            <Border x:Name="Card" Margin="0,0,9,9" Padding="0" Style="{StaticResource Card.Hover}" ui:RoundClip.Content="True">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="132" />
@@ -67,7 +69,7 @@
                         <!-- Missing exe band -->
                         <Border VerticalAlignment="Bottom" Height="26" Background="{StaticResource B.HatchStrong}"
                                 Visibility="{Binding IsMissing, Converter={StaticResource BoolToVis}}">
-                            <Border Background="{StaticResource B.Ink}" HorizontalAlignment="Left" Margin="10,4" Padding="6,0">
+                            <Border Background="{StaticResource B.Ink}" HorizontalAlignment="Left" Margin="10,4" Padding="6,0" CornerRadius="{StaticResource R.Sm}">
                                 <TextBlock Text="ФАЙЛ НЕ НАЙДЕН" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
                             </Border>
                         </Border>
@@ -309,7 +311,7 @@
 
                     <!-- First scan (no cache yet) -->
                     <Border Grid.Row="2" BorderBrush="{StaticResource B.Line}" BorderThickness="1" Background="{StaticResource B.Surface}" Height="220"
-                            Margin="0,0,9,0" VerticalAlignment="Top" Visibility="{Binding ShowFirstScan, Converter={StaticResource BoolToVis}}">
+                            CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True" Margin="0,0,9,0" VerticalAlignment="Top" Visibility="{Binding ShowFirstScan, Converter={StaticResource BoolToVis}}">
                         <Grid>
                             <Border Background="{StaticResource B.DotGrid}" />
                             <StackPanel VerticalAlignment="Center" Margin="20,0">
@@ -335,7 +337,7 @@
 
                     <!-- Filter matched nothing -->
                     <Border Grid.Row="2" BorderBrush="{StaticResource B.Line}" BorderThickness="1" Background="{StaticResource B.Surface}" Padding="17,16"
-                            Margin="0,0,9,0" VerticalAlignment="Top" Visibility="{Binding IsFilterEmpty, Converter={StaticResource BoolToVis}}">
+                            CornerRadius="{StaticResource R.Lg}" Margin="0,0,9,0" VerticalAlignment="Top" Visibility="{Binding IsFilterEmpty, Converter={StaticResource BoolToVis}}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -351,12 +353,12 @@
 
                     <!-- Empty library -->
                     <Border Grid.Row="2" BorderBrush="{StaticResource B.Line}" BorderThickness="1" Background="{StaticResource B.Surface}" ClipToBounds="True"
-                            Margin="0,0,9,0" Visibility="{Binding IsLibraryEmpty, Converter={StaticResource BoolToVis}}">
+                            CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True" Margin="0,0,9,0" Visibility="{Binding IsLibraryEmpty, Converter={StaticResource BoolToVis}}">
                         <Grid>
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                                 <StackPanel Margin="19,17,19,16">
                                     <StackPanel Orientation="Horizontal">
-                                        <Border Width="40" Height="40" Background="{StaticResource B.White}" VerticalAlignment="Center">
+                                        <Border Width="40" Height="40" Background="{StaticResource B.White}" CornerRadius="{StaticResource R.Sm}" VerticalAlignment="Center">
                                             <TextBlock Text="{x:Static ui:Glyphs.Game}" FontFamily="{StaticResource F.Icons}" FontSize="19"
                                                        Foreground="{StaticResource B.Ink}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
@@ -399,7 +401,7 @@
                 <StackPanel Margin="0,0,10,9">
 
                     <!-- ─────────── GAME BOOST ─────────── -->
-                    <Border Style="{StaticResource Card.Flush}">
+                    <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                         <StackPanel>
                             <Rectangle Height="4" Fill="{StaticResource B.HatchStrong}" />
                             <Grid Margin="12,11,12,0">
@@ -408,7 +410,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40" Height="40" Background="{StaticResource B.White}" VerticalAlignment="Center">
+                                <Border Width="40" Height="40" Background="{StaticResource B.White}" CornerRadius="{StaticResource R.Sm}" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="18"
                                                Foreground="{StaticResource B.Ink}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
@@ -439,7 +441,7 @@
 
                             <!-- Active session: inverted block -->
                             <StackPanel Visibility="{Binding Boost.IsActive, Converter={StaticResource BoolToVis}}">
-                                <Border Margin="12,11,12,0" Background="{StaticResource B.White}" Padding="11,10,11,10">
+                                <Border Margin="12,11,12,0" Background="{StaticResource B.White}" Padding="11,10,11,10" CornerRadius="{StaticResource R.Md}">
                                     <StackPanel>
                                         <Grid>
                                             <TextBlock Text="{Binding Boost.PhaseText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="11"
@@ -463,7 +465,7 @@
                             <!-- Idle: what it does + options -->
                             <StackPanel Margin="12,0,12,0" Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
                                 <!-- Leftovers of a crashed session -->
-                                <Border Style="{StaticResource Callout}" Padding="0" Margin="0,10,0,0"
+                                <Border Style="{StaticResource Callout}" Padding="0" Margin="0,10,0,0" ui:RoundClip.Content="True"
                                         Visibility="{Binding HasStaleBoost, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -596,7 +598,7 @@
         <Grid Grid.RowSpan="2" Margin="-25,-19,-25,-15" Background="{StaticResource B.Scrim}" Panel.ZIndex="10"
               Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolToVis}}" PreviewKeyDown="Editor_PreviewKeyDown">
             <Border Width="880" Margin="15" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{StaticResource B.Surface2}"
-                    BorderBrush="{StaticResource B.Line3}" BorderThickness="1">
+                    BorderBrush="{StaticResource B.Line3}" BorderThickness="1" CornerRadius="{StaticResource R.Xl}" ui:RoundClip.Content="True">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="40" ShadowDepth="10" Opacity="0.8" Color="Black" />
                 </Border.Effect>
@@ -636,7 +638,8 @@
                                     </StackPanel>
                                 </Button>
                             </Grid>
-                            <Border Grid.Row="1" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}">
+                            <Border Grid.Row="1" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}"
+                                    CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True">
                                 <Grid>
                                     <ListBox Style="{StaticResource List.Plain}" ItemsSource="{Binding RunningApps}" ScrollViewer.VerticalScrollBarVisibility="Auto"
                                              VirtualizingPanel.IsVirtualizing="True">
@@ -692,7 +695,8 @@
                                 <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Width="36" Padding="0" Margin="6,0,0,0" Command="{Binding AddManualCommand}"
                                         ToolTip="Добавить в список" FontFamily="{StaticResource F.Icons}" FontSize="12" Content="{x:Static ui:Glyphs.Add}" />
                             </Grid>
-                            <Border Grid.Row="2" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}">
+                            <Border Grid.Row="2" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}"
+                                    CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True">
                                 <Grid>
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                         <ItemsControl ItemsSource="{Binding EditorList}" Focusable="False">
@@ -701,7 +705,8 @@
                                                     <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="10,6,6,6">
                                                         <Grid>
                                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <Rectangle Width="6" Height="6" Fill="{StaticResource B.White}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                                <Rectangle Width="6" Height="6" Fill="{StaticResource B.White}" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                                           RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
                                                                 <TextBlock Text="{Binding}" Style="{StaticResource T.Mono}" FontSize="12.5" Foreground="{StaticResource B.Text}" />
                                                             </StackPanel>
                                                             <Button Style="{StaticResource Btn.Icon}" Width="28" Height="28" FontSize="9" HorizontalAlignment="Right"
