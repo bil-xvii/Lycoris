@@ -86,13 +86,13 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Square corners and a dark hairline border on Windows 11.</summary>
+    /// <summary>Rounded window corners (the system radius) and a dark hairline border on Windows 11; Windows 10 stays square.</summary>
     private void ApplyDwmStyle()
     {
         try
         {
             var hwnd = new WindowInteropHelper(this).Handle;
-            int corner = 1; // DWMWCP_DONOTROUND
+            int corner = 2; // DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND
             DwmSetWindowAttribute(hwnd, 33, ref corner, sizeof(int));
             int border = 0x002B2B2B; // COLORREF 0x00BBGGRR
             DwmSetWindowAttribute(hwnd, 34, ref border, sizeof(int));
