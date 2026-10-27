@@ -3,21 +3,26 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!--
-        Shape tokens: slightly rounded corners (owner: «не таким квадратным, чуть более округлым»).
-        R.Sm  tags, checkboxes, scroll thumbs, small chips
-        R.Md  buttons, inputs, combo boxes, toggles, row highlights
-        R.Lg  cards, callouts, tiles, list panels
-        R.Xl  popups, dialogs, toasts, the window itself
-        *.D   the same radius as a double (Rectangle.RadiusX/RadiusY, clip geometries).
+        Shape tokens: clearly rounded corners, still strict (owner, 27.10: «вообще не округлен… сделай ещё более круглым,
+        не такой заостренный, но строгим, агрессивным и профессиональным»). Every surface uses one of these — no ad-hoc values.
+        R.Xs   4  checkboxes, progress bars, scroll thumbs, meter segments, tiny badges
+        R.Sm   6  tags, chips, small icon buttons
+        R.Md   8  buttons, inputs, combo boxes, toggles, nav items, row highlights
+        R.Lg  12  cards, callouts, tiles, list panels, strips
+        R.Xl  16  popups, dialogs, toasts, menus
+        *.D       the same radius as a double (Rectangle.RadiusX/RadiusY, clip geometries).
+        The window itself uses the Windows 11 rounded frame (DWMWCP_ROUND).
     -->
-    <CornerRadius x:Key="R.Sm">3</CornerRadius>
-    <CornerRadius x:Key="R.Md">4</CornerRadius>
-    <CornerRadius x:Key="R.Lg">6</CornerRadius>
-    <CornerRadius x:Key="R.Xl">8</CornerRadius>
-    <sys:Double x:Key="R.Sm.D">3</sys:Double>
-    <sys:Double x:Key="R.Md.D">4</sys:Double>
-    <sys:Double x:Key="R.Lg.D">6</sys:Double>
-    <sys:Double x:Key="R.Xl.D">8</sys:Double>
+    <CornerRadius x:Key="R.Xs">4</CornerRadius>
+    <CornerRadius x:Key="R.Sm">6</CornerRadius>
+    <CornerRadius x:Key="R.Md">8</CornerRadius>
+    <CornerRadius x:Key="R.Lg">12</CornerRadius>
+    <CornerRadius x:Key="R.Xl">16</CornerRadius>
+    <sys:Double x:Key="R.Xs.D">4</sys:Double>
+    <sys:Double x:Key="R.Sm.D">6</sys:Double>
+    <sys:Double x:Key="R.Md.D">8</sys:Double>
+    <sys:Double x:Key="R.Lg.D">12</sys:Double>
+    <sys:Double x:Key="R.Xl.D">16</sys:Double>
 
     <!--
         MONOLITH palette — strictly monochrome.
