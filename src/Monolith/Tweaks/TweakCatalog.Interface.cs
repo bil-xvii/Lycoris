@@ -286,7 +286,8 @@ public static partial class TweakCatalog
                     var original = VisualEffectFlags.Select((f, i) => (f.Set, spi.Flags[i])).ToList();
                     var wasOn = VisualEffectFlags.Where((_, i) => spi.Flags[i]).Select(f => f.Name).ToList();
                     if (spi.MinAnimate != 0) wasOn.Add("анимация окон");
-                    RunJournaled(ctx, "spi:visual-effects", PowerShellExe, PowerShellArgs(SpiScript(off, 0)),
+                    // A flag rejected half-way puts the original flags back before failing, so no change is left unjournaled.
+                    RunJournaled(ctx, "spi:visual-effects", PowerShellExe, PowerShellArgs(SpiApplyScript(off, 0, original, spi.MinAnimate)),
                         PowerShellExe, PowerShellArgs(SpiScript(original, spi.MinAnimate)),
                         "включены: " + string.Join(", ", wasOn), "анимации и тени выключены", OutputEncoding.Utf8);
                 }

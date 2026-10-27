@@ -280,6 +280,120 @@ public sealed class OptimizeTests
         Assert.Empty(OptimizeLogic.PlannedChanges(Tweak("c", "C")));
     }
 
+    // ───────────────────────────── Shared journal records (row «ОТКАТИТЬ») ─────────────────────────────
+
+    private static ChangeRecord Record(string target, string source, params string[] also) => new()
+    {
+        Source = source, Target = target, Kind = ChangeKind.PowerScheme, Title = target, OldValue = "old", NewValue = "new",
+        AlsoSources = [.. also],
+    };
+
+    [Fact]
+    public void A_tweak_merged_into_another_record_still_finds_it()
+    {
+        // power-plan-performance applied first, power-plan-ultimate merged into the same "power:active" record.
+        var power = Record("power:active", "tweak:power-plan-performance", "tweak:power-plan-ultimate");
+        var other = Record("reg:HKCU\\X\\Y", "tweak:game-mode");
+        var reverted = Record("reg:HKCU\\X\\Z", "tweak:power-plan-ultimate");
+        reverted.Reverted = true;
+
+        var forUltimate = OptimizeLogic.RecordsTouchedBy([power, other, reverted], [OptimizeLogic.SourceOf("power-plan-ultimate")]);
+        Assert.Equal(new[] { power }, forUltimate);
+
+        var forPerformance = OptimizeLogic.RecordsTouchedBy([power, other], [OptimizeLogic.SourceOf("power-plan-performance")]);
+        Assert.Equal(new[] { power }, forPerformance);
+
+        Assert.Empty(OptimizeLogic.RecordsTouchedBy([power, other], [OptimizeLogic.SourceOf("hags")]));
+    }
+
+    [Fact]
+    public void Reverting_a_shared_record_names_the_other_items_it_undoes()
+    {
+        var power = Record("power:active", "tweak:power-plan-performance", "tweak:power-plan-ultimate");
+        var svc = Record("svc:DiagTrack", "services", "tweak:diagtrack-manual");
+
+        Assert.Equal(new[] { "tweak:power-plan-performance" }, OptimizeLogic.SharedSources([power], ["tweak:power-plan-ultimate"]));
+        Assert.Equal(new[] { "tweak:power-plan-ultimate" }, OptimizeLogic.SharedSources([power], ["tweak:power-plan-performance"]));
+        Assert.Empty(OptimizeLogic.SharedSources([power], ["tweak:power-plan-performance", "tweak:power-plan-ultimate"]));
+        Assert.Equal(new[] { "services" }, OptimizeLogic.SharedSources([svc], ["tweak:diagtrack-manual"]));
+        Assert.Empty(OptimizeLogic.SharedSources([Record("x", "tweak:a")], ["tweak:a"]));
+    }
+
+    [Fact]
+    public void Journal_sources_are_described_in_russian()
+    {
+        static string? Title(string id) => id == "power-plan-performance" ? "Схема «Высокая производительность»" : null;
+        Assert.Equal("«Схема «Высокая производительность»»", OptimizeLogic.DescribeSource("tweak:power-plan-performance", Title));
+        Assert.Equal("пункт old-id", OptimizeLogic.DescribeSource("tweak:old-id", Title));
+        Assert.Equal("изменение в разделе «Службы»", OptimizeLogic.DescribeSource("services", Title));
+        Assert.Equal("изменение в разделе «Автозапуск»", OptimizeLogic.DescribeSource("startup-tasks", Title));
+        Assert.Equal("игровой сеанс MONOLITH", OptimizeLogic.DescribeSource("gameboost", Title));
+        Assert.Equal("изменение «custom»", OptimizeLogic.DescribeSource("custom", Title));
+    }
+
+    // ───────────────────────────── Honest texts ─────────────────────────────
+
+    [Fact]
+    public void Restore_point_is_never_promised_unconditionally()
+    {
+        Assert.Contains("отключена в настройках", OptimizeLogic.RestorePointBarNote(false, true));
+        Assert.Contains("точки восстановления не будет", OptimizeLogic.RestorePointBarNote(true, false));
+        Assert.Contains("запросит", OptimizeLogic.RestorePointBarNote(true, true));
+        Assert.Contains("запросит", OptimizeLogic.RestorePointBarNote(true, null));
+        Assert.DoesNotContain("будет создана", OptimizeLogic.RestorePointBarNote(true, true));
+
+        Assert.Contains("отключена в настройках", OptimizeLogic.RestorePointFootnote(false, true));
+        Assert.Contains("точки восстановления не будет", OptimizeLogic.RestorePointFootnote(true, false));
+        var on = OptimizeLogic.RestorePointFootnote(true, true);
+        Assert.Contains("покажет итог", on);
+        Assert.DoesNotContain("будет создана", on);
+    }
+
+    [Fact]
+    public void Apply_result_shows_the_real_restore_point_outcome()
+    {
+        Assert.Equal("Точка восстановления создана (27.10 14:03).",
+            OptimizeLogic.RestorePointResultLine("Точка восстановления создана (27.10 14:03).", true));
+
+        var disabled = OptimizeLogic.RestorePointResultLine("Защита системы отключена — точка восстановления не создана. Включите её в «Восстановлении».", true);
+        Assert.StartsWith("Защита системы отключена", disabled);
+        Assert.EndsWith("Откат настроек — через журнал MONOLITH.", disabled);
+        Assert.DoesNotContain("..", disabled);
+
+        var skipped = OptimizeLogic.RestorePointResultLine("Windows не создала новую точку (недавно уже была создана).", true);
+        Assert.Contains("через журнал MONOLITH", skipped);
+
+        Assert.Contains("отключено в настройках", OptimizeLogic.RestorePointResultLine(null, false));
+        Assert.DoesNotContain("отключено в настройках", OptimizeLogic.RestorePointResultLine("", true));
+    }
+
+    [Fact]
+    public void Undo_text_never_promises_to_bring_deleted_data_back()
+    {
+        var plain = OptimizeLogic.UndoText(null, null);
+        Assert.Contains("точно такими, какими они были", plain);
+
+        var restart = OptimizeLogic.UndoText("нужна перезагрузка", null);
+        Assert.Contains("После отката тоже нужна перезагрузка.", restart);
+
+        var note = TweakCatalog.DataLossNote(TweakCatalog.Find("recall-snapshots-off")!)!;
+        var lossy = OptimizeLogic.UndoText("нужен выход из системы", note);
+        Assert.DoesNotContain("точно такими", lossy);
+        Assert.Contains("не удалённые данные", lossy);
+        Assert.Contains(note, lossy);
+        Assert.Contains("После отката тоже нужен выход из системы.", lossy);
+    }
+
+    [Fact]
+    public void Select_all_never_picks_expert_or_data_deleting_items()
+    {
+        Assert.True(OptimizeLogic.IsBulkSelectable(Tweak("a", "A"), applicable: true));
+        Assert.True(OptimizeLogic.IsBulkSelectable(Tweak("b", "B", risk: TweakRisk.Optional), applicable: true));
+        Assert.False(OptimizeLogic.IsBulkSelectable(Tweak("a", "A"), applicable: false));
+        Assert.False(OptimizeLogic.IsBulkSelectable(Tweak("c", "C", risk: TweakRisk.Advanced), applicable: true));
+        Assert.False(OptimizeLogic.IsBulkSelectable(TweakCatalog.Find("recall-snapshots-off")!, applicable: true));
+    }
+
     // ───────────────────────────── Custom selection store ─────────────────────────────
 
     [Fact]

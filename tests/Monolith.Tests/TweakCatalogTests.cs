@@ -289,8 +289,12 @@ public sealed class TweakCatalogTests : IDisposable
         [
             TweakCatalog.SpiScript(flagsOff, 0),
             TweakCatalog.SpiScript(flagsOn, 1),
+            TweakCatalog.SpiApplyScript(flagsOff, 0, flagsOn, 1),
             TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", "1"),
             TweakCatalog.DxTokenScript("VRROptimizeEnable", null),
+            TweakCatalog.DnsScript(AdapterGuid, false, ["1.1.1.1", "1.0.0.1"], rollback: []),
+            TweakCatalog.DnsScript(AdapterGuid, true, ["2606:4700:4700::1111", "2606:4700:4700::1001"], rollback: ["fe80::1"]),
+            TweakCatalog.DnsScript(AdapterGuid, false, []),
         ];
         foreach (var script in scripts)
         {
@@ -310,7 +314,10 @@ public sealed class TweakCatalogTests : IDisposable
     {
         var flags = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, true)).ToList();
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.SpiScript(flags, 1)).Length < 8000);
+        Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.SpiApplyScript(flags, 1, flags, 1)).Length < 8000);
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", "1")).Length < 8000);
+        Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript(AdapterGuid, true,
+            ["2606:4700:4700::1111", "2606:4700:4700::1001"], rollback: ["2001:db8::1", "2001:db8::2", "2001:db8::3"])).Length < 8000);
     }
 
     [Fact]
@@ -335,9 +342,12 @@ public sealed class TweakCatalogTests : IDisposable
     public void Spi_script_sets_every_flag_and_the_window_animation()
     {
         var script = TweakCatalog.SpiScript(TweakCatalog.VisualEffectFlags.Select(f => (f.Set, false)).ToList(), 0);
-        foreach (var f in TweakCatalog.VisualEffectFlags) Assert.Contains($"0x{f.Set:X},0,[IntPtr]0,3", script);
+        var actions = string.Join(",", TweakCatalog.VisualEffectFlags.Select(f => $"0x{f.Set:X}"));
+        var off = string.Join(",", TweakCatalog.VisualEffectFlags.Select(_ => "0"));
+        Assert.Contains($"$fl=@({actions});$fv=@({off});", script);
+        Assert.Contains("[Monolith.Spi]::Set($fl[$k],0,[IntPtr]($fv[$k]),3)", script);
         Assert.Contains("SetAnimation(0x49,8,[int[]]@(8,0),3)", script);
-        Assert.DoesNotContain("0x1003,0,[IntPtr]1", script);
+        Assert.DoesNotContain("$fv=@(1", script);
     }
 
     [Fact]
@@ -387,22 +397,286 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.True(TweakCatalog.SameServers([], []));
     }
 
-    [Fact]
-    public void Dns_commands_set_static_lists_or_return_to_dhcp()
-    {
-        var dhcp = TweakCatalog.DnsCommand("ipv4", 12, []);
-        Assert.EndsWith("interface ipv4 set dnsservers name=12 source=dhcp", dhcp);
+    private const string AdapterGuid = "{4D36E972-E325-11CE-BFC1-08002BE10318}";
 
-        var stat = TweakCatalog.DnsCommand("ipv6", 7, ["2606:4700:4700::1111", "2606:4700:4700::1001"]);
-        Assert.Contains("interface ipv6 set dnsservers name=7 source=static address=2606:4700:4700::1111 register=primary validate=no", stat);
-        Assert.Contains("interface ipv6 add dnsservers name=7 address=2606:4700:4700::1001 index=2 validate=no", stat);
-        Assert.Contains("netsh.exe\"", stat);
+    [Fact]
+    public void Dns_scripts_set_static_lists_or_return_to_dhcp_on_the_adapter_found_by_guid()
+    {
+        var dhcp = TweakCatalog.DnsScript(AdapterGuid, false, []);
+        Assert.Contains($"$g='{AdapterGuid}'", dhcp);
+        Assert.Contains("GetIPv4Properties()", dhcp);
+        Assert.Contains("'interface' 'ipv4' 'set' 'dnsservers' \"name=$i\" 'source=dhcp'", dhcp);
+        Assert.Contains("netsh.exe'", dhcp);
+        Assert.Contains("'/flushdns'", dhcp);
+
+        var stat = TweakCatalog.DnsScript(AdapterGuid.ToLowerInvariant(), true, ["2606:4700:4700::1111", "2606:4700:4700::1001"]);
+        Assert.Contains($"$g='{AdapterGuid}'", stat); // normalized spelling
+        Assert.Contains("GetIPv6Properties()", stat);
+        Assert.Contains("'interface' 'ipv6' 'set' 'dnsservers' \"name=$i\" 'source=static' 'address=2606:4700:4700::1111' 'register=primary' 'validate=no'", stat);
+        Assert.Contains("'interface' 'ipv6' 'add' 'dnsservers' \"name=$i\" 'address=2606:4700:4700::1001' 'index=2' 'validate=no'", stat);
+        // The interface index is never frozen into the script: it is looked up from the GUID when the script runs.
+        Assert.DoesNotMatch(@"name=\d", stat);
     }
 
     [Fact]
-    public void Dns_commands_reject_anything_that_is_not_an_ip_address()
+    public void Dns_apply_script_rolls_back_to_the_previous_servers_on_failure()
     {
-        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsCommand("ipv4", 3, ["1.1.1.1 & calc"]));
+        var script = TweakCatalog.DnsScript(AdapterGuid, false, ["1.1.1.1", "1.0.0.1"], rollback: []);
+        Assert.Contains("$mChanged=0;try{", script);
+        Assert.Contains("'source=dhcp'", script); // the rollback branch puts DHCP back
+        Assert.True(script.IndexOf("'address=1.1.1.1'", StringComparison.Ordinal) < script.IndexOf("'source=dhcp'", StringComparison.Ordinal));
+        Assert.DoesNotContain("$mChanged=0", TweakCatalog.DnsScript(AdapterGuid, false, [])); // undo scripts need no rollback
+    }
+
+    [Fact]
+    public void Dns_scripts_reject_anything_that_is_not_an_ip_address_or_a_guid()
+    {
+        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsScript(AdapterGuid, false, ["1.1.1.1 & calc"]));
+        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsScript(AdapterGuid, false, ["1.1.1.1"], rollback: ["8.8.8.8';calc;'"]));
+        Assert.Throws<InvalidOperationException>(() => TweakCatalog.DnsScript("{x}'; calc; '", false, ["1.1.1.1"]));
+    }
+
+    [Fact]
+    public async Task Dns_script_fails_without_touching_anything_when_the_adapter_is_gone()
+    {
+        // A GUID that belongs to no adapter: the lookup throws before any netsh call.
+        var script = TweakCatalog.DnsScript(Guid.NewGuid().ToString("B"), false, ["1.1.1.1"], rollback: []);
+        var r = await ProcessRunner.RunAsync(TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(script),
+            new ProcessRunOptions { Encoding = OutputEncoding.Utf8, LogCommand = false, Timeout = TimeSpan.FromSeconds(60) });
+        Assert.Equal(1, r.ExitCode);
+        Assert.Contains("не найден", r.Combined);
+    }
+
+    [Fact]
+    public async Task Dns_adapter_lookup_finds_the_current_interface_index()
+    {
+        // Read-only: resolves the index of a real interface from its GUID exactly like the undo script does.
+        var nic = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(n =>
+        {
+            try { return Guid.TryParse(n.Id, out _) && n.Supports(System.Net.NetworkInformation.NetworkInterfaceComponent.IPv4) && n.GetIPProperties().GetIPv4Properties() is not null; }
+            catch { return false; }
+        });
+        if (nic is null) return; // no IPv4 interface on this machine
+        var expected = nic.GetIPProperties().GetIPv4Properties()!.Index;
+
+        var script = TweakCatalog.DnsResolveIndexScript(nic.Id, false) + "Write-Output ('IDX='+$i)";
+        var r = await ProcessRunner.RunAsync(TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(script),
+            new ProcessRunOptions { Encoding = OutputEncoding.Utf8, LogCommand = false, Timeout = TimeSpan.FromSeconds(60) });
+        Assert.True(r.Success, r.Combined);
+        Assert.Contains($"IDX={expected}", r.StdOut);
+    }
+
+    // ───────────────────────────── Self-rollback of multi-step commands ─────────────────────────────
+
+    private static async Task<ProcessResult> RunPs(string script) =>
+        await ProcessRunner.RunAsync(TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(script),
+            new ProcessRunOptions { Encoding = OutputEncoding.Utf8, LogCommand = false, Timeout = TimeSpan.FromSeconds(60) });
+
+    [Fact]
+    public async Task Self_rollback_script_restores_and_fails_after_a_partial_change()
+    {
+        var r = await RunPs(TweakCatalog.SelfRollbackScript("Write-Output STEP1;$mChanged++;throw 'шаг 2'", "Write-Output ROLLBACK", "оставлено"));
+        Assert.Equal(1, r.ExitCode);
+        Assert.Contains("STEP1", r.StdOut);
+        Assert.Contains("ROLLBACK", r.StdOut);
+        Assert.Contains("шаг 2", r.Combined);
+    }
+
+    [Fact]
+    public async Task Self_rollback_script_does_nothing_extra_when_the_first_step_fails()
+    {
+        var r = await RunPs(TweakCatalog.SelfRollbackScript("throw 'шаг 1'", "Write-Output ROLLBACK", "оставлено"));
+        Assert.Equal(1, r.ExitCode);
+        Assert.DoesNotContain("ROLLBACK", r.StdOut);
+    }
+
+    [Fact]
+    public async Task Self_rollback_script_keeps_the_journal_record_when_the_rollback_fails_too()
+    {
+        // Exit code 0 = ChangeSession keeps the record, so the half-applied change can still be undone.
+        var r = await RunPs(TweakCatalog.SelfRollbackScript("$mChanged++;throw 'шаг 2'", "throw 'откат'", "ЗАПИСЬ ОСТАВЛЕНА"));
+        Assert.Equal(0, r.ExitCode);
+        Assert.Contains("ЗАПИСЬ ОСТАВЛЕНА", r.Combined);
+    }
+
+    [Fact]
+    public async Task Self_rollback_script_succeeds_normally()
+    {
+        var r = await RunPs(TweakCatalog.SelfRollbackScript("Write-Output DONE;$mChanged++", "Write-Output ROLLBACK", "оставлено"));
+        Assert.Equal(0, r.ExitCode);
+        Assert.DoesNotContain("ROLLBACK", r.StdOut);
+    }
+
+    private static async Task<ProcessResult> RunCmd(string line) =>
+        await ProcessRunner.RunAsync(ProcessRunner.Sys("cmd.exe"), TweakCatalog.CmdArgs(line),
+            new ProcessRunOptions { Encoding = OutputEncoding.Oem, LogCommand = false, Timeout = TimeSpan.FromSeconds(30) });
+
+    private static readonly string Ok = $"\"{ProcessRunner.Sys("cmd.exe")}\" /d /c exit 0";
+    private static readonly string Fail = $"\"{ProcessRunner.Sys("cmd.exe")}\" /d /c exit 1";
+
+    [Fact]
+    public async Task Write_activate_command_succeeds_when_both_steps_succeed()
+    {
+        var r = await RunCmd(TweakCatalog.WriteActivateOrRollbackCmd($"(echo WRITE&{Ok})", $"(echo ACT&{Ok})", "echo BACK"));
+        Assert.Equal(0, r.ExitCode);
+        Assert.DoesNotContain("BACK", r.StdOut);
+    }
+
+    [Fact]
+    public async Task Write_activate_command_fails_without_activation_when_the_write_fails()
+    {
+        var r = await RunCmd(TweakCatalog.WriteActivateOrRollbackCmd($"(echo WRITE&{Fail})", "echo ACT", "echo BACK"));
+        Assert.NotEqual(0, r.ExitCode);
+        Assert.DoesNotContain("ACT", r.StdOut);
+        Assert.DoesNotContain("BACK", r.StdOut);
+    }
+
+    [Fact]
+    public async Task Write_activate_command_writes_back_and_fails_when_activation_fails()
+    {
+        var r = await RunCmd(TweakCatalog.WriteActivateOrRollbackCmd("echo WRITE", $"(echo ACT&{Fail})", "echo BACK"));
+        Assert.Equal(1, r.ExitCode);
+        Assert.Contains("BACK", r.StdOut);
+    }
+
+    [Fact]
+    public async Task Write_activate_command_keeps_the_record_when_the_write_back_fails_too()
+    {
+        // Value changed, activation and write-back failed: success (exit 0) keeps the journal record and its undo.
+        var r = await RunCmd(TweakCatalog.WriteActivateOrRollbackCmd("echo WRITE", $"(echo ACT&{Fail})", $"(echo BACK&{Fail})"));
+        Assert.Equal(0, r.ExitCode);
+        Assert.Contains("BACK", r.StdOut);
+    }
+
+    [Fact]
+    public void Power_setting_command_writes_back_the_original_value_when_activation_fails()
+    {
+        var scheme = Guid.NewGuid();
+        var sub = Guid.NewGuid();
+        var setting = Guid.NewGuid();
+        var apply = TweakCatalog.PowerSettingApplyCmd(scheme, sub, setting, 0, 3);
+        Assert.Contains($"/setacvalueindex {scheme:D} {sub:D} {setting:D} 0 && (", apply);
+        Assert.Contains($"/setacvalueindex {scheme:D} {sub:D} {setting:D} 3 && (", apply);
+        Assert.Contains("/setactive SCHEME_CURRENT", apply);
+        Assert.Contains("exit /b 1", apply);
+        Assert.Contains("exit /b 0", apply);
+
+        var revert = TweakCatalog.PowerSettingRevertCmd(scheme, sub, setting, 3);
+        Assert.Contains($"/setacvalueindex {scheme:D} {sub:D} {setting:D} 3 && ", revert);
+        Assert.DoesNotContain("exit /b", revert);
+    }
+
+    [Fact]
+    public void Visual_effects_apply_script_rolls_back_and_defines_the_type_first()
+    {
+        var off = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, false)).ToList();
+        var on = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, true)).ToList();
+        var script = TweakCatalog.SpiApplyScript(off, 0, on, 1);
+        Assert.StartsWith(TweakCatalog.SpiTypeDefinition, script);
+        var rollback = script.IndexOf("$mBack=$true", StringComparison.Ordinal);
+        Assert.True(rollback > 0);
+        var allOn = string.Join(",", TweakCatalog.VisualEffectFlags.Select(_ => "1"));
+        Assert.Contains($"$fv=@({allOn})", script[rollback..]); // original flags are put back in the rollback branch
+        Assert.Contains("SetAnimation(0x49,8,[int[]]@(8,1),3)", script[rollback..]);
+        Assert.DoesNotContain($"$fv=@({allOn})", script[..rollback]);
+    }
+
+    /// <summary>
+    /// A stand-in for the SystemParametersInfo wrapper: same type name and signatures, but it only prints each call
+    /// (and fails the call number <c>FailAt</c>). Defined first, the real P/Invoke type is then skipped by the script.
+    /// </summary>
+    private const string FakeSpiType =
+        "Add-Type -TypeDefinition 'namespace Monolith { public static class Spi { public static int N = 0; public static int FailAt = -1; " +
+        "public static bool Set(uint a, uint u, System.IntPtr p, uint f) { N++; System.Console.WriteLine(\"CALL S\" + a.ToString(\"X\") + \"=\" + p.ToInt64()); return N != FailAt; } " +
+        "public static bool SetAnimation(uint a, uint u, int[] p, uint f) { N++; System.Console.WriteLine(\"CALL A=\" + p[1]); return N != FailAt; } } }';";
+
+    [Theory]
+    [InlineData(-1, 0, 9)]  // all calls succeed: 8 flags + animation
+    [InlineData(1, 1, 1)]   // the first call fails: nothing changed, no rollback
+    [InlineData(3, 1, 12)]  // the third call fails: 3 calls, then 8 flags + animation put back
+    public async Task Visual_effects_apply_script_restores_the_original_flags_after_a_partial_failure(int failAt, int exitCode, int calls)
+    {
+        var off = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, false)).ToList();
+        var on = TweakCatalog.VisualEffectFlags.Select(f => (f.Set, true)).ToList();
+        var r = await RunPs(FakeSpiType + $"[Monolith.Spi]::FailAt={failAt};" + TweakCatalog.SpiApplyScript(off, 0, on, 2));
+
+        Assert.Equal(exitCode, r.ExitCode);
+        var lines = r.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                     .Where(l => l.StartsWith("CALL ", StringComparison.Ordinal)).ToList();
+        Assert.Equal(calls, lines.Count);
+        Assert.Equal($"CALL S{TweakCatalog.VisualEffectFlags[0].Set:X}=0", lines[0]);
+        if (failAt == 3)
+        {
+            Assert.All(lines.Skip(3).Take(8), l => Assert.EndsWith("=1", l)); // original "on" values written back
+            Assert.Equal("CALL A=2", lines[^1]);                              // and the original window animation
+        }
+        if (failAt == -1) Assert.Equal("CALL A=0", lines[^1]);
+    }
+
+    // ───────────────────────────── Honest classification ─────────────────────────────
+
+    [Fact]
+    public void Data_deleting_tweaks_are_marked_and_never_preselected()
+    {
+        Assert.NotEmpty(TweakCatalog.DataLossIds);
+        foreach (var id in TweakCatalog.DataLossIds)
+        {
+            var t = TweakCatalog.Find(id);
+            Assert.NotNull(t);
+            Assert.NotEqual(TweakRisk.Safe, t!.Risk);
+            Assert.Equal(ProfileSet.None, t.DefaultIn);
+            var note = TweakCatalog.DataLossNote(t);
+            Assert.False(string.IsNullOrWhiteSpace(note));
+            Assert.Matches("[А-Яа-я]", note!);
+            Assert.Contains("откат", note, StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.Contains("recall-snapshots-off", TweakCatalog.DataLossIds);
+        Assert.Null(TweakCatalog.DataLossNote(TweakCatalog.Find("game-mode")!));
+    }
+
+    [Fact]
+    public void Recall_item_says_that_deleted_snapshots_do_not_come_back()
+    {
+        var recall = TweakCatalog.Find("recall-snapshots-off")!;
+        Assert.Contains("удалены", recall.Description);
+        Assert.Contains("не вернутся", recall.Details);
+    }
+
+    [Fact]
+    public void Diagtrack_manual_matches_the_services_page_classification()
+    {
+        var t = TweakCatalog.Find("diagtrack-manual")!;
+        Assert.Equal(TweakRisk.Optional, t.Risk);
+        Assert.Equal(ProfileSet.None, t.DefaultIn);
+        foreach (var kind in Enum.GetValues<ProfileKind>())
+            Assert.DoesNotContain(TweakCatalog.DefaultsFor(kind), x => x.Id == "diagtrack-manual");
+        Assert.Contains("Центра отзывов", t.Details);
+        Assert.Contains("Только обязательная диагностика", t.Details);
+    }
+
+    [Fact]
+    public void Delivery_optimization_is_recommended_but_not_sold_as_a_gaming_boost()
+    {
+        var t = TweakCatalog.Find("delivery-optimization-local")!;
+        Assert.True(t.DefaultIn.HasFlag(ProfileSet.Recommended));
+        Assert.False(t.DefaultIn.HasFlag(ProfileSet.Gaming));
+        Assert.DoesNotContain("мешать онлайн-играм", t.Details);
+        Assert.Contains("локальной сети", t.Details);
+    }
+
+    [Fact]
+    public void Windows_game_mode_is_never_called_just_igrovoy_rezhim_in_running_text()
+    {
+        // «Игровой режим» alone is the name of MONOLITH's game boost; the Windows feature is always «игровой режим Windows».
+        var bare = new Regex(@"игров\w* (?>режим\w*)(?! Windows)", RegexOptions.IgnoreCase);
+        foreach (var t in TweakCatalog.All)
+        {
+            foreach (var text in new[] { t.Description, t.Details, t.Warning ?? "" })
+            {
+                var cleaned = text.Replace("Параметры → Игры → Игровой режим", "", StringComparison.Ordinal);
+                Assert.False(bare.IsMatch(cleaned), $"{t.Id}: «{cleaned}»");
+            }
+        }
     }
 
     // ───────────────────────────── Background apps ─────────────────────────────

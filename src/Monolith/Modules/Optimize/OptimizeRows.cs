@@ -132,10 +132,14 @@ public sealed partial class SectionRow : ObservableObject
     {
         var applied = _items.Count(i => i.IsApplied);
         CountText = $"{_items.Count} {OptimizeLogic.Plural(_items.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")} · {applied} ПРИМЕНЕНО";
-        var selectable = _items.Where(i => i.IsApplicable).ToList();
-        HasSelectable = selectable.Count > 0;
-        var checkedCount = selectable.Count(i => i.IsChecked);
-        CheckState = checkedCount == 0 ? false : checkedCount == selectable.Count ? true : null;
+        // "Select all" covers only bulk-selectable items; an item that deletes data and is ticked by hand shows as "some".
+        var bulk = _items.Where(i => i.IsBulkSelectable).ToList();
+        HasSelectable = bulk.Count > 0;
+        var checkedBulk = bulk.Count(i => i.IsChecked);
+        var otherChecked = _items.Any(i => i.IsChecked && !i.IsBulkSelectable);
+        CheckState = HasSelectable && checkedBulk == bulk.Count ? true
+            : checkedBulk == 0 && !otherChecked ? false
+            : null;
     }
 
     [RelayCommand]

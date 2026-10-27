@@ -19,10 +19,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     public override string Key => "optimize";
     public override string Index => "02";
     public override string Title => "ОПТИМИЗАЦИЯ";
-    public override string Subtitle => "Выберите профиль, проверьте изменения и примените. Любой пункт откатывается в один клик.";
+    public override string Subtitle => "Выберите профиль, проверьте и примените. Настройки откатываются в один клик; необратимое помечено.";
     public override string Glyph => Glyphs.Bolt;
-
-    private const string SourcePrefix = "tweak:";
 
     private readonly List<TweakItemViewModel> _items = [];
     private readonly Dictionary<TweakCategory, SectionRow> _sections = [];
@@ -40,6 +38,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private int _visibleExpert;
     private bool _detected;
     private bool _refreshing;
+    /// <summary>System Protection state read with the last detection (null = not read yet).</summary>
+    private bool? _restoreProtectionOn;
 
     public OptimizeViewModel()
     {
@@ -54,8 +54,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 "Повседневная работа: тише и чище.",
                 "Для работы и учёбы: меньше рекламы, подсказок и фоновой активности. Только безопасные пункты."),
             new ProfileTileViewModel(this, OptimizeProfile.Gaming, "02", "ИГРОВОЙ", "Игровой",
-                "Максимум для игр: приоритет игре.",
-                "Для игр: Windows отдаёт приоритет игре и меньше отвлекает во время игры. Только проверенные пункты без компромиссов в безопасности."),
+                "Для игр: меньше фоновых помех.",
+                "Для игр: Windows меньше отвлекает и мешает во время игры. Прирост FPS от этих пунктов обычно небольшой — честные цифры " +
+                "указаны в описании каждого. Только проверенные пункты без компромиссов в безопасности."),
             new ProfileTileViewModel(this, OptimizeProfile.Recommended, "03", "РЕКОМЕНДУЕМЫЙ", "Рекомендуемый",
                 "Безопасный баланс для любого ПК.",
                 "Проверенные настройки без компромиссов: подходят и для работы, и для игр. Выбран по умолчанию.", "ПО УМОЛЧАНИЮ"),
@@ -152,6 +153,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     protected override async Task LoadAsync()
     {
         var (tweaks, saved) = await Task.Run(() => (TweakCatalog.All, CustomSelectionStore.Load()));
+        // Items that delete data are never restored from a saved selection: they must be ticked deliberately each time.
+        saved?.ExceptWith(TweakCatalog.DataLossIds);
         BuildCatalog(tweaks);
 
         var profile = OptimizeLogic.ParseProfile(AppSettings.Current.LastProfile);
@@ -213,6 +216,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 var tweaks = _items.Select(i => i.Tweak).ToList();
                 var states = await TweakEngine.DetectAllAsync(tweaks);
                 var revertable = await Task.Run(() => tweaks.Where(TweakEngine.CanRevert).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
+                _restoreProtectionOn = await Task.Run(RestorePointService.IsEnabled);
                 foreach (var i in _items)
                 {
                     i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
@@ -313,8 +317,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
     {
         _saveTimer.Stop();
         if (_customSelection is null) return;
-        var advanced = _items.Where(i => i.IsAdvanced).Select(i => i.Id).ToHashSet(StringComparer.Ordinal);
-        var ids = _customSelection.Where(id => !advanced.Contains(id)).ToList();
+        // Expert items need their warning accepted again and data-deleting items must be ticked again: neither is remembered.
+        var notRemembered = _items.Where(i => i.IsAdvanced || i.HasDataLoss).Select(i => i.Id).ToHashSet(StringComparer.Ordinal);
+        var ids = _customSelection.Where(id => !notRemembered.Contains(id)).ToList();
         _ = Task.Run(() => CustomSelectionStore.Save(ids));
     }
 
@@ -333,12 +338,22 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (item.SetChecked(true)) OnSelectionEditedByUser();
     }
 
+    /// <summary>
+    /// "Select all" of a section. Checking never picks expert items or items that delete data (each needs a deliberate
+    /// click of its own); unchecking clears every item of the section.
+    /// </summary>
     internal void ToggleSection(SectionRow section)
     {
-        var selectable = section.Items.Where(i => i.IsApplicable && !i.IsAdvanced).ToList();
-        if (selectable.Count == 0) return;
-        var check = !selectable.All(i => i.IsChecked);
-        foreach (var i in selectable) i.SetChecked(check);
+        var bulk = section.Items.Where(i => i.IsBulkSelectable).ToList();
+        if (bulk.Count == 0) return;
+        if (!bulk.All(i => i.IsChecked))
+        {
+            foreach (var i in bulk) i.SetChecked(true);
+        }
+        else
+        {
+            foreach (var i in section.Items.Where(i => i.IsApplicable)) i.SetChecked(false);
+        }
         OnSelectionEditedByUser();
     }
 
@@ -463,10 +478,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var restart = RestartCount > 0
             ? $" · {RestartCount} {OptimizeLogic.Plural(RestartCount, "требует", "требуют", "требуют")} перезапуска"
             : "";
-        var rp = AppSettings.Current.CreateRestorePoints
-            ? " · перед изменениями будет создана точка восстановления"
-            : " · точка восстановления отключена в настройках";
-        return $"Профиль «{CurrentTile.SentenceName}»{restart}{rp}.";
+        var loss = _items.Any(i => i.IsPending && i.HasDataLoss) ? " · есть необратимое удаление данных" : "";
+        var rp = " · " + OptimizeLogic.RestorePointBarNote(AppSettings.Current.CreateRestorePoints, _restoreProtectionOn);
+        return $"Профиль «{CurrentTile.SentenceName}»{restart}{loss}{rp}.";
     }
 
     // ───────────────────────────── Commands: state ─────────────────────────────
@@ -516,16 +530,22 @@ public sealed partial class OptimizeViewModel : PageViewModel
             return;
         }
         var alreadyApplied = _items.Count(i => i.IsChecked && i.IsApplied);
+        var lossy = targets.Where(t => t.HasDataLoss).ToList();
+
+        // Deleting data cannot be undone: always ask, separately and as a danger, even with confirmations turned off.
+        if (lossy.Count > 0 && !await ConfirmDataLossAsync(lossy)) return;
 
         if (AppSettings.Current.ConfirmBeforeApply)
         {
             var footnote = await RestorePointFootnoteAsync();
-            var message = "MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому любой пункт можно откатить."
+            var message = "MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал — " +
+                          "настройку можно откатить кнопкой «ОТКАТИТЬ» или в «Восстановлении»."
+                          + (lossy.Count > 0 ? " Исключение — удалённые данные: их откат не вернёт." : "")
                           + (alreadyApplied > 0 ? $" Уже применённые пункты ({alreadyApplied}) не трогаются." : "");
             var ok = await Ui.ConfirmAsync(
                 $"ПРИМЕНИТЬ {targets.Count} {OptimizeLogic.Plural(targets.Count, "ИЗМЕНЕНИЕ", "ИЗМЕНЕНИЯ", "ИЗМЕНЕНИЙ")}?",
                 message, targets.Select(DescribeForConfirm), confirmText: "ПРИМЕНИТЬ", cancelText: "ОТМЕНА",
-                danger: targets.Any(t => t.IsAdvanced), footnote: footnote);
+                danger: targets.Any(t => t.IsAdvanced) || lossy.Count > 0, footnote: footnote);
             if (!ok) return;
         }
 
@@ -552,26 +572,37 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (t.State == TweakState.Partial) parts[0] += " (сейчас применено частично)";
         parts.Add(t.RiskText.ToLowerInvariant());
         if (t.HasRestart) parts.Add(t.Tweak.RestartText);
+        if (t.HasDataLoss) parts.Add("удаляет данные безвозвратно");
         return string.Join(" · ", parts);
     }
 
-    private static async Task<string> RestorePointFootnoteAsync()
+    /// <summary>The dedicated danger confirmation for items that delete user data (shown even when confirmations are off).</summary>
+    private static Task<bool> ConfirmDataLossAsync(IReadOnlyList<TweakItemViewModel> lossy)
     {
-        if (!AppSettings.Current.CreateRestorePoints)
-            return "Точка восстановления отключена в настройках. Откат — через журнал MONOLITH.";
-        var enabled = await Task.Run(RestorePointService.IsEnabled);
-        return enabled
-            ? "Перед изменениями будет создана точка восстановления Windows."
-            : "Защита системы выключена — точки восстановления не будет. Откат — через журнал MONOLITH.";
+        var message = lossy.Count == 1
+            ? $"Пункт «{lossy[0].Title}» не только меняет настройку, но и удаляет данные. Настройку можно будет откатить, удалённые данные — нет."
+            : "Эти пункты не только меняют настройки, но и удаляют данные. Настройки можно будет откатить, удалённые данные — нет.";
+        return Ui.ConfirmAsync("ДАННЫЕ БУДУТ УДАЛЕНЫ НАВСЕГДА", message,
+            lossy.Select(t => $"«{t.Title}»: {t.DataLossNote}"),
+            confirmText: "ПОНИМАЮ, ПРОДОЛЖИТЬ", cancelText: "ОТМЕНА", danger: true,
+            footnote: $"Не хотите терять данные — нажмите «ОТМЕНА» и снимите отметку {(lossy.Count == 1 ? "с этого пункта" : "с этих пунктов")}. " +
+                      "Это предупреждение показывается всегда, даже если подтверждения отключены в настройках.");
+    }
+
+    private async Task<string> RestorePointFootnoteAsync()
+    {
+        var settingOn = AppSettings.Current.CreateRestorePoints;
+        if (!settingOn) return OptimizeLogic.RestorePointFootnote(false, false);
+        // Read it again right before applying: protection may have been switched on or off since the last check.
+        _restoreProtectionOn = await Task.Run(RestorePointService.IsEnabled);
+        return OptimizeLogic.RestorePointFootnote(true, _restoreProtectionOn == true);
     }
 
     private async Task ShowApplyResultAsync(TweakRunResult result, IReadOnlyList<TweakItemViewModel> targets)
     {
         var lines = new List<string>
         {
-            string.IsNullOrWhiteSpace(result.RestorePoint)
-                ? "Точка восстановления не создавалась (отключено в настройках). Откат — через журнал MONOLITH."
-                : result.RestorePoint!,
+            OptimizeLogic.RestorePointResultLine(result.RestorePoint, AppSettings.Current.CreateRestorePoints),
         };
         foreach (var t in targets)
         {
@@ -590,16 +621,24 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var message = $"Подтверждено {verified} из {targets.Count} {OptimizeLogic.Plural(targets.Count, "пункта", "пунктов", "пунктов")}, " +
                       $"изменено параметров системы: {result.Applied}." +
                       (result.Skipped > 0 ? $" Пропущено как неподходящие для этого ПК: {result.Skipped}." : "") +
-                      " Откатить можно кнопкой «ОТКАТИТЬ» у пункта или в разделе «Восстановление».";
+                      " Откатить настройки можно кнопкой «ОТКАТИТЬ» у пункта или в разделе «Восстановление»." +
+                      (targets.Any(t => t.HasDataLoss) ? " Удалённые данные откат не вернёт." : "");
         await Ui.AlertAsync(title, message, lines);
     }
 
     // ───────────────────────────── Revert ─────────────────────────────
 
+    /// <summary>
+    /// Row «ОТКАТИТЬ». Uses the same rule as <see cref="TweakEngine.CanRevert"/> and <see cref="TweakEngine.RevertAsync(Tweak)"/>:
+    /// every active record the item touched, including records it shares with another item that changed the same setting
+    /// first (e.g. «Максимальная производительность» after «Высокая производительность»: both change the active power plan).
+    /// Restoring a shared record also undoes the other item, so the confirmation names it.
+    /// </summary>
     internal async Task RevertOneAsync(TweakItemViewModel item)
     {
         if (!RequireAdmin("Откат изменений")) return;
-        var records = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == SourcePrefix + item.Id).ToList();
+        var own = new[] { OptimizeLogic.SourceOf(item.Id) };
+        var records = OptimizeLogic.RecordsTouchedBy(ChangeJournal.Instance.ActiveRecords, own);
         if (records.Count == 0)
         {
             Ui.Toast("Для этого пункта нет изменений MONOLITH, которые можно откатить.", ToastKind.Info);
@@ -607,16 +646,24 @@ public sealed partial class OptimizeViewModel : PageViewModel
             return;
         }
 
+        var shared = OptimizeLogic.SharedSources(records, own);
+        var details = records.Select(DescribeRecord).ToList();
+        if (shared.Count > 0) details.Add(AlsoRevertsLine(shared));
+        var affected = new List<TweakItemViewModel> { item };
+        affected.AddRange(ItemsOf(shared));
+        var restart = affected.Select(t => t.Tweak.Restart).Max();
+
         var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?",
-            $"«{item.Title}»: MONOLITH вернёт значения, которые были до применения.",
-            records.Select(DescribeRecord), confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
-            footnote: item.HasRestart ? $"После отката {item.Tweak.RestartText}." : null);
+            $"«{item.Title}»: MONOLITH вернёт значения, которые были до применения." +
+            (shared.Count > 0 ? " Этот параметр меняли и другие пункты — исходное значение одно, поэтому вернётся и их изменение." : ""),
+            details, confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
+            footnote: restart != RestartRequirement.None ? $"После отката {RestartTextOf(restart)}." : null);
         if (!ok) return;
 
         RevertResult? result = null;
         await RunBusyAsync($"Откат: {item.Title}…", async () => result = await TweakEngine.RevertAsync(item.Tweak));
         await RefreshStatesAsync();
-        await ReportRevertAsync(result, [item]);
+        await ReportRevertAsync(result, affected);
     }
 
     [RelayCommand(CanExecute = nameof(CanRevertSelected))]
@@ -633,10 +680,15 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var active = ChangeJournal.Instance.ActiveRecords;
         var details = targets.Select(t =>
         {
-            var n = active.Count(r => r.Source == SourcePrefix + t.Id);
+            var n = OptimizeLogic.RecordsTouchedBy(active, [OptimizeLogic.SourceOf(t.Id)]).Count;
             return $"{t.Title} — {n} {OptimizeLogic.Plural(n, "параметр", "параметра", "параметров")}";
-        });
-        var restartNote = targets.Any(t => t.HasRestart) ? " Для части пунктов после отката понадобится перезапуск." : "";
+        }).ToList();
+        var own = targets.Select(t => OptimizeLogic.SourceOf(t.Id)).ToHashSet(StringComparer.Ordinal);
+        var shared = OptimizeLogic.SharedSources(OptimizeLogic.RecordsTouchedBy(active, own), own);
+        if (shared.Count > 0) details.Add(AlsoRevertsLine(shared));
+        var affected = targets.Concat(ItemsOf(shared)).ToList();
+
+        var restartNote = affected.Any(t => t.HasRestart) ? " Для части пунктов после отката понадобится перезапуск." : "";
         var ok = await Ui.ConfirmAsync(
             $"ОТКАТИТЬ {targets.Count} {OptimizeLogic.Plural(targets.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")}?",
             "MONOLITH вернёт значения, сохранённые в журнале перед применением." + restartNote,
@@ -646,11 +698,33 @@ public sealed partial class OptimizeViewModel : PageViewModel
         RevertResult? result = null;
         await RunBusyAsync("Откат выбранных изменений…", async () => result = await TweakEngine.RevertAsync(targets.Select(t => t.Tweak)));
         await RefreshStatesAsync();
-        await ReportRevertAsync(result, targets);
+        await ReportRevertAsync(result, affected);
     }
 
     private static string DescribeRecord(ChangeRecord r) =>
         $"{OptimizeLogic.DescribeTarget(r.Target)}: {r.NewValue} → {r.OldValue}";
+
+    /// <summary>"Также откатится: «…», «…»" for the other sources of shared journal records.</summary>
+    private string AlsoRevertsLine(IReadOnlyList<string> sources) =>
+        "Также откатится: " + string.Join(", ", sources.Select(s =>
+            OptimizeLogic.DescribeSource(s, id => _items.FirstOrDefault(i => i.Id == id)?.Title))) +
+        " — тот же параметр, одно исходное значение.";
+
+    /// <summary>Optimize items behind "tweak:…" sources (other sources are not on this page).</summary>
+    private IEnumerable<TweakItemViewModel> ItemsOf(IEnumerable<string> sources)
+    {
+        var ids = sources.Where(s => s.StartsWith("tweak:", StringComparison.Ordinal)).Select(s => s["tweak:".Length..])
+                         .ToHashSet(StringComparer.Ordinal);
+        return _items.Where(i => ids.Contains(i.Id));
+    }
+
+    private static string RestartTextOf(RestartRequirement restart) => restart switch
+    {
+        RestartRequirement.Explorer => "нужен перезапуск Проводника",
+        RestartRequirement.SignOut => "нужен выход из системы",
+        RestartRequirement.Reboot => "нужна перезагрузка",
+        _ => "",
+    };
 
     private async Task ReportRevertAsync(RevertResult? result, IReadOnlyList<TweakItemViewModel> targets)
     {

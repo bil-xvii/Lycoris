@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using Monolith.Core;
 
 namespace Monolith.Tweaks;
@@ -15,18 +16,20 @@ public static partial class TweakCatalog
     private static IEnumerable<Tweak> NetworkTweaks()
     {
         // HTTP-only Delivery Optimization through the Settings-backed value (the policy route would lock the UI).
+        // SAFE-DEFAULT for Recommended (general_tweaks.md §8); SAFE-OPTIONAL for gaming (gaming_tweaks.md): not pre-checked there.
         yield return new RegistryTweak
         {
             Id = "delivery-optimization-local",
             Title = "Обновления без P2P-раздачи",
             Description = "Windows скачивает обновления и приложения Store только с серверов Microsoft и не раздаёт их другим компьютерам.",
             Details = "Соответствует выключенному переключателю Параметры → Центр обновления Windows → Дополнительные параметры → " +
-                      "Оптимизация доставки. Убирает исходящий трафик раздачи, который может мешать онлайн-играм на слабом канале; сами загрузки " +
-                      "работают как прежде. Политика не используется, поэтому переключатель в Параметрах остаётся доступным. Полностью вступает " +
-                      "в силу после перезагрузки.",
+                      "Оптимизация доставки. По умолчанию Windows раздаёт скачанные обновления только компьютерам своей локальной сети, " +
+                      "поэтому на пинг в играх пункт влияет, лишь если раньше была включена раздача через интернет. Польза — меньше " +
+                      "фонового трафика в домашней сети; сами загрузки работают как прежде. Политика не используется, поэтому переключатель " +
+                      "в Параметрах остаётся доступным. Полностью вступает в силу после перезагрузки.",
             Category = TweakCategory.Network,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Recommended,
             Restart = RestartRequirement.Reboot,
             AppliesTo = _ => LmInt(DeliveryOptimizationPolicy, "DODownloadMode") is null,
             NotApplicableReason = "Режим оптимизации доставки задан групповой политикой.",
@@ -132,8 +135,9 @@ public static partial class TweakCatalog
         Description = $"Активные сетевые адаптеры переключаются на DNS-серверы {provider} (IPv4 и IPv6).",
         Details = "Помогает, только если DNS провайдера медленный или ненадёжный: сайты и лаунчеры начинают открываться быстрее. На пинг " +
                   "в играх не влияет. Прежние настройки каждого адаптера (автоматически от роутера или ручные адреса) запоминаются и " +
-                  "возвращаются при откате. Не используйте, если у вас корпоративная сеть или VPN со своим DNS, Pi-hole/AdGuard Home " +
-                  "или родительский контроль на роутере.",
+                  "возвращаются при откате; адаптер откат находит по его постоянному идентификатору, а не по номеру, который Windows " +
+                  "может сменить. Если адаптер к тому времени отключён или удалён, откат сообщит об ошибке и другие адаптеры не тронет. " +
+                  "Не используйте, если у вас корпоративная сеть или VPN со своим DNS, Pi-hole/AdGuard Home или родительский контроль на роутере.",
         Category = TweakCategory.Network,
         Risk = TweakRisk.Optional,
         AppliesTo = _ => PhysicalAdapters().Count > 0,
@@ -162,27 +166,76 @@ public static partial class TweakCatalog
         if (SameServers(current, servers)) return;
 
         var family = ipv6 ? "ipv6" : "ipv4";
-        var forward = DnsCommand(family, adapter.Index, servers);
-        var restore = DnsCommand(family, adapter.Index, current);
-        var flush = $"{SysTool("ipconfig.exe")} /flushdns";
+        // Both directions find the adapter by its GUID when they run: the interface index is not persistent
+        // (it changes when the adapter is disabled and enabled again, re-plugged or reinstalled).
         RunJournaled(ctx, $"dns{(ipv6 ? 6 : 4)}:{adapter.Guid}",
-            CmdExe, CmdArgs($"({forward} && {flush}) || ({restore} & exit /b 1)"),
-            CmdExe, CmdArgs($"{restore} && {flush}"),
-            $"{adapter.Name} ({family}): {DescribeDns(current)}", $"{adapter.Name} ({family}): {DescribeDns(servers)}");
+            PowerShellExe, PowerShellArgs(DnsScript(adapter.Guid, ipv6, servers, rollback: current)),
+            PowerShellExe, PowerShellArgs(DnsScript(adapter.Guid, ipv6, current)),
+            $"{adapter.Name} ({family}): {DescribeDns(current)}", $"{adapter.Name} ({family}): {DescribeDns(servers)}",
+            OutputEncoding.Utf8);
     }
 
-    /// <summary>netsh command line that puts exactly <paramref name="servers"/> on the interface (empty = back to DHCP).</summary>
-    internal static string DnsCommand(string family, int interfaceIndex, IReadOnlyList<string> servers)
+    /// <summary>
+    /// PowerShell that puts exactly <paramref name="servers"/> (empty = back to DHCP / router advertisements) on one address family
+    /// of the adapter with this interface GUID, then flushes the DNS cache. The interface index for netsh is looked up from the
+    /// GUID when the script runs; if the adapter is gone, the script fails without touching any other adapter.
+    /// With <paramref name="rollback"/> a failure after the first netsh step puts that list back (see <see cref="SelfRollbackScript"/>).
+    /// </summary>
+    internal static string DnsScript(string adapterGuid, bool ipv6, IReadOnlyList<string> servers, IReadOnlyList<string>? rollback = null)
     {
-        var netsh = SysTool("netsh.exe");
-        if (servers.Count == 0) return $"{netsh} interface {family} set dnsservers name={interfaceIndex} source=dhcp";
-        // Only real IP literals ever reach the command line (values come from the registry).
+        var change = DnsSetStatements(ipv6, servers);
+        var body = rollback is null
+            ? change
+            : SelfRollbackScript(change, DnsSetStatements(ipv6, rollback),
+                "Прежние DNS-серверы вернуть не удалось — изменение оставлено в журнале, его можно откатить позже.");
+        // The cache flush is best effort (a stale entry expires by itself); "exit 0" keeps its exit code from
+        // deciding the result of a DNS change that already succeeded.
+        return DnsResolveIndexScript(adapterGuid, ipv6) +
+               $"$ns={Ps(ProcessRunner.Sys("netsh.exe"))};" + body +
+               $"& {Ps(ProcessRunner.Sys("ipconfig.exe"))} '/flushdns'|Out-Null;exit 0";
+    }
+
+    /// <summary>Sets <c>$i</c> to the current interface index of the adapter with this GUID (read-only lookup).</summary>
+    internal static string DnsResolveIndexScript(string adapterGuid, bool ipv6)
+    {
+        // Only a real GUID ever reaches the script (the value comes from the network stack).
+        if (!Guid.TryParse(adapterGuid, out var guid))
+            throw new InvalidOperationException($"некорректный идентификатор сетевого адаптера: {adapterGuid}");
+        var id = guid.ToString("B").ToUpperInvariant();
+        var family = ipv6 ? "IPv6" : "IPv4";
+        return
+            $"$g={Ps(id)};" +
+            "$a=[System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()|Where-Object{$_.Id -eq $g}|Select-Object -First 1;" +
+            $"if(-not $a){{throw ('Сетевой адаптер '+$g+' не найден: он отключён или удалён. Включите его и повторите.')}};" +
+            $"$ip=$a.GetIPProperties().Get{family}Properties();" +
+            $"if(-not $ip){{throw 'На сетевом адаптере не включён протокол {family}.'}};" +
+            "$i=[int]$ip.Index;";
+    }
+
+    /// <summary>netsh steps that put exactly <paramref name="servers"/> on interface <c>$i</c>; each successful step counts as a change.</summary>
+    private static string DnsSetStatements(bool ipv6, IReadOnlyList<string> servers)
+    {
+        var family = ipv6 ? "ipv6" : "ipv4";
+        // Only real IP literals ever reach the script (values come from the registry and the catalog).
         var addresses = servers.Select(s => IPAddress.TryParse(s, out var ip)
             ? ip.ToString()
             : throw new InvalidOperationException($"некорректный адрес DNS-сервера: {s}")).ToList();
-        return string.Join(" && ", addresses.Select((s, i) => i == 0
-            ? $"{netsh} interface {family} set dnsservers name={interfaceIndex} source=static address={s} register=primary validate=no"
-            : $"{netsh} interface {family} add dnsservers name={interfaceIndex} address={s} index={i + 1} validate=no"));
+
+        static string Netsh(params string[] args) =>
+            "& $ns " + string.Join(" ", args) + "|Out-Null;if($LASTEXITCODE -ne 0){throw ('netsh завершился с кодом '+$LASTEXITCODE)};$mChanged++;";
+
+        if (addresses.Count == 0)
+            return Netsh(Ps("interface"), Ps(family), Ps("set"), Ps("dnsservers"), "\"name=$i\"", Ps("source=dhcp"));
+        var sb = new StringBuilder();
+        for (var k = 0; k < addresses.Count; k++)
+        {
+            sb.Append(k == 0
+                ? Netsh(Ps("interface"), Ps(family), Ps("set"), Ps("dnsservers"), "\"name=$i\"", Ps("source=static"),
+                    Ps("address=" + addresses[k]), Ps("register=primary"), Ps("validate=no"))
+                : Netsh(Ps("interface"), Ps(family), Ps("add"), Ps("dnsservers"), "\"name=$i\"", Ps("address=" + addresses[k]),
+                    Ps($"index={k + 1}"), Ps("validate=no")));
+        }
+        return sb.ToString();
     }
 
     private static string DescribeDns(IReadOnlyList<string> servers) =>
