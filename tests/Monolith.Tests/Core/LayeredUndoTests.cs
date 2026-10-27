@@ -41,15 +41,23 @@ public sealed class LayeredUndoTests : IDisposable
         public Guid Active { get; set; } = PowerSchemes.Balanced;
         public HashSet<Guid> Plans { get; } = [PowerSchemes.Balanced, PowerSchemes.HighPerformance];
         public List<Guid> Deleted { get; } = [];
+        /// <summary>Runs before each restore (a slow PowerShell undo, or a change that sneaks in meanwhile).</summary>
+        public Func<ChangeRecord, Task>? BeforeRestore { get; set; }
 
-        public Task<RevertOutcome> RestoreAsync(ChangeRecord r)
+        public async Task<RevertOutcome> RestoreAsync(ChangeRecord r)
         {
-            Restored.Add(r);
+            if (BeforeRestore is { } before) await before(r);
+            return Restore(r);
+        }
+
+        private RevertOutcome Restore(ChangeRecord r)
+        {
+            lock (Restored) Restored.Add(r);
             switch (r.Kind)
             {
                 case ChangeKind.Registry:
                     Values[r.Target] = r.Registry!.ValueExisted ? r.Registry.Data : null;
-                    return Task.FromResult(RevertOutcome.Done);
+                    return RevertOutcome.Done;
                 case ChangeKind.PowerScheme:
                     Active = r.PowerSchemeOriginal is { } o && Plans.Contains(o) ? o : PowerSchemes.Balanced;
                     var gone = new List<Guid>();
@@ -58,10 +66,10 @@ public sealed class LayeredUndoTests : IDisposable
                         DeletePowerScheme(c);
                         if (!Plans.Contains(c)) gone.Add(c);
                     }
-                    return Task.FromResult(new RevertOutcome(DeletedSchemes: gone));
+                    return new RevertOutcome(DeletedSchemes: gone);
                 default:
                     Values[r.Target] = r.OldValue;
-                    return Task.FromResult(RevertOutcome.Done);
+                    return RevertOutcome.Done;
             }
         }
 
@@ -341,9 +349,108 @@ public sealed class LayeredUndoTests : IDisposable
         var all = await _journal.RevertAllAsync();
         Assert.Equal(0, all.Reverted);
         Assert.False(legacy.Reverted);
+        Assert.Same(legacy, Assert.Single(all.Left)); // reported as left, never as «все изменения откачены»
+        Assert.Equal(
+            "1 изменение сделано старой версией MONOLITH для неизвестной учётной записи — откатите его по одной в журнале, войдя под той учётной записью.",
+            RestoreFormat.LeftText(all.Left, Alice, s => s));
 
         var row = await _journal.RevertAsync([legacy]);
         Assert.Equal(1, row.Reverted);
+    }
+
+    /// <summary>An older build's HKCU record (no account) as it sits in an upgraded journal.</summary>
+    private ChangeRecord AddLegacy(string source, string name, string? original, string value, bool keyExisted = true)
+    {
+        var target = RegTarget(RegHive.HKCU, @"Software\Microsoft\GameBar", name);
+        var legacy = new ChangeRecord
+        {
+            BatchId = _journal.BeginBatch("old").Id, Source = source, Title = "old " + source, Kind = ChangeKind.Registry, Target = target,
+            OldValue = original is null ? "отсутствовало" : $"DWord: {original}", NewValue = $"DWord: {value}",
+            Registry = new RegistryValueSnapshot
+            {
+                Hive = RegHive.HKCU, Path = @"Software\Microsoft\GameBar", Name = name, KeyExisted = keyExisted,
+                ValueExisted = original is not null, Kind = original is null ? default : RegistryValueKind.DWord, Data = original,
+            },
+        };
+        _journal.Add(legacy);
+        return legacy;
+    }
+
+    [Fact]
+    public async Task Legacy_record_is_never_layered_with_an_accounts_record()
+    {
+        // Alice applied the tweak with an older build (her original: 7). Bob now applies it in his own profile (his: 4).
+        var legacy = AddLegacy("tweak:a", "X", "7", "0", keyExisted: false);
+        _sid = Bob;
+        _system.Values[legacy.Target] = "4";
+        var bobs = SetDword(_journal.BeginBatch("B"), "tweak:a", @"Software\Microsoft\GameBar", "X", 0, RegHive.HKCU);
+
+        Assert.NotSame(legacy, bobs);
+        Assert.Null(_journal.NewerLayer(legacy));                 // not a layer under Bob's change
+        Assert.Equal("4", bobs.Registry!.Data);                    // Bob's own original
+        Assert.Same(bobs, _journal.ShadowedBy(legacy));
+        Assert.Null(_journal.InheritedKeyRoot(RegHive.HKCU, @"Software\Microsoft\GameBar", Bob)); // never inherits the old created key
+        Assert.Equal([bobs], ChangeJournal.TopLayers(_journal.Records, Bob));
+        var covered = RestoreFormat.CoveredBy(_journal.Records, Bob);
+        Assert.Same(bobs, covered[legacy.Id]);
+        Assert.Contains("сначала откатите его", RestoreFormat.RecordNote(legacy, Bob, bobs, null));
+
+        // The old row cannot overwrite Bob's change.
+        var refused = await _journal.RevertAsync([legacy]);
+        Assert.Equal(1, refused.Failed);
+        Assert.Contains("сначала откатите его", refused.Errors[0]);
+        Assert.False(legacy.Reverted);
+        Assert.Equal("0", _system.Values[legacy.Target]);
+
+        // Bob's tweak revert undoes exactly Bob's change: his original comes back, Alice's is not written over it.
+        var result = await _journal.RevertSourceAsync("tweak:a");
+        Assert.True(result.Success);
+        Assert.Equal(1, result.Restored);
+        Assert.True(bobs.Reverted);
+        Assert.False(legacy.Reverted);
+        Assert.Same(legacy, Assert.Single(result.Left));
+        Assert.Equal("4", _system.Values[legacy.Target]);
+    }
+
+    [Fact]
+    public async Task Legacy_record_alone_is_still_reverted_by_its_tweak()
+    {
+        var legacy = AddLegacy("tweak:a", "Y", null, "1");
+        _system.Values[legacy.Target] = "1";
+        Assert.Equal([legacy], _journal.SourceCandidates(["tweak:a"]).Revert);
+
+        var result = await _journal.RevertSourceAsync("tweak:a");
+        Assert.Equal(1, result.Restored);
+        Assert.Empty(result.Left);
+        Assert.Null(_system.Values[legacy.Target]);
+    }
+
+    [Fact]
+    public async Task Revert_all_reports_another_accounts_records_as_left()
+    {
+        var alices = SetDword(_journal.BeginBatch("A"), "tweak:a", @"Software\Microsoft\GameBar", "X", 1, RegHive.HKCU);
+        var machine = SetDword(_journal.BeginBatch("M"), "tweak:m", Path1, "V", 1);
+        _sid = Bob;
+
+        var result = await _journal.RevertAllAsync();
+        Assert.True(machine.Reverted);
+        Assert.False(alices.Reverted);
+        Assert.Same(alices, Assert.Single(result.Left));
+        Assert.Equal("1 изменение сделано для учётной записи PC\\alice — его можно откатить, только войдя под ней.",
+            RestoreFormat.LeftText(result.Left, Bob, _ => "PC\\alice"));
+        Assert.Equal("", RestoreFormat.LeftText([], Bob, _ => "x"));
+    }
+
+    [Fact]
+    public void Left_text_counts_every_reason()
+    {
+        var a = AddLegacy("tweak:a", "A", null, "1");
+        var b = AddLegacy("tweak:b", "B", null, "1");
+        var other = new ChangeRecord { Kind = ChangeKind.Registry, Target = a.Target, Registry = a.Registry, UserSid = Bob };
+        Assert.Equal(
+            "2 изменения сделаны старой версией MONOLITH для неизвестной учётной записи — откатите их по одной в журнале, войдя под той учётной записью. " +
+            "1 изменение сделано для учётной записи PC\\bob — его можно откатить, только войдя под ней.",
+            RestoreFormat.LeftText([a, b, other], Alice, _ => "PC\\bob"));
     }
 
     [Fact]
@@ -537,6 +644,120 @@ public sealed class LayeredUndoTests : IDisposable
         Assert.NotNull(JournalTrust.Check(Plan("gameboost", null, [Guid.NewGuid()])));
         Assert.NotNull(JournalTrust.Check(Plan("tweak:power-plan-ultimate", PowerSchemes.Balanced)));
         Assert.NotNull(JournalTrust.Check(Plan("tweak:power-plan-ultimate", null, [PowerSchemes.UltimateTemplate])));
+    }
+
+    [Fact]
+    public async Task Reverting_one_layer_never_deletes_a_plan_copy_a_later_layer_goes_back_to()
+    {
+        var copy = Guid.NewGuid();
+        var r1 = SetPlan(_journal.BeginBatch("1"), "tweak:power-plan-ultimate", copy, created: copy); // Balanced → copy
+        var r2 = SetPlan(_journal.BeginBatch("2"), "tweak:power-plan-performance", PowerSchemes.HighPerformance); // copy → HP
+        SetPlan(_journal.BeginBatch("3"), "tweak:power-plan-ultimate", copy);                            // HP → copy (found)
+        var r4 = SetPlan(_journal.BeginBatch("4"), "tweak:power-plan-balanced", PowerSchemes.Balanced);   // copy → Balanced
+
+        await _journal.RevertAsync([r1]);
+        Assert.Contains(copy, _system.Plans);                  // r4's undo still goes back to it
+        Assert.Equal(copy, r2.PowerSchemeCreated);             // so the newer layer owns it now
+        Assert.Equal(PowerSchemes.Balanced, r2.PowerSchemeOriginal);
+        Assert.Null(JournalTrust.Check(r2));
+
+        await _journal.RevertAsync([r4]);
+        Assert.Equal(copy, _system.Active);                    // the third change's plan, as it was
+
+        await _journal.RevertAllAsync();
+        Assert.Equal(PowerSchemes.Balanced, _system.Active);
+        Assert.DoesNotContain(copy, _system.Plans);            // gone once nothing needs it
+        Assert.Empty(_journal.ActiveRecords);
+    }
+
+    // ───────────────────────────── One revert or change at a time ─────────────────────────────
+
+    [Fact]
+    public async Task A_revert_waits_for_the_restore_of_a_newer_layer_in_progress()
+    {
+        _system.Values[RegTarget(RegHive.HKLM, Path1, "V")] = "7";
+        var older = SetDword(_journal.BeginBatch("A"), "tweak:a", Path1, "V", 1);
+        var newer = SetDword(_journal.BeginBatch("B"), "tweak:b", Path1, "V", 2);
+        var slow = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _system.BeforeRestore = r =>
+        {
+            if (!ReferenceEquals(r, newer)) return Task.CompletedTask;
+            started.TrySetResult();
+            return slow.Task;
+        };
+
+        var first = Task.Run(() => _journal.RevertAsync([newer]));   // a slow undo (PowerShell) runs…
+        await started.Task;
+        var second = Task.Run(() => _journal.RevertAsync([older])); // …while the older layer is reverted elsewhere
+        await Task.Delay(100);
+        Assert.False(second.IsCompleted);                            // it waits instead of handing over to a layer mid-restore
+        Assert.False(older.Reverted);
+
+        slow.SetResult();
+        await Task.WhenAll(first, second);
+        Assert.True(newer.Reverted);
+        Assert.True(older.Reverted);
+        Assert.Null(older.HandedTo);                                 // restored itself, after the newer layer was gone
+        Assert.Equal("7", Value(Path1, "V"));
+        Assert.Empty(_journal.ActiveRecords);
+    }
+
+    [Fact]
+    public async Task A_change_waits_for_a_revert_in_progress_and_the_gate_is_re_entrant()
+    {
+        var rec = SetDword(_journal.BeginBatch("A"), "tweak:a", Path1, "V", 1);
+        var slow = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _system.BeforeRestore = _ => { started.TrySetResult(); return slow.Task; };
+
+        var revert = Task.Run(() => _journal.RevertAsync([rec]));
+        await started.Task;
+        var ranDuringRevert = false;
+        var change = Task.Run(() => _journal.Exclusive(() => ranDuringRevert = !rec.Reverted));
+        await Task.Delay(100);
+        Assert.False(change.IsCompleted);   // a tweak apply reads the live state only after the revert is done
+
+        slow.SetResult();
+        await Task.WhenAll(revert, change);
+        Assert.False(ranDuringRevert);
+
+        // Inside the gate (a tweak calling its session): nested calls run straight away, a revert too.
+        _system.BeforeRestore = null;
+        var other = SetDword(_journal.BeginBatch("B"), "tweak:b", Path2, "W", 3);
+        var nested = await Task.Run(() => _journal.Exclusive(() =>
+            _journal.Exclusive(() => _journal.ExclusiveAsync(() => _journal.RevertAsync([other])).GetAwaiter().GetResult())));
+        Assert.Equal(1, nested.Restored);
+    }
+
+    [Fact]
+    public async Task A_restore_whose_original_changed_meanwhile_runs_again_with_the_new_one()
+    {
+        var rec = SetDword(_journal.BeginBatch("A"), "tweak:a", Path1, "V", 1);
+        var replaced = new RegistryValueSnapshot
+        {
+            Hive = RegHive.HKLM, Path = Path1, Name = "V", KeyExisted = true, ValueExisted = true, Kind = RegistryValueKind.DWord, Data = "5",
+        };
+        var calls = 0;
+        _system.BeforeRestore = r =>
+        {
+            if (++calls == 1) r.Registry = replaced; // something bypassed the gate and moved the original
+            return Task.CompletedTask;
+        };
+
+        var result = await _journal.RevertAsync([rec]);
+        Assert.True(result.Success);
+        Assert.Equal(2, calls);
+        Assert.Equal("5", Value(Path1, "V"));
+    }
+
+    [Fact]
+    public void Revert_counts_tell_returned_values_from_hand_overs()
+    {
+        var r = new RevertResult(3, 0, []) { HandedOver = 1 };
+        Assert.Equal(2, r.Restored);
+        Assert.Equal("Возвращено параметров: 2. Оставлено действующим более позднее изменение: 1.", RestoreFormat.RevertCounts(r, "Возвращено параметров"));
+        Assert.Equal("Возвращено значений: 0.", RestoreFormat.RevertCounts(new RevertResult(0, 0, [])));
     }
 
     // ───────────────────────────── Verification and storage ─────────────────────────────
