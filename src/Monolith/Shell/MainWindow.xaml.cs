@@ -174,8 +174,9 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// QA helper: renders every page to PNG (used with --snapshot). Pages get <paramref name="waitMs"/> to load data.
+    /// With <paramref name="full"/> the page's longest scrolled list is also saved whole ("…-full.png").
     /// </summary>
-    public async Task SnapshotPagesAsync(string outDir, IReadOnlyCollection<string>? only, int waitMs)
+    public async Task SnapshotPagesAsync(string outDir, IReadOnlyCollection<string>? only, int waitMs, bool full = false)
     {
         Directory.CreateDirectory(outDir);
         Monolith.Modules.Devices.DevicesViewModel.RememberTab = false; // shooting both tabs must not change the user's last tab
@@ -203,8 +204,26 @@ public partial class MainWindow : Window
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                 var file = Path.Combine(outDir, $"{n:00}-{page.Key}{(tab.Length > 0 ? "-" + tab : "")}.png");
                 SaveVisual(RootBorder, file);
+                if (full && LongestScrolledContent(RootBorder) is { } content)
+                    SaveVisual(content, Path.ChangeExtension(file, null) + "-full.png");
             }
         }
+    }
+
+    /// <summary>The content of the visible ScrollViewer that hides the most (the page's main list), or null when nothing scrolls.</summary>
+    private static FrameworkElement? LongestScrolledContent(DependencyObject root)
+    {
+        System.Windows.Controls.ScrollViewer? best = null;
+        var stack = new Stack<DependencyObject>([root]);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is System.Windows.Controls.ScrollViewer { IsVisible: true } sv && sv.ExtentHeight - sv.ViewportHeight > 1
+                && (best is null || sv.ExtentHeight - sv.ViewportHeight > best.ExtentHeight - best.ViewportHeight))
+                best = sv;
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) stack.Push(VisualTreeHelper.GetChild(node, i));
+        }
+        return best?.Content as FrameworkElement;
     }
 
     internal static void SaveVisual(FrameworkElement element, string file)

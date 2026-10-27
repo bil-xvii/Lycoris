@@ -247,10 +247,10 @@ public sealed class DisplayProviderTests : IDisposable
     }
 
     [Fact]
-    public void Display_outcomes_map_to_row_outcomes()
+    public async Task Display_outcomes_map_to_row_outcomes()
     {
         ChangeSession.BypassElevationForTests = true;
-        var session = ChangeSession.BeginAsync("map", createRestorePoint: false, journal: ChangeJournal.ForTests()).GetAwaiter().GetResult();
+        var session = await ChangeSession.BeginAsync("map", createRestorePoint: false, journal: ChangeJournal.ForTests());
         Assert.Equal(ApplyOutcome.Applied, DisplayProvider.Map(session, "t", new DisplayApplyOutcome(DisplayApplyResult.Kept)));
         Assert.Equal(ApplyOutcome.NoChange, DisplayProvider.Map(session, "t", DisplayApplyOutcome.Unchanged));
         Assert.Equal(ApplyOutcome.Declined, DisplayProvider.Map(session, "t", new DisplayApplyOutcome(DisplayApplyResult.Reverted)));
