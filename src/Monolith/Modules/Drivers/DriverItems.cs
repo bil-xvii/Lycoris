@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
 using Monolith.UI;
 
@@ -126,10 +127,145 @@ public sealed partial class GpuCardItem : ObservableObject
 
     public bool ToolInstalled { get; private set; }
     public bool HasTool => Tool is not null && (!IsInformational || IsMissingDriver);
-    /// <summary>AMD: the "tool" is the official installer page, so a separate site button would duplicate it.</summary>
-    public bool ShowSiteButton => SiteUrl is not null && (Tool?.WingetId is not null || !HasTool);
+    /// <summary>The vendor tool is the main action only while no direct download is offered.</summary>
+    public bool ShowToolPrimary => HasTool && !HasDownload;
+    /// <summary>With a direct download, NVIDIA App / Intel DSA stay available as a secondary button (AMD's "tool" is just its site).</summary>
+    public bool ShowToolSecondary => HasTool && HasDownload && Tool?.WingetId is not null;
+    /// <summary>AMD without a download: the "tool" is the official installer page, so a separate site button would duplicate it.</summary>
+    public bool ShowSiteButton => SiteUrl is not null && (Tool?.WingetId is not null || !HasTool || HasDownload);
     public bool ToolNeedsAdmin => Tool?.WingetId is not null && !ToolInstalled;
     public bool CanUseTool => !ToolNeedsAdmin || Elevation.IsElevated;
+
+    // ── Direct download of the vendor's installer (DriverDownloads) ──
+
+    /// <summary>Official installer MONOLITH can download for this card (NVIDIA: only when a newer driver exists).</summary>
+    internal DriverPackage? Package { get; private set; }
+
+    public bool HasDownload => Package is not null && (!IsInformational || IsMissingDriver);
+
+    public string DownloadButtonText
+    {
+        get
+        {
+            if (Package is not { } p) return "";
+            var text = Vendor == GpuVendor.Nvidia ? $"СКАЧАТЬ И УСТАНОВИТЬ {p.Version}" : $"СКАЧАТЬ ДРАЙВЕР AMD {p.Version}";
+            return p.SizeDisplay is { } size ? $"{text} · {size}" : text;
+        }
+    }
+
+    public string DownloadHint => Package is not { } p ? "" :
+        $"Официальный установщик {p.VendorName} скачивается прямо с {p.Url.Host}, проверяется по цифровой подписи {p.Signer} " +
+        "и запускается после точки восстановления." + (Elevation.IsElevated ? "" : " Нужны права администратора.");
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
+    private bool _isDownloading;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
+    private bool _canCancelDownload;
+    [ObservableProperty] private double _downloadPercent;
+    [ObservableProperty] private bool _downloadIndeterminate;
+    [ObservableProperty] private string _downloadStage = "";
+    [ObservableProperty] private string _downloadDetail = "";
+    [ObservableProperty] private string? _downloadResult;
+    [ObservableProperty] private bool _downloadResultOk;
+
+    private CancellationTokenSource? _downloadCts;
+
+    internal void SetPackage(DriverPackage? package)
+    {
+        Package = package;
+        OnPropertyChanged(nameof(HasDownload));
+        OnPropertyChanged(nameof(DownloadButtonText));
+        OnPropertyChanged(nameof(DownloadHint));
+        OnPropertyChanged(nameof(ShowToolPrimary));
+        OnPropertyChanged(nameof(ShowToolSecondary));
+        OnPropertyChanged(nameof(ShowSiteButton));
+    }
+
+    /// <summary>Starts the card's download state; the returned token is cancelled by ОТМЕНА or app shutdown.</summary>
+    internal CancellationToken BeginDownload(CancellationToken lifetime)
+    {
+        _downloadCts?.Dispose();
+        _downloadCts = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+        DownloadResult = null;
+        DownloadPercent = 0;
+        DownloadIndeterminate = true;
+        DownloadStage = "ЗАГРУЗКА";
+        DownloadDetail = $"Подключение к {Package?.Url.Host}…";
+        IsDownloading = true;
+        CanCancelDownload = true;
+        return _downloadCts.Token;
+    }
+
+    internal void ReportDownload(DownloadProgress p)
+    {
+        if (!IsDownloading) return;
+        if (p.Verifying)
+        {
+            DownloadStage = "ПРОВЕРКА ПОДПИСИ";
+            DownloadIndeterminate = true;
+            CanCancelDownload = false;
+        }
+        else
+        {
+            DownloadStage = "ЗАГРУЗКА";
+            DownloadIndeterminate = p.Total is not > 0;
+            DownloadPercent = p.Percent;
+        }
+        DownloadDetail = DriverDownloads.FormatProgress(p);
+    }
+
+    /// <summary>A step after the download (restore point, final check): shown without a cancel button.</summary>
+    internal void SetDownloadStep(string stage, string detail)
+    {
+        DownloadStage = stage;
+        DownloadDetail = detail;
+        DownloadIndeterminate = true;
+        CanCancelDownload = false;
+    }
+
+    internal void FinishDownload(bool ok, string message)
+    {
+        IsDownloading = false;
+        CanCancelDownload = false;
+        DownloadIndeterminate = false;
+        DownloadResultOk = ok;
+        DownloadResult = message;
+        _downloadCts?.Dispose();
+        _downloadCts = null;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancelDownload))]
+    private void CancelDownload()
+    {
+        if (_downloadCts is not { IsCancellationRequested: false } cts) return;
+        DownloadDetail = "Отмена…";
+        CanCancelDownload = false;
+        cts.Cancel();
+    }
+
+    /// <summary>AMD: the official auto-detect installer found on amd.com, plus an "update available" hint when comparable.</summary>
+    internal void ApplyAmdPackage(DriverPackage? package, DateTime now)
+    {
+        SetPackage(package);
+        if (package is null || IsMissingDriver || VersionLabel != "AMD SOFTWARE")
+        {
+            HasLatest = false;
+            return;
+        }
+        var cmp = GpuDriverVersions.CompareAmd(package.Version, VersionText);
+        if (cmp is null)
+        {
+            HasLatest = false;
+            return;
+        }
+        UpdateAvailable = cmp > 0;
+        LatestVersion = package.Version;
+        LatestText = UpdateAvailable ? $"ДОСТУПЕН ДРАЙВЕР {package.Version}" : $"УСТАНОВЛЕН ПОСЛЕДНИЙ ДРАЙВЕР {package.Version}";
+        LatestCaption = $"по данным amd.com, проверено в {now:HH:mm}";
+        HasLatest = true;
+    }
 
     public string ToolButtonText => Tool switch
     {
@@ -174,13 +310,16 @@ public sealed partial class GpuCardItem : ObservableObject
         UpdateAvailable = cmp > 0;
         LatestVersion = release.Version;
         var date = release.Released is { } d ? d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : null;
-        var flags = string.Join(" · ", new[] { release.IsWhql ? "WHQL" : null, release.IsBeta ? "BETA" : null, date, release.FileSize }
+        // The size is shown on the download button (exact, from NVIDIA's server), not here in NVIDIA's decimal units.
+        var flags = string.Join(" · ", new[] { release.IsWhql ? "WHQL" : null, release.IsBeta ? "BETA" : null, date }
             .Where(s => !string.IsNullOrWhiteSpace(s)));
         LatestText = UpdateAvailable ? $"ДОСТУПЕН ДРАЙВЕР {release.Version}" : $"УСТАНОВЛЕН ПОСЛЕДНИЙ ДРАЙВЕР {release.Version}";
         LatestCaption = $"{flags}{(flags.Length > 0 ? " · " : "")}по данным nvidia.com, проверено в {now:HH:mm}";
         if (release.DetailsUrl is not null) SiteUrl = release.DetailsUrl;
         OnPropertyChanged(nameof(SiteUrl));
         HasLatest = true;
+        // Direct download only for a newer driver on NVIDIA's own download server.
+        SetPackage(UpdateAvailable ? DriverDownloads.NvidiaPackage(release) : null);
     }
 
     private void DetectTool(IReadOnlyList<UninstallEntry> apps)
@@ -222,8 +361,8 @@ public sealed partial class GpuCardItem : ObservableObject
             return "Дополнительный встроенный адаптер. Его драйвер приходит через Windows Update — отдельных действий не нужно.";
         return Vendor switch
         {
-            GpuVendor.Nvidia => "Обновляйте драйвер через NVIDIA App или с nvidia.com. Windows Update тоже присылает драйверы NVIDIA, но обычно с опозданием.",
-            GpuVendor.Amd => "Свежий драйвер Adrenalin — на amd.com: официальный установщик сам определит видеокарту. В winget пакета AMD нет.",
+            GpuVendor.Nvidia => "Когда выходит новый драйвер, MONOLITH скачивает официальный установщик прямо с сервера NVIDIA. Обновлять можно и через NVIDIA App. Windows Update тоже присылает драйверы NVIDIA, но обычно с опозданием.",
+            GpuVendor.Amd => "Свежий драйвер Adrenalin ставит официальный установщик AMD: он сам определит видеокарту. MONOLITH скачивает его прямо с сервера AMD. В winget пакета AMD нет.",
             GpuVendor.Intel => "Драйвер видеоядра Intel проверяет Intel Driver & Support Assistant; Windows Update тоже присылает его, но реже.",
             _ => "Драйвер этого адаптера обновляется через Windows Update.",
         };

@@ -95,7 +95,23 @@ public sealed partial class RestoreViewModel : PageViewModel
             Ui.Post(() => OnPropertyChanged(nameof(CreateRestorePoints)));
     }
 
-    partial void OnFilterChanged(JournalFilter value) => Rebuild();
+    private const int BatchPage = 30;
+    private int _shownBatches = BatchPage;
+    [ObservableProperty] private bool _hasMoreBatches;
+    [ObservableProperty] private string _showMoreText = "";
+
+    [RelayCommand]
+    private void ShowMoreBatches()
+    {
+        _shownBatches += BatchPage;
+        Rebuild();
+    }
+
+    partial void OnFilterChanged(JournalFilter value)
+    {
+        _shownBatches = BatchPage;
+        Rebuild();
+    }
 
     /// <summary>The journal raises Changed from background threads; coalesce bursts into one rebuild on the UI thread.</summary>
     private void OnJournalChanged()
@@ -139,8 +155,12 @@ public sealed partial class RestoreViewModel : PageViewModel
             ChangeJournal.IsOtherUser(r, sid));
 
         var groups = RestoreFormat.Group(batches, records, Filter, _drift.Keys.ToHashSet(), ChangeJournal.IsBulkRevertible);
+        // A long history (hundreds of batches) is drawn page by page: rendering it all at once froze the window for a second.
         Batches.Clear();
-        foreach (var g in groups) Batches.Add(new BatchItem(g, Item));
+        foreach (var g in groups.Take(_shownBatches)) Batches.Add(new BatchItem(g, Item));
+        var hidden = Math.Max(0, groups.Count - _shownBatches);
+        HasMoreBatches = hidden > 0;
+        ShowMoreText = $"ПОКАЗАТЬ ЕЩЁ ({Math.Min(hidden, BatchPage)} ИЗ {hidden})";
 
         var journalEmpty = batches.Count == 0 && records.Count == 0;
         IsFilterEmpty = Batches.Count == 0;

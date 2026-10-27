@@ -38,10 +38,14 @@ public partial class MainWindow : Window
         {
             if (e.PropertyName == nameof(MainViewModel.CurrentPage)) PlayPageEnter();
         };
+        // Scroll after the list has finished handling the change (never a layout pass inside CollectionChanged).
         ((INotifyCollectionChanged)ConsoleList.Items).CollectionChanged += (_, e) =>
         {
-            if (e.Action == NotifyCollectionChangedAction.Add && ConsoleList.Items.Count > 0)
-                ConsoleList.ScrollIntoView(ConsoleList.Items[^1]);
+            if (e.Action == NotifyCollectionChangedAction.Add)
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (ConsoleList.Items.Count > 0) ConsoleList.ScrollIntoView(ConsoleList.Items[^1]);
+                }, DispatcherPriority.Background);
         };
     }
 

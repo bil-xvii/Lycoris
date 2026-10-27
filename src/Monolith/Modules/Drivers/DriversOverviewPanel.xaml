@@ -6,6 +6,8 @@
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
+        <local:AllTrueToVisibilityConverter x:Key="Drv.AllTrueToVis" />
+        <local:HasTextConverter x:Key="Drv.HasText" />
         <!-- Section heading: TITLE ───────────── note -->
         <Style x:Key="Drv.SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H2}">
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -158,27 +160,99 @@
                                 <TextBlock Grid.Row="2" Text="{Binding Recommendation}" Style="{StaticResource T.Body}" Margin="14,10,14,0" />
 
                                 <Border Grid.Row="3" Style="{StaticResource Drv.CardFooter}">
-                                    <WrapPanel>
-                                        <Button Style="{StaticResource Btn.Primary}" Margin="0,0,8,0"
-                                                Visibility="{Binding HasTool, Converter={StaticResource BoolToVis}}"
-                                                IsEnabled="{Binding CanUseTool}"
-                                                Command="{Binding DataContext.UseGpuToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                ToolTip="{Binding ToolHint}" ToolTipService.ShowOnDisabled="True">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                <TextBlock Text="{Binding ToolButtonText}" VerticalAlignment="Center" />
+                                    <StackPanel>
+                                        <!-- Direct download: progress -->
+                                        <Grid Margin="0,0,0,10" Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVis}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                                <DockPanel>
+                                                    <TextBlock Text="{Binding DownloadStage}" Style="{StaticResource T.Label}" DockPanel.Dock="Left" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding DownloadDetail}" Style="{StaticResource T.Mono}" FontSize="11" Margin="12,0,0,0"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                                <ProgressBar Margin="0,6,0,0" Height="4" Maximum="100" Value="{Binding DownloadPercent}"
+                                                             IsIndeterminate="{Binding DownloadIndeterminate}" />
                                             </StackPanel>
-                                        </Button>
-                                        <Button Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}"
-                                                Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding SiteUrl}" ToolTip="{Binding SiteUrl}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="ОФИЦИАЛЬНЫЙ САЙТ" VerticalAlignment="Center" />
-                                                <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                            </StackPanel>
-                                        </Button>
-                                    </WrapPanel>
+                                            <Button Grid.Column="1" Content="ОТМЕНА" MinWidth="88" Command="{Binding CancelDownloadCommand}"
+                                                    ToolTip="Остановить загрузку — недокачанный файл будет удалён" ToolTipService.ShowOnDisabled="True" />
+                                        </Grid>
+
+                                        <!-- Direct download: result -->
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.Visibility>
+                                                <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
+                                                    <Binding Path="DownloadResult" Converter="{StaticResource Drv.HasText}" />
+                                                    <Binding Path="IsDownloading" Converter="{StaticResource InverseBool}" />
+                                                </MultiBinding>
+                                            </Grid.Visibility>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Top" Margin="0,2,8,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="&#xE7BA;" />
+                                                        <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DownloadResultOk}" Value="True">
+                                                                <Setter Property="Text" Value="&#xE73E;" />
+                                                                <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="1" Text="{Binding DownloadResult}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" />
+                                        </Grid>
+
+                                        <WrapPanel Margin="0,0,0,-8">
+                                            <Button Style="{StaticResource Btn.Primary}" Margin="0,0,8,8"
+                                                    Command="{Binding DataContext.DownloadDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="{Binding DownloadHint}" ToolTipService.ShowOnDisabled="True">
+                                                <Button.Visibility>
+                                                    <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
+                                                        <Binding Path="HasDownload" />
+                                                        <Binding Path="IsDownloading" Converter="{StaticResource InverseBool}" />
+                                                    </MultiBinding>
+                                                </Button.Visibility>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <TextBlock Text="{Binding DownloadButtonText}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource Btn.Primary}" Margin="0,0,8,8"
+                                                    Visibility="{Binding ShowToolPrimary, Converter={StaticResource BoolToVis}}"
+                                                    IsEnabled="{Binding CanUseTool}"
+                                                    Command="{Binding DataContext.UseGpuToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="{Binding ToolHint}" ToolTipService.ShowOnDisabled="True">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <TextBlock Text="{Binding ToolButtonText}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Margin="0,0,8,8"
+                                                    Visibility="{Binding ShowToolSecondary, Converter={StaticResource BoolToVis}}"
+                                                    IsEnabled="{Binding CanUseTool}"
+                                                    Command="{Binding DataContext.UseGpuToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="{Binding ToolHint}" ToolTipService.ShowOnDisabled="True"
+                                                    Content="{Binding ToolButtonText}" />
+                                            <Button Margin="0,0,8,8" Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding SiteUrl}" ToolTip="{Binding SiteUrl}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="ОФИЦИАЛЬНЫЙ САЙТ" VerticalAlignment="Center" />
+                                                    <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                </StackPanel>
+                                            </Button>
+                                        </WrapPanel>
+                                    </StackPanel>
                                 </Border>
                             </Grid>
                         </Border>

@@ -137,6 +137,8 @@ public sealed class RegistryAndJournalTests : IDisposable
         {
             BatchId = batch.Id, Source = "tweak:persist", Title = "Persist", Kind = ChangeKind.Registry,
             Target = $"reg:HKCU\\{_key}\\Persist", OldValue = snap.Describe(), NewValue = "changed", Registry = snap,
+            // Like ChangeSession: a per-user record names its account (records without one are legacy and never bulk-reverted).
+            UserSid = UserScope.CurrentSid,
         });
         RegistryHelper.Write(RegHive.HKCU, _key, "Persist", RegistryValueKind.String, "changed");
 

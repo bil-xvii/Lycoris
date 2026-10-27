@@ -158,6 +158,11 @@ Never apply real tweaks on the dev machine during automated testing — use read
 
 - Done: core (journal/undo with record validation, restore points, services, power plans, tasks, registry, process
   runner, winget), theme, shell, all modules, tweak catalog, review findings in docs/review-findings.md,
-  minimal-UI redesign, command palette, profile export/import, drift detection.
-- Not built: Drivers «ПОДБОР ДЛЯ ВАШЕГО ПК» hardware analysis (tab hidden; DriversHardwarePanel stub kept).
-- Never run on Windows since the redesign: run `dotnet test` and `--selftest` before trusting the UI.
+  minimal-UI redesign, command palette, profile export/import, drift detection, Drivers «ПОДБОР ДЛЯ ВАШЕГО ПК»
+  hardware analysis (Modules/Drivers/Hardware, default Drivers tab), direct NVIDIA/AMD installer downloads on the GPU cards.
+- Verified on Windows 11 (27.10.2026): build 0 warnings, all unit tests pass, `--selftest` all pages OK.
+- Two Claude sessions once developed in parallel (a cloud one on `main`, a local one); the local line is kept on branch
+  `local/windows-line` for reference only. Before starting work: `git fetch` and build on top of `origin/main`.
+- WPF rule learned the hard way: never call ScrollIntoView/UpdateLayout inside a CollectionChanged handler of the bound
+  collection — defer it with `Dispatcher.BeginInvoke(..., DispatcherPriority.Background)` (crash: "ItemsControl is
+  inconsistent with its items source").

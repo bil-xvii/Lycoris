@@ -69,14 +69,29 @@ internal static partial class NvidiaLookup
         return best;
     }
 
-    /// <summary>Parses the DriverManualLookup JSON answer. Returns null on any unexpected shape.</summary>
+    /// <summary>
+    /// Parses the DriverManualLookup JSON answer. Returns null on any unexpected shape (including invalid JSON).
+    /// DownloadURL is kept only when it points to NVIDIA's download servers (<see cref="DriverDownloads.IsAllowedDownload"/>).
+    /// </summary>
     public static NvidiaRelease? ParseRelease(string json)
+    {
+        try
+        {
+            return ParseReleaseCore(json);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private static NvidiaRelease? ParseReleaseCore(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        if (Str(root, "Success") != "1") return null;
+        if (root.ValueKind != JsonValueKind.Object || Str(root, "Success") != "1") return null;
         if (!root.TryGetProperty("IDS", out var ids) || ids.ValueKind != JsonValueKind.Array || ids.GetArrayLength() == 0) return null;
-        if (!ids[0].TryGetProperty("downloadInfo", out var info)) return null;
+        if (ids[0].ValueKind != JsonValueKind.Object || !ids[0].TryGetProperty("downloadInfo", out var info) || info.ValueKind != JsonValueKind.Object) return null;
         var version = Str(info, "Version");
         if (string.IsNullOrWhiteSpace(version) || !Regex.IsMatch(version, @"^\d{3,4}\.\d{2}$")) return null;
 
