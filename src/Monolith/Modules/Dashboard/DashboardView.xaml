@@ -56,6 +56,7 @@
         <Style x:Key="Dash.Marker" TargetType="Border">
             <Setter Property="Width" Value="28" />
             <Setter Property="Height" Value="28" />
+            <Setter Property="CornerRadius" Value="{StaticResource R.Sm}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
             <Setter Property="Background" Value="Transparent" />
@@ -123,7 +124,7 @@
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,11,0">
-                        <Border Width="7" Height="7" Background="{StaticResource B.White}" VerticalAlignment="Center" />
+                        <Border Width="7" Height="7" Background="{StaticResource B.White}" CornerRadius="{StaticResource R.Xs}" VerticalAlignment="Center" />
                         <TextBlock Text="LIVE" Style="{StaticResource T.Mono}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource B.Text}"
                                    Margin="8,0,0,0" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding IntervalText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
@@ -263,7 +264,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- СОСТОЯНИЕ СИСТЕМЫ -->
-                    <Border Style="{StaticResource Card.Flush}" VerticalAlignment="Top">
+                    <Border Style="{StaticResource Card.Flush}" VerticalAlignment="Top" ui:RoundClip.Content="True">
                         <StackPanel>
                             <Grid Margin="15,12,15,0">
                                 <TextBlock Text="Состояние системы" Style="{StaticResource Dash.CardTitle}" VerticalAlignment="Center" />
@@ -399,7 +400,8 @@
                                                         <ColumnDefinition Width="12" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <Border Width="18" Height="18" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" VerticalAlignment="Top" Margin="0,1,0,0">
+                                                    <Border Width="18" Height="18" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" VerticalAlignment="Top" Margin="0,1,0,0"
+                                                            CornerRadius="{StaticResource R.Xs}">
                                                         <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="9.5" Foreground="{StaticResource B.Text2}"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
