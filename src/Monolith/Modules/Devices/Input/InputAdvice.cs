@@ -151,8 +151,8 @@ internal static class InputAdvice
     /// <summary>«≈ 30,0 в секунду».</summary>
     public static string RepeatRateText(long v) => $"≈ {RepeatRate(v).ToString("0.0", Ru)} в секунду";
 
-    /// <summary>«31 · ≈30/с» — compact for the slider and the plan.</summary>
-    public static string RepeatSpeedText(long v) => $"{v.ToString(CultureInfo.InvariantCulture)} · ≈{RepeatRate(v).ToString("0.#", Ru)}/с";
+    /// <summary>«≈30/с», «≈20,2/с» — the effect of the 0–31 value, compact for the slider column and the plan.</summary>
+    public static string RepeatSpeedText(long v) => $"≈{RepeatRate(v).ToString("0.#", Ru)}/с";
 
     // ───────────────────────────── Russian formatting ─────────────────────────────
 

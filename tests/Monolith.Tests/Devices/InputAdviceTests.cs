@@ -119,7 +119,8 @@ public sealed class InputAdviceTests
         Assert.Equal("≈ 1000 мс", InputAdvice.KeyboardDelayText(3));
         Assert.Equal("≈ 30,0 в секунду", InputAdvice.RepeatRateText(31));
         Assert.Equal("≈ 2,5 в секунду", InputAdvice.RepeatRateText(0));
-        Assert.Equal("31 · ≈30/с", InputAdvice.RepeatSpeedText(31));
+        Assert.Equal("≈30/с", InputAdvice.RepeatSpeedText(31));
+        Assert.Equal("≈20,2/с", InputAdvice.RepeatSpeedText(20));
     }
 
     [Fact]
