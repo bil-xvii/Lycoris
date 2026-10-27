@@ -366,7 +366,8 @@ public static partial class TweakCatalog
 
     // ───────────────────────────── DirectX user settings string ─────────────────────────────
 
-    private const string DxPreferencesPath = @"Software\Microsoft\DirectX\UserGpuPreferences";
+    private const string DxParentPath = @"Software\Microsoft\DirectX";
+    private const string DxPreferencesPath = DxParentPath + @"\UserGpuPreferences";
     private const string DxGlobalSettings = "DirectXUserGlobalSettings";
 
     /// <summary>Value of one "Key=Value;" token in DirectXUserGlobalSettings (null when the token is absent).</summary>
@@ -414,11 +415,26 @@ public static partial class TweakCatalog
     /// PowerShell that edits a single token of DirectXUserGlobalSettings in place (value null = remove the token).
     /// Each DirectX tweak owns exactly one token, so undoing one never disturbs another.
     /// </summary>
+    /// <remarks>
+    /// Undo scripts get <paramref name="createdKey"/> when the key did not exist before MONOLITH's first DirectX token
+    /// (and <paramref name="createdParent"/> when Software\Microsoft\DirectX did not exist either): once the last token is
+    /// gone, the script removes the key (and that parent) again, but only while they hold no values and no subkeys — per-app
+    /// GPU preferences live in the same key and are never touched. Without either flag the text is exactly what older
+    /// builds wrote, so their journal records still rebuild character for character.
+    /// </remarks>
     internal static string DxTokenScript(string key, string? value, string registryPath = @"HKCU:\" + DxPreferencesPath,
-        string valueName = DxGlobalSettings)
+        string valueName = DxGlobalSettings, bool createdKey = false, bool createdParent = false)
     {
         var v = value is null ? "$null" : Ps(value);
+        var prefix = createdKey ? $"$mk=$true;$mp=${(createdParent ? "true" : "false")};" : "";
+        var cleanup = createdKey
+            ? ";if($mk){$ki=Get-Item -LiteralPath $p -ErrorAction SilentlyContinue;" +
+              "if($ki -and $ki.ValueCount -eq 0 -and $ki.SubKeyCount -eq 0){Remove-Item -LiteralPath $p;" +
+              "if($mp){$q=Split-Path -Parent $p;$kq=Get-Item -LiteralPath $q -ErrorAction SilentlyContinue;" +
+              "if($kq -and $kq.ValueCount -eq 0 -and $kq.SubKeyCount -eq 0){Remove-Item -LiteralPath $q}}}}"
+            : "";
         return
+            prefix +
             $"$p={Ps(registryPath)};$n={Ps(valueName)};$k={Ps(key)};$v={v};" +
             "$cur=$null;if(Test-Path -LiteralPath $p){$cur=(Get-ItemProperty -LiteralPath $p).$n};" +
             "$t=New-Object 'System.Collections.Generic.List[string]';$found=$false;" +
@@ -426,9 +442,37 @@ public static partial class TweakCatalog
             "if($x.StartsWith($k+'=',[StringComparison]::OrdinalIgnoreCase)){if(-not $found -and $null -ne $v){$t.Add($k+'='+$v)};$found=$true}" +
             "else{$t.Add($x)}}};" +
             "if(-not $found -and $null -ne $v){$t.Add($k+'='+$v)};" +
-            "if($t.Count -eq 0){if($null -ne $cur){Remove-ItemProperty -LiteralPath $p -Name $n}}" +
+            "if($t.Count -eq 0){if($null -ne $cur){Remove-ItemProperty -LiteralPath $p -Name $n}" + cleanup + "}" +
             "else{if(-not(Test-Path -LiteralPath $p)){New-Item -Path $p -Force|Out-Null};" +
             "Set-ItemProperty -LiteralPath $p -Name $n -Value (($t -join ';')+';') -Type String}";
+    }
+
+    /// <summary>
+    /// Whether the undo of a new DirectX token must also remove the key / its DirectX parent: true when the key (parent) is
+    /// absent now, or when an active DirectX record already promised to remove it — then the key only exists because
+    /// MONOLITH created it, and whichever token is reverted last must clean it up, in any revert order.
+    /// </summary>
+    internal static (bool CreatedKey, bool CreatedParent) DxUndoOwnership(bool keyExists, bool parentExists,
+        IEnumerable<ChangeRecord> activeRecords)
+    {
+        bool key = !keyExists, parent = !parentExists;
+        foreach (var r in activeRecords)
+        {
+            if (r.Kind != ChangeKind.Command || !r.Target.StartsWith("cmd:dx:", StringComparison.Ordinal)) continue;
+            if (DecodePowerShellArgs(r.RevertArgs) is not { } script) continue;
+            if (script.Contains("$mk=$true;", StringComparison.Ordinal)) key = true;
+            if (script.Contains("$mk=$true;$mp=$true;", StringComparison.Ordinal)) parent = true;
+        }
+        return (key, key && parent);
+    }
+
+    /// <summary>The script inside <see cref="PowerShellArgs"/> output (null when the arguments are not such a line).</summary>
+    internal static string? DecodePowerShellArgs(string? args)
+    {
+        const string prefix = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ";
+        if (args is null || !args.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        try { return Encoding.Unicode.GetString(Convert.FromBase64String(args[prefix.Length..])); }
+        catch (FormatException) { return null; }
     }
 
     /// <summary>Single-quoted PowerShell literal.</summary>
@@ -541,6 +585,23 @@ public static partial class TweakCatalog
     }
 
     /// <summary>
+    /// Shared by every <see cref="PowerSettingTweak"/>: powercfg has no per-setting "back to the plan default", and the
+    /// override keys belong to the Power service, so the undo writes the original number explicitly.
+    /// </summary>
+    internal const string PowerSettingUndoNote =
+        "Откат возвращает прежнее значение, но записывает его в схему явно. Если раньше параметр брался из значений схемы " +
+        "по умолчанию, вернуть и это можно кнопкой «Восстановить для схемы параметры по умолчанию» в Панели управления → " +
+        "Электропитание (она сбрасывает все параметры этой схемы).";
+
+    /// <summary>
+    /// True when the plan has its own AC value for the setting; false when the value comes from the plan's defaults
+    /// (Windows stores only modified values under User\PowerSchemes). Read-only.
+    /// </summary>
+    internal static bool HasAcOverride(Guid scheme, Guid subgroup, Guid setting) =>
+        RegistryHelper.Read(RegHive.HKLM,
+            $@"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\{scheme:D}\{subgroup:D}\{setting:D}", "ACSettingIndex") is not null;
+
+    /// <summary>
     /// A tweak that changes the "plugged in" (AC) value of one power setting in the ACTIVE plan via powercfg.
     /// The battery (DC) value is never touched. Undo writes the original AC value back.
     /// </summary>
@@ -552,7 +613,7 @@ public static partial class TweakCatalog
         Id = id,
         Title = title,
         Description = description,
-        Details = details,
+        Details = details + " " + PowerSettingUndoNote,
         Category = category,
         Risk = risk,
         DefaultIn = defaults,
@@ -576,10 +637,12 @@ public static partial class TweakCatalog
             if (current == target) return;
 
             var plan = PowerSchemes.GetName(scheme);
+            // The effective value is restored either way; say honestly when it came from the plan's defaults.
+            var origin = HasAcOverride(scheme, subgroup, setting) ? "" : " (по умолчанию схемы; при откате будет записано явно)";
             RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac",
                 CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, target, rollbackTo: current)),
                 CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, current)),
-                $"{plan}, от сети: {describe(current)}", $"{plan}, от сети: {describe(target)}");
+                $"{plan}, от сети: {describe(current)}{origin}", $"{plan}, от сети: {describe(target)}");
         },
     };
 }
