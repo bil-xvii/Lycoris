@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
+             xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Settings"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:SettingsViewModel}">
     <UserControl.Resources>
@@ -101,7 +102,7 @@
                         <TextBlock Text="Данные" Style="{StaticResource SectionTitle}" />
                         <TextBlock Style="{StaticResource SectionCaption}" Text="Всё хранится на этом компьютере, ничего не отправляется в сеть." />
                     </StackPanel>
-                    <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
+                    <Border Grid.Column="1" Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                         <StackPanel>
                             <ItemsControl ItemsSource="{Binding DataPaths}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
@@ -174,8 +175,8 @@
                             <Expander.Header>
                                 <TextBlock Text="КАК MONOLITH ЗАЩИЩАЕТ СИСТЕМУ" Style="{StaticResource T.Label}" />
                             </Expander.Header>
-                            <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0">
-                                <ItemsControl ItemsSource="{Binding Principles}" Focusable="False">
+                            <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0" ui:RoundClip.Content="True">
+                                <ItemsControl ItemsSource="{Binding Principles}" Focusable="False" Margin="0,0,0,-1">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type local:PrincipleItem}">
                                             <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="12,9">

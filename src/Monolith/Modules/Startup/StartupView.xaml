@@ -121,7 +121,7 @@
         <ScrollViewer Grid.Row="2" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="0,0,10,9">
                 <!-- Bulk bar -->
-                <Border Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" Padding="10,9" Margin="0,0,0,9"
+                <Border Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="10,9" Margin="0,0,0,9"
                         Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -144,7 +144,7 @@
                 </Border>
 
                 <!-- Table -->
-                <Border Style="{StaticResource Card.Flush}">
+                <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                     <StackPanel>
                         <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="0,0,0,1" Padding="10,0" Height="40">
                             <Grid>
