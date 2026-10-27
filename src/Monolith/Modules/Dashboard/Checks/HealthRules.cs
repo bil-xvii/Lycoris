@@ -35,8 +35,9 @@ public static partial class HealthRules
     {
         var checks = new Func<SystemSnapshot, HealthCheckResult?>[]
         {
-            CheckRestore, CheckDiskSpace, CheckDevices, CheckRefreshRate, CheckRam, CheckTrim, CheckPendingReboot,
-            CheckGpuDriver, CheckGameMode, CheckHags, CheckGameDvr, CheckStartup, CheckUptime, CheckPowerPlan, CheckVbs,
+            CheckRestore, CheckDiskSpace, CheckDiskHealth, CheckDevices, CheckStability, CheckRefreshRate, CheckMonitorOnGpu,
+            CheckRam, CheckTrim, CheckPendingReboot, CheckGpuDriver, CheckRebar, CheckPcieLink, CheckGameMode, CheckHags,
+            CheckGameDvr, CheckStartup, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
         };
         var results = new List<HealthCheckResult>();
         foreach (var check in checks)
@@ -479,19 +480,4 @@ public static partial class HealthRules
             "в разделе «Автозапуск и службы» — это обратимо, программы не удаляются.",
             CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К АВТОЗАПУСКУ", "startup"));
     }
-
-    // ───────────────────────────── VBS / Memory Integrity (information only) ─────────────────────────────
-
-    public static HealthCheckResult? CheckVbs(SystemSnapshot s) => s.Vbs switch
-    {
-        VbsState.MemoryIntegrity => new("vbs", "ЦЕЛОСТНОСТЬ ПАМЯТИ ВКЛЮЧЕНА",
-            "Изоляция ядра защищает Windows от вредоносных и уязвимых драйверов. В части игр она стоит 0–10 % FPS (в среднем " +
-            "около 5 %), а античиты Riot Vanguard и FACEIT могут её требовать. MONOLITH не отключает её сам; отключение есть только " +
-            "как экспертный пункт в «Оптимизации» с отдельным предупреждением — это снижает безопасность и ломает часть античитов. Настройка — «Безопасность Windows → Безопасность устройства → Изоляция ядра».",
-            CheckSeverity.Info, 0),
-        VbsState.VbsOnly => new("vbs", "ВИРТУАЛИЗАЦИЯ БЕЗОПАСНОСТИ АКТИВНА",
-            "Windows изолирует часть ядра в защищённой виртуальной среде (VBS). Это защита от атак на учётные данные и ядро; " +
-            "влияние на игры обычно небольшое. MONOLITH её не отключает.", CheckSeverity.Info, 0),
-        _ => null,
-    };
 }
