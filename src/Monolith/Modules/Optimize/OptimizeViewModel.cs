@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
+using Monolith.Modules.Restore;
 using Monolith.Shell;
 using Monolith.Tweaks;
 using Monolith.UI;
@@ -651,7 +652,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     internal async Task RevertOneAsync(TweakItemViewModel item)
     {
         if (!RequireAdmin("Откат изменений")) return;
-        var records = ChangeJournal.Instance.ActiveRecords.Where(r => r.TouchedBy(SourcePrefix + item.Id)).ToList();
+        var journal = ChangeJournal.Instance;
+        var records = journal.ActiveRecords.Where(r => r.TouchedBy(SourcePrefix + item.Id) && ChangeJournal.IsMine(r)).ToList();
         if (records.Count == 0)
         {
             Ui.Toast("Для этого пункта нет изменений MONOLITH, которые можно откатить.", ToastKind.Info);
@@ -659,23 +661,32 @@ public sealed partial class OptimizeViewModel : PageViewModel
             return;
         }
 
-        var details = records.Select(DescribeRecord).ToList();
-        if (AlsoRevertsLine(records, [item.Id]) is { } also) details.Add(also);
+        // Settings a later change (another tweak or page) has set again keep that value: only this tweak's layer goes.
+        var own = new HashSet<ChangeRecord>(records, ChangeJournal.ByReference);
+        var keepers = await Task.Run(() => records.ToDictionary(r => r, r => journal.ActiveLayers(r.Target)
+            .SkipWhile(x => !ReferenceEquals(x, r)).Skip(1).FirstOrDefault(x => !own.Contains(x)), ChangeJournal.ByReference));
+        var details = records.Select(r => keepers[r] is { } keeper
+            ? $"{OptimizeLogic.DescribeTarget(r.Target)}: останется «{keeper.NewValue}» — его позже задал «{keeper.Title}», исходное значение перейдёт к нему"
+            : DescribeRecord(r)).ToList();
+        if (AlsoRevertsLine(records.Where(r => r.IsLegacyMerged), [item.Id]) is { } also) details.Add(also);
+        if (records.Any(r => r.IsLegacyPerUser))
+            details.Add("Часть записей сделана старой версией без учётной записи: значения вернутся в профиль текущей учётной записи.");
         var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?",
-            $"«{item.Title}»: MONOLITH вернёт значения, которые были до применения.",
+            $"«{item.Title}»: MONOLITH вернёт значения, которые были до применения этого пункта.",
             details, confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
             footnote: item.HasRestart ? $"После отката {item.Tweak.RestartText}." : null);
         if (!ok) return;
 
         RevertResult? result = null;
-        await RunBusyAsync($"Откат: {item.Title}…", async () => result = await TweakEngine.RevertAsync(item.Tweak));
+        await RunBusyAsync($"Откат: {item.Title}…", async () => result = await TweakEngine.RevertAsync(item.Tweak, LiveState.VerifyRevert));
         await RefreshStatesAsync();
         await ReportRevertAsync(result, [item]);
     }
 
     /// <summary>
-    /// A merged journal record keeps the original value from before the first tweak touched the target, so
-    /// reverting it also undoes every other tweak recorded on it. Names those tweaks, or returns null.
+    /// A merged journal record from an older build keeps the original value from before the first tweak touched the
+    /// target, so reverting it also undoes every other tweak recorded on it. Names those tweaks, or returns null.
+    /// (New changes of a journaled target get their own layer and never need this line.)
     /// </summary>
     private string? AlsoRevertsLine(IEnumerable<ChangeRecord> records, IReadOnlyCollection<string> ids)
     {
@@ -693,15 +704,26 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private async Task ReportRevertAsync(RevertResult? result, IReadOnlyList<TweakItemViewModel> targets)
     {
         if (result is null) return;
-        if (result.Success)
+        var check = result.VerificationText is { } v ? " " + v : "";
+        if (!result.JournalSaved)
+            Ui.Toast("Откат выполнен, но журнал не удалось сохранить на диск — после перезапуска записи могут снова показаться активными.",
+                ToastKind.Warning, "ЖУРНАЛ НЕ СОХРАНЁН");
+        if (result.Success && result.Mismatches.Count == 0)
         {
-            Ui.Toast($"Возвращено параметров: {result.Reverted}.", ToastKind.Success, "ОТКАТ ВЫПОЛНЕН");
+            Ui.Toast($"Возвращено параметров: {result.Reverted}.{check}", ToastKind.Success, "ОТКАТ ВЫПОЛНЕН");
+        }
+        else if (result.Success)
+        {
+            await Ui.AlertAsync("ОТКАТ НЕ СОВПАЛ С ИСХОДНЫМ",
+                $"Возвращено параметров: {result.Reverted}.{check} После отката MONOLITH прочитал значения заново: эти отличаются от исходных " +
+                "(их могла сразу изменить Windows, политика или другая программа). Подробности — в разделе «Восстановление».",
+                result.Mismatches);
         }
         else
         {
             await Ui.AlertAsync("ОТКАТ С ОШИБКАМИ",
-                $"Возвращено параметров: {result.Reverted}, не удалось: {result.Failed}. Повторить можно здесь или в разделе «Восстановление».",
-                result.Errors);
+                $"Возвращено параметров: {result.Reverted}, не удалось: {result.Failed}.{check} Повторить можно здесь или в разделе «Восстановление».",
+                result.Errors.Concat(result.Mismatches.Select(m => "НЕ СОВПАДАЕТ · " + m)));
         }
         if (result.Reverted == 0) return;
         var restart = targets.Select(t => t.Tweak.Restart).DefaultIfEmpty(RestartRequirement.None).Max();

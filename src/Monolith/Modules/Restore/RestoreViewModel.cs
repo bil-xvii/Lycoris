@@ -35,6 +35,8 @@ public sealed partial class RestoreViewModel : PageViewModel
     // ── journal ──
     [ObservableProperty] private JournalFilter _filter = JournalFilter.All;
     [ObservableProperty] private int _activeCount;
+    /// <summary>Active records «ОТКАТИТЬ ВСЁ» reverts (this account's and machine-wide, see <see cref="ChangeJournal.IsBulkRevertible"/>).</summary>
+    [ObservableProperty] private int _revertAllCount;
     [ObservableProperty] private int _revertedCount;
     [ObservableProperty] private int _totalCount;
     [ObservableProperty] private bool _isFilterEmpty;
@@ -116,14 +118,25 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (_journal is null) return;
         var batches = _journal.Batches;
         var records = _journal.Records;
+        var sid = UserScope.CurrentSid;
 
         ActiveCount = records.Count(r => !r.Reverted);
+        RevertAllCount = records.Count(ChangeJournal.IsBulkRevertible);
         RevertedCount = records.Count(r => r.Reverted);
         TotalCount = records.Count;
 
-        var groups = RestoreFormat.Group(batches, records, Filter, _drift.Keys.ToHashSet());
+        var covered = RestoreFormat.CoveredBy(records, sid);
+        var titles = new Dictionary<Guid, string>();
+        foreach (var r in records) titles.TryAdd(r.Id, r.Title);
+        var accounts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string Account(string s) => accounts.TryGetValue(s, out var name) ? name : accounts[s] = UserScope.AccountName(s);
+        RecordItem Item(ChangeRecord r) => new(r, _drift.GetValueOrDefault(r.Id),
+            RestoreFormat.RecordNote(r, sid, covered.GetValueOrDefault(r.Id), r.HandedTo is { } h ? titles.GetValueOrDefault(h) : null, Account),
+            ChangeJournal.IsOtherUser(r, sid));
+
+        var groups = RestoreFormat.Group(batches, records, Filter, _drift.Keys.ToHashSet(), ChangeJournal.IsBulkRevertible);
         Batches.Clear();
-        foreach (var g in groups) Batches.Add(new BatchItem(g, _drift));
+        foreach (var g in groups) Batches.Add(new BatchItem(g, Item));
 
         var journalEmpty = batches.Count == 0 && records.Count == 0;
         IsFilterEmpty = Batches.Count == 0;
@@ -221,7 +234,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (items.Count == 0 || !RequireAdmin("Повторное применение настроек")) return;
         var lines = DriftReapply.DescribeForConfirm(items, id => Monolith.Tweaks.TweakCatalog.Find(id)?.Title);
         if (!await Ui.ConfirmAsync("ПРИМЕНИТЬ СНОВА?",
-                "MONOLITH снова запишет значения, которые он ставил раньше. Запись в журнале сохраняет исходное значение (до MONOLITH), поэтому откат по-прежнему вернёт его.",
+                "MONOLITH снова запишет значения, которые он ставил раньше, отдельным пакетом. Откат этого пакета вернёт нынешние значения, а «ОТКАТИТЬ ВСЁ» — исходные (до MONOLITH).",
                 lines, confirmText: "ПРИМЕНИТЬ СНОВА",
                 footnote: "Если Windows снова сбросит настройку после обновления, MONOLITH покажет это при следующем запуске."))
             return;
@@ -418,33 +431,41 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     // ═════════════════════════════ Revert ═════════════════════════════
 
-    private bool CanRevertRecord(RecordItem? item) => item is { IsActive: true } && CanAdmin();
+    private bool CanRevertRecord(RecordItem? item) => item is { CanRevert: true } && CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertRecord))]
     private Task RevertRecordAsync(RecordItem? item) => RunBusyAsync("Откат изменения…", async () =>
     {
         if (item is null || _journal is null || !RequireAdmin("Откат изменения")) return;
+        var journal = _journal;
         // Research services.md §3.5: show the real current value and warn when it changed after MONOLITH.
-        var live = await Task.Run(() => LiveState.Read(item.Record));
+        var (live, newer) = await Task.Run(() =>
+        {
+            var n = journal.NewerLayer(item.Record);
+            return (LiveState.Read(item.Record, isTop: n is null), n);
+        });
         var lines = new List<string>
         {
             $"{item.KindLabel}: {item.Target}",
-            live.Drifted is null && item.NewValue is { Length: > 0 } applied ? $"Установлено MONOLITH: {applied}" : $"Сейчас: {live.Text}",
-            $"Станет: {item.OldValue}",
+            live.Drifted is null && newer is null && item.NewValue is { Length: > 0 } applied ? $"Установлено MONOLITH: {applied}" : $"Сейчас: {live.Text}",
+            newer is null ? $"Станет: {item.OldValue}" : $"Останется как сейчас; исходное «{item.OldValue}» перейдёт к «{newer.Title}»",
         };
         if (live.IsDrifted)
             lines.Add($"После MONOLITH значение изменили (Windows, политика или вы): MONOLITH ставил «{item.NewValue}». Откат заменит текущее значение исходным.");
-        if (!await Ui.ConfirmAsync("Откатить изменение?",
-                live.IsDrifted
-                    ? $"«{item.Title}» изменено вне MONOLITH. Если откатить, вернётся значение, которое было до MONOLITH, а более позднее изменение пропадёт."
-                    : $"«{item.Title}» вернётся к значению, которое было до MONOLITH.",
-                lines,
-                confirmText: "ОТКАТИТЬ", danger: live.IsDrifted))
+        if (item.Record.IsLegacyPerUser && UserScope.CurrentSid is { } me)
+            lines.Add($"Запись старой версии без учётной записи: значение вернётся в профиль {UserScope.AccountName(me)}.");
+        if (item.Record.IsLegacyMerged)
+            lines.Add($"Также откатит: {string.Join(", ", item.Record.AlsoSources.Distinct().Select(RestoreFormat.SourceTitle))} — они меняли тот же параметр.");
+        var message = newer is not null
+            ? $"Сейчас значение задаёт более позднее изменение «{newer.Title}». Откат «{item.Title}» систему не изменит: исходное значение перейдёт к нему, и его откат вернёт то, что было до MONOLITH."
+            : live.IsDrifted
+                ? $"«{item.Title}» изменено вне MONOLITH. Если откатить, вернётся значение, которое было до MONOLITH, а более позднее изменение пропадёт."
+                : $"«{item.Title}» вернётся к значению, которое было до этого изменения.";
+        if (!await Ui.ConfirmAsync("Откатить изменение?", message, lines, confirmText: "ОТКАТИТЬ", danger: live.IsDrifted))
             return;
 
-        var journal = _journal;
-        var result = await Task.Run(() => journal.RevertAsync([item.Record]));
-        await ReportAsync(result, "Изменение откачено.");
+        var result = await Task.Run(() => journal.RevertAsync([item.Record], LiveState.VerifyRevert));
+        await ReportAsync(result, newer is null ? "Изменение откачено." : $"Изменение откачено; значение остаётся за «{newer.Title}».");
     });
 
     private bool CanRevertBatch(BatchItem? batch) => batch is { CanRevert: true } && CanAdmin();
@@ -453,87 +474,123 @@ public sealed partial class RestoreViewModel : PageViewModel
     private Task RevertBatchAsync(BatchItem? batch) => RunBusyAsync("Откат пакета…", async () =>
     {
         if (batch is null || _journal is null || !RequireAdmin("Откат пакета")) return;
-        var active = _journal.Records.Where(r => !r.Reverted && (batch.IsSynthetic
-            ? _journal.Batches.All(b => b.Id != r.BatchId)
+        var journal = _journal;
+        var inBatch = journal.Records.Where(r => !r.Reverted && (batch.IsSynthetic
+            ? journal.Batches.All(b => b.Id != r.BatchId)
             : r.BatchId == batch.Id)).ToList();
+        var active = inBatch.Where(ChangeJournal.IsBulkRevertible).ToList();
         if (active.Count == 0) return;
 
-        var ordered = active.OrderByDescending(r => r.TimestampUtc).ToList();
-        var (lines, drifted) = await DescribeLiveAsync(ordered);
+        var (lines, drifted, kept) = await DescribeLiveAsync(journal, active);
         if (!await Ui.ConfirmAsync("Откатить пакет?",
-                $"«{batch.Title}» — {active.Count} {RestoreFormat.Plural(active.Count, "изменение вернётся", "изменения вернутся", "изменений вернутся")} к исходным значениям, от последнего к первому." +
-                DriftSentence(drifted),
+                $"«{batch.Title}» — {active.Count} {RestoreFormat.Plural(active.Count, "изменение откатится", "изменения откатятся", "изменений откатятся")}, от последнего к первому." +
+                KeptSentence(kept) + DriftSentence(drifted) + SkippedSentence(inBatch.Count - active.Count),
                 lines,
                 confirmText: "ОТКАТИТЬ ПАКЕТ", danger: drifted > 0))
             return;
 
-        var journal = _journal;
-        var result = await Task.Run(() => journal.RevertAsync(active));
+        var result = await Task.Run(() => journal.RevertAsync(active, LiveState.VerifyRevert));
         await ReportAsync(result, $"Пакет «{batch.Title}» откачен.");
     });
 
-    private bool CanRevertAll() => ActiveCount > 0 && CanAdmin();
+    private bool CanRevertAll() => RevertAllCount > 0 && CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertAll))]
     private Task RevertAllAsync() => RunBusyAsync("Откат всех изменений…", async () =>
     {
         if (_journal is null || !RequireAdmin("Откат всех изменений")) return;
-        var active = _journal.ActiveRecords.OrderByDescending(r => r.TimestampUtc).ToList();
+        var journal = _journal;
+        var active = journal.RevertAllCandidates().Reverse().ToList();
         if (active.Count == 0) return;
+        var skipped = journal.ActiveRecords.Count - active.Count;
 
-        var (lines, drifted) = await DescribeLiveAsync(active);
+        var (lines, drifted, _) = await DescribeLiveAsync(journal, active);
         if (!await Ui.ConfirmAsync("Откатить все изменения?",
                 $"{active.Count} {RestoreFormat.Plural(active.Count, "активное изменение MONOLITH вернётся", "активных изменения MONOLITH вернутся", "активных изменений MONOLITH вернутся")} к исходным значениям — от последнего к первому." +
-                DriftSentence(drifted) + " Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются.",
+                DriftSentence(drifted) + SkippedSentence(skipped) + " Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются.",
                 lines,
                 confirmText: "ОТКАТИТЬ ВСЁ", danger: true,
                 footnote: "Для некоторых изменений нужна перезагрузка."))
             return;
 
-        var journal = _journal;
-        var result = await Task.Run(() => journal.RevertAllAsync());
+        var result = await Task.Run(() => journal.RevertAllAsync(LiveState.VerifyRevert));
         await ReportAsync(result, "Все изменения откачены.");
     });
 
     private static string Describe(ChangeRecord r) =>
         $"{r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: «{r.NewValue}» → «{r.OldValue}»";
 
-    /// <summary>Dialog lines with a live read per record; drifted ones are flagged (research services.md §3.5).</summary>
-    private static async Task<(List<string> Lines, int Drifted)> DescribeLiveAsync(IReadOnlyList<ChangeRecord> records)
+    /// <summary>
+    /// Dialog lines with a live read per record, newest first; drifted ones are flagged (research services.md §3.5).
+    /// A record whose target a newer change outside the selection now sets is listed as kept: its revert hands the
+    /// original over to that change and leaves the system as it is.
+    /// </summary>
+    private static async Task<(List<string> Lines, int Drifted, int Kept)> DescribeLiveAsync(ChangeJournal journal, IReadOnlyList<ChangeRecord> records)
     {
-        var live = await Task.Run(() => records.Select(LiveState.Read).ToList());
+        var selected = new HashSet<ChangeRecord>(records, ChangeJournal.ByReference);
+        var rows = await Task.Run(() => records.Select(r =>
+        {
+            // The first newer layer that is not reverted together with this record keeps the value.
+            var keeper = journal.ActiveLayers(r.Target).SkipWhile(x => !ReferenceEquals(x, r)).Skip(1)
+                .FirstOrDefault(x => !selected.Contains(x));
+            var isTop = journal.NewerLayer(r) is null;
+            return (Live: LiveState.Read(r, isTop), Keeper: keeper);
+        }).ToList());
         var lines = new List<string>(records.Count);
-        var drifted = 0;
+        int drifted = 0, kept = 0;
         for (var i = 0; i < records.Count; i++)
         {
             var r = records[i];
-            if (live[i].IsDrifted)
+            var (live, keeper) = rows[i];
+            if (keeper is not null)
+            {
+                kept++;
+                lines.Add($"{r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: остаётся «{live.Text}» — его задаёт более позднее «{keeper.Title}», исходное значение перейдёт к нему");
+            }
+            else if (live.IsDrifted)
             {
                 drifted++;
-                lines.Add($"ИЗМЕНЕНО ВНЕ MONOLITH · {r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: сейчас «{live[i].Text}» (MONOLITH ставил «{r.NewValue}») → «{r.OldValue}»");
+                lines.Add($"ИЗМЕНЕНО ВНЕ MONOLITH · {r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: сейчас «{live.Text}» (MONOLITH ставил «{r.NewValue}») → «{r.OldValue}»");
             }
             else
             {
                 lines.Add(Describe(r));
             }
         }
-        return (lines, drifted);
+        return (lines, drifted, kept);
     }
 
     private static string DriftSentence(int drifted) => drifted == 0
         ? ""
         : $" {drifted} {RestoreFormat.Plural(drifted, "значение изменено", "значения изменены", "значений изменено")} после MONOLITH (Windows, политикой или вами) — откат заменит и {(drifted == 1 ? "его" : "их")} исходным значением; такие пункты отмечены «ИЗМЕНЕНО ВНЕ MONOLITH».";
 
+    private static string KeptSentence(int kept) => kept == 0
+        ? ""
+        : $" {kept} {RestoreFormat.Plural(kept, "параметр", "параметра", "параметров")} позже изменил другой пакет — {(kept == 1 ? "он останется" : "они останутся")} как есть, а исходное значение перейдёт к тому изменению.";
+
+    private static string SkippedSentence(int skipped) => skipped <= 0
+        ? ""
+        : $" {skipped} {RestoreFormat.Plural(skipped, "запись не входит", "записи не входят", "записей не входят")} в общий откат: это изменения другой учётной записи или старые записи без учётной записи — откатите их по одной.";
+
     private static async Task ReportAsync(RevertResult result, string success)
     {
-        if (result.Success)
+        var check = result.VerificationText is { } v ? " " + v : "";
+        if (!result.JournalSaved)
+            Ui.Toast("Откат выполнен, но журнал не удалось сохранить на диск — после перезапуска эти записи могут снова показаться активными.",
+                ToastKind.Warning, "ЖУРНАЛ НЕ СОХРАНЁН");
+        if (result.Success && result.Mismatches.Count == 0)
         {
-            Ui.Toast(result.Reverted > 1 ? $"{success} Записей: {result.Reverted}." : success, ToastKind.Success);
+            Ui.Toast((result.Reverted > 1 ? $"{success} Записей: {result.Reverted}." : success) + check, ToastKind.Success);
             return;
         }
-        Ui.Toast($"Откачено: {result.Reverted}, ошибок: {result.Failed}.", ToastKind.Warning);
-        await Ui.AlertAsync("Часть изменений не откачена",
-            "Эти записи остались активными — их можно откатить повторно после перезагрузки или вернуть точкой восстановления Windows.",
-            result.Errors);
+        Ui.Toast(result.Success ? success + check : $"Откачено: {result.Reverted}, ошибок: {result.Failed}.{check}", ToastKind.Warning);
+        if (!result.Success)
+            await Ui.AlertAsync("Часть изменений не откачена",
+                "Эти записи остались активными — их можно откатить повторно после перезагрузки или вернуть точкой восстановления Windows.",
+                result.Errors.Concat(result.Mismatches.Select(m => "НЕ СОВПАДАЕТ · " + m)));
+        else
+            await Ui.AlertAsync("Откат не совпал с исходным",
+                "После отката MONOLITH прочитал значения заново, и эти отличаются от записанных до изменения: их могла сразу поменять Windows, политика или другая программа. Строки отмечены «НЕ СОВПАДАЕТ».",
+                result.Mismatches);
     }
 }

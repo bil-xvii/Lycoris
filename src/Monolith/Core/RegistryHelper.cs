@@ -22,9 +22,23 @@ public sealed class RegistryValueSnapshot
     /// <summary>Serialized data: decimal for DWORD/QWORD, text for strings, JSON array for multi-string, base64 for binary.</summary>
     public string? Data { get; init; }
 
+    /// <summary>
+    /// The shallowest key of <see cref="Path"/> that MONOLITH created (it did not exist before the first write, or an
+    /// active journal record created it). On restore the empty keys from <see cref="Path"/> up to and including this
+    /// one are removed, never anything above it. Null: MONOLITH created no key (or the record is from an older build).
+    /// </summary>
+    public string? CreatedKeyRoot { get; init; }
+
     public string FullName => $"{Hive}\\{Path}\\{(Name.Length == 0 ? "(По умолчанию)" : Name)}";
 
     public string Describe() => !ValueExisted ? "отсутствовало" : $"{Kind}: {Data}";
+
+    /// <summary>The same snapshot with another created-key root.</summary>
+    public RegistryValueSnapshot WithCreatedKeyRoot(string? root) => new()
+    {
+        Hive = Hive, Path = Path, Name = Name, KeyExisted = KeyExisted, ValueExisted = ValueExisted, Kind = Kind, Data = Data,
+        CreatedKeyRoot = root,
+    };
 }
 
 /// <summary>Registry access helpers (always the 64-bit view).</summary>
@@ -100,7 +114,11 @@ public static class RegistryHelper
         using var b = OpenBase(h);
         using var k = b.OpenSubKey(p, false);
         if (k is null)
-            return new RegistryValueSnapshot { Hive = hive, Path = path, Name = name, KeyExisted = false, ValueExisted = false };
+            return new RegistryValueSnapshot
+            {
+                Hive = hive, Path = path, Name = name, KeyExisted = false, ValueExisted = false,
+                CreatedKeyRoot = ShallowestMissing(path, logical => KeyExists(hive, logical)),
+            };
 
         var value = k.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
         if (value is null)
@@ -132,7 +150,12 @@ public static class RegistryHelper
         k?.DeleteValue(name, false);
     }
 
-    /// <summary>Puts the value back exactly as captured. Removes keys MONOLITH created if they are empty again.</summary>
+    /// <summary>
+    /// Puts the value back exactly as captured. When the value did not exist, removes it and then the keys MONOLITH
+    /// created, while they are empty: from <see cref="RegistryValueSnapshot.Path"/> up to and including
+    /// <see cref="RegistryValueSnapshot.CreatedKeyRoot"/>, never above it. Records from older builds (no root) only
+    /// lose their own key, and only when it is empty.
+    /// </summary>
     public static void Restore(RegistryValueSnapshot s)
     {
         if (s.ValueExisted)
@@ -142,7 +165,8 @@ public static class RegistryHelper
         }
 
         DeleteValue(s.Hive, s.Path, s.Name);
-        if (!s.KeyExisted) TryDeleteEmptyKeyChain(s.Hive, s.Path);
+        if (s.CreatedKeyRoot is { } root) DeleteEmptyKeys(s.Hive, s.Path, root);
+        else if (!s.KeyExisted) DeleteEmptyKeys(s.Hive, s.Path, s.Path);
     }
 
     /// <summary>True when the current value equals the expected one (null expected = value must be absent).</summary>
@@ -151,10 +175,11 @@ public static class RegistryHelper
         var current = Read(hive, path, name);
         if (expected is null) return current is null;
         if (current is null) return false;
+        // A value of another kind (e.g. REG_SZ text where a DWORD is expected) simply does not match.
         return kind switch
         {
-            RegistryValueKind.DWord => ToLong(current) == ToLong(expected) || unchecked((uint)ToLong(current)) == unchecked((uint)ToLong(expected)),
-            RegistryValueKind.QWord => ToLong(current) == ToLong(expected),
+            RegistryValueKind.DWord => ToLong(current) is { } c && ToLong(expected) is { } e && (c == e || unchecked((uint)c) == unchecked((uint)e)),
+            RegistryValueKind.QWord => ToLong(current) is { } cq && ToLong(expected) is { } eq && cq == eq,
             RegistryValueKind.Binary => current is byte[] a && expected is byte[] e && a.AsSpan().SequenceEqual(e),
             RegistryValueKind.MultiString => current is string[] ca && expected is string[] ce && ca.SequenceEqual(ce),
             _ => string.Equals(current.ToString(), expected.ToString(), StringComparison.OrdinalIgnoreCase),
@@ -177,38 +202,121 @@ public static class RegistryHelper
         catch { return false; }
     }
 
-    private static void TryDeleteEmptyKeyChain(RegHive hive, string path)
+    /// <summary>Deletes the empty keys from <paramref name="path"/> up to and including <paramref name="root"/> (logical paths).</summary>
+    private static void DeleteEmptyKeys(RegHive hive, string path, string root)
     {
-        Map(ref hive, ref path);
+        if (Redirect is null) SafetyLock.ThrowIfLocked("удаление раздела реестра");
         try
         {
-            using var b = OpenBase(hive);
-            var current = path;
-            // Only walk up a few levels and never past the first three path segments (e.g. SOFTWARE\Policies\Microsoft).
-            for (var i = 0; i < 3 && current.Count(c => c == '\\') >= 3; i++)
-            {
-                using (var k = b.OpenSubKey(current, false))
+            DeleteEmptyChain(path, root,
+                logical =>
                 {
-                    if (k is null) { current = Parent(current); continue; }
-                    if (k.SubKeyCount > 0 || k.ValueCount > 0) return;
-                }
-                b.DeleteSubKey(current, false);
-                current = Parent(current);
-            }
+                    RegHive h = hive; string p = logical;
+                    Map(ref h, ref p);
+                    using var b = OpenBase(h);
+                    using var k = b.OpenSubKey(p, false);
+                    return k is null ? null : k.SubKeyCount == 0 && k.ValueCount == 0;
+                },
+                logical =>
+                {
+                    RegHive h = hive; string p = logical;
+                    Map(ref h, ref p);
+                    using var b = OpenBase(h);
+                    b.DeleteSubKey(p, false);
+                });
         }
-        catch { }
-
-        static string Parent(string p) => p.Contains('\\') ? p[..p.LastIndexOf('\\')] : p;
+        catch (Exception ex)
+        {
+            Log.Warn($"Не удалось удалить пустой раздел реестра {hive}\\{path}: {ex.Message}");
+        }
     }
 
-    private static long ToLong(object o) => o switch
+    // ───────────────────────────── Created keys (pure path logic) ─────────────────────────────
+
+    private static string TrimPath(string path) => path.Replace('/', '\\').Trim('\\');
+
+    private static string[] Segments(string path) => TrimPath(path).Split('\\');
+
+    /// <summary>True when <paramref name="ancestor"/> is <paramref name="path"/> itself or one of its parent keys (whole segments).</summary>
+    internal static bool IsSameOrAncestor(string ancestor, string path)
+    {
+        var a = TrimPath(ancestor);
+        var p = TrimPath(path);
+        if (a.Length == 0) return false;
+        return string.Equals(a, p, StringComparison.OrdinalIgnoreCase)
+               || (p.Length > a.Length && p.StartsWith(a, StringComparison.OrdinalIgnoreCase) && p[a.Length] == '\\');
+    }
+
+    /// <summary>The shallower of two created-key roots of the same path (null-tolerant).</summary>
+    internal static string? ShallowerRoot(string? a, string? b)
+    {
+        if (a is null) return b;
+        if (b is null) return a;
+        return Segments(a).Length <= Segments(b).Length ? a : b;
+    }
+
+    /// <summary>
+    /// A created-key root a journal record may carry: <paramref name="path"/> itself or a parent of it, at least two
+    /// segments deep (never a top-level key such as SOFTWARE), with no empty segments.
+    /// </summary>
+    internal static bool IsValidCreatedRoot(string path, string root)
+    {
+        var segments = Segments(root);
+        return segments.Length >= 2 && segments.All(x => x.Length > 0) && IsSameOrAncestor(root, path);
+    }
+
+    /// <summary>
+    /// The shallowest missing key of <paramref name="path"/> (the first segment that does not exist), or null when the
+    /// key exists. Never shallower than two segments: a missing top-level key is reported as its first child.
+    /// </summary>
+    internal static string? ShallowestMissing(string path, Func<string, bool> exists)
+    {
+        var segments = Segments(path);
+        if (segments.Length == 0 || segments.Any(x => x.Length == 0)) return null;
+        for (var i = 1; i <= segments.Length; i++)
+        {
+            var prefix = string.Join('\\', segments.Take(i));
+            if (exists(prefix)) continue;
+            if (i == 1) return segments.Length >= 2 ? string.Join('\\', segments.Take(2)) : null;
+            return prefix;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Walks from <paramref name="path"/> up to and including <paramref name="root"/>: a missing key is skipped, an
+    /// empty one is deleted, the first key that still holds values or subkeys stops the walk. Never goes above
+    /// <paramref name="root"/>, and does nothing when the root is not <paramref name="path"/> or one of its parents.
+    /// <paramref name="isEmpty"/> returns null for a missing key.
+    /// </summary>
+    internal static void DeleteEmptyChain(string path, string root, Func<string, bool?> isEmpty, Action<string> delete)
+    {
+        if (!IsSameOrAncestor(root, path)) return;
+        var stop = Segments(root).Length;
+        var segments = Segments(path);
+        for (var depth = segments.Length; depth >= stop; depth--)
+        {
+            var current = string.Join('\\', segments.Take(depth));
+            switch (isEmpty(current))
+            {
+                case null: continue;   // already gone
+                case false: return;    // something else lives here: keep it and everything above
+                default: delete(current); break;
+            }
+        }
+    }
+
+    private static long? ToLong(object o) => o switch
     {
         int i => i,
         uint u => u,
         long l => l,
         ulong ul => unchecked((long)ul),
+        short s => s,
+        ushort us => us,
+        byte b => b,
         string s when long.TryParse(s, out var v) => v,
-        _ => Convert.ToInt64(o),
+        _ => null,
     };
 
     private static object Normalize(RegistryValueKind kind, object value) => kind switch

@@ -5,8 +5,13 @@ using Microsoft.Win32;
 
 namespace Monolith.Core;
 
-/// <summary>Start configuration of a service, captured before a change so it can be restored.</summary>
-public sealed record ServiceStartSnapshot(string Name, ServiceStartMode StartMode, bool DelayedAutoStart)
+/// <summary>
+/// Start configuration of a service, captured before a change so it can be restored.
+/// <see cref="DelayedAutoStart"/> is the effective flag (only meaningful for Automatic); <see cref="RawDelayed"/> is the
+/// stored DelayedAutostart flag whatever the start type (Windows keeps it for Manual/Disabled services too, and uses it
+/// again when something switches the service back to Automatic). Null in records from older builds.
+/// </summary>
+public sealed record ServiceStartSnapshot(string Name, ServiceStartMode StartMode, bool DelayedAutoStart, bool? RawDelayed = null)
 {
     public string Describe() => ServiceControl.DescribeStart(StartMode, DelayedAutoStart);
 }
@@ -73,7 +78,8 @@ public static class ServiceControl
             using var k = Registry.LocalMachine.OpenSubKey($@"{ServicesKey}\{name}", false);
             if (k?.GetValue("Start") is not int start) return null;
             var delayed = k.GetValue("DelayedAutostart") is int d && d == 1;
-            return new ServiceStartSnapshot(name, (ServiceStartMode)start, delayed && start == 2);
+            // An absent flag and 0 mean the same to the Service Control Manager.
+            return new ServiceStartSnapshot(name, (ServiceStartMode)start, delayed && start == 2, delayed);
         }
         catch
         {
@@ -113,6 +119,59 @@ public static class ServiceControl
         SafetyLock.ThrowIfLocked("изменение службы");
         Elevation.Demand("изменение служб");
 
+        var before = Query(name);
+        WithService(name, svc =>
+        {
+            SetStartType(svc, name, mode);
+            if (mode != ServiceStartMode.Automatic) return;
+            if (SetDelayedFlag(svc, delayedAutoStart)) return;
+            // The start type is already changed: put it back, so a failed change leaves nothing behind.
+            var error = Marshal.GetLastWin32Error();
+            if (before is not null && before.StartMode != mode)
+            {
+                try { SetStartType(svc, name, before.StartMode); }
+                catch (Exception ex) { Log.Warn($"Служба {name}: не удалось вернуть тип запуска после ошибки: {ex.Message}"); }
+            }
+            throw new Win32Exception(error, $"Не удалось изменить отложенный запуск {name}");
+        });
+    }
+
+    /// <summary>
+    /// Puts a start configuration back exactly: the start type and the stored DelayedAutostart flag (for every start
+    /// type, not only Automatic). Protected services are refused here too: MONOLITH never journals them.
+    /// </summary>
+    public static void Restore(ServiceStartSnapshot s)
+    {
+        if (s.RawDelayed is not { } raw)
+        {
+            SetStartMode(s.Name, s.StartMode, s.DelayedAutoStart); // record from an older build: the flag was not captured
+            return;
+        }
+        if (IsProtected(s.Name))
+            throw new InvalidOperationException($"Служба «{s.Name}» критична для Windows — MONOLITH её не изменяет.");
+        SafetyLock.ThrowIfLocked("изменение службы");
+        Elevation.Demand("изменение служб");
+
+        var current = Query(s.Name);
+        WithService(s.Name, svc =>
+        {
+            if (s.StartMode == ServiceStartMode.Automatic)
+            {
+                SetStartType(svc, s.Name, s.StartMode);
+                if (!SetDelayedFlag(svc, raw))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Не удалось вернуть отложенный запуск {s.Name}");
+                return;
+            }
+            // Not Automatic: set the flag first, while the service still has the start type MONOLITH gave it.
+            if (current?.RawDelayed != raw && !SetDelayedFlag(svc, raw))
+                Log.Warn($"Служба {s.Name}: не удалось вернуть флаг отложенного запуска ({(raw ? "1" : "0")}). " +
+                         "Windows учитывает его только для автоматического запуска.");
+            SetStartType(svc, s.Name, s.StartMode);
+        });
+    }
+
+    private static void WithService(string name, Action<IntPtr> action)
+    {
         var scm = OpenSCManager(null, null, SC_MANAGER_CONNECT);
         if (scm == IntPtr.Zero) throw new Win32Exception();
         try
@@ -121,15 +180,7 @@ public static class ServiceControl
             if (svc == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), $"Не удалось открыть службу {name}");
             try
             {
-                if (!ChangeServiceConfig(svc, SERVICE_NO_CHANGE, (uint)mode, SERVICE_NO_CHANGE,
-                        null, null, IntPtr.Zero, null, null, null, null))
-                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Не удалось изменить тип запуска {name}");
-
-                if (mode == ServiceStartMode.Automatic)
-                {
-                    var info = new SERVICE_DELAYED_AUTO_START_INFO { fDelayedAutostart = delayedAutoStart };
-                    ChangeServiceConfig2(svc, SERVICE_CONFIG_DELAYED_AUTO_START_INFO, ref info);
-                }
+                action(svc);
             }
             finally
             {
@@ -142,8 +193,18 @@ public static class ServiceControl
         }
     }
 
-    /// <summary>Puts a start type back. Protected services are refused here too: MONOLITH never journals them.</summary>
-    public static void Restore(ServiceStartSnapshot s) => SetStartMode(s.Name, s.StartMode, s.DelayedAutoStart);
+    private static void SetStartType(IntPtr svc, string name, ServiceStartMode mode)
+    {
+        if (!ChangeServiceConfig(svc, SERVICE_NO_CHANGE, (uint)mode, SERVICE_NO_CHANGE,
+                null, null, IntPtr.Zero, null, null, null, null))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Не удалось изменить тип запуска {name}");
+    }
+
+    private static bool SetDelayedFlag(IntPtr svc, bool delayed)
+    {
+        var info = new SERVICE_DELAYED_AUTO_START_INFO { fDelayedAutostart = delayed };
+        return ChangeServiceConfig2(svc, SERVICE_CONFIG_DELAYED_AUTO_START_INFO, ref info);
+    }
 
     public static async Task<bool> StopAsync(string name, TimeSpan timeout)
     {

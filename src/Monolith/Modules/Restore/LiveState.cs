@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using Monolith.Core;
+using Monolith.Tweaks;
 
 namespace Monolith.Modules.Restore;
 
@@ -42,6 +43,122 @@ public static class LiveState
             Log.Warn($"Не удалось прочитать текущее значение «{r.Title}»: {ex.Message}");
             return new LiveValue(Unknown, null);
         }
+    }
+
+    /// <summary>
+    /// As <see cref="Read(ChangeRecord)"/>, for a record that may be an older layer: when a newer change of the same
+    /// target is active (<paramref name="isTop"/> false), its value was replaced on purpose and is never reported as drift.
+    /// </summary>
+    public static LiveValue Read(ChangeRecord r, bool isTop)
+    {
+        var live = Read(r);
+        return isTop ? live : live with { Drifted = null };
+    }
+
+    // ───────────────────────────── Revert verification ─────────────────────────────
+
+    /// <summary>
+    /// Reads the target of a just-reverted record back and compares it with the original the record held
+    /// («Откат подтверждён» / «Не совпадает: сейчас X, ожидалось Y»). Read-only, blocking: call off the UI thread.
+    /// <see cref="RevertCheck.Matches"/> is null when there is nothing to compare (target gone, a command without a reader).
+    /// </summary>
+    public static RevertCheck VerifyRevert(ChangeRecord r)
+    {
+        try
+        {
+            return r.Kind switch
+            {
+                ChangeKind.Registry when r.Registry is { } original => VerifyRegistry(original),
+                ChangeKind.Service when r.Service is { } original => VerifyService(original),
+                ChangeKind.PowerScheme => VerifyPower(r),
+                ChangeKind.ScheduledTask when r.TaskPath is { } path && r.TaskWasEnabled is { } was => VerifyTask(path, was),
+                ChangeKind.Command => VerifyCommand(r),
+                _ => RevertCheck.NotChecked,
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Не удалось проверить откат «{r.Title}»: {ex.Message}");
+            return RevertCheck.NotChecked;
+        }
+    }
+
+    /// <summary>Pure comparison of a restored registry value with the original snapshot (kind and exact data).</summary>
+    public static RevertCheck CompareRegistry(RegistryValueSnapshot original, RegistryValueSnapshot live)
+    {
+        var same = original.ValueExisted == live.ValueExisted
+                   && (!original.ValueExisted || (original.Kind == live.Kind && string.Equals(original.Data, live.Data, StringComparison.Ordinal)));
+        return new RevertCheck(same, RegistryText(live), RegistryText(original));
+    }
+
+    private static string RegistryText(RegistryValueSnapshot s) => s.ValueExisted ? FormatRegistry(s) : "значения нет";
+
+    private static RevertCheck VerifyRegistry(RegistryValueSnapshot original) =>
+        CompareRegistry(original, RegistryHelper.Snapshot(original.Hive, original.Path, original.Name));
+
+    /// <summary>Pure comparison of a restored service start configuration with the original (raw delayed flag when recorded).</summary>
+    public static RevertCheck CompareService(ServiceStartSnapshot original, ServiceStartSnapshot live)
+    {
+        var sameStart = live.StartMode == original.StartMode && live.DelayedAutoStart == original.DelayedAutoStart;
+        var sameFlag = original.RawDelayed is null || live.RawDelayed == original.RawDelayed;
+        if (sameStart && !sameFlag)
+            return new RevertCheck(false, $"{live.Describe()}, флаг отложенного запуска {Flag(live.RawDelayed)}",
+                $"{original.Describe()}, флаг отложенного запуска {Flag(original.RawDelayed)}");
+        return new RevertCheck(sameStart && sameFlag, live.Describe(), original.Describe());
+
+        static string Flag(bool? f) => f == true ? "1" : "0";
+    }
+
+    private static RevertCheck VerifyService(ServiceStartSnapshot original) =>
+        ServiceControl.Query(original.Name) is { } live ? CompareService(original, live) : RevertCheck.NotChecked;
+
+    private static RevertCheck VerifyPower(ChangeRecord r)
+    {
+        var active = PowerSchemes.GetActive();
+        if (active == Guid.Empty) return RevertCheck.NotChecked;
+        var expected = r.PowerSchemeOriginal is { } o && o != Guid.Empty && PowerSchemes.Exists(o) ? o : PowerSchemes.Balanced;
+        if (active != expected) return new RevertCheck(false, PowerSchemes.GetName(active), PowerSchemes.GetName(expected));
+        var leftover = ChangeJournal.CreatedSchemes(r).FirstOrDefault(c => c != active && PowerSchemes.TryExists(c) == true);
+        if (leftover != Guid.Empty)
+            return new RevertCheck(false, $"осталась созданная MONOLITH схема «{PowerSchemes.GetName(leftover)}»", "созданная схема удалена");
+        return new RevertCheck(true, PowerSchemes.GetName(active), PowerSchemes.GetName(expected));
+    }
+
+    private static RevertCheck VerifyTask(string path, bool wasEnabled)
+    {
+        var info = ScheduledTasks.Query(path);
+        if (!info.Exists) return RevertCheck.NotChecked;
+        return new RevertCheck(info.Enabled == wasEnabled, TaskText(info.Enabled), TaskText(wasEnabled));
+
+        static string TaskText(bool enabled) => enabled ? "Включена" : "Отключена";
+    }
+
+    private const string DxPreferencesPath = @"Software\Microsoft\DirectX\UserGpuPreferences";
+    private const string DxGlobalSettings = "DirectXUserGlobalSettings";
+
+    /// <summary>Commands with a catalog reader: a power setting's AC value, an adapter's DNS servers, a DirectX token.</summary>
+    private static RevertCheck VerifyCommand(ChangeRecord r)
+    {
+        if (JournalTrust.PowercfgUndo(r) is { } pc)
+        {
+            if (PowerSchemes.TryExists(pc.Scheme) != true) return RevertCheck.NotChecked;
+            if (TweakCatalog.ReadAcIndex(pc.Scheme, pc.Subgroup, pc.Setting) is not { } value) return RevertCheck.NotChecked;
+            return new RevertCheck(value == pc.Value, $"от сети: {value}", $"от сети: {pc.Value}");
+        }
+        if (JournalTrust.DnsUndo(r) is { } dns)
+        {
+            var live = TweakCatalog.StaticDns(dns.Adapter, dns.Ipv6);
+            return new RevertCheck(TweakCatalog.SameServers(live, dns.Servers), DnsText(live), DnsText(dns.Servers));
+        }
+        if (JournalTrust.DxUndo(r) is { } dx)
+        {
+            var live = TweakCatalog.GetDxToken(RegistryHelper.ReadString(RegHive.HKCU, DxPreferencesPath, DxGlobalSettings), dx.Token);
+            return new RevertCheck(string.Equals(live, dx.Value, StringComparison.Ordinal), DxText(live), DxText(dx.Value));
+        }
+        return RevertCheck.NotChecked;
+
+        static string DnsText(IReadOnlyList<string> servers) => servers.Count == 0 ? "автоматически (DHCP)" : string.Join(", ", servers);
+        static string DxText(string? value) => value is null ? "не задано" : value;
     }
 
     private static LiveValue ReadService(ChangeRecord r)

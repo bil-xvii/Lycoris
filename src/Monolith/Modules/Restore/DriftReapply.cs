@@ -8,10 +8,10 @@ namespace Monolith.Modules.Restore;
 public sealed record ReapplyResult(int Applied, IReadOnlyList<string> Errors);
 
 /// <summary>
-/// «ПРИМЕНИТЬ СНОВА» for drifted records. Every write goes through <see cref="ChangeSession"/>: the journal already
-/// holds the true original, so a re-apply only updates the record's new value (ChangeJournal.MergeInto) and the
-/// record stays revertable to the pre-MONOLITH value. Tweaks are re-applied through <see cref="TweakEngine"/>,
-/// exactly as the Optimize page does. Call off the UI thread, after the user confirmed.
+/// «ПРИМЕНИТЬ СНОВА» for drifted records. Every write goes through <see cref="ChangeSession"/> and becomes a new layer
+/// of the target in its own batch: undoing that batch goes back to the value Windows (or another program) had set,
+/// undoing everything still ends at the value from before MONOLITH. Tweaks are re-applied through
+/// <see cref="TweakEngine"/>, exactly as the Optimize page does. Call off the UI thread, after the user confirmed.
 /// </summary>
 public static class DriftReapply
 {
