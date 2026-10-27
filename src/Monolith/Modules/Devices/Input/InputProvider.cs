@@ -248,7 +248,7 @@ internal sealed class InputProvider : IDeviceProvider
         if (filter is not null) delay.DisabledReason ??= filter;
 
         var rate = SpiRow(ctx, spi, "keyboard-speed", 20, SettingControl.Slider,
-            "Сколько раз в секунду повторяется зажатая клавиша. 31 — быстрее всего",
+            "Сколько раз в секунду повторяется зажатая клавиша. Быстрее всего — около 30 раз",
             min: 0, max: 31, @default: 31, format: v => InputAdvice.RepeatSpeedText(v.Number));
         if (sys.FilterKeysOn) rate.DisabledReason ??= "Сейчас скорость повтора задаёт «Фильтрация ввода».";
         else if (rate is { Apply: not null, Current.Number: < 31 })
