@@ -75,8 +75,11 @@ public sealed partial class DevicesViewModel : PageViewModel
             SelectedTab = TabAuto;
             return;
         }
-        AppSettings.Current.DevicesTab = value;
+        if (RememberTab) AppSettings.Current.DevicesTab = value;
     }
+
+    /// <summary>Off while --snapshot shoots both tabs (the user's last tab stays as it was).</summary>
+    internal static bool RememberTab { get; set; } = true;
 
     public ObservableCollection<DeviceCard> Cards { get; } = [];
     public ObservableCollection<DeviceGroup> Groups { get; } = [];
