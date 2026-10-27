@@ -481,6 +481,26 @@ public static partial class TweakCatalog
                 }
             },
         };
+
+        // ───── Sound (devices_audio.md audio-ducking: SAFE-OPTIONAL, «3 = Do nothing» in the Gaming profile) ─────
+
+        // Also a row of «Устройства и сеть» → Звук (applied from its plan through TweakEngine, read-only there).
+        yield return new RegistryTweak
+        {
+            Id = "audio-ducking",
+            Title = "Не приглушать звук во время звонков",
+            Description = "Windows перестаёт убавлять звук игры и музыки (по умолчанию на 80 %), когда открыт голосовой чат.",
+            Details = "Это вариант «Ничего не делать» на вкладке «Связь» панели звука. Приглушение мешает слышать шаги и выстрелы, " +
+                      "пока говорят в Discord или Teams; у Discord есть своё приглушение, оно настраивается в нём. Значение " +
+                      "UserDuckingPreference = 3 хранится в профиле пользователя; Windows читает его после выхода из системы — чтобы " +
+                      "сразу, выберите тот же вариант на вкладке «Связь» (mmsys.cpl). Откат возвращает прежний вариант, по умолчанию — " +
+                      "«Уменьшать громкость на 80 %».",
+            Category = TweakCategory.Gaming,
+            Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Gaming,
+            Restart = RestartRequirement.SignOut,
+            Values = [Cu(Core.Devices.DeviceTargets.DuckingPath, Core.Devices.DeviceTargets.DuckingName, 3)],
+        };
     }
 
     private const string ExplorerKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer";
