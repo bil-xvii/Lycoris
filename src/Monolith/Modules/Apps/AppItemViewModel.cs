@@ -65,12 +65,13 @@ public sealed partial class AppItemViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInstalled), nameof(InstalledText), nameof(Action), nameof(ActionText), nameof(ActionToolTip),
         nameof(IsPrimaryAction), nameof(CanRunAction), nameof(CanSelect), nameof(HasVariantPicker), nameof(DisplayTags), nameof(ShowSiteButton),
-        nameof(CanUpgrade))]
+        nameof(CanUpgrade), nameof(ShownAdvice), nameof(HasAdviceCaption), nameof(AdviceReason), nameof(IsDimmed), nameof(IsSuggested))]
     private string? _installedVersion;
 
     /// <summary>At least one detection pass (or the cache) has been applied.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanRunAction), nameof(CanSelect), nameof(IsChecking), nameof(DisplayTags))]
+    [NotifyPropertyChangedFor(nameof(CanRunAction), nameof(CanSelect), nameof(IsChecking), nameof(DisplayTags),
+        nameof(ShownAdvice), nameof(HasAdviceCaption), nameof(AdviceReason), nameof(IsDimmed), nameof(IsSuggested))]
     private bool _isKnown;
 
     [ObservableProperty]
@@ -86,10 +87,14 @@ public sealed partial class AppItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasActiveJob), nameof(HasJob))]
     private QueueItemViewModel? _job;
 
-    /// <summary>NVIDIA-only package on a PC where no NVIDIA graphics card was found.</summary>
+    /// <summary>
+    /// Install advice for this PC (<see cref="AppAdvisor.Assess"/>: judged as if the entry were not installed).
+    /// The card shows it only while the state is known and the program is not installed (<see cref="ShownAdvice"/>).
+    /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayTags))]
-    private bool _nvidiaMissing;
+    [NotifyPropertyChangedFor(nameof(DisplayTags), nameof(ShownAdvice), nameof(HasAdviceCaption), nameof(AdviceReason), nameof(IsDimmed),
+        nameof(IsSuggested))]
+    private AppAdvice? _advice;
 
     /// <summary>
     /// Installed, but not as a winget package (found only by the read-only cross-checks — e.g. the .NET Desktop
@@ -106,12 +111,25 @@ public sealed partial class AppItemViewModel : ObservableObject
     /// <summary>Installed through winget and allowed to be upgraded by it.</summary>
     public bool CanUpgrade => IsInstalled && Entry.CanUpgrade && !IsUnmanaged;
 
-    /// <summary>State tags (checking / installed / no NVIDIA) followed by the static catalog tags.</summary>
+    /// <summary>The advice on the card: only when the state is known and the program is not installed (never for Edge).</summary>
+    public AppAdvice? ShownAdvice => IsKnown && !IsInstalled && !Entry.SystemComponent ? Advice : null;
+
+    /// <summary>One muted line with the reason under the description: every level except "ПО ЖЕЛАНИЮ".</summary>
+    public bool HasAdviceCaption => ShownAdvice is { Level: not AdviceLevel.Optional, Reason.Length: > 0 };
+    public string? AdviceReason => ShownAdvice?.Reason;
+
+    /// <summary>"НЕ НУЖНО": the card is dimmed (full opacity on hover).</summary>
+    public bool IsDimmed => ShownAdvice?.Level == AdviceLevel.NotNeeded;
+
+    /// <summary>"НУЖНО" / "РЕКОМЕНДУЕТСЯ", not installed and installable through winget: shown in the «РЕКОМЕНДУЕМ» tab.</summary>
+    public bool IsSuggested => ShownAdvice is { IsSuggested: true } && Entry.CanInstall;
+
+    /// <summary>State tag (checking / installed / install advice) followed by the static catalog tags.</summary>
     public IReadOnlyList<AppTagInfo> DisplayTags
     {
         get
         {
-            var list = new List<AppTagInfo>(Tags.Count + 2);
+            var list = new List<AppTagInfo>(Tags.Count + 1);
             if (IsChecking)
                 list.Add(new("ПРОВЕРКА…", TagKind.Muted, "Проверяем, установлена ли программа."));
             else if (IsInstalled)
@@ -120,8 +138,8 @@ public sealed partial class AppItemViewModel : ObservableObject
                     : IsUnmanaged
                         ? AppTexts.UnmanagedExplanation
                         : "Программа найдена среди установленных (winget export или системные записи Windows)."));
-            if (NvidiaMissing)
-                list.Add(new("NVIDIA НЕ НАЙДЕНА", TagKind.Hatch, "В этом компьютере не найдена видеокарта NVIDIA — пакет, скорее всего, не нужен."));
+            else if (ShownAdvice is { } advice)
+                list.Add(AppTexts.AdviceTag(advice));
             list.AddRange(Tags);
             return list;
         }
@@ -208,11 +226,20 @@ public sealed partial class AppGroupViewModel : ObservableObject
     [ObservableProperty] private int _installedCount;
 }
 
-/// <summary>A category tab above the catalog. <see cref="Category"/> null = "ВСЕ".</summary>
-public sealed partial class CategoryFilterViewModel(AppCategory? category, string title) : ObservableObject
+/// <summary>
+/// A category tab above the catalog. <see cref="Category"/> null = "ВСЕ"; <see cref="IsRecommended"/> = «РЕКОМЕНДУЕМ»
+/// (only "НУЖНО" / "РЕКОМЕНДУЕТСЯ" cards that are not installed yet, across all groups).
+/// </summary>
+public sealed partial class CategoryFilterViewModel(AppCategory? category, string title, bool isRecommended = false) : ObservableObject
 {
     public AppCategory? Category { get; } = category;
     public string Title { get; } = title;
+    public bool IsRecommended { get; } = isRecommended;
+    public string? ToolTip => IsRecommended ? AppTexts.RecommendedTabToolTip : null;
+
+    /// <summary>The card belongs to this tab (the search is applied separately).</summary>
+    public bool Includes(AppItemViewModel item) =>
+        IsRecommended ? item.IsSuggested : Category is null || item.Entry.Category == Category;
 
     [ObservableProperty] private int _count;
     [ObservableProperty] private bool _isSelected;

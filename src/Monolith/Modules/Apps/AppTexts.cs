@@ -171,10 +171,55 @@ public static class AppTexts
                 list.Add($"{e.Name}: платная программа или пробная версия.");
             if (e.Has(AppFlags.Portable))
                 list.Add($"{e.Name}: портативная программа — ярлыка в меню «Пуск» может не быть.");
-            if (item.NvidiaMissing)
-                list.Add($"{e.Name}: видеокарта NVIDIA в этом компьютере не найдена.");
         }
         return list;
+    }
+
+    // ─────────────────────────── install advice ───────────────────────────
+
+    public const string OptionalToolTip = "По желанию: этому ПК программа не обязательна — ставьте, если она вам нужна.";
+
+    public const string RecommendedTabToolTip =
+        "Что стоит поставить на этот ПК: ещё не установленные программы с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. " +
+        "Совет учитывает видеокарту, версию Windows, подключённую периферию и уже установленные программы.";
+
+    /// <summary>The advice badge: НУЖНО = solid, РЕКОМЕНДУЕТСЯ = outline, the rest muted; tooltip = the reason.</summary>
+    public static AppTagInfo AdviceTag(AppAdvice advice)
+    {
+        var kind = advice.Level switch
+        {
+            AdviceLevel.Required => TagKind.Solid,
+            AdviceLevel.Recommended => TagKind.Normal,
+            _ => TagKind.Muted,
+        };
+        return new AppTagInfo(advice.TagText, kind, advice.Reason.Length > 0 ? advice.Reason : OptionalToolTip);
+    }
+
+    /// <summary>
+    /// Confirmation lines for packages MONOLITH does not advise installing now ("НЕ НУЖНО — NVIDIA PhysX: …"), "НЕ НУЖНО"
+    /// first. Only installs are listed: updates of installed programs carry no advice.
+    /// </summary>
+    public static IReadOnlyList<string> AdviceNotes(IEnumerable<(CatalogEntry Entry, AppAdvice? Advice)> installs) =>
+        installs.Where(x => x.Advice is { IsDiscouraged: true })
+            .OrderBy(x => x.Advice!.Level == AdviceLevel.NotNeeded ? 0 : 1)
+            .Select(x => $"{x.Advice!.TagText} — {x.Entry.Name}: {x.Advice.Reason}")
+            .ToList();
+
+    /// <summary>The sentence before the package list when some packages are not advised; empty when all are fine.</summary>
+    public static string AdviceLead(int discouraged) => discouraged == 0 ? "" :
+        $"MONOLITH не советует ставить сейчас: {Programs(discouraged)} — причины в начале списка. Установить их всё равно можно. ";
+
+    public const string KitCaption =
+        "Библиотеки, которые нужны этому ПК: Visual C++, DirectX June 2010, .NET и другие с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. Установленное пропускается.";
+
+    /// <summary>Tooltip of the gamer kit row: what is in it on this PC and what is deliberately left out.</summary>
+    public static string KitToolTip(IEnumerable<CatalogEntry> kit)
+    {
+        var names = string.Join(", ", kit.Select(e => e.Name));
+        return "Библиотеки, без которых игры не запускаются или падают с ошибками вроде «MSVCP140.dll не найден» и «d3dx9_43.dll отсутствует». " +
+               (names.Length > 0 ? $"В набор входят пакеты с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ для этого ПК: {names}. " : "") +
+               "Старые версии .NET (поддержка закончилась или заканчивается), Java, XNA, OpenAL и PhysX в набор не входят — " +
+               "их ставят по одному, если игра или программа попросит.";
     }
 
     /// <summary>True when the entry should be dangerous-styled in the confirmation (hatched header).</summary>

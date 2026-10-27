@@ -26,6 +26,14 @@ public sealed partial class AppsViewModel : PageViewModel
     private DateTime _lastCheck = DateTime.MinValue;
     private bool _detecting;
 
+    // Inputs of the install advice (docs/research/apps_catalog.md §14); unknown until read.
+    private bool _gpuKnown;
+    private IReadOnlySet<GpuVendor> _gpuVendors = new HashSet<GpuVendor>();
+    private int _osBuild;
+    private int _osUbr;
+    private PeripheralScanResult _peripherals = PeripheralScanResult.Unknown;
+    private bool _scanningPeripherals;
+
     public override string Key => "apps";
     public override string Index => "08";
     public override string Title => "ПРИЛОЖЕНИЯ";
@@ -46,16 +54,13 @@ public sealed partial class AppsViewModel : PageViewModel
         }
 
         Categories.Add(new CategoryFilterViewModel(null, "ВСЕ") { IsSelected = true });
+        Categories.Add(new CategoryFilterViewModel(null, "РЕКОМЕНДУЕМ", isRecommended: true));
         foreach (var g in Groups) Categories.Add(new CategoryFilterViewModel(g.Info.Category, g.Info.Title));
         _selectedCategory = Categories[0];
 
-        KitItems = AppCatalog.GamerKitIds
-            .Select(id => _items.FirstOrDefault(i => string.Equals(i.Entry.Id, id, StringComparison.OrdinalIgnoreCase)))
-            .OfType<AppItemViewModel>()
-            .ToList();
         TotalCount = _items.Count;
-        ApplyFilter();
-        UpdateKit();
+        ApplyProfile(SystemProfile.Current);
+        UpdateAdvice();
     }
 
     // ─────────────────────────── collections ───────────────────────────
@@ -64,13 +69,15 @@ public sealed partial class AppsViewModel : PageViewModel
     public ObservableCollection<CategoryFilterViewModel> Categories { get; } = new();
     public ObservableCollection<QueueItemViewModel> Queue { get; } = new();
     public ObservableCollection<string> QueueLog { get; } = new();
-    public IReadOnlyList<AppItemViewModel> KitItems { get; }
+
+    /// <summary>"НАБОР ГЕЙМЕРА": runtime libraries this PC needs (<see cref="AppAdvisor.Kit"/>), recomputed with the advice.</summary>
+    public IReadOnlyList<AppItemViewModel> KitItems { get; private set; } = [];
 
     // ─────────────────────────── state ───────────────────────────
 
     public int TotalCount { get; }
     public bool ShowReadOnlyNotice => IsReadOnly;
-    public int KitTotal => KitItems.Count;
+    public string KitCaption => AppTexts.KitCaption;
 
     [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private CategoryFilterViewModel? _selectedCategory;
@@ -88,6 +95,8 @@ public sealed partial class AppsViewModel : PageViewModel
     [ObservableProperty] private bool _hasDetection;
 
     [ObservableProperty] private int _kitInstalled;
+    [ObservableProperty] private int _kitTotal;
+    [ObservableProperty] private string _kitToolTip = AppTexts.KitToolTip([]);
     [ObservableProperty] private bool _kitComplete;
     [ObservableProperty] private string _kitStatusText = "";
     [ObservableProperty] private string _kitButtonText = "УСТАНОВИТЬ НАБОР";
@@ -110,6 +119,15 @@ public sealed partial class AppsViewModel : PageViewModel
     public bool HasSelection => SelectedCount > 0;
     public bool HasNoResults => VisibleCount == 0;
     public bool HasSearch => SearchText.Trim().Length > 0;
+
+    /// <summary>The «РЕКОМЕНДУЕМ» tab is empty because everything it would show is already installed.</summary>
+    private bool NothingLeftToRecommend => SelectedCategory is { IsRecommended: true } && !HasSearch;
+
+    public string NoResultsTitle => NothingLeftToRecommend ? "Всё рекомендуемое уже установлено" : "Ничего не найдено";
+
+    public string NoResultsText => NothingLeftToRecommend
+        ? "Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ»."
+        : "Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store.";
     public string VisibleText => VisibleCount == TotalCount ? AppTexts.Programs(TotalCount) : $"{VisibleCount} из {TotalCount}";
     public string SelectedText => SelectedCount == 0 ? "НИЧЕГО НЕ ВЫБРАНО" : $"ВЫБРАНО: {SelectedCount}";
 
@@ -117,12 +135,21 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         ApplyFilter();
         OnPropertyChanged(nameof(HasSearch));
+        NotifyNoResultsText();
     }
 
     partial void OnVisibleCountChanged(int value)
     {
         OnPropertyChanged(nameof(HasNoResults));
         OnPropertyChanged(nameof(VisibleText));
+    }
+
+    partial void OnSelectedCategoryChanged(CategoryFilterViewModel? value) => NotifyNoResultsText();
+
+    private void NotifyNoResultsText()
+    {
+        OnPropertyChanged(nameof(NoResultsTitle));
+        OnPropertyChanged(nameof(NoResultsText));
     }
 
     partial void OnSelectedCountChanged(int value)
@@ -170,7 +197,8 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         var cache = await Task.Run(InstalledDetector.LoadCache);
         if (cache is not null) ApplySnapshot(cache, partial: false);
-        _ = MarkMissingNvidiaAsync();
+        _ = LoadProfileAsync();
+        _ = ScanPeripheralsAsync();
         await CheckWingetAndDetectAsync();
     }
 
@@ -178,21 +206,80 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         if (IsQueueRunning || _detecting || WingetState == WingetState.Checking) return;
         if (DateTime.Now - _lastCheck > TimeSpan.FromMinutes(3))
+        {
+            _ = ScanPeripheralsAsync();
             await CheckWingetAndDetectAsync();
+        }
     }
 
-    private async Task MarkMissingNvidiaAsync()
+    // ─────────────────────────── install advice ───────────────────────────
+
+    /// <summary>Graphics cards and Windows build for the advice (the profile is collected once, in the background).</summary>
+    private async Task LoadProfileAsync()
     {
         try
         {
-            var profile = await SystemProfile.LoadAsync();
-            if (profile.Gpus.Count == 0 || profile.HasNvidia) return;
-            foreach (var item in _items.Where(i => i.Entry.Has(AppFlags.NvidiaOnly))) item.NvidiaMissing = true;
+            ApplyProfile(await SystemProfile.LoadAsync());
+            UpdateAdvice();
         }
         catch (Exception ex)
         {
-            Log.Warn($"Приложения: не удалось определить видеокарту ({ex.Message})");
+            Log.Warn($"Приложения: не удалось определить видеокарту и сборку Windows ({ex.Message})");
         }
+    }
+
+    private void ApplyProfile(SystemProfile profile)
+    {
+        // The build number is known before the profile is collected (Environment.OSVersion); the rest is not.
+        _osBuild = profile.OsBuild;
+        if (!profile.IsLoaded) return;
+        var missing = profile.MissingFacts;
+        _gpuKnown = !missing.Contains("gpu") && profile.Gpus.Count > 0;
+        _gpuVendors = profile.Gpus.Select(g => g.Vendor).Where(v => v is GpuVendor.Nvidia or GpuVendor.Amd or GpuVendor.Intel).ToHashSet();
+        _osBuild = profile.OsBuild;
+        _osUbr = missing.Contains("os") ? 0 : profile.OsUbr;
+    }
+
+    /// <summary>Read-only USB/Bluetooth scan for Logitech, Razer, Corsair, SteelSeries and Elgato devices.</summary>
+    private async Task ScanPeripheralsAsync()
+    {
+        if (_scanningPeripherals) return;
+        _scanningPeripherals = true;
+        try
+        {
+            _peripherals = await PeripheralScan.ScanAsync();
+            UpdateAdvice();
+        }
+        finally
+        {
+            _scanningPeripherals = false;
+        }
+    }
+
+    private AdviceContext BuildAdviceContext() => new()
+    {
+        GpuKnown = _gpuKnown,
+        GpuVendors = _gpuVendors,
+        OsBuild = _osBuild,
+        OsUbr = _osUbr,
+        InstalledKnown = HasDetection,
+        // Every id of an installed entry (regional variants too), including components found outside winget.
+        InstalledIds = _items.Where(i => i.IsInstalled).SelectMany(i => i.Entry.AllIds).ToHashSet(StringComparer.OrdinalIgnoreCase),
+        PeripheralsKnown = _peripherals.Known,
+        Peripherals = _peripherals.Brands,
+        Today = DateOnly.FromDateTime(DateTime.Today),
+    };
+
+    /// <summary>Recomputes the advice of every card, the gamer kit and the tab counts (pure and cheap).</summary>
+    private void UpdateAdvice()
+    {
+        var ctx = BuildAdviceContext();
+        foreach (var item in _items) item.Advice = AppAdvisor.Assess(item.Entry, ctx);
+        var kit = AppAdvisor.Kit(_items.Select(i => i.Entry), ctx);
+        KitItems = kit.Select(e => _items.First(i => ReferenceEquals(i.Entry, e))).ToList();
+        KitToolTip = AppTexts.KitToolTip(kit);
+        UpdateKit();
+        ApplyFilter();
     }
 
     // ─────────────────────────── busy indicator ───────────────────────────
@@ -304,7 +391,7 @@ public sealed partial class AppsViewModel : PageViewModel
         InstalledCount = _items.Count(i => i.IsInstalled);
         SelectedCount = _items.Count(i => i.IsSelected);
         HasDetection = true;
-        UpdateKit();
+        UpdateAdvice();
 
         if (!partial)
         {
@@ -318,6 +405,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private void UpdateKit()
     {
+        KitTotal = KitItems.Count;
         KitInstalled = KitItems.Count(i => i.IsInstalled);
         KitComplete = KitTotal > 0 && KitInstalled == KitTotal;
         var left = KitTotal - KitInstalled;
@@ -343,15 +431,14 @@ public sealed partial class AppsViewModel : PageViewModel
     private void ApplyFilter()
     {
         var query = SearchText;
-        var category = SelectedCategory?.Category;
+        var tab = SelectedCategory ?? Categories[0];
         var total = 0;
         foreach (var g in Groups)
         {
-            var inCategory = category is null || g.Info.Category == category;
             var visible = 0;
             foreach (var item in g.Items)
             {
-                item.IsVisible = inCategory && AppTexts.Matches(item.Entry, query);
+                item.IsVisible = tab.Includes(item) && AppTexts.Matches(item.Entry, query);
                 if (item.IsVisible) visible++;
             }
             g.VisibleCount = visible;
@@ -362,7 +449,7 @@ public sealed partial class AppsViewModel : PageViewModel
         VisibleCount = total;
 
         foreach (var c in Categories)
-            c.Count = _items.Count(i => (c.Category is null || i.Entry.Category == c.Category) && AppTexts.Matches(i.Entry, query));
+            c.Count = _items.Count(i => c.Includes(i) && AppTexts.Matches(i.Entry, query));
     }
 
     // ─────────────────────────── selection ───────────────────────────
@@ -376,7 +463,11 @@ public sealed partial class AppsViewModel : PageViewModel
     // ─────────────────────────── actions ───────────────────────────
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
-    private Task Refresh() => CheckWingetAndDetectAsync();
+    private Task Refresh()
+    {
+        _ = ScanPeripheralsAsync();
+        return CheckWingetAndDetectAsync();
+    }
 
     private bool CanRefresh() => !IsQueueRunning;
 
@@ -514,7 +605,10 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private static async Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
     {
-        var details = plan.Select(p => AppTexts.QueueLine(p.Item.Entry, p.Item.PackageId, p.Op, p.Item.InstalledVersion)).ToList();
+        // Packages MONOLITH does not advise installing now go first, with the reason; the install is never blocked.
+        var notes = AppTexts.AdviceNotes(plan.Where(p => p.Op == QueueOperation.Install).Select(p => (p.Item.Entry, p.Item.ShownAdvice)));
+        var details = notes.ToList();
+        details.AddRange(plan.Select(p => AppTexts.QueueLine(p.Item.Entry, p.Item.PackageId, p.Op, p.Item.InstalledVersion)));
         details.AddRange(AppTexts.Warnings(plan.Select(p => p.Item)));
 
         var upgradeOnly = plan.All(p => p.Op == QueueOperation.Upgrade);
@@ -550,7 +644,8 @@ public sealed partial class AppsViewModel : PageViewModel
         var confirm = upgradeOnly ? "ОБНОВИТЬ" : "УСТАНОВИТЬ";
         // winget gets --accept-package-agreements / --accept-source-agreements: say so before the user agrees.
         var license = " " + AppTexts.LicenseText(plan.Select(p => p.Item.Entry), upgradeOnly ? "Обновить" : "Установить");
-        return await Ui.ConfirmAsync(title, lead + how + elevation + undo + license, details, confirm, "ОТМЕНА", danger, footnote);
+        return await Ui.ConfirmAsync(title, AppTexts.AdviceLead(notes.Count) + lead + how + elevation + undo + license, details, confirm, "ОТМЕНА",
+            danger, footnote);
     }
 
     private async Task RunQueueAsync()

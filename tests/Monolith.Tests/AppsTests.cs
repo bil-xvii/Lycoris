@@ -114,24 +114,34 @@ public sealed class AppsTests
     public void Excluded_packages_are_not_in_the_catalog(string id) => Assert.Null(AppCatalog.Find(id));
 
     [Fact]
-    public void Gamer_kit_is_every_vc_redist_directx_and_desktop_runtime()
+    public void Gamer_kit_is_every_vc_redist_directx_and_the_current_desktop_runtime()
     {
-        var kit = AppCatalog.GamerKitIds;
-        Assert.Equal(17, kit.Count);
+        // The kit is computed from the install advice (AppAdvisor.Kit); a typical Windows 11 24H2 PC without the Xbox app.
+        var ctx = new AdviceContext
+        {
+            OsBuild = 26100, OsUbr = 6899, InstalledKnown = true, InstalledIds = new HashSet<string> { "Microsoft.EdgeWebView2Runtime" },
+            Today = new DateOnly(2026, 10, 27),
+        };
+        var kit = AppAdvisor.Kit(AppCatalog.ForBuild(ctx.OsBuild), ctx).Select(e => e.Id).ToList();
         Assert.Equal(kit.Count, kit.Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        foreach (var id in kit) Assert.NotNull(AppCatalog.Find(id));
 
         var vc = AppCatalog.All.Where(e => e.Id.StartsWith("Microsoft.VCRedist.", StringComparison.Ordinal)).Select(e => e.Id).ToList();
         Assert.Equal(12, vc.Count);
         Assert.All(vc, id => Assert.Contains(id, kit));
         Assert.Equal(6, vc.Count(id => id.EndsWith(".x86", StringComparison.Ordinal)));
 
-        var dotnet = AppCatalog.All.Where(e => e.Id.StartsWith("Microsoft.DotNet.DesktopRuntime.", StringComparison.Ordinal)).Select(e => e.Id);
-        Assert.All(dotnet, id => Assert.Contains(id, kit));
-
         Assert.Contains("Microsoft.DirectX", kit);
         Assert.True(AppCatalog.Find("Microsoft.DirectX")!.Has(AppFlags.ForceExe));
-        Assert.All(kit, id => Assert.False(AppCatalog.Find(id)!.Has(AppFlags.RemoteAccess)));
+        Assert.Contains("Microsoft.DotNet.DesktopRuntime.10", kit);
+        // End-of-life (or ending) .NET runtimes are installed one by one, only when a program asks.
+        foreach (var old in new[] { "Microsoft.DotNet.DesktopRuntime.9", "Microsoft.DotNet.DesktopRuntime.8", "Microsoft.DotNet.DesktopRuntime.6" })
+            Assert.DoesNotContain(old, kit);
+        // Needed by this PC and already there: counted as installed, never re-installed.
+        Assert.Contains("Microsoft.EdgeWebView2Runtime", kit);
+        Assert.DoesNotContain(AppAdvisor.GamingServicesId, kit);
+        Assert.Equal(15, kit.Count);
+        Assert.All(kit, id => Assert.Equal(AppCategory.Runtimes, AppCatalog.Find(id)!.Category));
+        Assert.All(kit, id => Assert.Equal(AppFlags.None, AppCatalog.Find(id)!.Flags & AppAdvisor.NeverSuggested));
     }
 
     [Fact]
