@@ -96,7 +96,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
     [ObservableProperty] private int _kitInstalled;
     [ObservableProperty] private int _kitTotal;
-    [ObservableProperty] private string _kitToolTip = AppTexts.KitToolTip([]);
+    [ObservableProperty] private string _kitToolTip = AppTexts.KitToolTip([], []);
     [ObservableProperty] private bool _kitComplete;
     [ObservableProperty] private string _kitStatusText = "";
     [ObservableProperty] private string _kitButtonText = "УСТАНОВИТЬ НАБОР";
@@ -120,14 +120,23 @@ public sealed partial class AppsViewModel : PageViewModel
     public bool HasNoResults => VisibleCount == 0;
     public bool HasSearch => SearchText.Trim().Length > 0;
 
-    /// <summary>The «РЕКОМЕНДУЕМ» tab is empty because everything it would show is already installed.</summary>
-    private bool NothingLeftToRecommend => SelectedCategory is { IsRecommended: true } && !HasSearch;
+    /// <summary>
+    /// The «РЕКОМЕНДУЕМ» tab without a search is empty: everything it would show is installed — or nothing is known yet
+    /// (the advice needs the list of installed programs).
+    /// </summary>
+    private bool EmptyRecommendedTab => SelectedCategory is { IsRecommended: true } && !HasSearch;
 
-    public string NoResultsTitle => NothingLeftToRecommend ? "Всё рекомендуемое уже установлено" : "Ничего не найдено";
+    public string NoResultsTitle => !EmptyRecommendedTab ? "Ничего не найдено"
+        : HasDetection ? "Всё рекомендуемое уже установлено"
+        : "Советы появятся после проверки";
 
-    public string NoResultsText => NothingLeftToRecommend
-        ? "Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ»."
-        : "Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store.";
+    public string NoResultsText => !EmptyRecommendedTab
+        ? "Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store."
+        : HasDetection
+            ? "Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ»."
+            : "MONOLITH ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.";
+
+    partial void OnHasDetectionChanged(bool value) => NotifyNoResultsText();
     public string VisibleText => VisibleCount == TotalCount ? AppTexts.Programs(TotalCount) : $"{VisibleCount} из {TotalCount}";
     public string SelectedText => SelectedCount == 0 ? "НИЧЕГО НЕ ВЫБРАНО" : $"ВЫБРАНО: {SelectedCount}";
 
@@ -219,7 +228,9 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         try
         {
-            ApplyProfile(await SystemProfile.LoadAsync());
+            var loaded = await SystemProfile.LoadAsync();
+            // A retry that read less than an earlier pass does not replace it: Current is the richer profile.
+            ApplyProfile(SystemProfile.Current.IsLoaded ? SystemProfile.Current : loaded);
             UpdateAdvice();
         }
         catch (Exception ex)
@@ -277,7 +288,8 @@ public sealed partial class AppsViewModel : PageViewModel
         foreach (var item in _items) item.Advice = AppAdvisor.Assess(item.Entry, ctx);
         var kit = AppAdvisor.Kit(_items.Select(i => i.Entry), ctx);
         KitItems = kit.Select(e => _items.First(i => ReferenceEquals(i.Entry, e))).ToList();
-        KitToolTip = AppTexts.KitToolTip(kit);
+        var leftOut = _items.Select(i => i.Entry).Where(e => e.Category == AppCategory.Runtimes && e.CanInstall && !kit.Contains(e));
+        KitToolTip = AppTexts.KitToolTip(kit, leftOut);
         UpdateKit();
         ApplyFilter();
     }

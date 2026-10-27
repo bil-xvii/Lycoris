@@ -79,7 +79,7 @@
 | .NET Framework 4.8.1 | `Microsoft.DotNet.Framework.Runtime` | Microsoft | yes | Already built into Win11 22H2+. Offer on Win10 only. Scope `any` |
 | XNA Framework 4.0 Refresh | `Microsoft.XNARedist` | Microsoft | yes | 4.0.30901.0, scope `any` |
 | OpenAL | `CreativeTechnology.OpenAL` | Creative Technology Ltd. | yes, official | 1.1 (oalinst), legacy games |
-| Java 21 / 17 / 8 (JRE) | `EclipseAdoptium.Temurin.21.JRE` / `.17.JRE` / `.8.JRE` | Eclipse Adoptium | yes | MSI, machine. Minecraft 1.20.5+ needs Java 21, 1.18–1.20.4 needs 17, old modpacks need 8. `.25.JRE` also exists. **The official Minecraft launcher bundles its own Java**, so this is needed for Prism/CurseForge |
+| Java 21 / 17 / 8 (JRE) | `EclipseAdoptium.Temurin.21.JRE` / `.17.JRE` / `.8.JRE` | Eclipse Adoptium | yes | MSI, machine. Minecraft 1.20.5–1.21.x needs Java 21, 1.18–1.20.4 needs 17, old modpacks need 8; Minecraft 26.1+ needs Java 25 (`.25.JRE` also exists, not in the catalog yet). **The official Minecraft launcher bundles its own Java** and CurseForge installs its own too, so this is needed for Prism Launcher (§14) |
 | Gaming Services | msstore `9MWPM2CQNLHN` | Microsoft | yes | Needed for Xbox / Game Pass PC games |
 | PhysX | `Nvidia.PhysX` | NVIDIA Corporation | yes | NVIDIA GPUs only; the driver usually includes it |
 | WebView2 Runtime | `Microsoft.EdgeWebView2Runtime` | Microsoft | yes | Preinstalled on Win11 |
@@ -238,7 +238,7 @@
 {"id":"Microsoft.DotNet.Framework.Runtime","name":".NET Framework 4.8.1","category":"runtimes","source":"winget","description_ru":".NET Framework 4.8.1 (встроен в Windows 11)","website":"https://dotnet.microsoft.com/download/dotnet-framework/net481","scope":"any","flags":["win10-only"]},
 {"id":"Microsoft.XNARedist","name":"XNA Framework 4.0","category":"runtimes","source":"winget","description_ru":"Среда XNA для инди-игр (Terraria и др.)","website":"https://www.microsoft.com/download/details.aspx?id=20914","scope":"any","flags":[]},
 {"id":"CreativeTechnology.OpenAL","name":"OpenAL","category":"runtimes","source":"winget","description_ru":"Звуковая библиотека OpenAL для старых игр","website":"https://openal.org/","scope":"any","flags":[]},
-{"id":"EclipseAdoptium.Temurin.21.JRE","name":"Java 21 (Temurin JRE)","category":"runtimes","source":"winget","description_ru":"Java 21 для Minecraft 1.20.5+ и модов","website":"https://adoptium.net/","scope":"machine","flags":[]},
+{"id":"EclipseAdoptium.Temurin.21.JRE","name":"Java 21 (Temurin JRE)","category":"runtimes","source":"winget","description_ru":"Java 21 для Minecraft 1.20.5–1.21 и модов","website":"https://adoptium.net/","scope":"machine","flags":[]},
 {"id":"EclipseAdoptium.Temurin.17.JRE","name":"Java 17 (Temurin JRE)","category":"runtimes","source":"winget","description_ru":"Java 17 для Minecraft 1.18–1.20.4","website":"https://adoptium.net/","scope":"machine","flags":[]},
 {"id":"EclipseAdoptium.Temurin.8.JRE","name":"Java 8 (Temurin JRE)","category":"runtimes","source":"winget","description_ru":"Java 8 для старых модпаков","website":"https://adoptium.net/","scope":"machine","flags":[]},
 {"id":"9MWPM2CQNLHN","name":"Gaming Services","category":"runtimes","source":"msstore","description_ru":"Игровые службы для Xbox и Game Pass","website":"https://apps.microsoft.com/detail/9MWPM2CQNLHN","scope":"user","flags":[]},
@@ -401,6 +401,154 @@ For a fast UI, cross-check against the Uninstall registry keys (HKLM, WOW6432Nod
 - **SYSTEM:** the alias isn't on PATH, and msstore and user-scope packages don't work.
 - **Recommended architecture:** the UI runs `asInvoker` (non-elevated) and handles `user`, `any` and msstore packages. One elevated broker handles `machine` packages, so the user sees a single UAC prompt. If the app has to run elevated, start user-scope winget jobs de-elevated, for example through a scheduled task with `RunLevel Limited` and an interactive logon, or through the shell's `IShellDispatch2.ShellExecute`.
 - **Don't pass `--scope` by default.** About 15 manifests in this catalog declare no scope and fail with a scope filter. Telegram with `--scope machine` turns into a portable zip.
+
+## 14. Install advice (MONOLITH)
+
+Owner request (27.10.2026): show what to install on this PC, what is recommended, what is not needed yet and what is not
+needed at all. Code: `Modules/Apps/AppAdvisor.cs` (pure rules), `Modules/Apps/PeripheralScan.cs` (read-only device scan),
+tests `tests/Monolith.Tests/AppAdvisorTests.cs`. The advice never blocks anything: every package can still be installed.
+
+### Levels
+
+| Level | Tag on the card | Look | Meaning |
+|---|---|---|---|
+| Required | **НУЖНО** | `Tag.Solid` (white block) | Games or common programs fail without it on this PC |
+| Recommended | **РЕКОМЕНДУЕТСЯ** | `Tag` (outline) | Worth having on this PC; counted in «РЕКОМЕНДУЕМ» |
+| Optional | **ПО ЖЕЛАНИЮ** | `Tag.Muted` | Install if you want it; also the fallback whenever a needed fact is unknown |
+| NotNow | **ПОКА НЕ НУЖНО** | `Tag.Muted` | Only for a specific situation (a program asks, a problem to diagnose, expert use) |
+| NotNeeded | **НЕ НУЖНО** | `Tag.Muted`, card at 0.55 opacity (full on hover) | Useless or counter-productive on this PC |
+
+The Drivers page may reuse «РЕКОМЕНДУЕТСЯ» / «ПОКА НЕ НУЖНО»; the strings are fixed by a test.
+Every level except ПО ЖЕЛАНИЮ carries one plain Russian sentence (the tag's tooltip and one muted caption line under the
+description); ПО ЖЕЛАНИЮ shows its reason, if any, only in the tooltip.
+
+### Inputs (`AdviceContext`)
+
+Every input has a "known" flag; an unknown input never gives a confident claim — the rule falls back to ПО ЖЕЛАНИЮ with a
+neutral sentence.
+- **Graphics cards** (`GpuKnown`, `GpuVendors`): `SystemProfile` (Win32_VideoController, vendor from the PCI id `VEN_10DE` /
+  `VEN_1002` / `VEN_8086`, so a card without a driver still counts). Known when the "gpu" section was read and listed at least one adapter.
+- **Windows build and UBR**: `SystemProfile` (CurrentBuildNumber, UBR); the UBR counts only when the "os" section was read.
+- **Installed programs** (`InstalledKnown`, `InstalledIds`): every id of every installed catalog entry from the detection
+  snapshot (§10), regional variants included, also components found outside winget ("unmanaged"). Known after the first
+  detection pass or the cached one.
+- **Peripherals** (`PeripheralsKnown`, `Peripherals`): `PeripheralScan` reads `Win32_PnPEntity.DeviceID` (read-only WMI, off the
+  UI thread), parses the USB-IF vendor id with the Drivers page's `HardwareRules.UsbId` (USB/HID `VID_xxxx`, Bluetooth
+  `VID&0002xxxx` classic and `VID&02xxxx` LE — vendor id source 2 = USB-IF; source 1 = Bluetooth SIG ids are ignored) and skips
+  devices that are not connected (`Present = false`, `CM_PROB_PHANTOM` 45). Known = false on any error or when no device carries
+  a USB vendor id at all. Vendor ids: Logitech `046D`, Razer `1532`, Corsair `1B1C`, SteelSeries `1038`, Elgato `0FD9`.
+- **Today** (`DateOnly`, injected) for the end-of-support dates.
+
+The advice is recomputed (pure, cheap) whenever an input changes: profile loaded, detection pass, device scan (page load,
+«Проверить», return after 3 minutes).
+
+### Order of evaluation
+
+1. Windows components (Edge) get no advice at all. An installed entry shows no advice on its card (the need is still judged,
+   "as if not installed", for the gamer kit's installed / needed counter).
+2. **One program per job** (only when installed programs are known): another member of the same role is installed and this
+   one is not → НЕ НУЖНО «Уже установлен X — он делает то же самое.» Roles: archiver {7-Zip, WinRAR, NanaZip}, video player
+   {VLC, PotPlayer, K-Lite}, disk analyzer {WizTree, TreeSize Free}, uninstaller {Revo, Bulk Crap Uninstaller}, sensor monitor
+   {HWiNFO, HWMonitor, LibreHardwareMonitor}, frametime {PresentMon, CapFrameX}, Voicemeeter {Voicemeeter, Banana}, streaming
+   {OBS Studio, Streamlabs}. Browsers (all except Edge, which every PC has) → ПОКА НЕ НУЖНО «Уже установлен X — второй браузер
+   ставьте, только если он вам нужен.»
+3. The entry's own rule (table below).
+4. Anything else → ПО ЖЕЛАНИЮ.
+5. **Hard safety rule:** an entry flagged KernelDriver, Anticheat, RemoteAccess, Expert, Trialware, Paid or Eol is never НУЖНО
+   or РЕКОМЕНДУЕТСЯ — a rule result above is lowered to ПО ЖЕЛАНИЮ (`AppAdvisor.NeverSuggested`; tested over all entries and
+   2 376 input combinations).
+
+### Rules
+
+| Entry | Condition | Level |
+|---|---|---|
+| Visual C++ 2015–2022 x64 and x86 | always | НУЖНО |
+| Visual C++ 2005–2013 x86/x64, DirectX End-User Runtime (June 2010) | always (Windows ships no D3DX9, XAudio 2.7, XInput 1.3 or old VC++) | РЕКОМЕНДУЕТСЯ |
+| WebView2 Runtime | not installed (installed programs known) / unknown / installed | НУЖНО / ПО ЖЕЛАНИЮ / no advice |
+| Gaming Services | Xbox app installed / not installed / unknown | НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| .NET Desktop Runtime 10 | before its end of support (14.11.2028) / after | РЕКОМЕНДУЕТСЯ / ПОКА НЕ НУЖНО |
+| .NET Desktop Runtime 8 and 9 | before 10.11.2026 / from that date (reason names the date) | ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
+| .NET Desktop Runtime 6 | ended 12.11.2024 | ПОКА НЕ НУЖНО |
+| .NET Framework 4.8.1 | Windows 10 20H2+ or Windows 11 21H2 (where the catalog offers it) / build too old / 22H2+ (built in) / unknown | РЕКОМЕНДУЕТСЯ / НЕ НУЖНО / НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| XNA Framework 4.0, OpenAL | only if a game asks (Steam installs them per game) | ПОКА НЕ НУЖНО |
+| Java 21 / 17 / 8 | Prism Launcher installed | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
+| Java 21 / 17 / 8 | CurseForge only, or neither (official launcher) / unknown | ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| NVIDIA PhysX, NVIDIA Control Panel, Profile Inspector, NVCleanstall | no NVIDIA card («Видеокарта NVIDIA не найдена.») / NVIDIA present / cards unknown | НЕ НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| Logitech G HUB, Razer Synapse 4, Corsair iCUE 5, SteelSeries GG, Elgato Stream Deck | a device of that maker connected / devices known, none of that maker / unknown | РЕКОМЕНДУЕТСЯ / НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| 7-Zip | Windows 10, Windows 11 21H2, 22H2 before 22621.2506, 23H2 before 22631.2506 / 22H2 ≥ 2715, 23H2 ≥ 2506, 24H2+ / 22H2 2506–2714, Insider 2262x, UBR unknown | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ «Windows уже открывает RAR и 7z» / ПО ЖЕЛАНИЮ (neutral) |
+| WinRAR | no other archiver (paid after the trial; 7-Zip is free) | ПОКА НЕ НУЖНО |
+| Process Lasso | always (both it and MONOLITH's game mode change process priorities, §5) | НЕ НУЖНО |
+| Autoruns | expert; the basics are on «Автозапуск и службы» | ПОКА НЕ НУЖНО |
+| OCCT, FurMark 2 | stress tests: only to check stability after overclocking or a suspected fault | ПОКА НЕ НУЖНО |
+| LatencyMon | only for audio/video stutters | ПОКА НЕ НУЖНО |
+| DDU | only for a full graphics driver reinstall | ПОКА НЕ НУЖНО |
+| Special K | injects into games (anti-cheat risk) | ПОКА НЕ НУЖНО |
+| Rufus | bootable USB only | ПОКА НЕ НУЖНО |
+| Revo Uninstaller, Bulk Crap Uninstaller | only for programs that do not uninstall normally | ПОКА НЕ НУЖНО |
+| K-Lite Codec Pack | changes file associations; VLC plays almost everything | ПОКА НЕ НУЖНО |
+| Voicemeeter, Voicemeeter Banana | virtual audio driver + reboot, only for audio mixing | ПОКА НЕ НУЖНО |
+| Sunshine | installs a service and opens network ports | ПОКА НЕ НУЖНО |
+| AnyDesk, TeamViewer | only while someone you trust helps you — scammers often ask to install them | ПОКА НЕ НУЖНО |
+| Steam | the largest PC store | РЕКОМЕНДУЕТСЯ |
+| Discord | the main voice chat of players | РЕКОМЕНДУЕТСЯ |
+| everything else | — | ПО ЖЕЛАНИЮ |
+
+### Where it shows (no new rows, pages or hero blocks)
+
+- **Card:** the advice tag is the first tag (only when the state is known and the program is not installed); one muted,
+  trimmed caption line with the reason for every level except ПО ЖЕЛАНИЮ; НЕ НУЖНО cards dimmed. Cards are not reordered.
+  The former «NVIDIA НЕ НАЙДЕНА» badge is replaced by this advice.
+- **Tab «РЕКОМЕНДУЕМ · N»** next to «ВСЕ»: not installed, installable НУЖНО + РЕКОМЕНДУЕТСЯ cards; empty groups hidden.
+  Before the first detection it says the advice appears after the check (no "everything installed" claim).
+- **«Набор геймера»:** the same row and button; its set is computed: runtime-category entries that are НУЖНО or
+  РЕКОМЕНДУЕТСЯ for this PC (`AppAdvisor.Kit`). So no end-of-life .NET 6/8/9, WebView2 only once installed programs are
+  known, Gaming Services only with the Xbox app, .NET Framework 4.8.1 only where offered, Java 21 only with Prism Launcher.
+  The tooltip names what is in the kit and which runtimes are left out.
+- **Install confirmation:** ПОКА НЕ НУЖНО / НЕ НУЖНО packages of the plan are listed first with their reason
+  («НЕ НУЖНО — NVIDIA PhysX: Видеокарта NVIDIA не найдена.»), with one lead sentence; the install is never blocked.
+
+### Verified facts (checked 27.10.2026)
+
+1. **.NET end of support** (Microsoft policy page): .NET 10 LTS — 14 Nov 2028; .NET 9 STS and .NET 8 LTS — both
+   10 Nov 2026; .NET 6 — 12 Nov 2024. https://dotnet.microsoft.com/platform/support/policy/dotnet-core,
+   https://devblogs.microsoft.com/dotnet/dotnet-8-9-end-of-support/
+2. **Native RAR / 7z in File Explorer** came with KB5031455 (31 Oct 2023, OS builds 22621.2506 and 22631.2506, libarchive;
+   password-protected archives are not supported). On 22H2 it was an optional preview whose new features reached everyone with
+   the November 2023 security update KB5032190 (22621.2715 / 22631.2715, "Moment 4 features enabled by default").
+   24H2 (26100) and 25H2 (26200) include it. **Correction to the task text:** "22621 UBR ≥ 2506" is not enough to claim
+   support on 22H2 — between 2506 and 2714 MONOLITH says nothing confident.
+   https://www.techspot.com/news/100663-windows-11-extends-support-archive-formats-thanks-open.html,
+   https://www.elevenforum.com/t/kb5032190-windows-11-cumulative-update-build-22621-2715-22h2-and-22631-2715-23h2.19801,
+   https://windowslatest.com/2023/11/14/windows-11-kb5032190-cumulative-update,
+   https://pureinfotech.com/windows-11-kb5032190-23h2-22h2/
+3. **Minecraft and Java:** the official launcher uses its bundled Java runtime; 1.20.5–1.21.x need Java 21, 1.18–1.20.4
+   need 17, Minecraft 26.1+ needs Java 25 (Temurin 25 is not in the catalog yet).
+   https://hopper.minecraft.net/help/installing-java, https://minecraft.wiki/w/Java_Edition_26.1-snapshot-1,
+   https://docs.fabricmc.net/players/installing-java/windows
+4. **CurseForge installs the Java the game needs itself** (CurseForge support, "Getting started").
+   **Correction to the task text:** CurseForge alone does not make a separate JRE recommended — Java stays ПОКА НЕ НУЖНО.
+   https://support.curseforge.com/support/solutions/articles/9000218572-getting-started
+5. **Prism Launcher** runs Minecraft on an installed Java unless "Auto-download Mojang Java" is switched on in Settings → Java,
+   so Java 21 stays РЕКОМЕНДУЕТСЯ for Prism users and the reason mentions the option.
+   https://prismlauncher.org/wiki/getting-started/installing-java, https://prismlauncher.org/wiki/help-pages/java-settings
+6. **PhysX ships inside the NVIDIA driver:** NVIDIA's standalone PhysX System Software 9.26.0703 is "the PhysX System Software
+   bundled with NVIDIA Release 615 GA1 drivers". https://www.nvidia.com/en-us/drivers/physx/physx-9-26-0703-driver/
+7. **USB vendor ids** (usb.ids): 046d Logitech, 1532 Razer USA, 1b1c Corsair, 1038 SteelSeries ApS, 0fd9 Elgato Systems.
+   0fd9 covers all Elgato hardware (capture cards, cameras), 046d all Logitech devices (office mice, webcams): the
+   РЕКОМЕНДУЕТСЯ sentence says the program is for Stream Deck / Logitech G devices only. http://www.linux-usb.org/usb.ids
+8. **WebView2** is part of Windows 11 and is what the new Teams / Outlook and Microsoft 365 render with; Steam draws its UI with
+   its own Chromium (CEF, steamwebhelper). **Correction to the task text:** no source shows that Steam, Battle.net or the
+   EA app need WebView2, so the reason does not name them. https://developer.microsoft.com/microsoft-edge/webview2/,
+   https://developer.valvesoftware.com/wiki/CEF
+9. Gaming Services for Xbox / Game Pass (§4), Process Lasso vs MONOLITH's priorities (§5), DirectX June 2010 contents (§4),
+   remote-access scams (§7), Sunshine service and ports (§6) — from this report.
+
+### Known limits
+
+- Peripherals are matched by maker, not model: a Logitech office mouse or an Elgato capture card also makes G HUB / Stream Deck
+  РЕКОМЕНДУЕТСЯ; the sentence says who the program is for.
+- Gaming Services: Store entries are checked one by one after the fast detection pass, so the Xbox app may be found a few
+  seconds later (the advice then switches to НУЖНО).
 
 ## Sources
 - https://learn.microsoft.com/en-us/windows/package-manager/winget/

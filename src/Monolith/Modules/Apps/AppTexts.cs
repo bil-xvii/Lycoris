@@ -206,20 +206,26 @@ public static class AppTexts
             .ToList();
 
     /// <summary>The sentence before the package list when some packages are not advised; empty when all are fine.</summary>
-    public static string AdviceLead(int discouraged) => discouraged == 0 ? "" :
-        $"MONOLITH не советует ставить сейчас: {Programs(discouraged)} — причины в начале списка. Установить их всё равно можно. ";
+    public static string AdviceLead(int discouraged) => discouraged switch
+    {
+        0 => "",
+        1 => "1 пакет из списка MONOLITH сейчас ставить не советует — причина в начале списка. Установить его всё равно можно. ",
+        _ => $"{Packages(discouraged)} из списка MONOLITH сейчас ставить не советует — причины в начале списка. Установить их всё равно можно. ",
+    };
 
     public const string KitCaption =
         "Библиотеки, которые нужны этому ПК: Visual C++, DirectX June 2010, .NET и другие с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. Установленное пропускается.";
 
-    /// <summary>Tooltip of the gamer kit row: what is in it on this PC and what is deliberately left out.</summary>
-    public static string KitToolTip(IEnumerable<CatalogEntry> kit)
+    /// <summary>Tooltip of the gamer kit row: what is in it on this PC and which runtimes are deliberately left out.</summary>
+    public static string KitToolTip(IEnumerable<CatalogEntry> kit, IEnumerable<CatalogEntry> leftOut)
     {
         var names = string.Join(", ", kit.Select(e => e.Name));
+        var left = string.Join(", ", leftOut.Select(e => e.Name));
         return "Библиотеки, без которых игры не запускаются или падают с ошибками вроде «MSVCP140.dll не найден» и «d3dx9_43.dll отсутствует». " +
-               (names.Length > 0 ? $"В набор входят пакеты с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ для этого ПК: {names}. " : "") +
-               "Старые версии .NET (поддержка закончилась или заканчивается), Java, XNA, OpenAL и PhysX в набор не входят — " +
-               "их ставят по одному, если игра или программа попросит.";
+               (names.Length > 0
+                   ? $"В набор входит то, что этому ПК НУЖНО или РЕКОМЕНДУЕТСЯ: {names}. "
+                   : "Состав набора появится после проверки установленных программ. ") +
+               (left.Length > 0 ? $"Не входят — этому ПК они не обязательны: {left}. Их ставят по одной, если игра или программа попросит." : "");
     }
 
     /// <summary>True when the entry should be dangerous-styled in the confirmation (hatched header).</summary>

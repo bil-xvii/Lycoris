@@ -305,7 +305,7 @@ public static class AppCatalog
         },
         W("Microsoft.XNARedist", "XNA Framework 4.0", R, "Среда XNA для инди-игр (Terraria и др.)", "https://www.microsoft.com/download/details.aspx?id=20914", Any),
         W("CreativeTechnology.OpenAL", "OpenAL", R, "Звуковая библиотека OpenAL для старых игр", "https://openal.org/", Any),
-        W("EclipseAdoptium.Temurin.21.JRE", "Java 21 (Temurin JRE)", R, "Java 21 для Minecraft 1.20.5+ и модов", "https://adoptium.net/", Machine),
+        W("EclipseAdoptium.Temurin.21.JRE", "Java 21 (Temurin JRE)", R, "Java 21 для Minecraft 1.20.5–1.21 и модов", "https://adoptium.net/", Machine),
         W("EclipseAdoptium.Temurin.17.JRE", "Java 17 (Temurin JRE)", R, "Java 17 для Minecraft 1.18–1.20.4", "https://adoptium.net/", Machine),
         W("EclipseAdoptium.Temurin.8.JRE", "Java 8 (Temurin JRE)", R, "Java 8 для старых модпаков", "https://adoptium.net/", Machine),
         Store("9MWPM2CQNLHN", "Gaming Services", R, "Игровые службы для Xbox и Game Pass", "https://apps.microsoft.com/detail/9MWPM2CQNLHN", User),
