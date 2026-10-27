@@ -45,6 +45,9 @@ internal sealed class NicWriter : INicWriter
         return r.ExitCode == 0;
     }
 
+    /// <summary>Game Boost session or a library game with a window: no adapter restart then (changes and per-row undo).</summary>
+    public string? RunningGame() => NetGames.RunningGame();
+
     /// <summary>
     /// The PowerShell that sets one property of the adapter with this InterfaceGuid. Throws for anything outside the
     /// whitelist, so a forged keyword or value can never become a command (pure; unit-tested).

@@ -94,6 +94,10 @@ internal sealed class FakeNicWriter : INicWriter
         Props[keyword] = p with { Value = value };
         return true;
     }
+
+    /// <summary>A running game (null: none).</summary>
+    public string? Game { get; set; }
+    public string? RunningGame() => Game;
 }
 
 /// <summary>A display: current / saved mode, offered modes, HDR, failure switches per step and a guard with flags.</summary>

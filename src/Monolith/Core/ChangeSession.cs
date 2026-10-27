@@ -682,6 +682,7 @@ public sealed class ChangeSession
                 if (!DeviceTargets.IsNicKeyword(keyword)) throw new InvalidOperationException($"свойство «{keyword}» MONOLITH не меняет");
                 if (!DeviceTargets.IsNicValue(value)) throw new InvalidOperationException("значение свойства должно быть числом");
                 writer = DeviceWriters.Nic ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
+                if (writer.RunningGame() is { } game) throw new InvalidOperationException($"идёт игра ({game}) — MONOLITH не перезапускает сетевой адаптер");
                 var name = writer.AdapterName(interfaceGuid) ?? throw new InvalidOperationException("сетевой адаптер не найден");
                 var info = writer.Read(interfaceGuid, keyword) ?? throw new InvalidOperationException($"у адаптера нет свойства {keyword}");
                 if (!info.ValidValues.Contains(value, StringComparer.Ordinal))

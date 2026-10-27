@@ -120,6 +120,12 @@ public interface INicWriter
 
     /// <summary>Sets the RegistryValue (the driver restarts the adapter; blocking for the few seconds that takes).</summary>
     bool Set(Guid interfaceGuid, string keyword, string value);
+
+    /// <summary>
+    /// A running game the adapter restart would disconnect (Game Boost session or a library game with a window), or null.
+    /// Changes and undo are refused while one runs.
+    /// </summary>
+    string? RunningGame() => null;
 }
 
 /// <summary>The writers the running build has. Feature packages set them in their Init* hooks.</summary>
@@ -280,5 +286,6 @@ public static partial class DeviceWriters
             SafetyLock.ThrowIfLocked("изменение свойства сетевого адаптера");
             return inner.Set(g, keyword, value);
         }
+        public string? RunningGame() => inner.RunningGame();
     }
 }

@@ -93,7 +93,7 @@ public sealed partial class DevicesViewModel : PageViewModel
     public ObservableCollection<PlanItem> Findings { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCards), nameof(NoDevices), nameof(IsPlanEmpty), nameof(ShowPlan))]
+    [NotifyPropertyChangedFor(nameof(HasCards), nameof(NoDevices), nameof(IsPlanEmpty), nameof(ShowPlan), nameof(ShowMeasureOnly))]
     private bool _hasScanned;
 
     [ObservableProperty] private bool _isScanning;
@@ -110,8 +110,16 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     public bool HasCards => Cards.Count > 0;
     public bool NoDevices => HasScanned && Cards.Count == 0;
-    public bool ShowPlan => HasCards && (PlanItems.Count + OptionalItems.Count + MeasureItems.Count) > 0;
+    /// <summary>Something can be applied: the plan card with its button (measurement rows go inside it).</summary>
+    public bool ShowPlan => HasCards && (PlanItems.Count + OptionalItems.Count) > 0;
+    /// <summary>Nothing to apply: one line, so the page reaches «совпадает» even while measurements are still to do.</summary>
     public bool IsPlanEmpty => HasScanned && HasCards && !ShowPlan;
+    /// <summary>Nothing to apply but some rows need a measurement first: those rows alone, without the apply bar.</summary>
+    public bool ShowMeasureOnly => IsPlanEmpty && MeasureItems.Count > 0;
+    public string PlanEmptyText => MeasureItems.Count > 0
+        ? "Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым."
+        : "Все настройки устройств и сети совпадают с рекомендуемыми.";
+    public string MeasureHeader => $"НУЖНО ИЗМЕРЕНИЕ · {MeasureItems.Count}";
     public bool HasFindings => Findings.Count > 0;
     public bool HasOptional => OptionalItems.Count > 0;
     public bool HasMeasure => MeasureItems.Count > 0;
@@ -355,7 +363,8 @@ public sealed partial class DevicesViewModel : PageViewModel
         UpdateSelectedCount();
         foreach (var name in new[]
                  {
-                     nameof(ShowPlan), nameof(IsPlanEmpty), nameof(HasFindings), nameof(HasOptional), nameof(HasMeasure), nameof(OptionalCount),
+                     nameof(ShowPlan), nameof(IsPlanEmpty), nameof(ShowMeasureOnly), nameof(PlanEmptyText), nameof(MeasureHeader),
+                     nameof(HasFindings), nameof(HasOptional), nameof(HasMeasure), nameof(OptionalCount),
                      nameof(FindingCount), nameof(OptionalHeader), nameof(FindingsHeader), nameof(SelectedText), nameof(SelectableCount),
                  })
             OnPropertyChanged(name);
@@ -633,8 +642,9 @@ public sealed partial class DevicesViewModel : PageViewModel
         // A journal target or palette entry without a matching row: the device kind it belongs to.
         if (id.StartsWith("spi:", StringComparison.Ordinal))
             return Resolve(id[4..].StartsWith("keyboard", StringComparison.Ordinal) ? "kind:keyboard" : "kind:mouse", false);
-        if (id.StartsWith("display:", StringComparison.Ordinal) || id.StartsWith("ddc:", StringComparison.Ordinal)) return Resolve("kind:monitor", false);
-        if (id.StartsWith("audio:", StringComparison.Ordinal)) return Resolve("kind:audioinput", false);
+        if (id.StartsWith("display:", StringComparison.Ordinal) || id.StartsWith("ddc:", StringComparison.Ordinal)
+            || id.StartsWith("display-", StringComparison.Ordinal)) return Resolve("kind:monitor", false);
+        if (id.StartsWith("audio:", StringComparison.Ordinal) || id.StartsWith("mic-", StringComparison.Ordinal)) return Resolve("kind:audioinput", false);
         if (id.StartsWith("nicprop:", StringComparison.Ordinal)) return Resolve("kind:network", false);
         return null;
     }

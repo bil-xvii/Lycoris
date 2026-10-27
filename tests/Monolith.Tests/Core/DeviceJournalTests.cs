@@ -431,6 +431,30 @@ public sealed class DeviceJournalTests : IDisposable
     }
 
     [Fact]
+    public async Task Nic_change_and_undo_wait_while_a_game_runs()
+    {
+        Nic("*SpeedDuplex", "2", "0", "0", "1", "2", "3", "4", "6");
+        var s = await Begin();
+        _nic.Game = "Counter-Strike 2";
+        Assert.False(s.SetNicAdvancedProperty(_nic.Adapter, "*SpeedDuplex", "0", DeviceTargets.Source, "Скорость и дуплекс"));
+        Assert.Empty(_journal.Records);
+        Assert.Equal(0, _nic.SetCalls);
+
+        _nic.Game = null;
+        Assert.True(s.SetNicAdvancedProperty(_nic.Adapter, "*SpeedDuplex", "0", DeviceTargets.Source, "Скорость и дуплекс"));
+        _nic.Game = "Counter-Strike 2"; // per-row ОТКАТИТЬ during a library game (no Game Boost session)
+        var refused = await _journal.RevertAsync(_journal.ActiveRecords);
+        Assert.False(refused.Success);
+        Assert.Contains(refused.Errors, e => e.Contains("Counter-Strike 2"));
+        Assert.Equal("0", _nic.Props["*SpeedDuplex"].Value);
+        Assert.Single(_journal.ActiveRecords);
+
+        _nic.Game = null;
+        Assert.True((await _journal.RevertAsync(_journal.ActiveRecords)).Success);
+        Assert.Equal("2", _nic.Props["*SpeedDuplex"].Value);
+    }
+
+    [Fact]
     public async Task Nic_undo_after_the_keyword_vanished_counts_as_restored()
     {
         Nic("EEE", "1", "1", "0", "1");
