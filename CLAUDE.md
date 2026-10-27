@@ -181,6 +181,10 @@ Never apply real tweaks on the dev machine during automated testing — use read
 - Verified on Windows 11 (27.10.2026): build 0 warnings, all unit tests pass, `--selftest` all pages OK.
 - Two Claude sessions once developed in parallel (a cloud one on `main`, a local one); the local line is kept on branch
   `local/windows-line` for reference only. Before starting work: `git fetch` and build on top of `origin/main`.
+- Never rename, overwrite or delete MONOLITH.exe while it runs (single-file app: it loads parts of itself from the
+  file lazily — after a swap its shutdown crashed and left a windowless process holding the instance lock, so the app
+  "did not open"). Ask the owner to close it first. Since 27.10: an exit watchdog ends the process 20 s after the main
+  window closes, and a new start waits for / offers to end a hung copy instead of exiting silently.
 - WPF rule learned the hard way: never call ScrollIntoView/UpdateLayout inside a CollectionChanged handler of the bound
   collection — defer it with `Dispatcher.BeginInvoke(..., DispatcherPriority.Background)` (crash: "ItemsControl is
   inconsistent with its items source").
