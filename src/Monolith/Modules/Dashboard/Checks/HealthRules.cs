@@ -271,7 +271,7 @@ public static partial class HealthRules
         var x3d = IsDualCcdX3D(s.CpuName, s.CpuCores);
         return new("game-mode", "ИГРОВОЙ РЕЖИМ WINDOWS ВЫКЛЮЧЕН",
             "Игровой режим Windows (Параметры → Игры) отдаёт приоритет игре и не даёт Центру обновления ставить драйверы и " +
-            "показывать уведомления о перезагрузке во время игры. Это не GAME BOOST MONOLITH, а штатная функция Windows." +
+            "показывать уведомления о перезагрузке во время игры. Это не «Ускорение игры» MONOLITH, а штатная функция Windows." +
             (x3d ? " На Ryzen X3D с двумя кристаллами он нужен, чтобы игра попадала на кристалл с 3D V-Cache." : "") +
             " Включается без перезагрузки; отменить можно в разделе «Восстановление».",
             CheckSeverity.Warning, x3d ? 10 : 6, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakGameMode));

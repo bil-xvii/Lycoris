@@ -160,9 +160,9 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,28,0">
                         <TextBlock Text="03" Style="{StaticResource SectionNumber}" />
-                        <TextBlock Text="GAME BOOST" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="УСКОРЕНИЕ ИГРЫ" Style="{StaticResource SectionTitle}" />
                         <TextBlock Style="{StaticResource SectionCaption}"
-                                   Text="Что делает GAME BOOST MONOLITH на время игры (это не игровой режим Windows). Схема питания и приоритет возвращаются сами после выхода из игры; закрытые программы MONOLITH заново не открывает." />
+                                   Text="Что делает «Ускорение игры» MONOLITH на время игры (это не игровой режим Windows). Схема питания и приоритет возвращаются сами после выхода из игры; закрытые программы MONOLITH заново не открывает." />
                         <Button Content="ОТКРЫТЬ «ИГРЫ»" Margin="0,16,0,0" HorizontalAlignment="Left" Command="{Binding OpenGamesCommand}" />
                     </StackPanel>
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">

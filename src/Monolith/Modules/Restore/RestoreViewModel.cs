@@ -97,7 +97,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private void UpdateAutoPointsText() => AutoPointsText = !AppSettings.Current.CreateRestorePoints
         ? "Автоматические точки MONOLITH выключены в настройках."
         : ProtectionEnabled
-            ? "MONOLITH создаёт точку перед пакетами изменений; одиночные переключатели и GAME BOOST — без неё."
+            ? "MONOLITH создаёт точку перед пакетами изменений; одиночные переключатели и «Ускорение игры» — без неё."
             : "Пока защита системы выключена, MONOLITH не может создавать точки — откат только через журнал.";
 
     partial void OnFilterChanged(JournalFilter value)

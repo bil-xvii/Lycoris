@@ -104,7 +104,22 @@ public static class AppPaths
                 ResetChildren(dir, 0);
                 _secured = true;
                 if (MachineDirWasInsecure)
+                {
                     Log.Warn("Папка данных MONOLITH была доступна для записи обычным пользователям — права исправлены.");
+                    // Anything there could have been planted: never install drivers or run installers from it.
+                    var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                    foreach (var sub in new[] { DriverBackupsDir, Path.Combine(MachineDir, "Downloads"), BackupsDir })
+                    {
+                        try
+                        {
+                            if (Directory.Exists(sub)) Directory.Move(sub, $"{sub}.untrusted-{stamp}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn($"Не удалось отложить {sub}: {ex.Message}");
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {

@@ -37,9 +37,9 @@ public static class SettingsDefaults
             $"Подтверждение перед применением — {OnOff(d.ConfirmBeforeApply)}",
             $"Консоль операций — {(d.ShowConsole ? "показана" : "скрыта")}",
             $"Интервал обновления мониторинга — {FormatInterval(d.MonitorIntervalMs)}",
-            $"GAME BOOST: план питания — {OnOff(d.GameBoostPowerPlan)}, приоритет игры — {OnOff(d.GameBoostPriority)}, очистка памяти ожидания — {OnOff(d.GameBoostPurgeStandby)}",
+            $"Ускорение игры: план питания — {OnOff(d.GameBoostPowerPlan)}, приоритет игры — {OnOff(d.GameBoostPriority)}, очистка памяти ожидания — {OnOff(d.GameBoostPurgeStandby)}",
             "Последний выбранный профиль оптимизации — «Рекомендуемый»",
-            "Сохраняются: добавленные папки с играми и список программ, которые GAME BOOST закрывает",
+            "Сохраняются: добавленные папки с играми и список программ, которые «Ускорение игры» закрывает",
             "Изменения системы и журнал отката не затрагиваются",
         ];
     }

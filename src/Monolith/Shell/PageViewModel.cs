@@ -82,7 +82,7 @@ public abstract partial class PageViewModel : ObservableObject
     protected static bool RequireAdmin(string action)
     {
         if (Elevation.IsElevated) return true;
-        Ui.Toast($"Для действия «{action}» нужны права администратора. Нажмите «Перезапустить как администратор».", ToastKind.Warning);
+        Ui.Toast($"Для действия «{action}» нужны права администратора. Нажмите «ПРАВА АДМИНИСТРАТОРА» внизу слева.", ToastKind.Warning);
         return false;
     }
 }

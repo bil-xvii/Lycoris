@@ -65,6 +65,36 @@ public sealed class TweakApplyRevertTests : IDisposable
         Assert.Equal(before, Capture(tweak));
     }
 
+    [Fact]
+    public async Task Isolated_session_reverts_to_the_state_before_it_and_keeps_the_users_record()
+    {
+        const string path = @"Software\MONOLITH-Isolated";
+        var journal = new ChangeJournal(_journalPath);
+
+        // The user's own change (original: value absent).
+        var user = await ChangeSession.BeginAsync("user", createRestorePoint: false, journal: journal);
+        user.SetRegistry(RegHive.HKCU, path, "V", RegistryValueKind.DWord, 1, "tweak:user", "user");
+        user.Complete();
+
+        // The real-system test changes the same value on top of it.
+        var test = await ChangeSession.BeginAsync("test", createRestorePoint: false, journal: journal, isolated: true);
+        test.SetRegistry(RegHive.HKCU, path, "V", RegistryValueKind.DWord, 2, "tweak:test", "test");
+        test.Complete();
+
+        Assert.Equal(2, journal.ActiveRecords.Count());
+        var userRecord = journal.ActiveRecords.Single(r => r.BatchId == user.Batch.Id);
+        Assert.Empty(userRecord.AlsoBatchIds);
+
+        var revert = await journal.RevertAsync(journal.ActiveRecords.Where(r => r.BatchId == test.Batch.Id).ToList());
+        Assert.True(revert.Success, string.Join("; ", revert.Errors));
+        Assert.Equal("1", RegistryHelper.Snapshot(RegHive.HKCU, path, "V").Data); // the user's value, not the original
+        Assert.False(userRecord.Reverted);
+
+        var all = await journal.RevertAllAsync();
+        Assert.True(all.Success, string.Join("; ", all.Errors));
+        Assert.False(RegistryHelper.Snapshot(RegHive.HKCU, path, "V").ValueExisted);
+    }
+
     private async Task ApplyAndAssertApplied(RegistryTweak tweak)
     {
         var journal = new ChangeJournal(_journalPath);

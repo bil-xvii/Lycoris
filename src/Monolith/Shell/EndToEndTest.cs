@@ -53,7 +53,8 @@ public static class EndToEndTest
         var rows = new List<Row>();
         var journal = ChangeJournal.Instance;
         var tweaks = TweakCatalog.All
-            .Where(t => t.Risk != TweakRisk.Advanced && !Skip.Contains(t.Id) && t.IsApplicable(sp))
+            // Never items that destroy user data (e.g. Recall snapshots) — not even for a test.
+            .Where(t => t.Risk != TweakRisk.Advanced && !Skip.Contains(t.Id) && TweakCatalog.DataLossNote(t) is null && t.IsApplicable(sp))
             .ToList();
 
         foreach (var t in tweaks)
@@ -68,10 +69,17 @@ public static class EndToEndTest
             }
             try
             {
-                var session = await ChangeSession.BeginAsync($"Сквозной тест: {t.Title}", createRestorePoint: false, journal: journal);
+                // Isolated: the test's records never merge into the user's own active records, so the revert below
+                // returns exactly the state before the test (including changes the user made with MONOLITH).
+                var session = await ChangeSession.BeginAsync($"Сквозной тест: {t.Title}", createRestorePoint: false, journal: journal, isolated: true);
                 await Task.Run(() => t.Apply(new TweakContext { Session = session, System = sp, Tweak = t }));
                 session.Complete();
                 if (session.Errors.Count > 0) { ok = false; note += "ошибки применения: " + string.Join("; ", session.Errors) + " "; }
+                if (journal.Records.Any(r => r.BatchId != session.Batch.Id && r.AlsoBatchIds.Contains(session.Batch.Id)))
+                {
+                    ok = false;
+                    note += "изменение попало в чужую запись журнала. ";
+                }
 
                 afterApply = Safe(t.Detect);
                 if (before != TweakState.Applied.ToString() && afterApply != TweakState.Applied.ToString())

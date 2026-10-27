@@ -18,33 +18,42 @@ public sealed class ChangeSession
     public ChangeBatch Batch { get; }
     public string BackupDir { get; }
     public int Applied { get; private set; }
+    /// <summary>Exit code of the last <see cref="RunCommandAsync"/> (e.g. 3010 = done after reboot).</summary>
+    public int? LastExitCode { get; private set; }
     public List<string> Errors { get; } = [];
 
-    private ChangeSession(ChangeJournal journal, ChangeBatch batch)
+    /// <summary>
+    /// Every change gets its own journal record, even if the target was already changed earlier (by the user).
+    /// Undoing the batch then returns exactly the state it started from. Used by the real-system test.
+    /// </summary>
+    public bool Isolated { get; }
+
+    private ChangeSession(ChangeJournal journal, ChangeBatch batch, bool isolated)
     {
         _journal = journal;
         Batch = batch;
+        Isolated = isolated;
         BackupDir = Path.Combine(AppPaths.BackupsDir, $"{batch.Timestamp:yyyyMMdd-HHmmss}-{batch.Id.ToString()[..8]}");
     }
 
-    /// <summary>
-    /// Starts a batch of changes. Creates a System Restore point first when <paramref name="createRestorePoint"/>
-    /// is true and the user hasn't turned that off in settings.
-    /// </summary>
     /// <summary>TESTS ONLY: lets unit tests run sessions without admin rights (with a redirected registry and a temp journal).</summary>
     internal static bool BypassElevationForTests { get; set; }
 
     /// <summary>Set by the self-test mode: any attempt to change the system fails loudly.</summary>
     public static bool Locked { get; set; }
 
+    /// <summary>
+    /// Starts a batch of changes. Creates a System Restore point first when <paramref name="createRestorePoint"/>
+    /// is true and the user hasn't turned that off in settings.
+    /// </summary>
     public static async Task<ChangeSession> BeginAsync(string title, bool createRestorePoint = true,
-        IProgress<string>? progress = null, ChangeJournal? journal = null)
+        IProgress<string>? progress = null, ChangeJournal? journal = null, bool isolated = false)
     {
         if (Locked) throw new InvalidOperationException("Изменения системы заблокированы (режим самопроверки).");
         if (!BypassElevationForTests) Elevation.Demand(title);
         journal ??= ChangeJournal.Instance;
         var batch = journal.BeginBatch(title);
-        var session = new ChangeSession(journal, batch);
+        var session = new ChangeSession(journal, batch, isolated);
         Log.Info($"Начало изменений: {title}");
 
         if (createRestorePoint && AppSettings.Current.CreateRestorePoints && !BypassElevationForTests)
@@ -82,7 +91,7 @@ public sealed class ChangeSession
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Registry, Target = target,
                 OldValue = snapshot.Describe(), NewValue = newText, Registry = snapshot,
             };
-            (rec, isNew) = _journal.Add(incoming);
+            (rec, isNew) = _journal.Add(incoming, mergeWithActive: !Isolated);
 
             if (value is null) RegistryHelper.DeleteValue(hive, path, name);
             else RegistryHelper.Write(hive, path, name, kind, value);
@@ -122,7 +131,7 @@ public sealed class ChangeSession
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Service, Target = $"svc:{service}",
                 OldValue = snapshot.Describe(), NewValue = ServiceControl.DescribeStart(mode, delayed), Service = snapshot,
             };
-            (rec, isNew) = _journal.Add(incoming);
+            (rec, isNew) = _journal.Add(incoming, mergeWithActive: !Isolated);
             ServiceControl.SetStartMode(service, mode, delayed);
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
@@ -153,7 +162,7 @@ public sealed class ChangeSession
                 OldValue = PowerSchemes.GetName(original), NewValue = PowerSchemes.GetName(scheme),
                 PowerSchemeOriginal = original, PowerSchemeCreated = createdScheme,
             };
-            (rec, isNew) = _journal.Add(incoming);
+            (rec, isNew) = _journal.Add(incoming, mergeWithActive: !Isolated);
             PowerSchemes.SetActive(scheme);
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
@@ -188,7 +197,7 @@ public sealed class ChangeSession
                 OldValue = info.Enabled ? "Включена" : "Отключена", NewValue = enabled ? "Включена" : "Отключена",
                 TaskPath = taskPath, TaskWasEnabled = info.Enabled,
             };
-            (rec, isNew) = _journal.Add(incoming);
+            (rec, isNew) = _journal.Add(incoming, mergeWithActive: !Isolated);
             ScheduledTasks.SetEnabled(taskPath, enabled);
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
@@ -210,7 +219,8 @@ public sealed class ChangeSession
     /// <paramref name="target"/> identifies the setting so repeated applies keep the first original.
     /// </summary>
     public async Task<bool> RunCommandAsync(string target, string file, string args, string revertFile, string revertArgs,
-        string oldValue, string newValue, string source, string title, OutputEncoding encoding = OutputEncoding.Oem)
+        string oldValue, string newValue, string source, string title, OutputEncoding encoding = OutputEncoding.Oem,
+        IReadOnlyCollection<int>? extraSuccessCodes = null)
     {
         ChangeRecord? rec = null;
         bool isNew = false;
@@ -221,12 +231,14 @@ public sealed class ChangeSession
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Command, Target = $"cmd:{target}",
                 OldValue = oldValue, NewValue = newValue, RevertFile = revertFile, RevertArgs = revertArgs,
             };
-            (rec, isNew) = _journal.Add(incoming);
+            (rec, isNew) = _journal.Add(incoming, mergeWithActive: !Isolated);
             // Encoded PowerShell scripts are unreadable base64 — log a readable line instead.
             var encoded = args.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
             if (encoded) Log.Command($"powershell: {title} ({newValue})");
             var r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
-            if (!r.Success) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
+            LastExitCode = r.ExitCode;
+            var accepted = r.Success || (!r.TimedOut && !r.Cancelled && extraSuccessCodes?.Contains(r.ExitCode) == true);
+            if (!accepted) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
             return true;

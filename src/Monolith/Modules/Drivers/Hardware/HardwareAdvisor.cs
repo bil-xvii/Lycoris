@@ -237,7 +237,7 @@ internal static class HardwareAdvisor
         var x3d = ChipsetAdvisor.IsX3D(cpu.Name);
         string? cpuNote = null;
         if (ChipsetAdvisor.IsDualCcdX3D(cpu.Name))
-            cpuNote = "Двухблочный X3D: драйвер чипсета AMD переводит игры на блок ядер с 3D V-Cache. Для этого нужны драйвер чипсета, «Игровой режим» и Xbox Game Bar — не отключайте их.";
+            cpuNote = "Ryzen X3D с двумя CCD: драйвер чипсета AMD переводит игры на блок ядер с 3D V-Cache. Для этого нужны драйвер чипсета, «Игровой режим» и Xbox Game Bar — не отключайте их.";
         else if (x3d)
             cpuNote = "X3D с одним блоком ядер: кэш 3D V-Cache доступен всем ядрам, специальная настройка не нужна. Оптимизатор V-Cache из пакета чипсета безвреден — не отключайте его службы.";
         list.Add(new HwComponent("cpu", "ПРОЦЕССОР", cpu.Name.Length > 0 ? cpu.Name : "Процессор не определён",

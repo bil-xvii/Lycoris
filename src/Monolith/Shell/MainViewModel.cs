@@ -107,7 +107,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             Log.Warn("MONOLITH запущен от имени другой учётной записи администратора.");
             await Ui.AlertAsync("ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ",
                 "MONOLITH запущен от имени другого администратора, а не пользователя, который сейчас работает в Windows. " +
-                "Пользовательские настройки (игровой режим, мышь, реклама, автозапуск «для меня») применятся к той учётной записи. " +
+                "Пользовательские настройки (игровой режим Windows, мышь, реклама, автозапуск «для меня») применятся к той учётной записи. " +
                 "Чтобы настроить свой профиль, войдите в Windows под учётной записью администратора и запустите MONOLITH оттуда.");
         }
 
@@ -124,13 +124,13 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
         {
-            var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ РЕЖИМ",
+            var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННОЕ УСКОРЕНИЕ ИГРЫ",
                 "Прошлая игровая сессия не завершилась штатно, и её временные изменения всё ещё действуют. Вернуть всё как было?",
                 stale.Select(r => $"{r.Title}: {r.NewValue} → {r.OldValue}"), confirmText: "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
             if (ok)
             {
                 var result = await ChangeJournal.Instance.RevertAsync(stale);
-                Ui.Toast(result.Success ? "Изменения игрового режима отменены." : string.Join("\n", result.Errors),
+                Ui.Toast(result.Success ? "Изменения «Ускорения игры» отменены." : string.Join("\n", result.Errors),
                     result.Success ? ToastKind.Success : ToastKind.Error);
             }
         }

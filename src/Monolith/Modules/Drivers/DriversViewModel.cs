@@ -465,7 +465,21 @@ public sealed partial class DriversViewModel : PageViewModel
         await RunBusyAsync($"Установка {tool.Name}…", async () =>
         {
             Log.Info($"Установка {tool.Name} ({id}, источник {tool.WingetSource})");
-            var r = await WingetClient.InstallAsync(id, tool.WingetSource, line => Log.Info("winget: " + line));
+            WingetResult r;
+            if (store && Elevation.IsElevated)
+            {
+                // Store packages install per user: run winget with the desktop user's token, not as administrator.
+                var args = new[] { "install", "--id", id, "--exact", "--source", "msstore", "--accept-package-agreements",
+                                   "--accept-source-agreements", "--disable-interactivity" };
+                var u = await Task.Run(() => Monolith.Modules.Apps.UnelevatedWinget.RunAsync(args, line => Log.Info("winget: " + line), CancellationToken.None));
+                r = u.Outcome == Monolith.Modules.Apps.UnelevatedOutcome.Untracked
+                    ? new WingetResult(0, "установка запущена — результат появится после проверки")
+                    : u.ToWinget();
+            }
+            else
+            {
+                r = await WingetClient.InstallAsync(id, tool.WingetSource, line => Log.Info("winget: " + line));
+            }
             if (r.Success)
             {
                 success = true;

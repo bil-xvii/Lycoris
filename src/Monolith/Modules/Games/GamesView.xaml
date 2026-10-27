@@ -106,16 +106,14 @@
                             </Button>
                             <Button Grid.Column="2" Height="32" Padding="10,0" FontSize="11.5" ToolTipService.ShowOnDisabled="True"
                                     Command="{Binding DataContext.PlayBoostedCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
-                                    CommandParameter="{Binding}">
+                                    CommandParameter="{Binding}"
+                                    ToolTip="{Binding DataContext.BoostTooltip, RelativeSource={RelativeSource AncestorType=local:GamesView}}">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static local:AllTrueConverter.Instance}">
                                         <Binding Path="IsAvailable" />
                                         <Binding Path="DataContext.CanLaunchBoosted" RelativeSource="{RelativeSource AncestorType=local:GamesView}" />
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                <Button.ToolTip>
-                                    <TextBlock Text="{Binding DataContext.BoostTooltip, RelativeSource={RelativeSource AncestorType=local:GamesView}}" />
-                                </Button.ToolTip>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <TextBlock Text="С УСКОРЕНИЕМ" VerticalAlignment="Center" />
@@ -445,7 +443,7 @@
                                                Foreground="{StaticResource B.Ink}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="GAME BOOST" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="УСКОРЕНИЕ ИГРЫ" Style="{StaticResource T.Label}" />
                                     <TextBlock Text="УСКОРЕНИЕ ИГРЫ" Style="{StaticResource T.H1}" FontSize="22" Margin="0,1,0,0" />
                                 </StackPanel>
                                 <Border Grid.Column="2" VerticalAlignment="Top" Margin="8,2,0,0">

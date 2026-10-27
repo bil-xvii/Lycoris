@@ -34,6 +34,9 @@ public sealed class ChangeRecord
     /// </summary>
     public List<string> AlsoSources { get; set; } = [];
 
+    /// <summary>Later batches that changed the same target (so "revert batch" finds this record from them too).</summary>
+    public List<Guid> AlsoBatchIds { get; set; } = [];
+
     public bool TouchedBy(string source) =>
         Source == source || AlsoSources.Contains(source);
     public bool? TaskWasEnabled { get; init; }
@@ -140,13 +143,18 @@ public sealed class ChangeJournal
     /// <see cref="MergeInto"/> after the new change succeeded to note the new value and source.
     /// Returns the record that represents the target, and whether it is new.
     /// </summary>
-    public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record)
+    /// <param name="mergeWithActive">
+    /// False for isolated sessions (the real-system test): the record is always new and holds the value right
+    /// before this change, so undoing it returns exactly that state and never touches the user's own records.
+    /// </param>
+    public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record, bool mergeWithActive = true)
     {
         ChangeRecord result;
         bool isNew;
         lock (_lock)
         {
-            var existing = _data.Records.LastOrDefault(r => !r.Reverted && string.Equals(r.Target, record.Target, StringComparison.OrdinalIgnoreCase));
+            var existing = !mergeWithActive ? null
+                : _data.Records.LastOrDefault(r => !r.Reverted && string.Equals(r.Target, record.Target, StringComparison.OrdinalIgnoreCase));
             if (existing is not null)
             {
                 result = existing;
@@ -172,6 +180,8 @@ public sealed class ChangeJournal
             existing.NewValue = incoming.NewValue;
             if (incoming.Source != existing.Source && !existing.AlsoSources.Contains(incoming.Source))
                 existing.AlsoSources.Add(incoming.Source);
+            if (incoming.BatchId != existing.BatchId && !existing.AlsoBatchIds.Contains(incoming.BatchId))
+                existing.AlsoBatchIds.Add(incoming.BatchId);
             existing.PowerSchemeCreated ??= incoming.PowerSchemeCreated;
             SaveLocked();
         }
@@ -232,7 +242,7 @@ public sealed class ChangeJournal
     public Task<RevertResult> RevertBatchAsync(Guid batchId)
     {
         List<ChangeRecord> items;
-        lock (_lock) items = _data.Records.Where(r => !r.Reverted && r.BatchId == batchId).ToList();
+        lock (_lock) items = _data.Records.Where(r => !r.Reverted && (r.BatchId == batchId || r.AlsoBatchIds.Contains(batchId))).ToList();
         return RevertAsync(items);
     }
 
@@ -280,6 +290,12 @@ public sealed class ChangeJournal
 
             case ChangeKind.Service when r.Service is not null:
                 // Never allowProtected: no legitimate record can target a protected service.
+                if (ServiceControl.Query(r.Service.Name) is null)
+                {
+                    // The service was uninstalled since: nothing left to put back — close the record.
+                    Log.Info($"Откат «{r.Title}»: службы {r.Service.Name} больше нет в системе — запись закрыта.");
+                    break;
+                }
                 ServiceControl.SetStartMode(r.Service.Name, r.Service.StartMode, r.Service.DelayedAutoStart);
                 break;
 
@@ -293,6 +309,11 @@ public sealed class ChangeJournal
                 break;
 
             case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
+                if (!ScheduledTasks.Query(r.TaskPath).Exists)
+                {
+                    Log.Info($"Откат «{r.Title}»: задачи {r.TaskPath} больше нет в системе — запись закрыта.");
+                    break;
+                }
                 ScheduledTasks.SetEnabled(r.TaskPath, wasEnabled);
                 break;
 
@@ -304,7 +325,11 @@ public sealed class ChangeJournal
                 if (encoded) Log.Command($"powershell: откат «{r.Title}»");
                 var result = await ProcessRunner.RunAsync(r.RevertFile!, r.RevertArgs ?? "",
                     new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
-                if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
+                // pnputil returns 3010 when the change completes after a reboot — that is success.
+                var rebootPending = result.ExitCode == 3010 && !result.TimedOut && !result.Cancelled &&
+                                    string.Equals(r.RevertFile, ProcessRunner.Sys("pnputil.exe"), StringComparison.OrdinalIgnoreCase);
+                if (rebootPending) Log.Info($"Откат «{r.Title}» завершится после перезагрузки.");
+                else if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
                 break;
 
             default:
