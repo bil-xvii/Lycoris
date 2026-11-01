@@ -194,10 +194,11 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 - **Cons:** a few seconds slower cold boot (negligible on NVMe).
 - Desktops: SAFE-DEFAULT (R). Laptops: SAFE-OPTIONAL.
 
-**`sys.hibernate`: «Отключить гибернацию» / `powercfg /h off`.**
+**`sys.hibernate`: «Отключить гибернацию» / `powercfg /h off`.** Catalog id `hibernation-off`.
 - Deletes `hiberfil.sys` (about 40% of RAM; ~13 GB at 32 GB) and implicitly disables Fast Startup.
 - Revert: `powercfg /h on`, then restore `HiberbootEnabled`.
-- Middle ground: `powercfg /h /type reduced` (Fast Startup only).
+- **Hybrid sleep (Microsoft KB 920730, verbatim):** «You may lose data if you make hibernation unavailable and a power loss occurs while the hybrid sleep setting is turned on. When you make hibernation unavailable, hybrid sleep does not work.» Hybrid sleep is on by default on desktops, so the Details and the Warning must say that plain sleep keeps working but hybrid sleep stops, and that a power loss during sleep then loses unsaved work. Whether it applies on this PC is read-only: `SYSTEM_POWER_CAPABILITIES.FastSystemS4` («supports the hybrid sleep state»; false e.g. with an active hypervisor, as on the dev machine) and the active plan's `HYBRIDSLEEP` AC value (`SUB_SLEEP` 238c9fa8-… / 94ac6d29-73ce-41a6-809f-6363ba21b47e, 1 = on). MONOLITH records the fact in the journal record's old value («гибернация включена, гибридный сон: включён в текущей схеме / выключен / недоступен»); the texts stay generic.
+- `powercfg /h /type reduced` (Fast Startup only, half-size file) is a **manual alternative only** — hibernation and hybrid sleep are unavailable with it too, so it is mentioned in the Details and not offered as a second item: `hibernation-off` stays the single item. The revert still restores a reduced file when that was the original type.
 - Desktops: ADVANCED.
 - **Laptops: DO-NOT-INCLUDE.** The critical-battery action and Modern Standby both fall back to hibernation, so data would be lost.
 
@@ -370,7 +371,7 @@ Everything else is opt-in. Create one restore point per batch: `Checkpoint-Compu
 - `IsPortable` is true when either:
   - `Win32_SystemEnclosure.ChassisTypes` ∩ {8, 9, 10, 11, 12, 14, 18, 21, 30, 31, 32} is non-empty, or
   - `CallNtPowerInformation(SystemPowerCapabilities)` reports `SystemBatteriesPresent && !BatteriesAreShortTerm`.
-- `Win32_Battery` alone is unreliable: a USB UPS can show up there.
+- `Win32_Battery` alone is unreliable: a USB UPS can show up there. **Implemented (01.11):** `SystemProfile.HasBattery` = `GetPwrCapabilities` → `SystemBatteriesPresent && !BatteriesAreShortTerm` (`PowerSchemes.ReadCapabilities`, byte offsets 30/31); `Win32_Battery` is only the fallback when the call fails. `SystemProfile.IsModernStandby` comes from the same structure (`AoAc`, offset 20).
 - Modern Standby: `SYSTEM_POWER_CAPABILITIES.AoAc`.
 - On AC vs battery: `GetSystemPowerStatus`.
 

@@ -200,27 +200,8 @@ public static partial class TweakCatalog
 
     // ───────────────────────────── Power capabilities and power settings (read-only) ─────────────────────────────
 
-    internal readonly record struct PowerCaps(bool HiberFilePresent, bool ModernStandby, byte HiberFileType);
-
-    /// <summary>SYSTEM_POWER_CAPABILITIES: HiberFilePresent (offset 8), AoAc = Modern Standby (20), HiberFileType (22).</summary>
-    internal static PowerCaps? ReadPowerCaps()
-    {
-        var buffer = Marshal.AllocHGlobal(128);
-        try
-        {
-            for (var i = 0; i < 128; i++) Marshal.WriteByte(buffer, i, 0);
-            if (!GetPwrCapabilities(buffer)) return null;
-            return new PowerCaps(Marshal.ReadByte(buffer, 8) != 0, Marshal.ReadByte(buffer, 20) != 0, Marshal.ReadByte(buffer, 22));
-        }
-        catch
-        {
-            return null;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(buffer);
-        }
-    }
+    /// <summary>SYSTEM_POWER_CAPABILITIES (hiberfil, Modern Standby, hybrid sleep, batteries); see <see cref="PowerSchemes.ReadCapabilities"/>.</summary>
+    internal static PowerCaps? ReadPowerCaps() => PowerSchemes.ReadCapabilities();
 
     private static bool IsModernStandby() => ReadPowerCaps()?.ModernStandby == true;
 
@@ -236,10 +217,6 @@ public static partial class TweakCatalog
             return null;
         }
     }
-
-    [DllImport("powrprof.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    private static extern bool GetPwrCapabilities(IntPtr capabilities);
 
     [DllImport("powrprof.dll")]
     private static extern uint PowerReadACValueIndex(IntPtr rootPowerKey, ref Guid schemeGuid, ref Guid subGroupOfPowerSettingsGuid,
@@ -666,13 +643,49 @@ public static partial class TweakCatalog
             $@"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\{scheme:D}\{subgroup:D}\{setting:D}", "ACSettingIndex") is not null;
 
     /// <summary>
+    /// The state of a power setting's AC value: Applied when it equals <paramref name="target"/> or when
+    /// <paramref name="alsoSatisfied"/> says the current value already meets the goal (e.g. wake timers «отключены» is
+    /// stricter than «только важные» — the item never loosens it).
+    /// </summary>
+    internal static TweakState PowerSettingState(uint value, uint target, Func<uint, bool>? alsoSatisfied = null) =>
+        value == target || alsoSatisfied?.Invoke(value) == true ? TweakState.Applied : TweakState.NotApplied;
+
+    /// <summary>
+    /// Mirror of BoostPolicy.DecidePowerPlan (Modules/Games): the plans a game session may switch a desktop to. A power
+    /// setting that must hold during the session is written into these plans too (one journal record per plan). Empty when
+    /// the session never switches plans on this PC: option off, laptop, dual-CCD X3D, Modern Standby, no High performance.
+    /// </summary>
+    internal static IReadOnlyList<Guid> ExtraSchemesForBoost(bool boostOn, bool laptop, bool dualCcd, bool modernStandby,
+        bool highExists, Guid? ultimate)
+    {
+        if (!boostOn || laptop || dualCcd || modernStandby || !highExists) return [];
+        var list = new List<Guid> { PowerSchemes.HighPerformance };
+        if (ultimate is { } u && u != PowerSchemes.HighPerformance) list.Add(u);
+        return list;
+    }
+
+    /// <summary>The live inputs of <see cref="ExtraSchemesForBoost(bool, bool, bool, bool, bool, Guid?)"/> (GameBoostService.DecidePower uses the same facts).</summary>
+    private static IReadOnlyList<Guid> ExtraSchemesForBoost(SystemProfile sp)
+    {
+        if (!sp.HardwareFactsKnown) return []; // the session itself never switches blindly (SkipUnknownHardware)
+        var boostOn = AppSettings.Current.GameBoostPowerPlan;
+        return ExtraSchemesForBoost(boostOn, sp.IsLaptop, IsDualCcdX3D(sp), IsModernStandby(),
+            boostOn && PowerSchemes.Exists(PowerSchemes.HighPerformance), boostOn ? PowerSchemes.FindUltimateCopy() : null);
+    }
+
+    /// <summary>
     /// A tweak that changes the "plugged in" (AC) value of one power setting in the ACTIVE plan via powercfg.
     /// The battery (DC) value is never touched. Undo writes the original AC value back.
     /// </summary>
+    /// <param name="alsoSatisfied">Current values that already meet the goal: detected as applied, never changed.</param>
+    /// <param name="alsoSchemes">
+    /// Other plans that get the same AC value (each its own journal record), e.g. the plans a game session switches to.
+    /// Detection stays on the active plan.
+    /// </param>
     private static CustomTweak PowerSettingTweak(string id, string title, string description, string details,
         TweakCategory category, TweakRisk risk, ProfileSet defaults, Guid subgroup, Guid setting, uint target,
         Func<uint, string> describe, Func<SystemProfile, bool>? appliesTo = null, string? notApplicableReason = null,
-        string? warning = null) => new()
+        string? warning = null, Func<uint, bool>? alsoSatisfied = null, Func<SystemProfile, IReadOnlyList<Guid>>? alsoSchemes = null) => new()
     {
         Id = id,
         Title = title,
@@ -690,7 +703,7 @@ public static partial class TweakCatalog
             if (scheme == Guid.Empty) return TweakState.Unknown;
             var value = ReadAcIndex(scheme, subgroup, setting);
             if (value is null) return TweakState.NotApplicable;
-            return value == target ? TweakState.Applied : TweakState.NotApplied;
+            return PowerSettingState(value.Value, target, alsoSatisfied);
         },
         ApplyAction = ctx =>
         {
@@ -702,15 +715,29 @@ public static partial class TweakCatalog
             if (scheme == Guid.Empty) throw new InvalidOperationException("не удалось определить активную схему питания");
             var current = ReadAcIndex(scheme, subgroup, setting)
                           ?? throw new InvalidOperationException("параметр отсутствует в текущей схеме питания");
-            if (current == target) return;
+            if (PowerSettingState(current, target, alsoSatisfied) != TweakState.Applied)
+                WriteAcValue(ctx, scheme, subgroup, setting, current, target, describe);
 
-            var plan = PowerSchemes.GetName(scheme);
-            // The effective value is restored either way; say honestly when it came from the plan's defaults.
-            var origin = HasAcOverride(scheme, subgroup, setting) ? "" : " (по умолчанию схемы; при откате будет записано явно)";
-            RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac",
-                CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, target, rollbackTo: current)),
-                CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, current)),
-                $"{plan}, от сети: {describe(current)}{origin}", $"{plan}, от сети: {describe(target)}");
+            // The plans a game session switches to: the same value, one record per plan, so the fix holds during the session.
+            if (alsoSchemes is null) return;
+            foreach (var extra in alsoSchemes(ctx.System).Distinct())
+            {
+                if (extra == scheme || ReadAcIndex(extra, subgroup, setting) is not { } extraCurrent) continue;
+                if (PowerSettingState(extraCurrent, target, alsoSatisfied) == TweakState.Applied) continue;
+                WriteAcValue(ctx, extra, subgroup, setting, extraCurrent, target, describe);
+            }
         },
     };
+
+    /// <summary>One journaled powercfg record: the plan's AC value → <paramref name="target"/>; the undo writes <paramref name="current"/> back.</summary>
+    private static void WriteAcValue(TweakContext ctx, Guid scheme, Guid subgroup, Guid setting, uint current, uint target, Func<uint, string> describe)
+    {
+        var plan = PowerSchemes.GetName(scheme);
+        // The effective value is restored either way; say honestly when it came from the plan's defaults.
+        var origin = HasAcOverride(scheme, subgroup, setting) ? "" : " (по умолчанию схемы; при откате будет записано явно)";
+        RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac",
+            CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, target, rollbackTo: current)),
+            CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, current)),
+            $"{plan}, от сети: {describe(current)}{origin}", $"{plan}, от сети: {describe(target)}");
+    }
 }

@@ -11,10 +11,17 @@ public static partial class TweakCatalog
 {
     private static readonly Guid SubProcessor = new("54533251-82be-4824-96c1-47b60b740d00");
     private static readonly Guid ProcessorMinState = new("893dee8e-2bef-41e0-89c6-b55d0929964c");
-    private static readonly Guid SubUsb = new("2a737441-1930-4402-8d77-b2bebba308a3");
-    private static readonly Guid UsbSelectiveSuspend = new("48e6b7a6-50f5-4782-a5d4-53bb8f07e226");
+    /// <summary>PERFBOOSTMODE (hidden, documented on Learn: options-for-perf-state-engine-perfboostmode): 0 = Disabled.</summary>
+    internal static readonly Guid ProcessorBoostMode = new("be337238-0d82-4146-a960-4f3749d470c7");
+    internal static readonly Guid SubUsb = new("2a737441-1930-4402-8d77-b2bebba308a3");
+    internal static readonly Guid UsbSelectiveSuspend = new("48e6b7a6-50f5-4782-a5d4-53bb8f07e226");
     private static readonly Guid SubPciExpress = new("501a4d13-42af-4429-9fd1-a8218c268e20");
     private static readonly Guid PcieAspm = new("ee12f906-d277-404b-b6da-e5fa1a576df5");
+    private static readonly Guid SubSleep = new("238c9fa8-0aad-41ed-83f4-97be242c8f20");
+    /// <summary>HYBRIDSLEEP (Allow hybrid sleep): 1 = on. Read-only here.</summary>
+    private static readonly Guid HybridSleep = new("94ac6d29-73ce-41a6-809f-6363ba21b47e");
+    /// <summary>RTCWAKE (Allow wake timers): 0 = disabled, 1 = enabled, 2 = important wake timers only.</summary>
+    internal static readonly Guid WakeTimers = new("bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d");
 
     private static IEnumerable<Tweak> PowerTweaks()
     {
@@ -95,45 +102,31 @@ public static partial class TweakCatalog
             ApplyAction = ctx => ActivateScheme(ctx, PowerSchemes.Balanced, "сбалансированная схема питания не найдена"),
         };
 
-        // SAFE-OPTIONAL (Windows 11, Balanced plan, AC only; not on dual-CCD X3D: its interplay with the AMD driver is unverified).
-        yield return new CustomTweak
-        {
-            Id = "power-mode-best-performance",
-            Title = "Режим питания «Максимальная производительность»",
-            Description = "На сбалансированной схеме выбирает режим питания «Максимальная производительность» (Параметры → Система → Питание) для работы от сети.",
-            Details = "Штатный режим Windows 11 — «облегчённая схема» поверх сбалансированной: Windows смещает настройки управления процессором " +
-                      "и ограничения фоновых процессов в сторону производительности, а сама схема «Сбалансированная» остаётся активной. " +
-                      "Заметнее всего на ноутбуках и ПК с настройками производителя; на настольных ПК эффект обычно невелик, а потребление " +
-                      "в простое немного растёт. Меняется только режим при питании от сети, режим от батареи не трогается. Применяется сразу " +
-                      "через документированную функцию Windows (PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим. На Ryzen " +
-                      "X3D с двумя CCD не предлагается: совместимость режима с драйвером AMD 3D V-Cache не проверена.",
-            Category = TweakCategory.Power,
-            Risk = TweakRisk.Optional,
-            AppliesTo = sp => sp.IsWindows11 && !IsDualCcdX3D(sp),
-            NotApplicableReason = "Только для Windows 11 на сбалансированной схеме питания и не для Ryzen X3D с двумя CCD.",
-            DetectFunc = () =>
-            {
-                var scheme = PowerSchemes.GetActive();
-                if (scheme == Guid.Empty) return TweakState.Unknown;
-                if (scheme != PowerSchemes.Balanced) return TweakState.NotApplicable; // the mode exists only on Balanced
-                return ReadAcPowerMode() is { } mode
-                    ? mode == PowerModeBestPerformance ? TweakState.Applied : TweakState.NotApplied
-                    : TweakState.NotApplicable;
-            },
-            ApplyAction = ctx =>
-            {
-                if (PowerSchemes.GetActive() != PowerSchemes.Balanced)
-                    throw new InvalidOperationException("режим питания действует только на сбалансированной схеме — сначала включите её");
-                var current = ReadAcPowerMode() ?? throw new InvalidOperationException("не удалось прочитать текущий режим питания");
-                if (current == PowerModeBestPerformance) return;
-                // Only the three documented modes can be journaled (and accepted by the journal check on undo).
-                if (!IsDocumentedPowerMode(current))
-                    throw new InvalidOperationException($"Windows сообщила неизвестный режим питания {current:D} — MONOLITH его не меняет");
-                RunJournaled(ctx, "powermode:ac", PowerShellExe, PowerShellArgs(PowerModeScript(PowerModeBestPerformance)),
-                    PowerShellExe, PowerShellArgs(PowerModeScript(current)),
-                    $"от сети: {DescribePowerMode(current)}", $"от сети: {DescribePowerMode(PowerModeBestPerformance)}", OutputEncoding.Utf8);
-            },
-        };
+        // SAFE-OPTIONAL (Windows 11, Balanced-personality plan, AC only; not on dual-CCD X3D: its interplay with the AMD driver is unverified).
+        yield return PowerModeTweak(
+            id: "power-mode-best-performance",
+            mode: PowerModeBestPerformance,
+            title: "Режим питания «Максимальная производительность»",
+            description: "На сбалансированной схеме выбирает режим питания «Максимальная производительность» (Параметры → Система → Питание) для работы от сети.",
+            details: "Штатный режим Windows 11 — «облегчённая схема» поверх сбалансированной: Windows смещает настройки управления процессором " +
+                     "и ограничения фоновых процессов в сторону производительности, а сама схема «Сбалансированная» остаётся активной. " +
+                     "Заметнее всего на ноутбуках и ПК с настройками производителя; на настольных ПК эффект обычно невелик, а потребление " +
+                     "в простое немного растёт. Меняется только режим при питании от сети, режим от батареи не трогается. Применяется сразу " +
+                     "через документированную функцию Windows (PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим. На Ryzen " +
+                     "X3D с двумя CCD не предлагается: совместимость режима с драйвером AMD 3D V-Cache не проверена.");
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C): the same documented mechanism towards efficiency; never pre-selected.
+        yield return PowerModeTweak(
+            id: "power-mode-best-efficiency-ac",
+            mode: PowerModeBestEfficiency,
+            title: "Режим питания «Максимальная эффективность» от сети",
+            description: "На сбалансированной схеме выбирает режим питания «Максимальная эффективность» для работы от сети: ниже частоты " +
+                         "и нагрев под лёгкой нагрузкой, тише вентиляторы.",
+            details: "Штатный режим Windows 11 («облегчённая схема» поверх сбалансированной): Windows смещает управление процессором и " +
+                     "ограничение фоновых процессов в сторону экономии. Пиковая производительность ниже — для игр и тяжёлой работы пункт " +
+                     "не подходит. Это не аналог «тихих» режимов утилит производителя: кривые вентиляторов и лимиты мощности MONOLITH не " +
+                     "трогает, эффект зависит от производителя — измерьте. Меняется только режим от сети. Применяется сразу " +
+                     "(PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим.");
 
         // SAFE-DEFAULT on dual-CCD X3D: the 3D V-Cache driver steers games to the cache CCD only on Balanced.
         yield return new CustomTweak
@@ -178,14 +171,59 @@ public static partial class TweakCatalog
             title: "Без отключения USB-устройств",
             description: "При питании от сети Windows перестаёт усыплять простаивающие USB-устройства.",
             details: "FPS не меняет. Помогает при пропаданиях и задержке пробуждения USB-ЦАП, беспроводных донглов мышей и геймпадов, " +
-                     "VR-шлемов. Немного растёт потребление в простое. Меняется только значение «от сети» текущей схемы; режим от батареи не трогается.",
+                     "VR-шлемов. Немного растёт потребление в простое. Меняется только значение «от сети» текущей схемы; режим от батареи не трогается. " +
+                     "Если включена опция игрового сеанса «Схема питания», значение записывается и в схему «Высокая производительность» " +
+                     "(и в копию Ultimate, если она есть): иначе во время игры Windows снова усыпляла бы USB-устройства — у «Высокой " +
+                     "производительности» этот параметр по умолчанию включён. Каждая схема откатывается отдельной записью.",
             category: TweakCategory.Power,
             risk: TweakRisk.Optional,
             defaults: ProfileSet.None,
             subgroup: SubUsb,
             setting: UsbSelectiveSuspend,
             target: 0,
-            describe: v => v == 0 ? "запрещено" : "разрешено");
+            describe: v => v == 0 ? "запрещено" : "разрешено",
+            alsoSchemes: ExtraSchemesForBoost);
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, AC only): 1 → 2; «отключены» (0) is stricter and is never loosened.
+        yield return PowerSettingTweak(
+            id: "wake-timers-important-only",
+            title: "ПК не просыпается ночью по расписанию программ",
+            description: "При питании от сети Windows разрешает будить компьютер только важным таймерам (например, перезагрузке после " +
+                         "обновления), а не любым программам.",
+            details: "Обычные таймеры пробуждения ставят лаунчеры, обновляторы, резервное копирование и задачи обслуживания — ПК включается " +
+                     "ночью, шумит и светит. Ночные задачи с флагом «Пробуждать компьютер для выполнения» теперь выполнятся только когда ПК " +
+                     "уже работает. Устройства (мышь, сетевая карта), которые будят ПК, — отдельная причина: см. «Обслуживание → Диагностика → " +
+                     "Сон и пробуждение». Меняется только значение «от сети» текущей схемы.",
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubSleep,
+            setting: WakeTimers,
+            target: 2,
+            describe: v => v switch { 0 => "отключены", 1 => "включены", 2 => "только важные", _ => v.ToString() },
+            appliesTo: sp => !sp.IsModernStandby,
+            notApplicableReason: "На ПК с Modern Standby поведение таймеров не проверено.",
+            alsoSatisfied: WakeTimersAlreadyStrict);
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, AC only), never pre-selected; not on any X3D.
+        yield return PowerSettingTweak(
+            id: "cpu-boost-off-ac",
+            title: "Без турбобуста процессора от сети",
+            description: "В текущей схеме питания (от сети) отключает Turbo Boost / Precision Boost: заметно ниже мощность и температура " +
+                         "пакета, тише вентиляторы.",
+            details: "Самый сильный штатный рычаг Windows для тихого ПК без записи кривых вентиляторов. Цена — большая потеря однопоточной " +
+                     "производительности (десятки процентов); игры, упирающиеся в процессор, станут медленнее. Параметр хранится в схеме: на " +
+                     "настольном ПК игровой сеанс MONOLITH переключает схему на «Высокую производительность», где буст остаётся включённым — " +
+                     "только на время игры. Известное лечение «взвывающих» вентиляторов при коротких всплесках нагрузки.",
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubProcessor,
+            setting: ProcessorBoostMode,
+            target: 0,
+            describe: DescribeBoostMode,
+            appliesTo: sp => !sp.CpuIsX3D,
+            notApplicableReason: "Не для Ryzen X3D: управление частотами оставлено драйверу AMD.");
 
         // SAFE-OPTIONAL (AC, desktop).
         yield return PowerSettingTweak(
@@ -238,12 +276,17 @@ public static partial class TweakCatalog
             Id = "hibernation-off",
             Title = "Отключить гибернацию",
             Description = "Выполняет powercfg /hibernate off: удаляется файл hiberfil.sys (около 40 % объёма ОЗУ), быстрый запуск тоже выключается.",
-            Details = "Освобождает место на системном диске. Обычный сон продолжает работать. Откат выполняет powercfg /hibernate on " +
-                      "и возвращает прежнее значение быстрого запуска.",
+            Details = "Освобождает место на системном диске. Обычный сон продолжает работать, но гибридный сон (на настольных ПК включён " +
+                      "по умолчанию) перестаёт работать: если во время сна пропадёт питание, несохранённая работа будет потеряна — об этом " +
+                      "предупреждает сама Microsoft (KB 920730). Альтернатива вручную, если нужен только быстрый запуск: powercfg /h /type " +
+                      "reduced — файл вдвое меньше, но гибернация и гибридный сон при этом тоже недоступны. Откат выполняет powercfg " +
+                      "/hibernate on и возвращает прежнее значение быстрого запуска.",
             Category = TweakCategory.Power,
             Risk = TweakRisk.Advanced,
-            Warning = "Гибернация и быстрый запуск станут недоступны. На ноутбуках пункт не предлагается: при критическом заряде Windows " +
-                      "сохраняет работу через гибернацию, без неё несохранённые данные будут потеряны.",
+            Warning = "Гибернация и быстрый запуск станут недоступны. Если гибридный сон включён в текущей схеме (на настольных ПК — по " +
+                      "умолчанию), он перестанет работать: при пропадании питания во время сна несохранённая работа будет потеряна " +
+                      "(Microsoft, KB 920730); текущее состояние гибридного сна записывается в журнал изменений. На ноутбуках пункт не " +
+                      "предлагается: при критическом заряде Windows сохраняет работу через гибернацию, без неё несохранённые данные будут потеряны.",
             AppliesTo = sp => !sp.IsLaptop,
             NotApplicableReason = "На ноутбуках не предлагается: при разряде батареи Windows сохраняет работу через гибернацию.",
             DetectFunc = () => ReadPowerCaps() is { } caps
@@ -259,8 +302,11 @@ public static partial class TweakCatalog
                 var revert = caps.HiberFileType == 1 // HIBERFILE_TYPE_REDUCED: the file only served Fast Startup
                     ? $"{powercfg} /hibernate on && {powercfg} /hibernate /type reduced"
                     : $"{powercfg} /hibernate on";
+                // Read-only fact for the record: whether hybrid sleep (which hibernation off breaks, KB 920730) is in use here.
+                var active = PowerSchemes.GetActive();
+                var hybrid = active == Guid.Empty ? null : ReadAcIndex(active, SubSleep, HybridSleep);
                 RunJournaled(ctx, "hibernate", CmdExe, CmdArgs($"{powercfg} /hibernate off"), CmdExe, CmdArgs(revert),
-                    "гибернация включена", "гибернация отключена");
+                    $"гибернация включена, гибридный сон: {HybridSleepFact(hybrid, caps.FastSystemS4)}", "гибернация отключена");
             },
         };
     }
@@ -300,6 +346,71 @@ public static partial class TweakCatalog
                $"$g=[Guid]'{mode:D}';$r=[Monolith.PowerMode]::SetAc([ref]$g);" +
                "if($r -ne 0){throw ('Windows отклонила смену режима питания, код '+$r)}";
     }
+
+    /// <summary>
+    /// A Windows 11 power-mode item (one of the documented overlay GUIDs) for a Balanced-personality plan. Detect: Applied when
+    /// the user-configured AC mode equals <paramref name="mode"/>. Apply refuses undocumented current modes (no exact undo).
+    /// </summary>
+    private static CustomTweak PowerModeTweak(string id, Guid mode, string title, string description, string details) => new()
+    {
+        Id = id,
+        Title = title,
+        Description = description,
+        Details = details,
+        Category = TweakCategory.Power,
+        Risk = TweakRisk.Optional,
+        AppliesTo = sp => sp.IsWindows11 && !IsDualCcdX3D(sp),
+        NotApplicableReason = "Только для Windows 11 на сбалансированной схеме питания и не для Ryzen X3D с двумя CCD.",
+        DetectFunc = () =>
+        {
+            var scheme = PowerSchemes.GetActive();
+            if (scheme == Guid.Empty) return TweakState.Unknown;
+            // The mode exists only on Balanced or a plan derived from it (Microsoft: customize-power-slider).
+            if (!PowerSchemes.IsBalancedPersonality(scheme)) return TweakState.NotApplicable;
+            return ReadAcPowerMode() is { } current
+                ? current == mode ? TweakState.Applied : TweakState.NotApplied
+                : TweakState.NotApplicable;
+        },
+        ApplyAction = ctx =>
+        {
+            if (!PowerSchemes.IsBalancedPersonality(PowerSchemes.GetActive()))
+                throw new InvalidOperationException("режим питания действует только на сбалансированной схеме — сначала включите её");
+            var current = ReadAcPowerMode() ?? throw new InvalidOperationException("не удалось прочитать текущий режим питания");
+            if (current == mode) return;
+            // Only the three documented modes can be journaled (and accepted by the journal check on undo).
+            if (!IsDocumentedPowerMode(current))
+                throw new InvalidOperationException($"Windows сообщила неизвестный режим питания {current:D} — MONOLITH его не меняет");
+            RunJournaled(ctx, "powermode:ac", PowerShellExe, PowerShellArgs(PowerModeScript(mode)),
+                PowerShellExe, PowerShellArgs(PowerModeScript(current)),
+                $"от сети: {DescribePowerMode(current)}", $"от сети: {DescribePowerMode(mode)}", OutputEncoding.Utf8);
+        },
+    };
+
+    /// <summary>
+    /// Hybrid sleep as the journal record states it: it needs FastSystemS4 (SYSTEM_POWER_CAPABILITIES; absent e.g. with an
+    /// active hypervisor) and the active plan's HYBRIDSLEEP AC value of 1.
+    /// </summary>
+    internal static string HybridSleepFact(uint? hybridSleepAc, bool fastSystemS4)
+    {
+        if (!fastSystemS4) return "недоступен (например, активен гипервизор)";
+        return hybridSleepAc switch { 1 => "включён в текущей схеме", null => "неизвестно", _ => "выключен в текущей схеме" };
+    }
+
+    /// <summary>RTCWAKE 0 («отключены») already keeps every program timer from waking the PC: stricter than 2, never loosened.</summary>
+    internal static bool WakeTimersAlreadyStrict(uint value) => value == 0;
+
+    /// <summary>PERFBOOSTMODE values as powercfg names them (0–4 on Learn; 5 and 6 appear in powercfg /qh on newer builds).</summary>
+    internal static string DescribeBoostMode(uint v) => v switch
+    {
+        0 => "отключён",
+        1 => "включён",
+        2 => "агрессивный",
+        3 => "эффективный",
+        4 => "эффективный агрессивный",
+        5 => "агрессивный при гарантии",
+        6 => "эффективный агрессивный при гарантии",
+        _ => v.ToString(),
+    };
 
     /// <summary>The user-configured AC power mode (Windows 11), or null when the function is missing or fails. Read-only.</summary>
     internal static Guid? ReadAcPowerMode()
