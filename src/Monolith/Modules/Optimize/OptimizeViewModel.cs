@@ -11,15 +11,16 @@ using Monolith.UI;
 namespace Monolith.Modules.Optimize;
 
 /// <summary>
-/// The Optimize page: profile tiles → filterable, grouped tweak list with detected states → apply with a full
-/// preview and per-row undo (bulk undo lives in «Восстановление»). Every system change goes through <see cref="TweakEngine"/> (journal + restore point).
+/// The Optimize page: scenario tiles (a persistent pre-selection, the only place for scenarios) → filterable, grouped tweak
+/// list with detected states → apply with a full preview and per-row undo (bulk undo lives in «Восстановление»). Every system
+/// change goes through <see cref="TweakEngine"/> (journal + restore point): one apply = one batch.
 /// </summary>
 public sealed partial class OptimizeViewModel : PageViewModel
 {
     public override string Key => "optimize";
     public override string Index => "02";
     public override string Title => "ОПТИМИЗАЦИЯ";
-    public override string Subtitle => "Выберите профиль, проверьте изменения и примените — изменённые настройки можно откатить.";
+    public override string Subtitle => "Выберите сценарий, проверьте изменения и примените — изменённые настройки можно откатить.";
     public override string Glyph => Glyphs.Bolt;
 
     private const string SourcePrefix = "tweak:";
@@ -27,6 +28,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private readonly List<TweakItemViewModel> _items = [];
     private readonly Dictionary<TweakCategory, SectionRow> _sections = [];
     private readonly Dictionary<OptimizeProfile, HashSet<string>> _profileDefaults = [];
+    /// <summary>Every tile in order; <see cref="Profiles"/> holds the visible ones (the efficiency tile may be hidden).</summary>
+    private readonly List<ProfileTileViewModel> _allTiles;
+    /// <summary>SystemProfile.HardwareFactsKnown as of the last detection (tests set it through <see cref="MarkDetected"/>).</summary>
+    private bool _hardwareFactsKnown;
+    private bool _laptop;
     private readonly HashSet<string> _acceptedExpert = new(StringComparer.Ordinal);
     /// <summary>Tweak ids whose pending dependency is being evaluated right now (UI thread): guards against a Requires cycle.</summary>
     private readonly HashSet<string> _dependencyWalk = new(StringComparer.Ordinal);
@@ -54,21 +60,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
         _emptyRow = new EmptyRow(this);
         _expertRow = new ExpertRow(this);
 
-        Profiles =
+        // One row, one radio group: РЕКОМЕНДУЕМЫЙ · ИГРЫ · РАБОТА И УЧЁБА · СТРИМИНГ И ЗАПИСЬ · ТИХИЙ ПК / НОУТБУК: АВТОНОМНОСТЬ · СВОЙ НАБОР.
+        // The efficiency tile joins the row only after detection shows it has a member beyond a plan switch (UpdateCounts).
+        _allTiles =
         [
-            new ProfileTileViewModel(this, OptimizeProfile.Normal, "01", "ОБЫЧНЫЙ", "Обычный",
-                "Повседневная работа: тише и чище.",
-                "Для работы и учёбы: меньше рекламы, подсказок и фоновой активности. Только безопасные пункты."),
-            new ProfileTileViewModel(this, OptimizeProfile.Gaming, "02", "ИГРОВОЙ", "Игровой",
-                "Максимум для игр: приоритет игре.",
-                "Для игр: Windows отдаёт приоритет игре и меньше отвлекает во время игры. Только проверенные пункты без компромиссов в безопасности."),
-            new ProfileTileViewModel(this, OptimizeProfile.Recommended, "03", "РЕКОМЕНДУЕМЫЙ", "Рекомендуемый",
-                "Безопасный баланс для любого ПК.",
-                "Проверенные настройки без компромиссов: подходят и для работы, и для игр. Выбран по умолчанию.", "ПО УМОЛЧАНИЮ"),
-            new ProfileTileViewModel(this, OptimizeProfile.Custom, "04", "СВОЙ НАБОР", "Свой набор",
-                "Только то, что вы отметили сами.",
-                "Ваш собственный набор: отметьте нужные пункты в списке ниже. Выбор запоминается между запусками."),
+            new ProfileTileViewModel(this, OptimizeProfile.Recommended, "01", "ПО УМОЛЧАНИЮ"),
+            new ProfileTileViewModel(this, OptimizeProfile.Gaming, "02"),
+            new ProfileTileViewModel(this, OptimizeProfile.Normal, "03"),
+            new ProfileTileViewModel(this, OptimizeProfile.Streaming, "04"),
+            new ProfileTileViewModel(this, OptimizeProfile.Efficiency, "05"),
+            new ProfileTileViewModel(this, OptimizeProfile.Custom, "06"),
         ];
+        Profiles = new ObservableCollection<ProfileTileViewModel>(_allTiles.Where(t => t.Kind != OptimizeProfile.Efficiency));
         UpdateTileSelection();
 
         Rows.Add(_profilesRow);
@@ -140,7 +143,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
     public string ApplyButtonText => ChangeCount > 0 ? $"ПРИМЕНИТЬ · {ChangeCount}" : "ПРИМЕНИТЬ";
     public string ApplyTooltip => IsReadOnly ? "Нужны права администратора" : "Показать полный список изменений и применить их";
 
-    private ProfileTileViewModel CurrentTile => Profiles.First(p => p.Kind == Profile);
+    private ProfileTileViewModel CurrentTile => _allTiles.First(p => p.Kind == Profile);
+
+    /// <summary>The efficiency tile is in the row (it has a real member on this PC and the hardware facts are known).</summary>
+    internal bool IsEfficiencyTileVisible => Profiles.Any(t => t.Kind == OptimizeProfile.Efficiency);
 
     partial void OnProfileChanged(OptimizeProfile value)
     {
@@ -237,7 +243,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         _items.Clear();
         foreach (var t in tweaks) _items.Add(new TweakItemViewModel(t, this));
 
-        foreach (var p in new[] { OptimizeProfile.Normal, OptimizeProfile.Gaming, OptimizeProfile.Recommended })
+        foreach (var p in OptimizeLogic.CatalogProfiles)
             _profileDefaults[p] = TweakCatalog.DefaultsFor(OptimizeLogic.ToKind(p)!.Value).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
 
         _sections.Clear();
@@ -262,11 +268,16 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateCounts();
     }
 
-    /// <summary>Test hook: counts as if detection has finished (tile «изменений» figures are shown only then).</summary>
-    internal void MarkDetected()
+    /// <summary>
+    /// Test hook: counts as if detection has finished (tile «изменений» figures are shown only then) with the given hardware facts
+    /// (the efficiency tile is retitled for a laptop and shown only when it has a member beyond a plan switch).
+    /// </summary>
+    internal void MarkDetected(bool hardwareFactsKnown = true, bool laptop = false)
     {
         _detected = true;
-        UpdateCounts();
+        _hardwareFactsKnown = hardwareFactsKnown;
+        _laptop = laptop;
+        ReconcileScenarioTiles();
     }
 
     // ───────────────────────────── Detection ─────────────────────────────
@@ -282,7 +293,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
         {
             await RunBusyAsync("Проверка текущего состояния…", async () =>
             {
-                await SystemProfile.LoadAsync();
+                var sp = await SystemProfile.LoadAsync();
+                _hardwareFactsKnown = sp.HardwareFactsKnown;
+                _laptop = sp.HardwareFactsKnown && sp.IsLaptop;
                 var tweaks = _items.Select(i => i.Tweak).ToList();
                 var states = await TweakEngine.DetectAllAsync(tweaks);
                 var revertable = await Task.Run(() => tweaks.Where(TweakEngine.CanRevert).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
@@ -312,8 +325,20 @@ public sealed partial class OptimizeViewModel : PageViewModel
             _detected = true;
             _refreshing = false;
             IsDetecting = false;
-            UpdateCounts();
+            ReconcileScenarioTiles();
         }
+    }
+
+    /// <summary>
+    /// After detection: the efficiency tile gets its laptop/desktop wording and joins or leaves the row (UpdateCounts); when
+    /// it leaves while selected — e.g. the saved scenario from another PC — the page falls back to the default scenario.
+    /// </summary>
+    private void ReconcileScenarioTiles()
+    {
+        foreach (var t in _allTiles) t.Retitle(_laptop);
+        UpdateCounts();
+        if (Profile == OptimizeProfile.Efficiency && !IsEfficiencyTileVisible) SelectProfile(OptimizeProfile.Recommended);
+        OnPropertyChanged(nameof(ApplyButtonText));
     }
 
     /// <summary>Fills the "what will change" preview of an expanded row with the values read right now.</summary>
@@ -606,7 +631,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
         ApplicableTotal = _items.Count(i => i.State is not null && i.IsApplicable);
         OnPropertyChanged(nameof(AppliedSummary));
 
-        foreach (var tile in Profiles)
+        var visible = new List<ProfileTileViewModel>(_allTiles.Count);
+        foreach (var tile in _allTiles)
         {
             var defaults = DefaultsOf(tile.Kind);
             var members = tile.Kind == OptimizeProfile.Custom
@@ -617,7 +643,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
             // A member that is not applicable on its own is there through its dependency: selecting the profile changes it too.
             tile.ToChange = _detected ? members.Count(i => i.WillChange || !i.IsApplicable) : null;
             tile.Applied = _detected ? members.Count(i => i.IsApplied) : null;
+            // The efficiency tile needs a member that makes something quieter (not only a plan switch) and known hardware facts.
+            if (tile.Kind != OptimizeProfile.Efficiency
+                || (_detected && OptimizeLogic.EfficiencyTileVisible(_hardwareFactsKnown, members.Select(m => m.Tweak))))
+                visible.Add(tile);
         }
+        OptimizeLogic.Sync(Profiles, visible);
 
         foreach (var s in _sections.Values) s.Refresh();
         UpdateExpertRow();
@@ -640,7 +671,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (_items.Count == 0) return _detected ? "Каталог оптимизаций пуст." : "Загрузка каталога…";
         if (IsReadOnly) return "Режим просмотра: применить и откатить изменения можно только с правами администратора.";
         if (!_detected || IsDetecting) return "Проверка текущего состояния системы…";
-        if (SelectedCount == 0) return "Выберите профиль сверху или отметьте пункты в списке.";
+        if (SelectedCount == 0) return "Выберите сценарий сверху или отметьте пункты в списке.";
         if (ChangeCount == 0) return "Все выбранные пункты уже применены — менять нечего.";
         var restart = RestartCount > 0
             ? $" · {RestartCount} {OptimizeLogic.Plural(RestartCount, "требует", "требуют", "требуют")} перезапуска"
@@ -652,7 +683,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 : _protectionOn == true
                     ? " · перед изменениями будет создана точка восстановления"
                     : "";
-        return $"Профиль «{CurrentTile.SentenceName}»{restart}{rp}.";
+        return $"Сценарий «{CurrentTile.SentenceName}»{restart}{rp}.";
     }
 
     // ───────────────────────────── Commands: state ─────────────────────────────
@@ -709,9 +740,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
             if (!ok) return;
         }
 
-        var batchTitle = Profile == OptimizeProfile.Custom
-            ? "Оптимизация: свой набор"
-            : $"Оптимизация: профиль «{CurrentTile.SentenceName}»";
+        // The scenario as applied: the result dialog names its manual follow-ups even if the selection changes meanwhile.
+        var scenario = Profile;
+        var batchTitle = OptimizeLogic.BatchTitle(scenario, _laptop);
         TweakRunResult? result = null;
         await RunBusyAsync("Применение изменений…", async () =>
         {
@@ -721,7 +752,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
         await RefreshStatesAsync();
         if (result is null) return;
-        await ShowApplyResultAsync(result, targets);
+        await ShowApplyResultAsync(result, targets, scenario);
         if (result.Applied > 0 && result.Restart != RestartRequirement.None)
             await OfferRestartAsync(result.Restart);
     }
@@ -754,7 +785,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             : "Защита системы выключена — точки восстановления не будет. Откат — через журнал MONOLITH.";
     }
 
-    private async Task ShowApplyResultAsync(TweakRunResult result, IReadOnlyList<TweakItemViewModel> targets)
+    private async Task ShowApplyResultAsync(TweakRunResult result, IReadOnlyList<TweakItemViewModel> targets, OptimizeProfile scenario)
     {
         var lines = new List<string>
         {
@@ -775,6 +806,13 @@ public sealed partial class OptimizeViewModel : PageViewModel
         }
         lines.AddRange(result.SkippedReasons.Select(r => $"ПРОПУЩЕНО — {r}"));
         lines.AddRange(result.Errors.Select(e => $"ОШИБКА — {e}"));
+        // What the scenario leaves to the user because MONOLITH must not write it (vendor fan curves, charge limits, DND blobs).
+        var manual = OptimizeLogic.ManualSteps(scenario, _laptop);
+        if (manual.Count > 0)
+        {
+            lines.Add(OptimizeLogic.ManualStepsHeader);
+            lines.AddRange(manual);
+        }
 
         var verified = targets.Count(t => t.IsApplied);
         var title = result.Errors.Count > 0 ? "ГОТОВО С ОШИБКАМИ" : verified == targets.Count ? "ГОТОВО" : "ГОТОВО ЧАСТИЧНО";
