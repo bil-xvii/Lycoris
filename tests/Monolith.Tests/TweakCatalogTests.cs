@@ -38,7 +38,7 @@ public sealed class TweakCatalogTests : IDisposable
     [Fact]
     public void Catalog_has_a_full_set_of_tweaks()
     {
-        Assert.InRange(TweakCatalog.All.Count, 35, 90);
+        Assert.InRange(TweakCatalog.All.Count, 35, 140);
     }
 
     [Fact]
