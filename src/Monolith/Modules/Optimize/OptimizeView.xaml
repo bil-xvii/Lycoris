@@ -370,7 +370,7 @@
                             <ColumnDefinition Width="116" />
                         </Grid.ColumnDefinitions>
 
-                        <CheckBox Margin="0,1,0,0" VerticalAlignment="Top" IsChecked="{Binding IsChecked}" IsEnabled="{Binding IsApplicable}"
+                        <CheckBox Margin="0,1,0,0" VerticalAlignment="Top" IsChecked="{Binding IsChecked}" IsEnabled="{Binding IsApplicableNow}"
                                   ToolTip="Включить пункт в применение" />
 
                         <StackPanel Grid.Column="1" Margin="0,0,15,0">
@@ -378,14 +378,14 @@
                                        Foreground="{StaticResource B.Text}" TextWrapping="Wrap" />
                             <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text3}" Margin="0,2,0,0" />
 
-                            <Grid Margin="0,5,0,0" Visibility="{Binding NotApplicableText, Converter={StaticResource NullToVis}}">
+                            <Grid Margin="0,5,0,0" Visibility="{Binding StatusNote, Converter={StaticResource NullToVis}}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="{x:Static ui:Glyphs.Info}" FontFamily="{StaticResource F.Icons}" FontSize="11" Margin="0,2,7,0"
                                            Foreground="{StaticResource B.Text3}" VerticalAlignment="Top" />
-                                <TextBlock Grid.Column="1" Text="{Binding NotApplicableText}" Style="{StaticResource T.Caption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding StatusNote}" Style="{StaticResource T.Caption}" />
                             </Grid>
 
                             <WrapPanel Margin="0,6,0,0">
@@ -495,7 +495,7 @@
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding IsApplicable}" Value="False">
+                <DataTrigger Binding="{Binding IsApplicableNow}" Value="False">
                     <Setter TargetName="TitleText" Property="Foreground" Value="{StaticResource B.Text3}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
