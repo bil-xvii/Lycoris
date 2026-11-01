@@ -144,13 +144,26 @@ public static class PowerSchemes
         }
     }
 
-    /// <summary>GUID_POWERSCHEME_PERSONALITY: a scheme-level setting (no subgroup) whose value is one of the three personality GUIDs.</summary>
+    /// <summary>
+    /// GUID_POWERSCHEME_PERSONALITY («Power plan type», powercfg alias PERSONALITY): lives in the scheme-level pseudo-subgroup
+    /// NO_SUBGROUP_GUID (SUB_NONE). Per scheme the store keeps an INDEX into the setting's possible values (powercfg /qh:
+    /// «Possible Setting Index 000 Power saver / 001 High performance / 002 Balanced», «Current AC Power Setting Index:
+    /// 0x00000002» on Balanced), not a GUID; the possible values themselves are the three personality GUIDs.
+    /// </summary>
     private static readonly Guid PersonalityGuid = new("245d8541-3943-4422-b025-13a784f679b7");
+
+    /// <summary>NO_SUBGROUP_GUID (WinNT.h): «settings in this subgroup are part of the default power scheme».</summary>
+    private static readonly Guid NoSubgroup = new("fea3413e-7e05-4911-9a71-700331f1c294");
+
+    /// <summary>The documented index of the Balanced personality among the possible values (0 saver, 1 high performance, 2 balanced).</summary>
+    internal const uint BalancedPersonalityIndex = 2;
 
     /// <summary>
     /// True when the scheme is Balanced or derived from it (personality GUID_TYPICAL_POWER_SAVINGS = the Balanced GUID):
     /// Microsoft's power-mode slider exists on Balanced «or any plan derived from Balanced». Read-only; false on any error
-    /// (the Balanced scheme itself always counts).
+    /// (the Balanced scheme itself always counts). Reads the scheme's personality INDEX (PowerReadACValueIndex, NO_SUBGROUP_GUID)
+    /// and resolves it through the setting's possible values (PowerReadPossibleValue → the 16-byte personality GUID); when the
+    /// possible value cannot be read the documented index mapping (2 = Balanced) is used.
     /// </summary>
     public static bool IsBalancedPersonality(Guid scheme)
     {
@@ -158,11 +171,10 @@ public static class PowerSchemes
         if (scheme == Guid.Empty) return false;
         try
         {
-            var buffer = new byte[16];
-            uint size = 16;
+            var subgroup = NoSubgroup;
             var personality = PersonalityGuid;
-            var rc = PowerReadACValue(IntPtr.Zero, ref scheme, IntPtr.Zero, ref personality, out var type, buffer, ref size);
-            return rc == 0 && type == 3 /* REG_BINARY */ && size == 16 && PersonalityIsBalanced(buffer);
+            if (PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref subgroup, ref personality, out var index) != 0) return false;
+            return PersonalityIndexIsBalanced(index, ReadPossiblePersonality(index));
         }
         catch
         {
@@ -170,7 +182,25 @@ public static class PowerSchemes
         }
     }
 
-    /// <summary>Pure: the 16 bytes PowerReadACValue returns for the personality setting, compared with the Balanced GUID.</summary>
+    /// <summary>The possible value (a personality GUID, REG_BINARY 16 bytes) behind an index; null when it cannot be read.</summary>
+    private static byte[]? ReadPossiblePersonality(uint index)
+    {
+        var subgroup = NoSubgroup;
+        var personality = PersonalityGuid;
+        var buffer = new byte[16];
+        uint size = 16;
+        var rc = PowerReadPossibleValue(IntPtr.Zero, ref subgroup, ref personality, out var type, index, buffer, ref size);
+        return rc == 0 && type == 3 /* REG_BINARY */ && size == 16 ? buffer : null;
+    }
+
+    /// <summary>
+    /// Pure: a scheme's personality index resolved against the possible value Windows reports for it. The GUID decides when it
+    /// is known (16 bytes); otherwise the documented index mapping (0 saver, 1 high performance, 2 balanced) is the fallback.
+    /// </summary>
+    public static bool PersonalityIndexIsBalanced(uint index, byte[]? possibleValue) =>
+        possibleValue is { Length: 16 } ? PersonalityIsBalanced(possibleValue) : index == BalancedPersonalityIndex;
+
+    /// <summary>Pure: 16 personality-GUID bytes (a possible value of PERSONALITY) compared with the Balanced GUID.</summary>
     public static bool PersonalityIsBalanced(byte[]? value) =>
         value is { Length: 16 } && new Guid(value) == Balanced;
 
@@ -212,8 +242,12 @@ public static class PowerSchemes
     private static extern uint PowerDeleteScheme(IntPtr rootPowerKey, ref Guid schemeGuid);
 
     [DllImport("powrprof.dll")]
-    private static extern uint PowerReadACValue(IntPtr rootPowerKey, ref Guid schemeGuid, IntPtr subGroupOfPowerSettingsGuid,
-        ref Guid powerSettingGuid, out uint type, byte[] buffer, ref uint bufferSize);
+    private static extern uint PowerReadACValueIndex(IntPtr rootPowerKey, ref Guid schemeGuid, ref Guid subGroupOfPowerSettingsGuid,
+        ref Guid powerSettingGuid, out uint acValueIndex);
+
+    [DllImport("powrprof.dll")]
+    private static extern uint PowerReadPossibleValue(IntPtr rootPowerKey, ref Guid subGroupOfPowerSettingsGuid, ref Guid powerSettingGuid,
+        out uint type, uint possibleSettingIndex, byte[] buffer, ref uint bufferSize);
 
     [DllImport("powrprof.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.U1)]
