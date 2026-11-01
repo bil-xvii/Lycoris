@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.Win32;
 using Monolith.Core;
 
@@ -185,7 +185,7 @@ public static partial class TweakCatalog
                       "в строке поиска Проводника перестают показываться недавние запросы. Применяется после перезапуска Проводника.",
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             Restart = RestartRequirement.Explorer,
             Values =
             [
@@ -202,7 +202,7 @@ public static partial class TweakCatalog
             Details = "Поле и окно поиска показывают только ваши результаты. Применяется после перезапуска Проводника.",
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             Restart = RestartRequirement.Explorer,
             Values = [Cu(@"Software\Microsoft\Windows\CurrentVersion\SearchSettings", "IsDynamicSearchBoxEnabled", 0)],
         };
@@ -217,7 +217,7 @@ public static partial class TweakCatalog
                       "после перезапуска Проводника.",
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             Restart = RestartRequirement.Explorer,
             AppliesTo = sp => sp.IsWindows11,
             NotApplicableReason = "Только для Windows 11.",
@@ -237,7 +237,7 @@ public static partial class TweakCatalog
                       "настройка ленты. Применяется после перезапуска Проводника.",
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             Restart = RestartRequirement.Explorer,
             AppliesTo = sp => sp.OsBuild is >= 19041 and < 22000,
             NotApplicableReason = "Только для Windows 10 — в Windows 11 используется пункт «Отключить Виджеты».",
@@ -317,6 +317,7 @@ public static partial class TweakCatalog
                       "используется, поэтому флажки можно вернуть и вручную. Применяется после перезапуска Проводника.",
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Streaming, // SAFE-OPTIONAL pre-check of «Стриминг и запись»: recent files never go on air
             Restart = RestartRequirement.Explorer,
             Values =
             [
@@ -437,7 +438,7 @@ public static partial class TweakCatalog
                       "не меняется. Действует после выхода из системы.",
             Category = TweakCategory.Input,
             Risk = TweakRisk.Optional,
-            DefaultIn = ProfileSet.Gaming,
+            DefaultIn = ProfileSet.Gaming | ProfileSet.Streaming,
             Restart = RestartRequirement.SignOut,
             Values =
             [
@@ -462,7 +463,7 @@ public static partial class TweakCatalog
                       "из системы.",
             Category = TweakCategory.Input,
             Risk = TweakRisk.Optional,
-            DefaultIn = ProfileSet.Gaming,
+            DefaultIn = ProfileSet.Gaming | ProfileSet.Streaming,
             Restart = RestartRequirement.SignOut,
             NotApplicableReason = "Залипание клавиш, фильтрация ввода и озвучивание переключения у вас включены — MONOLITH их не трогает.",
             DetectFunc = () =>
@@ -497,7 +498,7 @@ public static partial class TweakCatalog
                       "«Уменьшать громкость на 80 %».",
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,
-            DefaultIn = ProfileSet.Gaming,
+            DefaultIn = ProfileSet.Gaming | ProfileSet.Streaming,
             Restart = RestartRequirement.SignOut,
             Values = [Cu(Core.Devices.DeviceTargets.DuckingPath, Core.Devices.DeviceTargets.DuckingName, 3)],
         };

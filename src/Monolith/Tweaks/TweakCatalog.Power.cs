@@ -54,6 +54,7 @@ public static partial class TweakCatalog
             Category = TweakCategory.Power,
             Risk = TweakRisk.Optional,
             DefaultIn = ProfileSet.Gaming,
+            ExclusiveGroup = TweakGroups.PowerPlan,
             AppliesTo = sp => !sp.IsLaptop && !IsDualCcdX3D(sp),
             NotApplicableReason = "Не для ноутбуков и Ryzen X3D с двумя CCD: им нужна сбалансированная схема.",
             DetectFunc = () => SchemeState(PowerSchemes.HighPerformance),
@@ -73,6 +74,7 @@ public static partial class TweakCatalog
             Risk = TweakRisk.Advanced,
             Warning = "Прироста в играх по сравнению с «Высокой производительностью» почти нет, а потребление энергии и нагрев в простое " +
                       "заметно выше. Только для настольных ПК с хорошим охлаждением.",
+            ExclusiveGroup = TweakGroups.PowerPlan,
             AppliesTo = sp => !sp.IsLaptop && !IsDualCcdX3D(sp) && !IsModernStandby(),
             NotApplicableReason = "Не для ноутбуков, систем с Modern Standby и Ryzen X3D с двумя CCD.",
             DetectFunc = () =>
@@ -101,7 +103,10 @@ public static partial class TweakCatalog
             },
         };
 
-        // SAFE-DEFAULT in Recommended everywhere (dual-CCD X3D systems use the dedicated item below).
+        // SAFE-DEFAULT in Recommended, «Работа и учёба» and the efficiency scenario everywhere (dual-CCD X3D systems use the
+        // dedicated item below). A vendor plan derived from Balanced («AMD Ryzen Balanced», OEM Recommended) already counts as
+        // applied: Microsoft's power-mode slider exists on «Balanced or any plan derived from it», and replacing an OEM plan
+        // can cost battery life — the opposite of the scenario's goal (scenario-efficiency review, 01.11).
         yield return new CustomTweak
         {
             Id = "power-plan-balanced",
@@ -109,14 +114,22 @@ public static partial class TweakCatalog
             Description = "Включает стандартную схему «Сбалансированная», рекомендованную Microsoft и производителями процессоров.",
             Details = "Современные процессоры (CPPC/EPP) сами мгновенно повышают частоту под нагрузкой, поэтому в играх разница с " +
                       "«Высокой производительностью» почти незаметна, а в простое компьютер тише и экономичнее. Для Ryzen X3D с одним CCD " +
-                      "это рекомендация AMD. Прежняя схема возвращается при откате.",
+                      "это рекомендация AMD. Если активна схема производителя на основе сбалансированной («AMD Ryzen Balanced», " +
+                      "OEM Recommended), пункт считается применённым: схема уже сбалансированная (вариант производителя), MONOLITH её " +
+                      "не заменяет. Прежняя схема возвращается при откате.",
             Category = TweakCategory.Power,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended | ProfileSet.Efficiency,
+            ExclusiveGroup = TweakGroups.PowerPlan,
             AppliesTo = sp => !IsDualCcdX3D(sp),
             NotApplicableReason = "Для Ryzen X3D с двумя CCD используется пункт «Схема питания для Ryzen X3D (2 CCD)».",
-            DetectFunc = () => SchemeState(PowerSchemes.Balanced),
-            ApplyAction = ctx => ActivateScheme(ctx, PowerSchemes.Balanced, "сбалансированная схема питания не найдена"),
+            DetectFunc = () => BalancedSchemeState(PowerSchemes.GetActive(), PowerSchemes.IsBalancedPersonality, SessionHoldsPlan(), PowerSchemes.Exists),
+            ApplyAction = ctx =>
+            {
+                // A Balanced-derived vendor plan stays (see above); the session's temporary plan never counts.
+                if (PowerSchemes.IsBalancedPersonality(PowerSchemes.GetActive()) && !SessionHoldsPlan()) return;
+                ActivateScheme(ctx, PowerSchemes.Balanced, "сбалансированная схема питания не найдена");
+            },
         };
 
         // SAFE-OPTIONAL (Windows 11, Balanced-personality plan, AC only; not on dual-CCD X3D: its interplay with the AMD driver is unverified).
@@ -132,9 +145,11 @@ public static partial class TweakCatalog
                      "через документированную функцию Windows (PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим. На Ryzen " +
                      "X3D с двумя CCD не предлагается: совместимость режима с драйвером AMD 3D V-Cache не проверена.");
 
-        // SAFE-OPTIONAL (gaming_tweaks.md §2 C): the same documented mechanism towards efficiency; never pre-selected.
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C): the same documented mechanism towards efficiency. Pre-checked only in the
+        // efficiency scenario («Тихий ПК» / «Ноутбук: автономность», general_tweaks.md §11).
         yield return PowerModeTweak(
             id: "power-mode-best-efficiency-ac",
+            defaults: ProfileSet.Efficiency,
             mode: PowerModeBestEfficiency,
             title: "Режим питания «Максимальная эффективность» от сети",
             description: "На сбалансированной схеме выбирает режим питания «Максимальная эффективность» для работы от сети: ниже частоты " +
@@ -145,7 +160,8 @@ public static partial class TweakCatalog
                      "трогает, эффект зависит от производителя — измерьте. Меняется только режим от сети. Применяется сразу " +
                      "(PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим.");
 
-        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, DC rule amended 01.11): the battery side, saving direction only; never pre-selected.
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, DC rule amended 01.11): the battery side, saving direction only. Pre-checked only
+        // in «Ноутбук: автономность» (general_tweaks.md §11).
         yield return new CustomTweak
         {
             Id = "power-mode-best-efficiency-dc",
@@ -158,7 +174,9 @@ public static partial class TweakCatalog
                       "может перекрывать режим. Применяется сразу (PowerSetUserConfiguredDCPowerMode); откат возвращает прежний режим.",
             Category = TweakCategory.Power,
             Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Efficiency,
             ExclusiveGroup = TweakGroups.PowerModeDc,
+            Requires = PowerModeRequires,
             AppliesTo = sp => sp.IsWindows11 && sp.IsLaptop && !IsDualCcdX3D(sp),
             NotApplicableReason = "Только для ноутбуков с Windows 11 на сбалансированной схеме и не для Ryzen X3D с двумя CCD. " +
                                   "На настольном ПК то же делает пункт «Режим питания «Максимальная эффективность» от сети».",
@@ -198,7 +216,8 @@ public static partial class TweakCatalog
                       "если игра не распознана, отметьте её в Game Bar (Win+G) как игру. Прежняя схема возвращается при откате.",
             Category = TweakCategory.Power,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Efficiency,
+            ExclusiveGroup = TweakGroups.PowerPlan,
             AppliesTo = IsDualCcdX3D,
             NotApplicableReason = "Только для AMD Ryzen X3D с двумя CCD (7900X3D, 7950X3D, 9900X3D, 9950X3D).",
             DetectFunc = () => SchemeState(PowerSchemes.Balanced),
@@ -333,7 +352,8 @@ public static partial class TweakCatalog
             describe: DescribeTimeout,
             onlyShorten: true);
 
-        // SAFE-OPTIONAL (general_tweaks.md §6 sys.timeouts, DC rule §11): laptops, battery value, only shortens.
+        // SAFE-OPTIONAL (general_tweaks.md §6 sys.timeouts, DC rule §11): laptops, battery value, only shortens. Pre-checked only
+        // in «Ноутбук: автономность» (Microsoft's energy recommendations name exactly these two timeouts).
         yield return PowerSettingTweakDc(
             id: "battery-screen-off-3min",
             title: "Экран гаснет через 3 минуты на батарее",
@@ -342,7 +362,7 @@ public static partial class TweakCatalog
                      "Меняется только значение «от батареи» текущей схемы; значение от сети не трогается.",
             category: TweakCategory.Power,
             risk: TweakRisk.Optional,
-            defaults: ProfileSet.None,
+            defaults: ProfileSet.Efficiency,
             subgroup: SubVideo,
             setting: VideoIdle,
             target: BatteryScreenOffSeconds,
@@ -359,7 +379,7 @@ public static partial class TweakCatalog
                      "Меняется только значение «от батареи» текущей схемы; значение от сети не трогается.",
             category: TweakCategory.Power,
             risk: TweakRisk.Optional,
-            defaults: ProfileSet.None,
+            defaults: ProfileSet.Efficiency,
             subgroup: SubSleep,
             setting: StandbyIdle,
             target: BatterySleepSeconds,
@@ -377,7 +397,7 @@ public static partial class TweakCatalog
             Details = FastStartupDetails + " На настольном ПК с NVMe-диском включение дольше лишь на несколько секунд.",
             Category = TweakCategory.Power,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             AppliesTo = sp => !sp.IsLaptop,
             NotApplicableReason = "На ноутбуках используется необязательный пункт «Отключить быстрый запуск (ноутбук)».",
             Values = [Lm(SessionPower, "HiberbootEnabled", 0)],
@@ -439,6 +459,24 @@ public static partial class TweakCatalog
 
     // ───────────────────────────── Windows 11 power mode (powrprof, documented) ─────────────────────────────
 
+    /// <summary>
+    /// A Windows 11 power mode exists only on a Balanced-personality plan: the mode items depend on one of the two Balanced
+    /// switches (any one satisfies; a vendor Balanced-derived plan satisfies it by detection, see power-plan-balanced).
+    /// </summary>
+    internal static readonly IReadOnlyList<string> PowerModeRequires = ["power-plan-balanced", "power-plan-balanced-x3d"];
+
+    /// <summary>
+    /// The state of «Сбалансированная схема питания»: Applied on the stock Balanced plan AND on any plan derived from it
+    /// (<paramref name="isBalancedPersonality"/>, e.g. «AMD Ryzen Balanced», OEM Recommended) — such a plan is never replaced
+    /// — unless the live plan is only a game session's temporary one. Otherwise NotApplied while the stock Balanced plan exists.
+    /// </summary>
+    internal static TweakState BalancedSchemeState(Guid active, Func<Guid, bool> isBalancedPersonality, bool sessionPlan, Func<Guid, bool> exists)
+    {
+        if (active == Guid.Empty) return TweakState.Unknown;
+        if (isBalancedPersonality(active)) return sessionPlan ? TweakState.NotApplied : TweakState.Applied;
+        return exists(PowerSchemes.Balanced) ? TweakState.NotApplied : TweakState.NotApplicable;
+    }
+
     /// <summary>GUID_POWER_MODE_NONE: «Сбалансированный» (no overlay).</summary>
     public static readonly Guid PowerModeBalanced = Guid.Empty;
     /// <summary>GUID_POWER_MODE_BEST_EFFICIENCY.</summary>
@@ -497,7 +535,8 @@ public static partial class TweakCatalog
     /// A Windows 11 power-mode item (one of the documented overlay GUIDs) for a Balanced-personality plan. Detect: Applied when
     /// the user-configured AC mode equals <paramref name="mode"/>. Apply refuses undocumented current modes (no exact undo).
     /// </summary>
-    private static CustomTweak PowerModeTweak(string id, Guid mode, string title, string description, string details) => new()
+    private static CustomTweak PowerModeTweak(string id, Guid mode, string title, string description, string details,
+        ProfileSet defaults = ProfileSet.None) => new()
     {
         Id = id,
         Title = title,
@@ -505,6 +544,9 @@ public static partial class TweakCatalog
         Details = details,
         Category = TweakCategory.Power,
         Risk = TweakRisk.Optional,
+        DefaultIn = defaults,
+        ExclusiveGroup = TweakGroups.PowerModeAc,
+        Requires = PowerModeRequires,
         AppliesTo = sp => sp.IsWindows11 && !IsDualCcdX3D(sp),
         NotApplicableReason = "Только для Windows 11 на сбалансированной схеме питания и не для Ryzen X3D с двумя CCD.",
         DetectFunc = () =>
