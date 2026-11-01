@@ -444,9 +444,9 @@
                                 <Border Margin="12,11,12,0" Background="{StaticResource B.White}" Padding="11,10,11,10" CornerRadius="{StaticResource R.Md}">
                                     <StackPanel>
                                         <Grid>
-                                            <TextBlock Text="{Binding Boost.PhaseText, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="11"
+                                            <TextBlock Text="{Binding Boost.PhaseText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="11"
                                                        Foreground="{StaticResource B.Ink}" />
-                                            <TextBlock Text="Время сеанса" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5"
+                                            <TextBlock Text="ВРЕМЯ СЕАНСА" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="10.5"
                                                        Foreground="{StaticResource B.Ink}" Opacity="0.55" HorizontalAlignment="Right" />
                                         </Grid>
                                         <TextBlock Text="{Binding ElapsedText, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
@@ -546,8 +546,8 @@
                                         </StackPanel>
                                         <TextBlock Text="{Binding CloseListSummary}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
                                         <!-- Windows 11 only: close the listed apps, or keep them running in efficiency mode (EcoQoS) -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
-                                                    Visibility="{Binding ShowCloseModeChoice, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Visibility="{Binding ShowCloseModeChoice, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="11.5" Padding="0,0,12,0"
                                                          Content="ЗАКРЫТЬ" IsChecked="{Binding CloseModeIsClose}"
                                                          ToolTip="Программы из списка закрываются перед игрой: сначала обычная команда «закрыть окно», принудительно — только после отдельного вопроса." />
@@ -557,6 +557,7 @@
                                         </StackPanel>
                                         <TextBlock Text="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" LineHeight="16"
                                                    TextWrapping="Wrap" Visibility="{Binding CloseModeIsEcoQos, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="НАСТРОИТЬ" Height="30" FontSize="11.5" Padding="9,0" VerticalAlignment="Top" Margin="0,9,0,0"
                                             Command="{Binding OpenEditorCommand}" />

@@ -68,6 +68,21 @@ public static class EcoQos
     public static PowerThrottlingState PlanRestore(PowerThrottlingState original) => original with { Version = CurrentVersion };
 
     /// <summary>
+    /// The state to write for the session: the original with EXECUTION_SPEED added to both masks. SetProcessInformation
+    /// replaces the whole state, so a bit the process set itself (IGNORE_TIMER_RESOLUTION) is carried over, not dropped.
+    /// Only for states that are not <see cref="IsSelfManaged"/>.
+    /// </summary>
+    public static PowerThrottlingState PlanApply(PowerThrottlingState original) =>
+        new(CurrentVersion, original.ControlMask | ExecutionSpeed, original.StateMask | ExecutionSpeed);
+
+    /// <summary>
+    /// After a crash the original is lost: the state to write is the current one with EXECUTION_SPEED taken out of both masks
+    /// (system-managed for the speed, like a process that never called the API), every other mechanism left as it is now.
+    /// </summary>
+    public static PowerThrottlingState PlanRecover(PowerThrottlingState now) =>
+        new(CurrentVersion, now.ControlMask & ~ExecutionSpeed, now.StateMask & ~ExecutionSpeed);
+
+    /// <summary>
     /// Why a close-list process must not be put into efficiency mode, or null when it may. Besides the protected names
     /// (never offered at all) this refuses voice, streaming, audio, overlay and peripheral software, anti-cheat helpers,
     /// MONOLITH itself and every process with an active audio session (Microsoft marks audible processes as HighQoS).
