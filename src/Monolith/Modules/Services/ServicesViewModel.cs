@@ -190,6 +190,15 @@ public sealed partial class ServicesViewModel : PageViewModel
             SelectedTab = tab.Value;
             return;
         }
+        // «startup:<entry key>» from the search: the АВТОЗАПУСК tab, filtered to that entry (when the scan knows it).
+        if (id.StartsWith(CommandPaletteIndex.StartupFocusPrefix, StringComparison.Ordinal))
+        {
+            SelectedTab = TabStartup;
+            var key = id[CommandPaletteIndex.StartupFocusPrefix.Length..];
+            if (Startup.Items.FirstOrDefault(i => string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase)) is { } entry)
+                Startup.Search = entry.DisplayName;
+            return;
+        }
 
         SelectedTab = TabAll;
         var item = AllServices.FirstOrDefault(s => string.Equals(s.Name, id, StringComparison.OrdinalIgnoreCase));
