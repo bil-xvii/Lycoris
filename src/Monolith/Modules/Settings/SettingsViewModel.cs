@@ -2,12 +2,14 @@
 using System.Management;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
 using Monolith.Modules.Restore;
 using Monolith.Modules.Tools;
 using Monolith.Shell;
+using Monolith.Tweaks;
 using Monolith.UI;
 
 namespace Monolith.Modules.Settings;
@@ -56,6 +58,18 @@ public sealed partial class SettingsViewModel : PageViewModel
         new("НЕОБРАТИМОЕ — ТОЛЬКО С ПОДТВЕРЖДЕНИЕМ", "Удаление файлов, установка драйверов и программ, сброс сети не откатываются из журнала — поэтому перед ними всегда показывается подтверждение со списком последствий."),
     ];
 
+    /// <summary>«Что MONOLITH не делает и почему» — the single rejected-tweaks list (Tweaks/RejectedTweaks.cs), one row each.</summary>
+    public IReadOnlyList<RejectedRow> Rejected { get; } = RejectedTweaks.All.Select(r => new RejectedRow(r)).ToList();
+
+    /// <summary>The «ЧТО MONOLITH НЕ ДЕЛАЕТ И ПОЧЕМУ» expander; opened by a palette focus request («myth:{id}»).</summary>
+    [ObservableProperty] private bool _expandRejected;
+
+    /// <summary>Id of the rejected-tweak row the view should scroll to (set after a focus request; one-shot, see SettingsView).</summary>
+    [ObservableProperty] private string? _focusedRejectedId;
+
+    private readonly DispatcherTimer _highlightTimer = new() { Interval = TimeSpan.FromSeconds(2.5) };
+    private RejectedRow? _highlighted;
+
     public IReadOnlyList<LicenseItem> Licenses { get; }
 
     /// <summary>One line: version · build date · runtime.</summary>
@@ -79,14 +93,51 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             if (e.PropertyName == nameof(AppSettings.MonitorIntervalMs)) Ui.Post(() => OnPropertyChanged(nameof(SelectedInterval)));
         };
+
+        _highlightTimer.Tick += (_, _) =>
+        {
+            _highlightTimer.Stop();
+            if (_highlighted is not null) _highlighted.IsHighlighted = false;
+            _highlighted = null;
+        };
+        // Command palette («НЕ ДЕЛАЕМ») / other pages: open the rejected-tweaks list on one row. The list is static data,
+        // so the request can be handled whenever it arrives.
+        Ui.FocusRequested += r =>
+        {
+            if (r.PageKey == Key) ApplyFocus(Ui.TakeFocusRequest(Key));
+        };
     }
 
-    protected override Task LoadAsync() => RefreshPathsAsync();
+    protected override Task LoadAsync()
+    {
+        ApplyFocus(Ui.TakeFocusRequest(Key));
+        return RefreshPathsAsync();
+    }
 
     protected override Task OnReturnAsync()
     {
         RaiseSettingProperties();
+        ApplyFocus(Ui.TakeFocusRequest(Key));
         return RefreshPathsAsync();
+    }
+
+    /// <summary>Handles «myth:{id}»: expands the list, highlights the row for a moment and asks the view to scroll to it.</summary>
+    private void ApplyFocus(string? focusId)
+    {
+        if (focusId is null || !focusId.StartsWith(RejectedTweaks.FocusPrefix, StringComparison.Ordinal)) return;
+        var id = focusId[RejectedTweaks.FocusPrefix.Length..];
+        var row = Rejected.FirstOrDefault(r => r.Id == id);
+        if (row is null) return;
+
+        ExpandRejected = true;
+        if (_highlighted is not null && !ReferenceEquals(_highlighted, row)) _highlighted.IsHighlighted = false;
+        _highlighted = row;
+        row.IsHighlighted = true;
+        _highlightTimer.Stop();
+        _highlightTimer.Start();
+
+        FocusedRejectedId = null; // re-raise even when the same row is requested twice
+        FocusedRejectedId = id;
     }
 
     private static string BuildDate()
