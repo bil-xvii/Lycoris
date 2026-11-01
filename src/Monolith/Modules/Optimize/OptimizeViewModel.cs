@@ -735,7 +735,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (t.DataLossNote is { } loss) parts.Add(loss);
         // Another member of the same group is applied by MONOLITH: this change gets its own journal layer on top of it,
         // so undoing it brings that member's value back exactly.
-        if (OptimizeLogic.ReplacesNote(_items.Where(i => i.CanRevert && t.Tweak.SharesGroupWith(i.Tweak)).Select(i => i.Title)) is { } replaces)
+        // The Windows Update group is one-of-two by refusal (the second item refuses while the first is active), not by
+        // layering, so there is nothing to «replace».
+        if (t.Tweak.ExclusiveGroup != TweakCatalog.WuFeatureUpdatesGroup
+            && OptimizeLogic.ReplacesNote(_items.Where(i => i.CanRevert && t.Tweak.SharesGroupWith(i.Tweak)).Select(i => i.Title)) is { } replaces)
             parts.Add(replaces);
         if (t.DependencySatisfiedByPending && t.PendingDependency is { } dependency) parts.Add($"после «{dependency.Title}»");
         return string.Join(" · ", parts);
