@@ -9,7 +9,11 @@ public enum ToolOp
     FlushDns, NetworkReset,
     StoreReset, IconCache,
     BatteryReport, MemoryDiagnostic,
+    SleepWakeDiagnostics, EnergyReport, SleepStudyReport, SystemSleepDiagnostics,
 }
+
+/// <summary>One read-only powercfg query of the «Сон и пробуждение» card (arguments as documented on Microsoft Learn).</summary>
+public sealed record PowercfgQuery(string Arguments, string Title, bool RequiresAdmin);
 
 /// <summary>Extra content rendered inside a tool card.</summary>
 public enum ToolExtra { None, BootCheck }

@@ -2,6 +2,7 @@ using Monolith.Core;
 using Monolith.Modules.Restore;
 using Monolith.Modules.Settings;
 using Monolith.Modules.Tools;
+using Monolith.Shell;
 
 namespace Monolith.Tests;
 
@@ -177,6 +178,146 @@ public sealed class ToolsTests
         Assert.True(ToolsViewModel.SameVolumes([V("C:", "SSD")], [V("C:", "SSD", free: 5)]));
         Assert.False(ToolsViewModel.SameVolumes([V("C:", "SSD")], [V("C:", "SSD"), V("D:", "HDD")]));
         Assert.False(ToolsViewModel.SameVolumes([V("C:", "SSD")], [V("C:", "HDD")]));
+    }
+
+    // ─────────────────────────── power & sleep diagnostics (read-only) ───────────────────────────
+
+    private static IReadOnlyList<ToolCard> Diagnostics(bool hasBattery, bool modernStandby) =>
+        ToolsViewModel.BuildSections([], "C:", hasBattery, modernStandby).Single(s => s.Title == "ДИАГНОСТИКА").Cards;
+
+    [Fact]
+    public void Diagnostics_section_has_sleep_wake_and_power_report_cards()
+    {
+        var cards = Diagnostics(hasBattery: false, modernStandby: false);
+        Assert.Equal(["СОН И ПРОБУЖДЕНИЕ", "ОТЧЁТЫ О ПИТАНИИ И СНЕ", "ДИАГНОСТИКА ПАМЯТИ"], cards.Select(c => c.Title));
+
+        var sleepWake = cards[0];
+        var check = Assert.Single(sleepWake.Actions);
+        Assert.Equal(ToolOp.SleepWakeDiagnostics, check.Op);
+        Assert.Equal("ПРОВЕРИТЬ", check.Label);
+        Assert.False(check.RequiresAdmin); // one button; without admin rights the card runs the three unprivileged queries
+        Assert.False(sleepWake.RequiresAdmin);
+        Assert.Equal(ToolsViewModel.SleepWakeCommandText, sleepWake.Command);
+        Assert.Contains("Ничего не меняет", sleepWake.Note);
+
+        var reports = cards[1];
+        Assert.Equal([ToolOp.EnergyReport, ToolOp.SystemSleepDiagnostics], reports.Actions.Select(a => a.Op));
+        var energy = reports.Actions.Single(a => a.Op == ToolOp.EnergyReport);
+        Assert.True(energy.RequiresAdmin);
+        Assert.True(energy.IsPrimary);
+        Assert.Equal("ЭНЕРГИЯ, 60 С", energy.Label);
+        Assert.True(reports.Actions.Single(a => a.Op == ToolOp.SystemSleepDiagnostics).RequiresAdmin);
+        Assert.Equal("powercfg /energy · /systemsleepdiagnostics", reports.Command);
+        Assert.Contains("во время игрового сеанса он не запускается", reports.Note);
+    }
+
+    [Fact]
+    public void Battery_and_sleepstudy_reports_follow_the_hardware()
+    {
+        var laptop = Diagnostics(hasBattery: true, modernStandby: true)[1];
+        Assert.Equal([ToolOp.BatteryReport, ToolOp.EnergyReport, ToolOp.SleepStudyReport, ToolOp.SystemSleepDiagnostics], laptop.Actions.Select(a => a.Op));
+        Assert.Equal("powercfg /batteryreport · /energy · /sleepstudy · /systemsleepdiagnostics", laptop.Command);
+        Assert.False(laptop.Actions.Single(a => a.Op == ToolOp.BatteryReport).RequiresAdmin);
+
+        var desktop = Diagnostics(hasBattery: false, modernStandby: false)[1];
+        Assert.DoesNotContain(desktop.Actions, a => a.Op == ToolOp.BatteryReport);
+        Assert.DoesNotContain(desktop.Actions, a => a.Op == ToolOp.SleepStudyReport);
+
+        var modernDesktop = Diagnostics(hasBattery: false, modernStandby: true)[1];
+        Assert.Contains(modernDesktop.Actions, a => a.Op == ToolOp.SleepStudyReport);
+        Assert.DoesNotContain(modernDesktop.Actions, a => a.Op == ToolOp.BatteryReport);
+    }
+
+    [Fact]
+    public void Sleep_wake_card_runs_the_five_documented_powercfg_queries()
+    {
+        Assert.Equal(["/lastwake", "/waketimers", "/requests", "/devicequery wake_armed", "/availablesleepstates"],
+            ToolsViewModel.SleepWakeQueries.Select(q => q.Arguments));
+        Assert.Equal("powercfg /lastwake · /waketimers · /requests · /devicequery wake_armed · /availablesleepstates", ToolsViewModel.SleepWakeCommandText);
+        Assert.Equal(["/waketimers", "/requests"], ToolsViewModel.SleepWakeQueries.Where(q => q.RequiresAdmin).Select(q => q.Arguments));
+        Assert.All(ToolsViewModel.SleepWakeQueries, q => Assert.False(string.IsNullOrWhiteSpace(q.Title)));
+    }
+
+    [Fact]
+    public void Power_reports_are_written_to_the_logs_folder_and_never_change_anything()
+    {
+        var file = @"C:\Users\u\AppData\Local\MONOLITH\Logs\r.html";
+        Assert.Equal(["/batteryreport", "/output", file], ToolsViewModel.BatteryReport.Arguments(file));
+        Assert.Equal(["/energy", "/output", file, "/duration", "60"], ToolsViewModel.EnergyReport.Arguments(file));
+        Assert.Equal(["/sleepstudy", "/output", file, "/duration", "3"], ToolsViewModel.SleepStudyReport.Arguments(file));
+        Assert.Equal(["/systemsleepdiagnostics", "/output", file], ToolsViewModel.SleepDiagnosticsReport.Arguments(file));
+        Assert.True(ToolsViewModel.EnergyReport.ExitCodeCountsProblems);
+        Assert.False(ToolsViewModel.BatteryReport.ExitCodeCountsProblems);
+        Assert.True(ToolsViewModel.EnergyReport.Timeout >= TimeSpan.FromMinutes(2)); // 60 s of tracing + report generation
+        foreach (var spec in new[] { ToolsViewModel.BatteryReport, ToolsViewModel.EnergyReport, ToolsViewModel.SleepStudyReport, ToolsViewModel.SleepDiagnosticsReport })
+        {
+            // Plain .html names inside the logs folder: exactly what UnelevatedShell.IsAllowedLocalReport lets a browser open.
+            Assert.EndsWith(".html", spec.FileName);
+            Assert.DoesNotContain('\\', spec.FileName);
+            Assert.DoesNotContain('/', spec.FileName);
+            Assert.StartsWith("powercfg ", spec.Display);
+        }
+    }
+
+    [Fact]
+    public void Energy_report_problems_are_a_warning_not_a_failure()
+    {
+        const string file = @"C:\Logs\energy-report.html";
+        var energy = ToolsViewModel.EnergyReport;
+
+        var found = ToolsViewModel.ClassifyPowerReport(energy, exitCode: 7, fileExists: true, opened: true, file, elevated: true);
+        Assert.Equal(ToolStatus.Warning, found.Status);
+        Assert.Contains("Найдено ошибок/предупреждений: 7", found.Summary);
+        Assert.Contains("см. отчёт", found.Summary);
+
+        var clean = ToolsViewModel.ClassifyPowerReport(energy, 0, true, true, file, true);
+        Assert.Equal(ToolStatus.Success, clean.Status);
+        Assert.Equal("Отчёт об энергоэффективности создан и открыт в браузере.", clean.Summary);
+
+        var notOpened = ToolsViewModel.ClassifyPowerReport(energy, 0, true, false, file, true);
+        Assert.Equal(ToolStatus.Warning, notOpened.Status);
+        Assert.Contains("Откройте файл вручную: " + file, notOpened.Summary);
+
+        var missing = ToolsViewModel.ClassifyPowerReport(energy, 1, false, false, file, elevated: true);
+        Assert.Equal(ToolStatus.Failed, missing.Status);
+        Assert.Equal("Отчёт не создан (код 1).", missing.Summary);
+
+        var unelevated = ToolsViewModel.ClassifyPowerReport(ToolsViewModel.SleepDiagnosticsReport, 1, false, false, file, elevated: false);
+        Assert.Equal(ToolStatus.Failed, unelevated.Status);
+        Assert.Contains("права администратора", unelevated.Summary);
+
+        // Other reports: a created file with a non-zero code is kept, but flagged as possibly incomplete.
+        var battery = ToolsViewModel.ClassifyPowerReport(ToolsViewModel.BatteryReport, 3, true, true, file, true);
+        Assert.Equal(ToolStatus.Warning, battery.Status);
+        Assert.Contains("код 3", battery.Summary);
+    }
+
+    [Fact]
+    public void Maintenance_wake_state_prefers_policy_over_setting()
+    {
+        Assert.Equal("Пробуждение для обслуживания: запрещено (политика); задача «Maintenance Configurator» включена.",
+            ToolsViewModel.DescribeMaintenanceWake(taskExists: true, taskEnabled: true, policy: 0, setting: 1));
+        Assert.Equal("Пробуждение для обслуживания: разрешено (политика); задача «Maintenance Configurator» отключена.",
+            ToolsViewModel.DescribeMaintenanceWake(true, false, policy: 1, setting: 0));
+        Assert.Equal("Пробуждение для обслуживания: разрешено (настройка); задача «Maintenance Configurator» включена.",
+            ToolsViewModel.DescribeMaintenanceWake(true, true, policy: null, setting: 1));
+        Assert.Equal("Пробуждение для обслуживания: запрещено (настройка); задача «Maintenance Configurator» не найдена.",
+            ToolsViewModel.DescribeMaintenanceWake(false, false, null, 0));
+        Assert.StartsWith("Пробуждение для обслуживания: разрешено (значение не задано",
+            ToolsViewModel.DescribeMaintenanceWake(true, true, null, null));
+    }
+
+    [Fact]
+    public void Command_palette_indexes_the_new_diagnostics_cards()
+    {
+        var sections = ToolsViewModel.BuildSections([], "C:", hasBattery: false, modernStandby: false);
+        var index = CommandPaletteIndex.Build([], [], sections, [], []);
+        var tools = index.Where(e => e.Kind == PaletteKind.Tool).ToList();
+        Assert.Contains(tools, e => e.Title == "СОН И ПРОБУЖДЕНИЕ" && e.Keywords.Contains("/lastwake") && e.Keywords.Contains("ДИАГНОСТИКА"));
+        Assert.Contains(tools, e => e.Title == "ОТЧЁТЫ О ПИТАНИИ И СНЕ" && e.Keywords.Contains("/energy"));
+        Assert.DoesNotContain(tools, e => e.Title == "ОТЧЁТ О БАТАРЕЕ");
+        Assert.Equal("СОН И ПРОБУЖДЕНИЕ", CommandPaletteSearch.Search(index, "lastwake")[0].Title);
+        Assert.Equal("ОТЧЁТЫ О ПИТАНИИ И СНЕ", CommandPaletteSearch.Search(index, "sleepstudy")[0].Title);
     }
 
     // ─────────────────────────── undo center ───────────────────────────
