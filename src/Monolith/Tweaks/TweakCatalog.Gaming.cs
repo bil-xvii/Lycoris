@@ -48,6 +48,7 @@ public static partial class TweakCatalog
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Gaming,
             Restart = RestartRequirement.Reboot,
+            ExclusiveGroup = TweakGroups.Hags,
             AppliesTo = sp => HasRtx40Or50(sp) && GpuScheduling?.Supported != false,
             NotApplicableReason = "По умолчанию включается только на GeForce RTX 40/50 с поддержкой в драйвере. Для других видеокарт есть отдельный необязательный пункт.",
             DetectFunc = DetectHags,
@@ -66,10 +67,33 @@ public static partial class TweakCatalog
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.Reboot,
+            ExclusiveGroup = TweakGroups.Hags,
             AppliesTo = sp => !HasRtx40Or50(sp) && GpuScheduling?.Supported == true,
             NotApplicableReason = "Драйвер видеокарты не сообщает о поддержке аппаратного планирования, либо установлена RTX 40/50 — для неё основной пункт.",
             DetectFunc = DetectHags,
             ApplyAction = ApplyHags,
+        };
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 A, hags-off): HwSchMode = 1 — the value Settings writes for «Выкл.». A fix for
+        // capture/stutter problems (OBS KB), not a boost; never pre-checked. Fills the gap where the driver enabled HAGS by
+        // default (no HwSchMode value) and MONOLITH had nothing of its own to revert: the journal records absent → delete.
+        yield return new CustomTweak
+        {
+            Id = HagsOffId,
+            Title = "Отключить аппаратное планирование GPU (при сбоях захвата)",
+            Description = "Выключает HAGS: лечение рывков и сбоев захвата в OBS и аппаратных кодировщиках, а не ускорение.",
+            Details = "База знаний OBS называет HAGS причиной проблем производительности и сбоев захвата и советует отключить его как шаг " +
+                      "диагностики. Цена: DLSS Frame Generation / Multi Frame Generation на GeForce RTX 40/50 перестают работать. Если HAGS " +
+                      "включил драйвер по умолчанию, раньше MONOLITH не мог его выключить с откатом — теперь может: откат удаляет значение " +
+                      "(возвращается умолчание драйвера) или возвращает прежнее. Вступает в силу после перезагрузки.",
+            Category = TweakCategory.Gaming,
+            Risk = TweakRisk.Optional,
+            Restart = RestartRequirement.Reboot,
+            ExclusiveGroup = TweakGroups.Hags,
+            AppliesTo = _ => GpuScheduling?.Supported == true,
+            NotApplicableReason = "Драйвер не поддерживает аппаратное планирование — отключать нечего.",
+            DetectFunc = DetectHagsOff,
+            ApplyAction = ApplyHagsOff,
         };
 
         // SAFE-DEFAULT, Windows 11 only. Edits only its own token of DirectXUserGlobalSettings.
@@ -193,6 +217,23 @@ public static partial class TweakCatalog
             case 1: return TweakState.NotApplied;
         }
         return GpuScheduling?.Enabled == true ? TweakState.Applied : TweakState.NotApplied;
+    }
+
+    public const string HagsOffId = "hags-off";
+
+    /// <summary>Off when HwSchMode = 1, or when no value is set and the driver reports HAGS disabled (its default).</summary>
+    private static TweakState DetectHagsOff()
+    {
+        var mode = LmInt(GraphicsDrivers, "HwSchMode");
+        if (mode == 1) return TweakState.Applied;
+        if (mode is null && GpuScheduling?.Enabled == false) return TweakState.Applied;
+        return TweakState.NotApplied;
+    }
+
+    private static void ApplyHagsOff(TweakContext ctx)
+    {
+        if (LmInt(GraphicsDrivers, "HwSchMode") == 1) return;
+        SetDword(ctx, RegHive.HKLM, GraphicsDrivers, "HwSchMode", 1);
     }
 
     private static void ApplyHags(TweakContext ctx)

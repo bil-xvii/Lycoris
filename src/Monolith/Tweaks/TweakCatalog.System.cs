@@ -205,9 +205,11 @@ public static partial class TweakCatalog
             Description = "Ежегодные обновления функций (например, 24H2 → 25H2) приходят через 90 дней после выхода; обновления безопасности — как обычно.",
             Details = "За это время Microsoft и производители драйверов исправляют проблемы новой версии, в том числе с играми и античитами. " +
                       "Используется политика Центра обновления, поэтому в Параметрах появится надпись «Некоторыми параметрами управляет ваша " +
-                      "организация». Работает в Pro и старших редакциях.",
+                      "организация». Работает в Pro и старших редакциях. Выбирается вместо пункта «Остаться на текущей версии Windows 11» — " +
+                      "если тот уже применён, сначала откатите его.",
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
+            ExclusiveGroup = WuFeatureUpdatesGroup,
             AppliesTo = sp => !IsHomeEdition(sp.OsEdition),
             NotApplicableReason = "Windows Home не поддерживает отсрочку обновлений.",
             Values =
@@ -215,6 +217,25 @@ public static partial class TweakCatalog
                 Lm(WindowsUpdatePolicy, "DeferFeatureUpdates", 1),
                 Lm(WindowsUpdatePolicy, "DeferFeatureUpdatesPeriodInDays", 90),
             ],
+        };
+
+        // SAFE-OPTIONAL (general_tweaks.md §9, «version pin»): TargetReleaseVersion keeps the installed version while monthly
+        // security updates keep coming. Pro+ only, only for a released version whose end of servicing is known and not past.
+        // The value depends on the installed version, hence a CustomTweak; one choice with wu-defer-feature-updates.
+        yield return new CustomTweak
+        {
+            Id = UpdatePinId,
+            Title = TitleFor(SystemProfile.Current.OsDisplayVersion),
+            Description = "Ежемесячные обновления безопасности приходят как обычно, а ежегодное обновление функций ждёт, пока вы не снимете пункт.",
+            Details = UpdatePinDetails(SystemProfile.Current.OsDisplayVersion),
+            Category = TweakCategory.System,
+            Risk = TweakRisk.Optional,
+            ExclusiveGroup = WuFeatureUpdatesGroup,
+            AppliesTo = sp => IsUpdatePinApplicable(sp.OsEdition, sp.OsDisplayVersion, UpdatePinToday()),
+            NotApplicableReason = "Только для Pro и старших редакций и для выпущенных версий Windows 11 с известной и ещё не наступившей " +
+                                  "датой окончания поддержки.",
+            DetectFunc = DetectUpdatePin,
+            ApplyAction = ApplyUpdatePin,
         };
 
         yield return new RegistryTweak
@@ -424,5 +445,113 @@ public static partial class TweakCatalog
         return packageFullNames.Any(p =>
             p.StartsWith(name + "_", StringComparison.OrdinalIgnoreCase) &&
             p.EndsWith("_" + publisher, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ───────────────────────────── Windows Update: version pin (TargetReleaseVersion) ─────────────────────────────
+
+    public const string UpdatePinId = "wu-target-version";
+    public const string DeferFeatureUpdatesId = "wu-defer-feature-updates";
+    /// <summary>The yearly feature update: deferred for 90 days OR pinned to the installed version — never both.</summary>
+    public const string WuFeatureUpdatesGroup = "wu-feature-updates";
+    private const string NtCurrentVersion = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
+    private const string UpdatePinProduct = "Windows 11";
+    /// <summary>Microsoft updates a pinned device on its own only this long after the version's end of servicing.</summary>
+    public const int UpdatePinGraceDays = 60;
+    /// <summary>Today's date for the pin rules (tests pin it so that a version's end of servicing does not age them).</summary>
+    internal static Func<DateOnly> UpdatePinToday { get; set; } = () => DateOnly.FromDateTime(DateTime.Now);
+
+    /// <summary>
+    /// End of updates for Windows 11 Home / Pro / Pro Education / Pro for Workstations by version (24 months after release),
+    /// from learn.microsoft.com/windows/release-health/windows11-release-information (verified 01.11.2026). Enterprise and
+    /// Education get 12 months more, so these dates are the conservative ones for every edition. A version missing here
+    /// (an Insider build, a future release) is never offered for pinning.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, DateOnly> Windows11HomeProEndOfServicing =
+        new Dictionary<string, DateOnly>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["23H2"] = new(2025, 11, 11),
+            ["24H2"] = new(2026, 10, 13),
+            ["25H2"] = new(2027, 10, 12),
+            ["26H1"] = new(2028, 3, 14), // new devices only (not offered as an in-place update), still a GA version
+            ["26H2"] = new(2028, 10, 10),
+        };
+
+    /// <summary>End of updates for a released Windows 11 version, or null when the version is unknown to the table.</summary>
+    internal static DateOnly? KnownRelease(string? displayVersion) =>
+        !string.IsNullOrWhiteSpace(displayVersion) && Windows11HomeProEndOfServicing.TryGetValue(displayVersion.Trim(), out var eos) ? eos : null;
+
+    /// <summary>A version can be pinned when its end of servicing is known and still ahead on <paramref name="today"/>.</summary>
+    internal static bool IsPinnable(string? displayVersion, DateOnly today) => KnownRelease(displayVersion) is { } eos && eos >= today;
+
+    /// <summary>Pro and higher editions only (Home ignores TargetReleaseVersion), and only a pinnable version.</summary>
+    internal static bool IsUpdatePinApplicable(string edition, string? displayVersion, DateOnly today) =>
+        !IsHomeEdition(edition) && IsPinnable(displayVersion, today);
+
+    internal static string TitleFor(string? displayVersion) =>
+        string.IsNullOrWhiteSpace(displayVersion)
+            ? "Остаться на текущей версии Windows 11"
+            : $"Остаться на текущей версии Windows 11 ({displayVersion.Trim()})";
+
+    /// <summary>dd.MM.yyyy, as the dashboard prints dates.</summary>
+    internal static string DateText(DateOnly date) => date.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
+    internal static string UpdatePinDetails(string? displayVersion)
+    {
+        var v = string.IsNullOrWhiteSpace(displayVersion) ? null : displayVersion.Trim();
+        var support = KnownRelease(v) is { } eos
+            ? $"Текущая версия {v} получает обновления до {DateText(eos)}; "
+            : "Текущая версия получает обновления до своей даты окончания поддержки (24 месяца с выхода для Home и Pro); ";
+        return "Политика TargetReleaseVersion. " + support +
+               $"по данным Microsoft закреплённое устройство автоматически обновится лишь через {UpdatePinGraceDays} дней после этой даты — " +
+               "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. MONOLITH предупредит об этом на Дашборде за 90 дней. " +
+               "В Параметрах появится «Некоторыми параметрами управляет ваша организация». Работает в Pro и старших редакциях; " +
+               "выбирается вместо «Отложить крупные обновления на 90 дней».";
+    }
+
+    /// <summary>The installed version (DisplayVersion of Windows NT\CurrentVersion), read live.</summary>
+    internal static string? ReadInstalledDisplayVersion() => RegistryHelper.ReadString(RegHive.HKLM, NtCurrentVersion, "DisplayVersion");
+
+    /// <summary>TargetReleaseVersionInfo when the TargetReleaseVersion policy is on (whoever set it), else null.</summary>
+    internal static string? ReadUpdatePinnedTo()
+    {
+        if (LmInt(WindowsUpdatePolicy, "TargetReleaseVersion") != 1) return null;
+        var info = RegistryHelper.ReadString(RegHive.HKLM, WindowsUpdatePolicy, "TargetReleaseVersionInfo");
+        return string.IsNullOrWhiteSpace(info) ? null : info.Trim();
+    }
+
+    /// <summary>Applied = all three policy values match (TargetReleaseVersionInfo = the installed version); Partial = some.</summary>
+    internal static TweakState DetectUpdatePin()
+    {
+        var installed = ReadInstalledDisplayVersion();
+        var matches = 0;
+        if (string.Equals(RegistryHelper.ReadString(RegHive.HKLM, WindowsUpdatePolicy, "ProductVersion"), UpdatePinProduct, StringComparison.OrdinalIgnoreCase)) matches++;
+        if (LmInt(WindowsUpdatePolicy, "TargetReleaseVersion") == 1) matches++;
+        var info = RegistryHelper.ReadString(RegHive.HKLM, WindowsUpdatePolicy, "TargetReleaseVersionInfo");
+        if (!string.IsNullOrWhiteSpace(installed) && string.Equals(info?.Trim(), installed.Trim(), StringComparison.OrdinalIgnoreCase)) matches++;
+        return StateOf(matches, 3);
+    }
+
+    /// <summary>
+    /// Writes the three policy values through the session (absent → the journal deletes them on undo, and the policy key
+    /// MONOLITH created goes with them). Refuses while the 90-day deferral is active: the two are one choice.
+    /// </summary>
+    internal static void ApplyUpdatePin(TweakContext ctx)
+    {
+        if (ctx.Session.Journal.HasActiveSource("tweak:" + DeferFeatureUpdatesId))
+            throw new InvalidOperationException("сначала откатите «Отложить крупные обновления на 90 дней» — выбирается один из двух пунктов");
+        var installed = ReadInstalledDisplayVersion()?.Trim();
+        if (string.IsNullOrWhiteSpace(installed))
+            throw new InvalidOperationException("не удалось прочитать версию Windows (DisplayVersion)");
+        if (KnownRelease(installed) is not { } eos)
+            throw new InvalidOperationException($"версия {installed} не входит в список выпущенных версий Windows 11 с известной датой окончания поддержки");
+        if (eos < UpdatePinToday())
+            throw new InvalidOperationException($"поддержка версии {installed} закончилась {DateText(eos)} — закреплять её нельзя");
+
+        if (!string.Equals(RegistryHelper.ReadString(RegHive.HKLM, WindowsUpdatePolicy, "ProductVersion"), UpdatePinProduct, StringComparison.Ordinal))
+            ctx.SetRegistry(RegHive.HKLM, WindowsUpdatePolicy, "ProductVersion", RegistryValueKind.String, UpdatePinProduct);
+        if (LmInt(WindowsUpdatePolicy, "TargetReleaseVersion") != 1)
+            SetDword(ctx, RegHive.HKLM, WindowsUpdatePolicy, "TargetReleaseVersion", 1);
+        if (!string.Equals(RegistryHelper.ReadString(RegHive.HKLM, WindowsUpdatePolicy, "TargetReleaseVersionInfo"), installed, StringComparison.Ordinal))
+            ctx.SetRegistry(RegHive.HKLM, WindowsUpdatePolicy, "TargetReleaseVersionInfo", RegistryValueKind.String, installed);
     }
 }
