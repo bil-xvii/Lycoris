@@ -404,11 +404,12 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     /// <summary>
     /// A powercfg HTML report: written to the MONOLITH logs folder and opened without administrator rights,
-    /// exactly like the battery report. <see cref="ExitCodeCountsProblems"/>: powercfg /energy returns the number of
-    /// problems it found, so a non-zero exit code with a created report is a warning, not a failure.
+    /// exactly like the battery report. <see cref="NonZeroExitMeansProblemsFound"/>: powercfg /energy exits non-zero when
+    /// the report lists problems (the code's exact meaning is undocumented, so it is shown as is and never as a count) —
+    /// with a created report that is a warning, not a failure.
     /// </summary>
     internal sealed record PowerReportSpec(string Title, string Display, string Busy, string Name, string FileName,
-        Func<string, string[]> Arguments, TimeSpan Timeout, bool ExitCodeCountsProblems = false);
+        Func<string, string[]> Arguments, TimeSpan Timeout, bool NonZeroExitMeansProblemsFound = false);
 
     internal static readonly PowerReportSpec BatteryReport = new("ОТЧЁТ О БАТАРЕЕ", "powercfg /batteryreport",
         "Создание отчёта о батарее…", "Отчёт о батарее", "battery-report.html",
@@ -416,7 +417,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     internal static readonly PowerReportSpec EnergyReport = new("ОТЧЁТ ОБ ЭНЕРГОЭФФЕКТИВНОСТИ", "powercfg /energy /duration 60",
         "Отчёт об энергоэффективности: 60 секунд наблюдения…", "Отчёт об энергоэффективности", "energy-report.html",
-        file => ["/energy", "/output", file, "/duration", "60"], TimeSpan.FromMinutes(3), ExitCodeCountsProblems: true);
+        file => ["/energy", "/output", file, "/duration", "60"], TimeSpan.FromMinutes(3), NonZeroExitMeansProblemsFound: true);
 
     internal static readonly PowerReportSpec SleepStudyReport = new("ОТЧЁТ SLEEPSTUDY", "powercfg /sleepstudy /duration 3",
         "Создание отчёта SleepStudy…", "Отчёт SleepStudy", "sleepstudy-report.html",
@@ -437,6 +438,24 @@ public sealed partial class ToolsViewModel : PageViewModel
     ];
 
     internal static string SleepWakeCommandText { get; } = "powercfg " + string.Join(" · ", SleepWakeQueries.Select(q => q.Arguments));
+
+    /// <summary>Id of the Optimize tweak the «Сон и пробуждение» note points to (TweakCatalog.Power.cs).</summary>
+    internal const string WakeTimersTweakId = "wake-timers-important-only";
+
+    /// <summary>
+    /// The card note names the Optimize item by its catalog title, so the text can never drift from the tweak it sends the
+    /// user to; if that tweak is ever removed, the sentence about it disappears instead of pointing nowhere.
+    /// </summary>
+    internal static string SleepWakeNote()
+    {
+        var tweakTitle = TweakCatalog.Find(WakeTimersTweakId)?.Title;
+        var tweakHint = tweakTitle is null
+            ? ""
+            : $" Чтобы ПК не просыпался по расписанию программ, есть пункт «{tweakTitle}» в разделе «Оптимизация».";
+        return "Ничего не меняет. Чтобы устройство не будило ПК: Диспетчер устройств → устройство → Управление электропитанием → " +
+               "снять «Разрешить этому устройству выводить компьютер из ждущего режима»." + tweakHint +
+               " Без прав администратора /requests и /waketimers пропускаются.";
+    }
 
     private const string MaintenanceTaskPath = @"\Microsoft\Windows\TaskScheduler\Maintenance Configurator";
     private const string MaintenancePolicyKey = @"SOFTWARE\Policies\Microsoft\Windows\Task Scheduler\Maintenance";
@@ -539,8 +558,8 @@ public sealed partial class ToolsViewModel : PageViewModel
         var openNote = opened
             ? "открыт в браузере."
             : "открыть его без прав администратора не удалось. Откройте файл вручную: " + file;
-        if (exitCode != 0 && spec.ExitCodeCountsProblems)
-            return ToolOutcome.Warn($"Найдено ошибок/предупреждений: {exitCode} — см. отчёт. Отчёт создан, {openNote}");
+        if (exitCode != 0 && spec.NonZeroExitMeansProblemsFound)
+            return ToolOutcome.Warn($"Найдены проблемы энергоэффективности — см. отчёт (powercfg вернул код {exitCode}). Отчёт создан, {openNote}");
         if (exitCode != 0)
             return ToolOutcome.Warn($"{spec.Name} создан, но powercfg вернул код {exitCode} — отчёт может быть неполным; {openNote}");
         return opened
@@ -789,7 +808,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         var reports = new List<ToolCardAction>();
         if (hasBattery) reports.Add(new ToolCardAction { Op = ToolOp.BatteryReport, Label = "БАТАРЕЯ" });
         reports.Add(new ToolCardAction { Op = ToolOp.EnergyReport, Label = "ЭНЕРГИЯ, 60 С", IsPrimary = true, RequiresAdmin = true });
-        if (modernStandby) reports.Add(new ToolCardAction { Op = ToolOp.SleepStudyReport, Label = "SLEEPSTUDY" });
+        if (modernStandby) reports.Add(new ToolCardAction { Op = ToolOp.SleepStudyReport, Label = "SLEEPSTUDY", RequiresAdmin = true });
         reports.Add(new ToolCardAction { Op = ToolOp.SystemSleepDiagnostics, Label = "ДИАГНОСТИКА СНА", RequiresAdmin = true });
         var reportCommands = new List<string>();
         if (hasBattery) reportCommands.Add("/batteryreport");
@@ -805,7 +824,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                 Title = "СОН И ПРОБУЖДЕНИЕ",
                 Command = SleepWakeCommandText,
                 Description = "Отвечает на три вопроса средствами самой Windows: почему ПК проснулся последним (lastwake), какие таймеры и программы будят его или не дают уснуть (waketimers, requests), каким устройствам разрешено будить ПК (devicequery wake_armed) и какие состояния сна доступны.",
-                Note = "Ничего не меняет. Чтобы устройство не будило ПК: Диспетчер устройств → устройство → Управление электропитанием → снять «Разрешить этому устройству выводить компьютер из ждущего режима». Чтобы ПК не просыпался по расписанию программ, есть пункт «ПК не просыпается ночью по расписанию программ» в разделе «Оптимизация». Без прав администратора /requests и /waketimers пропускаются.",
+                Note = SleepWakeNote(),
                 Duration = "~3 С",
                 Actions = [new ToolCardAction { Op = ToolOp.SleepWakeDiagnostics, Label = "ПРОВЕРИТЬ", IsPrimary = true }],
             },
