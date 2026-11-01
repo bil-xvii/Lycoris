@@ -72,6 +72,35 @@ public sealed class OptimizeTests
     }
 
     [Fact]
+    public void Status_note_is_the_dependency_sentence_or_the_not_applicable_reason()
+    {
+        var plain = Tweak("x", "X");
+        var reasoned = new CustomTweak
+        {
+            Id = "mode", Title = "Режим", Description = "", Requires = ["plan"],
+            NotApplicableReason = "Только для Windows 11 на сбалансированной схеме питания.",
+            DetectFunc = () => TweakState.NotApplicable, ApplyAction = _ => { },
+        };
+
+        // Applicable (or still checking): no note at all.
+        foreach (var s in new TweakState?[] { null, TweakState.Applied, TweakState.NotApplied, TweakState.Partial, TweakState.Unknown })
+        {
+            Assert.Null(OptimizeLogic.StatusNote(plain, s, null));
+            Assert.Null(OptimizeLogic.StatusNote(reasoned, s, "Сбалансированная схема питания"));
+        }
+
+        // Not applicable: the tweak's own reason, or the generic sentence.
+        Assert.Equal("Только для Windows 11 на сбалансированной схеме питания.", OptimizeLogic.StatusNote(reasoned, TweakState.NotApplicable, null));
+        Assert.Equal("Не подходит для этого компьютера или этой версии Windows: нужного компонента нет в системе.",
+            OptimizeLogic.StatusNote(plain, TweakState.NotApplicable, null));
+
+        // Not applicable, but a required tweak is checked and pending in the same apply: the row will apply after it.
+        Assert.Equal("Применится после «Сбалансированная схема питания».",
+            OptimizeLogic.StatusNote(reasoned, TweakState.NotApplicable, "Сбалансированная схема питания"));
+        Assert.Equal("Применится после «Сбалансированная схема питания».", OptimizeLogic.DependencyNote("Сбалансированная схема питания"));
+    }
+
+    [Fact]
     public void Category_titles_match_the_tweak_model()
     {
         foreach (var c in Enum.GetValues<TweakCategory>())

@@ -71,6 +71,59 @@ internal static class OptimizeLogic
     /// <summary>States in which "apply" would actually change something.</summary>
     public static bool WillChange(TweakState state) => state is TweakState.NotApplied or TweakState.Partial or TweakState.Unknown;
 
+    // ───────────────────────────── Exclusive groups & dependencies (selection rules) ─────────────────────────────
+
+    /// <summary>Why a not-applicable row cannot be applied: the tweak's own reason, or the generic one.</summary>
+    public static string NotApplicableText(Tweak tweak) => string.IsNullOrWhiteSpace(tweak.NotApplicableReason)
+        ? "Не подходит для этого компьютера или этой версии Windows: нужного компонента нет в системе."
+        : tweak.NotApplicableReason!;
+
+    /// <summary>The note of a dependent row whose dependency is checked and pending in the same apply.</summary>
+    public static string DependencyNote(string requiredTitle) => $"Применится после «{requiredTitle}».";
+
+    /// <summary>
+    /// The caption under a row: null while applicable; otherwise «Применится после «…»» when a dependency is pending
+    /// (<paramref name="pendingDependencyTitle"/>), else the not-applicable reason.
+    /// </summary>
+    public static string? StatusNote(Tweak tweak, TweakState? state, string? pendingDependencyTitle) =>
+        state != TweakState.NotApplicable ? null
+        : pendingDependencyTitle is { } title ? DependencyNote(title)
+        : NotApplicableText(tweak);
+
+    /// <summary>
+    /// The first dependency of <paramref name="tweak"/> that is checked and pending in the same apply (any one satisfies
+    /// it), or null. <paramref name="isPending"/> answers for an id; unknown ids are simply not pending.
+    /// </summary>
+    public static string? PendingDependency(Tweak tweak, Func<string, bool> isPending) =>
+        tweak.Requires.FirstOrDefault(isPending);
+
+    /// <summary>Other members of the tweak's exclusive group among <paramref name="tweaks"/>, in their order.</summary>
+    public static IReadOnlyList<Tweak> ExclusivePeers(Tweak tweak, IEnumerable<Tweak> tweaks) =>
+        tweak.ExclusiveGroup is null ? [] : tweaks.Where(tweak.SharesGroupWith).ToList();
+
+    /// <summary>
+    /// The members of each exclusive group to uncheck so that at most one stays checked: the first in catalog order
+    /// wins (used when a saved or imported set still has two members).
+    /// </summary>
+    public static IReadOnlyList<Tweak> ExclusiveSurplus(IEnumerable<Tweak> checkedTweaks)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var surplus = new List<Tweak>();
+        foreach (var t in checkedTweaks)
+        {
+            if (t.ExclusiveGroup is null) continue;
+            if (!seen.Add(t.ExclusiveGroup)) surplus.Add(t);
+        }
+        return surplus;
+    }
+
+    /// <summary>«заменит: «A», «B»» for the confirmation line, or null without titles.</summary>
+    public static string? ReplacesNote(IEnumerable<string> replacedTitles)
+    {
+        var titles = replacedTitles.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => $"«{t}»").ToList();
+        return titles.Count == 0 ? null : "заменит: " + string.Join(", ", titles);
+    }
+
     public static string StateText(TweakState? state) => state switch
     {
         null => "ПРОВЕРКА…",
