@@ -24,6 +24,8 @@ public static class SystemInspector
     /// <summary>Drive SMART data is re-read at most this often: reading it can spin up sleeping HDDs.</summary>
     private static readonly TimeSpan DiskHealthCacheFor = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan EventsCacheFor = TimeSpan.FromMinutes(5);
+    /// <summary>Reserved storage changes only through DISM: one servicing query per half hour is plenty.</summary>
+    private static readonly TimeSpan ReservedStorageCacheFor = TimeSpan.FromMinutes(30);
 
     public static async Task<SystemSnapshot> CollectAsync()
     {
@@ -42,9 +44,11 @@ public static class SystemInspector
             : Task.FromResult<GpuLinkFacts?>(null);
 
         var snapshot = await Task.Run(() => Collect(profile)).ConfigureAwait(false);
-        // A servicing query (DISM provider): only when the drive is already low on space, and only with admin rights.
+        // A servicing query (DISM provider, PowerShell start + DismCore init): only when the drive is already low on space
+        // and only with admin rights; cached, so repeated checks do not spawn it again, and with a short limit so a slow
+        // provider cannot hold the whole dashboard (a late answer is still cached by the probe for the next check).
         var reservedTask = elevated && HealthRules.IsLowSpace(snapshot.SystemDriveFree, snapshot.SystemDriveTotal)
-            ? Probe.RunAsync("зарезервированное хранилище", ReadReservedStorageStateAsync, TimeSpan.FromSeconds(25), (string?)null)
+            ? Probe.RunAsync("зарезервированное хранилище", ReadReservedStorageStateAsync, TimeSpan.FromSeconds(10), (string?)null, ReservedStorageCacheFor)
             : Task.FromResult<string?>(null);
         var trim = await trimTask.ConfigureAwait(false);
         var (firmware, secureBoot, tpm) = await bootTask.ConfigureAwait(false);
@@ -69,6 +73,7 @@ public static class SystemInspector
     {
         var (free, total) = SystemProfile.SystemDriveSpace();
         var (onAc, energySaver) = Safe(ReadPowerStatus, ((bool?)null, (bool?)null));
+        var (pagefileBytes, pagefileElsewhere) = Safe(ReadPagefiles, ((ulong?)null, (bool?)null));
         return new SystemSnapshot
         {
             Now = DateTime.Now,
@@ -78,6 +83,7 @@ public static class SystemInspector
             InstalledGames = Safe(ReadGameNames, []),
             Uptime = TimeSpan.FromMilliseconds(Environment.TickCount64),
             IsLaptop = p.IsLaptop,
+            HardwareFactsKnown = p.HardwareFactsKnown,
             OnBattery = p.IsLaptop && Safe(Monolith.Modules.Games.GamesNative.IsOnBattery, false),
             CpuName = p.CpuName,
             CpuCores = p.CpuCores,
@@ -98,7 +104,8 @@ public static class SystemInspector
             EnergySaverOn = energySaver,
             AcPowerMode = Safe(TweakCatalog.ReadAcPowerMode, null),
             HiberfilBytes = Safe(ReadHiberfilBytes, null),
-            PagefileBytes = Safe(ReadPagefileBytes, null),
+            PagefileBytes = pagefileBytes,
+            PagefileOnOtherDrive = pagefileElsewhere,
             PagefileSystemManaged = Safe(ReadPagefileSystemManaged, null),
             PendingReboot = Safe(ReadPendingReboot, []),
             PrimaryGpu = p.PrimaryGpu,
@@ -157,13 +164,22 @@ public static class SystemInspector
         return VbsState.Unknown;
     }
 
-    /// <summary>Allocated size of every page file in bytes (Win32_PageFileUsage reports MB). Null when there is none.</summary>
-    private static ulong? ReadPagefileBytes()
+    /// <summary>
+    /// Allocated size of the page files on the system drive in bytes (Win32_PageFileUsage reports MB; null when there is
+    /// none there) and whether any page file lives on another drive — a deliberate move on small SSDs, which must not be
+    /// counted against the system drive nor «repaired» back onto it.
+    /// </summary>
+    private static (ulong? SystemDriveBytes, bool? OnOtherDrive) ReadPagefiles()
     {
         ulong sum = 0;
-        foreach (var mo in Query("SELECT AllocatedBaseSize FROM Win32_PageFileUsage"))
+        var elsewhere = false;
+        foreach (var mo in Query("SELECT Name, AllocatedBaseSize FROM Win32_PageFileUsage"))
+        {
+            var onSystemDrive = mo["Name"] is string name && name.StartsWith(SystemProfile.SystemDrive, StringComparison.OrdinalIgnoreCase);
+            if (!onSystemDrive) { elsewhere = true; continue; }
             if (mo["AllocatedBaseSize"] is { } mb) sum += Convert.ToUInt64(mb) * 1024UL * 1024UL;
-        return sum > 0 ? sum : null;
+        }
+        return (sum > 0 ? sum : null, elsewhere);
     }
 
     /// <summary>«Автоматически выбирать объём файла подкачки» (Win32_ComputerSystem.AutomaticManagedPagefile).</summary>
