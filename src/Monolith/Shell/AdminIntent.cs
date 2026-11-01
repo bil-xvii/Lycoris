@@ -43,11 +43,11 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         return new AdminIntent(page.Trim(), command.Trim(), string.IsNullOrEmpty(parameter) ? null : parameter);
     }
 
-    /// <summary>Arguments that must not be carried over to a relaunched copy (they describe this run only).</summary>
-    public static readonly IReadOnlySet<string> VolatileArgs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        PageArg, CommandArg, ParameterArg, "--page", "--tab",
-    };
+    /// <summary>
+    /// Arguments that must not be carried over to a relaunched copy (they describe this run only) — the shared list in
+    /// <see cref="Monolith.Core.Elevation.PerRunArgs"/>, which the relaunch strips.
+    /// </summary>
+    public static IReadOnlySet<string> VolatileArgs => Monolith.Core.Elevation.PerRunArgs;
 
     /// <summary>Command names are identifiers: letters and digits only (an argument can never name a member path).</summary>
     public static bool IsCommandName(string name) => name.Length is > 0 and <= 64 && name.All(char.IsAsciiLetterOrDigit);

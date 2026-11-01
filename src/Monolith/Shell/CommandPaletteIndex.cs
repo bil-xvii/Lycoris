@@ -1,3 +1,5 @@
+using Monolith.Modules.Apps;
+using Monolith.Modules.Cleaner;
 using Monolith.Modules.Maintenance;
 using Monolith.Modules.Services;
 using Monolith.Modules.Tools;
@@ -8,6 +10,9 @@ namespace Monolith.Shell;
 /// <summary>Builds the command-palette index from the existing catalogs (in-memory C# data, read only).</summary>
 public static class CommandPaletteIndex
 {
+    /// <summary>A searchable row that is not a tweak/tool/service: title, description, keywords, page and focus id.</summary>
+    public sealed record Entry(PaletteKind Kind, string Title, string Description, string Keywords, string PageKey, string? FocusId, bool IsSection = false);
+
     public static IReadOnlyList<PaletteEntry> Build(
         IEnumerable<(string Key, string Title, string Subtitle)> pages,
         IEnumerable<Tweak> tweaks,
@@ -16,7 +21,8 @@ public static class CommandPaletteIndex
         IEnumerable<CuratedService> services,
         IEnumerable<(string Key, string Title, string Subtitle, string Keywords)>? sections = null,
         IEnumerable<(string Title, string Description, string Keywords, string FocusId)>? deviceSettings = null,
-        IEnumerable<RejectedTweak>? rejected = null)
+        IEnumerable<RejectedTweak>? rejected = null,
+        IEnumerable<Entry>? extra = null)
     {
         var list = new List<PaletteEntry>();
 
@@ -75,6 +81,15 @@ public static class CommandPaletteIndex
                 PageKey = "settings", FocusId = RejectedTweaks.FocusPrefix + r.Id,
             });
 
+        // Programs, cleanup items, autostart entries, Settings rows, Drivers tabs, Restore sections (Obvious UI: the search
+        // must know everything the user can click, not only tweaks).
+        foreach (var e in extra ?? [])
+            list.Add(new PaletteEntry
+            {
+                Kind = e.Kind, Title = e.Title, Description = e.Description, Keywords = e.Keywords, PageKey = e.PageKey, FocusId = e.FocusId,
+                IsSection = e.IsSection,
+            });
+
         return list;
     }
 
@@ -105,11 +120,96 @@ public static class CommandPaletteIndex
         (MainViewModel.StartupAlias, "АВТОЗАПУСК", "Программы, которые запускаются вместе с Windows, — раздел «Автозапуск и службы».", "службы задачи"),
     ];
 
-    /// <summary>The index for the running app: pages from the shell, tools from the live Tools tab.</summary>
+    // ───────────── Focus-id prefixes the pages resolve (documented in CLAUDE.md «Deep links») ─────────────
+
+    /// <summary>Apps page: «app:&lt;winget id&gt;» — the card of that program.</summary>
+    public const string AppFocusPrefix = "app:";
+    /// <summary>Cleaner tab: «clean:&lt;item id&gt;» — the row of that cleanup item.</summary>
+    public const string CleanFocusPrefix = "clean:";
+    /// <summary>Services page: «startup:&lt;entry key&gt;» — the АВТОЗАПУСК tab filtered to that entry.</summary>
+    public const string StartupFocusPrefix = "startup:";
+    /// <summary>Settings page: «setting:&lt;row&gt;» — scrolls to that row.</summary>
+    public const string SettingFocusPrefix = "setting:";
+    /// <summary>Restore page: «section:&lt;name&gt;» — a part of the page (last batch, restore points, drift).</summary>
+    public const string RestoreSectionPrefix = "section:";
+
+    /// <summary>The Apps catalog (verified winget / Store packages): «Steam», «Discord», «7-Zip»…</summary>
+    public static IReadOnlyList<Entry> AppEntries { get; } = AppCatalog.All
+        .Select(a => new Entry(PaletteKind.App, a.Name, $"{a.Description} — раздел «Приложения», {AppCatalog.Info(a.Category).Title.ToLowerInvariant()}.",
+            $"{a.Id} {AppCatalog.Info(a.Category).Title} программа установить {a.Website}", "apps", AppFocusPrefix + a.Id))
+        .ToList();
+
+    /// <summary>The cleanup catalog: «Корзина», «Кэш DirectX», «Временные файлы Windows»…</summary>
+    public static IReadOnlyList<Entry> CleanEntries { get; } = CleanCatalog.All
+        .Select(c => new Entry(PaletteKind.Clean, c.Name, $"{c.Description} — раздел «Обслуживание → Очистка», {CleanCatalog.CategoryTitle(c.Category).ToLowerInvariant()}.",
+            $"{c.Id} {CleanCatalog.CategoryTitle(c.Category)} очистка мусор кэш удалить", MaintenanceViewModel.CleanerTab, CleanFocusPrefix + c.Id))
+        .ToList();
+
+    /// <summary>Rows of the Settings page (static: the page has a fixed set of options).</summary>
+    public static IReadOnlyList<Entry> SettingsEntries { get; } =
+    [
+        new(PaletteKind.Setting, "Запускать сразу с правами администратора", "Запрос UAC при каждом запуске вместо перезапуска при первом изменении — раздел «Настройки».",
+            "права администратора uac запуск elevate", "settings", SettingFocusPrefix + "elevate"),
+        new(PaletteKind.Setting, "Подтверждение перед применением", "Показывать точный список изменений перед применением — раздел «Настройки».",
+            "подтверждение применить список изменений confirm", "settings", SettingFocusPrefix + "confirm"),
+        new(PaletteKind.Setting, "Интервал обновления мониторинга", "Как часто Панель опрашивает процессор, видеокарту, память и диски — раздел «Настройки».",
+            "мониторинг интервал панель опрос", "settings", SettingFocusPrefix + "monitor-interval"),
+        new(PaletteKind.Setting, "Журнал действий (консоль)", "Показывать журнал действий MONOLITH внизу окна — раздел «Настройки».",
+            "консоль журнал лог", "settings", SettingFocusPrefix + "console"),
+        new(PaletteKind.Setting, "Папки данных MONOLITH", "Где лежат настройки, журнал изменений, резервные копии и логи — раздел «Настройки».",
+            "данные папки журнал резервные копии логи файлы", "settings", SettingFocusPrefix + "data"),
+        new(PaletteKind.Setting, "Сброс настроек MONOLITH", "Вернуть параметры MONOLITH к значениям по умолчанию — раздел «Настройки».",
+            "сброс по умолчанию настройки", "settings", SettingFocusPrefix + "reset"),
+        new(PaletteKind.Setting, "Как MONOLITH защищает систему", "Журнал отката, точки восстановления, что никогда не делается — раздел «Настройки → О программе».",
+            "безопасность защита откат о программе", "settings", SettingFocusPrefix + "about"),
+        new(PaletteKind.Setting, "Компоненты и лицензии", "Версия, шрифты, библиотеки — раздел «Настройки → О программе».",
+            "лицензии версия компоненты о программе", "settings", SettingFocusPrefix + "licenses"),
+    ];
+
+    /// <summary>Tabs of the Drivers page («tab:&lt;DriversTab&gt;», resolved by the page).</summary>
+    public static IReadOnlyList<Entry> DriverTabEntries { get; } =
+    [
+        new(PaletteKind.Page, "ПОДБОР ДРАЙВЕРОВ ДЛЯ ВАШЕГО ПК", "Видеокарта, чипсет, сеть, звук: что установлено и что стоит обновить — раздел «Драйверы».",
+            "драйверы видеокарта nvidia amd intel чипсет gpu подбор", "drivers", "tab:Hardware", IsSection: true),
+        new(PaletteKind.Page, "ОБНОВЛЕНИЯ ДРАЙВЕРОВ ИЗ WINDOWS UPDATE", "Необязательные обновления драйверов Центра обновления — раздел «Драйверы».",
+            "драйверы обновления windows update", "drivers", "tab:Updates", IsSection: true),
+        new(PaletteKind.Page, "ПРОБЛЕМНЫЕ УСТРОЙСТВА", "Устройства с ошибками и без драйвера — раздел «Драйверы».",
+            "драйверы проблемы устройства ошибка диспетчер устройств", "drivers", "tab:Problems", IsSection: true),
+        new(PaletteKind.Page, "УСТАНОВЛЕННЫЕ ДРАЙВЕРЫ", "Список установленных драйверов и их версии — раздел «Драйверы».",
+            "драйверы установленные версии список", "drivers", "tab:Installed", IsSection: true),
+        new(PaletteKind.Page, "РЕЗЕРВНАЯ КОПИЯ ДРАЙВЕРОВ", "Сохранить и восстановить драйверы — раздел «Драйверы».",
+            "драйверы резервная копия бэкап восстановить", "drivers", "tab:Backup", IsSection: true),
+    ];
+
+    /// <summary>Parts of the Restore page.</summary>
+    public static IReadOnlyList<Entry> RestoreEntries { get; } =
+    [
+        new(PaletteKind.Page, "ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ ИЗМЕНЕНИЙ", "Вернуть последние изменения MONOLITH — раздел «Восстановление».",
+            "откат отменить вернуть последний пакет журнал", "restore", RestoreSectionPrefix + "last-batch", IsSection: true),
+        new(PaletteKind.Page, "ЖУРНАЛ ИЗМЕНЕНИЙ MONOLITH", "Каждое изменение с исходным значением и кнопкой отката — раздел «Восстановление».",
+            "журнал изменений история откат", "restore", RestoreSectionPrefix + "journal", IsSection: true),
+        new(PaletteKind.Page, "ТОЧКИ ВОССТАНОВЛЕНИЯ WINDOWS", "Создать точку, включить защиту системы, открыть восстановление Windows — раздел «Восстановление».",
+            "точка восстановления защита системы windows создать", "restore", RestoreSectionPrefix + "restore-points", IsSection: true),
+        new(PaletteKind.Page, "ИЗМЕНЕНО ВНЕ MONOLITH", "Настройки MONOLITH, изменённые Windows или другой программой — раздел «Восстановление».",
+            "изменено вне monolith drift расхождение", "restore", RestoreSectionPrefix + "drift", IsSection: true),
+    ];
+
+    /// <summary>Autostart entries found by the last scan (live data; empty until the АВТОЗАПУСК tab has loaded).</summary>
+    public static IEnumerable<Entry> StartupEntries(IEnumerable<(string Key, string Name, string? Publisher, string? Command)> items) =>
+        items.Select(i => new Entry(PaletteKind.Startup, i.Name,
+            $"{(string.IsNullOrWhiteSpace(i.Publisher) ? "Программа" : i.Publisher)} в автозапуске — раздел «Автозапуск и службы», вкладка «Автозапуск».",
+            $"{i.Publisher} {i.Command} автозапуск startup", "services", StartupFocusPrefix + i.Key));
+
+    /// <summary>Everything static (no live scans): catalogs, Settings rows, Drivers tabs, Restore sections.</summary>
+    public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries);
+
+    /// <summary>The index for the running app: pages from the shell, tools from the live Tools tab, autostart from the live scan.</summary>
     public static IReadOnlyList<PaletteEntry> Build(IEnumerable<PageViewModel> pages)
     {
         var pageList = pages.ToList();
         var tools = pageList.OfType<MaintenanceViewModel>().FirstOrDefault()?.Tools ?? pageList.OfType<ToolsViewModel>().FirstOrDefault();
+        var startup = pageList.OfType<ServicesViewModel>().FirstOrDefault()?.Startup.Items
+            .Select(i => (i.Key, i.DisplayName, i.Entry.Publisher, (string?)i.Entry.Command)).ToList() ?? [];
         return Build(
             pageList.Select(p => (p.Key, p.Title, p.Subtitle)),
             TweakCatalog.All,
@@ -118,6 +218,7 @@ public static class CommandPaletteIndex
             ServiceCatalog.Services,
             Sections,
             DeviceEntries,
-            RejectedTweaks.All);
+            RejectedTweaks.All,
+            StaticExtras.Concat(StartupEntries(startup)));
     }
 }

@@ -548,6 +548,26 @@ public sealed partial class RestoreViewModel : PageViewModel
         await ReportAsync(result, $"Пакет «{batch.Title}» откачен.", left);
     });
 
+    /// <summary>
+    /// «ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ» (the title-bar shortcut and the page's pinned button): the newest batch that still has
+    /// changes to revert, through the ordinary batch revert with its confirmation. Nothing to revert = a toast.
+    /// </summary>
+    [RelayCommand]
+    private async Task RevertLastBatchAsync()
+    {
+        // Read-only mode: relaunch with rights and come back to exactly this action.
+        if (!RequireAdmin("Откат последнего пакета", "RevertLastBatch")) return;
+        if (_journal is null) return;
+        if (Filter != JournalFilter.All && Filter != JournalFilter.Active) Filter = JournalFilter.Active; // rebuilds
+        var last = Batches.FirstOrDefault(b => b.CanRevert && !b.IsSynthetic) ?? Batches.FirstOrDefault(b => b.CanRevert);
+        if (last is null)
+        {
+            Ui.Toast("Откатывать нечего: активных пакетов изменений нет.", ToastKind.Info);
+            return;
+        }
+        if (RevertBatchCommand.CanExecute(last)) await RevertBatchCommand.ExecuteAsync(last);
+    }
+
     private bool CanRevertAll() => RevertAllCount > 0 && CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertAll))]

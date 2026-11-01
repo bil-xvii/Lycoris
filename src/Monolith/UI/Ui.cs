@@ -40,6 +40,11 @@ public sealed partial class DialogViewModel : ObservableObject
     public bool HasDetails => Details.Count > 0;
     public string? Footnote { get; init; }
 
+    /// <summary>An optional checkbox under the message («Всегда запускать с правами»); null = none.</summary>
+    public string? OptionText { get; init; }
+    public bool HasOption => !string.IsNullOrEmpty(OptionText);
+    [ObservableProperty] private bool _optionChecked;
+
     public Task<bool> Result => _tcs.Task;
 
     [RelayCommand]
@@ -59,8 +64,11 @@ public interface IUiHost
     ObservableCollection<ToastItem> Toasts { get; }
     void NavigateTo(string pageKey);
 
-    /// <summary>Relaunches MONOLITH with admin rights on the current page (UAC prompt); false when declined or failed.</summary>
-    bool RestartElevated();
+    /// <summary>
+    /// Relaunches MONOLITH with admin rights on the current page (UAC prompt); false when declined or failed.
+    /// With <paramref name="intent"/> the elevated copy also repeats that action once (see <see cref="Monolith.Shell.AdminIntent"/>).
+    /// </summary>
+    bool RestartElevated(Monolith.Shell.AdminIntent? intent = null);
 }
 
 /// <summary>
@@ -111,6 +119,42 @@ public static class Ui
                 DialogGate.Release();
             }
         });
+    }
+
+    /// <summary>
+    /// A confirmation with a checkbox under the message. Returns (confirmed, checkbox). Self-test: answered like
+    /// <see cref="ConfirmAsync"/>, the checkbox off.
+    /// </summary>
+    public static async Task<(bool Confirmed, bool Option)> ConfirmOptionAsync(string title, string message, string optionText,
+        string confirmText = "ПРИМЕНИТЬ", string cancelText = "ОТМЕНА")
+    {
+        if (AutoAnswer is { } auto)
+        {
+            lock (AutoAnswered) AutoAnswered.Add(title);
+            return (auto, false);
+        }
+        DialogViewModel? shown = null;
+        var ok = await OnUi(async () =>
+        {
+            if (Host is null) return false;
+            await DialogGate.WaitAsync();
+            try
+            {
+                var vm = new DialogViewModel
+                {
+                    Title = title, Message = message, ConfirmText = confirmText, CancelText = cancelText, OptionText = optionText,
+                };
+                shown = vm;
+                Host.Dialog = vm;
+                try { return await vm.Result; }
+                finally { if (Host.Dialog == vm) Host.Dialog = null; }
+            }
+            finally
+            {
+                DialogGate.Release();
+            }
+        });
+        return (ok, ok && shown is { OptionChecked: true });
     }
 
     /// <summary>Shows an informational dialog with a single OK button.</summary>
@@ -206,12 +250,15 @@ public static class Ui
     }
 
     /// <summary>
+    /// Relaunches MONOLITH with admin rights on the current page (see <see cref="IUiHost.RestartElevated"/>); with an
+    /// intent, the elevated copy repeats that action once.
+    /// </summary>
+    public static void RestartElevated(Monolith.Shell.AdminIntent? intent = null) => Post(() => Host?.RestartElevated(intent));
+
+    /// <summary>
     /// Opens a page. Old keys still work: "cleaner" / "tools" open the tab of «maintenance»,
     /// "startup" opens «services» with the focus request "tab:startup".
     /// </summary>
-    /// <summary>Relaunches MONOLITH with admin rights on the current page (see <see cref="IUiHost.RestartElevated"/>).</summary>
-    public static void RestartElevated() => Post(() => Host?.RestartElevated());
-
     public static void Navigate(string pageKey)
     {
         Dispatcher?.BeginInvoke(() => Host?.NavigateTo(pageKey));

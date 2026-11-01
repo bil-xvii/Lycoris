@@ -176,4 +176,71 @@ public sealed class CommandPaletteTests
         var index = CommandPaletteIndex.Build([], TweakCatalog.All, [], [], []);
         Assert.Contains(CommandPaletteSearch.Search(index, "game-mode"), e => e.FocusId == "game-mode");
     }
+
+    // ───────────── Obvious UI: the search knows programs, cleanup items, autostart, Settings rows, Drivers tabs, Restore ─────────────
+
+    private static IReadOnlyList<PaletteEntry> ExtendedIndex(IEnumerable<CommandPaletteIndex.Entry>? extra = null) =>
+        CommandPaletteIndex.Build([("apps", "ПРИЛОЖЕНИЯ", ""), ("restore", "ВОССТАНОВЛЕНИЕ", "")], [], [], [], [],
+            CommandPaletteIndex.Sections, null, null, extra ?? CommandPaletteIndex.StaticExtras);
+
+    [Fact]
+    public void Every_catalog_app_is_found_by_name_and_opens_its_card()
+    {
+        var index = ExtendedIndex();
+        foreach (var a in Monolith.Modules.Apps.AppCatalog.All)
+            Assert.Contains(CommandPaletteSearch.Search(index, a.Name, max: 50),
+                e => e.Kind == PaletteKind.App && e.PageKey == "apps" && e.FocusId == CommandPaletteIndex.AppFocusPrefix + a.Id);
+        Assert.Equal("ПРОГРАММА", index.First(e => e.Kind == PaletteKind.App).KindText);
+    }
+
+    [Fact]
+    public void Every_cleanup_item_is_found_and_opens_the_cleaner_tab()
+    {
+        var index = ExtendedIndex();
+        foreach (var c in Monolith.Modules.Cleaner.CleanCatalog.All)
+            Assert.Contains(CommandPaletteSearch.Search(index, c.Name, max: 50),
+                e => e.Kind == PaletteKind.Clean && e.PageKey == "cleaner" && e.FocusId == CommandPaletteIndex.CleanFocusPrefix + c.Id);
+        Assert.Equal("maintenance", MainViewModel.ResolvePageKey("cleaner"));
+    }
+
+    [Fact]
+    public void Settings_rows_driver_tabs_and_restore_sections_are_searchable_but_not_listed_for_an_empty_query()
+    {
+        var index = ExtendedIndex();
+        Assert.Equal(["ПРИЛОЖЕНИЯ", "ВОССТАНОВЛЕНИЕ"], CommandPaletteSearch.Search(index, "").Select(e => e.Title));
+        var rights = CommandPaletteSearch.Search(index, "права администратора")[0];
+        Assert.Equal(PaletteKind.Setting, rights.Kind);
+        Assert.Equal("settings", rights.PageKey);
+        Assert.StartsWith(CommandPaletteIndex.SettingFocusPrefix, rights.FocusId);
+        var updates = CommandPaletteSearch.Search(index, "обновления драйверов").First(e => e.PageKey == "drivers");
+        Assert.Equal("tab:Updates", updates.FocusId);
+        Assert.True(updates.IsSection);
+        var last = CommandPaletteSearch.Search(index, "откатить последний").First(e => e.PageKey == "restore");
+        Assert.Equal(CommandPaletteIndex.RestoreSectionPrefix + "last-batch", last.FocusId);
+        Assert.Equal("ПАРАМЕТР", rights.KindText);
+    }
+
+    [Fact]
+    public void Driver_tab_focus_ids_name_real_tabs()
+    {
+        foreach (var t in CommandPaletteIndex.DriverTabEntries)
+        {
+            Assert.Equal("drivers", t.PageKey);
+            Assert.StartsWith("tab:", t.FocusId);
+            Assert.True(Enum.TryParse<Monolith.Modules.Drivers.DriversTab>(t.FocusId![4..], true, out _), t.FocusId);
+        }
+    }
+
+    [Fact]
+    public void Autostart_entries_come_from_the_live_scan_and_open_the_startup_tab()
+    {
+        var index = ExtendedIndex(CommandPaletteIndex.StartupEntries([("Run|Discord", "Discord", "Discord Inc.", @"C:\Discord\Update.exe --processStart Discord.exe")]));
+        var hit = Assert.Single(CommandPaletteSearch.Search(index, "discord"), e => e.Kind == PaletteKind.Startup);
+        Assert.Equal("services", hit.PageKey);
+        Assert.Equal(CommandPaletteIndex.StartupFocusPrefix + "Run|Discord", hit.FocusId);
+        Assert.Equal("АВТОЗАПУСК", hit.KindText);
+        Assert.Contains("Discord Inc.", hit.Description);
+        // Found by the publisher too (keywords).
+        Assert.Contains(CommandPaletteSearch.Search(index, "discord inc"), e => e.Kind == PaletteKind.Startup);
+    }
 }
