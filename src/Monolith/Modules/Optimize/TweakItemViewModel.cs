@@ -86,8 +86,11 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// selected; the engine applies it after the dependency.
     /// </summary>
     public bool DependencySatisfiedByPending => State == TweakState.NotApplicable && PendingDependency is not null;
-    /// <summary>Can be checked and applied right now: applicable, or made applicable by a pending dependency (<see cref="OptimizeLogic.IsApplicableNow"/>).</summary>
-    public bool IsApplicableNow => OptimizeLogic.IsApplicableNow(State, Tweak, _owner.IsPendingRow);
+    /// <summary>
+    /// Can be checked and applied right now: applicable, or made applicable by a pending dependency (<see cref="OptimizeLogic.IsApplicableNow"/>).
+    /// A row the PC's hardware/OS rules out (AppliesTo) never becomes applicable through a dependency.
+    /// </summary>
+    public bool IsApplicableNow => !_owner.IsHardwareExcluded(Id) && OptimizeLogic.IsApplicableNow(State, Tweak, _owner.IsPendingRow);
     public bool WillChange => State is { } s && (OptimizeLogic.WillChange(s) || DependencySatisfiedByPending);
     public bool IsPending => IsChecked && WillChange;
 

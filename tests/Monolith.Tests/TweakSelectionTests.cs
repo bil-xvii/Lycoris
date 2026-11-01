@@ -399,6 +399,27 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void A_row_the_hardware_rules_out_is_never_made_applicable_by_a_pending_dependency()
+    {
+        // Windows 10 desktop on High performance: the Balanced plan is pending, but the Windows 11 power mode stays out —
+        // not checked, not counted on the tile, and the efficiency tile (only a plan switch left) is hidden.
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "mode"]);
+        vm.SetHardwareExcluded("mode");
+        Row(vm, "plan").State = TweakState.NotApplied;
+        Row(vm, "mode").State = TweakState.NotApplicable;
+        vm.MarkDetected();
+        Assert.False(vm.IsEfficiencyTileVisible);
+
+        Row(vm, "plan").IsChecked = true;
+        Row(vm, "mode").IsChecked = true;
+        Assert.False(Row(vm, "mode").IsApplicableNow);
+        Assert.False(Row(vm, "mode").DependencySatisfiedByPending);
+        vm.SyncDependents();
+        Assert.False(Row(vm, "mode").IsChecked);
+    }
+
+    [Fact]
     public void A_requires_cycle_does_not_overflow_the_view_model()
     {
         var vm = Page(Tweak("a", requires: ["b"]), Tweak("b", requires: ["a"]));
