@@ -746,10 +746,54 @@ public sealed class DashboardRulesTests
         Assert.Equal(HealthRules.TweakPagefileSystemManaged, manual.SecondaryAction!.Target);
         var twoLevers = HealthRules.CheckDiskSpace(new SystemSnapshot
         {
-            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileSystemManaged = false,
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileSystemManaged = false, PagefileOnOtherDrive = false,
         })!;
         Assert.Equal(HealthRules.TweakHibernationOff, twoLevers.SecondaryAction!.Target);
-        Assert.Contains("pagefile.sys: размер задан вручную", twoLevers.Detail); // size unknown, the fact is still shown
+        // No page file at all («Без файла подкачки» set by another optimizer): that is what the repair item exists for.
+        Assert.Contains("Файл подкачки отключён — так игры и браузеры падают", twoLevers.Detail);
+        Assert.DoesNotContain("задан вручную", twoLevers.Detail);
+        Assert.Equal(HealthRules.TweakPagefileSystemManaged, HealthRules.SystemFileLever(new SystemSnapshot
+        {
+            PagefileSystemManaged = false, PagefileOnOtherDrive = false,
+        })!.Target);
+
+        // A page file moved to another drive (the usual small-SSD setup) takes no space on the system drive, and the repair
+        // would create a multi-GB file on the drive that is already short of space — no lever, no «вручную» sentence.
+        var moved = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, PagefileSystemManaged = false, PagefileOnOtherDrive = true,
+        })!;
+        Assert.Contains("Файл подкачки размещён на другом диске — место на системном диске он не занимает", moved.Detail);
+        Assert.DoesNotContain("задан вручную", moved.Detail);
+        Assert.DoesNotContain("отключён", moved.Detail);
+        Assert.Null(moved.SecondaryAction);
+        var movedAndLocal = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, PagefileBytes = 4 * gb, PagefileSystemManaged = false, PagefileOnOtherDrive = true,
+        })!;
+        Assert.Contains("pagefile.sys — 4,0 ГБ: файл подкачки настроен вручную и размещён ещё и на другом диске", movedAndLocal.Detail);
+        Assert.Null(movedAndLocal.SecondaryAction);
+        // Placement unknown (the WMI query failed): the fact stays honest and the item is still pointed to, with the caveat.
+        var unknownPlace = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, PagefileSystemManaged = false,
+        })!;
+        Assert.Contains("Файл подкачки настроен вручную;", unknownPlace.Detail);
+        Assert.Contains("перенесли его на другой диск", unknownPlace.Detail);
+        Assert.Equal(HealthRules.TweakPagefileSystemManaged, unknownPlace.SecondaryAction!.Target);
+
+        // Laptop/desktop fact unknown (battery/chassis WMI failed): hibernation off is not applicable in the catalog, so the
+        // text shows the size without the desktop tail and no «ГИБЕРНАЦИЯ» button; the page-file lever still applies.
+        var unknownHardware = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            HardwareFactsKnown = false, SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb,
+            PagefileBytes = 2 * gb, PagefileSystemManaged = false, PagefileOnOtherDrive = false,
+        })!;
+        Assert.Contains("hiberfil.sys — 13,0 ГБ: файл гибернации и быстрого запуска.", unknownHardware.Detail);
+        Assert.DoesNotContain("Отключить гибернацию", unknownHardware.Detail);
+        Assert.DoesNotContain("На ноутбуке он нужен", unknownHardware.Detail);
+        Assert.Equal(HealthRules.TweakPagefileSystemManaged, unknownHardware.SecondaryAction!.Target);
+        Assert.Null(HealthRules.SystemFileLever(new SystemSnapshot { HardwareFactsKnown = false, HiberfilBytes = 13 * gb }));
 
         // Reserved storage only when the state is known; no size figures are invented.
         var reserved = HealthRules.CheckDiskSpace(new SystemSnapshot

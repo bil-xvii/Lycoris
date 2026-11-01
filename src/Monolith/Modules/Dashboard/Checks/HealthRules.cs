@@ -225,19 +225,30 @@ public static partial class HealthRules
 
     /// <summary>
     /// What the Windows system files on the drive take (each fact only when it is known) and why MONOLITH leaves two of
-    /// them alone: hibernation can go on desktops only (ADVANCED; DO-NOT-INCLUDE on laptops), the page file is managed
-    /// by Windows (general_tweaks.md §10), reserved storage is released by Windows itself when space runs low.
+    /// them alone: hibernation can go on desktops only (ADVANCED; DO-NOT-INCLUDE on laptops — and when the laptop/desktop
+    /// fact is unknown the lever is not offered either), the page file is managed by Windows (general_tweaks.md §10),
+    /// reserved storage is released by Windows itself when space runs low.
     /// </summary>
     public static string SystemFileFacts(SystemSnapshot s)
     {
+        const string pagefileRepair = "вернуть управление Windows можно пунктом «Файл подкачки: автоматический размер» в разделе «Оптимизация».";
         var parts = new List<string>();
         if (s.HiberfilBytes is > 0 and var hib)
             parts.Add($"hiberfil.sys — {DashFormat.Size(hib)}: файл гибернации и быстрого запуска." + (s.IsLaptop
                 ? " На ноутбуке он нужен: при разряде батареи Windows сохраняет через него работу."
-                : " Его можно убрать пунктом «Отключить гибернацию» (ЭКСПЕРТ) в разделе «Оптимизация»."));
-        if (s.PagefileSystemManaged == false)
-            parts.Add($"pagefile.sys{(s.PagefileBytes is > 0 and var manual ? " — " + DashFormat.Size(manual) : "")}: размер задан вручную; " +
-                      "вернуть управление Windows можно пунктом «Файл подкачки: автоматический размер» в разделе «Оптимизация».");
+                : CanOfferHibernationOff(s) ? " Его можно убрать пунктом «Отключить гибернацию» (ЭКСПЕРТ) в разделе «Оптимизация»." : ""));
+        if (s.PagefileOnOtherDrive == true)
+            parts.Add(s.PagefileBytes is > 0 and var shared
+                ? $"pagefile.sys — {DashFormat.Size(shared)}: файл подкачки настроен вручную и размещён ещё и на другом диске — MONOLITH его не трогает."
+                : "Файл подкачки размещён на другом диске — место на системном диске он не занимает.");
+        else if (s.PagefileSystemManaged == false && s.PagefileBytes is > 0 and var manual)
+            parts.Add($"pagefile.sys — {DashFormat.Size(manual)}: размер задан вручную; " + pagefileRepair);
+        else if (s.PagefileSystemManaged == false && s.PagefileOnOtherDrive == false)
+            parts.Add("Файл подкачки отключён — так игры и браузеры падают с нехваткой памяти; вернуть автоматический размер можно пунктом " +
+                      "«Файл подкачки: автоматический размер» в разделе «Оптимизация».");
+        else if (s.PagefileSystemManaged == false)
+            parts.Add("Файл подкачки настроен вручную; " + pagefileRepair +
+                      " Если вы сознательно перенесли его на другой диск, этот пункт не нужен.");
         else if (s.PagefileBytes is > 0 and var pf)
             parts.Add($"pagefile.sys — {DashFormat.Size(pf)}: размером управляет Windows, MONOLITH его не трогает — " +
                       "отключение или уменьшение файла подкачки приводит к вылетам игр.");
@@ -253,12 +264,18 @@ public static partial class HealthRules
     /// </summary>
     public static CheckAction? SystemFileLever(SystemSnapshot s)
     {
-        if (!s.IsLaptop && s.HiberfilBytes is > 0)
+        if (CanOfferHibernationOff(s) && s.HiberfilBytes is > 0)
             return new CheckAction(CheckActionKind.FocusTweak, "ГИБЕРНАЦИЯ", TweakHibernationOff);
-        if (s.PagefileSystemManaged == false)
+        if (s.PagefileSystemManaged == false && s.PagefileOnOtherDrive != true)
             return new CheckAction(CheckActionKind.FocusTweak, "ФАЙЛ ПОДКАЧКИ", TweakPagefileSystemManaged);
         return null;
     }
+
+    /// <summary>
+    /// Hibernation off is DO-NOT-INCLUDE on laptops, and the catalog marks it not applicable when the laptop fact is
+    /// unknown (SystemProfile.HardwareFactsKnown == false) — the dashboard must not point there in either case.
+    /// </summary>
+    private static bool CanOfferHibernationOff(SystemSnapshot s) => !s.IsLaptop && s.HardwareFactsKnown;
 
     /// <summary>"Enabled" → true, "Disabled" → false, anything else → null.</summary>
     public static bool? ReservedStorageOn(string? state) => state?.Trim().ToLowerInvariant() switch
