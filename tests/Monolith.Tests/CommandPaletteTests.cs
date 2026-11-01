@@ -127,6 +127,49 @@ public sealed class CommandPaletteTests
             Assert.Contains(MainViewModel.ResolvePageKey(key), pages);
     }
 
+    private static IReadOnlyList<PaletteEntry> FullIndex() =>
+        CommandPaletteIndex.Build([("optimize", "ОПТИМИЗАЦИЯ", ""), ("settings", "НАСТРОЙКИ", "")], TweakCatalog.All, [], [], ServiceCatalog.Services,
+            CommandPaletteIndex.Sections, CommandPaletteIndex.DeviceEntries, RejectedTweaks.All);
+
+    [Theory]
+    [InlineData("HPET")]
+    [InlineData("таймер")]
+    [InlineData("парковка ядер")]
+    [InlineData("файл подкачки")]
+    [InlineData("C-states")]
+    [InlineData("сжатие памяти")]
+    [InlineData("NVMe")]
+    [InlineData("зарезервированное")]
+    [InlineData("чистка реестра")]
+    [InlineData("GlobalTimerResolutionRequests")]
+    public void Popular_rejected_tweaks_are_found_as_myths(string query)
+    {
+        var hit = CommandPaletteSearch.Search(FullIndex(), query).FirstOrDefault(e => e.Kind == PaletteKind.Myth);
+        Assert.NotNull(hit);
+        Assert.Equal("settings", hit.PageKey);
+        Assert.StartsWith(RejectedTweaks.FocusPrefix, hit.FocusId);
+        Assert.NotNull(RejectedTweaks.Find(hit.FocusId![RejectedTweaks.FocusPrefix.Length..]));
+    }
+
+    [Fact]
+    public void Myth_entries_have_no_risk_tag_and_one_per_rejected_tweak()
+    {
+        var myths = FullIndex().Where(e => e.Kind == PaletteKind.Myth).ToList();
+        Assert.Equal(RejectedTweaks.All.Count, myths.Count);
+        Assert.All(myths, e => { Assert.False(e.HasRisk); Assert.Null(e.RiskText); Assert.Equal("НЕ ДЕЛАЕМ", e.KindText); Assert.NotEmpty(e.Description); });
+        Assert.Equal(RejectedTweaks.All.Select(r => RejectedTweaks.FocusPrefix + r.Id), myths.Select(e => e.FocusId));
+        // Myth entries route to the settings page, which NavigateTo resolves to itself.
+        Assert.Equal("settings", MainViewModel.ResolvePageKey("settings"));
+    }
+
+    [Fact]
+    public void Every_rejected_tweak_is_found_by_its_own_title()
+    {
+        var index = FullIndex();
+        foreach (var r in RejectedTweaks.All)
+            Assert.Contains(CommandPaletteSearch.Search(index, r.Title, max: 50), e => e.Kind == PaletteKind.Myth && e.FocusId == RejectedTweaks.FocusPrefix + r.Id);
+    }
+
     [Fact]
     public void Tweak_is_found_by_its_id()
     {
