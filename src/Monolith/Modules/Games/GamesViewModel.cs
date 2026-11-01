@@ -666,8 +666,10 @@ public sealed partial class GamesViewModel : PageViewModel
             var enabled = Settings.GameBoostPowerPlan;
             var (_, text) = await Task.Run(() => GameBoostService.DecidePower(sp, enabled));
             const string skip = "План питания не меняется";
-            const string sw = "План питания: ";
-            PowerNote = text.StartsWith(sw, StringComparison.Ordinal) ? text[sw.Length..]
+            // The option is titled «Схема питания»: the texts drop their subject (plan switch, or the Windows 11 power mode
+            // where the plan cannot be switched — the mode text itself says the scheme stays).
+            PowerNote = text.StartsWith(BoostPolicy.SwitchPrefix, StringComparison.Ordinal) ? text[BoostPolicy.SwitchPrefix.Length..]
+                : text.StartsWith(BoostPolicy.SwitchModePrefix, StringComparison.Ordinal) ? text[BoostPolicy.SwitchModePrefix.Length..]
                 : text.StartsWith(skip, StringComparison.Ordinal) ? "Не меняется" + text[skip.Length..]
                 : text;
         }

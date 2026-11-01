@@ -107,11 +107,25 @@ public static class GamingReadiness
             return new ReadinessCheck(title, name, ReadinessState.Info, "Ноутбук работает от батареи — для игр подключите зарядку.");
         if (active == PowerSchemes.Balanced)
             return new ReadinessCheck(title, name, ReadinessState.Info,
-                sp.IsLaptop
-                    ? "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. На ноутбуке игровой сеанс схему не меняет — выберите режим питания «Максимальная производительность» в параметрах Windows."
-                    : "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. Игровой сеанс MONOLITH переключает схему на время игры.");
+                BalancedHint(sp.IsLaptop, sp.IsWindows11, sp.IsModernStandby || GamesNative.IsModernStandby(), PowerSchemes.Exists(PowerSchemes.HighPerformance)));
         return new ReadinessCheck(title, name, ReadinessState.Info,
             "Максимальные частоты процессора; в простое компьютер потребляет больше энергии.");
+    }
+
+    /// <summary>
+    /// The Balanced-plan hint: what the game session does with power here (mirrors <see cref="BoostPolicy"/>: the plan on a
+    /// desktop that has «Высокая производительность»; the Windows 11 AC power mode on a laptop, a Modern Standby PC or a PC
+    /// without that plan). States a typical difference, never a promised gain. Pure, unit-tested.
+    /// </summary>
+    public static string BalancedHint(bool laptop, bool windows11, bool modernStandby, bool highPerformanceExists)
+    {
+        const string head = "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. ";
+        if (!laptop && !modernStandby && highPerformanceExists)
+            return head + "Игровой сеанс MONOLITH переключает схему на время игры.";
+        var where = laptop ? "На ноутбуке игровой сеанс MONOLITH" : "Игровой сеанс MONOLITH";
+        return windows11
+            ? head + $"{where} включает режим питания «Максимальная производительность» (от сети) на время игры."
+            : head + $"{where} схему не меняет: режим питания «Максимальная производительность» есть только в Windows 11.";
     }
 
     public static ReadinessCheck Gpu(SystemProfile sp, DateTime now)
