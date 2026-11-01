@@ -372,8 +372,8 @@ public sealed class NetworkFindingsTests
         Assert.Equal(0, sd.Recommended.Value.Number);
         Assert.Contains("перезапустится", sd.Recommended.Reason);
         Assert.Equal(DeviceTargets.NicProperty(EthId, "*SpeedDuplex"), sd.JournalTarget);
-        // Options never offer forcing 10/100 (only auto, the current value, 1G full and multi-gig).
-        Assert.Equal(["0", "4", "6", "2500"], sd.Options.Select(o => o.Value.Key));
+        // Options never offer forcing a speed: only the repair to auto, or leaving the current value.
+        Assert.Equal(["0", "4"], sd.Options.Select(o => o.Value.Key));
         Assert.Equal("автосогласование", sd.FormatValue(DeviceValue.Of(0)));
         Assert.Equal("2,5 Гбит/с, дуплекс", sd.FormatValue(DeviceValue.Of(2500)));
 
@@ -381,9 +381,11 @@ public sealed class NetworkFindingsTests
         var item = Assert.Single(plan, p => p.Setting.Id == "nic:*SpeedDuplex");
         Assert.False(item.IsSelected);
 
+        // Already auto: shown read-only, nothing to repair.
         var healthy = NetworkCards.Build(Owner(), new DeviceResultStore()).Single(c => c.Key == "net:" + EthId.ToString("D"));
         Assert.Null(Row(healthy, "nic:*SpeedDuplex").Recommended);
-        Assert.Equal(["0", "6", "2500"], Row(healthy, "nic:*SpeedDuplex").Options.Select(o => o.Value.Key));
+        Assert.Equal(SettingControl.Info, Row(healthy, "nic:*SpeedDuplex").Control);
+        Assert.True(Row(healthy, "nic:*SpeedDuplex").IsReadOnly);
     }
 
     [Fact]
@@ -404,7 +406,7 @@ public sealed class NetworkFindingsTests
     [Fact]
     public void A_running_game_disables_adapter_changes()
     {
-        var card = NetworkCards.Build(Owner() with { RunningGame = "Counter-Strike 2" }, new DeviceResultStore())
+        var card = NetworkCards.Build(Owner(Eth(sd: "4", speed: 100_000_000)) with { RunningGame = "Counter-Strike 2" }, new DeviceResultStore())
             .Single(c => c.Key.StartsWith("net:2", StringComparison.Ordinal));
         Assert.Contains("Counter-Strike 2", Row(card, "nic:*SpeedDuplex").DisabledReason);
     }

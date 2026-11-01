@@ -118,11 +118,11 @@
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <!-- Fixed, so every card's columns line up across the tab; a second link wraps under the first.
-                                 160 + 260 + 176 + 212 = 808 ≤ the row width at the smallest window (1120 px: 818 after the
+                                 160 + 246 + 190 + 212 = 808 ≤ the row width at the smallest window (1120 px: 818 after the
                                  sidebar, margins, scrollbar and row padding), so no row ever overflows. -->
                             <ColumnDefinition Width="*" MinWidth="160" />
-                            <ColumnDefinition Width="260" />
-                            <ColumnDefinition Width="176" />
+                            <ColumnDefinition Width="246" />
+                            <ColumnDefinition Width="190" />
                             <ColumnDefinition Width="212" />
                         </Grid.ColumnDefinitions>
 
@@ -190,7 +190,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="120" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox ItemsSource="{Binding Options}" DisplayMemberPath="Label" SelectedItem="{Binding SelectedPrimary}" />
                                 <ComboBox Grid.Column="2" ItemsSource="{Binding SecondaryList}" DisplayMemberPath="Label" SelectedItem="{Binding SelectedSecondary}" />
