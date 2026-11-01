@@ -205,6 +205,45 @@
                             </Border>
                         </Expander>
 
+                        <!-- Rejected tweaks (collapsed): what MONOLITH does not do and why; rows come from Tweaks/RejectedTweaks.cs -->
+                        <Expander Margin="0,10,0,0" IsExpanded="{Binding ExpandRejected}">
+                            <Expander.Header>
+                                <TextBlock Text="ЧТО MONOLITH НЕ ДЕЛАЕТ И ПОЧЕМУ" Style="{StaticResource T.Label}" />
+                            </Expander.Header>
+                            <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0" ui:RoundClip.Content="True">
+                                <ItemsControl x:Name="RejectedList" ItemsSource="{Binding Rejected}" Focusable="False" Margin="0,0,0,-1">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:RejectedRow}">
+                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
+                                                <Grid>
+                                                    <!-- Selection marker like the Optimize rows: shown while the row is highlighted from the palette -->
+                                                    <Border x:Name="Bar" HorizontalAlignment="Left" Width="3" Background="{StaticResource B.White}"
+                                                            Margin="0,6" CornerRadius="{StaticResource R.Xs}" Visibility="Collapsed" />
+                                                    <StackPanel Margin="12,9">
+                                                        <TextBlock Text="{Binding Tweak.Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" />
+                                                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" LineHeight="17">
+                                                            <Run Text="Что делают другие · " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Tweak.WhatOthersDo, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                        <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0" LineHeight="17">
+                                                            <Run Text="Почему нет · " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Tweak.WhyNot, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17">
+                                                            <Run Text="Вместо этого · " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Tweak.Alternative, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                    <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </Expander>
+
                         <!-- Licenses (collapsed) -->
                         <Expander Margin="0,10,0,0">
                             <Expander.Header>

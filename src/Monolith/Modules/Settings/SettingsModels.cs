@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Monolith.Tweaks;
 
 namespace Monolith.Modules.Settings;
 
@@ -18,3 +19,11 @@ public sealed partial class DataPathItem : ObservableObject
 public sealed record LicenseItem(string Name, string Version, string License, string Copyright, string Use);
 
 public sealed record PrincipleItem(string Title, string Text);
+
+/// <summary>One row of «Что MONOLITH не делает и почему»: the rejected tweak plus the transient palette highlight.</summary>
+public sealed partial class RejectedRow(RejectedTweak tweak) : ObservableObject
+{
+    public RejectedTweak Tweak { get; } = tweak;
+    public string Id => Tweak.Id;
+    [ObservableProperty] private bool _isHighlighted;
+}

@@ -15,7 +15,8 @@ public static class CommandPaletteIndex
         IEnumerable<QuickLink> quickLinks,
         IEnumerable<CuratedService> services,
         IEnumerable<(string Key, string Title, string Subtitle, string Keywords)>? sections = null,
-        IEnumerable<(string Title, string Description, string Keywords, string FocusId)>? deviceSettings = null)
+        IEnumerable<(string Title, string Description, string Keywords, string FocusId)>? deviceSettings = null,
+        IEnumerable<RejectedTweak>? rejected = null)
     {
         var list = new List<PaletteEntry>();
 
@@ -64,6 +65,16 @@ public static class CommandPaletteIndex
                 Kind = PaletteKind.Tweak, Title = title, Description = description, Keywords = keywords, PageKey = "devices", FocusId = focus,
             });
 
+        // Rejected tweaks («НЕ ДЕЛАЕМ»): searching «HPET», «таймер», «парковка ядер»… opens the explanation in Settings → О программе
+        // instead of finding nothing. No risk tag: nothing can be applied.
+        foreach (var r in rejected ?? [])
+            list.Add(new PaletteEntry
+            {
+                Kind = PaletteKind.Myth, Title = r.Title, Description = r.WhyNot,
+                Keywords = $"{r.Id} {r.Keywords} {string.Join(' ', r.RegistryValueNames)}",
+                PageKey = "settings", FocusId = RejectedTweaks.FocusPrefix + r.Id,
+            });
+
         return list;
     }
 
@@ -106,6 +117,7 @@ public static class CommandPaletteIndex
             tools?.QuickLinks ?? [],
             ServiceCatalog.Services,
             Sections,
-            DeviceEntries);
+            DeviceEntries,
+            RejectedTweaks.All);
     }
 }
