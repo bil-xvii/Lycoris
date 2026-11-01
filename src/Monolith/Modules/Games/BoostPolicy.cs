@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using Monolith.Core;
+using Monolith.Tweaks;
 
 namespace Monolith.Modules.Games;
 
@@ -26,6 +27,12 @@ public enum PowerPlanAction
     SkipModeAlreadyFast,
     /// <summary>An Optimize item holds the AC power mode (an active "powermode:ac" record of another source).</summary>
     SkipModeManagedElsewhere,
+    /// <summary>The current AC power mode could not be read (the API returned nothing) — there is no exact undo to record.</summary>
+    SkipModeUnreadable,
+    /// <summary>Windows reported an AC power mode that is not one of the three documented ones (OEM value) — never touched.</summary>
+    SkipModeUnknown,
+    /// <summary>The journal would refuse the undo of the mode record (JournalTrust probe failed) — nothing is changed.</summary>
+    SkipModeUntrusted,
 }
 
 /// <summary>Pure decision rules from docs/research/gaming_tweaks.md §1 and §C (unit-tested).</summary>
@@ -90,6 +97,27 @@ public static class BoostPolicy
     public static PowerPlanAction Decide(PowerPlanAction plan, PowerPlanAction mode) =>
         PlanFallsBackToMode(plan) && mode != PowerPlanAction.SkipUnavailable ? mode : plan;
 
+    /// <summary>
+    /// <see cref="Decide(PowerPlanAction, PowerPlanAction)"/> plus the state of the mode itself: the mode is switched only when
+    /// the current AC mode was read and is one of the three documented GUIDs — otherwise there is no exact undo to record, so
+    /// the decision is a skip that says so (<see cref="ModeProblem"/>). The other skips (energy saver, battery…) stay as they are.
+    /// </summary>
+    public static PowerPlanAction Decide(PowerPlanAction plan, PowerPlanAction mode, Guid? currentMode)
+    {
+        var action = Decide(plan, mode);
+        return action == PowerPlanAction.SwitchPowerMode ? ModeProblem(currentMode) ?? action : action;
+    }
+
+    /// <summary>
+    /// Why the current AC power mode cannot be the original of a session record: null (unreadable) →
+    /// <see cref="PowerPlanAction.SkipModeUnreadable"/>; a GUID that is not Balanced / Best efficiency / Best performance →
+    /// <see cref="PowerPlanAction.SkipModeUnknown"/>; a documented mode → null (fine).
+    /// </summary>
+    public static PowerPlanAction? ModeProblem(Guid? currentMode) =>
+        currentMode is not { } m ? PowerPlanAction.SkipModeUnreadable
+        : !TweakCatalog.IsDocumentedPowerMode(m) ? PowerPlanAction.SkipModeUnknown
+        : null;
+
     /// <summary>The plan decisions that mean "cannot be switched here" rather than "must not": the mode is tried instead.</summary>
     public static bool PlanFallsBackToMode(PowerPlanAction plan) =>
         plan is PowerPlanAction.SkipLaptop or PowerPlanAction.SkipModernStandby or PowerPlanAction.SkipUnavailable;
@@ -107,9 +135,11 @@ public static class BoostPolicy
     /// <summary>
     /// One-line explanation of the decision for the panel and the confirmation dialog. <paramref name="currentMode"/> is the
     /// current AC power mode in words (for <see cref="PowerPlanAction.SwitchPowerMode"/>); <paramref name="laptop"/> adds the
-    /// battery note there — a desktop never reads about batteries or «на ноутбуке».
+    /// battery note there — a desktop never reads about batteries or «на ноутбуке». <paramref name="windows11"/> picks the
+    /// laptop reason: on Windows 10 the mode does not exist at all, on Windows 11 it needs a Balanced-personality plan.
     /// </summary>
-    public static string Describe(PowerPlanAction action, string currentName, string cpuName, string? currentMode = null, bool laptop = false) => action switch
+    public static string Describe(PowerPlanAction action, string currentName, string cpuName, string? currentMode = null, bool laptop = false,
+        bool windows11 = true) => action switch
     {
         PowerPlanAction.Switch => $"{SwitchPrefix}«{currentName}» → «Высокая производительность». Возвращается после игры.",
         PowerPlanAction.SwitchPowerMode => $"{SwitchModePrefix}«{Cap(currentMode ?? "текущий")}» → «Максимальная производительность» (схема остаётся сбалансированной). " +
@@ -117,7 +147,8 @@ public static class BoostPolicy
         PowerPlanAction.SkipDisabled => "План питания не меняется (выключено).",
         PowerPlanAction.SkipDualCcdX3D => $"{SkipPrefix}{Short(cpuName)} — X3D с двумя CCD, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.",
         PowerPlanAction.SkipOnBattery => $"{SkipPrefix}ноутбук работает от батареи.",
-        // Reached only when the power mode is not available either: Windows 10 or a plan that is not Balanced-personality.
+        // Reached only when the power mode is not available either: Windows 10, or a plan that is not Balanced-personality.
+        PowerPlanAction.SkipLaptop when !windows11 => $"{SkipPrefix}на ноутбуке MONOLITH меняет только режим питания, а он есть только в Windows 11.",
         PowerPlanAction.SkipLaptop => $"{SkipPrefix}на ноутбуке MONOLITH меняет только режим питания Windows 11 на сбалансированной схеме — включите её в «Оптимизации».",
         PowerPlanAction.SkipModernStandby => $"{SkipPrefix}на ПК с Modern Standby доступна только «Сбалансированная» схема, а режим питания «Максимальная производительность» MONOLITH включает только в Windows 11.",
         PowerPlanAction.SkipManagedElsewhere => $"{SkipPrefix}он уже изменён MONOLITH в разделе «Оптимизация».",
@@ -126,6 +157,9 @@ public static class BoostPolicy
         PowerPlanAction.SkipEnergySaver => $"{SkipPrefix}включено энергосбережение — Windows не даёт выбрать режим «Максимальная производительность». Отключите его в Параметрах → Питание.",
         PowerPlanAction.SkipModeAlreadyFast => $"{SkipPrefix}режим питания от сети уже «Максимальная производительность».",
         PowerPlanAction.SkipModeManagedElsewhere => $"{SkipPrefix}режим питания уже изменён MONOLITH в разделе «Оптимизация».",
+        PowerPlanAction.SkipModeUnreadable => $"{SkipPrefix}не удалось прочитать текущий режим питания Windows — без него нет точного отката.",
+        PowerPlanAction.SkipModeUnknown => $"{SkipPrefix}Windows сообщила неизвестный режим питания — MONOLITH его не меняет.",
+        PowerPlanAction.SkipModeUntrusted => $"{SkipPrefix}журнал MONOLITH не принял бы отмену смены режима питания — ничего не меняется.",
         _ => $"{SkipPrefix}схемы «Высокая производительность» на этом ПК нет, а режим питания MONOLITH меняет только в Windows 11 на сбалансированной схеме.",
     };
 

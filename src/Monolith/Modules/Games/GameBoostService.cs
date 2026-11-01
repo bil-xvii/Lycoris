@@ -116,14 +116,22 @@ public sealed partial class GameBoostService : ObservableObject
                 dualCcd,
                 onBattery,
                 sp.IsWindows11,
-                active != Guid.Empty && PowerSchemes.IsBalancedPersonality(active) && currentMode is not null,
+                active != Guid.Empty && PowerSchemes.IsBalancedPersonality(active),
                 IsEnergySaverOn(),
                 currentMode == TweakCatalog.PowerModeBestPerformance,
                 modeManagedElsewhere);
         }
-        var action = BoostPolicy.Decide(plan, mode);
-        var modeName = currentMode is { } m ? TweakCatalog.DescribePowerMode(m) : null;
-        return (action, BoostPolicy.Describe(action, activeName, sp.CpuName, modeName, sp.IsLaptop));
+        // An unreadable or undocumented current mode is a skip here already — the confirmation never promises a switch that
+        // SwitchPowerModeAsync would refuse (and never shows a raw GUID as the "current mode").
+        var action = BoostPolicy.Decide(plan, mode, currentMode);
+        // No change without an undo the journal will accept later: probe the record shape before anything is promised.
+        if (action == PowerPlanAction.SwitchPowerMode && currentMode is { } probe && PowerModeUntrusted(probe) is { } refusal)
+        {
+            Log.Warn($"Игровой сеанс: журнал не принял бы отмену смены режима питания ({refusal}) — режим не меняется.");
+            action = PowerPlanAction.SkipModeUntrusted;
+        }
+        var modeName = currentMode is { } m && TweakCatalog.IsDocumentedPowerMode(m) ? TweakCatalog.DescribePowerMode(m) : null;
+        return (action, BoostPolicy.Describe(action, activeName, sp.CpuName, modeName, sp.IsLaptop, sp.IsWindows11));
     }
 
     /// <summary>
@@ -142,6 +150,27 @@ public sealed partial class GameBoostService : ObservableObject
             $"от сети: {TweakCatalog.DescribePowerMode(current)}", $"от сети: {TweakCatalog.DescribePowerMode(TweakCatalog.PowerModeBestPerformance)}",
             PowerModeTitle);
     }
+
+    /// <summary>
+    /// The session's power-mode record exactly as <see cref="ChangeSession.RunCommandAsync"/> stores it (Target with the "cmd:"
+    /// prefix, no account: the AC mode is machine-wide). Used as the JournalTrust probe before any change and by the tests.
+    /// </summary>
+    internal static ChangeRecord PowerModeRecord(Guid current)
+    {
+        var c = PowerModeCommand(current);
+        return new ChangeRecord
+        {
+            Source = Source, Title = c.Title, Kind = ChangeKind.Command, Target = "cmd:" + c.Target,
+            OldValue = c.OldValue, NewValue = c.NewValue, RevertFile = c.RevertFile, RevertArgs = c.RevertArgs,
+        };
+    }
+
+    /// <summary>
+    /// Null when the journal accepts the undo of a session mode record whose original is <paramref name="current"/> (one of the
+    /// three documented modes); otherwise the refusal. Checked before the mode is promised and again before it is written, so a
+    /// build whose journal rules do not know this record can never leave «Максимальная производительность» behind.
+    /// </summary>
+    internal static string? PowerModeUntrusted(Guid current) => JournalTrust.Check(PowerModeRecord(current));
 
     /// <summary>Energy saver (battery saver) is on: SYSTEM_POWER_STATUS.SystemStatusFlag = 1. Windows then ignores the performance mode.</summary>
     private static bool IsEnergySaverOn()
@@ -296,9 +325,14 @@ public sealed partial class GameBoostService : ObservableObject
     {
         var work = Task.Run(async () =>
         {
+            // The plan was decided from a snapshot: re-check everything the record depends on right before writing.
             var current = TweakCatalog.ReadAcPowerMode();
             if (current is not { } from || !TweakCatalog.IsDocumentedPowerMode(from))
                 return (false, "", "Windows сообщила неизвестный режим питания — MONOLITH его не меняет.");
+            if (from == TweakCatalog.PowerModeBestPerformance)
+                return (false, TweakCatalog.DescribePowerMode(from), "режим питания от сети уже «Максимальная производительность» — ничего не изменено.");
+            if (PowerModeUntrusted(from) is { } refusal)
+                return (false, "", $"журнал не принял бы отмену такого изменения ({refusal}) — ничего не изменено.");
             var cmd = PowerModeCommand(from);
             var session = await ChangeSession.BeginAsync(SessionTitle, createRestorePoint: false).ConfigureAwait(false);
             var ok = await session.RunCommandAsync(cmd.Target, cmd.File, cmd.Args, cmd.RevertFile, cmd.RevertArgs,
