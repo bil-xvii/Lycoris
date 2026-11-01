@@ -47,12 +47,16 @@
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
     </Style>
 
-    <!-- Small uppercase label: section captions, table headers, tags -->
+    <!--
+        Minimum sizes (Obvious UI, 01.11): labels and captions 12, tags 11, mono 11.5, glyphs inside buttons 12–13.
+        No FontSize below 11 anywhere; below 12 only tags and service mono lines.
+    -->
+    <!-- Small uppercase label: section captions, table headers -->
     <Style x:Key="T.Label" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontStretch" Value="SemiCondensed" />
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
     </Style>
 
@@ -71,7 +75,7 @@
 
     <Style x:Key="T.Caption" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
