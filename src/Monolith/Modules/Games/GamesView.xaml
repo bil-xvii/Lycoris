@@ -496,7 +496,7 @@
                                         <TextBlock Text="{Binding PowerNote}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding Settings.GameBoostPowerPlan}"
-                                              VerticalAlignment="Top" Margin="0,10,0,0" ToolTip="«Высокая производительность» на время игры" />
+                                              VerticalAlignment="Top" Margin="0,10,0,0" ToolTip="На настольном ПК — схема «Высокая производительность», на ноутбуке и ПК с Modern Standby — режим питания «Максимальная производительность» от сети; только на время игры" />
                                 </Grid>
                                 <Grid Margin="0,10,0,0">
                                     <Grid.ColumnDefinitions>
@@ -576,7 +576,7 @@
                                         <Setter Property="Text" Value="Или нажмите «С УСКОРЕНИЕМ» на карточке игры: режим включится вместе с игрой и выключится, когда вы из неё выйдете." />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Boost.IsActive}" Value="True">
-                                                <Setter Property="Text" Value="Схема питания вернётся к прежней, приоритет игры — к обычному. Закрытые программы откройте сами, если они нужны." />
+                                                <Setter Property="Text" Value="Схема или режим питания вернётся к прежнему, приоритет игры — к обычному. Закрытые программы откройте сами, если они нужны." />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

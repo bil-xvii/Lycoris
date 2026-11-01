@@ -4,10 +4,13 @@ using Monolith.Core;
 
 namespace Monolith.Modules.Games;
 
-/// <summary>What Game Boost does with the power plan for this session.</summary>
+/// <summary>What Game Boost does with the power plan (or the Windows 11 power mode) for this session.</summary>
 public enum PowerPlanAction
 {
+    /// <summary>Activate the «Высокая производительность» plan.</summary>
     Switch,
+    /// <summary>Keep the plan, set the AC power mode to «Максимальная производительность» (laptops, Modern Standby, no High performance plan).</summary>
+    SwitchPowerMode,
     SkipDisabled,
     SkipDualCcdX3D,
     SkipOnBattery,
@@ -17,6 +20,12 @@ public enum PowerPlanAction
     SkipAlreadyFast,
     SkipUnavailable,
     SkipUnknownHardware,
+    /// <summary>Windows refuses the «Максимальная производительность» mode while energy saver is on.</summary>
+    SkipEnergySaver,
+    /// <summary>The AC power mode is already «Максимальная производительность».</summary>
+    SkipModeAlreadyFast,
+    /// <summary>An Optimize item holds the AC power mode (an active "powermode:ac" record of another source).</summary>
+    SkipModeManagedElsewhere,
 }
 
 /// <summary>Pure decision rules from docs/research/gaming_tweaks.md §1 and §C (unit-tested).</summary>
@@ -30,8 +39,10 @@ public static class BoostPolicy
         !string.IsNullOrEmpty(cpuName) && cpuName.Contains("X3D", StringComparison.OrdinalIgnoreCase) && cores >= 12;
 
     /// <remarks>
-    /// Laptops are never switched (gaming_tweaks.md: «Высокая производительность» is SAFE-OPTIONAL for desktops only,
-    /// the same rule as the Optimize tweak's AppliesTo): the plan would also stay on after unplugging mid-game.
+    /// The plan itself is switched on desktops only (gaming_tweaks.md: «Высокая производительность» is SAFE-OPTIONAL for
+    /// desktops, the same rule as the Optimize tweak's AppliesTo): on a laptop it would also stay on after unplugging
+    /// mid-game. Where the plan cannot be switched (laptop, Modern Standby, no High performance plan) the session falls
+    /// back to the Windows 11 power mode — see <see cref="Decide"/> / <see cref="DecidePowerMode"/>.
     /// </remarks>
     public static PowerPlanAction DecidePowerPlan(bool enabled, bool dualCcdX3D, bool onBattery, bool laptop, bool modernStandby,
         bool managedByOtherChange, bool highPerformanceExists, bool alreadyFast)
@@ -47,21 +58,78 @@ public static class BoostPolicy
         return PowerPlanAction.Switch;
     }
 
-    /// <summary>One-line explanation of the decision for the panel and the confirmation dialog.</summary>
-    public static string Describe(PowerPlanAction action, string currentName, string cpuName) => action switch
+    /// <summary>
+    /// The Windows 11 power mode («Максимальная производительность», AC only; gaming_tweaks.md §2 C): the plan stays, so it
+    /// is the lever on laptops, Modern Standby PCs and PCs without a High performance plan — desktops included. Only the
+    /// AC mode is set, so unplugging mid-game falls back to the user's own battery mode by itself.
+    /// </summary>
+    /// <returns>
+    /// <see cref="PowerPlanAction.SwitchPowerMode"/> or the matching skip. <see cref="PowerPlanAction.SkipUnavailable"/>
+    /// stands for "the mode does not exist here" (Windows 10, or a plan that is not Balanced-personality); <see cref="Decide"/>
+    /// replaces it with the plan's own reason.
+    /// </returns>
+    public static PowerPlanAction DecidePowerMode(bool enabled, bool dualCcdX3D, bool onBattery, bool windows11, bool balancedPersonalityPlan,
+        bool energySaverOn, bool acModeAlreadyBestPerformance, bool managedByOtherChange)
     {
-        PowerPlanAction.Switch => $"План питания: «{currentName}» → «Высокая производительность». Возвращается после игры.",
+        if (!enabled) return PowerPlanAction.SkipDisabled;
+        if (dualCcdX3D) return PowerPlanAction.SkipDualCcdX3D;
+        if (onBattery) return PowerPlanAction.SkipOnBattery;
+        if (!windows11 || !balancedPersonalityPlan) return PowerPlanAction.SkipUnavailable;
+        if (energySaverOn) return PowerPlanAction.SkipEnergySaver;
+        if (acModeAlreadyBestPerformance) return PowerPlanAction.SkipModeAlreadyFast;
+        if (managedByOtherChange) return PowerPlanAction.SkipModeManagedElsewhere;
+        return PowerPlanAction.SwitchPowerMode;
+    }
+
+    /// <summary>
+    /// The session's power action: the plan switch where it is allowed; where the plan is skipped only because it cannot be
+    /// switched here (<see cref="PowerPlanAction.SkipLaptop"/>, <see cref="PowerPlanAction.SkipModernStandby"/>,
+    /// <see cref="PowerPlanAction.SkipUnavailable"/>) the power-mode decision takes over. When the mode does not exist
+    /// either, the plan's own reason is reported — so a desktop is never told «на ноутбуке».
+    /// </summary>
+    public static PowerPlanAction Decide(PowerPlanAction plan, PowerPlanAction mode) =>
+        PlanFallsBackToMode(plan) && mode != PowerPlanAction.SkipUnavailable ? mode : plan;
+
+    /// <summary>The plan decisions that mean "cannot be switched here" rather than "must not": the mode is tried instead.</summary>
+    public static bool PlanFallsBackToMode(PowerPlanAction plan) =>
+        plan is PowerPlanAction.SkipLaptop or PowerPlanAction.SkipModernStandby or PowerPlanAction.SkipUnavailable;
+
+    /// <summary>True when the session changes something (the plan or the mode).</summary>
+    public static bool IsSwitch(PowerPlanAction action) => action is PowerPlanAction.Switch or PowerPlanAction.SwitchPowerMode;
+
+    /// <summary>Prefix of every skip text; the panel and the session log strip it.</summary>
+    public const string SkipPrefix = "План питания не меняется: ";
+    /// <summary>Prefix of the plan-switch text.</summary>
+    public const string SwitchPrefix = "План питания: ";
+    /// <summary>Prefix of the mode-switch text.</summary>
+    public const string SwitchModePrefix = "Режим питания от сети: ";
+
+    /// <summary>
+    /// One-line explanation of the decision for the panel and the confirmation dialog. <paramref name="currentMode"/> is the
+    /// current AC power mode in words (for <see cref="PowerPlanAction.SwitchPowerMode"/>); <paramref name="laptop"/> adds the
+    /// battery note there — a desktop never reads about batteries or «на ноутбуке».
+    /// </summary>
+    public static string Describe(PowerPlanAction action, string currentName, string cpuName, string? currentMode = null, bool laptop = false) => action switch
+    {
+        PowerPlanAction.Switch => $"{SwitchPrefix}«{currentName}» → «Высокая производительность». Возвращается после игры.",
+        PowerPlanAction.SwitchPowerMode => $"{SwitchModePrefix}«{Cap(currentMode ?? "текущий")}» → «Максимальная производительность» (схема остаётся сбалансированной). " +
+                                           "Возвращается после игры" + (laptop ? "; от батареи ничего не меняется." : "."),
         PowerPlanAction.SkipDisabled => "План питания не меняется (выключено).",
-        PowerPlanAction.SkipDualCcdX3D => $"План питания не меняется: {Short(cpuName)} — X3D с двумя CCD, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.",
-        PowerPlanAction.SkipOnBattery => "План питания не меняется: ноутбук работает от батареи.",
-        PowerPlanAction.SkipLaptop => "План питания не меняется: на ноутбуке «Высокая производительность» сильнее греет и быстрее разряжает батарею. " +
-                                      "Для игр выберите режим питания «Максимальная производительность» в параметрах Windows (Система › Питание).",
-        PowerPlanAction.SkipModernStandby => "План питания не меняется: на ПК с Modern Standby доступна только «Сбалансированная» схема.",
-        PowerPlanAction.SkipManagedElsewhere => "План питания не меняется: он уже изменён MONOLITH в разделе «Оптимизация».",
-        PowerPlanAction.SkipAlreadyFast => $"План питания не меняется: «{currentName}» уже включена.",
-        PowerPlanAction.SkipUnknownHardware => "План питания не меняется: не удалось определить, ноутбук это или ПК. Нажмите «ОБНОВИТЬ» позже.",
-        _ => "План питания не меняется: схемы «Высокая производительность» на этом ПК нет.",
+        PowerPlanAction.SkipDualCcdX3D => $"{SkipPrefix}{Short(cpuName)} — X3D с двумя CCD, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.",
+        PowerPlanAction.SkipOnBattery => $"{SkipPrefix}ноутбук работает от батареи.",
+        // Reached only when the power mode is not available either: Windows 10 or a plan that is not Balanced-personality.
+        PowerPlanAction.SkipLaptop => $"{SkipPrefix}на ноутбуке MONOLITH меняет только режим питания Windows 11 на сбалансированной схеме — включите её в «Оптимизации».",
+        PowerPlanAction.SkipModernStandby => $"{SkipPrefix}на ПК с Modern Standby доступна только «Сбалансированная» схема, а режим питания «Максимальная производительность» MONOLITH включает только в Windows 11.",
+        PowerPlanAction.SkipManagedElsewhere => $"{SkipPrefix}он уже изменён MONOLITH в разделе «Оптимизация».",
+        PowerPlanAction.SkipAlreadyFast => $"{SkipPrefix}«{currentName}» уже включена.",
+        PowerPlanAction.SkipUnknownHardware => $"{SkipPrefix}не удалось определить, ноутбук это или ПК. Нажмите «ОБНОВИТЬ» позже.",
+        PowerPlanAction.SkipEnergySaver => $"{SkipPrefix}включено энергосбережение — Windows не даёт выбрать режим «Максимальная производительность». Отключите его в Параметрах → Питание.",
+        PowerPlanAction.SkipModeAlreadyFast => $"{SkipPrefix}режим питания от сети уже «Максимальная производительность».",
+        PowerPlanAction.SkipModeManagedElsewhere => $"{SkipPrefix}режим питания уже изменён MONOLITH в разделе «Оптимизация».",
+        _ => $"{SkipPrefix}схемы «Высокая производительность» на этом ПК нет, а режим питания MONOLITH меняет только в Windows 11 на сбалансированной схеме.",
     };
+
+    private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     private static string Short(string cpu) =>
         string.IsNullOrWhiteSpace(cpu) ? "процессор" : cpu.Replace("AMD ", "", StringComparison.OrdinalIgnoreCase).Replace(" Processor", "", StringComparison.OrdinalIgnoreCase).Trim();

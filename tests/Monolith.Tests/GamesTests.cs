@@ -3,6 +3,7 @@ using Microsoft.Win32;
 using Monolith.Core;
 using Monolith.Modules.Games;
 using Monolith.Modules.Games.Sources;
+using Monolith.Tweaks;
 
 namespace Monolith.Tests;
 
@@ -505,82 +506,7 @@ public sealed class GamesTests
     [InlineData("VALORANT-Win64-Shipping", false)]
     public void Game_helpers_are_not_taken_for_the_game(string name, bool helper) => Assert.Equal(helper, GameProcessFinder.IsHelper(name));
 
-    // ───────────────────────────── Boost rules ─────────────────────────────
-
-    [Theory]
-    [InlineData("AMD Ryzen 9 7950X3D 16-Core Processor", 16, true)]
-    [InlineData("AMD Ryzen 9 9900X3D 12-Core Processor", 12, true)]
-    [InlineData("AMD Ryzen 7 9800X3D 8-Core Processor", 8, false)]
-    [InlineData("AMD Ryzen 7 5800X3D 8-Core Processor", 8, false)]
-    [InlineData("AMD Ryzen 9 5900X 12-Core Processor", 12, false)]
-    [InlineData("Intel(R) Core(TM) i9-14900K", 24, false)]
-    [InlineData("", 16, false)]
-    public void Dual_ccd_x3d_detection(string cpu, int cores, bool dual) => Assert.Equal(dual, BoostPolicy.IsDualCcdX3D(cpu, cores));
-
-    [Fact]
-    public void Power_plan_switches_only_when_every_rule_allows_it()
-    {
-        Assert.Equal(PowerPlanAction.Switch, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipDisabled, BoostPolicy.DecidePowerPlan(false, false, false, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, false, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(true, false, true, false, false, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipModernStandby, BoostPolicy.DecidePowerPlan(true, false, false, false, true, false, true, false));
-        Assert.Equal(PowerPlanAction.SkipAlreadyFast, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, true, true));
-        Assert.Equal(PowerPlanAction.SkipManagedElsewhere, BoostPolicy.DecidePowerPlan(true, false, false, false, false, true, true, false));
-        Assert.Equal(PowerPlanAction.SkipUnavailable, BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, false, false));
-    }
-
-    [Fact]
-    public void Laptop_on_ac_is_never_switched_to_high_performance()
-    {
-        Assert.Equal(PowerPlanAction.SkipLaptop, BoostPolicy.DecidePowerPlan(true, false, false, true, false, false, true, false));
-        // On battery the more specific reason is reported.
-        Assert.Equal(PowerPlanAction.SkipOnBattery, BoostPolicy.DecidePowerPlan(true, false, true, true, false, false, true, false));
-        Assert.Contains("ноутбук", BoostPolicy.Describe(PowerPlanAction.SkipLaptop, "x", ""));
-        // Unknown hardware has its own honest reason (never "на ноутбуке" on a desktop).
-        Assert.DoesNotContain("на ноутбуке", BoostPolicy.Describe(PowerPlanAction.SkipUnknownHardware, "x", ""));
-        Assert.Contains("не удалось определить", BoostPolicy.Describe(PowerPlanAction.SkipUnknownHardware, "x", ""));
-    }
-
-    [Fact]
-    public void Dual_ccd_x3d_wins_over_every_other_reason()
-    {
-        // Even on battery and with the setting on, the X3D rule is the one reported.
-        Assert.Equal(PowerPlanAction.SkipDualCcdX3D, BoostPolicy.DecidePowerPlan(true, true, true, true, true, true, false, true));
-    }
-
-    [Fact]
-    public void Power_descriptions_are_specific()
-    {
-        Assert.Contains("«Сбалансированная» → «Высокая производительность»", BoostPolicy.Describe(PowerPlanAction.Switch, "Сбалансированная", ""));
-        Assert.Contains("Ryzen 9 7950X3D 16-Core", BoostPolicy.Describe(PowerPlanAction.SkipDualCcdX3D, "x", "AMD Ryzen 9 7950X3D 16-Core Processor"));
-        Assert.Contains("батареи", BoostPolicy.Describe(PowerPlanAction.SkipOnBattery, "x", ""));
-    }
-
-    [Fact]
-    public void Boost_plan_lists_exactly_what_will_happen()
-    {
-        var plan = new BoostPlan(PowerPlanAction.Switch, "План питания: A → B.",
-            [new RunningApp("Discord", "", 3, 0, true), new RunningApp("chrome", "", 1, 0, true)], [], true, false);
-        var game = Game("steam:730", "Counter-Strike 2", GamePlatform.Steam, @"D:\cs2");
-        var lines = plan.Describe(game);
-        Assert.Equal("План питания: A → B.", lines[0]);
-        Assert.Contains(lines, l => l.Contains("Discord (3), chrome") && l.Contains("принудительное завершение — только после отдельного вопроса"));
-        Assert.Contains(lines, l => l.Contains("«Высокий»") && l.Contains("никогда «Реального времени»"));
-        Assert.DoesNotContain(lines, l => l.Contains("standby"));
-        Assert.Contains(lines, l => l.Contains("«Counter-Strike 2»"));
-    }
-
-    [Fact]
-    public void Manual_session_plan_without_game_mentions_stop_button()
-    {
-        var plan = new BoostPlan(PowerPlanAction.SkipDisabled, "План питания не меняется (выключено).", [], [], false, true);
-        var lines = plan.Describe(null);
-        Assert.Contains(lines, l => l.Contains("список закрытия пуст"));
-        Assert.Contains(lines, l => l.Contains("standby"));
-        Assert.Contains(lines, l => l.Contains("«СТОП»"));
-        Assert.DoesNotContain(lines, l => l.Contains("Приоритет"));
-    }
+    // Boost power rules (plan / Windows 11 power mode decisions and their texts) live in BoostPolicyTests.cs.
 
     // ───────────────────────────── Readiness ─────────────────────────────
 
@@ -869,9 +795,9 @@ public sealed class GamesTests
     public void Stale_session_toast_counts_only_what_really_came_back()
     {
         Assert.Equal("Исходные настройки возвращены (изменений: 1).", GameBoostService.StaleRevertedText(new RevertResult(1, 0, [])));
-        Assert.Equal("Запись игрового сеанса закрыта, система не изменена: план питания задаёт более позднее изменение, оно остаётся.",
+        Assert.Equal("Запись игрового сеанса закрыта, система не изменена: настройку питания задаёт более позднее изменение, оно остаётся.",
             GameBoostService.StaleRevertedText(new RevertResult(1, 0, []) { HandedOver = 1 }));
-        Assert.StartsWith("Исходные настройки возвращены (изменений: 1); план питания",
+        Assert.StartsWith("Исходные настройки возвращены (изменений: 1); настройку питания",
             GameBoostService.StaleRevertedText(new RevertResult(2, 0, []) { HandedOver = 1 }));
     }
 
@@ -883,6 +809,77 @@ public sealed class GamesTests
         Assert.Null(GameBoostService.KeptPlanNote(new RevertResult(1, 0, []) { HandedOver = 1 }, null));
         Assert.Equal("План питания остаётся «Сбалансированная» — его выбрали во время сеанса («Сбалансированная схема питания»).",
             GameBoostService.KeptPlanNote(new RevertResult(1, 0, []) { HandedOver = 1 }, tweak));
+
+        // The same note for a power mode chosen in Optimize while the session held the mode.
+        var modeTweak = new ChangeRecord
+        {
+            Source = "tweak:power-mode-best-efficiency-ac", Title = "Режим питания «Максимальная эффективность» от сети", Kind = ChangeKind.Command,
+            Target = "cmd:" + GameBoostService.PowerModeTarget, OldValue = "от сети: максимальная производительность", NewValue = "от сети: максимальная эффективность",
+        };
+        Assert.Equal("Режим питания остаётся «от сети: максимальная эффективность» — его выбрали во время сеанса («Режим питания «Максимальная эффективность» от сети»).",
+            GameBoostService.KeptPlanNote(new RevertResult(1, 0, []) { HandedOver = 1 }, modeTweak));
+    }
+
+    // ───────────────────────────── Power mode record (Windows 11, AC only) ─────────────────────────────
+
+    /// <summary>The session's power-mode record exactly as ChangeSession.RunCommandAsync stores it (Target gets the "cmd:" prefix).</summary>
+    private static ChangeRecord PowerModeRecord(Guid current)
+    {
+        var c = GameBoostService.PowerModeCommand(current);
+        return new ChangeRecord
+        {
+            Source = GameBoostService.Source, Title = c.Title, Kind = ChangeKind.Command, Target = "cmd:" + c.Target,
+            OldValue = c.OldValue, NewValue = c.NewValue, RevertFile = c.RevertFile, RevertArgs = c.RevertArgs,
+        };
+    }
+
+    [Fact]
+    public void Game_session_power_mode_command_is_the_catalog_command_with_an_exact_undo()
+    {
+        foreach (var current in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency })
+        {
+            var c = GameBoostService.PowerModeCommand(current);
+            Assert.Equal("powermode:ac", c.Target);
+            Assert.Equal(TweakCatalog.PowerShellExe, c.File);
+            Assert.Equal(TweakCatalog.PowerShellExe, c.RevertFile);
+            // Apply sets Best performance; undo is the very script the Optimize power-mode items record for the original mode.
+            Assert.Equal(TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBestPerformance)), c.Args);
+            Assert.Equal(TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(current)), c.RevertArgs);
+            Assert.Contains($"[Guid]'{current:D}'", TweakCatalog.DecodePowerShellArgs(c.RevertArgs));
+            Assert.Equal($"от сети: {TweakCatalog.DescribePowerMode(current)}", c.OldValue);
+            Assert.Equal("от сети: максимальная производительность", c.NewValue);
+            Assert.Equal("Игровой сеанс: режим питания", c.Title);
+        }
+        // Only the three documented modes can be the original: anything else is refused before any change.
+        Assert.Throws<ArgumentException>(() => GameBoostService.PowerModeCommand(Guid.NewGuid()));
+        // The record is the same shape as the Optimize items', so the stale-session texts work on it.
+        var r = PowerModeRecord(TweakCatalog.PowerModeBalanced);
+        Assert.Equal(["Игровой сеанс: режим питания: от сети: максимальная производительность → от сети: сбалансированный"],
+            GameBoostService.StaleLines([r], _ => null));
+    }
+
+    /// <summary>
+    /// JournalTrust rule (c), written by the power/journal worker of this wave: a Command record from source "gameboost" is
+    /// accepted for the target powermode:ac only, with the undo rebuilt from one of the three documented GUIDs — the record
+    /// built here through the real catalog code. Until that rule is merged, JournalTrust expects only PowerScheme records
+    /// from "gameboost" and this test fails.
+    /// </summary>
+    [Fact]
+    public void Game_session_power_mode_record_is_trusted_by_the_journal()
+    {
+        foreach (var current in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency, TweakCatalog.PowerModeBestPerformance })
+            Assert.Null(JournalTrust.Check(PowerModeRecord(current)));
+
+        // Tampered undo (an extra command) and any other command target from this source stay refused.
+        var tampered = PowerModeRecord(TweakCatalog.PowerModeBalanced);
+        tampered.RevertArgs = TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced) + ";Start-Process calc");
+        Assert.NotNull(JournalTrust.Check(tampered));
+        var other = new ChangeRecord
+        {
+            Source = GameBoostService.Source, Title = "t", Kind = ChangeKind.Command, Target = "cmd:tcp-autotuning",
+            RevertFile = ProcessRunner.Sys("netsh.exe"), RevertArgs = TweakCatalog.TcpAutotuningArgs(TweakCatalog.TcpAutotuningLevels[0]),
+        };
+        Assert.NotNull(JournalTrust.Check(other));
     }
 }
 
