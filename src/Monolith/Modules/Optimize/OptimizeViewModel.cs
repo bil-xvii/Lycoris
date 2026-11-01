@@ -28,6 +28,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private readonly Dictionary<TweakCategory, SectionRow> _sections = [];
     private readonly Dictionary<OptimizeProfile, HashSet<string>> _profileDefaults = [];
     private readonly HashSet<string> _acceptedExpert = new(StringComparer.Ordinal);
+    /// <summary>Tweak ids whose pending dependency is being evaluated right now (UI thread): guards against a Requires cycle.</summary>
+    private readonly HashSet<string> _dependencyWalk = new(StringComparer.Ordinal);
     private readonly ProfilesRow _profilesRow;
     private readonly FilterRow _filterRow;
     private readonly EmptyRow _emptyRow;
@@ -253,6 +255,20 @@ public sealed partial class OptimizeViewModel : PageViewModel
         OnPropertyChanged(nameof(TotalCount));
     }
 
+    /// <summary>Test hook: the defaults of a profile for a synthetic catalog (the real ones come from <see cref="TweakCatalog.DefaultsFor"/>).</summary>
+    internal void SetProfileDefaults(OptimizeProfile profile, IEnumerable<string> ids)
+    {
+        _profileDefaults[profile] = ids.ToHashSet(StringComparer.Ordinal);
+        UpdateCounts();
+    }
+
+    /// <summary>Test hook: counts as if detection has finished (tile «изменений» figures are shown only then).</summary>
+    internal void MarkDetected()
+    {
+        _detected = true;
+        UpdateCounts();
+    }
+
     // ───────────────────────────── Detection ─────────────────────────────
 
     /// <summary>Reads the current state of every tweak off the UI thread, plus which ones MONOLITH can undo.</summary>
@@ -377,9 +393,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
     internal void EnforceExclusive(TweakItemViewModel item)
     {
         if (item.Tweak.ExclusiveGroup is null || !item.IsChecked) return;
+        var ids = OptimizeLogic.MembersToUncheck(item.Tweak, _items.Select(i => (i.Tweak, i.IsChecked))).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var other in _items)
         {
-            if (other.IsChecked && item.Tweak.SharesGroupWith(other.Tweak)) other.SetChecked(false);
+            if (ids.Contains(other.Id)) other.SetChecked(false);
         }
     }
 
@@ -414,12 +431,27 @@ public sealed partial class OptimizeViewModel : PageViewModel
         foreach (var i in dependents) i.NotifyDependencyChanged();
     }
 
-    /// <summary>The first tweak <paramref name="item"/> requires that is checked and pending in this same apply, or null.</summary>
+    /// <summary>
+    /// The first tweak <paramref name="item"/> requires that is checked and pending in this same apply, or null. «Pending»
+    /// follows the chain (the dependency may itself be pending only through its own dependency); a tweak already on the
+    /// walk is never pending through itself, so a Requires cycle in a catalog ends here instead of in a stack overflow.
+    /// </summary>
     internal TweakItemViewModel? PendingDependencyOf(TweakItemViewModel item)
     {
-        var id = OptimizeLogic.PendingDependency(item.Tweak, rid => FindItem(rid) is { IsPending: true });
-        return id is null ? null : FindItem(id);
+        if (!_dependencyWalk.Add(item.Id)) return null;
+        try
+        {
+            var id = OptimizeLogic.PendingDependency(item.Tweak, IsPendingRow);
+            return id is null ? null : FindItem(id);
+        }
+        finally
+        {
+            _dependencyWalk.Remove(item.Id);
+        }
     }
+
+    /// <summary>Whether the row with this id is checked and will change in this apply (unknown ids are not pending).</summary>
+    internal bool IsPendingRow(string id) => FindItem(id) is { IsPending: true };
 
     private TweakItemViewModel? FindItem(string id) => _items.FirstOrDefault(i => i.Id == id);
 
@@ -456,8 +488,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
     /// <summary>The checkbox of an expert tweak was clicked: show its warning first.</summary>
     internal async Task ConfirmExpertAsync(TweakItemViewModel item)
     {
-        if (!item.IsApplicable) return;
+        if (!item.IsApplicableNow) return;
         var details = OptimizeLogic.PlannedChanges(item.Tweak).Select(c => $"{c.Target} → {c.NewValue}").ToList();
+        if (item.PendingDependency is { } dependency) details.Add(OptimizeLogic.DependencyNote(dependency.Title));
         if (item.HasRestart) details.Add($"После применения {item.Tweak.RestartText}.");
         var ok = await Ui.ConfirmAsync("ЭКСПЕРТНАЯ НАСТРОЙКА",
             $"«{item.Title}». {item.Description}\n\n{item.WarningText}",
@@ -473,9 +506,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
     internal void ToggleSection(SectionRow section)
     {
         // Expert items need their own warning, data-loss items must be picked one by one: bulk select skips both.
-        var selectable = section.Items.Where(i => i.IsApplicable && !i.IsAdvanced && !i.HasDataLoss).ToList();
+        var selectable = section.Items.Where(SectionRow.IsSelectable).ToList();
         if (selectable.Count == 0) return;
-        var check = !selectable.All(i => i.IsChecked);
+        var check = !OptimizeLogic.AllSelected(selectable.Select(i => (i.Tweak, i.IsChecked)).ToList());
         foreach (var i in selectable) i.SetChecked(check);
         // One member per group (the first in catalog order), then dependents the pending members make applicable.
         EnforceExclusiveGroups();
@@ -578,9 +611,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
             var defaults = DefaultsOf(tile.Kind);
             var members = tile.Kind == OptimizeProfile.Custom
                 ? _items.Where(i => i.IsChecked).ToList()
-                : _items.Where(i => defaults.Contains(i.Id) && i.IsApplicable && !i.IsAdvanced).ToList();
+                : _items.Where(i => !i.IsAdvanced && OptimizeLogic.IsProfileMember(i.Tweak, i.IsApplicable, defaults,
+                    rid => FindItem(rid) is { IsApplicable: true, IsAdvanced: false, State: { } s } && OptimizeLogic.WillChange(s))).ToList();
             tile.Total = members.Count;
-            tile.ToChange = _detected ? members.Count(i => i.WillChange) : null;
+            // A member that is not applicable on its own is there through its dependency: selecting the profile changes it too.
+            tile.ToChange = _detected ? members.Count(i => i.WillChange || !i.IsApplicable) : null;
             tile.Applied = _detected ? members.Count(i => i.IsApplied) : null;
         }
 

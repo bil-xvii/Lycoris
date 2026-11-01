@@ -102,6 +102,25 @@ public sealed partial class OptimizeViewModel
 
         var chosen = plan.Selected.ToHashSet(StringComparer.Ordinal);
         foreach (var i in _items) i.SetChecked(chosen.Contains(i.Id) && i.IsApplicable && !i.IsAdvanced && !i.HasDataLoss);
+        // Same rules as a profile tile: one checked member per exclusive group (a file may list two — hand-edited or from an
+        // older build), then dependent rows the file lists that are applicable only through a now-pending dependency.
+        EnforceExclusiveGroups();
+        var listed = data.Ids.ToHashSet(StringComparer.Ordinal);
+        foreach (var i in _items)
+        {
+            if (i.IsApplicable || i.Tweak.Requires.Count == 0) continue;
+            i.SetChecked(listed.Contains(i.Id) && i.IsApplicableNow && !i.IsAdvanced && !i.HasDataLoss);
+        }
+        EnforceExclusiveGroups();
+        SyncDependents();
+        // Report what is actually checked: a dependent kept through its dependency is selected, not «не подходит».
+        var checkedIds = _items.Where(i => i.IsChecked).Select(i => i.Id).ToHashSet(StringComparer.Ordinal);
+        var surplus = plan.Selected.Where(id => !checkedIds.Contains(id)).ToList();
+        plan = plan with
+        {
+            Selected = plan.Selected.Where(checkedIds.Contains).Concat(plan.NotApplicable.Where(checkedIds.Contains)).ToList(),
+            NotApplicable = plan.NotApplicable.Where(id => !checkedIds.Contains(id)).ToList(),
+        };
         Profile = OptimizeProfile.Custom;
         UpdateTileSelection();
         RememberCustomSelection();
@@ -115,6 +134,7 @@ public sealed partial class OptimizeViewModel
         AddGroup(details, "НЕИЗВЕСТНЫЕ", plan.Unknown, id => id);
         AddGroup(details, "НЕ ПОДХОДЯТ ЭТОМУ ПК", plan.NotApplicable, TitleOf);
         AddGroup(details, "ТРЕБУЮТ РУЧНОГО ВЫБОРА", plan.Manual, TitleOf);
+        AddGroup(details, "ВЗАИМОИСКЛЮЧАЮЩИЕ — ОСТАВЛЕН ПЕРВЫЙ ПУНКТ ГРУППЫ", surplus, TitleOf);
 
         var message = OptimizeProfileFile.Summary(plan) +
                       " Ничего не применено — проверьте список и нажмите «ПРИМЕНИТЬ»." +

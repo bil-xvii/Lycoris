@@ -43,11 +43,10 @@ public static class TweakEngine
     public static async Task<TweakRunResult> ApplyAsync(IReadOnlyList<Tweak> tweaks, string title, IProgress<string>? progress = null)
     {
         var sp = await SystemProfile.LoadAsync().ConfigureAwait(false);
-        var ordered = OrderForApply(tweaks);
         return await Task.Run(async () =>
         {
             var session = await ChangeSession.BeginAsync(title, createRestorePoint: true, progress).ConfigureAwait(false);
-            var (skipped, restart, skippedReasons, skippedIds) = ApplyInSession(session, ordered, sp, progress);
+            var (skipped, restart, skippedReasons, skippedIds) = ApplyInSession(session, tweaks, sp, progress); // ordered inside
             session.Complete();
             return new TweakRunResult(session.Applied, skipped, session.Errors, session.Batch.RestorePoint, restart)
             {
@@ -97,6 +96,32 @@ public static class TweakEngine
     }
 
     /// <summary>
+    /// Ids of tweaks whose <see cref="Tweak.Requires"/> chain leads back to themselves (A → B → A), in input order; empty
+    /// when the dependency graph is acyclic. Pure. A cycle must never exist in the catalog: the Optimize page follows the
+    /// chain to decide whether a dependent row is pending, and <see cref="OrderForApply"/> cannot place its members.
+    /// </summary>
+    public static IReadOnlyList<string> RequiresCycles(IEnumerable<Tweak> tweaks)
+    {
+        var byId = new Dictionary<string, Tweak>(StringComparer.Ordinal);
+        foreach (var t in tweaks) byId.TryAdd(t.Id, t);
+        var inCycle = new List<string>();
+        foreach (var start in byId.Values)
+        {
+            // Depth-first from each tweak: reaching the start again through Requires means it sits on a cycle.
+            var stack = new Stack<string>(start.Requires);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            while (stack.Count > 0)
+            {
+                var id = stack.Pop();
+                if (id == start.Id) { inCycle.Add(start.Id); break; }
+                if (!seen.Add(id) || !byId.TryGetValue(id, out var t)) continue;
+                foreach (var r in t.Requires) stack.Push(r);
+            }
+        }
+        return inCycle;
+    }
+
+    /// <summary>
     /// The line for a tweak skipped because its dependency did not apply: «{title}: зависит от «{dependency}», которое не
     /// применилось». The dependency named is the first of <see cref="Tweak.Requires"/> found in the batch, else in the catalog.
     /// </summary>
@@ -118,11 +143,13 @@ public static class TweakEngine
     /// <summary>
     /// Applies tweaks inside a session the caller opened and completes (a page that applies tweaks together with its own
     /// changes in one batch — «Устройства и сеть» → АВТОНАСТРОЙКА). Same rules as <see cref="ApplyAsync"/>: each tweak with
-    /// its own source "tweak:&lt;id&gt;", inapplicable ones skipped. Blocking: call off the UI thread.
+    /// its own source "tweak:&lt;id&gt;", inapplicable ones skipped. The batch is applied in <see cref="OrderForApply"/> order
+    /// whatever order the caller collected it in (plan switches first, dependencies before dependents). Blocking: call off the UI thread.
     /// </summary>
     public static (int Skipped, RestartRequirement Restart, List<string> SkippedReasons, HashSet<string> SkippedIds) ApplyInSession(
         ChangeSession session, IReadOnlyList<Tweak> tweaks, SystemProfile sp, IProgress<string>? progress = null)
     {
+        tweaks = OrderForApply(tweaks);
         int skipped = 0;
         var skippedReasons = new List<string>();
         var skippedIds = new HashSet<string>(StringComparer.Ordinal);

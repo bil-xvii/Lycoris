@@ -98,9 +98,35 @@ internal static class OptimizeLogic
     public static string? PendingDependency(Tweak tweak, Func<string, bool> isPending) =>
         tweak.Requires.FirstOrDefault(isPending);
 
+    /// <summary>
+    /// Whether a row can be checked and applied now: its own detection says applicable (not NotApplicable), or it is
+    /// NotApplicable but one of the tweaks it requires is checked and pending in the same apply.
+    /// </summary>
+    public static bool IsApplicableNow(TweakState? state, Tweak tweak, Func<string, bool> isPending) =>
+        state != TweakState.NotApplicable || PendingDependency(tweak, isPending) is not null;
+
+    /// <summary>
+    /// A default row counts for a profile tile when it is applicable, or when it depends on another default of the same
+    /// profile that will be pending once the profile is selected (ApplySelection then checks it via the dependency).
+    /// </summary>
+    public static bool IsProfileMember(Tweak tweak, bool applicable, IReadOnlySet<string> defaults, Func<string, bool> defaultWillBePending) =>
+        defaults.Contains(tweak.Id) && (applicable || tweak.Requires.Any(r => defaults.Contains(r) && defaultWillBePending(r)));
+
     /// <summary>Other members of the tweak's exclusive group among <paramref name="tweaks"/>, in their order.</summary>
     public static IReadOnlyList<Tweak> ExclusivePeers(Tweak tweak, IEnumerable<Tweak> tweaks) =>
         tweak.ExclusiveGroup is null ? [] : tweaks.Where(tweak.SharesGroupWith).ToList();
+
+    /// <summary>The checked members of <paramref name="checkedNow"/>'s exclusive group that must be unchecked because it was just checked.</summary>
+    public static IReadOnlyList<Tweak> MembersToUncheck(Tweak checkedNow, IEnumerable<(Tweak Tweak, bool IsChecked)> rows) =>
+        rows.Where(r => r.IsChecked && checkedNow.SharesGroupWith(r.Tweak)).Select(r => r.Tweak).ToList();
+
+    /// <summary>
+    /// True when the section's selectable rows are "all selected" for the header checkbox: every row is checked, or belongs
+    /// to an exclusive group one of whose members is checked (a group can never have more than one checked member, so the
+    /// header must not stay indeterminate — nor re-select on the second click — because of the others).
+    /// </summary>
+    public static bool AllSelected(IReadOnlyCollection<(Tweak Tweak, bool IsChecked)> rows) =>
+        rows.Count > 0 && rows.All(r => r.IsChecked || rows.Any(p => p.IsChecked && r.Tweak.SharesGroupWith(p.Tweak)));
 
     /// <summary>
     /// The members of each exclusive group to uncheck so that at most one stays checked: the first in catalog order

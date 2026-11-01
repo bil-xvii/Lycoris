@@ -86,8 +86,8 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// selected; the engine applies it after the dependency.
     /// </summary>
     public bool DependencySatisfiedByPending => State == TweakState.NotApplicable && PendingDependency is not null;
-    /// <summary>Can be checked and applied right now: applicable, or made applicable by a pending dependency.</summary>
-    public bool IsApplicableNow => IsApplicable || DependencySatisfiedByPending;
+    /// <summary>Can be checked and applied right now: applicable, or made applicable by a pending dependency (<see cref="OptimizeLogic.IsApplicableNow"/>).</summary>
+    public bool IsApplicableNow => OptimizeLogic.IsApplicableNow(State, Tweak, _owner.IsPendingRow);
     public bool WillChange => State is { } s && (OptimizeLogic.WillChange(s) || DependencySatisfiedByPending);
     public bool IsPending => IsChecked && WillChange;
 
