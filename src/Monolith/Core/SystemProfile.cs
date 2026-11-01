@@ -79,6 +79,8 @@ public sealed class SystemProfile
     public bool HasBattery { get; private set; }
     public bool IsLaptop => HasBattery || ChassisIsPortable;
     private bool ChassisIsPortable { get; set; }
+    /// <summary>Modern Standby (S0 low-power idle, SYSTEM_POWER_CAPABILITIES.AoAc): only the Balanced plan exists there. Read-only fact.</summary>
+    public bool IsModernStandby { get; private set; }
 
     public string Manufacturer { get; private set; } = "";
     public string Model { get; private set; } = "";
@@ -329,10 +331,25 @@ public sealed class SystemProfile
             BiosVersion = mo["SMBIOSBIOSVersion"]?.ToString() ?? "";
     }
 
+    /// <summary>
+    /// general_tweaks.md §11: a laptop battery is SystemBatteriesPresent &amp;&amp; !BatteriesAreShortTerm (short-term batteries
+    /// are UPS batteries). Win32_Battery alone is unreliable — a USB UPS shows up there — so it is only the fallback when
+    /// GetPwrCapabilities fails.
+    /// </summary>
     private void ReadBattery()
     {
+        var caps = PowerSchemes.ReadCapabilities();
+        IsModernStandby = caps?.ModernStandby == true;
+        if (caps is { } c)
+        {
+            HasBattery = BatteryFromCaps(c.SystemBatteriesPresent, c.BatteriesAreShortTerm);
+            return;
+        }
         HasBattery = Query("battery", "SELECT Name FROM Win32_Battery").Any();
     }
+
+    /// <summary>Pure: a system battery that is not a short-term (UPS) battery.</summary>
+    public static bool BatteryFromCaps(bool present, bool shortTerm) => present && !shortTerm;
 
     /// <summary>WMI query; a failure (incl. timeout) marks <paramref name="section"/> as unknown and returns what was read.</summary>
     private List<ManagementBaseObject> Query(string section, string wql, string scope = @"\\.\root\cimv2")
