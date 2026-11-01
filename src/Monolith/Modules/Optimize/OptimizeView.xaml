@@ -156,7 +156,8 @@
 
         <!-- ═══════════════ Row templates (picked by type) ═══════════════ -->
 
-        <!-- Profile tiles -->
+        <!-- Scenario tiles: one row, one radio group. Six tiles fit the window's MinWidth (1120): the title and the counters may
+             wrap there, the description stays one trimmed line and the full story is the tooltip (Hint). -->
         <DataTemplate DataType="{x:Type local:ProfilesRow}">
             <StackPanel Margin="0,0,10,0">
                 <Grid Margin="0,0,0,8">
@@ -165,14 +166,14 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="ПРОФИЛЬ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                    <TextBlock Text="СЦЕНАРИЙ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
                     <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="9,0" />
                     <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource T.Label}">
                         <Run Text="СЕЙЧАС ПРИМЕНЕНО" /><Run Text="  " /><Run Text="{Binding Page.AppliedSummary, Mode=OneWay}" FontFamily="{StaticResource F.Mono}"
                              Foreground="{StaticResource B.Text}" />
                     </TextBlock>
                 </Grid>
-                <ItemsControl ItemsSource="{Binding Page.Profiles}" Margin="-4,0" Focusable="False">
+                <ItemsControl ItemsSource="{Binding Page.Profiles}" Margin="-3,0" Focusable="False">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <UniformGrid Rows="1" />
@@ -180,20 +181,23 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <RadioButton Style="{StaticResource Tile}" Margin="4,0" Padding="9,9,9,9" GroupName="OptimizeProfile"
-                                         IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding SelectCommand}" ToolTip="{Binding Hint}">
-                                <StackPanel Margin="0,0,11,0">
-                                    <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource Tile}" Margin="3,0" Padding="8,8,8,9" GroupName="OptimizeProfile"
+                                         IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding SelectCommand}" ToolTip="{Binding Hint}"
+                                         ToolTipService.ShowDuration="30000" VerticalContentAlignment="Top">
+                                <StackPanel>
+                                    <!-- Title + badge; the badge drops under the title (flush left) when the tile is narrow: the gap is the title's right margin.
+                                         The corner mark of the Tile style needs the right 14 px. -->
+                                    <WrapPanel Margin="0,0,14,0">
                                         <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}" FontWeight="Bold"
-                                                   FontSize="14.5" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                        <Border Style="{StaticResource Tag.Muted}" Margin="8,0,0,0" Padding="5,0,5,1" VerticalAlignment="Center"
+                                                   FontSize="13.5" Foreground="{StaticResource B.Text}" TextWrapping="Wrap" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                        <Border Style="{StaticResource Tag.Muted}" Margin="0,1,0,1" Padding="5,0,5,1" VerticalAlignment="Center"
                                                 Visibility="{Binding Badge, Converter={StaticResource NullToVis}}">
                                             <TextBlock Text="{Binding Badge}" FontSize="9.5" />
                                         </Border>
-                                    </StackPanel>
+                                    </WrapPanel>
                                     <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
                                                Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}">
+                                    <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" TextWrapping="Wrap">
                                         <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run
                                              Text=" к изменению · " /><Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run
                                              Text=" применено" />

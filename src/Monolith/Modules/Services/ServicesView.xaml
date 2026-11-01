@@ -444,15 +444,16 @@
         <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
-                    <!-- The one profile picker: recommendations + Microsoft tasks -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0" ToolTip="{Binding ProfileDescription}"
+                    <!-- The one profile picker: recommendations + Microsoft tasks. It follows the Optimize scenario (ProfileCaption);
+                         only the three services sets exist here — a scenario is chosen on the Optimize page. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0" ToolTip="{Binding ProfileTooltip}"
                                 Visibility="{Binding ShowProfilePicker, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="ПРОФИЛЬ" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,4,0" />
-                        <RadioButton Style="{StaticResource Segment}" GroupName="SvcProfile" Content="ОБЫЧНЫЙ"
+                        <RadioButton Style="{StaticResource Segment}" GroupName="SvcProfile" Content="РАБОТА И УЧЁБА"
                                      IsChecked="{Binding SelectedProfile, Converter={StaticResource Equals}, ConverterParameter=Normal}" />
                         <RadioButton Style="{StaticResource Segment}" GroupName="SvcProfile" Content="РЕКОМЕНДУЕМЫЙ"
                                      IsChecked="{Binding SelectedProfile, Converter={StaticResource Equals}, ConverterParameter=Recommended}" />
-                        <RadioButton Style="{StaticResource Segment}" GroupName="SvcProfile" Content="ИГРОВОЙ"
+                        <RadioButton Style="{StaticResource Segment}" GroupName="SvcProfile" Content="ИГРЫ"
                                      IsChecked="{Binding SelectedProfile, Converter={StaticResource Equals}, ConverterParameter=Gaming}" />
                     </StackPanel>
                     <Button Command="{Binding RefreshCommand}" ToolTip="Перечитать автозапуск, службы и задачи">
@@ -518,7 +519,8 @@
                                    ToolTip="Где можно, MONOLITH ставит «Вручную» — такая служба запустится сама, когда понадобится. Пункты с целью «Отключена» не запустятся вовсе — отмечайте их, только если условие про вас.">
                             <Run Text="К изменению" /> <Run Text="{Binding ToChangeCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=" · оптимально" />
                             <Run Text="{Binding OptimalCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=" · изменено MONOLITH" />
-                            <Run Text="{Binding ChangedCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=". Отключение служб не прибавляет FPS: выигрыш — память и меньше фоновой активности. Работающие службы не останавливаются." />
+                            <Run Text="{Binding ChangedCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=". " /><Run
+                                 Text="{Binding ProfileCaption, Mode=OneWay}" /><Run Text=" Отключение служб не прибавляет FPS: выигрыш — память и меньше фоновой активности. Работающие службы не останавливаются." />
                         </TextBlock>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <TextBlock VerticalAlignment="Center" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" Margin="0,0,9,0">

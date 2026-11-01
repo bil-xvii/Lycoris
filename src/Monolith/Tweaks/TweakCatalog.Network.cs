@@ -1,4 +1,4 @@
-﻿using System.Management;
+using System.Management;
 using System.Net;
 using System.Text;
 using Monolith.Core;

@@ -216,7 +216,7 @@ public static partial class TweakCatalog
                       "если игра не распознана, отметьте её в Game Bar (Win+G) как игру. Прежняя схема возвращается при откате.",
             Category = TweakCategory.Power,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Normal | ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Efficiency,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming | ProfileSet.Efficiency,
             ExclusiveGroup = TweakGroups.PowerPlan,
             AppliesTo = IsDualCcdX3D,
             NotApplicableReason = "Только для AMD Ryzen X3D с двумя CCD (7900X3D, 7950X3D, 9900X3D, 9950X3D).",

@@ -1,4 +1,4 @@
-﻿using Monolith.Core;
+using Monolith.Core;
 
 namespace Monolith.Tweaks;
 

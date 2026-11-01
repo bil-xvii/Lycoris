@@ -42,7 +42,7 @@ public sealed partial class OptimizeViewModel
 
         var path = dlg.FileName;
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
-        var json = OptimizeProfileFile.Serialize(ids, CurrentTile.SentenceName, version, DateTimeOffset.UtcNow);
+        var json = OptimizeProfileFile.Serialize(ids, CurrentTile.SentenceName, version, DateTimeOffset.UtcNow, Profile);
         try
         {
             // The user picked the folder, so the file inherits that folder's permissions and stays readable for them.
@@ -131,6 +131,9 @@ public sealed partial class OptimizeViewModel
         if (data.Name is not null) details.Add($"Профиль: «{data.Name}»" +
             (data.Created is { } c ? $", создан {c.ToLocalTime():dd.MM.yyyy HH:mm}" : "") +
             (data.AppVersion is not null ? $", MONOLITH {data.AppVersion}" : ""));
+        // The file remembers the tile it was exported from; the set still lands in «Свой набор» (it may differ from today's defaults).
+        if (data.Scenario is { } scenario)
+            details.Add($"Сохранён из сценария «{OptimizeLogic.ScenarioName(scenario, _laptop)}» — здесь он открыт как «Свой набор».");
         AddGroup(details, "НЕИЗВЕСТНЫЕ", plan.Unknown, id => id);
         AddGroup(details, "НЕ ПОДХОДЯТ ЭТОМУ ПК", plan.NotApplicable, TitleOf);
         AddGroup(details, "ТРЕБУЮТ РУЧНОГО ВЫБОРА", plan.Manual, TitleOf);

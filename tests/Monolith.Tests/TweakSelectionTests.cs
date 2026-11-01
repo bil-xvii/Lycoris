@@ -356,6 +356,49 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void Efficiency_tile_joins_the_row_only_with_a_member_beyond_a_plan_switch_and_takes_the_laptop_title()
+    {
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]), Tweak("n"));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "mode"]);
+        Assert.False(vm.IsEfficiencyTileVisible, "before detection the hardware facts are unknown");
+        Assert.Equal(5, vm.Profiles.Count);
+
+        // Windows 10 shape: the plan is already Balanced, the power mode does not exist → nothing would get quieter.
+        Row(vm, "plan").State = TweakState.Applied;
+        Row(vm, "mode").State = TweakState.NotApplicable;
+        Row(vm, "n").State = TweakState.NotApplied;
+        vm.MarkDetected();
+        Assert.False(vm.IsEfficiencyTileVisible);
+
+        // The mode is applicable (Windows 11 on Balanced): the tile appears in catalog order, between «Стриминг» and «Свой набор».
+        Row(vm, "mode").State = TweakState.NotApplied;
+        vm.MarkDetected();
+        Assert.True(vm.IsEfficiencyTileVisible);
+        Assert.Equal([OptimizeProfile.Recommended, OptimizeProfile.Gaming, OptimizeProfile.Normal, OptimizeProfile.Streaming, OptimizeProfile.Efficiency, OptimizeProfile.Custom],
+            vm.Profiles.Select(t => t.Kind).ToArray());
+        var tile = vm.Profiles.Single(t => t.Kind == OptimizeProfile.Efficiency);
+        Assert.Equal("ТИХИЙ ПК", tile.Title);
+        Assert.Equal(2, tile.Total);
+        Assert.Equal(1, tile.ToChange);
+
+        // The mode on High performance (not applicable on its own) still counts through its pending dependency.
+        Row(vm, "plan").State = TweakState.NotApplied;
+        Row(vm, "mode").State = TweakState.NotApplicable;
+        vm.MarkDetected(laptop: true);
+        Assert.True(vm.IsEfficiencyTileVisible);
+        Assert.Equal("НОУТБУК: АВТОНОМНОСТЬ", tile.Title);
+        Assert.Equal("Ноутбук: автономность", tile.SentenceName);
+        Assert.Equal(2, tile.ToChange);
+
+        // Unknown hardware facts (a WMI failure) hide it again, and a selected efficiency scenario falls back to the default one.
+        vm.SelectProfile(OptimizeProfile.Efficiency);
+        Assert.Equal(OptimizeProfile.Efficiency, vm.Profile);
+        vm.MarkDetected(hardwareFactsKnown: false);
+        Assert.False(vm.IsEfficiencyTileVisible);
+        Assert.Equal(OptimizeProfile.Recommended, vm.Profile);
+    }
+
+    [Fact]
     public void A_requires_cycle_does_not_overflow_the_view_model()
     {
         var vm = Page(Tweak("a", requires: ["b"]), Tweak("b", requires: ["a"]));
