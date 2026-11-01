@@ -463,10 +463,14 @@ public static class ServiceCatalog
         _ => null,
     };
 
+    /// <summary>
+    /// The three services profiles, named like the Optimize scenarios they follow («Работа и учёба» = Normal, «Игры» = Gaming;
+    /// «Стриминг и запись» maps onto Gaming, the efficiency scenario onto Recommended — OptimizeLogic.ServicesProfileFor).
+    /// </summary>
     public static string ProfileTitle(ProfileSet profile) => profile switch
     {
-        ProfileSet.Normal => "ОБЫЧНЫЙ",
-        ProfileSet.Gaming => "ИГРОВОЙ",
+        ProfileSet.Normal => "РАБОТА И УЧЁБА",
+        ProfileSet.Gaming => "ИГРЫ",
         _ => "РЕКОМЕНДУЕМЫЙ",
     };
 

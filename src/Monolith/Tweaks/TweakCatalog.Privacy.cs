@@ -1,4 +1,4 @@
-﻿using System.ServiceProcess;
+using System.ServiceProcess;
 using Monolith.Core;
 
 namespace Monolith.Tweaks;

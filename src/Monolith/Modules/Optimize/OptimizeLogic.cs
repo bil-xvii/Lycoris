@@ -77,12 +77,12 @@ internal static class OptimizeLogic
     /// <summary>One short line under the tile title (trimmed to the tile width; the full story is the tooltip).</summary>
     public static string ScenarioDescription(OptimizeProfile profile, bool laptop) => profile switch
     {
-        OptimizeProfile.Normal => "Без рекламы, подсказок и ночных перезагрузок.",
+        OptimizeProfile.Normal => "Без рекламы и ночных перезагрузок.",
         OptimizeProfile.Gaming => "Приоритет игре, без фоновой записи.",
         OptimizeProfile.Recommended => "Безопасный баланс для любого ПК.",
-        OptimizeProfile.Streaming => "Без второго кодировщика и утечек в эфир.",
-        OptimizeProfile.Efficiency => laptop ? "Дольше от батареи, холоднее и тише." : "Тише и холоднее под лёгкой нагрузкой.",
-        _ => "Только то, что вы отметили сами.",
+        OptimizeProfile.Streaming => "Без второго кодировщика и утечек.",
+        OptimizeProfile.Efficiency => laptop ? "Дольше от батареи, тише." : "Тише и холоднее без нагрузки.",
+        _ => "Только то, что отметили сами.",
     };
 
     /// <summary>The tile tooltip: what the scenario does and what it deliberately does NOT touch.</summary>

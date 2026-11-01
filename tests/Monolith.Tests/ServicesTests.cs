@@ -140,6 +140,39 @@ public sealed class ServicesTests
     }
 
     [Fact]
+    public void Profile_titles_follow_the_optimize_scenario_names()
+    {
+        // Review #40: one wording across pages — the Optimize tiles say «Игры» and «Работа и учёба», so does this picker.
+        Assert.Equal("РАБОТА И УЧЁБА", ServiceCatalog.ProfileTitle(ProfileSet.Normal));
+        Assert.Equal("ИГРЫ", ServiceCatalog.ProfileTitle(ProfileSet.Gaming));
+        Assert.Equal("РЕКОМЕНДУЕМЫЙ", ServiceCatalog.ProfileTitle(ProfileSet.Recommended));
+        Assert.Equal("РЕКОМЕНДУЕМЫЙ", ServiceCatalog.ProfileTitle(ProfileSet.Streaming)); // only the three services sets have a title
+        foreach (var p in new[] { ProfileSet.Normal, ProfileSet.Gaming, ProfileSet.Recommended })
+            Assert.Matches("[А-Я]", ServiceCatalog.ProfileDescription(p));
+    }
+
+    [Fact]
+    public void Services_profile_follows_the_saved_scenario()
+    {
+        // Windows only (ServicesViewModel is WPF-bound). Streaming → the gaming services set; efficiency / custom → recommended.
+        Assert.Equal(ProfileSet.Normal, ServicesViewModel.ProfileFromScenario("Normal"));
+        Assert.Equal(ProfileSet.Gaming, ServicesViewModel.ProfileFromScenario("Streaming"));
+        Assert.Equal(ProfileSet.Gaming, ServicesViewModel.ProfileFromScenario("gaming"));
+        Assert.Equal(ProfileSet.Recommended, ServicesViewModel.ProfileFromScenario("Efficiency"));
+        Assert.Equal(ProfileSet.Recommended, ServicesViewModel.ProfileFromScenario("Custom"));
+        Assert.Equal(ProfileSet.Recommended, ServicesViewModel.ProfileFromScenario(null));
+        Assert.Equal(ProfileSet.Recommended, ServicesViewModel.ProfileFromScenario("2"));
+
+        Assert.Equal("Следует сценарию «Стриминг и запись» из раздела «Оптимизация».",
+            ServicesViewModel.ProfileCaptionFor(ProfileSet.Gaming, "Streaming", laptop: false));
+        Assert.Equal("Следует сценарию «Ноутбук: автономность» из раздела «Оптимизация».",
+            ServicesViewModel.ProfileCaptionFor(ProfileSet.Recommended, "Efficiency", laptop: true));
+        Assert.Equal("Выбран вручную; сценарию «Игры» из раздела «Оптимизация» соответствует профиль «Игры».",
+            ServicesViewModel.ProfileCaptionFor(ProfileSet.Normal, "Gaming", laptop: false));
+        Assert.StartsWith("Сценарий в разделе «Оптимизация» — «Свой набор»", ServicesViewModel.ProfileCaptionFor(ProfileSet.Gaming, "Custom", laptop: false));
+    }
+
+    [Fact]
     public void Every_group_has_a_title()
     {
         foreach (var g in Enum.GetValues<ServiceGroup>())
