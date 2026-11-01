@@ -153,6 +153,14 @@ public sealed record SystemSnapshot
     /// <summary>Sources that report a pending restart (empty = none).</summary>
     public IReadOnlyList<string> PendingReboot { get; init; } = [];
 
+    /// <summary>Installed Windows version (DisplayVersion, e.g. "25H2"). "" = unknown.</summary>
+    public string OsDisplayVersion { get; init; } = "";
+    /// <summary>
+    /// TargetReleaseVersionInfo of the Windows Update policy when TargetReleaseVersion = 1 — the version the PC is pinned to,
+    /// whoever set it (MONOLITH's «Остаться на текущей версии» or an administrator). Null = not pinned or unknown.
+    /// </summary>
+    public string? UpdatePinnedTo { get; init; }
+
     /// <summary>NTFS DisableDeleteNotify: true = TRIM off. Null = unknown.</summary>
     public bool? TrimDisabled { get; init; }
 
