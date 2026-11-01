@@ -56,7 +56,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// <summary>Detected state; null while detection is running.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StateKey), nameof(StateText), nameof(IsApplicable), nameof(WillChange), nameof(IsPending),
-        nameof(NotApplicableText), nameof(IsApplied))]
+        nameof(NotApplicableText), nameof(IsApplied), nameof(IsApplicableNow), nameof(DependencySatisfiedByPending), nameof(StatusNote))]
     private TweakState? _state;
 
     /// <summary>MONOLITH has an active journal entry for this tweak, so it can be undone.</summary>
@@ -80,18 +80,32 @@ public sealed partial class TweakItemViewModel : ObservableObject
     public string StateText => OptimizeLogic.StateText(State);
     public bool IsApplied => State == TweakState.Applied;
     public bool IsApplicable => State != TweakState.NotApplicable;
-    public bool WillChange => State is { } s && OptimizeLogic.WillChange(s);
+    /// <summary>
+    /// Not applicable by its own detection, but a tweak it requires (<see cref="Tweak.Requires"/>) is checked and pending
+    /// in the same apply — e.g. a power mode while the Balanced plan is about to be switched on. The row can then be
+    /// selected; the engine applies it after the dependency.
+    /// </summary>
+    public bool DependencySatisfiedByPending => State == TweakState.NotApplicable && PendingDependency is not null;
+    /// <summary>Can be checked and applied right now: applicable, or made applicable by a pending dependency.</summary>
+    public bool IsApplicableNow => IsApplicable || DependencySatisfiedByPending;
+    public bool WillChange => State is { } s && (OptimizeLogic.WillChange(s) || DependencySatisfiedByPending);
     public bool IsPending => IsChecked && WillChange;
 
-    public string? NotApplicableText => State == TweakState.NotApplicable
-        ? string.IsNullOrWhiteSpace(Tweak.NotApplicableReason)
-            ? "Не подходит для этого компьютера или этой версии Windows: нужного компонента нет в системе."
-            : Tweak.NotApplicableReason
-        : null;
+    /// <summary>The first required tweak that is checked and pending in this same apply, or null.</summary>
+    internal TweakItemViewModel? PendingDependency => _owner.PendingDependencyOf(this);
+
+    public string? NotApplicableText => State == TweakState.NotApplicable ? OptimizeLogic.NotApplicableText(Tweak) : null;
+
+    /// <summary>
+    /// The caption under the row: «Применится после «…»» while a dependency is pending, else the not-applicable reason,
+    /// null when the row is applicable.
+    /// </summary>
+    public string? StatusNote => OptimizeLogic.StatusNote(Tweak, State, PendingDependency?.Title);
 
     /// <summary>
     /// Bound two-way to the row's checkbox. Checking an expert tweak first shows its warning; until the user
-    /// accepts it the box stays unchecked. Not-applicable tweaks can't be checked.
+    /// accepts it the box stays unchecked. Not-applicable tweaks can't be checked (unless a dependency is pending).
+    /// Checking a member of an exclusive group unchecks the other members.
     /// </summary>
     public bool IsChecked
     {
@@ -99,7 +113,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
         set
         {
             if (_isChecked == value) return;
-            if (value && !IsApplicable)
+            if (value && !IsApplicableNow)
             {
                 RefreshCheckLater();
                 return;
@@ -111,8 +125,19 @@ public sealed partial class TweakItemViewModel : ObservableObject
                 return;
             }
             SetChecked(value);
+            if (value) _owner.EnforceExclusive(this);
             _owner.OnSelectionEditedByUser();
         }
+    }
+
+    /// <summary>A dependency or a group peer changed: re-read everything that depends on other rows.</summary>
+    internal void NotifyDependencyChanged()
+    {
+        OnPropertyChanged(nameof(DependencySatisfiedByPending));
+        OnPropertyChanged(nameof(IsApplicableNow));
+        OnPropertyChanged(nameof(WillChange));
+        OnPropertyChanged(nameof(IsPending));
+        OnPropertyChanged(nameof(StatusNote));
     }
 
     /// <summary>Programmatic selection (profiles, select-all, accepted warnings): no side effects.</summary>
