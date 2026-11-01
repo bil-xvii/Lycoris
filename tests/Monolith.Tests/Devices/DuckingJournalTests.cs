@@ -39,7 +39,7 @@ public sealed class DuckingJournalTests : IDisposable
     {
         // What DeviceApply.ApplyPlanAsync does for an OptimizeTweak row: TweakEngine in the page's own session.
         var session = await ChangeSession.BeginAsync("Устройства и сеть: автонастройка", createRestorePoint: false, journal: journal);
-        var (skipped, restart) = TweakEngine.ApplyInSession(session, [Tweak], new SystemProfile());
+        var (skipped, restart, _, _) = TweakEngine.ApplyInSession(session, [Tweak], new SystemProfile());
         session.Complete();
         Assert.Equal(0, skipped);
         Assert.Equal(RestartRequirement.SignOut, restart);
