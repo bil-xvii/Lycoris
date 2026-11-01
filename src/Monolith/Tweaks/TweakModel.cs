@@ -31,6 +31,19 @@ public enum RestartRequirement { None, Explorer, SignOut, Reboot }
 
 public enum TweakState { Unknown, NotApplied, Applied, Partial, NotApplicable }
 
+/// <summary>Names of <see cref="Tweak.ExclusiveGroup"/>: one group = one system target.</summary>
+public static class TweakGroups
+{
+    /// <summary>The active power plan (High performance / Ultimate / Balanced / Balanced on X3D).</summary>
+    public const string PowerPlan = "power-plan";
+    /// <summary>The Windows 11 power mode when plugged in.</summary>
+    public const string PowerModeAc = "power-mode-ac";
+    /// <summary>The Windows 11 power mode on battery.</summary>
+    public const string PowerModeDc = "power-mode-dc";
+    /// <summary>Hardware-accelerated GPU scheduling (HwSchMode).</summary>
+    public const string Hags = "hags";
+}
+
 /// <summary>Everything a tweak needs while applying itself.</summary>
 public sealed class TweakContext
 {
@@ -73,8 +86,24 @@ public abstract class Tweak
     public string? NotApplicableReason { get; init; }
     /// <summary>For Advanced tweaks: the warning the user must accept.</summary>
     public string? Warning { get; init; }
+    /// <summary>
+    /// Members of one group write the same target (the active power plan, the AC power mode, HwSchMode…), so only one
+    /// can be selected at a time: checking a member unchecks the others. Names in <see cref="TweakGroups"/>.
+    /// </summary>
+    public string? ExclusiveGroup { get; init; }
+    /// <summary>
+    /// Ids of tweaks this one depends on (e.g. a power mode needs the Balanced plan). Satisfied when ANY of them is
+    /// applied, or checked and pending in the same apply — then this row can be selected even while its own detection
+    /// says «not applicable», and the engine applies it after the dependency (re-detecting first).
+    /// </summary>
+    public IReadOnlyList<string> Requires { get; init; } = [];
 
     public bool IsApplicable(SystemProfile sp) => AppliesTo?.Invoke(sp) ?? true;
+
+    /// <summary>True when <paramref name="other"/> is another member of this tweak's <see cref="ExclusiveGroup"/>.</summary>
+    public bool SharesGroupWith(Tweak other) =>
+        ExclusiveGroup is not null && !ReferenceEquals(this, other) && other.Id != Id &&
+        string.Equals(ExclusiveGroup, other.ExclusiveGroup, StringComparison.Ordinal);
 
     /// <summary>Reads the current state from the system. Must be fast and side-effect free.</summary>
     public abstract TweakState Detect();

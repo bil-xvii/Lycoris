@@ -226,7 +226,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (_saveTimer.IsEnabled) FlushCustomSelection();
     }
 
-    private void BuildCatalog(IReadOnlyList<Tweak> tweaks)
+    /// <summary>The rows in catalog order (tests: selection rules with a synthetic catalog).</summary>
+    internal IReadOnlyList<TweakItemViewModel> Items => _items;
+
+    /// <summary>Builds the rows for <paramref name="tweaks"/> (internal so tests can load a synthetic catalog).</summary>
+    internal void BuildCatalog(IReadOnlyList<Tweak> tweaks)
     {
         _items.Clear();
         foreach (var t in tweaks) _items.Add(new TweakItemViewModel(t, this));
@@ -271,7 +275,16 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 {
                     i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
                     i.CanRevert = revertable.Contains(i.Id);
-                    if (!i.IsApplicable) i.SetChecked(false);
+                }
+                // Only after every state is known: a not-applicable row loses its check — unless it is a dependent row
+                // whose dependency is checked and pending (SyncDependents re-checks those once more, for chains).
+                foreach (var i in _items)
+                {
+                    if (i.IsChecked && !i.IsApplicableNow) i.SetChecked(false);
+                }
+                SyncDependents();
+                foreach (var i in _items)
+                {
                     if (i.IsExpanded) _ = LoadChangesAsync(i);
                 }
             });
@@ -333,7 +346,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private IReadOnlySet<string> DefaultsOf(OptimizeProfile profile) =>
         _profileDefaults.TryGetValue(profile, out var ids) ? ids : new HashSet<string>();
 
-    /// <summary>Checks exactly the given ids (not-applicable never; expert only if its warning was accepted this session).</summary>
+    /// <summary>
+    /// Checks exactly the given ids (not-applicable never — unless a tweak it requires is checked and pending in the same
+    /// set; expert only if its warning was accepted this session). At most one member per exclusive group stays checked.
+    /// </summary>
     private void ApplySelection(IReadOnlySet<string> ids)
     {
         foreach (var i in _items)
@@ -341,7 +357,71 @@ public sealed partial class OptimizeViewModel : PageViewModel
             var want = ids.Contains(i.Id) && i.IsApplicable && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id));
             i.SetChecked(want);
         }
+        EnforceExclusiveGroups();
+        // Second pass: dependent rows that are not applicable on their own but whose dependency is now pending.
+        foreach (var i in _items)
+        {
+            if (i.IsApplicable || i.Tweak.Requires.Count == 0) continue;
+            i.SetChecked(ids.Contains(i.Id) && i.IsApplicableNow && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id)));
+        }
+        EnforceExclusiveGroups();
+        SyncDependents();
     }
+
+    // ───────────────────────────── Exclusive groups & dependencies ─────────────────────────────
+
+    /// <summary>
+    /// <paramref name="item"/> was just checked: the other checked members of its exclusive group (same system target)
+    /// are unchecked, so one apply never writes two values to one target. Uses SetChecked — no re-entry into the setter.
+    /// </summary>
+    internal void EnforceExclusive(TweakItemViewModel item)
+    {
+        if (item.Tweak.ExclusiveGroup is null || !item.IsChecked) return;
+        foreach (var other in _items)
+        {
+            if (other.IsChecked && item.Tweak.SharesGroupWith(other.Tweak)) other.SetChecked(false);
+        }
+    }
+
+    /// <summary>After a bulk selection: at most one checked member per exclusive group (the first in catalog order stays).</summary>
+    internal void EnforceExclusiveGroups()
+    {
+        var surplus = OptimizeLogic.ExclusiveSurplus(_items.Where(i => i.IsChecked).Select(i => i.Tweak));
+        if (surplus.Count == 0) return;
+        var ids = surplus.Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var i in _items)
+        {
+            if (ids.Contains(i.Id)) i.SetChecked(false);
+        }
+    }
+
+    /// <summary>
+    /// Re-reads every dependent row (it shows «Применится после «…»» or the not-applicable reason) and unchecks the ones
+    /// whose dependency is no longer checked and pending. Repeats for chains until nothing changes.
+    /// </summary>
+    internal void SyncDependents()
+    {
+        var dependents = _items.Where(i => i.Tweak.Requires.Count > 0).ToList();
+        for (var guard = 0; guard <= dependents.Count; guard++)
+        {
+            var changed = false;
+            foreach (var i in dependents)
+            {
+                if (i.IsChecked && !i.IsApplicableNow) changed |= i.SetChecked(false);
+            }
+            if (!changed) break;
+        }
+        foreach (var i in dependents) i.NotifyDependencyChanged();
+    }
+
+    /// <summary>The first tweak <paramref name="item"/> requires that is checked and pending in this same apply, or null.</summary>
+    internal TweakItemViewModel? PendingDependencyOf(TweakItemViewModel item)
+    {
+        var id = OptimizeLogic.PendingDependency(item.Tweak, rid => FindItem(rid) is { IsPending: true });
+        return id is null ? null : FindItem(id);
+    }
+
+    private TweakItemViewModel? FindItem(string id) => _items.FirstOrDefault(i => i.Id == id);
 
     private void UpdateTileSelection()
     {
@@ -352,6 +432,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     internal void OnSelectionEditedByUser()
     {
         if (Profile != OptimizeProfile.Custom) Profile = OptimizeProfile.Custom;
+        SyncDependents();
         RememberCustomSelection();
         UpdateCounts();
     }
@@ -384,7 +465,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
             footnote: "Не входит ни в один профиль. Откат — кнопкой «ОТКАТИТЬ» или в «Восстановлении».");
         if (!ok) return;
         _acceptedExpert.Add(item.Id);
-        if (item.SetChecked(true)) OnSelectionEditedByUser();
+        if (!item.SetChecked(true)) return;
+        EnforceExclusive(item);
+        OnSelectionEditedByUser();
     }
 
     internal void ToggleSection(SectionRow section)
@@ -394,6 +477,16 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (selectable.Count == 0) return;
         var check = !selectable.All(i => i.IsChecked);
         foreach (var i in selectable) i.SetChecked(check);
+        // One member per group (the first in catalog order), then dependents the pending members make applicable.
+        EnforceExclusiveGroups();
+        if (check)
+        {
+            foreach (var i in section.Items)
+            {
+                if (!i.IsApplicable && !i.IsAdvanced && !i.HasDataLoss && i.IsApplicableNow) i.SetChecked(true);
+            }
+            EnforceExclusiveGroups();
+        }
         OnSelectionEditedByUser();
     }
 
@@ -598,13 +691,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
             await OfferRestartAsync(result.Restart);
     }
 
-    private static string DescribeForConfirm(TweakItemViewModel t)
+    private string DescribeForConfirm(TweakItemViewModel t)
     {
         var parts = new List<string> { t.Title };
         if (t.State == TweakState.Partial) parts[0] += " (сейчас применено частично)";
         parts.Add(t.RiskText.ToLowerInvariant());
         if (t.HasRestart) parts.Add(t.Tweak.RestartText);
         if (t.DataLossNote is { } loss) parts.Add(loss);
+        // Another member of the same group is applied by MONOLITH: this change gets its own journal layer on top of it,
+        // so undoing it brings that member's value back exactly.
+        if (OptimizeLogic.ReplacesNote(_items.Where(i => i.CanRevert && t.Tweak.SharesGroupWith(i.Tweak)).Select(i => i.Title)) is { } replaces)
+            parts.Add(replaces);
+        if (t.DependencySatisfiedByPending && t.PendingDependency is { } dependency) parts.Add($"после «{dependency.Title}»");
         return string.Join(" · ", parts);
     }
 
@@ -628,6 +726,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         };
         foreach (var t in targets)
         {
+            if (result.SkippedIds.Contains(t.Id)) continue; // listed below with the reason the engine gave
             lines.Add(t.State switch
             {
                 TweakState.Applied => $"ПРИМЕНЕНО — {t.Title}",
@@ -636,6 +735,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 _ => $"НЕ ПОДТВЕРЖДЕНО — {t.Title}",
             });
         }
+        lines.AddRange(result.SkippedReasons.Select(r => $"ПРОПУЩЕНО — {r}"));
         lines.AddRange(result.Errors.Select(e => $"ОШИБКА — {e}"));
 
         var verified = targets.Count(t => t.IsApplied);
@@ -643,6 +743,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var message = $"Подтверждено {verified} из {targets.Count} {OptimizeLogic.Plural(targets.Count, "пункта", "пунктов", "пунктов")}, " +
                       $"изменено параметров системы: {result.Applied}." +
                       (result.Skipped > 0 ? $" Пропущено как неподходящие для этого ПК: {result.Skipped}." : "") +
+                      (result.SkippedReasons.Count > 0 ? $" Пропущено из-за зависимостей: {result.SkippedReasons.Count}." : "") +
                       " Откатить можно кнопкой «ОТКАТИТЬ» у пункта или в разделе «Восстановление».";
         await Ui.AlertAsync(title, message, lines);
     }

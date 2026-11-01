@@ -56,7 +56,7 @@ public static class DeviceApply
             var sp = await SystemProfile.LoadAsync();
             restart = await Task.Run(() =>
             {
-                var (_, r) = TweakEngine.ApplyInSession(session, tweaks, sp, progress);
+                var (_, r, _, _) = TweakEngine.ApplyInSession(session, tweaks, sp, progress);
                 return r;
             }, CancellationToken.None);
             // Count by the live state afterwards: a tweak that did not end up applied is not reported as done.
