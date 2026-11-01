@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using Monolith.Core;
 using Monolith.Modules.Restore;
+using Monolith.Tweaks;
 
 namespace Monolith.Tests;
 
@@ -54,6 +55,45 @@ public sealed class RestoreLiveStateTests
         // Records from older builds did not capture the flag: only the start type is compared.
         var legacy = original with { RawDelayed = null };
         Assert.True(LiveState.CompareService(legacy, original with { RawDelayed = false }).Matches);
+    }
+
+    private static ChangeRecord PowerModeRecord(string target, string args) => new()
+    {
+        Source = "tweak:power-mode-best-performance", Title = "t", Kind = ChangeKind.Command, Target = target,
+        RevertFile = TweakCatalog.PowerShellExe, RevertArgs = args,
+    };
+
+    [Fact]
+    public void Power_mode_undo_script_yields_its_side_and_documented_guid()
+    {
+        foreach (var mode in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency, TweakCatalog.PowerModeBestPerformance })
+        {
+            var ac = JournalTrust.PowerModeUndo(PowerModeRecord("cmd:powermode:ac", TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(mode))));
+            Assert.Equal((false, mode), ac!.Value);
+            var dc = JournalTrust.PowerModeUndo(PowerModeRecord("cmd:powermode:dc", TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScriptDc(mode))));
+            Assert.Equal((true, mode), dc!.Value);
+        }
+        // Not a power-mode record, not a PowerShell line, an undocumented GUID: nothing to compare.
+        Assert.Null(JournalTrust.PowerModeUndo(PowerModeRecord("cmd:hibernate", TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced)))));
+        Assert.Null(JournalTrust.PowerModeUndo(PowerModeRecord("cmd:powermode:ac", TweakCatalog.CmdArgs("powercfg /hibernate on"))));
+        var foreign = TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced).Replace(TweakCatalog.PowerModeBalanced.ToString("D"), Guid.NewGuid().ToString("D"));
+        Assert.Null(JournalTrust.PowerModeUndo(PowerModeRecord("cmd:powermode:ac", TweakCatalog.PowerShellArgs(foreign))));
+        Assert.Null(JournalTrust.PowerModeUndo(new ChangeRecord
+        {
+            Source = "tweak:power-mode-best-performance", Title = "t", Kind = ChangeKind.PowerScheme, Target = "cmd:powermode:ac",
+            RevertFile = TweakCatalog.PowerShellExe, RevertArgs = TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced)),
+        }));
+    }
+
+    [Fact]
+    public void Power_mode_live_text_uses_the_records_wording()
+    {
+        Assert.Equal("от сети: максимальная производительность", LiveState.PowerModeText(false, TweakCatalog.PowerModeBestPerformance));
+        Assert.Equal("от батареи: максимальная эффективность", LiveState.PowerModeText(true, TweakCatalog.PowerModeBestEfficiency));
+        Assert.Equal("от сети: сбалансированный", LiveState.PowerModeText(false, TweakCatalog.PowerModeBalanced));
+        // The same text on both sides of the comparison is never drift; another mode is.
+        Assert.False(LiveState.IsDrift(ChangeKind.Command, "от сети: максимальная производительность", LiveState.PowerModeText(false, TweakCatalog.PowerModeBestPerformance)));
+        Assert.True(LiveState.IsDrift(ChangeKind.Command, "от сети: максимальная производительность", LiveState.PowerModeText(false, TweakCatalog.PowerModeBalanced)));
     }
 
     [Fact]

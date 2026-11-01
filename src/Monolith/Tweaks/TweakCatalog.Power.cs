@@ -4,6 +4,8 @@ namespace Monolith.Tweaks;
 
 /// <summary>
 /// Power plans and power settings (gaming_tweaks.md §1, §2 C; general_tweaks.md §6, §11).
+/// DC rule (general_tweaks.md §11, 01.11): the battery side is changed only in the saving direction (Best efficiency mode,
+/// shorter timeouts); AC items never call the DC setters; every DC item names its desktop counterpart.
 /// Ryzen X3D rules: a dual-CCD X3D always stays on Balanced (the 3D V-Cache driver needs it to steer games);
 /// PROCTHROTTLEMIN is never touched on any X3D; core parking is never touched at all.
 /// </summary>
@@ -22,6 +24,21 @@ public static partial class TweakCatalog
     private static readonly Guid HybridSleep = new("94ac6d29-73ce-41a6-809f-6363ba21b47e");
     /// <summary>RTCWAKE (Allow wake timers): 0 = disabled, 1 = enabled, 2 = important wake timers only.</summary>
     internal static readonly Guid WakeTimers = new("bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d");
+    /// <summary>STANDBYIDLE (Sleep after), seconds; 0 = never.</summary>
+    internal static readonly Guid StandbyIdle = new("29f6c1db-86da-48c5-9fdb-f2b67b1f44da");
+    internal static readonly Guid SubVideo = new("7516b95f-f776-4464-8c53-06167f40cc99");
+    /// <summary>VIDEOIDLE (Turn off display after), seconds; 0 = never.</summary>
+    internal static readonly Guid VideoIdle = new("3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e");
+
+    /// <summary>Microsoft's energy recommendations name 3 or 10 minutes «depending on the system»; these numbers are MONOLITH's choice.</summary>
+    internal const uint BatteryScreenOffSeconds = 180, BatterySleepSeconds = 600, AcScreenOffSeconds = 600, AcSleepSeconds = 1800;
+
+    private const string TimeoutsAdvice =
+        "Microsoft в «Рекомендациях по энергопотреблению» советует 3 или 10 минут (зависит от устройства); ";
+    private const string TimeoutsOnlyShorten =
+        "Пункт только сокращает время: если у вас уже короче — ничего не меняется. Воспроизведение видео и презентации удерживают " +
+        "систему от сна сами (запросы питания), фоновые загрузки — не всегда: кто мешает сну, покажет карточка «Сон и пробуждение» " +
+        "(Обслуживание → Ремонт и диски). ";
 
     private static IEnumerable<Tweak> PowerTweaks()
     {
@@ -127,6 +144,47 @@ public static partial class TweakCatalog
                      "не подходит. Это не аналог «тихих» режимов утилит производителя: кривые вентиляторов и лимиты мощности MONOLITH не " +
                      "трогает, эффект зависит от производителя — измерьте. Меняется только режим от сети. Применяется сразу " +
                      "(PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим.");
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, DC rule amended 01.11): the battery side, saving direction only; never pre-selected.
+        yield return new CustomTweak
+        {
+            Id = "power-mode-best-efficiency-dc",
+            Title = "Режим питания от батареи — «Максимальная эффективность»",
+            Description = "На сбалансированной схеме выбирает для работы от батареи режим «Максимальная эффективность»: дольше " +
+                          "автономность, холоднее и тише.",
+            Details = "То же, что переключатель в Параметрах → Система → Питание и батарея → Режим питания (от батареи). " +
+                      "Производительность от батареи ниже — игры на батарее станут медленнее; от сети ничего не меняется. " +
+                      "Политики не используются, переключатель в Параметрах остаётся доступным; включённое энергосбережение " +
+                      "может перекрывать режим. Применяется сразу (PowerSetUserConfiguredDCPowerMode); откат возвращает прежний режим.",
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Optional,
+            ExclusiveGroup = TweakGroups.PowerModeDc,
+            AppliesTo = sp => sp.IsWindows11 && sp.IsLaptop && !IsDualCcdX3D(sp),
+            NotApplicableReason = "Только для ноутбуков с Windows 11 на сбалансированной схеме и не для Ryzen X3D с двумя CCD. " +
+                                  "На настольном ПК то же делает пункт «Режим питания «Максимальная эффективность» от сети».",
+            DetectFunc = () =>
+            {
+                var scheme = PowerSchemes.GetActive();
+                if (scheme == Guid.Empty) return TweakState.Unknown;
+                if (!PowerSchemes.IsBalancedPersonality(scheme)) return TweakState.NotApplicable;
+                return ReadDcPowerMode() is { } current
+                    ? current == PowerModeBestEfficiency ? TweakState.Applied : TweakState.NotApplied
+                    : TweakState.NotApplicable;
+            },
+            ApplyAction = ctx =>
+            {
+                if (!PowerSchemes.IsBalancedPersonality(PowerSchemes.GetActive()))
+                    throw new InvalidOperationException("режим питания действует только на сбалансированной схеме — сначала включите её");
+                var current = ReadDcPowerMode() ?? throw new InvalidOperationException("не удалось прочитать текущий режим питания от батареи");
+                if (current == PowerModeBestEfficiency) return;
+                // Only the three documented modes can be journaled (and accepted by the journal check on undo).
+                if (!IsDocumentedPowerMode(current))
+                    throw new InvalidOperationException($"Windows сообщила неизвестный режим питания от батареи {current:D} — MONOLITH его не меняет");
+                RunJournaled(ctx, "powermode:dc", PowerShellExe, PowerShellArgs(PowerModeScriptDc(PowerModeBestEfficiency)),
+                    PowerShellExe, PowerShellArgs(PowerModeScriptDc(current)),
+                    $"от батареи: {DescribePowerMode(current)}", $"от батареи: {DescribePowerMode(PowerModeBestEfficiency)}", OutputEncoding.Utf8);
+            },
+        };
 
         // SAFE-DEFAULT on dual-CCD X3D: the 3D V-Cache driver steers games to the cache CCD only on Balanced.
         yield return new CustomTweak
@@ -242,6 +300,74 @@ public static partial class TweakCatalog
             appliesTo: sp => !sp.IsLaptop,
             notApplicableReason: "Только для настольных ПК.");
 
+        // SAFE-OPTIONAL (general_tweaks.md §6 sys.timeouts): every PC incl. desktops (owner 01.11); AC value, only shortens.
+        yield return PowerSettingTweak(
+            id: "screen-off-ac-10m",
+            title: "Экран гаснет через 10 минут от сети",
+            description: "В текущей схеме питания экран при работе от сети выключается не позже чем через 10 минут простоя.",
+            details: TimeoutsAdvice + "10 минут от сети — выбор MONOLITH, он же стандарт сбалансированной схемы. " + TimeoutsOnlyShorten +
+                     "Меняется только значение «от сети» текущей схемы; на ноутбуке значение от батареи — отдельный пункт.",
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubVideo,
+            setting: VideoIdle,
+            target: AcScreenOffSeconds,
+            describe: DescribeTimeout,
+            onlyShorten: true);
+
+        yield return PowerSettingTweak(
+            id: "sleep-ac-30m",
+            title: "Сон через 30 минут от сети",
+            description: "В текущей схеме питания компьютер при работе от сети засыпает не позже чем через 30 минут простоя — не " +
+                         "работает, не шумит и не светит всю ночь.",
+            details: TimeoutsAdvice + "30 минут от сети — выбор MONOLITH для настольного ПК, он же стандарт сбалансированной схемы. " +
+                     TimeoutsOnlyShorten + "Пробуждение по сети и задачи с флагом «Пробуждать компьютер» работают как прежде; на " +
+                     "настольном ПК с гибридным сном работа сохраняется и на диск. Меняется только значение «от сети» текущей схемы.",
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubSleep,
+            setting: StandbyIdle,
+            target: AcSleepSeconds,
+            describe: DescribeTimeout,
+            onlyShorten: true);
+
+        // SAFE-OPTIONAL (general_tweaks.md §6 sys.timeouts, DC rule §11): laptops, battery value, only shortens.
+        yield return PowerSettingTweakDc(
+            id: "battery-screen-off-3min",
+            title: "Экран гаснет через 3 минуты на батарее",
+            description: "В текущей схеме питания экран при работе от батареи выключается не позже чем через 3 минуты простоя.",
+            details: TimeoutsAdvice + "3 минуты — выбор MONOLITH. " + TimeoutsOnlyShorten +
+                     "Меняется только значение «от батареи» текущей схемы; значение от сети не трогается.",
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubVideo,
+            setting: VideoIdle,
+            target: BatteryScreenOffSeconds,
+            describe: DescribeTimeout,
+            appliesTo: sp => sp.IsLaptop,
+            notApplicableReason: "Только для ноутбуков: это значение «от батареи». Для настольного ПК — пункт «Экран гаснет через 10 минут от сети».",
+            onlyShorten: true);
+
+        yield return PowerSettingTweakDc(
+            id: "battery-sleep-10min",
+            title: "Сон через 10 минут на батарее",
+            description: "В текущей схеме питания ноутбук при работе от батареи засыпает не позже чем через 10 минут простоя.",
+            details: TimeoutsAdvice + "10 минут — выбор MONOLITH. " + TimeoutsOnlyShorten +
+                     "Меняется только значение «от батареи» текущей схемы; значение от сети не трогается.",
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubSleep,
+            setting: StandbyIdle,
+            target: BatterySleepSeconds,
+            describe: DescribeTimeout,
+            appliesTo: sp => sp.IsLaptop,
+            notApplicableReason: "Только для ноутбуков: это значение «от батареи». Для настольного ПК — пункт «Сон через 30 минут от сети».",
+            onlyShorten: true);
+
         // Desktops: SAFE-DEFAULT (Recommended). Laptops: SAFE-OPTIONAL (separate item below).
         yield return new RegistryTweak
         {
@@ -347,6 +473,26 @@ public static partial class TweakCatalog
                "if($r -ne 0){throw ('Windows отклонила смену режима питания, код '+$r)}";
     }
 
+    /// <summary>The Add-Type block that exposes PowerSetUserConfiguredDCPowerMode to <see cref="PowerModeScriptDc"/>.</summary>
+    internal const string PowerModeTypeDefinitionDc =
+        "if(-not ('Monolith.PowerModeDc' -as [type])){Add-Type -Namespace Monolith -Name PowerModeDc -MemberDefinition " +
+        "'[DllImport(\"powrprof.dll\", EntryPoint=\"PowerSetUserConfiguredDCPowerMode\")] public static extern uint SetDc(ref Guid mode);'};";
+
+    /// <summary>
+    /// PowerShell that sets the user-configured DC (on battery) power mode — one of the three documented GUIDs — and fails on
+    /// any error code. Also the only undo script JournalTrust accepts for the "powermode:dc" target.
+    /// </summary>
+    public static string PowerModeScriptDc(Guid mode)
+    {
+        if (!IsDocumentedPowerMode(mode)) throw new ArgumentException($"недокументированный режим питания: {mode:D}", nameof(mode));
+        return PowerModeTypeDefinitionDc +
+               $"$g=[Guid]'{mode:D}';$r=[Monolith.PowerModeDc]::SetDc([ref]$g);" +
+               "if($r -ne 0){throw ('Windows отклонила смену режима питания от батареи, код '+$r)}";
+    }
+
+    /// <summary>The AC or the DC power-mode script (<see cref="PowerModeScript"/> / <see cref="PowerModeScriptDc"/>).</summary>
+    public static string PowerModeScript(Guid mode, bool dc) => dc ? PowerModeScriptDc(mode) : PowerModeScript(mode);
+
     /// <summary>
     /// A Windows 11 power-mode item (one of the documented overlay GUIDs) for a Balanced-personality plan. Detect: Applied when
     /// the user-configured AC mode equals <paramref name="mode"/>. Apply refuses undocumented current modes (no exact undo).
@@ -425,8 +571,24 @@ public static partial class TweakCatalog
         }
     }
 
+    /// <summary>The user-configured DC (on battery) power mode (Windows 11), or null when the function is missing or fails. Read-only.</summary>
+    internal static Guid? ReadDcPowerMode()
+    {
+        try
+        {
+            return PowerGetUserConfiguredDCPowerMode(out var mode) == 0 ? mode : null;
+        }
+        catch
+        {
+            return null; // older builds without the export, or not Windows at all
+        }
+    }
+
     [System.Runtime.InteropServices.DllImport("powrprof.dll")]
     private static extern uint PowerGetUserConfiguredACPowerMode(out Guid mode);
+
+    [System.Runtime.InteropServices.DllImport("powrprof.dll")]
+    private static extern uint PowerGetUserConfiguredDCPowerMode(out Guid mode);
 
     private const string FastStartupDetails =
         "Быстрый запуск сохраняет состояние ядра при выключении. Без него пропадают «странности» видеокарты и USB после включения, " +

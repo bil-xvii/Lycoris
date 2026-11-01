@@ -36,6 +36,9 @@ public static class LiveState
                     ? Compare(r, PowerSchemes.GetName(active))
                     : new LiveValue(Unknown, null),
                 ChangeKind.ScheduledTask => ReadTask(r),
+                // The Windows 11 power mode (AC / DC): the live mode in the record's own wording, so Restore shows drift honestly
+                // (DriftDetector keeps excluding Command records; a game session's mode is temporary by design).
+                ChangeKind.Command when JournalTrust.PowerModeUndo(r) is { } pm => ReadPowerMode(r, pm.Dc),
                 // Device settings: shown, never compared (users change them on purpose — no drift).
                 _ when JournalTrust.IsDeviceKind(r.Kind) => new LiveValue(DeviceLive(r) ?? Unknown, null),
                 _ => new LiveValue(Unknown, null),
@@ -204,14 +207,23 @@ public static class LiveState
     private const string DxPreferencesPath = @"Software\Microsoft\DirectX\UserGpuPreferences";
     private const string DxGlobalSettings = "DirectXUserGlobalSettings";
 
-    /// <summary>Commands with a catalog reader: a power setting's AC value, an adapter's DNS servers, a DirectX token.</summary>
+    /// <summary>
+    /// Commands with a catalog reader: a power setting's AC or DC value, the AC / DC power mode, an adapter's DNS servers,
+    /// a DirectX token.
+    /// </summary>
     private static RevertCheck VerifyCommand(ChangeRecord r)
     {
         if (JournalTrust.PowercfgUndo(r) is { } pc)
         {
+            var dc = JournalTrust.PowercfgIsDc(r.Target) == true;
             if (PowerSchemes.TryExists(pc.Scheme) != true) return RevertCheck.NotChecked;
-            if (TweakCatalog.ReadAcIndex(pc.Scheme, pc.Subgroup, pc.Setting) is not { } value) return RevertCheck.NotChecked;
-            return new RevertCheck(value == pc.Value, $"от сети: {value}", $"от сети: {pc.Value}");
+            if (TweakCatalog.ReadIndex(dc, pc.Scheme, pc.Subgroup, pc.Setting) is not { } value) return RevertCheck.NotChecked;
+            return new RevertCheck(value == pc.Value, $"{Side(dc)}: {value}", $"{Side(dc)}: {pc.Value}");
+        }
+        if (JournalTrust.PowerModeUndo(r) is { } pm)
+        {
+            if (ReadPowerMode(pm.Dc) is not { } live) return RevertCheck.NotChecked;
+            return new RevertCheck(live == pm.Mode, PowerModeText(pm.Dc, live), PowerModeText(pm.Dc, pm.Mode));
         }
         if (JournalTrust.DnsUndo(r) is { } dns)
         {
@@ -228,6 +240,17 @@ public static class LiveState
         static string DnsText(IReadOnlyList<string> servers) => servers.Count == 0 ? "автоматически (DHCP)" : string.Join(", ", servers);
         static string DxText(string? value) => value is null ? "не задано" : value;
     }
+
+    private static string Side(bool dc) => dc ? "от батареи" : "от сети";
+
+    /// <summary>The user-configured power mode of one side (Windows 11), null when unavailable. Read-only.</summary>
+    private static Guid? ReadPowerMode(bool dc) => dc ? TweakCatalog.ReadDcPowerMode() : TweakCatalog.ReadAcPowerMode();
+
+    /// <summary>«от сети: максимальная производительность» — the wording of the power-mode records' NewValue.</summary>
+    internal static string PowerModeText(bool dc, Guid mode) => $"{Side(dc)}: {TweakCatalog.DescribePowerMode(mode)}";
+
+    private static LiveValue ReadPowerMode(ChangeRecord r, bool dc) =>
+        ReadPowerMode(dc) is { } live ? Compare(r, PowerModeText(dc, live)) : new LiveValue(Unknown, null);
 
     private static LiveValue ReadService(ChangeRecord r)
     {

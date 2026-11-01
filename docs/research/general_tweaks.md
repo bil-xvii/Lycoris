@@ -202,6 +202,14 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 - Desktops: ADVANCED.
 - **Laptops: DO-NOT-INCLUDE.** The critical-battery action and Modern Standby both fall back to hibernation, so data would be lost.
 
+**`sys.timeouts`: «Экран и сон по рекомендации Microsoft» — screen-off / sleep idle timeouts, only shortened. SAFE-OPTIONAL, never in a profile.** Catalog ids `battery-screen-off-3min`, `battery-sleep-10min` (DC, laptops) and `screen-off-ac-10m`, `sleep-ac-30m` (AC, every PC incl. desktops — owner 01.11: «правка не только для ноутбука, но и для настольного компьютера»).
+- **Settings:** `SUB_VIDEO` 7516b95f-f776-4464-8c53-06167f40cc99 / `VIDEOIDLE` 3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e (seconds, 0 = never) and `SUB_SLEEP` 238c9fa8-0aad-41ed-83f4-97be242c8f20 / `STANDBYIDLE` 29f6c1db-86da-48c5-9fdb-f2b67b1f44da (seconds, 0 = never), always of the ACTIVE plan, one journal record per setting.
+- **Evidence:** Microsoft's «Learn more about energy recommendations» (Settings → System → Power → Energy recommendations) lists «Turn off my screen after 3 (or 10) minutes» and «Put my device to sleep after 3 (or 10) minutes» — Microsoft gives both values for both settings «depending on the system». **MONOLITH's own choice**, stated as such in the Details: battery — screen 180 s, sleep 600 s; mains — screen 600 s, sleep 1800 s (the stock Balanced AC values on Windows 10/11 desktops; most «never»-set PCs are gaming desktops that then run and light the room all night). Screen and idle time are the largest power drains Windows itself controls.
+- **Only shortens (`onlyShorten`):** a value is written only when the current one is 0 (never) or longer than the target; shorter values count as applied and are never lengthened. Preview shows current → new from the record texts («от батареи: через 15 мин» → «через 3 мин»; «от сети: никогда» → «через 30 мин»).
+- **DC:** `powercfg /setdcvalueindex {scheme} {sub} {setting} {v} && powercfg /setactive SCHEME_CURRENT` with the same self-rollback as the AC command; read with `PowerReadDCValueIndex`; target `powercfg:{scheme}:{setting}:dc`; a dedicated journal regex (`/setdcvalueindex`) as strict as the AC one. The AC values are never touched by the DC items and vice versa. Refused during a Game Boost session (its temporary plan), as for every PowerSettingTweak.
+- **Undo:** the original index written back explicitly (same `PowerSettingUndoNote` caveat as the other powercfg items: an override where the plan default was used). Not a data-loss risk: apps that present or play video hold power requests that block idle sleep; a desktop with hybrid sleep saves the session to disk.
+- **Laptop rule (01.11):** DC values may be changed only in the saving direction (shorter timeouts, Best efficiency mode) — see §11 and gaming_tweaks.md §2 C.
+
 **`sys.lastaccess`: «Не обновлять время последнего доступа NTFS» / NTFS last access.**
 - `fsutil behavior set disablelastaccess {0|1|2|3}`: 0 = user-managed on, 1 = user-managed off, 2 = system-managed on, 3 = system-managed off.
 - The underlying value is `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\NtfsDisableLastAccessUpdate`. It is 0x80000002 here (System Managed, enabled). Store the raw DWORD; revert by rewriting it (or `fsutil … 2`). RB.
@@ -314,7 +322,7 @@ Optional extra: transparency off, `HKCU\…\Themes\Personalize\EnableTransparenc
 - **Power-plan setting.** Subgroup `19cbb8fa-5279-450e-9fac-8a3d5fedd0c1`, setting `12bbebe6-58d6-4636-95bb-3217ef867c1a`. Values: 0 Max Performance, 1 Low, 2 Medium, 3 Max Saving.
   - Command: `powercfg /setacvalueindex SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0` followed by `powercfg /setactive SCHEME_CURRENT`.
   - Read the original with `powercfg /q` or `PowerReadACValueIndex`. This machine (High Performance plan) has AC 0 / DC 0.
-  - SAFE-DEFAULT for AC. **Laptops: touch AC only, never DC.**
+  - SAFE-DEFAULT for AC. **Laptops: touch AC only, never DC** (for Wi-Fi; the catalog-wide DC rule — saving direction only — is in §11).
 - **Device setting.** `Set-NetAdapterPowerManagement -Name <wifi> -AllowComputerToTurnOffDevice Disabled`. Read first with `Get-NetAdapterPowerManagement`.
   - Desktop only: SAFE-OPTIONAL.
   - Skip on Modern Standby (S0ix) devices.
@@ -332,7 +340,10 @@ Optional extra: transparency off, `HKCU\…\Themes\Personalize\EnableTransparenc
 
 **`wu.defer`: «Отложить» (Pro+ only; Home ignores it).**
 - Same policy key: `DeferFeatureUpdates`=1 with `DeferFeatureUpdatesPeriodInDays` (0–365), and `DeferQualityUpdates`=1 with `DeferQualityUpdatesPeriodInDays` (0–30).
-- Version pin: `TargetReleaseVersion`=1, `ProductVersion`="Windows 11", `TargetReleaseVersionInfo`="25H2".
+- Version pin: `TargetReleaseVersion`=1, `ProductVersion`="Windows 11", `TargetReleaseVersionInfo`="25H2". Catalog id `wu-target-version` (SAFE-OPTIONAL, never in a profile; ExclusiveGroup `wu-feature-updates` with `wu-defer-feature-updates` — one of the two).
+  - **Pro and higher only** (Home ignores the policy; `IsHomeEdition` → not offered). **GA versions only:** the pin value is the installed `DisplayVersion`, offered only when it is in the catalog's end-of-servicing table (Home/Pro: 23H2 → 2025-11-11, 24H2 → 2026-10-13, 25H2 → 2027-10-12; a later version is added only after learn.microsoft.com/windows/release-health/windows11-release-information lists its date). Insider/preview builds are never pinned.
+  - **60-day post-EOS behaviour (Microsoft, Windows Update for Business docs):** a device pinned to a version that reached end of servicing keeps the pin for about 60 days and is then automatically moved to a supported version; until then it gets **no** security updates. The item therefore says so in the Details, and the Dashboard warns 90 days before the end-of-servicing date so the user un-pins in time.
+  - Settings shows «Некоторыми параметрами управляет ваша организация» while the pin is active. Revert = delete the three values (the empty policy key MONOLITH created is removed with them).
 - Settings will show "managed by your organization". Revert = delete the values. SAFE-OPTIONAL.
 - `ExcludeWUDriversInQualityUpdate`=1 stops Windows Update from replacing GPU drivers but also blocks useful drivers. ADVANCED.
 
@@ -386,7 +397,11 @@ Everything else is opt-in. Create one restore point per batch: `Checkpoint-Compu
 | Background apps | Unchanged | Keep "Power optimized" |
 | Transparency off | Cosmetic | Mild help on iGPU |
 | Power plans | Ultimate/High allowed | Not offered; keep Balanced |
+| Power mode (Windows 11, Balanced personality) | AC: Best performance / Best efficiency optional | AC the same; **DC: Best efficiency optional** (`power-mode-best-efficiency-dc`), never DC toward performance |
+| Screen-off / sleep timeouts | AC `screen-off-ac-10m` / `sleep-ac-30m`, only shorten | AC the same; **DC: only shorten** (`battery-screen-off-3min` / `battery-sleep-10min`) |
 | USB selective suspend, PCIe ASPM | Untouched | Untouched |
+
+**DC rule (amended 01.11, binding):** on laptops the DC (battery) side may be changed only in the saving direction — Best efficiency power mode and shorter screen/sleep timeouts — never toward performance; AC items never call the DC setters. Evidence: `PowerSetUserConfiguredDCPowerMode` is documented with the same three GUIDs as the AC function; Microsoft Support: «Best Power Efficiency to reduce power consumption by limiting background activity». Every DC item names its desktop counterpart in its NotApplicableReason (owner 01.11: every power feature must serve desktops too).
 
 **This dev machine (read-only checks)**
 - No `Win32_Battery`; `ChassisTypes` = 3 (Desktop). S0 low-power idle not supported. Hybrid sleep unavailable (hypervisor active).
@@ -397,6 +412,11 @@ Everything else is opt-in. Create one restore point per batch: `Checkpoint-Compu
 ---
 
 ## Sources
+
+- https://support.microsoft.com/en-us/windows/experience/power-battery/learn-more-about-energy-recommendations (screen 3 or 10 min, sleep 3 or 10 min «depending on the system»)
+- https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-powersetuserconfigureddcpowermode
+- https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/configure-power-settings (powercfg /setacvalueindex, /setdcvalueindex)
+- https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information (end-of-servicing dates)
 
 - https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-windowsai
 - https://learn.microsoft.com/en-us/windows/privacy/configure-windows-diagnostic-data-in-your-organization
