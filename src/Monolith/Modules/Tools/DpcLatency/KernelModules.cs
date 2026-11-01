@@ -11,7 +11,8 @@ namespace Monolith.Modules.Tools.DpcLatency;
 /// Fallback: EnumDeviceDrivers + GetDeviceDriverBaseNameW (bases and names, no sizes).
 /// Since Windows 11 24H2 both return zeroed addresses unless SeDebugPrivilege is enabled in the caller's token
 /// (Microsoft Learn, EnumDeviceDrivers remarks; windows-internals.com «KASLR leaks restriction»), so the privilege is
-/// enabled on MONOLITH's own token first — only available to an elevated process. Nothing here changes the system.
+/// enabled on MONOLITH's own token just for the module query (only available to an elevated process) and disabled again
+/// right after it unless it was already enabled. Nothing here changes the system.
 /// </summary>
 public static class KernelModules
 {
@@ -19,31 +20,44 @@ public static class KernelModules
 
     public static LoadResult Load()
     {
-        var (debug, why) = EnableDebugPrivilege();
+        var (debug, why, wasEnabled) = EnableDebugPrivilege();
         if (!debug) Log.Warn("DPC/ISR: привилегия SeDebugPrivilege не включена — " + why);
 
         List<KernelModule> modules;
         string? note = null;
         try
         {
-            modules = FromSystemModuleInformation();
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("DPC/ISR: SystemModuleInformation недоступна — " + ex.Message);
-            modules = [];
-        }
-        if (modules.Count == 0 || modules.All(m => m.Base == 0))
-        {
             try
             {
-                modules = FromEnumDeviceDrivers();
-                if (modules.Count > 0) note = "Размеры модулей неизвестны — адреса сопоставляются по ближайшему модулю.";
+                modules = FromSystemModuleInformation();
             }
             catch (Exception ex)
             {
-                Log.Warn("DPC/ISR: EnumDeviceDrivers недоступна — " + ex.Message);
+                Log.Warn("DPC/ISR: SystemModuleInformation недоступна — " + ex.Message);
                 modules = [];
+            }
+            if (modules.Count == 0 || modules.All(m => m.Base == 0))
+            {
+                try
+                {
+                    modules = FromEnumDeviceDrivers();
+                    if (modules.Count > 0) note = "Размеры модулей неизвестны — адреса сопоставляются по ближайшему модулю.";
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("DPC/ISR: EnumDeviceDrivers недоступна — " + ex.Message);
+                    modules = [];
+                }
+            }
+        }
+        finally
+        {
+            // Least privilege: the token goes back to its previous state right after the module list is read, so later
+            // OpenProcess calls and child processes (dism, sfc, PowerShell …) never inherit an enabled SeDebugPrivilege.
+            if (debug && !wasEnabled)
+            {
+                var (restored, restoreWhy) = DisableDebugPrivilege();
+                if (!restored) Log.Warn("DPC/ISR: не удалось снова отключить SeDebugPrivilege — " + restoreWhy);
             }
         }
         modules = modules.Where(m => m.Base != 0).ToList();
@@ -61,29 +75,57 @@ public static class KernelModules
     private const uint SE_PRIVILEGE_ENABLED = 0x0002;
     private const int ERROR_NOT_ALL_ASSIGNED = 1300;
 
-    /// <summary>Enables SeDebugPrivilege on the current process token (held by administrators, disabled by default).</summary>
-    public static (bool Ok, string Why) EnableDebugPrivilege()
+    /// <summary>
+    /// Enables SeDebugPrivilege on the current process token (held by administrators, disabled by default).
+    /// <c>WasEnabled</c> tells whether it was already enabled before (then the caller leaves it as it was).
+    /// </summary>
+    public static (bool Ok, string Why, bool WasEnabled) EnableDebugPrivilege()
     {
         try
         {
-            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
-                return (false, $"нет доступа к токену процесса (код {Marshal.GetLastWin32Error()})");
-            using (token)
-            {
-                if (!LookupPrivilegeValueW(null, "SeDebugPrivilege", out var luid))
-                    return (false, $"привилегия не найдена (код {Marshal.GetLastWin32Error()})");
-                var tp = new TOKEN_PRIVILEGES { PrivilegeCount = 1, Luid = luid, Attributes = SE_PRIVILEGE_ENABLED };
-                if (!AdjustTokenPrivileges(token, false, ref tp, Marshal.SizeOf<TOKEN_PRIVILEGES>(), IntPtr.Zero, IntPtr.Zero))
-                    return (false, $"AdjustTokenPrivileges: код {Marshal.GetLastWin32Error()}");
-                if (Marshal.GetLastWin32Error() == ERROR_NOT_ALL_ASSIGNED)
-                    return (false, "у процесса нет привилегии SeDebugPrivilege (нужны права администратора)");
-            }
-            return (true, "ok");
+            var (ok, why, previous) = SetDebugPrivilege(SE_PRIVILEGE_ENABLED);
+            if (!ok) return (false, why, false);
+            // PreviousState lists only the privileges the call changed: none → it was enabled already.
+            var wasEnabled = previous.PrivilegeCount == 0 || (previous.Attributes & SE_PRIVILEGE_ENABLED) != 0;
+            return (true, "ok", wasEnabled);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message, false);
+        }
+    }
+
+    /// <summary>Disables SeDebugPrivilege again (the token keeps the privilege, only its «enabled» bit is cleared).</summary>
+    public static (bool Ok, string Why) DisableDebugPrivilege()
+    {
+        try
+        {
+            var (ok, why, _) = SetDebugPrivilege(0);
+            return (ok, why);
         }
         catch (Exception ex)
         {
             return (false, ex.Message);
         }
+    }
+
+    private static (bool Ok, string Why, TOKEN_PRIVILEGES Previous) SetDebugPrivilege(uint attributes)
+    {
+        var previous = default(TOKEN_PRIVILEGES);
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
+            return (false, $"нет доступа к токену процесса (код {Marshal.GetLastWin32Error()})", previous);
+        using (token)
+        {
+            if (!LookupPrivilegeValueW(null, "SeDebugPrivilege", out var luid))
+                return (false, $"привилегия не найдена (код {Marshal.GetLastWin32Error()})", previous);
+            var tp = new TOKEN_PRIVILEGES { PrivilegeCount = 1, Luid = luid, Attributes = attributes };
+            var size = Marshal.SizeOf<TOKEN_PRIVILEGES>();
+            if (!AdjustTokenPrivileges(token, false, ref tp, size, out previous, out _))
+                return (false, $"AdjustTokenPrivileges: код {Marshal.GetLastWin32Error()}", previous);
+            if (Marshal.GetLastWin32Error() == ERROR_NOT_ALL_ASSIGNED)
+                return (false, "у процесса нет привилегии SeDebugPrivilege (нужны права администратора)", previous);
+        }
+        return (true, "ok", previous);
     }
 
     // ───────────────────────────── SystemModuleInformation ─────────────────────────────
@@ -187,7 +229,7 @@ public static class KernelModules
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, bool disableAll, ref TOKEN_PRIVILEGES newState,
-        int bufferLength, IntPtr previousState, IntPtr returnLength);
+        int bufferLength, out TOKEN_PRIVILEGES previousState, out int returnLength);
 
     [DllImport("ntdll.dll")]
     private static extern uint NtQuerySystemInformation(int infoClass, IntPtr info, int length, out int returnLength);

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Monolith.Modules.Tools;
 using Monolith.Modules.Tools.DpcLatency;
 
@@ -275,6 +276,109 @@ public sealed class DpcLatencyTests
         Assert.Equal(120, EtwSession.PropertiesSize);
         Assert.Equal(448, EtwSession.LogFileSize);
         Assert.Equal(new Guid("ce1dbfb4-137e-4da6-87b0-3f59aa102cbc"), EtwSession.PerfInfoGuid);
+    }
+
+    // ─────────────────────────── EVENT_RECORD parsing ───────────────────────────
+
+    /// <summary>Builds a 112-byte x64 EVENT_RECORD with a native UserData buffer {InitialTime, Routine}; the caller frees both.</summary>
+    private static (IntPtr Record, IntPtr Data) BuildRecord(Guid provider, byte opcode, byte level, long timeStamp, long initialTime,
+        ulong routine, ushort flags = 0, ushort userDataLength = 16)
+    {
+        var record = Marshal.AllocHGlobal(112);
+        var data = Marshal.AllocHGlobal(16);
+        for (var i = 0; i < 112; i++) Marshal.WriteByte(record, i, 0);
+        Marshal.WriteInt16(record, 4, (short)flags);
+        Marshal.WriteInt64(record, 16, timeStamp);
+        Marshal.Copy(provider.ToByteArray(), 0, record + 24, 16);
+        Marshal.WriteInt16(record, 40, 0x1234);           // Id
+        Marshal.WriteByte(record, 42, 2);                 // Version
+        Marshal.WriteByte(record, 43, 0);                 // Channel
+        Marshal.WriteByte(record, 44, level);             // Level
+        Marshal.WriteByte(record, 45, opcode);            // Opcode
+        Marshal.WriteInt16(record, 86, (short)userDataLength);
+        Marshal.WriteIntPtr(record, 96, data);
+        Marshal.WriteInt64(data, 0, initialTime);
+        Marshal.WriteInt64(data, 8, unchecked((long)routine));
+        return (record, data);
+    }
+
+    private static void Free((IntPtr Record, IntPtr Data) r)
+    {
+        Marshal.FreeHGlobal(r.Record);
+        Marshal.FreeHGlobal(r.Data);
+    }
+
+    [Fact]
+    public void Dpc_record_is_parsed_from_the_opcode_byte_not_the_level()
+    {
+        // Level @44 carries a decoy value that is itself a valid opcode (67 = ISR): the kind must come from Opcode @45.
+        var r = BuildRecord(EtwSession.PerfInfoGuid, opcode: 68, level: 67, timeStamp: 1_000_500, initialTime: 1_000_000,
+            routine: 0xFFFFF800_2000_1234);
+        try
+        {
+            Assert.True(EtwSession.TryParseRecord(r.Record, out var kind, out var routine, out var ticks));
+            Assert.Equal(RoutineKind.Dpc, kind);
+            Assert.Equal(0xFFFFF800_2000_1234UL, routine);
+            Assert.Equal(500, ticks);
+        }
+        finally { Free(r); }
+    }
+
+    [Theory]
+    [InlineData(66, 2)] // ThreadedDPC
+    [InlineData(67, 0)] // ISR
+    [InlineData(68, 1)] // DPC
+    [InlineData(69, 3)] // TimerDPC
+    public void Every_perfinfo_routine_opcode_maps_to_its_kind(int opcode, int expectedKind)
+    {
+        var r = BuildRecord(EtwSession.PerfInfoGuid, (byte)opcode, level: 0, timeStamp: 20, initialTime: 10, routine: 42);
+        try
+        {
+            Assert.True(EtwSession.TryParseRecord(r.Record, out var kind, out _, out var ticks));
+            Assert.Equal(expectedKind, (int)kind);
+            Assert.Equal(10, ticks);
+        }
+        finally { Free(r); }
+    }
+
+    [Fact]
+    public void Other_providers_opcodes_and_short_payloads_are_rejected()
+    {
+        var foreign = BuildRecord(Guid.NewGuid(), 68, 0, 20, 10, 42);
+        var otherOpcode = BuildRecord(EtwSession.PerfInfoGuid, 46, 68, 20, 10, 42); // 68 in Level only
+        var shortPayload = BuildRecord(EtwSession.PerfInfoGuid, 68, 0, 20, 10, 42, userDataLength: 12);
+        try
+        {
+            Assert.False(EtwSession.TryParseRecord(foreign.Record, out _, out _, out _));
+            Assert.False(EtwSession.TryParseRecord(otherOpcode.Record, out _, out _, out _));
+            Assert.False(EtwSession.TryParseRecord(shortPayload.Record, out _, out _, out _));
+            Assert.False(EtwSession.TryParseRecord(IntPtr.Zero, out _, out _, out _));
+        }
+        finally { Free(foreign); Free(otherOpcode); Free(shortPayload); }
+    }
+
+    [Fact]
+    public void Records_with_a_32_bit_header_read_a_4_byte_routine()
+    {
+        // EVENT_HEADER_FLAG_32_BIT_HEADER (0x20): the routine pointer is 4 bytes, so 12 payload bytes are enough.
+        var r = BuildRecord(EtwSession.PerfInfoGuid, 67, 0, 300, 100, 0xDEADBEEF_8000_1000, flags: 0x0020, userDataLength: 12);
+        try
+        {
+            Assert.True(EtwSession.TryParseRecord(r.Record, out var kind, out var routine, out var ticks));
+            Assert.Equal(RoutineKind.Isr, kind);
+            Assert.Equal(0x8000_1000UL, routine);
+            Assert.Equal(200, ticks);
+        }
+        finally { Free(r); }
+    }
+
+    [Fact]
+    public void Cancel_and_game_stop_texts_say_nothing_was_changed()
+    {
+        Assert.Contains("ничего не изменено", ToolsViewModel.DpcCancelledText);
+        Assert.DoesNotContain("сохраняются", ToolsViewModel.DpcCancelledText);
+        Assert.Contains("игровой сеанс", ToolsViewModel.DpcGameStoppedText);
+        Assert.Contains("Ничего не изменено", ToolsViewModel.DpcGameStoppedText);
     }
 
     [Theory]

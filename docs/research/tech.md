@@ -518,6 +518,8 @@ What the «Задержки драйверов (DPC/ISR)» card on Maintenance �
   on a dedicated thread. After 60 s (or cancel, or any exception) `finally` calls `ControlTraceW(STOP)` — which ends
   `ProcessTrace` once the remaining buffers are delivered — then `CloseTrace`. `EventsLost` / `RealTimeBuffersLost` from the stop
   statistics are shown when non-zero.
+- Game sessions: the card refuses to start while `GameBoostState.IsActive`, and a game session that begins during the 60 s
+  stops the trace at once (outcome «Измерение остановлено: начался игровой сеанс», no verdict for the partial data).
 - Permissions: only administrators, «Performance Log Users» and LocalSystem services may control trace sessions;
   `ERROR_ACCESS_DENIED` (5) → «нужны права администратора». MONOLITH refuses the card without elevation (`RequireAdmin`).
 
@@ -532,6 +534,10 @@ What the «Задержки драйверов (DPC/ISR)» card on Maintenance �
   **duration = EventHeader.TimeStamp − InitialTime** in QPC ticks → µs via `QueryPerformanceFrequency` (`Stopwatch.Frequency`).
   `PROCESS_TRACE_MODE_RAW_TIMESTAMP` keeps the timestamp in QPC units instead of converting it to FILETIME. Pointer size comes
   from `EVENT_HEADER_FLAG_32_BIT_HEADER`; negative or > 10 s values are clock artefacts and are dropped.
+- Byte offsets in the x64 `EVENT_RECORD` (evntcons.h / evntprov.h; same as .NET's `EventDescriptor`: `m_level` @4, `m_opcode` @5):
+  `EVENT_HEADER.Flags` @4, `TimeStamp` @16, `ProviderId` @24, `EVENT_DESCRIPTOR` @40 = { Id @40, Version @42, Channel @43,
+  **Level @44, Opcode @45**, Task @46, Keyword @48 }; `UserDataLength` @86, `UserData` @96; sizeof 112. Parsed by
+  `EtwSession.TryParseRecord`, unit-tested with a synthetic record (a decoy opcode value in Level must not be read).
 
 ### 10.3 Module attribution and SeDebugPrivilege
 - Routine address → driver: `NtQuerySystemInformation(SystemModuleInformation = 11)` gives `RTL_PROCESS_MODULES` (ImageBase, ImageSize,
@@ -541,7 +547,10 @@ What the «Задержки драйверов (DPC/ISR)» card on Maintenance �
   (Microsoft Learn `EnumDeviceDrivers` remarks: «Starting with Windows 11 24H2 … requires SeDebugPrivilege … otherwise every
   address is NULL»; windows-internals.com «KASLR leaks restriction»: `SystemModuleInformation` keeps `DllBase = 0`). The privilege
   belongs to administrators only and is disabled by default, so `KernelModules.EnableDebugPrivilege` turns it on for MONOLITH's own
-  token (`AdjustTokenPrivileges`), logs a refusal and falls back to «неизвестный модуль». Nothing about the system changes.
+  token (`AdjustTokenPrivileges`), logs a refusal and falls back to «неизвестный модуль». Least privilege: the previous state is
+  captured (`PreviousState`) and the privilege is disabled again right after the module list is read (unless it was already
+  enabled), so later `OpenProcess` calls and child processes never inherit it; a failed restore is logged. Nothing about the
+  system changes.
 
 ### 10.4 Thresholds (provenance: community practice, not a Microsoft standard)
 - LatencyMon (Resplendence) is the de-facto community tool; its reports flag DPC/ISR routines whose execution time exceeds roughly
