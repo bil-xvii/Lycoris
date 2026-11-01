@@ -65,6 +65,27 @@ public sealed class UpdatePinCatalogTests
     public void Pin_applies_to_pro_and_higher_on_a_pinnable_version_only(string edition, string version, bool expected) =>
         Assert.Equal(expected, TweakCatalog.IsUpdatePinApplicable(edition, version, Today));
 
+    [Theory]
+    [InlineData("Professional", "25H2", null, true)]
+    [InlineData("Professional", "24H2", null, false)]   // past end of servicing, nothing pinned: the row is not offered
+    [InlineData("Professional", "24H2", "24H2", true)]  // …but an applied pin keeps its row (ПРИМЕНЕНО + ОТКАТИТЬ) after that date
+    [InlineData("Professional", "27H1", "25H2", true)]  // a stale pin on an unknown version: still shown (ЧАСТИЧНО, undo)
+    [InlineData("Professional", "", "25H2", true)]
+    [InlineData("Core", "25H2", "25H2", false)]         // Home ignores the policy — never shown
+    [InlineData("Core", "24H2", null, false)]
+    public void Pin_row_stays_while_a_pin_is_in_place(string edition, string version, string? pinnedTo, bool expected) =>
+        Assert.Equal(expected, TweakCatalog.IsUpdatePinRowShown(edition, version, Today, pinnedTo));
+
+    [Fact]
+    public void Pin_row_applicability_uses_the_row_rule()
+    {
+        // Title and Details are computed from the live DisplayVersion, never from the (possibly still empty) SystemProfile.
+        var pin = TweakCatalog.Find(TweakCatalog.UpdatePinId)!;
+        Assert.Equal(TweakCatalog.TitleFor(TweakCatalog.ReadInstalledDisplayVersion()), pin.Title);
+        Assert.Equal(TweakCatalog.UpdatePinDetails(TweakCatalog.ReadInstalledDisplayVersion()), pin.Details);
+        Assert.Contains("60 дней", pin.Details);
+    }
+
     [Fact]
     public void Title_names_the_installed_version()
     {
@@ -116,6 +137,10 @@ public sealed class UpdatePinCatalogTests
         Assert.True(defer.SharesGroupWith(pin));
         Assert.Equal(2, TweakCatalog.All.Count(t => t.ExclusiveGroup == TweakCatalog.WuFeatureUpdatesGroup));
         Assert.Contains("Остаться на текущей версии Windows 11", defer.Details);
+        // The deferral carries its own guard (a CustomTweak), because the group's members write different values.
+        Assert.IsType<CustomTweak>(defer);
+        Assert.Equal(2, TweakCatalog.DeferFeatureUpdatesValues.Count);
+        Assert.All(TweakCatalog.DeferFeatureUpdatesValues, v => Assert.Equal(RegHive.HKLM, v.Hive));
     }
 
     [Fact]
@@ -307,6 +332,50 @@ public sealed class UpdatePinRegistryTests : IDisposable
         Assert.True((await journal.RevertSourceAsync("tweak:" + TweakCatalog.DeferFeatureUpdatesId)).Success);
         await ApplyAsync(journal, pin);
         Assert.Equal(TweakState.Applied, pin.Detect());
+    }
+
+    private static readonly (string, string)[] DeferValues = [(Policy, "DeferFeatureUpdates"), (Policy, "DeferFeatureUpdatesPeriodInDays")];
+
+    [Fact]
+    public async Task Deferral_refuses_while_the_pin_is_active_and_the_pin_stays_untouched()
+    {
+        Installed("25H2");
+        var journal = await ApplyAsync(new ChangeJournal(_journalPath), TweakCatalog.Find(TweakCatalog.UpdatePinId)!);
+        var pinned = Capture(PinValues);
+        var defer = TweakCatalog.Find(TweakCatalog.DeferFeatureUpdatesId)!;
+
+        var session = await ChangeSession.BeginAsync("test defer", createRestorePoint: false, journal: journal);
+        var ex = Assert.Throws<InvalidOperationException>(() => defer.Apply(new TweakContext { Session = session, System = SystemProfile.Current, Tweak = defer }));
+        session.Complete();
+        Assert.Contains("сначала откатите «Остаться на текущей версии Windows 11»", ex.Message);
+        Assert.Equal(0, session.Applied);
+        Assert.Equal(TweakState.NotApplied, defer.Detect());
+        Assert.Equal(pinned, Capture(PinValues)); // the pin is neither replaced nor doubled
+
+        Assert.True((await journal.RevertSourceAsync("tweak:" + TweakCatalog.UpdatePinId)).Success);
+        await ApplyAsync(journal, defer);
+        Assert.Equal(TweakState.Applied, defer.Detect());
+    }
+
+    [Fact]
+    public async Task Deferral_detects_applies_and_undoes_exactly_like_a_registry_tweak()
+    {
+        var defer = TweakCatalog.Find(TweakCatalog.DeferFeatureUpdatesId)!;
+        Assert.Equal(TweakState.NotApplied, defer.Detect());
+        RegistryHelper.Write(RegHive.HKLM, Policy, "DeferFeatureUpdates", RegistryValueKind.DWord, 1);
+        Assert.Equal(TweakState.Partial, defer.Detect());
+        RegistryHelper.Write(RegHive.HKLM, Policy, "DeferFeatureUpdatesPeriodInDays", RegistryValueKind.DWord, 30);
+        var before = Capture(DeferValues);
+
+        var journal = await ApplyAsync(new ChangeJournal(_journalPath), defer);
+        Assert.Equal(TweakState.Applied, defer.Detect());
+        Assert.Equal(90, RegistryHelper.ReadInt(RegHive.HKLM, Policy, "DeferFeatureUpdatesPeriodInDays"));
+        var record = Assert.Single(journal.ActiveRecords, r => r.Source == "tweak:" + TweakCatalog.DeferFeatureUpdatesId); // only the value that differed
+        Assert.Null(JournalTrust.Check(record));
+
+        Assert.True((await new ChangeJournal(_journalPath).RevertAllAsync()).Success);
+        Assert.Equal(before, Capture(DeferValues));
+        Assert.Equal(TweakState.Partial, defer.Detect());
     }
 
     [Theory]

@@ -1803,6 +1803,31 @@ public sealed class DashboardUpdatePinTests
     public void Ninety_one_days_before_is_still_information() =>
         Assert.Equal(CheckSeverity.Info, HealthRules.CheckUpdatePin(Pinned("25H2", 2027, 7, 13))!.Severity);
 
+    [Theory]
+    [InlineData("25H2", "26H2", 2028, 1, 1)]  // Microsoft moved the PC on after 25H2's end of servicing: no «without updates» warning
+    [InlineData("24H2", "25H2", 2026, 11, 1)] // the user upgraded; the stale pin would otherwise warn forever
+    [InlineData("22H2", "25H2", 2026, 11, 1)] // unknown pinned version, known installed one
+    public void Pin_to_another_version_than_the_installed_one_is_stale_information(string pinnedTo, string installed, int y, int m, int d)
+    {
+        var r = HealthRules.CheckUpdatePin(new SystemSnapshot { UpdatePinnedTo = pinnedTo, OsDisplayVersion = installed, Now = new DateTime(y, m, d, 12, 0, 0) })!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Equal(0, r.Weight);
+        Assert.Equal("ЗАКРЕПЛЕНИЕ ВЕРСИИ WINDOWS УСТАРЕЛО", r.Title);
+        Assert.Contains(pinnedTo, r.Detail);
+        Assert.Contains(installed, r.Detail);
+        Assert.Contains("удаление политики", r.Detail); // a pin set by an administrator has no MONOLITH undo
+        Assert.Equal(CheckActionKind.FocusTweak, r.Action!.Kind);
+        Assert.Equal(HealthRules.TweakUpdatePin, r.Action.Target);
+    }
+
+    [Fact]
+    public void Unknown_installed_version_does_not_make_a_pin_stale()
+    {
+        var r = HealthRules.CheckUpdatePin(new SystemSnapshot { UpdatePinnedTo = "25H2", OsDisplayVersion = "", Now = new DateTime(2026, 11, 1) })!;
+        Assert.Equal("ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА", r.Title);
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+    }
+
     [Fact]
     public void Already_expired_24H2_pin_warns_today()
     {
