@@ -82,7 +82,8 @@ public static class CommandPaletteIndex
         ("Уровень микрофона", "Уровень записи и проверка уровня — раздел «Устройства и сеть».", "микрофон звук запись уровень", "mic-level"),
         ("Наушники и звук", "Устройство вывода, формат и улучшения звука — раздел «Устройства и сеть».", "звук наушники колонки вывод", "kind:audiooutput"),
         ("Сеть и пинг", "Сетевой адаптер, замер пинга и автонастройка сети — раздел «Устройства и сеть».", "сеть пинг интернет ethernet wi-fi адаптер", "kind:network"),
-        ("Частота опроса и DPI мыши", "Замер частоты опроса и проверка DPI — раздел «Устройства и сеть».", "мышь dpi опрос герц polling", "kind:mouse"),
+        ("Частота опроса и DPI мыши", "Замер частоты опроса и проверка DPI — раздел «Устройства и сеть».", "мышь dpi опрос герц polling",
+            Monolith.Modules.Devices.Input.InputProvider.PollingRow),
     ];
 
     /// <summary>Sections that used to be pages; their keys are navigation aliases (see MainViewModel.NavigateTo).</summary>

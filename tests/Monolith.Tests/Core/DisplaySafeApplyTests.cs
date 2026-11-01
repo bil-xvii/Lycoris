@@ -247,6 +247,25 @@ public sealed class DisplaySafeApplyTests : IDisposable
     }
 
     [Fact]
+    public async Task Hdr_revert_that_fails_keeps_the_record_even_when_the_monitor_is_gone()
+    {
+        // «gone» is only a read result: a failed write back must not be recorded as reverted.
+        _display.HdrSetFailsFrom = 1; // the switch on works, the switch back fails
+        NeverAnswer();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            _display.Present = false;
+        });
+        var outcome = await ApplyHdr(true);
+
+        Assert.Equal(DisplayApplyResult.Failed, outcome.Result);
+        var r = Assert.Single(_journal.ActiveRecords);
+        Assert.True(r.DisplayHdr!.PendingConfirm);
+        Assert.False(_display.Guards.Single().Resolved); // the guard keeps trying
+    }
+
+    [Fact]
     public async Task Hdr_decline_and_timeout_revert()
     {
         Answer(false);

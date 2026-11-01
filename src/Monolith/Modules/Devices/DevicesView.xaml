@@ -117,10 +117,12 @@
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" MinWidth="200" />
-                            <ColumnDefinition Width="290" />
-                            <ColumnDefinition Width="200" />
-                            <!-- Fixed, so every card's columns line up across the tab; a second link wraps under the first -->
+                            <!-- Fixed, so every card's columns line up across the tab; a second link wraps under the first.
+                                 160 + 260 + 176 + 212 = 808 ≤ the row width at the smallest window (1120 px: 818 after the
+                                 sidebar, margins, scrollbar and row padding), so no row ever overflows. -->
+                            <ColumnDefinition Width="*" MinWidth="160" />
+                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="176" />
                             <ColumnDefinition Width="212" />
                         </Grid.ColumnDefinitions>
 
@@ -460,10 +462,21 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Nothing recommended (optional rows and measurements may still follow in the plan card) -->
+                <Border Style="{StaticResource Card}" Padding="14,11" Margin="0,0,0,8" Visibility="{Binding IsPlanEmpty, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBlock Text="{Binding PlanEmptyText}" Style="{StaticResource T.Body}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
                 <!-- The plan -->
                 <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,8" Visibility="{Binding ShowPlan, Converter={StaticResource BoolToVis}}">
                     <StackPanel Grid.IsSharedSizeScope="True">
-                        <TextBlock Text="{Binding PlanHeader}" Style="{StaticResource T.Label}" Margin="14,11,14,9" />
+                        <TextBlock Text="{Binding PlanHeader}" Style="{StaticResource T.Label}" Margin="14,11,14,9"
+                                   Visibility="{Binding ShowPlanHeader, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding MeasureHeader}" Style="{StaticResource T.Label}" Margin="14,11,14,9"
+                                   Visibility="{Binding ShowMeasureHeaderInPlan, Converter={StaticResource BoolToVis}}" />
                         <ItemsControl ItemsSource="{Binding PlanItems}" ItemTemplate="{StaticResource PlanRow}" Focusable="False" />
                         <ItemsControl ItemsSource="{Binding MeasureItems}" ItemTemplate="{StaticResource PlanRow}" Focusable="False" />
                         <!-- Offered unchecked: one collapsed line «ещё по желанию · K» -->
@@ -504,14 +517,6 @@
                                 </Button>
                             </Grid>
                         </Border>
-                    </StackPanel>
-                </Border>
-
-                <!-- Nothing to change -->
-                <Border Style="{StaticResource Card}" Padding="14,11" Margin="0,0,0,8" Visibility="{Binding IsPlanEmpty, Converter={StaticResource BoolToVis}}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
-                        <TextBlock Text="{Binding PlanEmptyText}" Style="{StaticResource T.Body}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
 

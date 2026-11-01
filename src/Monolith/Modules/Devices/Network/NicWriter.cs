@@ -13,6 +13,7 @@ namespace Monolith.Modules.Devices.Network;
 /// </summary>
 internal sealed class NicWriter : INicWriter
 {
+    /// <summary>Null only when WMI answered and knows no such adapter; a failed query throws (undo then fails and keeps its record).</summary>
     public string? AdapterName(Guid interfaceGuid)
     {
         try
@@ -23,17 +24,20 @@ internal sealed class NicWriter : INicWriter
                 using (mo)
                     return mo["Name"]?.ToString();
         }
-        catch (Exception ex) when (ex is ManagementException or System.Runtime.InteropServices.COMException)
+        catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
             Log.Warn($"Сеть: адаптер не прочитан — {ex.Message}");
+            throw new InvalidOperationException($"сетевой адаптер не прочитан (WMI): {ex.Message} — повторите позже", ex);
         }
         return null;
     }
 
+    /// <summary>Null only when the driver has no such property; a failed query throws (see <see cref="AdapterName"/>).</summary>
     public NicPropertyInfo? Read(Guid interfaceGuid, string keyword)
     {
         if (!DeviceTargets.IsNicKeyword(keyword) && keyword != "*ReceiveBuffers") return null;
-        return NetSystem.ReadProperties(interfaceGuid, keyword).FirstOrDefault(p => string.Equals(p.Keyword, keyword, StringComparison.OrdinalIgnoreCase));
+        return NetSystem.ReadProperties(interfaceGuid, keyword, throwOnError: true)
+            .FirstOrDefault(p => string.Equals(p.Keyword, keyword, StringComparison.OrdinalIgnoreCase));
     }
 
     public bool Set(Guid interfaceGuid, string keyword, string value)

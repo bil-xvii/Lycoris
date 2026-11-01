@@ -381,6 +381,7 @@ public sealed class DevicePageTests : IDisposable
         Assert.Contains(CommandPaletteSearch.Search(index, "hdr"), e => e.FocusId == "display-hdr");
         Assert.Contains(CommandPaletteSearch.Search(index, "микрофон"), e => e.FocusId == "mic-level");
         Assert.Contains(CommandPaletteSearch.Search(index, "пинг"), e => e.FocusId == "kind:network");
+        Assert.Contains(CommandPaletteSearch.Search(index, "частота опроса"), e => e.FocusId == "mouse-polling"); // the measurement row, not the card
     }
 
     [Fact]
@@ -400,6 +401,40 @@ public sealed class DevicePageTests : IDisposable
         Assert.True(plain.IsPlanEmpty);
         Assert.False(plain.ShowMeasureOnly);
         Assert.Equal("Все настройки устройств и сети совпадают с рекомендуемыми.", plain.PlanEmptyText);
+    }
+
+    [Fact]
+    public void Plan_with_only_optional_rows_says_nothing_to_change_and_keeps_them_in_the_plan_card()
+    {
+        var vm = PageWith(Card("mouse", DeviceKind.Mouse, 10, Setting("wheel-lines", 3, 5, RecommendPolicy.Suggest)),
+            Card("mic", DeviceKind.AudioInput, 40, Setting("mic-level", 60, 60, RecommendPolicy.Suggest, measure: true)));
+        vm.HasScanned = true;
+
+        Assert.True(vm.IsPlanEmpty);            // «менять нечего» although an optional row is left
+        Assert.True(vm.ShowPlan);               // the optional row (unchecked) and its apply bar stay
+        Assert.False(vm.ShowPlanHeader);        // no «РЕКОМЕНДУЕТСЯ ИЗМЕНИТЬ · 0»
+        Assert.True(vm.ShowMeasureHeaderInPlan);
+        Assert.False(vm.ShowMeasureOnly);
+        Assert.Equal(0, vm.PlanCount);
+        Assert.Single(vm.OptionalItems);
+        Assert.Contains("по желанию", vm.PlanEmptyText);
+    }
+
+    [Fact]
+    public void Tweak_rows_of_hkcu_tweaks_are_per_user()
+    {
+        Assert.True(DevicePlan.IsPerUser(DeviceSetting.ForTweak("mouse-acceleration-off", "x", "x")));
+        Assert.True(DevicePlan.IsPerUser(DeviceSetting.ForTweak("audio-ducking", "x", "x")));
+        var machine = Monolith.Tweaks.TweakCatalog.All.OfType<Monolith.Tweaks.RegistryTweak>().First(t => t.Values.All(v => v.Hive == RegHive.HKLM));
+        Assert.False(DevicePlan.IsPerUser(DeviceSetting.ForTweak(machine.Id, "x", "x")));
+
+        var card = Card("mouse", DeviceKind.Mouse, 10);
+        var epp = DeviceSetting.ForTweak("mouse-acceleration-off", "Повышенная точность указателя", "x");
+        epp.Current = DeviceValue.Of(0);
+        epp.Recommended = new Recommendation(DeviceValue.Of(1), "почему", RecommendPolicy.Include);
+        card.Settings.Add(epp);
+        Assert.False(DevicePlan.Build([card], interactiveUser: false).Single().Selectable);
+        Assert.True(DevicePlan.Build([card], interactiveUser: true).Single().Selectable);
     }
 
     [Fact]

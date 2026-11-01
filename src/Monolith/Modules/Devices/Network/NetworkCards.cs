@@ -229,21 +229,28 @@ public static class NetworkCards
         var gameBlock = s.RunningGame is { } game ? $"Идёт игра ({game}) — адаптер сейчас не перезапускается." : null;
         if (a.Medium == NetMedium.Ethernet && a.Property("*SpeedDuplex") is { } sd && Number(sd) is { } current && sd.ValidValues.Contains("0"))
         {
-            var options = sd.ValidValues
-                .Select(v => long.TryParse(v, out var n) ? n : (long?)null).OfType<long>()
-                .Where(n => n == 0 || n == current || n == 6 || n >= 1000) // never offer forcing 10/100 (the harmful leftover this repairs)
-                .Distinct().OrderBy(n => n == 0 ? -1 : n)
-                .Select(n => new DeviceOption(DeviceValue.Of(n), SpeedDuplexLabel(n))).ToList();
-            var setting = new DeviceSetting
-            {
-                Id = "nic:*SpeedDuplex", Title = "Скорость и дуплекс", Order = 0, Control = SettingControl.Choice, Options = options,
-                Hint = "Автосогласование — верно почти всегда; вручную — только если так же задан порт роутера",
-                Default = DeviceValue.Of(0), Format = v => SpeedDuplexLabel(v.Number), AppliesWhen = "ПЕРЕЗАПУСК АДАПТЕРА",
-                JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, "*SpeedDuplex"),
-                ReadCurrent = () => ReadNumber(a.InterfaceGuid, "*SpeedDuplex"),
-                Apply = NicApply(a, "*SpeedDuplex", "Скорость и дуплекс", v => SpeedDuplexLabel(v.Number), results),
-                Current = DeviceValue.Of(current), DisabledReason = gameBlock,
-            };
+            // Research (network_adapter.md): MONOLITH only repairs a forced speed/duplex back to auto-negotiation — it never
+            // forces a speed. Already auto: a read-only row; forced: the choice is «auto» or leaving it as it is.
+            var setting = current == 0
+                ? new DeviceSetting
+                {
+                    Id = "nic:*SpeedDuplex", Title = "Скорость и дуплекс", Order = 0, Control = SettingControl.Info,
+                    Hint = "Автосогласование — верно почти всегда. Фиксированная скорость задаётся только вместе с портом роутера, в Диспетчере устройств",
+                    Default = DeviceValue.Of(0), Format = v => SpeedDuplexLabel(v.Number),
+                    JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, "*SpeedDuplex"),
+                    ReadCurrent = () => ReadNumber(a.InterfaceGuid, "*SpeedDuplex"), Current = DeviceValue.Of(current),
+                }
+                : new DeviceSetting
+                {
+                    Id = "nic:*SpeedDuplex", Title = "Скорость и дуплекс", Order = 0, Control = SettingControl.Choice,
+                    Options = [new DeviceOption(DeviceValue.Of(0), SpeedDuplexLabel(0)), new DeviceOption(DeviceValue.Of(current), SpeedDuplexLabel(current))],
+                    Hint = "Автосогласование — верно почти всегда; MONOLITH только возвращает его, другую скорость не задаёт",
+                    Default = DeviceValue.Of(0), Format = v => SpeedDuplexLabel(v.Number), AppliesWhen = "ПЕРЕЗАПУСК АДАПТЕРА",
+                    JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, "*SpeedDuplex"),
+                    ReadCurrent = () => ReadNumber(a.InterfaceGuid, "*SpeedDuplex"),
+                    Apply = NicApply(a, "*SpeedDuplex", "Скорость и дуплекс", v => SpeedDuplexLabel(v.Number), results),
+                    Current = DeviceValue.Of(current), DisabledReason = gameBlock,
+                };
             if (NetFindings.SpeedDuplexNeedsRepair(a))
                 setting.Recommended = new Recommendation(DeviceValue.Of(0),
                     Trim(a.FullDuplex == false
@@ -330,6 +337,11 @@ public static class NetworkCards
             return ApplyOutcome.Blocked;
         }
         if (DeviceWriters.Nic?.Read(a.InterfaceGuid, keyword) is { } live && Number(live) == value.Number) return ApplyOutcome.NoChange;
+        if (keyword == "*SpeedDuplex" && value.Number != 0)
+        {
+            session.Errors.Add($"{title}: MONOLITH только возвращает автосогласование — фиксированную скорость он не задаёт.");
+            return ApplyOutcome.Blocked;
+        }
         var ok = await Ui.ConfirmAsync("Перезапустить сетевой адаптер?",
             $"{name}: «{title}» → {describe(value)}. Драйвер перезапустит адаптер: связь пропадёт на 1–6 секунд, загрузки, голосовой чат " +
             "и онлайн-матч прервутся. Вернуть прежнее значение можно кнопкой «ОТКАТИТЬ».", confirmText: "ПЕРЕЗАПУСТИТЬ");

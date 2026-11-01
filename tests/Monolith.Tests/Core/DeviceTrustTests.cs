@@ -97,6 +97,16 @@ public sealed class DeviceTrustTests
         Assert.NotNull(JournalTrust.Check(Spi(persisted: new RegistryValueSnapshot { Hive = RegHive.HKCU, Path = @"Control Panel\Desktop", Name = "MouseSensitivity" })));
         Assert.NotNull(JournalTrust.Check(Spi(persisted: new RegistryValueSnapshot { Hive = RegHive.HKCU, Path = @"Control Panel\Mouse", Name = "Other" })));
         Assert.NotNull(JournalTrust.Check(Spi(persisted: new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"Control Panel\Mouse", Name = "MouseSensitivity" })));
+        // The persisted value is a number inside the parameter's range, like everything Windows writes there.
+        foreach (var data in new[] { "99", "0", "abc", "", "1e3" })
+            Assert.NotNull(JournalTrust.Check(Spi(persisted: new RegistryValueSnapshot
+            {
+                Hive = RegHive.HKCU, Path = @"Control Panel\Mouse", Name = "MouseSensitivity", KeyExisted = true, ValueExisted = true, Kind = RegistryValueKind.String, Data = data,
+            })));
+        Assert.Null(JournalTrust.Check(Spi(persisted: new RegistryValueSnapshot
+        {
+            Hive = RegHive.HKCU, Path = @"Control Panel\Mouse", Name = "MouseSensitivity", KeyExisted = true, ValueExisted = true, Kind = RegistryValueKind.String, Data = "20",
+        })));
         Assert.NotNull(JournalTrust.Check(Spi(persisted: new RegistryValueSnapshot
         {
             Hive = RegHive.HKCU, Path = @"Control Panel\Mouse", Name = "MouseSensitivity", ValueExisted = true, Kind = RegistryValueKind.Binary, Data = "00",

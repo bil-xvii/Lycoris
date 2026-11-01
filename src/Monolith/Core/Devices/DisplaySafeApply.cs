@@ -225,8 +225,12 @@ internal static class DisplaySafeApply
     private static DisplayApplyOutcome RevertNewHdr(ChangeJournal journal, IDisplayWriter w, IDisplayGuard guard, ChangeRecord record,
         string monitorPath, bool original, bool gone)
     {
+        // «gone» is only a read result: the record is closed only when the write back succeeded (read back when it can be).
         var back = w.SetHdr(monitorPath, original);
-        if (gone || (back.Ok && w.ReadHdrEnabled(monitorPath) == original))
+        var after = back.Ok ? w.ReadHdrEnabled(monitorPath) : null;
+        // A monitor that is gone cannot be read back: a successful write counts, a failed one never does.
+        var reverted = back.Ok && (after == original || (gone && after is null));
+        if (reverted)
         {
             guard.Resolve();
             journal.Remove(record);
@@ -234,7 +238,9 @@ internal static class DisplaySafeApply
         }
         // The guard stays armed and tries again at its deadline; the record stays so the change can be undone.
         journal.ConfirmPending(record, DeviceTargets.DescribeHdr(!original) + " (не подтверждено)");
-        return Failed("не удалось вернуть HDR — защитный процесс попробует ещё раз; если не выйдет, откатите запись в «Восстановлении»");
+        return Failed(gone
+            ? "монитор пропал, а HDR вернуть не удалось — защитный процесс попробует ещё раз; если не выйдет, откатите запись в «Восстановлении»"
+            : "не удалось вернуть HDR — защитный процесс попробует ещё раз; если не выйдет, откатите запись в «Восстановлении»");
     }
 
     // ───────────────────────────── Countdown ─────────────────────────────
@@ -388,7 +394,15 @@ internal static class DisplaySafeApply
     /// </summary>
     public static async Task ReconcileAsync(ChangeJournal journal)
     {
-        var pending = journal.PendingDisplayRecords();
+        var all = journal.PendingDisplayRecords();
+        // Input parameters applied with a countdown (button swap, a very low pointer speed) are persisted at once: an
+        // unconfirmed one is simply reverted through the journal.
+        foreach (var r in all.Where(r => r.Spi is { PendingConfirm: true }))
+        {
+            try { await ReconcileSpiAsync(journal, r).ConfigureAwait(false); }
+            catch (Exception ex) { Log.Warn($"«{r.Title}»: незавершённое изменение параметра не проверено — {ex.Message}"); }
+        }
+        var pending = all.Where(r => r.DisplayMode is not null || r.DisplayHdr is not null).ToList();
         if (pending.Count == 0) return;
         await DisplayGuardProcess.WaitForGuardsAsync(ConfirmWindow + GuardSlack + TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         if (DeviceWriters.Display is not { } w)
@@ -411,6 +425,21 @@ internal static class DisplaySafeApply
     }
 
     private const string NotConfirmed = "Изменение не было подтверждено — прежние параметры на месте.";
+
+    /// <summary>An input parameter left pending by a crash: reverted (the journal's own undo, which re-validates the record and the account).</summary>
+    internal static async Task ReconcileSpiAsync(ChangeJournal journal, ChangeRecord r)
+    {
+        if (JournalTrust.Check(r) is { } refusal)
+        {
+            Log.Warn($"«{r.Title}»: незавершённое изменение параметра пропущено — {refusal}.");
+            return;
+        }
+        var result = await journal.RevertAsync([r]).ConfigureAwait(false);
+        if (result.Success && r.Reverted)
+            Log.Info($"«{r.Title}»: изменение не было подтверждено (MONOLITH закрылся во время обратного отсчёта) — возвращено прежнее значение.");
+        else
+            Log.Warn($"«{r.Title}»: неподтверждённое изменение вернуть не удалось ({string.Join("; ", result.Errors)}) — откатите запись в «Восстановлении».");
+    }
 
     internal static void ReconcileMode(ChangeJournal journal, IDisplayWriter w, ChangeRecord r, DisplayModeSnapshot snap)
     {

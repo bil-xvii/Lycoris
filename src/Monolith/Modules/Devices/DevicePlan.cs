@@ -74,6 +74,20 @@ public static class DevicePlan
     public static IReadOnlyList<PlanItem> Build(IEnumerable<DeviceCard> cards, bool interactiveUser,
         IReadOnlyDictionary<string, bool>? previousSelection = null)
     {
+        return BuildCore(cards, interactiveUser, previousSelection);
+    }
+
+    /// <summary>
+    /// The row writes into the account's profile: a per-user device setting, or a tweak row whose Optimize tweak writes only
+    /// HKCU («mouse-acceleration-off», «audio-ducking», «vrr»): applied from the plan it would land in the desktop user's hive
+    /// only when MONOLITH runs as that user.
+    /// </summary>
+    public static bool IsPerUser(DeviceSetting s) =>
+        s.PerUser || (s.TweakId is { } id && Monolith.Tweaks.TweakCatalog.Find(id) is Monolith.Tweaks.RegistryTweak t
+                      && t.Values.Count > 0 && t.Values.All(v => v.Hive == Monolith.Core.RegHive.HKCU));
+
+    private static IReadOnlyList<PlanItem> BuildCore(IEnumerable<DeviceCard> cards, bool interactiveUser, IReadOnlyDictionary<string, bool>? previousSelection)
+    {
         var items = new List<PlanItem>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var card in cards)
@@ -101,7 +115,7 @@ public static class DevicePlan
                 var selectable = kind is PlanItemKind.Setting or PlanItemKind.OptimizeTweak;
                 if (selectable && kind == PlanItemKind.Setting && s.Apply is null) { selectable = false; disabled = "Только для просмотра."; }
                 if (selectable && s.DisabledReason is { } why) { selectable = false; disabled = why; }
-                if (selectable && s.PerUser && !interactiveUser)
+                if (selectable && IsPerUser(s) && !interactiveUser)
                 {
                     selectable = false;
                     disabled = "Недоступно: MONOLITH запущен не от вашей учётной записи (или её не удалось определить).";

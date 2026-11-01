@@ -76,8 +76,8 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     {
         await Task.Delay(1200);
 
-        // 0. Display changes left unconfirmed by a crash (MONOLITH or the PC died during the countdown): an unconfirmed
-        //    change is put back — after any running guard process finished its own job.
+        // 0. Display and input changes left unconfirmed by a crash (MONOLITH or the PC died during the countdown): an
+        //    unconfirmed change is put back — after any running guard process finished its own job.
         if (Elevation.IsElevated && ChangeJournal.Instance is { IsUnavailable: false } journal && journal.PendingDisplayRecords().Count > 0)
         {
             try { await Task.Run(() => DisplaySafeApply.ReconcileAsync(journal)); }

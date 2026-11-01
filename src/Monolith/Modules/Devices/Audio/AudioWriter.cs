@@ -11,8 +11,33 @@ namespace Monolith.Modules.Devices.Audio;
 /// </summary>
 internal sealed class AudioWriter : IAudioWriter
 {
-    public bool IsPresent(string endpointId) =>
-        DeviceTargets.IsEndpointId(endpointId) && WithDevice(endpointId, _ => true, false);
+    /// <summary>
+    /// False only when Windows knows no endpoint with this id (E_NOTFOUND: removed, or the driver was reinstalled and the id
+    /// changed). Any other failure throws, so undo keeps its record instead of closing it; an inactive (unplugged, disabled)
+    /// endpoint is present here and fails <see cref="Read"/> instead.
+    /// </summary>
+    public bool IsPresent(string endpointId)
+    {
+        if (!DeviceTargets.IsEndpointId(endpointId)) return false;
+        return CoreAudio.Mta(() =>
+        {
+            IMMDeviceEnumerator? en = null;
+            IMMDevice? dev = null;
+            try
+            {
+                en = CoreAudio.CreateEnumerator();
+                var hr = en.GetDevice(endpointId, out dev);
+                if (hr == CoreAudio.E_NOTFOUND) return false;
+                if (hr < 0 || dev is null) throw new InvalidOperationException($"звуковое устройство не прочитано (0x{hr:X8}) — повторите позже");
+                return true;
+            }
+            finally
+            {
+                CoreAudio.Release(dev);
+                CoreAudio.Release(en);
+            }
+        });
+    }
 
     public (float Scalar, bool Mute)? Read(string endpointId) =>
         DeviceTargets.IsEndpointId(endpointId)

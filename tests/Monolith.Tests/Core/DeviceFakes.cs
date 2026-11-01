@@ -51,9 +51,11 @@ internal sealed class FakeAudioWriter : IAudioWriter
 {
     public Dictionary<string, (float Scalar, bool Mute)> Endpoints { get; } = new(StringComparer.OrdinalIgnoreCase);
     public bool IgnoreSets { get; set; }
+    /// <summary>The endpoint query fails (a COM error), as the real writer throws then.</summary>
+    public bool PresenceFails { get; set; }
     public int SetCalls { get; private set; }
 
-    public bool IsPresent(string id) => Endpoints.ContainsKey(id);
+    public bool IsPresent(string id) => PresenceFails ? throw new InvalidOperationException("звуковое устройство не прочитано (0x80004005)") : Endpoints.ContainsKey(id);
     public (float Scalar, bool Mute)? Read(string id) => Endpoints.TryGetValue(id, out var v) ? v : null;
 
     public bool SetScalar(string id, float scalar)
@@ -79,13 +81,17 @@ internal sealed class FakeNicWriter : INicWriter
 {
     public Guid Adapter { get; set; } = new("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     public bool AdapterPresent { get; set; } = true;
+    /// <summary>WMI fails (the real writer throws then instead of answering «gone»).</summary>
+    public bool WmiFails { get; set; }
     public Dictionary<string, NicPropertyInfo> Props { get; } = new(StringComparer.OrdinalIgnoreCase);
     public int SetCalls { get; private set; }
 
-    public string? AdapterName(Guid g) => AdapterPresent && g == Adapter ? "Ethernet" : null;
+    public string? AdapterName(Guid g) =>
+        WmiFails ? throw new InvalidOperationException("сетевой адаптер не прочитан (WMI)") : AdapterPresent && g == Adapter ? "Ethernet" : null;
 
     public NicPropertyInfo? Read(Guid g, string keyword) =>
-        AdapterPresent && g == Adapter && Props.TryGetValue(keyword, out var p) ? p : null;
+        WmiFails ? throw new InvalidOperationException("свойства сетевого адаптера не прочитаны (WMI)")
+            : AdapterPresent && g == Adapter && Props.TryGetValue(keyword, out var p) ? p : null;
 
     public bool Set(Guid g, string keyword, string value)
     {
@@ -170,9 +176,14 @@ internal sealed class FakeDisplayWriter : IDisplayWriter
         return DisplayWriteResult.Success;
     }
 
+    /// <summary>SetHdr calls from this index on (0-based) fail and change nothing.</summary>
+    public int HdrSetFailsFrom { get; set; } = int.MaxValue;
+    private int _hdrSets;
+
     public DisplayWriteResult SetHdr(string p, bool enable)
     {
         Calls.Add(enable ? "hdr-on" : "hdr-off");
+        if (_hdrSets++ >= HdrSetFailsFrom) return new DisplayWriteResult(DisplayWriteStatus.Failed, "драйвер отверг HDR");
         Hdr = enable;
         return DisplayWriteResult.Success;
     }
