@@ -62,7 +62,10 @@ public static class EtwSession
     internal static readonly int LogFileSize = Marshal.SizeOf<EVENT_TRACE_LOGFILEW>();
     private static readonly int PropertiesBufferSize = PropertiesSize + 2 * NameBytes;
 
-    public sealed record Result(bool Started, string? Error, long EventsLost, long BuffersLost, TimeSpan Elapsed, bool Cancelled);
+    /// <param name="StoppedForGame">A game session began during the measurement: the trace was stopped early and the partial data
+    /// must not be judged.</param>
+    public sealed record Result(bool Started, string? Error, long EventsLost, long BuffersLost, TimeSpan Elapsed, bool Cancelled,
+        bool StoppedForGame = false);
 
     /// <summary>Plain-language text for a failed StartTrace.</summary>
     internal static string DescribeStartError(int code) => code switch
@@ -119,6 +122,7 @@ public static class EtwSession
     /// Runs the measurement synchronously (call from Task.Run): starts the private session, consumes events on a dedicated
     /// thread for <paramref name="duration"/> (or until <paramref name="ct"/> is cancelled), then stops and closes everything.
     /// <paramref name="onEvent"/> receives (kind, routine address, duration µs) on the consumer thread only.
+    /// A game session that begins meanwhile (<see cref="GameBoostState"/>) stops the trace at once (<see cref="Result.StoppedForGame"/>).
     /// </summary>
     public static Result Run(TimeSpan duration, Action<RoutineKind, ulong, double> onEvent, Action<int>? onPercent, CancellationToken ct)
     {
@@ -130,6 +134,7 @@ public static class EtwSession
         long eventsLost = 0, buffersLost = 0;
         Thread? consumer = null;
         var cancelled = false;
+        var stoppedForGame = false;
         Consumer? state = null;
         Result result;
 
@@ -184,12 +189,15 @@ public static class EtwSession
             while (sw.Elapsed < duration)
             {
                 if (ct.IsCancellationRequested) { cancelled = true; break; }
+                if (GameBoostState.IsActive) { stoppedForGame = true; break; } // never trace during a game
                 if (!consumer.IsAlive) break; // ProcessTrace ended early (session stopped by someone else)
                 var percent = (int)Math.Min(99, sw.Elapsed.TotalSeconds * 100 / duration.TotalSeconds);
                 if (percent != lastPercent) { lastPercent = percent; onPercent?.Invoke(percent); }
                 Thread.Sleep(200);
             }
-            result = !consumer.IsAlive && !cancelled && sw.Elapsed < duration
+            result = stoppedForGame
+                ? new Result(true, null, 0, 0, sw.Elapsed, false, StoppedForGame: true)
+                : !consumer.IsAlive && !cancelled && sw.Elapsed < duration
                 ? new Result(true, $"сеанс трассировки завершился раньше срока (код {processRc}) — возможно, его остановила другая программа.", 0, 0, sw.Elapsed, false)
                 : new Result(true, null, 0, 0, sw.Elapsed, cancelled);
         }
@@ -249,26 +257,7 @@ public static class EtwSession
         {
             try
             {
-                var p = (byte*)record;
-                // EVENT_HEADER: Flags @4, TimeStamp @16, ProviderId @24, EVENT_DESCRIPTOR @40 (Opcode @44); UserDataLength @86, UserData @96.
-                if (*(Guid*)(p + 24) != PerfInfoGuid) return;
-                var kind = p[44] switch
-                {
-                    67 => RoutineKind.Isr,
-                    68 => RoutineKind.Dpc,
-                    66 => RoutineKind.ThreadedDpc,
-                    69 => RoutineKind.TimerDpc,
-                    _ => (RoutineKind)(-1),
-                };
-                if (kind < 0) return;
-                var pointerSize = (*(ushort*)(p + 4) & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0 ? 4 : 8;
-                var length = *(ushort*)(p + 86);
-                if (length < 8 + pointerSize) return;
-                var data = *(byte**)(p + 96);
-                if (data == null) return;
-                var initial = *(long*)data;
-                var routine = pointerSize == 8 ? *(ulong*)(data + 8) : *(uint*)(data + 8);
-                var ticks = *(long*)(p + 16) - initial;
+                if (!TryParseRecord((byte*)record, out var kind, out var routine, out var ticks)) return;
                 if (ticks < 0 || ticks > _maxTicks) return;
                 _onEvent(kind, routine, ticks * _microsPerTick);
             }
@@ -280,6 +269,43 @@ public static class EtwSession
 
         public void Dispose() => GC.KeepAlive(_callback);
     }
+
+    // ───────────────────────────── EVENT_RECORD parsing ─────────────────────────────
+
+    /// <summary>
+    /// Reads a PerfInfo DPC/ISR event from an EVENT_RECORD (x64). EVENT_HEADER: Flags @4, TimeStamp @16, ProviderId @24,
+    /// EVENT_DESCRIPTOR @40 = { Id @40, Version @42, Channel @43, Level @44, Opcode @45, Task @46, Keyword @48 };
+    /// EVENT_RECORD: UserDataLength @86, UserData @96 (sizeof = 112). Payload: InitialTime (int64) @0, Routine (pointer) @8.
+    /// <paramref name="ticks"/> = TimeStamp − InitialTime (QPC ticks, may be negative for a clock artefact — the caller filters).
+    /// </summary>
+    internal static unsafe bool TryParseRecord(byte* p, out RoutineKind kind, out ulong routine, out long ticks)
+    {
+        kind = default;
+        routine = 0;
+        ticks = 0;
+        if (p == null || *(Guid*)(p + 24) != PerfInfoGuid) return false;
+        switch (p[45])
+        {
+            case 67: kind = RoutineKind.Isr; break;
+            case 68: kind = RoutineKind.Dpc; break;
+            case 66: kind = RoutineKind.ThreadedDpc; break;
+            case 69: kind = RoutineKind.TimerDpc; break;
+            default: return false;
+        }
+        var pointerSize = (*(ushort*)(p + 4) & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0 ? 4 : 8;
+        var length = *(ushort*)(p + 86);
+        if (length < 8 + pointerSize) return false;
+        var data = *(byte**)(p + 96);
+        if (data == null) return false;
+        var initial = *(long*)data;
+        routine = pointerSize == 8 ? *(ulong*)(data + 8) : *(uint*)(data + 8);
+        ticks = *(long*)(p + 16) - initial;
+        return true;
+    }
+
+    /// <summary><see cref="TryParseRecord(byte*, out RoutineKind, out ulong, out long)"/> for a native buffer (unit tests).</summary>
+    internal static unsafe bool TryParseRecord(IntPtr record, out RoutineKind kind, out ulong routine, out long ticks) =>
+        TryParseRecord((byte*)record, out kind, out routine, out ticks);
 
     // ───────────────────────────── EVENT_TRACE_PROPERTIES helpers ─────────────────────────────
 

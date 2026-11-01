@@ -644,30 +644,47 @@ public sealed partial class ToolsViewModel : PageViewModel
 
         await ExecuteAsync(DpcCardTitle, DpcCommandText, cancellable: true, "Измерение задержек драйверов…", async ct =>
         {
-            var modules = await Task.Run(KernelModules.Load, ct);
-            Emit($"Модулей ядра: {modules.Modules.Count}{(modules.DebugPrivilege ? "" : " (без SeDebugPrivilege)")}.", ConsoleLineKind.Info);
-            if (modules.Note is not null) Emit(modules.Note, ConsoleLineKind.Info);
-
-            var aggregator = new DpcAggregator(new ModuleMap(modules.Modules));
-            var result = await Task.Run(() =>
+            try
             {
-                var stale = EtwSession.StopStaleSessions();
-                if (stale > 0) _pending.Enqueue($"Остановлено незавершённых сеансов MONOLITH: {stale}.");
-                return EtwSession.Run(DpcDuration, aggregator.Add,
-                    percent => _pending.Enqueue($"Измерение {percent}% завершено."), ct);
-            }, ct);
-
-            if (!result.Started) return ToolOutcome.Fail("Измерение не запущено: " + result.Error);
-            if (result.Cancelled) return null;
-            if (result.EventsLost > 0 || result.BuffersLost > 0)
-                Emit($"Потеряно событий: {result.EventsLost}, буферов: {result.BuffersLost} — результат может быть неполным.", ConsoleLineKind.Info);
-            if (result.Error is not null) Emit(result.Error, ConsoleLineKind.Info);
-
-            Emit("", ConsoleLineKind.Output);
-            foreach (var line in aggregator.FormatReport(result.Elapsed))
-                Emit(line, ConsoleLineKind.Output);
-            return ClassifyDpc(aggregator, result.Elapsed);
+                return await MeasureDpcAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return ToolOutcome.Cancel(DpcCancelledText);
+            }
         });
+    }
+
+    internal const string DpcCancelledText = "Измерение отменено — ничего не изменено, сеанс трассировки остановлен.";
+    internal const string DpcGameStoppedText =
+        "Измерение остановлено: начался игровой сеанс. Ничего не изменено; неполные данные не оцениваются — повторите после игры.";
+
+    private async Task<ToolOutcome> MeasureDpcAsync(CancellationToken ct)
+    {
+        var modules = await Task.Run(KernelModules.Load, ct);
+        Emit($"Модулей ядра: {modules.Modules.Count}{(modules.DebugPrivilege ? "" : " (без SeDebugPrivilege)")}.", ConsoleLineKind.Info);
+        if (modules.Note is not null) Emit(modules.Note, ConsoleLineKind.Info);
+
+        var aggregator = new DpcAggregator(new ModuleMap(modules.Modules));
+        var result = await Task.Run(() =>
+        {
+            var stale = EtwSession.StopStaleSessions();
+            if (stale > 0) _pending.Enqueue($"Остановлено незавершённых сеансов MONOLITH: {stale}.");
+            return EtwSession.Run(DpcDuration, aggregator.Add,
+                percent => _pending.Enqueue($"Измерение {percent}% завершено."), ct);
+        }, ct);
+
+        if (!result.Started) return ToolOutcome.Fail("Измерение не запущено: " + result.Error);
+        if (result.StoppedForGame) return ToolOutcome.Cancel(DpcGameStoppedText);
+        if (result.Cancelled) return ToolOutcome.Cancel(DpcCancelledText);
+        if (result.EventsLost > 0 || result.BuffersLost > 0)
+            Emit($"Потеряно событий: {result.EventsLost}, буферов: {result.BuffersLost} — результат может быть неполным.", ConsoleLineKind.Info);
+        if (result.Error is not null) Emit(result.Error, ConsoleLineKind.Info);
+
+        Emit("", ConsoleLineKind.Output);
+        foreach (var line in aggregator.FormatReport(result.Elapsed))
+            Emit(line, ConsoleLineKind.Output);
+        return ClassifyDpc(aggregator, result.Elapsed);
     }
 
     internal static ToolOutcome ClassifyDpc(DpcAggregator aggregator, TimeSpan elapsed)
