@@ -38,7 +38,7 @@ public sealed partial class ProfileTileViewModel : ObservableObject
         Kind = kind;
         Index = index;
         Badge = badge;
-        Retitle(laptop: false);
+        RetitleEfficiency(laptop: false);
     }
 
     /// <summary>Longer explanation shown as the tile's tooltip: what the scenario does and what it does not touch.</summary>
@@ -59,7 +59,7 @@ public sealed partial class ProfileTileViewModel : ObservableObject
     /// Chooses the laptop or desktop wording («Ноутбук: автономность» / «Тихий ПК» and the matching hint). Called once the
     /// hardware facts are known; a no-op for the other scenarios, whose texts do not depend on the PC.
     /// </summary>
-    public void Retitle(bool laptop)
+    public void RetitleEfficiency(bool laptop)
     {
         Title = OptimizeLogic.ScenarioTitle(Kind, laptop);
         SentenceName = OptimizeLogic.ScenarioName(Kind, laptop);

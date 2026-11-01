@@ -186,21 +186,26 @@
                                          ToolTipService.ShowDuration="30000" VerticalContentAlignment="Top">
                                 <StackPanel>
                                     <!-- Title + badge; the badge drops under the title (flush left) when the tile is narrow: the gap is the title's right margin.
-                                         The corner mark of the Tile style needs the right 14 px. -->
-                                    <WrapPanel Margin="0,0,14,0">
+                                         The corner mark of the Tile style covers the right 16 px of the content: 9 px panel margin + 7 px right margin of the
+                                         title and of the badge. A title breaks only between words
+                                         (WrapWithOverflow: «Рекомендуемый» is never split into «Рекомендуем/ый»). -->
+                                    <WrapPanel Margin="0,0,9,0">
                                         <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}" FontWeight="Bold"
-                                                   FontSize="13.5" Foreground="{StaticResource B.Text}" TextWrapping="Wrap" Margin="0,0,7,0" VerticalAlignment="Center" />
-                                        <Border Style="{StaticResource Tag.Muted}" Margin="0,1,0,1" Padding="5,0,5,1" VerticalAlignment="Center"
+                                                   FontSize="13" Foreground="{StaticResource B.Text}" TextWrapping="WrapWithOverflow" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                        <Border Style="{StaticResource Tag.Muted}" Margin="0,1,7,1" Padding="5,0,5,1" VerticalAlignment="Center"
                                                 Visibility="{Binding Badge, Converter={StaticResource NullToVis}}">
                                             <TextBlock Text="{Binding Badge}" FontSize="9.5" />
                                         </Border>
                                     </WrapPanel>
                                     <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
                                                Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" TextWrapping="Wrap">
-                                        <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run
-                                             Text=" к изменению · " /><Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run
-                                             Text=" применено" />
+                                    <!-- Counters on two fixed lines: six tiles never wrap them at different places. -->
+                                    <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                                               TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run Text=" к изменению" />
+                                    </TextBlock>
+                                    <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text=" применено" />
                                     </TextBlock>
                                 </StackPanel>
                             </RadioButton>

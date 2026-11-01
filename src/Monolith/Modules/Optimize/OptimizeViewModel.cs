@@ -33,6 +33,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
     /// <summary>SystemProfile.HardwareFactsKnown as of the last detection (tests set it through <see cref="MarkDetected"/>).</summary>
     private bool _hardwareFactsKnown;
     private bool _laptop;
+    /// <summary>
+    /// Ids whose AppliesTo rule rejects this PC (Windows 10, laptop-only, dual-CCD X3D…). Such a row stays not applicable even
+    /// while a tweak it requires is pending: a pending Balanced plan does not bring the Windows 11 power mode to Windows 10.
+    /// </summary>
+    private HashSet<string> _hardwareExcluded = new(StringComparer.Ordinal);
     private readonly HashSet<string> _acceptedExpert = new(StringComparer.Ordinal);
     /// <summary>Tweak ids whose pending dependency is being evaluated right now (UI thread): guards against a Requires cycle.</summary>
     private readonly HashSet<string> _dependencyWalk = new(StringComparer.Ordinal);
@@ -297,6 +302,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 _hardwareFactsKnown = sp.HardwareFactsKnown;
                 _laptop = sp.HardwareFactsKnown && sp.IsLaptop;
                 var tweaks = _items.Select(i => i.Tweak).ToList();
+                _hardwareExcluded = tweaks.Where(t => TweakEngine.Applicability(t, sp) == false).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
                 var states = await TweakEngine.DetectAllAsync(tweaks);
                 var revertable = await Task.Run(() => tweaks.Where(TweakEngine.CanRevert).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
                 _protectionOn = await Task.Run(RestorePointService.IsEnabled);
@@ -335,7 +341,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     /// </summary>
     private void ReconcileScenarioTiles()
     {
-        foreach (var t in _allTiles) t.Retitle(_laptop);
+        foreach (var t in _allTiles) t.RetitleEfficiency(_laptop);
         UpdateCounts();
         if (Profile == OptimizeProfile.Efficiency && !IsEfficiencyTileVisible) SelectProfile(OptimizeProfile.Recommended);
         OnPropertyChanged(nameof(ApplyButtonText));
@@ -463,7 +469,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     /// </summary>
     internal TweakItemViewModel? PendingDependencyOf(TweakItemViewModel item)
     {
-        if (!_dependencyWalk.Add(item.Id)) return null;
+        if (IsHardwareExcluded(item.Id) || !_dependencyWalk.Add(item.Id)) return null;
         try
         {
             var id = OptimizeLogic.PendingDependency(item.Tweak, IsPendingRow);
@@ -474,6 +480,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
             _dependencyWalk.Remove(item.Id);
         }
     }
+
+    /// <summary>Whether this PC's hardware/OS rules out the tweak (its AppliesTo), so no pending dependency can make it applicable.</summary>
+    internal bool IsHardwareExcluded(string id) => _hardwareExcluded.Contains(id);
+
+    /// <summary>Test hook: ids whose AppliesTo rejects the PC (the real set comes from detection).</summary>
+    internal void SetHardwareExcluded(params string[] ids) => _hardwareExcluded = ids.ToHashSet(StringComparer.Ordinal);
 
     /// <summary>Whether the row with this id is checked and will change in this apply (unknown ids are not pending).</summary>
     internal bool IsPendingRow(string id) => FindItem(id) is { IsPending: true };
@@ -637,7 +649,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             var defaults = DefaultsOf(tile.Kind);
             var members = tile.Kind == OptimizeProfile.Custom
                 ? _items.Where(i => i.IsChecked).ToList()
-                : _items.Where(i => !i.IsAdvanced && OptimizeLogic.IsProfileMember(i.Tweak, i.IsApplicable, defaults,
+                : _items.Where(i => !i.IsAdvanced && !IsHardwareExcluded(i.Id) && OptimizeLogic.IsProfileMember(i.Tweak, i.IsApplicable, defaults,
                     rid => FindItem(rid) is { IsApplicable: true, IsAdvanced: false, State: { } s } && OptimizeLogic.WillChange(s))).ToList();
             tile.Total = members.Count;
             // A member that is not applicable on its own is there through its dependency: selecting the profile changes it too.
@@ -807,11 +819,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
         lines.AddRange(result.SkippedReasons.Select(r => $"ПРОПУЩЕНО — {r}"));
         lines.AddRange(result.Errors.Select(e => $"ОШИБКА — {e}"));
         // What the scenario leaves to the user because MONOLITH must not write it (vendor fan curves, charge limits, DND blobs).
+        // Each line carries the «ВРУЧНУЮ —» label, like the «ПРИМЕНЕНО —» lines above it (the dialog lists bullets, not headers).
         var manual = OptimizeLogic.ManualSteps(scenario, _laptop);
         if (manual.Count > 0)
         {
-            lines.Add(OptimizeLogic.ManualStepsHeader);
-            lines.AddRange(manual);
+            lines.AddRange(manual.Select(m => $"{OptimizeLogic.ManualStepsHeader} — {m}"));
         }
 
         var verified = targets.Count(t => t.IsApplied);
