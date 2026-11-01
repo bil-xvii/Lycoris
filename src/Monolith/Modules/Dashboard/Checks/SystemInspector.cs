@@ -1,15 +1,18 @@
 using System.IO;
 using System.Management;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Monolith.Core;
 using Monolith.Modules.Dashboard.Monitoring;
 using Monolith.Modules.Games;
+using Monolith.Tweaks;
 
 namespace Monolith.Modules.Dashboard.Checks;
 
 /// <summary>
 /// Collects a <see cref="SystemSnapshot"/> with read-only calls only (WMI, registry reads, user32/gdi32 queries,
-/// "fsutil behavior query", event log queries, tbs/kernel32/NVML queries, "CiTool -lp -json" with admin rights).
+/// "fsutil behavior query", event log queries, tbs/kernel32/NVML queries, "CiTool -lp -json" and
+/// "Get-WindowsReservedStorageState" with admin rights).
 /// Runs entirely on background threads; every part has a time limit and degrades to "unknown" on failure.
 /// </summary>
 public static class SystemInspector
@@ -39,6 +42,10 @@ public static class SystemInspector
             : Task.FromResult<GpuLinkFacts?>(null);
 
         var snapshot = await Task.Run(() => Collect(profile)).ConfigureAwait(false);
+        // A servicing query (DISM provider): only when the drive is already low on space, and only with admin rights.
+        var reservedTask = elevated && HealthRules.IsLowSpace(snapshot.SystemDriveFree, snapshot.SystemDriveTotal)
+            ? Probe.RunAsync("зарезервированное хранилище", ReadReservedStorageStateAsync, TimeSpan.FromSeconds(25), (string?)null)
+            : Task.FromResult<string?>(null);
         var trim = await trimTask.ConfigureAwait(false);
         var (firmware, secureBoot, tpm) = await bootTask.ConfigureAwait(false);
         var (blocklist, sac) = await kernelTask.ConfigureAwait(false);
@@ -54,12 +61,14 @@ public static class SystemInspector
             Disks = await disksTask.ConfigureAwait(false),
             Stability = await eventsTask.ConfigureAwait(false),
             GpuLink = await linkTask.ConfigureAwait(false),
+            ReservedStorageState = await reservedTask.ConfigureAwait(false),
         };
     }
 
     private static SystemSnapshot Collect(SystemProfile p)
     {
         var (free, total) = SystemProfile.SystemDriveSpace();
+        var (onAc, energySaver) = Safe(ReadPowerStatus, ((bool?)null, (bool?)null));
         return new SystemSnapshot
         {
             Now = DateTime.Now,
@@ -84,6 +93,12 @@ public static class SystemInspector
             Hags = Safe(ReadHags, HagsState.Unknown),
             PowerPlan = Safe(ReadPowerPlanKind, PowerPlanKind.Unknown),
             PowerPlanName = Safe(() => PowerSchemes.GetName(PowerSchemes.GetActive()), ""),
+            OnAcPower = onAc,
+            EnergySaverOn = energySaver,
+            AcPowerMode = Safe(TweakCatalog.ReadAcPowerMode, null),
+            HiberfilBytes = Safe(ReadHiberfilBytes, null),
+            PagefileBytes = Safe(ReadPagefileBytes, null),
+            PagefileSystemManaged = Safe(ReadPagefileSystemManaged, null),
             PendingReboot = Safe(ReadPendingReboot, []),
             PrimaryGpu = p.PrimaryGpu,
             StartupCount = Safe<int?>(() => CountStartupEntries(), null),
@@ -139,6 +154,23 @@ public static class SystemInspector
             return status == 2 ? VbsState.VbsOnly : VbsState.Off;
         }
         return VbsState.Unknown;
+    }
+
+    /// <summary>Allocated size of every page file in bytes (Win32_PageFileUsage reports MB). Null when there is none.</summary>
+    private static ulong? ReadPagefileBytes()
+    {
+        ulong sum = 0;
+        foreach (var mo in Query("SELECT AllocatedBaseSize FROM Win32_PageFileUsage"))
+            if (mo["AllocatedBaseSize"] is { } mb) sum += Convert.ToUInt64(mb) * 1024UL * 1024UL;
+        return sum > 0 ? sum : null;
+    }
+
+    /// <summary>«Автоматически выбирать объём файла подкачки» (Win32_ComputerSystem.AutomaticManagedPagefile).</summary>
+    private static bool? ReadPagefileSystemManaged()
+    {
+        foreach (var mo in Query("SELECT AutomaticManagedPagefile FROM Win32_ComputerSystem"))
+            if (mo["AutomaticManagedPagefile"] is bool b) return b;
+        return null;
     }
 
     private static SystemDisk? ReadSystemDisk(ulong free, ulong total)
@@ -237,7 +269,53 @@ public static class SystemInspector
         return n;
     }
 
+    // ───────────────────────────── System files on the system drive ─────────────────────────────
+
+    /// <summary>
+    /// hiberfil.sys size from the file attributes (FileInfo reads them through the directory entry; the file itself is
+    /// never opened — it is locked by the kernel anyway). Null = no hibernation file.
+    /// </summary>
+    private static ulong? ReadHiberfilBytes()
+    {
+        var file = new FileInfo(Path.Combine(SystemProfile.SystemDrive, "hiberfil.sys"));
+        return file.Exists && file.Length > 0 ? (ulong)file.Length : null;
+    }
+
+    /// <summary>"Enabled" / "Disabled" from Get-WindowsReservedStorageState (DISM provider, admin only), else null.</summary>
+    private static async Task<string?> ReadReservedStorageStateAsync()
+    {
+        var r = await ProcessRunner.RunPowerShellAsync("(Get-WindowsReservedStorageState).ReservedStorageState",
+            new ProcessRunOptions { Timeout = TimeSpan.FromSeconds(20), LogCommand = false }).ConfigureAwait(false);
+        return HealthRules.ParseReservedStorageState(r.StdOut);
+    }
+
     // ───────────────────────────── GPU / power / TRIM ─────────────────────────────
+
+    /// <summary>
+    /// GetSystemPowerStatus: (mains power?, energy saver on?). ACLineStatus 1 = online, 0 = offline, 255 = unknown;
+    /// SystemStatusFlag 1 = energy saver («Энергосбережение») is on — on 24H2+ also possible on mains and on desktops.
+    /// </summary>
+    private static (bool? OnAc, bool? EnergySaver) ReadPowerStatus()
+    {
+        if (!GetSystemPowerStatus(out var status)) return (null, null);
+        bool? onAc = status.ACLineStatus switch { 1 => true, 0 => false, _ => null };
+        return (onAc, status.SystemStatusFlag == 1);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SYSTEM_POWER_STATUS
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public int BatteryLifeTime;
+        public int BatteryFullLifeTime;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
 
     /// <summary>Hardware adapters by LUID (names as the display driver reports them) with their number of display outputs.</summary>
     private static IReadOnlyList<GpuAdapter> ReadAdapters()
