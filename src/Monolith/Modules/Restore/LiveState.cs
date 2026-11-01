@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using Monolith.Core;
+using Monolith.Core.Devices;
 using Monolith.Tweaks;
 
 namespace Monolith.Modules.Restore;
@@ -35,6 +36,8 @@ public static class LiveState
                     ? Compare(r, PowerSchemes.GetName(active))
                     : new LiveValue(Unknown, null),
                 ChangeKind.ScheduledTask => ReadTask(r),
+                // Device settings: shown, never compared (users change them on purpose — no drift).
+                _ when JournalTrust.IsDeviceKind(r.Kind) => new LiveValue(DeviceLive(r) ?? Unknown, null),
                 _ => new LiveValue(Unknown, null),
             };
         }
@@ -78,6 +81,7 @@ public static class LiveState
                 ChangeKind.PowerScheme => VerifyPower(r),
                 ChangeKind.ScheduledTask when r.TaskPath is { } path && r.TaskWasEnabled is { } was => VerifyTask(path, was),
                 ChangeKind.Command => VerifyCommand(r),
+                _ when JournalTrust.IsDeviceKind(r.Kind) => VerifyDevice(r),
                 _ => RevertCheck.NotChecked,
             };
         }
@@ -85,6 +89,65 @@ public static class LiveState
         {
             Log.Warn($"Не удалось проверить откат «{r.Title}»: {ex.Message}");
             return RevertCheck.NotChecked;
+        }
+    }
+
+    // ───────────────────────────── Device records ─────────────────────────────
+
+    /// <summary>The live value of a device record in NewValue wording; null when this build has no reader or the device is gone.</summary>
+    private static string? DeviceLive(ChangeRecord r)
+    {
+        switch (r.Kind)
+        {
+            case ChangeKind.UserParameter when r.Spi is { } s && SpiCatalog.Find(s.Id) is { } e && DeviceWriters.Spi is { } spi:
+                return spi.Get(e) is { } v ? e.Describe(v) : null;
+            case ChangeKind.DisplayMode when r.DisplayMode is { } d && DeviceWriters.Display is { } display:
+                return display.ReadCurrentMode(d.MonitorPath)?.Describe() ?? "монитор не подключён";
+            case ChangeKind.DisplayHdr when r.DisplayHdr is { } h && DeviceWriters.Display is { } display:
+                return display.ReadHdrEnabled(h.MonitorPath) is { } on ? DeviceTargets.DescribeHdr(on) : "монитор не подключён";
+            case ChangeKind.MonitorSetting when r.Monitor is { } m && DeviceWriters.Monitor is { } monitor:
+                return monitor.Get(m.MonitorPath, m.Code) is { } vcp ? DeviceTargets.DescribeVcp(m.Code, vcp.Value, vcp.Max) : null;
+            case ChangeKind.AudioLevel when r.Audio is { } a && DeviceWriters.Audio is { } audio:
+                if (!audio.IsPresent(a.EndpointId)) return "устройство не найдено";
+                return audio.Read(a.EndpointId) is { } level
+                    ? a.Component == AudioComponent.Mute ? DeviceTargets.DescribeMute(level.Mute) : DeviceTargets.DescribeLevel(level.Scalar)
+                    : null;
+            case ChangeKind.NicProperty when r.Nic is { } n && DeviceWriters.Nic is { } nic:
+                return nic.Read(n.InterfaceGuid, n.Keyword) is { } p ? DeviceTargets.DescribeNic(p.Value) : "адаптер или свойство не найдены";
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>After an undo: the live value equals the original part of the record (only the part it changed).</summary>
+    private static RevertCheck VerifyDevice(ChangeRecord r)
+    {
+        switch (r.Kind)
+        {
+            case ChangeKind.UserParameter when r.Spi is { } s && SpiCatalog.Find(s.Id) is { } e && DeviceWriters.Spi is { } spi:
+                return spi.Get(e) is { } v ? new RevertCheck(v == s.Value, e.Describe(v), e.Describe(s.Value)) : RevertCheck.NotChecked;
+            case ChangeKind.DisplayMode when r.DisplayMode is { } d && DeviceWriters.Display is { } display:
+                return display.ReadCurrentMode(d.MonitorPath) is { } mode
+                    ? new RevertCheck(mode.SameMode(d.Original), mode.Describe(), d.Original.Describe()) : RevertCheck.NotChecked;
+            case ChangeKind.DisplayHdr when r.DisplayHdr is { } h && DeviceWriters.Display is { } display:
+                return display.ReadHdrEnabled(h.MonitorPath) is { } on
+                    ? new RevertCheck(on == h.OriginalEnabled, DeviceTargets.DescribeHdr(on), DeviceTargets.DescribeHdr(h.OriginalEnabled))
+                    : RevertCheck.NotChecked;
+            case ChangeKind.MonitorSetting when r.Monitor is { } m && DeviceWriters.Monitor is { } monitor:
+                return monitor.Get(m.MonitorPath, m.Code) is { } vcp
+                    ? new RevertCheck(vcp.Value == m.Value, DeviceTargets.DescribeVcp(m.Code, vcp.Value, vcp.Max), DeviceTargets.DescribeVcp(m.Code, m.Value, m.Max))
+                    : RevertCheck.NotChecked;
+            case ChangeKind.AudioLevel when r.Audio is { } a && DeviceWriters.Audio is { } audio:
+                if (!audio.IsPresent(a.EndpointId) || audio.Read(a.EndpointId) is not { } level) return RevertCheck.NotChecked;
+                return a.Component == AudioComponent.Mute
+                    ? new RevertCheck(level.Mute == a.Mute, DeviceTargets.DescribeMute(level.Mute), DeviceTargets.DescribeMute(a.Mute))
+                    : new RevertCheck(Math.Abs(level.Scalar - a.Scalar) <= 0.001f, DeviceTargets.DescribeLevel(level.Scalar), DeviceTargets.DescribeLevel(a.Scalar));
+            case ChangeKind.NicProperty when r.Nic is { } n && DeviceWriters.Nic is { } nic:
+                if (nic.Read(n.InterfaceGuid, n.Keyword) is not { } p) return RevertCheck.NotChecked;
+                var live = p.Value ?? p.DefaultValue;
+                return new RevertCheck(string.Equals(live, n.RestoreValue, StringComparison.Ordinal), DeviceTargets.DescribeNic(live), DeviceTargets.DescribeNic(n.RestoreValue));
+            default:
+                return RevertCheck.NotChecked;
         }
     }
 

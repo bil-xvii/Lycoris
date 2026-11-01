@@ -1,6 +1,7 @@
 using System.IO;
 using System.ServiceProcess;
 using Microsoft.Win32;
+using Monolith.Core.Devices;
 
 namespace Monolith.Core;
 
@@ -21,6 +22,8 @@ public sealed class ChangeSession
     private readonly HashSet<string> _exportedKeys = new(StringComparer.OrdinalIgnoreCase);
 
     public ChangeBatch Batch { get; }
+    /// <summary>The journal this session writes to (a page that reverts its own just-made change uses this one, never Instance).</summary>
+    public ChangeJournal Journal => _journal;
     public string BackupDir { get; }
     public int Applied { get; private set; }
     /// <summary>Set when a command reported "done, restart required" (e.g. pnputil exit code 3010).</summary>
@@ -321,6 +324,427 @@ public sealed class ChangeSession
 
     /// <summary>The command was killed on timeout, cancelled or is still running: what it changed is not known.</summary>
     internal static bool OutcomeUnknown(ProcessResult? r) => r is { TimedOut: true } or { Cancelled: true } or { StillRunning: true };
+
+    // ───────────────────────────── Devices ─────────────────────────────
+    // Same pattern as SetRegistry: journal gate, the record is checked against JournalTrust (so MONOLITH never makes a
+    // change it could not undo) and written BEFORE the change, read-back after it, the original put back and the record
+    // removed on failure. Every primitive refuses in self-test mode and without a writer for the device.
+
+    /// <summary>
+    /// Sets a per-user Windows input parameter (<see cref="SpiCatalog"/>): live session and the account's HKCU value.
+    /// Only when MONOLITH runs as the desktop user (otherwise the persisted value would land in another account).
+    /// An equal value creates no record.
+    /// </summary>
+    public bool SetUserParameter(string spiId, int value, string source, string title) =>
+        _journal.Exclusive(() => SetUserParameterCore(spiId, value, source, title, out _));
+
+    private bool SetUserParameterCore(string spiId, int value, string source, string title, out ChangeRecord? created, bool pendingConfirm = false)
+    {
+        created = null;
+        ChangeRecord? rec = null;
+        var isNew = false;
+        SpiEntry? entry = null;
+        ISpiWriter? writer = null;
+        int? original = null;
+        RegistryValueSnapshot? persisted = null;
+        try
+        {
+            SafetyLock.ThrowIfLocked(title);
+            entry = SpiCatalog.Find(spiId) ?? throw new InvalidOperationException($"неизвестный параметр «{spiId}»");
+            if (!entry.IsAllowedTarget(value)) throw new InvalidOperationException($"значение {value} вне допустимого диапазона");
+            if (Elevation.InteractiveUserProblem is { } account) throw new InvalidOperationException(account);
+            writer = DeviceWriters.Spi ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
+            original = writer.Get(entry) ?? throw new InvalidOperationException("не удалось прочитать текущее значение");
+            if (original == value)
+            {
+                Log.Info($"{title}: уже {entry.Describe(value)} — менять нечего.");
+                return true;
+            }
+            if (!entry.IsValidOriginal(original.Value))
+                throw new InvalidOperationException($"текущее значение {original} вне известного диапазона — MONOLITH не смог бы его вернуть");
+
+            if (entry.Persisted is { } p)
+            {
+                ExportOnce(RegHive.HKCU, p.Path);
+                // Windows creates the value (and, on a fresh profile, its Control Panel key) itself; an undo only deletes the
+                // value it created and never removes a Control Panel key, so no created-key root is recorded.
+                persisted = RegistryHelper.Snapshot(RegHive.HKCU, p.Path, p.Name).WithCreatedKeyRoot(null);
+            }
+            var incoming = new ChangeRecord
+            {
+                BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.UserParameter, Target = DeviceTargets.Spi(entry.Id),
+                OldValue = entry.Describe(original.Value), NewValue = entry.Describe(value) + (pendingConfirm ? " (не подтверждено)" : ""),
+                Spi = new SpiSnapshot { Id = entry.Id, Value = original.Value, Persisted = persisted, PendingConfirm = pendingConfirm },
+                UserSid = UserScope.CurrentSid,
+            };
+            RefuseUntrusted(incoming);
+            (rec, isNew) = _journal.Add(incoming);
+
+            if (!writer.Set(entry, value)) throw new InvalidOperationException("Windows не приняла новое значение");
+            var back = writer.Get(entry);
+            if (back != value) throw new InvalidOperationException($"после записи прочитано {back?.ToString() ?? "—"}, ожидалось {value}");
+
+            if (!isNew) _journal.MergeInto(rec, incoming);
+            Applied++;
+            created = rec;
+            Log.Info($"{title}: {entry.Describe(original.Value)} → {entry.Describe(value)}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (rec is not null && isNew && writer is not null && entry is not null && original is { } o)
+            {
+                // Put the live and the persisted value back exactly; keep the record when that fails (it is the undo).
+                var restored = false;
+                try { restored = DeviceRestore.RestoreSpi(writer, entry, o, persisted, out _); }
+                catch (Exception restoreEx) { Log.Warn($"{title}: возврат не удался — {restoreEx.Message}"); }
+                if (restored) _journal.Remove(rec);
+                else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+            }
+            Fail(title, ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// A parameter that can leave the user unable to click (button swap, a very low pointer speed): applied, then kept
+    /// only when the user confirms within the countdown — with the new button. A decline or timeout reverts this
+    /// session's own record; when that fails the original is written back as a new journaled layer; when that fails too,
+    /// the outcome says how to put it back by hand (<paramref name="manualHint"/>). SPI persists the new value at once, so
+    /// the record is marked pending until the confirmation: if MONOLITH dies during the countdown, the next start reverts it
+    /// (<see cref="DisplaySafeApply.ReconcileAsync"/>).
+    /// </summary>
+    public Task<DisplayApplyOutcome> SetUserParameterConfirmedAsync(string spiId, int value, CountdownRequest confirm, string source, string title,
+        CancellationToken ct = default, string? manualHint = null) =>
+        _journal.ExclusiveAsync(async () =>
+        {
+            var (applied, ok) = await Task.Run(() =>
+            {
+                var done = SetUserParameterCore(spiId, value, source, title, out var r, pendingConfirm: true);
+                return (done, r);
+            }, CancellationToken.None).ConfigureAwait(false);
+            if (!applied) return new DisplayApplyOutcome(DisplayApplyResult.Failed, Errors.Count > 0 ? Errors[^1] : "не применено");
+            if (ok is null) return DisplayApplyOutcome.Unchanged;
+
+            if (await DeviceConfirm.CountdownAsync(confirm, ct).ConfigureAwait(false))
+            {
+                _journal.ConfirmPending(ok, SpiCatalog.Find(spiId)?.Describe(value) ?? value.ToString());
+                return new DisplayApplyOutcome(DisplayApplyResult.Kept);
+            }
+
+            var revert = await _journal.RevertAsync([ok]).ConfigureAwait(false);
+            if (revert.Success && ok.Reverted)
+            {
+                Applied--;
+                Log.Info($"{title}: не подтверждено — возвращено прежнее значение.");
+                return new DisplayApplyOutcome(DisplayApplyResult.Reverted, "не подтверждено — возвращено прежнее значение");
+            }
+            if (ok.Spi is { } snap && await Task.Run(() => SetUserParameterCore(spiId, snap.Value, source, title, out _)).ConfigureAwait(false))
+                return new DisplayApplyOutcome(DisplayApplyResult.Reverted, "не подтверждено — прежнее значение записано заново");
+            var text = "Не удалось вернуть прежнее значение автоматически." + (manualHint is null ? "" : " " + manualHint);
+            Log.Warn($"{title}: {text}");
+            return new DisplayApplyOutcome(DisplayApplyResult.Failed, text);
+        });
+
+    /// <summary>Changes the resolution and refresh rate of one monitor through the on-screen confirmation (see <see cref="DisplaySafeApply"/>).</summary>
+    public Task<DisplayApplyOutcome> SetDisplayModeAsync(string monitorPath, string monitorName, DisplayModeSpec target, string source, string title,
+        CancellationToken ct = default) =>
+        _journal.ExclusiveAsync(() => RunDisplayAsync(title,
+            () => DisplaySafeApply.ApplyModeAsync(_journal, Batch, monitorPath, monitorName, target, source, title, ct)));
+
+    /// <summary>Turns HDR of one monitor on or off through the on-screen confirmation.</summary>
+    public Task<DisplayApplyOutcome> SetDisplayHdrAsync(string monitorPath, string monitorName, bool enable, string source, string title,
+        CancellationToken ct = default) =>
+        _journal.ExclusiveAsync(() => RunDisplayAsync(title,
+            () => DisplaySafeApply.ApplyHdrAsync(_journal, Batch, monitorPath, monitorName, enable, source, title, ct)));
+
+    private async Task<DisplayApplyOutcome> RunDisplayAsync(string title, Func<Task<DisplayApplyOutcome>> body)
+    {
+        DisplayApplyOutcome outcome;
+        try
+        {
+            SafetyLock.ThrowIfLocked(title);
+            outcome = await body().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Fail(title, ex);
+            return new DisplayApplyOutcome(DisplayApplyResult.Failed, ex.Message);
+        }
+        Account(title, outcome);
+        return outcome;
+    }
+
+    private void Account(string title, DisplayApplyOutcome outcome)
+    {
+        switch (outcome.Result)
+        {
+            case DisplayApplyResult.Kept:
+                Applied++;
+                break;
+            case DisplayApplyResult.Failed:
+                Errors.Add($"{title}: {outcome.Message}");
+                Log.Warn($"{title} — не применено: {outcome.Message}");
+                break;
+            case DisplayApplyResult.Blocked:
+                Log.Info($"{title}: {outcome.Message}");
+                break;
+            case DisplayApplyResult.Reverted:
+                Log.Info($"{title}: {outcome.Message ?? "не подтверждено — возвращено прежнее"}");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Monitor brightness or contrast over DDC/CI (within the monitor's own range). A value so low that the picture could
+    /// go dark is kept only after the countdown, shown on another monitor when there is one.
+    /// </summary>
+    public Task<DisplayApplyOutcome> SetMonitorSettingAsync(string monitorPath, string monitorName, MonitorVcp code, uint value, string source,
+        string title, CancellationToken ct = default) =>
+        _journal.ExclusiveAsync(async () =>
+        {
+            ChangeRecord? rec = null;
+            IMonitorWriter? writer = null;
+            VcpReading now = default;
+            try
+            {
+                SafetyLock.ThrowIfLocked(title);
+                writer = DeviceWriters.Monitor ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
+                if (!DeviceTargets.IsMonitorPath(monitorPath)) throw new InvalidOperationException("некорректный путь монитора");
+                now = await Task.Run(() => writer.Get(monitorPath, code)).ConfigureAwait(false)
+                      ?? throw new InvalidOperationException("монитор не отвечает по DDC/CI");
+                if (value < now.Min || value > now.Max) throw new InvalidOperationException($"значение {value} вне диапазона монитора {now.Min}–{now.Max}");
+                if (now.Value == value) return DisplayApplyOutcome.Unchanged;
+
+                var incoming = new ChangeRecord
+                {
+                    BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.MonitorSetting, Target = DeviceTargets.Monitor(monitorPath, code),
+                    OldValue = DeviceTargets.DescribeVcp(code, now.Value, now.Max), NewValue = DeviceTargets.DescribeVcp(code, value, now.Max),
+                    Monitor = new MonitorVcpSnapshot { MonitorPath = monitorPath, MonitorName = monitorName, Code = code, Value = now.Value, Max = now.Max, Min = now.Min },
+                };
+                RefuseUntrusted(incoming);
+                var (existing, isNew) = _journal.Add(incoming);
+                rec = isNew ? existing : null; // merged into this batch's earlier record: that one keeps the first original
+                var w = writer;
+                var written = await Task.Run(() => w.Set(monitorPath, code, value) && w.Get(monitorPath, code)?.Value == value).ConfigureAwait(false);
+                if (!written) throw new InvalidOperationException("монитор не принял новое значение");
+
+                if (DeviceTargets.NeedsMonitorConfirm(code, value, now.Min, now.Max))
+                {
+                    var request = new CountdownRequest(code == MonitorVcp.Contrast ? "ОСТАВИТЬ ЭТОТ КОНТРАСТ?" : "ОСТАВИТЬ ЭТУ ЯРКОСТЬ?",
+                        $"{monitorName}: {DeviceTargets.DescribeVcp(code, value, now.Max)}", (int)Math.Ceiling(DisplaySafeApply.ConfirmWindow.TotalSeconds),
+                        CountdownRequest.Keep, CountdownRequest.Revert, DeviceWriters.Display?.GdiName(monitorPath))
+                    { Window = DisplaySafeApply.ConfirmWindow };
+                    if (!await DeviceConfirm.CountdownAsync(request, ct).ConfigureAwait(false))
+                    {
+                        var back = await Task.Run(() => w.Set(monitorPath, code, now.Value) && w.Get(monitorPath, code)?.Value == now.Value).ConfigureAwait(false);
+                        if (back && rec is not null) _journal.Remove(rec);
+                        return back
+                            ? new DisplayApplyOutcome(DisplayApplyResult.Reverted, "не подтверждено — возвращено прежнее значение")
+                            : new DisplayApplyOutcome(DisplayApplyResult.Failed, "не удалось вернуть прежнее значение — откатите запись в «Восстановлении»");
+                    }
+                }
+                if (!isNew) _journal.MergeInto(existing, incoming);
+                Applied++;
+                Log.Info($"{title}: {incoming.OldValue} → {incoming.NewValue}");
+                return new DisplayApplyOutcome(DisplayApplyResult.Kept);
+            }
+            catch (Exception ex)
+            {
+                if (rec is not null && writer is not null)
+                {
+                    var original = now.Value;
+                    var w = writer;
+                    var back = false;
+                    try { back = await Task.Run(() => w.Set(monitorPath, code, original) && w.Get(monitorPath, code)?.Value == original).ConfigureAwait(false); }
+                    catch { }
+                    if (back) _journal.Remove(rec);
+                    else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+                }
+                Fail(title, ex);
+                return new DisplayApplyOutcome(DisplayApplyResult.Failed, ex.Message);
+            }
+        });
+
+    /// <summary>
+    /// Level (exactly one of <paramref name="scalar"/> 0..1 or <paramref name="db"/>) and/or mute of a capture endpoint.
+    /// Level and mute are separate records (separate targets), so each undo puts back only its own part. Only for the
+    /// desktop user (Core Audio from another account sees that account's view). Blocking: call off the UI thread.
+    /// </summary>
+    public bool SetAudioLevel(string endpointId, string endpointName, float? scalar, float? db, bool? mute, string source, string title) =>
+        _journal.Exclusive(() =>
+        {
+            try
+            {
+                SafetyLock.ThrowIfLocked(title);
+                if (scalar is not null && db is not null) throw new InvalidOperationException("укажите уровень либо в процентах, либо в децибелах");
+                if (scalar is { } s && (!float.IsFinite(s) || s < 0f || s > 1f)) throw new InvalidOperationException("уровень вне диапазона 0–100 %");
+                if (db is { } d && !float.IsFinite(d)) throw new InvalidOperationException("недопустимый уровень в децибелах");
+                if (!DeviceTargets.IsCaptureEndpointId(endpointId)) throw new InvalidOperationException("MONOLITH меняет уровень только у устройств записи");
+                if (Elevation.InteractiveUserProblem is { } account) throw new InvalidOperationException(account);
+                var writer = DeviceWriters.Audio ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
+                if (!writer.IsPresent(endpointId)) throw new InvalidOperationException("устройство не найдено");
+            }
+            catch (Exception ex)
+            {
+                Fail(title, ex);
+                return false;
+            }
+
+            var ok = true;
+            if (scalar is not null || db is not null) ok &= SetAudioPart(endpointId, endpointName, AudioComponent.Level, scalar, db, null, source, title);
+            if (mute is { } m) ok &= SetAudioPart(endpointId, endpointName, AudioComponent.Mute, null, null, m, source, title);
+            return ok;
+        });
+
+    private bool SetAudioPart(string endpointId, string endpointName, AudioComponent part, float? scalar, float? db, bool? mute, string source, string title)
+    {
+        var writer = DeviceWriters.Audio!;
+        ChangeRecord? rec = null;
+        var isNew = false;
+        (float Scalar, bool Mute) now = default;
+        try
+        {
+            now = writer.Read(endpointId) ?? throw new InvalidOperationException("не удалось прочитать уровень устройства");
+            if (part == AudioComponent.Level && scalar is { } target && Math.Abs(target - now.Scalar) < 0.0005f) return true;
+            if (part == AudioComponent.Mute && mute == now.Mute) return true;
+
+            var incoming = new ChangeRecord
+            {
+                BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.AudioLevel, Target = DeviceTargets.Audio(endpointId, part),
+                OldValue = part == AudioComponent.Mute ? DeviceTargets.DescribeMute(now.Mute) : DeviceTargets.DescribeLevel(now.Scalar),
+                NewValue = part == AudioComponent.Mute ? DeviceTargets.DescribeMute(mute == true)
+                    : scalar is { } sc ? DeviceTargets.DescribeLevel(sc) : $"{db:0.#} дБ",
+                Audio = new AudioLevelSnapshot
+                {
+                    EndpointId = endpointId, EndpointName = endpointName, Component = part,
+                    ScalarBits = BitConverter.SingleToUInt32Bits(now.Scalar), Mute = now.Mute,
+                },
+            };
+            RefuseUntrusted(incoming);
+            (rec, isNew) = _journal.Add(incoming);
+
+            var written = part switch
+            {
+                AudioComponent.Mute => writer.SetMute(endpointId, mute == true),
+                _ when scalar is { } sv => writer.SetScalar(endpointId, sv),
+                _ => writer.SetDb(endpointId, db!.Value),
+            };
+            var back = writer.Read(endpointId);
+            if (!written || back is null) throw new InvalidOperationException("устройство не приняло новое значение");
+            if (part == AudioComponent.Mute && back.Value.Mute != mute) throw new InvalidOperationException("состояние звука не изменилось");
+            if (part == AudioComponent.Level && scalar is { } want && Math.Abs(back.Value.Scalar - want) > 0.001f)
+                throw new InvalidOperationException("уровень не совпал после записи");
+            if (part == AudioComponent.Level && Math.Abs(back.Value.Scalar - now.Scalar) <= 0.0005f)
+            {
+                if (isNew) _journal.Remove(rec); // the endpoint's range clamped it: nothing changed
+                return true;
+            }
+
+            // The value read back is what the record says it set (a dB request lands on the endpoint's own steps).
+            incoming.NewValue = part == AudioComponent.Mute ? DeviceTargets.DescribeMute(back.Value.Mute) : DeviceTargets.DescribeLevel(back.Value.Scalar);
+            _journal.MergeInto(rec, incoming);
+            Applied++;
+            Log.Info($"{title}: {incoming.OldValue} → {incoming.NewValue}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (rec is not null && isNew)
+            {
+                var restored = false;
+                try
+                {
+                    restored = part == AudioComponent.Mute
+                        ? writer.SetMute(endpointId, now.Mute) && writer.Read(endpointId)?.Mute == now.Mute
+                        : writer.SetScalar(endpointId, now.Scalar) && writer.Read(endpointId) is { } b && Math.Abs(b.Scalar - now.Scalar) <= 0.001f;
+                }
+                catch { }
+                if (restored) _journal.Remove(rec);
+                else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+            }
+            Fail(title, ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Sets one whitelisted NDIS advanced property (<see cref="DeviceTargets.NicKeywords"/>) of the adapter with this
+    /// InterfaceGuid, to a value the adapter itself lists as valid. The driver restarts the adapter: the link drops for
+    /// about 1–6 s, so it is refused during a game session. Blocking: call off the UI thread.
+    /// </summary>
+    public bool SetNicAdvancedProperty(Guid interfaceGuid, string keyword, string value, string source, string title) =>
+        _journal.Exclusive(() =>
+        {
+            ChangeRecord? rec = null;
+            var isNew = false;
+            INicWriter? writer = null;
+            NicPropertySnapshot? snap = null;
+            try
+            {
+                SafetyLock.ThrowIfLocked(title);
+                if (GameBoostState.IsActive) throw new InvalidOperationException("во время игрового сеанса MONOLITH не перезапускает сетевой адаптер");
+                if (!DeviceTargets.IsNicKeyword(keyword)) throw new InvalidOperationException($"свойство «{keyword}» MONOLITH не меняет");
+                if (!DeviceTargets.IsNicValue(value)) throw new InvalidOperationException("значение свойства должно быть числом");
+                writer = DeviceWriters.Nic ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
+                if (writer.RunningGame() is { } game) throw new InvalidOperationException($"идёт игра ({game}) — MONOLITH не перезапускает сетевой адаптер");
+                var name = writer.AdapterName(interfaceGuid) ?? throw new InvalidOperationException("сетевой адаптер не найден");
+                var info = writer.Read(interfaceGuid, keyword) ?? throw new InvalidOperationException($"у адаптера нет свойства {keyword}");
+                if (!info.ValidValues.Contains(value, StringComparer.Ordinal))
+                    throw new InvalidOperationException($"значение {value} не входит в допустимые для этого адаптера");
+                if (string.Equals(info.Value ?? info.DefaultValue, value, StringComparison.Ordinal)) return true;
+
+                snap = new NicPropertySnapshot { InterfaceGuid = interfaceGuid, AdapterName = name, Keyword = info.Keyword, Value = info.Value, DefaultValue = info.DefaultValue };
+                if (snap.RestoreValue is null) throw new InvalidOperationException("у свойства нет ни значения, ни значения по умолчанию — вернуть его было бы нельзя");
+                var incoming = new ChangeRecord
+                {
+                    BatchId = Batch.Id, Source = source, Title = $"{title} ({DeviceTargets.NicRestartNote})", Kind = ChangeKind.NicProperty,
+                    Target = DeviceTargets.NicProperty(interfaceGuid, info.Keyword),
+                    OldValue = DeviceTargets.DescribeNic(info.Value), NewValue = value, Nic = snap,
+                };
+                RefuseUntrusted(incoming);
+                (rec, isNew) = _journal.Add(incoming);
+                Log.Info($"{title}: {name} — {DeviceTargets.NicRestartNote}.");
+                if (!writer.Set(interfaceGuid, info.Keyword, value) || writer.Read(interfaceGuid, info.Keyword)?.Value != value)
+                    throw new InvalidOperationException("адаптер не принял новое значение");
+                if (!isNew) _journal.MergeInto(rec, incoming);
+                Applied++;
+                Log.Info($"{title}: {name} {info.Keyword} {DeviceTargets.DescribeNic(info.Value)} → {value}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (rec is not null && isNew && writer is not null && snap?.RestoreValue is { } original)
+                {
+                    var restored = false;
+                    try
+                    {
+                        var live = writer.Read(interfaceGuid, snap.Keyword);
+                        restored = live is not null && (string.Equals(live.Value ?? live.DefaultValue, original, StringComparison.Ordinal)
+                                                        || (writer.Set(interfaceGuid, snap.Keyword, original) && writer.Read(interfaceGuid, snap.Keyword)?.Value == original));
+                    }
+                    catch { }
+                    if (restored) _journal.Remove(rec);
+                    else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+                }
+                Fail(title, ex);
+                return false;
+            }
+        });
+
+    /// <summary>The journal check runs on every new device record BEFORE anything changes: never make a change MONOLITH could not undo.</summary>
+    private static void RefuseUntrusted(ChangeRecord incoming)
+    {
+        if (JournalTrust.Check(incoming) is { } refusal)
+            throw new InvalidOperationException($"MONOLITH не смог бы откатить это изменение ({refusal}) — ничего не изменено");
+    }
+
+    private void ExportOnce(RegHive hive, string path)
+    {
+        if (!_exportedKeys.Add($"{hive}\\{path}")) return;
+        var file = Path.Combine(BackupDir, SafeFileName($"{hive}_{path}") + ".reg");
+        _ = RegistryHelper.ExportKeyAsync(hive, path, file).GetAwaiter().GetResult();
+    }
 
     public void Complete()
     {

@@ -37,35 +37,47 @@ public static class TweakEngine
         return await Task.Run(async () =>
         {
             var session = await ChangeSession.BeginAsync(title, createRestorePoint: true, progress).ConfigureAwait(false);
-            int skipped = 0;
-            var restart = RestartRequirement.None;
-            foreach (var t in tweaks)
-            {
-                if (Applicability(t, sp) is not true)
-                {
-                    if (!sp.HardwareFactsKnown && t.AppliesTo is not null)
-                        Log.Warn($"{t.Title} — пропущено: не удалось определить характеристики компьютера.");
-                    skipped++;
-                    continue;
-                }
-                progress?.Report(t.Title);
-                var before = session.Applied;
-                try
-                {
-                    // The journal gate covers the whole tweak: it reads the live state (DNS servers, the active plan…)
-                    // before it calls the session, and no revert may change that state in between.
-                    session.Exclusive(() => t.Apply(new TweakContext { Session = session, System = sp, Tweak = t }));
-                }
-                catch (Exception ex)
-                {
-                    session.Errors.Add($"{t.Title}: {ex.Message}");
-                    Log.Error($"{t.Title} — ошибка", ex);
-                }
-                if (session.Applied > before && t.Restart > restart) restart = t.Restart;
-            }
+            var (skipped, restart) = ApplyInSession(session, tweaks, sp, progress);
             session.Complete();
             return new TweakRunResult(session.Applied, skipped, session.Errors, session.Batch.RestorePoint, restart);
         }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Applies tweaks inside a session the caller opened and completes (a page that applies tweaks together with its own
+    /// changes in one batch — «Устройства и сеть» → АВТОНАСТРОЙКА). Same rules as <see cref="ApplyAsync"/>: each tweak with
+    /// its own source "tweak:&lt;id&gt;", inapplicable ones skipped. Blocking: call off the UI thread.
+    /// </summary>
+    public static (int Skipped, RestartRequirement Restart) ApplyInSession(ChangeSession session, IReadOnlyList<Tweak> tweaks, SystemProfile sp,
+        IProgress<string>? progress = null)
+    {
+        int skipped = 0;
+        var restart = RestartRequirement.None;
+        foreach (var t in tweaks)
+        {
+            if (Applicability(t, sp) is not true)
+            {
+                if (!sp.HardwareFactsKnown && t.AppliesTo is not null)
+                    Log.Warn($"{t.Title} — пропущено: не удалось определить характеристики компьютера.");
+                skipped++;
+                continue;
+            }
+            progress?.Report(t.Title);
+            var before = session.Applied;
+            try
+            {
+                // The journal gate covers the whole tweak: it reads the live state (DNS servers, the active plan…)
+                // before it calls the session, and no revert may change that state in between.
+                session.Exclusive(() => t.Apply(new TweakContext { Session = session, System = sp, Tweak = t }));
+            }
+            catch (Exception ex)
+            {
+                session.Errors.Add($"{t.Title}: {ex.Message}");
+                Log.Error($"{t.Title} — ошибка", ex);
+            }
+            if (session.Applied > before && t.Restart > restart) restart = t.Restart;
+        }
+        return (skipped, restart);
     }
 
     /// <summary>

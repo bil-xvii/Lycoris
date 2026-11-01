@@ -27,6 +27,12 @@ public static class RestoreFormat
         ChangeKind.PowerScheme => "ПИТАНИЕ",
         ChangeKind.ScheduledTask => "ЗАДАЧА",
         ChangeKind.Command => "КОМАНДА",
+        ChangeKind.UserParameter => "ПАРАМЕТР",
+        ChangeKind.DisplayMode => "ЭКРАН",
+        ChangeKind.DisplayHdr => "HDR",
+        ChangeKind.MonitorSetting => "МОНИТОР",
+        ChangeKind.AudioLevel => "ЗВУК",
+        ChangeKind.NicProperty => "СЕТЬ",
         _ => "ИЗМЕНЕНИЕ",
     };
 
@@ -34,6 +40,7 @@ public static class RestoreFormat
     public static string DescribeTarget(string? target)
     {
         if (string.IsNullOrWhiteSpace(target)) return "—";
+        if (Monolith.Core.Devices.DeviceTargets.DescribeTarget(target) is { } device) return device;
         var colon = target.IndexOf(':');
         if (colon <= 0) return target;
         var prefix = target[..colon].ToLowerInvariant();

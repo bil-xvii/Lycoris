@@ -24,7 +24,7 @@ internal static class HardwareAdvisor
             Storage(s),
             Network(s, ctx, wu),
             Audio(s, ctx, wu),
-            Monitors(s),
+            Monitors(s, ctx, wu),
             Peripherals(s, wu),
             Runtimes(s),
         };
@@ -757,34 +757,39 @@ internal static class HardwareAdvisor
 
     // ───────────────────────────── 07 Monitors ─────────────────────────────
 
-    private static HwGroup Monitors(HardwareSnapshot s)
+    /// <summary>
+    /// Only the monitor DRIVER: whether Windows Update has one for it. Resolution, refresh rate and HDR are set (and judged)
+    /// in «Устройства и сеть»; the Dashboard check links there — Drivers keeps no second refresh-rate verdict.
+    /// </summary>
+    private static HwGroup Monitors(HardwareSnapshot s, HardwareContext ctx, WuIndex wu)
     {
         var list = new List<HwComponent>();
+        var pnpMonitors = s.Devices.Where(d => string.Equals(d.PnpClass, "Monitor", StringComparison.OrdinalIgnoreCase)).ToList();
         var i = 0;
         foreach (var d in s.Displays)
         {
-            var below = HealthRules.IsBelowMaxRefresh(d.CurrentHz, d.MaxHz);
-            var details = Join($"{d.Width}×{d.Height}", $"{d.CurrentHz} Гц", $"максимум {d.MaxHz} Гц при этом разрешении");
             var key = $"display:{i++}:{d.Name}";
-            if (below)
+            // "Generic Monitor (X27U W3)" ↔ "X27U W3"; an ambiguous or missing match only loses the Windows Update check.
+            var candidates = d.Name.Length == 0
+                ? new List<PnpDevice>()
+                : pnpMonitors.Where(m => m.Name.Contains(d.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+            var device = candidates.Count == 1 ? candidates[0] : null;
+            if (device is null)
             {
-                list.Add(new HwComponent(key, "МОНИТОР", d.Name, details, HwStatus.ManualOnly,
-                [
-                    new HwAction("refresh:" + key, HwActionKind.OpenSettings, HwSource.Manual, $"Включить {d.MaxHz} Гц",
-                        $"Сейчас {d.CurrentHz} Гц, а монитор поддерживает {d.MaxHz} Гц при этом разрешении. " +
-                        "Параметры → Дисплей → Расширенные параметры дисплея → Частота обновления. Изменение мгновенное, вернуть можно там же.",
-                        "Параметры Windows")
-                    {
-                        Url = "ms-settings:display-advanced",
-                        ButtonText = "ПАРАМЕТРЫ ДИСПЛЕЯ",
-                    },
-                ]));
+                list.Add(new HwComponent(key, "МОНИТОР", d.Name, "драйвер Windows", HwStatus.Info, []) { StatusText = "ДРАЙВЕР WINDOWS" });
+                continue;
             }
-            else
+
+            var verdict = WuVerdict(key, device, device.DeviceId, wu);
+            var driver = DriverOf(ctx, device.DeviceId);
+            var details = Join(DriverText(driver) is { Length: > 0 } text ? text : "драйвер Windows",
+                verdict.Status == HwStatus.UpdateAvailable ? WuDetail(wu) : null);
+            var plain = verdict.Status is HwStatus.Current or HwStatus.Unchecked && verdict.Note is null;
+            list.Add(new HwComponent(key, "МОНИТОР", d.Name, details, plain ? HwStatus.Info : verdict.Status, verdict.Actions)
             {
-                list.Add(new HwComponent(key, "МОНИТОР", d.Name, details, HwStatus.Current, [])
-                { Note = "Монитор работает на максимальной частоте обновления." });
-            }
+                StatusText = plain ? "ДРАЙВЕР WINDOWS" : verdict.StatusText,
+                Note = verdict.Note,
+            });
         }
         return new HwGroup(HwGroupKind.Monitors, "МОНИТОРЫ", list);
     }
@@ -793,8 +798,10 @@ internal static class HardwareAdvisor
 
     private static HwGroup Peripherals(HardwareSnapshot s, WuIndex wu)
     {
-        // VID:PID pairs that are real input / audio / camera devices (hubs, storage and radios are not peripherals).
+        // VID:PID pairs that are real input / audio / camera devices (hubs, storage and radios are not peripherals; nor are
+        // software devices such as G HUB's virtual mouse / keyboard 046D:C231 / C232).
         var byId = s.Devices
+            .Where(d => !HardwareRules.IsVirtualDevice(d))
             .Select(d => (Device: d, Id: HardwareRules.UsbId(d.DeviceId)))
             .Where(x => x.Id is not null)
             .GroupBy(x => x.Id!.Value)
@@ -819,7 +826,8 @@ internal static class HardwareAdvisor
             {
                 ids.Add($"{g.Key.Vid}:{g.Key.Pid}");
                 devices.AddRange(g.Select(x => x.Device));
-                var best = g.Select(x => x.Device.Name).FirstOrDefault(n => !HardwareRules.IsGenericDeviceName(n));
+                var best = g.Select(x => x.Device.Name).FirstOrDefault(n => !HardwareRules.IsGenericDeviceName(n))
+                           ?? HardwareCatalog.KnownDeviceName(g.Key.Vid, g.Key.Pid);
                 if (best is not null && !names.Contains(best, StringComparer.OrdinalIgnoreCase)) names.Add(best);
             }
             var wuMatches = devices.SelectMany(d => wu.Match(d.DeviceId, d.HardwareIds)).DistinctBy(u => u.UpdateId).ToList();

@@ -463,18 +463,32 @@ public sealed class HardwareTests
     }
 
     [Fact]
-    public void Monitor_below_max_refresh_opens_display_settings()
+    public void Drivers_keeps_no_refresh_verdict_for_monitors()
     {
-        var c = Component(HardwareAdvisor.Build(Snapshot(displays: [new DisplayInfo("Odyssey G5", 2560, 1440, 60, 165)]), Context()), "display:");
-        Assert.Equal(HwStatus.ManualOnly, c.Status);
-        var a = Assert.Single(c.Actions);
-        Assert.Equal(HwActionKind.OpenSettings, a.Kind);
-        Assert.Equal("ms-settings:display-advanced", a.Url);
+        // The refresh rate is set and judged on «Устройства и сеть» (the Dashboard check links there); Drivers shows the driver only.
+        var r = HardwareAdvisor.Build(Snapshot(displays: [new DisplayInfo("Odyssey G5", 2560, 1440, 60, 165)]), Context());
+        var c = Component(r, "display:");
+        Assert.Equal(HwStatus.Info, c.Status);
+        Assert.Equal("ДРАЙВЕР WINDOWS", c.StatusText);
+        Assert.Empty(c.Actions);
+        Assert.DoesNotContain("Гц", c.Details);
+        Assert.Null(c.Note);
+        Assert.DoesNotContain(r.Components.SelectMany(x => x.Actions), a => a.Key.StartsWith("refresh:", StringComparison.Ordinal)
+                                                                           || a.Url == "ms-settings:display-advanced");
     }
 
     [Fact]
-    public void Monitor_at_239_of_240_hz_is_current() =>
-        Assert.Equal(HwStatus.Current, Component(HardwareAdvisor.Build(Snapshot(displays: [new DisplayInfo("X27U", 2560, 1440, 239, 240)]), Context()), "display:").Status);
+    public void Monitor_driver_from_windows_update_is_matched_to_its_monitor()
+    {
+        PnpDevice[] devices = [Device(@"DISPLAY\SAM7377\5&2B1A3C&0&UID4352", "Monitor", "Generic Monitor (Odyssey G5)", 0, @"MONITOR\SAM7377")];
+        var wu = new WuView(WuViewState.Ready, [Wu("m1", @"MONITOR\SAM7377", "Monitor", "Samsung - Monitor - 1.0.0.0")]);
+        var r = HardwareAdvisor.Build(Snapshot(displays: [new DisplayInfo("Odyssey G5", 1440, 2560, 180, 180)], devices: devices), Context(wu: wu));
+        var c = Component(r, "display:");
+        Assert.Equal(HwStatus.UpdateAvailable, c.Status);
+        var a = Assert.Single(c.Actions);
+        Assert.Equal(nameof(DriversTab.Updates), a.Url);
+        Assert.Equal(0, r.Groups.First(g => g.Kind == HwGroupKind.Monitors).WuExtra);
+    }
 
     // ───────────────────────────── Network / Windows Update ─────────────────────────────
 
@@ -567,9 +581,66 @@ public sealed class HardwareTests
     public void Installed_vendor_software_is_recognized()
     {
         PnpDevice[] devices = [Device(@"USB\VID_1532&PID_056A&MI_00\8&1", "MEDIA", "Razer Seiren V3 Mini")];
-        var c = Component(HardwareAdvisor.Build(Snapshot(devices: devices, apps: [new("Razer Synapse", "4.0", null, null)]), Context()), "periph:1532");
+        var c = Component(HardwareAdvisor.Build(Snapshot(devices: devices, apps: [new("Razer Synapse", "4.0", null, null, "Razer Inc.")]), Context()), "periph:1532");
         Assert.Equal(HwStatus.Installed, c.Status);
         Assert.DoesNotContain(c.Actions, a => a.IsInstallable);
+    }
+
+    [Fact]
+    public void Vendor_software_needs_the_real_publisher_when_it_is_known()
+    {
+        // One rule with «Устройства и сеть»: display name AND publisher, so look-alikes never count as the vendor's app.
+        Assert.False(HardwareCatalog.InzoneHub.IsInstalled([new UninstallEntry("OpenInzone Hub", "1.0", null, null, "someone")]));
+        Assert.False(HardwareCatalog.GHub.IsInstalled([new UninstallEntry("Logitech G HUB", "1.0", null, null, null)]));
+        Assert.True(HardwareCatalog.InzoneHub.IsInstalled([new UninstallEntry("INZONE Hub", "1.0.20.0", null, null, "Sony Corporation")]));
+        Assert.True(HardwareCatalog.GHub.IsInstalled([new UninstallEntry("Logitech G HUB", "2026.7", null, null, "Logitech")]));
+        // Publisher not verified for this program: the display name decides, as before.
+        Assert.True(HardwareCatalog.Icue.IsInstalled([new UninstallEntry("iCUE", "5.0", null, null, null)]));
+    }
+
+    [Fact]
+    public void Virtual_g_hub_devices_are_not_peripherals()
+    {
+        PnpDevice[] devices =
+        [
+            Device(@"HID\VID_046D&PID_C231\9&12345678&0&0000", "Mouse", "HID-совместимая мышь") with { Virtual = true },
+            new("HID-совместимая клавиатура", @"HID\VID_046D&PID_C232\9&87654321&0&0000", "Keyboard", "", "logi_joy_vir_hid", 0, true, []),
+            Device(@"LGHUBDEVICE\VID_046D&PID_C231\1", "HIDClass", "Logitech G HUB Virtual Mouse"),
+        ];
+        var r = HardwareAdvisor.Build(Snapshot(devices: devices), Context());
+        Assert.DoesNotContain(r.Groups, g => g.Kind == HwGroupKind.Peripherals);
+
+        // A real Logitech keyboard next to them is listed alone.
+        var withKeyboard = HardwareAdvisor.Build(Snapshot(devices: [.. devices, Device(@"HID\VID_046D&PID_C339&MI_00\8&1", "Keyboard", "PRO")]), Context());
+        var c = Component(withKeyboard, "periph:046D");
+        Assert.Contains("046D:C339", c.Details);
+        Assert.DoesNotContain("C231", c.Details);
+        Assert.DoesNotContain("C232", c.Details);
+    }
+
+    [Fact]
+    public void Msi_mystic_light_is_listed_with_msi_center_from_the_official_site()
+    {
+        PnpDevice[] devices = [Device(@"HID\VID_0DB0&PID_0076\7&2F7C0A1&0&0000", "HIDClass", "USB-устройство ввода")];
+        var c = Component(HardwareAdvisor.Build(Snapshot(devices: devices), Context()), "periph:0DB0");
+        Assert.Equal("MSI", c.Kind);
+        Assert.Equal("Mystic Light (подсветка платы)", c.Name); // Windows calls it only «USB-устройство ввода»
+        var a = Assert.Single(c.Actions);
+        Assert.Equal("MSI Center", a.Title);
+        Assert.Equal(HwActionKind.OpenPage, a.Kind);
+        Assert.StartsWith("https://www.msi.com/", a.Url);
+        Assert.False(a.IsInstallable); // link-first: no unversioned zip through winget
+        Assert.True(a.Optional);
+    }
+
+    [Fact]
+    public void Go_to_page_actions_are_never_installable()
+    {
+        var a = new HwAction("go", HwActionKind.GoToPage, HwSource.Manual, "Открыть", "…", "MONOLITH") { Url = "devices", FocusId = "kind:monitor" };
+        Assert.False(a.IsInstallable);
+        var item = new HwActionItem(a, _ => { });
+        item.IsSelected = true;
+        Assert.False(item.IsSelected);
     }
 
     [Fact]

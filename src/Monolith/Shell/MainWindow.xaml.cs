@@ -174,28 +174,56 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// QA helper: renders every page to PNG (used with --snapshot). Pages get <paramref name="waitMs"/> to load data.
+    /// With <paramref name="full"/> the page's longest scrolled list is also saved whole ("…-full.png").
     /// </summary>
-    public async Task SnapshotPagesAsync(string outDir, IReadOnlyCollection<string>? only, int waitMs)
+    public async Task SnapshotPagesAsync(string outDir, IReadOnlyCollection<string>? only, int waitMs, bool full = false)
     {
         Directory.CreateDirectory(outDir);
+        Monolith.Modules.Devices.DevicesViewModel.RememberTab = false; // shooting both tabs must not change the user's last tab
         var n = 0;
         foreach (var page in _vm.Pages)
         {
             n++;
-            // Host pages are shot once per tab ("05-maintenance-cleaner.png"); a tab key in --pages selects that tab only.
-            var tabs = page is MaintenanceViewModel host ? host.Tabs.Select(t => t.Key).ToList() : [];
+            // Host pages are shot once per tab ("05-maintenance-cleaner.png", "08-devices-manual.png"); a tab key in --pages
+            // ("cleaner", "devices-manual") selects that tab only.
+            var tabs = page switch
+            {
+                MaintenanceViewModel host => host.Tabs.Select(t => t.Key).ToList(),
+                Monolith.Modules.Devices.DevicesViewModel => Monolith.Modules.Devices.DevicesViewModel.TabKeys.ToList(),
+                _ => [],
+            };
             if (tabs.Count == 0) tabs.Add("");
             foreach (var tab in tabs)
             {
-                if (only is { Count: > 0 } && !only.Contains(page.Key) && !(tab.Length > 0 && only.Contains(tab))) continue;
+                if (only is { Count: > 0 } && !only.Contains(page.Key) && !(tab.Length > 0 && (only.Contains(tab) || only.Contains($"{page.Key}-{tab}"))))
+                    continue;
                 if (page is MaintenanceViewModel m) m.SelectTab(tab);
+                if (page is Monolith.Modules.Devices.DevicesViewModel dev) dev.SelectedTab = tab;
                 _vm.CurrentPage = page;
                 await Task.Delay(waitMs);
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                 var file = Path.Combine(outDir, $"{n:00}-{page.Key}{(tab.Length > 0 ? "-" + tab : "")}.png");
                 SaveVisual(RootBorder, file);
+                if (full && LongestScrolledContent(RootBorder) is { } content)
+                    SaveVisual(content, Path.ChangeExtension(file, null) + "-full.png");
             }
         }
+    }
+
+    /// <summary>The content of the visible ScrollViewer that hides the most (the page's main list), or null when nothing scrolls.</summary>
+    private static FrameworkElement? LongestScrolledContent(DependencyObject root)
+    {
+        System.Windows.Controls.ScrollViewer? best = null;
+        var stack = new Stack<DependencyObject>([root]);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is System.Windows.Controls.ScrollViewer { IsVisible: true } sv && sv.ExtentHeight - sv.ViewportHeight > 1
+                && (best is null || sv.ExtentHeight - sv.ViewportHeight > best.ExtentHeight - best.ViewportHeight))
+                best = sv;
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) stack.Push(VisualTreeHelper.GetChild(node, i));
+        }
+        return best?.Content as FrameworkElement;
     }
 
     internal static void SaveVisual(FrameworkElement element, string file)

@@ -331,14 +331,47 @@ public sealed class DashboardDisplayTests
     public void Below_max_refresh(int current, int max, bool below) => Assert.Equal(below, HealthRules.IsBelowMaxRefresh(current, max));
 
     [Fact]
-    public void Slow_monitor_offers_the_display_settings()
+    public void Slow_monitor_is_a_shortcut_to_the_monitor_cards()
     {
         var r = HealthRules.CheckRefreshRate(new SystemSnapshot { Displays = [new DisplayInfo("LG", 2560, 1440, 60, 165)] });
         Assert.Equal(CheckSeverity.Warning, r!.Severity);
-        Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
-        Assert.Equal("ms-settings:display-advanced", r.Action.Target);
-        Assert.False(r.Action.RequiresAdmin);
+        Assert.Equal(CheckActionKind.FocusDevice, r.Action!.Kind);
+        Assert.Equal("kind:monitor", r.Action.Target);
+        Assert.Equal("К МОНИТОРАМ", r.Action.Label);
+        Assert.False(r.Action.RequiresAdmin); // the button only opens the page; the change is made there
         Assert.Contains("165", r.Detail);
+        Assert.Contains("«Устройства и сеть»", r.Detail);
+    }
+
+    [Fact]
+    public void Refresh_check_follows_the_monitor_cards_on_battery_and_for_a_laptop_panel()
+    {
+        var external = new DisplayInfo("LG", 2560, 1440, 60, 165);
+        var panel = new DisplayInfo("Встроенный экран", 2560, 1600, 60, 165, IsInternal: true);
+
+        Assert.Null(HealthRules.CheckRefreshRate(new SystemSnapshot { IsLaptop = true, OnBattery = true, Displays = [external] }));
+        Assert.Null(HealthRules.CheckRefreshRate(new SystemSnapshot { IsLaptop = true, Displays = [panel] }));
+        var both = HealthRules.CheckRefreshRate(new SystemSnapshot { IsLaptop = true, Displays = [panel, external] });
+        Assert.Equal(CheckSeverity.Warning, both!.Severity);
+        Assert.DoesNotContain("Встроенный экран", both.Detail);
+    }
+
+    [Fact]
+    public void Monitor_at_max_refresh_has_no_action()
+    {
+        var r = HealthRules.CheckRefreshRate(new SystemSnapshot { Displays = [new DisplayInfo("X27U W3", 2560, 1440, 239, 240)] });
+        Assert.Equal(CheckSeverity.Ok, r!.Severity);
+        Assert.Null(r.Action);
+    }
+
+    [Fact]
+    public void Focus_device_action_explains_that_it_changes_nothing()
+    {
+        var item = new Monolith.Modules.Dashboard.CheckItemViewModel(
+            HealthRules.CheckRefreshRate(new SystemSnapshot { Displays = [new DisplayInfo("LG", 2560, 1440, 60, 165)] })!, _ => Task.CompletedTask);
+        Assert.True(item.ActionAvailable); // no admin needed to open the page
+        Assert.Contains("ничего не меняет", item.ActionTooltip);
+        Assert.Contains("Устройства и сеть", item.ActionTooltip);
     }
 }
 
