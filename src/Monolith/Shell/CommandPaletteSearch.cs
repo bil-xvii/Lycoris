@@ -4,7 +4,8 @@ using Monolith.Tweaks;
 namespace Monolith.Shell;
 
 /// <summary>What a command-palette result points to.</summary>
-public enum PaletteKind { Page, Tweak, Tool, Service }
+/// <remarks><see cref="Myth"/> = a rejected tweak («НЕ ДЕЛАЕМ»): opens its explanation in Settings → О программе.</remarks>
+public enum PaletteKind { Page, Tweak, Tool, Service, Myth }
 
 /// <summary>
 /// One searchable entry of the command palette. Opening it only navigates (and may ask the page to focus an item):
@@ -34,6 +35,7 @@ public sealed class PaletteEntry
         PaletteKind.Page => "РАЗДЕЛ",
         PaletteKind.Tweak => "НАСТРОЙКА",
         PaletteKind.Tool => "ИНСТРУМЕНТ",
+        PaletteKind.Myth => "НЕ ДЕЛАЕМ",
         _ => "СЛУЖБА",
     };
 
