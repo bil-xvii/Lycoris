@@ -71,6 +71,7 @@ public sealed partial class GamesViewModel : PageViewModel
     partial void OnIsScanningChanged(bool value) => OnPropertyChanged(nameof(ShowFirstScan));
     partial void OnHasLibraryChanged(bool value) => NotifyLibraryState();
     partial void OnTotalCountChanged(int value) => NotifyLibraryState();
+    partial void OnShowCloseModeChoiceChanged(bool value) => UpdateCloseList();
 
     // ───────────────────────────── Boost state ─────────────────────────────
 
@@ -78,6 +79,36 @@ public sealed partial class GamesViewModel : PageViewModel
     [ObservableProperty] private string _powerNote = "";
     [ObservableProperty] private int _closeListCount;
     [ObservableProperty] private string _closeListSummary = "";
+    /// <summary>The ЗАКРЫТЬ | РЕЖИМ ЭФФЕКТИВНОСТИ choice exists on Windows 11 only (EcoQoS; before it the same call meant LowQoS).</summary>
+    [ObservableProperty] private bool _showCloseModeChoice;
+
+    /// <summary>Close-list mode segments. A RadioButton group unchecks the other one by itself: only «true» is acted on.</summary>
+    public bool CloseModeIsClose
+    {
+        get => !CloseModeIsEcoQos;
+        set { if (value) SetCloseMode(AppSettings.CloseModeClose); }
+    }
+
+    public bool CloseModeIsEcoQos
+    {
+        get => Settings.GameBoostUsesEcoQos;
+        set { if (value) SetCloseMode(AppSettings.CloseModeEcoQos); }
+    }
+
+    private void SetCloseMode(string mode)
+    {
+        if (string.Equals(Settings.GameBoostCloseMode, mode, StringComparison.OrdinalIgnoreCase)) return;
+        Settings.GameBoostCloseMode = mode;
+        Log.Info(mode == AppSettings.CloseModeEcoQos
+            ? "Игровой сеанс: программы из списка переводятся в режим эффективности, а не закрываются."
+            : "Игровой сеанс: программы из списка закрываются.");
+    }
+
+    /// <summary>Shown under the segments while efficiency mode is chosen (the full explanation also sits in the segment's tooltip).</summary>
+    public const string CloseModeEcoQosCaption =
+        "Режим эффективности: программа продолжает работать, но Windows переводит её на экономные частоты и E-ядра (то же, что «Режим " +
+        "эффективности» в Диспетчере задач, без снижения приоритета). Заметнее на процессорах с P/E-ядрами и ноутбуках; на остальных эффект " +
+        "небольшой. Звук, голос, стрим, оверлеи и периферия не трогаются. Сбрасывается после игры.";
     [ObservableProperty] private bool _hasStaleBoost;
     [ObservableProperty] private string _staleText = "";
     [ObservableProperty] private string _staleActionText = "ВЕРНУТЬ НАСТРОЙКИ";
@@ -136,8 +167,43 @@ public sealed partial class GamesViewModel : PageViewModel
         if (cache is not null) ApplyScan(cache);
 
         CheckStale();
-        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync());
+        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync(), RefreshCloseModeAsync());
         await OfferStaleRestoreAsync();
+        await RecoverStaleEcoQosAsync();
+    }
+
+    private async Task RefreshCloseModeAsync()
+    {
+        try
+        {
+            var sp = await SystemProfile.LoadAsync();
+            ShowCloseModeChoice = sp.IsWindows11;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Игровой сеанс: версия Windows не определена — {ex.Message}");
+        }
+    }
+
+    private bool _ecoRecovered;
+
+    /// <summary>
+    /// MONOLITH died during a session with efficiency mode on: the marker in the admin-only folder names the tagged processes;
+    /// those still running (same PID and start time) go back to the system-managed state. Once per run, elevated only.
+    /// </summary>
+    private async Task RecoverStaleEcoQosAsync()
+    {
+        if (_ecoRecovered || !IsElevated || Boost.IsActive) return;
+        _ecoRecovered = true;
+        try
+        {
+            var text = await Task.Run(GameBoostService.RecoverStaleEcoQos);
+            if (text is not null) Ui.Toast(text, ToastKind.Warning, "ИГРОВОЙ СЕАНС");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Игровой сеанс: не удалось снять режим эффективности прошлого сеанса — {ex.Message}");
+        }
     }
 
     protected override async Task OnReturnAsync()
@@ -655,6 +721,11 @@ public sealed partial class GamesViewModel : PageViewModel
             case nameof(AppSettings.GameBoostCloseList):
                 UpdateCloseList();
                 break;
+            case nameof(AppSettings.GameBoostCloseMode):
+                OnPropertyChanged(nameof(CloseModeIsClose));
+                OnPropertyChanged(nameof(CloseModeIsEcoQos));
+                UpdateCloseList();
+                break;
         }
     }
 
@@ -684,8 +755,9 @@ public sealed partial class GamesViewModel : PageViewModel
     {
         var names = (Settings.GameBoostCloseList ?? []).Select(UserProcesses.NormalizeName).Where(n => n.Length > 0).ToList();
         CloseListCount = names.Count;
+        var eco = Settings.GameBoostUsesEcoQos && ShowCloseModeChoice;
         CloseListSummary = names.Count == 0
-            ? "Список пуст — перед игрой ничего не закрывается."
+            ? (eco ? "Список пуст — перед игрой никому не назначается режим эффективности." : "Список пуст — перед игрой ничего не закрывается.")
             : string.Join(", ", names.Take(6)) + (names.Count > 6 ? $" и ещё {names.Count - 6}" : "");
     }
 
