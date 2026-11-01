@@ -503,6 +503,15 @@ public static partial class HealthRules
         if (string.IsNullOrWhiteSpace(s.UpdatePinnedTo)) return null;
         var v = s.UpdatePinnedTo.Trim();
         var open = new CheckAction(CheckActionKind.FocusTweak, "ЗАКРЕПЛЕНИЕ", TweakUpdatePin);
+        // The policy names another version than the installed one (Microsoft moved the PC on after the 60-day gap, or the
+        // user upgraded): the installed version is serviced on its own schedule, so no «without updates» warning — the pin
+        // is simply stale and only blocks the next yearly update.
+        var installed = s.OsDisplayVersion.Trim();
+        if (installed.Length > 0 && !string.Equals(installed, v, StringComparison.OrdinalIgnoreCase))
+            return new("update-pin", "ЗАКРЕПЛЕНИЕ ВЕРСИИ WINDOWS УСТАРЕЛО",
+                $"Политика закрепляет Windows 11 {v}, а установлена {installed} — закрепление больше не действует как задумано, но " +
+                "задержит следующее крупное обновление. Снимите его: откат пункта в «Оптимизации» или удаление политики, если её " +
+                "задали не через MONOLITH.", CheckSeverity.Info, 0, open);
         if (Tweaks.TweakCatalog.KnownRelease(v) is not { } eos)
             return new("update-pin", "ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА",
                 $"Windows 11 {v} закреплена политикой, дата поддержки неизвестна (этой версии нет в списке MONOLITH). Крупные обновления " +
