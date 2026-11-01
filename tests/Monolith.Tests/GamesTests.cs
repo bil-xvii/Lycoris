@@ -822,15 +822,22 @@ public sealed class GamesTests
 
     // ───────────────────────────── Power mode record (Windows 11, AC only) ─────────────────────────────
 
-    /// <summary>The session's power-mode record exactly as ChangeSession.RunCommandAsync stores it (Target gets the "cmd:" prefix).</summary>
-    private static ChangeRecord PowerModeRecord(Guid current)
+    /// <summary>The service's own JournalTrust probe: the record exactly as ChangeSession.RunCommandAsync stores it.</summary>
+    private static ChangeRecord PowerModeRecord(Guid current) => GameBoostService.PowerModeRecord(current);
+
+    [Fact]
+    public void Game_session_power_mode_probe_is_the_record_the_session_writes()
     {
-        var c = GameBoostService.PowerModeCommand(current);
-        return new ChangeRecord
-        {
-            Source = GameBoostService.Source, Title = c.Title, Kind = ChangeKind.Command, Target = "cmd:" + c.Target,
-            OldValue = c.OldValue, NewValue = c.NewValue, RevertFile = c.RevertFile, RevertArgs = c.RevertArgs,
-        };
+        var c = GameBoostService.PowerModeCommand(TweakCatalog.PowerModeBalanced);
+        var r = PowerModeRecord(TweakCatalog.PowerModeBalanced);
+        Assert.Equal(GameBoostService.Source, r.Source);
+        Assert.Equal(ChangeKind.Command, r.Kind);
+        Assert.Equal("cmd:" + c.Target, r.Target);
+        Assert.Equal(c.Title, r.Title);
+        Assert.Equal((c.OldValue, c.NewValue, c.RevertFile, c.RevertArgs), (r.OldValue, r.NewValue, r.RevertFile, r.RevertArgs));
+        // Machine-wide: no account on the record (the journal refuses a SID on a system-wide change).
+        Assert.Null(r.UserSid);
+        Assert.False(r.IsPerUser);
     }
 
     [Fact]
@@ -859,16 +866,20 @@ public sealed class GamesTests
     }
 
     /// <summary>
-    /// JournalTrust rule (c), written by the power/journal worker of this wave: a Command record from source "gameboost" is
-    /// accepted for the target powermode:ac only, with the undo rebuilt from one of the three documented GUIDs — the record
-    /// built here through the real catalog code. Until that rule is merged, JournalTrust expects only PowerScheme records
-    /// from "gameboost" and this test fails.
+    /// JournalTrust rule (c): a Command record from source "gameboost" is accepted for the target powermode:ac only, with the
+    /// undo rebuilt from one of the three documented GUIDs — the record built here through the real catalog code. The same
+    /// check is the probe DecidePower and SwitchPowerModeAsync run before promising or writing the mode.
     /// </summary>
     [Fact]
     public void Game_session_power_mode_record_is_trusted_by_the_journal()
     {
         foreach (var current in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency, TweakCatalog.PowerModeBestPerformance })
+        {
             Assert.Null(JournalTrust.Check(PowerModeRecord(current)));
+            Assert.Null(GameBoostService.PowerModeUntrusted(current));
+        }
+        // The probe itself never builds a record for an undocumented original (the decision skips it earlier).
+        Assert.Throws<ArgumentException>(() => GameBoostService.PowerModeUntrusted(Guid.NewGuid()));
 
         // Tampered undo (an extra command) and any other command target from this source stay refused.
         var tampered = PowerModeRecord(TweakCatalog.PowerModeBalanced);

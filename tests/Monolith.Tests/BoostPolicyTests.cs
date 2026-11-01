@@ -1,4 +1,5 @@
 using Monolith.Modules.Games;
+using Monolith.Tweaks;
 
 namespace Monolith.Tests;
 
@@ -124,6 +125,26 @@ public sealed class BoostPolicyTests
         Assert.Equal(PowerPlanAction.SkipModeManagedElsewhere, BoostPolicy.Decide(PowerPlanAction.SkipUnavailable, Mode(managed: true)));
     }
 
+    [Fact]
+    public void Mode_is_switched_only_from_a_documented_current_mode()
+    {
+        Assert.Null(BoostPolicy.ModeProblem(TweakCatalog.PowerModeBalanced));
+        Assert.Null(BoostPolicy.ModeProblem(TweakCatalog.PowerModeBestEfficiency));
+        Assert.Equal(PowerPlanAction.SkipModeUnreadable, BoostPolicy.ModeProblem(null));
+        Assert.Equal(PowerPlanAction.SkipModeUnknown, BoostPolicy.ModeProblem(Guid.NewGuid()));
+
+        // Laptop on Windows 11 / Balanced: the mode — but only when the current mode was read and is documented.
+        var laptop = BoostPolicy.DecidePowerPlan(true, false, false, laptop: true, false, false, true, false);
+        Assert.Equal(PowerPlanAction.SwitchPowerMode, BoostPolicy.Decide(laptop, Mode(), TweakCatalog.PowerModeBalanced));
+        Assert.Equal(PowerPlanAction.SkipModeUnreadable, BoostPolicy.Decide(laptop, Mode(), null));
+        Assert.Equal(PowerPlanAction.SkipModeUnknown, BoostPolicy.Decide(laptop, Mode(), Guid.NewGuid()));
+        // The other skips keep their own, more useful reason; the plan switch never looks at the mode.
+        Assert.Equal(PowerPlanAction.SkipEnergySaver, BoostPolicy.Decide(laptop, Mode(energySaver: true), null));
+        Assert.Equal(PowerPlanAction.SkipLaptop, BoostPolicy.Decide(laptop, Mode(windows11: false), Guid.NewGuid()));
+        var desktop = BoostPolicy.DecidePowerPlan(true, false, false, false, false, false, true, false);
+        Assert.Equal(PowerPlanAction.Switch, BoostPolicy.Decide(desktop, Mode(), null));
+    }
+
     // ───────────────────────────── Texts ─────────────────────────────
 
     [Fact]
@@ -135,6 +156,9 @@ public sealed class BoostPolicyTests
         Assert.Contains("энергосбережение", BoostPolicy.Describe(PowerPlanAction.SkipEnergySaver, "x", ""));
         Assert.Contains("уже «Максимальная производительность»", BoostPolicy.Describe(PowerPlanAction.SkipModeAlreadyFast, "x", ""));
         Assert.Contains("«Оптимизация»", BoostPolicy.Describe(PowerPlanAction.SkipModeManagedElsewhere, "x", ""));
+        Assert.Contains("не удалось прочитать текущий режим питания", BoostPolicy.Describe(PowerPlanAction.SkipModeUnreadable, "x", ""));
+        Assert.Contains("неизвестный режим питания — MONOLITH его не меняет", BoostPolicy.Describe(PowerPlanAction.SkipModeUnknown, "x", ""));
+        Assert.Contains("журнал MONOLITH не принял бы отмену", BoostPolicy.Describe(PowerPlanAction.SkipModeUntrusted, "x", ""));
     }
 
     [Fact]
@@ -156,13 +180,21 @@ public sealed class BoostPolicyTests
     [Fact]
     public void Laptop_text_is_used_only_for_laptops_and_names_the_way_out()
     {
-        var laptop = BoostPolicy.Describe(PowerPlanAction.SkipLaptop, "x", "");
+        // Windows 11, a plan that is not Balanced-personality: the way out is the Balanced scheme in Optimize.
+        var laptop = BoostPolicy.Describe(PowerPlanAction.SkipLaptop, "x", "", windows11: true);
         Assert.Contains("на ноутбуке", laptop);
         Assert.Contains("Windows 11", laptop);
         Assert.Contains("«Оптимизации»", laptop);
+        // Windows 10: the mode does not exist — the user is not sent to enable a scheme they may already be on.
+        var windows10 = BoostPolicy.Describe(PowerPlanAction.SkipLaptop, "x", "", windows11: false);
+        Assert.Contains("на ноутбуке", windows10);
+        Assert.Contains("есть только в Windows 11", windows10);
+        Assert.DoesNotContain("Оптимизаци", windows10);
+        Assert.DoesNotContain("сбалансированной", windows10);
         // Desktop-only reasons never say «на ноутбуке».
         foreach (var a in new[] { PowerPlanAction.SkipModernStandby, PowerPlanAction.SkipUnavailable, PowerPlanAction.SkipUnknownHardware,
-                     PowerPlanAction.SkipEnergySaver, PowerPlanAction.SkipModeAlreadyFast, PowerPlanAction.SkipModeManagedElsewhere })
+                     PowerPlanAction.SkipEnergySaver, PowerPlanAction.SkipModeAlreadyFast, PowerPlanAction.SkipModeManagedElsewhere,
+                     PowerPlanAction.SkipModeUnreadable, PowerPlanAction.SkipModeUnknown, PowerPlanAction.SkipModeUntrusted })
             Assert.DoesNotContain("на ноутбуке", BoostPolicy.Describe(a, "x", ""));
         Assert.Contains("не удалось определить", BoostPolicy.Describe(PowerPlanAction.SkipUnknownHardware, "x", ""));
         Assert.Contains("Windows 11", BoostPolicy.Describe(PowerPlanAction.SkipModernStandby, "x", ""));
