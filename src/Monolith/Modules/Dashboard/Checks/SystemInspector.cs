@@ -108,6 +108,8 @@ public static class SystemInspector
             PagefileOnOtherDrive = pagefileElsewhere,
             PagefileSystemManaged = Safe(ReadPagefileSystemManaged, null),
             PendingReboot = Safe(ReadPendingReboot, []),
+            OsDisplayVersion = p.OsDisplayVersion,
+            UpdatePinnedTo = Safe(TweakCatalog.ReadUpdatePinnedTo, null),
             PrimaryGpu = p.PrimaryGpu,
             StartupCount = Safe<int?>(() => CountStartupEntries(), null),
             Vbs = Safe(ReadVbs, VbsState.Unknown),

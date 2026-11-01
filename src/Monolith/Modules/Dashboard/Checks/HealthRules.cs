@@ -23,6 +23,7 @@ public static partial class HealthRules
     public const string TweakPowerModeBestPerformance = "power-mode-best-performance";
     public const string TweakHibernationOff = "hibernation-off";
     public const string TweakPagefileSystemManaged = "pagefile-system-managed";
+    public const string TweakUpdatePin = "wu-target-version";
     /// <summary>Параметры → Система → Питание: the only place that controls energy saver (no tweak does).</summary>
     public const string PowerSettingsUri = "ms-settings:powersleep";
 
@@ -33,6 +34,8 @@ public static partial class HealthRules
     public const int UptimeDaysLimit = 7;
     public const int DriverAgeDaysLimit = 183;
     public const int StartupLimit = 10;
+    /// <summary>A pinned Windows version is flagged this many days before its end of servicing.</summary>
+    public const int UpdatePinWarnDays = 90;
 
     /// <summary>JEDEC base speeds: a module stuck at one of these while rated higher has XMP/EXPO off.</summary>
     private static readonly int[] JedecSpeeds = [2133, 2400, 2666, 2933, 3200, 4800, 5200, 5600];
@@ -42,7 +45,7 @@ public static partial class HealthRules
         var checks = new Func<SystemSnapshot, HealthCheckResult?>[]
         {
             CheckRestore, CheckDiskSpace, CheckDiskHealth, CheckDevices, CheckStability, CheckRefreshRate, CheckMonitorOnGpu,
-            CheckRam, CheckTrim, CheckPendingReboot, CheckGpuDriver, CheckRebar, CheckPcieLink, CheckGameMode, CheckHags,
+            CheckRam, CheckTrim, CheckPendingReboot, CheckUpdatePin, CheckGpuDriver, CheckRebar, CheckPcieLink, CheckGameMode, CheckHags,
             CheckGameDvr, CheckStartup, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
         };
         var results = new List<HealthCheckResult>();
@@ -486,6 +489,33 @@ public static partial class HealthRules
         return new("pending-reboot", "ОЖИДАЕТСЯ ПЕРЕЗАГРУЗКА",
             $"Перезапуска ждут: {string.Join(", ", s.PendingReboot)}. До перезагрузки часть исправлений не действует, " +
             "а установка драйверов и обновлений может завершиться ошибкой.", CheckSeverity.Warning, 6);
+    }
+
+    // ───────────────────────────── Windows Update: pinned version ─────────────────────────────
+
+    /// <summary>
+    /// A PC pinned to one Windows 11 version (TargetReleaseVersion) stops getting the yearly update — and, once that version
+    /// reaches end of servicing, the monthly security updates too, for up to 60 days until Microsoft moves it on. The warning
+    /// comes <see cref="UpdatePinWarnDays"/> days ahead; the action only opens the tweak row (its undo lifts the pin).
+    /// </summary>
+    public static HealthCheckResult? CheckUpdatePin(SystemSnapshot s)
+    {
+        if (string.IsNullOrWhiteSpace(s.UpdatePinnedTo)) return null;
+        var v = s.UpdatePinnedTo.Trim();
+        var open = new CheckAction(CheckActionKind.FocusTweak, "ЗАКРЕПЛЕНИЕ", TweakUpdatePin);
+        if (Tweaks.TweakCatalog.KnownRelease(v) is not { } eos)
+            return new("update-pin", "ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА",
+                $"Windows 11 {v} закреплена политикой, дата поддержки неизвестна (этой версии нет в списке MONOLITH). Крупные обновления " +
+                "не приходят, пока закрепление не снято.", CheckSeverity.Info, 0, open);
+        var date = Tweaks.TweakCatalog.DateText(eos);
+        var daysLeft = eos.DayNumber - DateOnly.FromDateTime(s.Now).DayNumber;
+        if (daysLeft <= UpdatePinWarnDays)
+            return new("update-pin", "ЗАКРЕПЛЁННАЯ ВЕРСИЯ WINDOWS СКОРО БЕЗ ОБНОВЛЕНИЙ",
+                $"Windows 11 {v} закреплена политикой и получает обновления до {date}. После этой даты до двух месяцев обновлений " +
+                "безопасности может не быть. Снимите закрепление в «Оптимизации» (откат пункта).", CheckSeverity.Warning, 10, open);
+        return new("update-pin", "ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА",
+            $"Windows 11 {v} закреплена политикой и получает обновления до {date}. Крупные обновления не приходят, пока закрепление не снято.",
+            CheckSeverity.Info, 0, open);
     }
 
     // ───────────────────────────── SSD TRIM ─────────────────────────────

@@ -1753,3 +1753,81 @@ public sealed class DashboardProbeTests
         Assert.Equal(2, reads);
     }
 }
+
+/// <summary>«Версия Windows закреплена»: the dashboard warns before a pinned version runs out of updates (HealthRules.CheckUpdatePin).</summary>
+public sealed class DashboardUpdatePinTests
+{
+    private static SystemSnapshot Pinned(string? version, int y, int m, int d) =>
+        new() { UpdatePinnedTo = version, OsDisplayVersion = version ?? "", Now = new DateTime(y, m, d, 12, 0, 0) };
+
+    [Fact]
+    public void Not_pinned_means_no_check()
+    {
+        Assert.Null(HealthRules.CheckUpdatePin(new SystemSnapshot()));
+        Assert.Null(HealthRules.CheckUpdatePin(Pinned("", 2026, 11, 1)));
+        Assert.DoesNotContain(HealthRules.Evaluate(new SystemSnapshot { OsDisplayVersion = "25H2" }), r => r.Id == "update-pin");
+    }
+
+    [Fact]
+    public void Far_from_end_of_servicing_is_information_only()
+    {
+        var r = HealthRules.CheckUpdatePin(Pinned("25H2", 2026, 11, 1))!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Equal(0, r.Weight);
+        Assert.Equal("ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА", r.Title);
+        Assert.Contains("12.10.2027", r.Detail);
+        Assert.Equal(CheckActionKind.FocusTweak, r.Action!.Kind);
+        Assert.Equal("wu-target-version", r.Action.Target);
+        Assert.Equal(HealthRules.TweakUpdatePin, r.Action.Target);
+        Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(r.Action.Target!));
+    }
+
+    [Theory]
+    [InlineData(2027, 7, 14)]  // exactly 90 days before 12.10.2027
+    [InlineData(2027, 10, 12)] // the day itself
+    [InlineData(2028, 1, 1)]   // past: the 60-day gap without security updates may already be running
+    public void Within_90_days_or_past_is_a_warning(int y, int m, int d)
+    {
+        var r = HealthRules.CheckUpdatePin(Pinned("25H2", y, m, d))!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Equal(10, r.Weight);
+        Assert.Equal("ЗАКРЕПЛЁННАЯ ВЕРСИЯ WINDOWS СКОРО БЕЗ ОБНОВЛЕНИЙ", r.Title);
+        Assert.Contains("25H2", r.Detail);
+        Assert.Contains("12.10.2027", r.Detail);
+        Assert.Contains("откат пункта", r.Detail);
+        Assert.Equal(CheckActionKind.FocusTweak, r.Action!.Kind); // the dashboard never changes the policy itself
+        Assert.False(r.Action.RequiresAdmin);
+    }
+
+    [Fact]
+    public void Ninety_one_days_before_is_still_information() =>
+        Assert.Equal(CheckSeverity.Info, HealthRules.CheckUpdatePin(Pinned("25H2", 2027, 7, 13))!.Severity);
+
+    [Fact]
+    public void Already_expired_24H2_pin_warns_today()
+    {
+        var r = HealthRules.CheckUpdatePin(Pinned("24H2", 2026, 11, 1))!;
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Contains("13.10.2026", r.Detail);
+    }
+
+    [Fact]
+    public void Unknown_version_is_reported_without_a_date()
+    {
+        var r = HealthRules.CheckUpdatePin(Pinned("22H2", 2026, 11, 1))!;
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Equal(0, r.Weight);
+        Assert.Contains("дата поддержки неизвестна", r.Detail);
+        Assert.Equal(CheckActionKind.FocusTweak, r.Action!.Kind);
+    }
+
+    [Fact]
+    public void Evaluate_includes_the_pin_check_after_pending_reboot()
+    {
+        var results = HealthRules.Evaluate(Pinned("25H2", 2027, 9, 1));
+        var ids = results.Select(r => r.Id).ToList();
+        Assert.Contains("update-pin", ids);
+        Assert.True(ids.IndexOf("pending-reboot") < ids.IndexOf("update-pin"));
+        Assert.True(HealthScore.Calculate(results) < 100);
+    }
+}
