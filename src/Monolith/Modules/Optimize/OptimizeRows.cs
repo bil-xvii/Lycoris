@@ -132,11 +132,17 @@ public sealed partial class SectionRow : ObservableObject
     {
         var applied = _items.Count(i => i.IsApplied);
         CountText = $"{_items.Count} {OptimizeLogic.Plural(_items.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")} · {applied} ПРИМЕНЕНО";
-        var selectable = _items.Where(i => i.IsApplicable).ToList();
+        var selectable = _items.Where(IsSelectable).Select(i => (i.Tweak, i.IsChecked)).ToList();
         HasSelectable = selectable.Count > 0;
-        var checkedCount = selectable.Count(i => i.IsChecked);
-        CheckState = checkedCount == 0 ? false : checkedCount == selectable.Count ? true : null;
+        var anyChecked = selectable.Any(r => r.IsChecked);
+        CheckState = !anyChecked ? false : OptimizeLogic.AllSelected(selectable) ? true : null;
     }
+
+    /// <summary>
+    /// Rows the header checkbox selects and judges: applicable, not expert (own warning) and without irreversible data
+    /// loss (picked one by one). Dependent rows made applicable by a pending dependency follow their dependency instead.
+    /// </summary>
+    internal static bool IsSelectable(TweakItemViewModel i) => i.IsApplicable && !i.IsAdvanced && !i.HasDataLoss;
 
     [RelayCommand]
     private void ToggleAll() => _owner.ToggleSection(this);
