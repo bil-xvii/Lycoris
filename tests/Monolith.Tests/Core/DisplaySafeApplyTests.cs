@@ -260,8 +260,9 @@ public sealed class DisplaySafeApplyTests : IDisposable
         var outcome = await ApplyHdr(true);
 
         Assert.Equal(DisplayApplyResult.Failed, outcome.Result);
-        var r = Assert.Single(_journal.ActiveRecords);
-        Assert.True(r.DisplayHdr!.PendingConfirm);
+        var r = Assert.Single(_journal.ActiveRecords); // kept for undo, not closed as «reverted»
+        Assert.False(r.Reverted);
+        Assert.Contains("не подтверждено", r.NewValue);
         Assert.False(_display.Guards.Single().Resolved); // the guard keeps trying
     }
 

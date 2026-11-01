@@ -161,9 +161,9 @@ public sealed class NetworkApplyTests : IDisposable
     [Fact]
     public async Task The_same_value_is_no_change()
     {
-        var row = SpeedRow("0");
+        var row = SpeedRow("4");
         var s = await Begin();
-        Assert.Equal(ApplyOutcome.NoChange, await row.Apply!(s, DeviceValue.Of(0), CancellationToken.None));
+        Assert.Equal(ApplyOutcome.NoChange, await row.Apply!(s, DeviceValue.Of(4), CancellationToken.None));
         s.Complete();
         Assert.Equal(0, _nic.SetCalls);
     }
