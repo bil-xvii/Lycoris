@@ -95,6 +95,11 @@ public sealed record SystemSnapshot
     public DateTime Now { get; init; } = DateTime.Now;
     public TimeSpan Uptime { get; init; }
     public bool IsLaptop { get; init; }
+    /// <summary>
+    /// False when the battery/chassis facts behind <see cref="IsLaptop"/> could not be read (SystemProfile.HardwareFactsKnown):
+    /// the default «desktop» must then not be used to offer laptop-forbidden levers such as hibernation off.
+    /// </summary>
+    public bool HardwareFactsKnown { get; init; } = true;
     /// <summary>A laptop running on battery right now.</summary>
     public bool OnBattery { get; init; }
     public string CpuName { get; init; } = "";
@@ -133,8 +138,10 @@ public sealed record SystemSnapshot
 
     /// <summary>Size of hiberfil.sys on the system drive (attributes only; the file is never opened). Null = absent or unknown.</summary>
     public ulong? HiberfilBytes { get; init; }
-    /// <summary>Allocated size of the page files (Win32_PageFileUsage). Null = none or unknown.</summary>
+    /// <summary>Allocated size of the page files on the system drive (Win32_PageFileUsage). Null = none there or unknown.</summary>
     public ulong? PagefileBytes { get; init; }
+    /// <summary>True when a page file lives on another drive (a deliberate move — the page-file repair must not be offered). Null = unknown.</summary>
+    public bool? PagefileOnOtherDrive { get; init; }
     /// <summary>Win32_ComputerSystem.AutomaticManagedPagefile. Null = unknown.</summary>
     public bool? PagefileSystemManaged { get; init; }
     /// <summary>
