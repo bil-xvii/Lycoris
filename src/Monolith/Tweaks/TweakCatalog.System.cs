@@ -198,9 +198,12 @@ public static partial class TweakCatalog
             ],
         };
 
-        yield return new RegistryTweak
+        // A CustomTweak over two plain registry values: the deferral and the version pin below are one choice, and the two
+        // policies write different values, so the group alone cannot keep them apart — each one refuses while the other's
+        // journal record is active (the pin checks the same way in ApplyUpdatePin).
+        yield return new CustomTweak
         {
-            Id = "wu-defer-feature-updates",
+            Id = DeferFeatureUpdatesId,
             Title = "Отложить крупные обновления на 90 дней",
             Description = "Ежегодные обновления функций (например, 24H2 → 25H2) приходят через 90 дней после выхода; обновления безопасности — как обычно.",
             Details = "За это время Microsoft и производители драйверов исправляют проблемы новой версии, в том числе с играми и античитами. " +
@@ -212,26 +215,28 @@ public static partial class TweakCatalog
             ExclusiveGroup = WuFeatureUpdatesGroup,
             AppliesTo = sp => !IsHomeEdition(sp.OsEdition),
             NotApplicableReason = "Windows Home не поддерживает отсрочку обновлений.",
-            Values =
-            [
-                Lm(WindowsUpdatePolicy, "DeferFeatureUpdates", 1),
-                Lm(WindowsUpdatePolicy, "DeferFeatureUpdatesPeriodInDays", 90),
-            ],
+            DetectFunc = () => StateOf(DeferFeatureUpdatesValues.Count(Matches), DeferFeatureUpdatesValues.Count),
+            ApplyAction = ApplyDeferFeatureUpdates,
         };
 
         // SAFE-OPTIONAL (general_tweaks.md §9, «version pin»): TargetReleaseVersion keeps the installed version while monthly
         // security updates keep coming. Pro+ only, only for a released version whose end of servicing is known and not past.
         // The value depends on the installed version, hence a CustomTweak; one choice with wu-defer-feature-updates.
+        // Title and Details name the installed version read straight from the registry (DisplayVersion cannot change without
+        // a reboot): SystemProfile.Current is empty until its WMI collection finishes, and the catalog is built once.
+        var installedVersion = ReadInstalledDisplayVersion();
         yield return new CustomTweak
         {
             Id = UpdatePinId,
-            Title = TitleFor(SystemProfile.Current.OsDisplayVersion),
+            Title = TitleFor(installedVersion),
             Description = "Ежемесячные обновления безопасности приходят как обычно, а ежегодное обновление функций ждёт, пока вы не снимете пункт.",
-            Details = UpdatePinDetails(SystemProfile.Current.OsDisplayVersion),
+            Details = UpdatePinDetails(installedVersion),
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
             ExclusiveGroup = WuFeatureUpdatesGroup,
-            AppliesTo = sp => IsUpdatePinApplicable(sp.OsEdition, sp.OsDisplayVersion, UpdatePinToday()),
+            // The row stays while a pin is in place (whoever set it), so an applied pin keeps its state and its ОТКАТИТЬ after the
+            // version's end of servicing — exactly when the Dashboard sends the user here; a fresh pin is refused in ApplyUpdatePin.
+            AppliesTo = sp => IsUpdatePinRowShown(sp.OsEdition, sp.OsDisplayVersion, UpdatePinToday(), ReadUpdatePinnedTo()),
             NotApplicableReason = "Только для Pro и старших редакций и для выпущенных версий Windows 11 с известной и ещё не наступившей " +
                                   "датой окончания поддержки.",
             DetectFunc = DetectUpdatePin,
@@ -486,6 +491,33 @@ public static partial class TweakCatalog
     /// <summary>Pro and higher editions only (Home ignores TargetReleaseVersion), and only a pinnable version.</summary>
     internal static bool IsUpdatePinApplicable(string edition, string? displayVersion, DateOnly today) =>
         !IsHomeEdition(edition) && IsPinnable(displayVersion, today);
+
+    /// <summary>
+    /// Whether the pin row is offered at all: <see cref="IsUpdatePinApplicable"/>, or — on Pro+ — a pin already in place
+    /// (<paramref name="pinnedTo"/> from <see cref="ReadUpdatePinnedTo"/>), so the row never turns «неприменимо» on a PC whose
+    /// pinned version has just run out of updates and still shows ПРИМЕНЕНО / ЧАСТИЧНО with its undo.
+    /// </summary>
+    internal static bool IsUpdatePinRowShown(string edition, string? displayVersion, DateOnly today, string? pinnedTo) =>
+        !IsHomeEdition(edition) && (IsPinnable(displayVersion, today) || !string.IsNullOrWhiteSpace(pinnedTo));
+
+    /// <summary>The two values of «Отложить крупные обновления на 90 дней».</summary>
+    internal static readonly IReadOnlyList<RegSet> DeferFeatureUpdatesValues =
+    [
+        Lm(WindowsUpdatePolicy, "DeferFeatureUpdates", 1),
+        Lm(WindowsUpdatePolicy, "DeferFeatureUpdatesPeriodInDays", 90),
+    ];
+
+    /// <summary>Writes the deferral like a RegistryTweak would, but refuses while MONOLITH's version pin is active (one of two).</summary>
+    internal static void ApplyDeferFeatureUpdates(TweakContext ctx)
+    {
+        if (ctx.Session.Journal.HasActiveSource("tweak:" + UpdatePinId))
+            throw new InvalidOperationException("сначала откатите «Остаться на текущей версии Windows 11» — выбирается один из двух пунктов");
+        foreach (var v in DeferFeatureUpdatesValues)
+        {
+            if (Matches(v)) continue;
+            ctx.SetRegistry(v.Hive, v.Path, v.Name, v.Kind, v.Value);
+        }
+    }
 
     internal static string TitleFor(string? displayVersion) =>
         string.IsNullOrWhiteSpace(displayVersion)
