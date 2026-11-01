@@ -735,13 +735,14 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.False(wake.IsApplicable(modern));
     }
 
-    [Theory]
-    [InlineData(0u, TweakState.Applied)]     // «отключены» is stricter than «только важные»: never loosened
-    [InlineData(1u, TweakState.NotApplied)]  // the stock AC value: the only one the item changes
-    [InlineData(2u, TweakState.Applied)]
-    [InlineData(7u, TweakState.NotApplied)]
-    public void Wake_timers_item_never_loosens_disabled_timers(uint current, TweakState expected)
+    [Theory] // primitive data only: xUnit on Linux does not discover theories whose InlineData uses app-assembly enums
+    [InlineData(0u, true)]   // «отключены» is stricter than «только важные»: never loosened
+    [InlineData(1u, false)]  // the stock AC value: the only one the item changes
+    [InlineData(2u, true)]
+    [InlineData(7u, false)]
+    public void Wake_timers_item_never_loosens_disabled_timers(uint current, bool applied)
     {
+        var expected = applied ? TweakState.Applied : TweakState.NotApplied;
         Assert.Equal(expected, TweakCatalog.PowerSettingState(current, 2, TweakCatalog.WakeTimersAlreadyStrict));
         // Without the predicate only the target counts (the other PowerSettingTweaks).
         Assert.Equal(current == 2 ? TweakState.Applied : TweakState.NotApplied, TweakCatalog.PowerSettingState(current, 2));
@@ -751,17 +752,15 @@ public sealed class TweakCatalogTests : IDisposable
     public void Extra_boost_plans_follow_the_game_session_decision()
     {
         var high = PowerSchemes.HighPerformance;
-        var ultimate = Guid.NewGuid();
-        // Desktop, option on, High exists: the session would switch there → High (and the Ultimate copy when present).
-        Assert.Equal([high], TweakCatalog.ExtraSchemesForBoost(true, false, false, false, true, null));
-        Assert.Equal([high, ultimate], TweakCatalog.ExtraSchemesForBoost(true, false, false, false, true, ultimate));
-        Assert.Equal([high], TweakCatalog.ExtraSchemesForBoost(true, false, false, false, true, high)); // no duplicate
-        // Every reason the session does not switch plans → nothing extra is written.
-        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(false, false, false, false, true, ultimate)); // option off
-        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, true, false, false, true, ultimate));   // laptop
-        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, true, false, true, ultimate));   // dual-CCD X3D
-        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, false, true, true, ultimate));   // Modern Standby
-        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, false, false, false, ultimate)); // no High performance plan
+        // Desktop, option on, High exists: the session switches there (GameBoostService.StartAsync) → High only. An Ultimate
+        // copy is never part of the list: the session never activates it (FindUltimateCopy only recognises it as already active).
+        Assert.Equal([high], TweakCatalog.ExtraSchemesForBoost(true, false, false, false, true));
+        // Every reason the session would not switch plans → nothing extra is written.
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(false, false, false, false, true)); // option off
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, true, false, false, true));   // laptop
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, true, false, true));   // dual-CCD X3D
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, false, true, true));   // Modern Standby
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, false, false, false)); // no High performance plan
     }
 
     [Fact]
@@ -810,6 +809,26 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.False(PowerSchemes.PersonalityIsBalanced(null));
         Assert.True(PowerSchemes.IsBalancedPersonality(PowerSchemes.Balanced));   // the plan itself, no API call
         Assert.False(PowerSchemes.IsBalancedPersonality(Guid.Empty));
+    }
+
+    [Fact]
+    public void Personality_index_resolves_through_the_possible_value_and_falls_back_to_the_documented_mapping()
+    {
+        // The per-scheme store keeps an index (powercfg /qh: 000 Power saver / 001 High performance / 002 Balanced); the possible
+        // value behind it is the personality GUID and decides when Windows returns it.
+        Assert.True(PowerSchemes.PersonalityIndexIsBalanced(2, PowerSchemes.Balanced.ToByteArray()));
+        Assert.False(PowerSchemes.PersonalityIndexIsBalanced(1, PowerSchemes.HighPerformance.ToByteArray()));
+        Assert.False(PowerSchemes.PersonalityIndexIsBalanced(0, PowerSchemes.PowerSaver.ToByteArray()));
+        // A readable possible value wins over the index (an OEM store with reordered possible values).
+        Assert.True(PowerSchemes.PersonalityIndexIsBalanced(0, PowerSchemes.Balanced.ToByteArray()));
+        Assert.False(PowerSchemes.PersonalityIndexIsBalanced(2, PowerSchemes.HighPerformance.ToByteArray()));
+        // No possible value (null / wrong size): the documented mapping, 2 = Balanced only.
+        Assert.True(PowerSchemes.PersonalityIndexIsBalanced(2, null));
+        Assert.True(PowerSchemes.PersonalityIndexIsBalanced(2, new byte[4]));
+        Assert.False(PowerSchemes.PersonalityIndexIsBalanced(1, null));
+        Assert.False(PowerSchemes.PersonalityIndexIsBalanced(0, null));
+        Assert.False(PowerSchemes.PersonalityIndexIsBalanced(7, null));
+        Assert.Equal(2u, PowerSchemes.BalancedPersonalityIndex);
     }
 
     [Fact]

@@ -651,26 +651,22 @@ public static partial class TweakCatalog
         value == target || alsoSatisfied?.Invoke(value) == true ? TweakState.Applied : TweakState.NotApplied;
 
     /// <summary>
-    /// Mirror of BoostPolicy.DecidePowerPlan (Modules/Games): the plans a game session may switch a desktop to. A power
-    /// setting that must hold during the session is written into these plans too (one journal record per plan). Empty when
-    /// the session never switches plans on this PC: option off, laptop, dual-CCD X3D, Modern Standby, no High performance.
+    /// Mirror of BoostPolicy.DecidePowerPlan (Modules/Games): the plan a game session switches a desktop to — always High
+    /// performance (GameBoostService.StartAsync activates PowerSchemes.HighPerformance; an Ultimate copy only matters when it is
+    /// already the active plan, which the normal path writes). A power setting that must hold during the session is written into
+    /// this plan too (one journal record per plan). Empty when the session never switches plans on this PC: option off, laptop,
+    /// dual-CCD X3D, Modern Standby, no High performance.
     /// </summary>
-    internal static IReadOnlyList<Guid> ExtraSchemesForBoost(bool boostOn, bool laptop, bool dualCcd, bool modernStandby,
-        bool highExists, Guid? ultimate)
-    {
-        if (!boostOn || laptop || dualCcd || modernStandby || !highExists) return [];
-        var list = new List<Guid> { PowerSchemes.HighPerformance };
-        if (ultimate is { } u && u != PowerSchemes.HighPerformance) list.Add(u);
-        return list;
-    }
+    internal static IReadOnlyList<Guid> ExtraSchemesForBoost(bool boostOn, bool laptop, bool dualCcd, bool modernStandby, bool highExists) =>
+        !boostOn || laptop || dualCcd || modernStandby || !highExists ? [] : [PowerSchemes.HighPerformance];
 
-    /// <summary>The live inputs of <see cref="ExtraSchemesForBoost(bool, bool, bool, bool, bool, Guid?)"/> (GameBoostService.DecidePower uses the same facts).</summary>
+    /// <summary>The live inputs of <see cref="ExtraSchemesForBoost(bool, bool, bool, bool, bool)"/> (GameBoostService.DecidePower uses the same facts).</summary>
     private static IReadOnlyList<Guid> ExtraSchemesForBoost(SystemProfile sp)
     {
         if (!sp.HardwareFactsKnown) return []; // the session itself never switches blindly (SkipUnknownHardware)
         var boostOn = AppSettings.Current.GameBoostPowerPlan;
         return ExtraSchemesForBoost(boostOn, sp.IsLaptop, IsDualCcdX3D(sp), IsModernStandby(),
-            boostOn && PowerSchemes.Exists(PowerSchemes.HighPerformance), boostOn ? PowerSchemes.FindUltimateCopy() : null);
+            boostOn && PowerSchemes.Exists(PowerSchemes.HighPerformance));
     }
 
     /// <summary>
