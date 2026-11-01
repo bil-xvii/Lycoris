@@ -1440,7 +1440,8 @@ internal static class JournalTrust
             "services" => ChangeKind.Service,
             "services-tasks" or "startup-tasks" => ChangeKind.ScheduledTask,
             "startup" or "games" => ChangeKind.Registry,
-            "gameboost" => ChangeKind.PowerScheme,
+            // The game session switches the plan or, where no plan switch is possible, the Windows 11 AC power mode.
+            "gameboost" => r.Kind == ChangeKind.Command ? ChangeKind.Command : ChangeKind.PowerScheme,
             "drivers" => ChangeKind.Command,
             _ => null,
         };
@@ -1669,6 +1670,15 @@ internal static class JournalTrust
             if (r.Source != "drivers" || id.Length == 0 || id.Contains('"') || id.Any(char.IsControl)) return Unknown;
             return SameFile(file, ProcessRunner.Sys("pnputil.exe")) && args == $"/disable-device \"{id}\"" ? null : Unknown;
         }
+        // Windows 11 power mode overlay: PowerShell that sets one of the three documented modes. The AC mode is written by the
+        // power-mode tweaks and by the game session (source "gameboost", for the duration of the game); the DC mode by tweaks only.
+        if (target is "powermode:ac" or "powermode:dc")
+        {
+            var dc = target == "powermode:dc";
+            if (!isTweak && (dc || r.Source != "gameboost")) return Unknown;
+            if (!SameFile(file, TweakCatalog.PowerShellExe) || PowerModeUndo(r) is not { } pm || pm.Dc != dc) return Unknown;
+            return TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(pm.Mode, dc)) == args ? null : Unknown;
+        }
         if (!isTweak) return Unknown;
 
         // PowerShell undo scripts: decode, read the original value back out, rebuild with the catalog code, compare.
@@ -1677,15 +1687,6 @@ internal static class JournalTrust
             if (!SameFile(file, TweakCatalog.PowerShellExe) || PsScript(args) is not { } script) return Unknown;
             var rebuilt = target == "spi:visual-effects" ? RebuildSpi(script) : RebuildDx(target[3..], script);
             return rebuilt == args ? null : Unknown;
-        }
-
-        // Windows 11 power mode overlay: PowerShell that sets one of the three documented modes.
-        if (target == "powermode:ac")
-        {
-            if (!SameFile(file, TweakCatalog.PowerShellExe) || PsScript(args) is not { } pm) return Unknown;
-            var g = Regex.Match(pm, $@"\$g=\[Guid\]'({GuidPattern})';");
-            if (!g.Success || !Guid.TryParse(g.Groups[1].Value, out var mode) || !TweakCatalog.IsDocumentedPowerMode(mode)) return Unknown;
-            return TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(mode)) == args ? null : Unknown;
         }
 
         // TCP receive-window auto-tuning: netsh with one of the five documented levels, nothing else.
@@ -1712,10 +1713,11 @@ internal static class JournalTrust
             return inner == $"{powercfg} /hibernate on" || inner == $"{powercfg} /hibernate on && {powercfg} /hibernate /type reduced"
                 ? null : Unknown;
 
-        var pc = Regex.Match(target, $"^powercfg:({GuidPattern}):({GuidPattern}):ac$");
+        // A plan setting's AC or DC value: the undo line must write the same side the target names, for the same scheme and setting.
+        var pc = PowercfgTargetPattern.Match("cmd:" + target);
         if (pc.Success)
         {
-            var m = PowercfgUndoLine(inner);
+            var m = PowercfgUndoLine(inner, dc: pc.Groups[3].Value == "dc");
             return m is { Success: true }
                    && string.Equals(m.Groups[1].Value, pc.Groups[1].Value, StringComparison.OrdinalIgnoreCase)
                    && string.Equals(m.Groups[3].Value, pc.Groups[2].Value, StringComparison.OrdinalIgnoreCase)
@@ -1725,33 +1727,59 @@ internal static class JournalTrust
         return Unknown;
     }
 
-    private static Match PowercfgUndoLine(string inner)
+    /// <summary>The exact undo line of a plan setting: powercfg /setacvalueindex (AC) or /setdcvalueindex (DC), then /setactive.</summary>
+    private static Match PowercfgUndoLine(string inner, bool dc)
     {
         var exe = Regex.Escape(Quoted("powercfg.exe"));
+        var verb = dc ? "/setdcvalueindex" : "/setacvalueindex";
         return Regex.Match(inner,
-            $"^{exe} /setacvalueindex ({GuidPattern}) ({GuidPattern}) ({GuidPattern}) ([0-9]{{1,10}}) && {exe} /setactive SCHEME_CURRENT$");
+            $"^{exe} {verb} ({GuidPattern}) ({GuidPattern}) ({GuidPattern}) ([0-9]{{1,10}}) && {exe} /setactive SCHEME_CURRENT$");
     }
 
-    /// <summary>"cmd:powercfg:{scheme}:{setting}:ac" → the scheme and setting, or null for any other target.</summary>
+    /// <summary>"cmd:powercfg:{scheme}:{setting}:ac|dc": groups 1 scheme, 2 setting, 3 side.</summary>
+    private static readonly Regex PowercfgTargetPattern =
+        new($"^cmd:powercfg:({GuidPattern}):({GuidPattern}):(ac|dc)$", RegexOptions.CultureInvariant);
+
+    /// <summary>"cmd:powercfg:{scheme}:{setting}:ac|dc" → the scheme and setting, or null for any other target.</summary>
     internal static (Guid Scheme, Guid Setting)? PowercfgTarget(string target)
     {
-        var m = Regex.Match(target, $"^cmd:powercfg:({GuidPattern}):({GuidPattern}):ac$");
+        var m = PowercfgTargetPattern.Match(target);
         return m.Success && Guid.TryParse(m.Groups[1].Value, out var scheme) && Guid.TryParse(m.Groups[2].Value, out var setting)
             ? (scheme, setting) : null;
     }
 
-    /// <summary>The power setting and the AC value a powercfg undo record writes back (null for other records).</summary>
+    /// <summary>Which side a plan-setting record changed: true = DC (on battery), false = AC, null for any other target.</summary>
+    internal static bool? PowercfgIsDc(string target)
+    {
+        var m = PowercfgTargetPattern.Match(target);
+        return m.Success ? m.Groups[3].Value == "dc" : null;
+    }
+
+    /// <summary>The power setting and the value (of the side the target names) a powercfg undo record writes back (null for other records).</summary>
     internal static (Guid Scheme, Guid Subgroup, Guid Setting, uint Value)? PowercfgUndo(ChangeRecord r)
     {
-        if (r.Kind != ChangeKind.Command || PowercfgTarget(r.Target) is null) return null;
+        if (r.Kind != ChangeKind.Command || PowercfgIsDc(r.Target) is not { } dc) return null;
         var args = r.RevertArgs ?? "";
         if (!args.StartsWith(CmdHead, StringComparison.Ordinal) || !args.EndsWith('"') || args.Length <= CmdHead.Length) return null;
-        var m = PowercfgUndoLine(args[CmdHead.Length..^1]);
+        var m = PowercfgUndoLine(args[CmdHead.Length..^1], dc);
         if (!m.Success) return null;
         return Guid.TryParse(m.Groups[1].Value, out var scheme) && Guid.TryParse(m.Groups[2].Value, out var sub)
                && Guid.TryParse(m.Groups[3].Value, out var setting)
                && uint.TryParse(m.Groups[4].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var value)
             ? (scheme, sub, setting, value) : null;
+    }
+
+    /// <summary>
+    /// The side (AC / DC) and the documented mode GUID a power-mode undo record puts back (parsed from the «$g=[Guid]'…';» of its
+    /// script), or null for any other record or an undocumented GUID. Pure: no Windows calls.
+    /// </summary>
+    internal static (bool Dc, Guid Mode)? PowerModeUndo(ChangeRecord r)
+    {
+        if (r.Kind != ChangeKind.Command || r.Target is not ("cmd:powermode:ac" or "cmd:powermode:dc")) return null;
+        if (PsScript(r.RevertArgs ?? "") is not { } script) return null;
+        var g = Regex.Match(script, $@"\$g=\[Guid\]'({GuidPattern})';");
+        if (!g.Success || !Guid.TryParse(g.Groups[1].Value, out var mode) || !TweakCatalog.IsDocumentedPowerMode(mode)) return null;
+        return (r.Target == "cmd:powermode:dc", mode);
     }
 
     /// <summary>The adapter and the DNS servers a DNS undo record puts back (empty = automatic), or null for other records.</summary>

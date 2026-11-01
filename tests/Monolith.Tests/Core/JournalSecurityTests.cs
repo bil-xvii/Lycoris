@@ -166,8 +166,100 @@ public sealed class JournalSecurityTests : IDisposable
         // Device ID that breaks out of the quotes.
         var pnputil = ProcessRunner.Sys("pnputil.exe");
         Assert.NotNull(JournalTrust.Check(Command("drivers", "device-enable:X\" /restart", pnputil, "/disable-device \"X\" /restart\"")));
-        // Command records from a module that never writes commands.
+        // The game session writes only its AC power-mode command: any other command from it is refused.
         Assert.NotNull(JournalTrust.Check(Command("gameboost", "hibernate", Cmd, TweakCatalog.CmdArgs($"{pc} /hibernate on"))));
+    }
+
+    [Fact]
+    public void Dc_power_mode_undo_is_accepted_only_as_the_catalog_writes_it()
+    {
+        var ps = TweakCatalog.PowerShellExe;
+        // The three documented modes, built by the DC script, under the DC target.
+        foreach (var mode in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency, TweakCatalog.PowerModeBestPerformance })
+            Assert.Null(JournalTrust.Check(Command("tweak:power-mode-best-efficiency-dc", "powermode:dc", ps,
+                TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScriptDc(mode)))));
+        // Tampering: an appended payload, an undocumented GUID, the AC script under the DC target (and the reverse), cmd.exe.
+        Assert.NotNull(JournalTrust.Check(Command("tweak:power-mode-best-efficiency-dc", "powermode:dc", ps,
+            TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBalanced) + ";Start-Process calc"))));
+        var foreign = TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBalanced)
+            .Replace(TweakCatalog.PowerModeBalanced.ToString("D"), Guid.NewGuid().ToString("D"));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:power-mode-best-efficiency-dc", "powermode:dc", ps, TweakCatalog.PowerShellArgs(foreign))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:power-mode-best-efficiency-dc", "powermode:dc", ps,
+            TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBestEfficiency)))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:power-mode-best-performance", "powermode:ac", ps,
+            TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBestEfficiency)))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:power-mode-best-efficiency-dc", "powermode:dc", Cmd,
+            TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBestEfficiency)))));
+        // The DC mode is never written by the game session.
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", "powermode:dc", ps,
+            TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBalanced)))));
+    }
+
+    [Fact]
+    public void Dc_powercfg_undo_line_is_accepted_only_for_its_own_scheme_setting_and_side()
+    {
+        var scheme = Guid.NewGuid(); var sub = Guid.NewGuid(); var setting = Guid.NewGuid();
+        var dcLine = TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommandDc(scheme, sub, setting, 600));
+        var acLine = TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommand(scheme, sub, setting, 600));
+        var dcTarget = TweakCatalog.PowercfgTarget(dc: true, scheme, setting);
+        var acTarget = TweakCatalog.PowercfgTarget(dc: false, scheme, setting);
+        Assert.Equal($"powercfg:{scheme:D}:{setting:D}:dc", dcTarget);
+
+        Assert.Null(JournalTrust.Check(Command("tweak:battery-sleep-10min", dcTarget, Cmd, dcLine)));
+        Assert.Null(JournalTrust.Check(Command("tweak:sleep-ac-30m", acTarget, Cmd, acLine)));
+        // Side mismatch: an AC line under a DC target and the reverse.
+        Assert.NotNull(JournalTrust.Check(Command("tweak:battery-sleep-10min", dcTarget, Cmd, acLine)));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:sleep-ac-30m", acTarget, Cmd, dcLine)));
+        // Another scheme or setting than the target names.
+        Assert.NotNull(JournalTrust.Check(Command("tweak:battery-sleep-10min", TweakCatalog.PowercfgTarget(true, Guid.NewGuid(), setting), Cmd, dcLine)));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:battery-sleep-10min", TweakCatalog.PowercfgTarget(true, scheme, Guid.NewGuid()), Cmd, dcLine)));
+        // The forward (self-rollback) form, an appended payload, PowerShell instead of cmd, a module source.
+        Assert.NotNull(JournalTrust.Check(Command("tweak:battery-sleep-10min", dcTarget, Cmd,
+            TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommandDc(scheme, sub, setting, 600, rollbackTo: 0)))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:battery-sleep-10min", dcTarget, Cmd,
+            TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommandDc(scheme, sub, setting, 600) + " & calc"))));
+        Assert.NotNull(JournalTrust.Check(Command("tweak:battery-sleep-10min", dcTarget, TweakCatalog.PowerShellExe, dcLine)));
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", dcTarget, Cmd, dcLine)));
+
+        // The readers LiveState uses see the same side and value.
+        var rec = Command("tweak:battery-sleep-10min", dcTarget, Cmd, dcLine);
+        Assert.Equal((scheme, sub, setting, 600u), JournalTrust.PowercfgUndo(rec)!.Value);
+        Assert.Equal((scheme, setting), JournalTrust.PowercfgTarget(rec.Target)!.Value);
+        Assert.True(JournalTrust.PowercfgIsDc(rec.Target));
+        Assert.False(JournalTrust.PowercfgIsDc("cmd:" + acTarget));
+        Assert.Null(JournalTrust.PowercfgIsDc("cmd:hibernate"));
+        Assert.Null(JournalTrust.PowercfgUndo(Command("tweak:battery-sleep-10min", dcTarget, Cmd, acLine)));
+    }
+
+    [Fact]
+    public void Game_session_power_mode_command_is_accepted_only_for_the_ac_mode_with_documented_guids()
+    {
+        var ps = TweakCatalog.PowerShellExe;
+        // The session's own record shape: source gameboost, target powermode:ac, undo = the original AC mode (one of the three).
+        foreach (var mode in new[] { TweakCatalog.PowerModeBalanced, TweakCatalog.PowerModeBestEfficiency, TweakCatalog.PowerModeBestPerformance })
+            Assert.Null(JournalTrust.Check(Command("gameboost", "powermode:ac", ps, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(mode)))));
+        // Still accepted: the plan switch the session has always written.
+        Assert.Null(JournalTrust.Check(new ChangeRecord
+            { Source = "gameboost", Title = "t", Kind = ChangeKind.PowerScheme, Target = "power:active", PowerSchemeOriginal = PowerSchemes.Balanced }));
+
+        // Refused: any other command target, an undocumented GUID, an appended payload, another program, other kinds.
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", "powermode:dc", ps, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced)))));
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", "dx:VRROptimizeEnable", ps, TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("VRROptimizeEnable", null)))));
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", "tcp-autotuning", ProcessRunner.Sys("netsh.exe"), TweakCatalog.TcpAutotuningArgs("normal"))));
+        var foreign = TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced)
+            .Replace(TweakCatalog.PowerModeBalanced.ToString("D"), Guid.NewGuid().ToString("D"));
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", "powermode:ac", ps, TweakCatalog.PowerShellArgs(foreign))));
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", "powermode:ac", ps,
+            TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced) + ";Start-Process calc"))));
+        Assert.NotNull(JournalTrust.Check(Command("gameboost", "powermode:ac", Cmd, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced)))));
+        Assert.NotNull(JournalTrust.Check(new ChangeRecord
+        {
+            Source = "gameboost", Title = "t", Kind = ChangeKind.Registry, Target = @"reg:HKCU\Software\Microsoft\GameBar\AutoGameModeEnabled",
+            Registry = new RegistryValueSnapshot { Hive = RegHive.HKCU, Path = @"Software\Microsoft\GameBar", Name = "AutoGameModeEnabled" },
+        }));
+        // Other modules still never write commands.
+        Assert.NotNull(JournalTrust.Check(Command("games", "powermode:ac", ps, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced)))));
+        Assert.NotNull(JournalTrust.Check(Command("startup", "powermode:ac", ps, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBalanced)))));
     }
 
     [Fact]

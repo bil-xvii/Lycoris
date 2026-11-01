@@ -218,9 +218,30 @@ public static partial class TweakCatalog
         }
     }
 
+    /// <summary>The "on battery" (DC) value of a power setting in a scheme (null when the setting does not exist). Read-only.</summary>
+    internal static uint? ReadDcIndex(Guid scheme, Guid subgroup, Guid setting)
+    {
+        try
+        {
+            return PowerReadDCValueIndex(IntPtr.Zero, ref scheme, ref subgroup, ref setting, out var value) == 0 ? value : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>One side of a power setting: AC (plugged in) or DC (on battery).</summary>
+    internal static uint? ReadIndex(bool dc, Guid scheme, Guid subgroup, Guid setting) =>
+        dc ? ReadDcIndex(scheme, subgroup, setting) : ReadAcIndex(scheme, subgroup, setting);
+
     [DllImport("powrprof.dll")]
     private static extern uint PowerReadACValueIndex(IntPtr rootPowerKey, ref Guid schemeGuid, ref Guid subGroupOfPowerSettingsGuid,
         ref Guid powerSettingGuid, out uint acValueIndex);
+
+    [DllImport("powrprof.dll")]
+    private static extern uint PowerReadDCValueIndex(IntPtr rootPowerKey, ref Guid schemeGuid, ref Guid subGroupOfPowerSettingsGuid,
+        ref Guid powerSettingGuid, out uint dcValueIndex);
 
     // ───────────────────────────── Visual effects (SystemParametersInfo, read-only here) ─────────────────────────────
 
@@ -616,12 +637,20 @@ public static partial class TweakCatalog
     /// any failure (e.g. /setactive refused after the value was written) writes the original value back and exits 1,
     /// so a failed apply never leaves the plan changed without a journal record.
     /// </summary>
-    internal static string PowerSettingCommand(Guid scheme, Guid subgroup, Guid setting, uint value, uint? rollbackTo = null)
+    internal static string PowerSettingCommand(Guid scheme, Guid subgroup, Guid setting, uint value, uint? rollbackTo = null) =>
+        PowerSettingCommand(dc: false, scheme, subgroup, setting, value, rollbackTo);
+
+    /// <summary>The DC (on battery) twin of <see cref="PowerSettingCommand(Guid, Guid, Guid, uint, uint?)"/>: powercfg /setdcvalueindex, same self-rollback.</summary>
+    internal static string PowerSettingCommandDc(Guid scheme, Guid subgroup, Guid setting, uint value, uint? rollbackTo = null) =>
+        PowerSettingCommand(dc: true, scheme, subgroup, setting, value, rollbackTo);
+
+    private static string PowerSettingCommand(bool dc, Guid scheme, Guid subgroup, Guid setting, uint value, uint? rollbackTo)
     {
         var powercfg = SysTool("powercfg.exe");
-        string Set(uint v) => $"{powercfg} /setacvalueindex {scheme:D} {subgroup:D} {setting:D} {v} && {powercfg} /setactive SCHEME_CURRENT";
+        var verb = dc ? "/setdcvalueindex" : "/setacvalueindex";
+        string Set(uint v) => $"{powercfg} {verb} {scheme:D} {subgroup:D} {setting:D} {v} && {powercfg} /setactive SCHEME_CURRENT";
         if (rollbackTo is not { } original) return Set(value);
-        return $"({Set(value)}) || ({powercfg} /setacvalueindex {scheme:D} {subgroup:D} {setting:D} {original} & " +
+        return $"({Set(value)}) || ({powercfg} {verb} {scheme:D} {subgroup:D} {setting:D} {original} & " +
                $"{powercfg} /setactive SCHEME_CURRENT & exit /b 1)";
     }
 
@@ -638,9 +667,29 @@ public static partial class TweakCatalog
     /// True when the plan has its own AC value for the setting; false when the value comes from the plan's defaults
     /// (Windows stores only modified values under User\PowerSchemes). Read-only.
     /// </summary>
-    internal static bool HasAcOverride(Guid scheme, Guid subgroup, Guid setting) =>
+    internal static bool HasAcOverride(Guid scheme, Guid subgroup, Guid setting) => HasOverride(dc: false, scheme, subgroup, setting);
+
+    /// <summary>As <see cref="HasAcOverride"/> for the plan's own DC (on battery) value (DCSettingIndex). Read-only.</summary>
+    internal static bool HasDcOverride(Guid scheme, Guid subgroup, Guid setting) => HasOverride(dc: true, scheme, subgroup, setting);
+
+    private static bool HasOverride(bool dc, Guid scheme, Guid subgroup, Guid setting) =>
         RegistryHelper.Read(RegHive.HKLM,
-            $@"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\{scheme:D}\{subgroup:D}\{setting:D}", "ACSettingIndex") is not null;
+            $@"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\{scheme:D}\{subgroup:D}\{setting:D}",
+            dc ? "DCSettingIndex" : "ACSettingIndex") is not null;
+
+    /// <summary>
+    /// «Только сокращает»: an idle timeout (seconds, 0 = never) is written only when it is off (0) or longer than the target;
+    /// a shorter value already meets the goal and is never lengthened.
+    /// </summary>
+    internal static bool TimeoutNeedsShortening(uint current, uint target) => current == 0 || current > target;
+
+    /// <summary>Idle timeout in seconds as the records and previews say it: «никогда» (0) or «через N мин».</summary>
+    internal static string DescribeTimeout(uint seconds)
+    {
+        if (seconds == 0) return "никогда";
+        if (seconds < 60) return $"через {seconds} с";
+        return seconds % 60 == 0 ? $"через {seconds / 60} мин" : $"через {seconds / 60} мин {seconds % 60} с";
+    }
 
     /// <summary>
     /// The state of a power setting's AC value: Applied when it equals <paramref name="target"/> or when
@@ -678,10 +727,35 @@ public static partial class TweakCatalog
     /// Other plans that get the same AC value (each its own journal record), e.g. the plans a game session switches to.
     /// Detection stays on the active plan.
     /// </param>
+    /// <param name="onlyShorten">
+    /// Idle timeouts (seconds, 0 = never): write only when the current value is 0 or longer than <paramref name="target"/>;
+    /// a shorter value counts as applied (<see cref="TimeoutNeedsShortening"/>).
+    /// </param>
     private static CustomTweak PowerSettingTweak(string id, string title, string description, string details,
         TweakCategory category, TweakRisk risk, ProfileSet defaults, Guid subgroup, Guid setting, uint target,
         Func<uint, string> describe, Func<SystemProfile, bool>? appliesTo = null, string? notApplicableReason = null,
-        string? warning = null, Func<uint, bool>? alsoSatisfied = null, Func<SystemProfile, IReadOnlyList<Guid>>? alsoSchemes = null) => new()
+        string? warning = null, Func<uint, bool>? alsoSatisfied = null, Func<SystemProfile, IReadOnlyList<Guid>>? alsoSchemes = null,
+        bool onlyShorten = false) =>
+        PowerSettingTweakCore(dc: false, id, title, description, details, category, risk, defaults, subgroup, setting, target, describe,
+            appliesTo, notApplicableReason, warning, alsoSatisfied, alsoSchemes, onlyShorten);
+
+    /// <summary>
+    /// The DC twin of <see cref="PowerSettingTweak"/>: changes the "on battery" value of one power setting in the ACTIVE plan via
+    /// powercfg /setdcvalueindex; the AC value is never touched. Target <c>powercfg:{scheme}:{setting}:dc</c>, record text
+    /// «{plan}, от батареи: …», same game-session guard and <see cref="PowerSettingUndoNote"/>. Laptops only by nature
+    /// (<paramref name="appliesTo"/> must name the desktop counterpart in <paramref name="notApplicableReason"/>).
+    /// </summary>
+    private static CustomTweak PowerSettingTweakDc(string id, string title, string description, string details,
+        TweakCategory category, TweakRisk risk, ProfileSet defaults, Guid subgroup, Guid setting, uint target,
+        Func<uint, string> describe, Func<SystemProfile, bool> appliesTo, string notApplicableReason,
+        string? warning = null, Func<uint, bool>? alsoSatisfied = null, bool onlyShorten = false) =>
+        PowerSettingTweakCore(dc: true, id, title, description, details, category, risk, defaults, subgroup, setting, target, describe,
+            appliesTo, notApplicableReason, warning, alsoSatisfied, alsoSchemes: null, onlyShorten);
+
+    private static CustomTweak PowerSettingTweakCore(bool dc, string id, string title, string description, string details,
+        TweakCategory category, TweakRisk risk, ProfileSet defaults, Guid subgroup, Guid setting, uint target,
+        Func<uint, string> describe, Func<SystemProfile, bool>? appliesTo, string? notApplicableReason,
+        string? warning, Func<uint, bool>? alsoSatisfied, Func<SystemProfile, IReadOnlyList<Guid>>? alsoSchemes, bool onlyShorten) => new()
     {
         Id = id,
         Title = title,
@@ -697,9 +771,9 @@ public static partial class TweakCatalog
         {
             var scheme = PowerSchemes.GetActive();
             if (scheme == Guid.Empty) return TweakState.Unknown;
-            var value = ReadAcIndex(scheme, subgroup, setting);
+            var value = ReadIndex(dc, scheme, subgroup, setting);
             if (value is null) return TweakState.NotApplicable;
-            return PowerSettingState(value.Value, target, alsoSatisfied);
+            return PowerSettingState(value.Value, target, Satisfied(alsoSatisfied, onlyShorten, target));
         },
         ApplyAction = ctx =>
         {
@@ -709,31 +783,46 @@ public static partial class TweakCatalog
                 throw new InvalidOperationException("сначала завершите игровой сеанс — сейчас действует его временная схема питания");
             var scheme = PowerSchemes.GetActive();
             if (scheme == Guid.Empty) throw new InvalidOperationException("не удалось определить активную схему питания");
-            var current = ReadAcIndex(scheme, subgroup, setting)
+            var satisfied = Satisfied(alsoSatisfied, onlyShorten, target);
+            var current = ReadIndex(dc, scheme, subgroup, setting)
                           ?? throw new InvalidOperationException("параметр отсутствует в текущей схеме питания");
-            if (PowerSettingState(current, target, alsoSatisfied) != TweakState.Applied)
-                WriteAcValue(ctx, scheme, subgroup, setting, current, target, describe);
+            if (PowerSettingState(current, target, satisfied) != TweakState.Applied)
+                WriteValue(ctx, dc, scheme, subgroup, setting, current, target, describe);
 
             // The plans a game session switches to: the same value, one record per plan, so the fix holds during the session.
             if (alsoSchemes is null) return;
             foreach (var extra in alsoSchemes(ctx.System).Distinct())
             {
-                if (extra == scheme || ReadAcIndex(extra, subgroup, setting) is not { } extraCurrent) continue;
-                if (PowerSettingState(extraCurrent, target, alsoSatisfied) == TweakState.Applied) continue;
-                WriteAcValue(ctx, extra, subgroup, setting, extraCurrent, target, describe);
+                if (extra == scheme || ReadIndex(dc, extra, subgroup, setting) is not { } extraCurrent) continue;
+                if (PowerSettingState(extraCurrent, target, satisfied) == TweakState.Applied) continue;
+                WriteValue(ctx, dc, extra, subgroup, setting, extraCurrent, target, describe);
             }
         },
     };
 
-    /// <summary>One journaled powercfg record: the plan's AC value → <paramref name="target"/>; the undo writes <paramref name="current"/> back.</summary>
-    private static void WriteAcValue(TweakContext ctx, Guid scheme, Guid subgroup, Guid setting, uint current, uint target, Func<uint, string> describe)
+    /// <summary>The «already meets the goal» rule of a power setting item: the caller's own rule and/or «only shorten».</summary>
+    internal static Func<uint, bool>? Satisfied(Func<uint, bool>? alsoSatisfied, bool onlyShorten, uint target)
+    {
+        if (!onlyShorten) return alsoSatisfied;
+        return v => !TimeoutNeedsShortening(v, target) || alsoSatisfied?.Invoke(v) == true;
+    }
+
+    /// <summary>
+    /// One journaled powercfg record for the AC or the DC side of a plan's setting: value → <paramref name="target"/>; the undo
+    /// writes <paramref name="current"/> back (target <c>powercfg:{scheme}:{setting}:ac|dc</c>, text «{plan}, от сети|от батареи: …»).
+    /// </summary>
+    private static void WriteValue(TweakContext ctx, bool dc, Guid scheme, Guid subgroup, Guid setting, uint current, uint target, Func<uint, string> describe)
     {
         var plan = PowerSchemes.GetName(scheme);
+        var side = dc ? "от батареи" : "от сети";
         // The effective value is restored either way; say honestly when it came from the plan's defaults.
-        var origin = HasAcOverride(scheme, subgroup, setting) ? "" : " (по умолчанию схемы; при откате будет записано явно)";
-        RunJournaled(ctx, $"powercfg:{scheme:D}:{setting:D}:ac",
-            CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, target, rollbackTo: current)),
-            CmdExe, CmdArgs(PowerSettingCommand(scheme, subgroup, setting, current)),
-            $"{plan}, от сети: {describe(current)}{origin}", $"{plan}, от сети: {describe(target)}");
+        var origin = HasOverride(dc, scheme, subgroup, setting) ? "" : " (по умолчанию схемы; при откате будет записано явно)";
+        RunJournaled(ctx, PowercfgTarget(dc, scheme, setting),
+            CmdExe, CmdArgs(PowerSettingCommand(dc, scheme, subgroup, setting, target, rollbackTo: current)),
+            CmdExe, CmdArgs(PowerSettingCommand(dc, scheme, subgroup, setting, current, rollbackTo: null)),
+            $"{plan}, {side}: {describe(current)}{origin}", $"{plan}, {side}: {describe(target)}");
     }
+
+    /// <summary>The journal target of a plan setting's AC or DC record (without the "cmd:" prefix ChangeSession adds).</summary>
+    internal static string PowercfgTarget(bool dc, Guid scheme, Guid setting) => $"powercfg:{scheme:D}:{setting:D}:{(dc ? "dc" : "ac")}";
 }
