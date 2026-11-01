@@ -100,6 +100,40 @@ public sealed class PowerDcTweakTests
     }
 
     [Fact]
+    public async Task Dc_power_mode_scripts_parse_cleanly()
+    {
+        // Windows only. Both DC scripts the item can issue (apply = best efficiency, undo = the recorded mode, e.g. balanced),
+        // parsed exactly as powershell.exe receives them (wrapper included) — mirrors Generated_powershell_scripts_parse_cleanly.
+        string[] scripts =
+        [
+            TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBestEfficiency),
+            TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBalanced),
+            TweakCatalog.PowerModeScriptDc(TweakCatalog.PowerModeBestPerformance),
+        ];
+        foreach (var script in scripts)
+        {
+            Assert.True(TweakCatalog.PowerShellArgs(script).Length < 8000);
+            var encoded = TweakCatalog.PowerShellArgs(script).Split(' ').Last();
+            var checker = $"$s=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('{encoded}'));$e=$null;$tk=$null;" +
+                          "[void][System.Management.Automation.Language.Parser]::ParseInput($s,[ref]$tk,[ref]$e);" +
+                          "if($e.Count -gt 0){Write-Output ($e|Out-String)};Write-Output ('PARSE-ERRORS=' + $e.Count)";
+            var r = await ProcessRunner.RunPowerShellAsync(checker, new ProcessRunOptions { LogCommand = false, Timeout = TimeSpan.FromSeconds(60) });
+            Assert.True(r.Success, r.Combined);
+            Assert.Contains("PARSE-ERRORS=0", r.StdOut);
+        }
+    }
+
+    [Fact]
+    public async Task Dc_power_mode_interop_type_compiles()
+    {
+        // Windows only. Only declares the P/Invoke type (Add-Type compiles the MemberDefinition); the power mode is not changed.
+        var r = await ProcessRunner.RunPowerShellAsync(TweakCatalog.PowerModeTypeDefinitionDc + "Write-Output ('PMDC-TYPE=' + [bool]('Monolith.PowerModeDc' -as [type]))",
+            new ProcessRunOptions { LogCommand = false, Timeout = TimeSpan.FromSeconds(90) });
+        Assert.True(r.Success, r.Combined);
+        Assert.Contains("PMDC-TYPE=True", r.StdOut);
+    }
+
+    [Fact]
     public void Dc_and_timeout_items_exist_as_optional_power_items_outside_every_profile()
     {
         foreach (var id in DcIds.Concat(AcTimeoutIds))
