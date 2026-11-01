@@ -116,6 +116,26 @@ public sealed class EcoQosTests
         Assert.Equal(new PowerThrottlingState(1, 4, 0), EcoQos.PlanRestore(new PowerThrottlingState(0, 4, 0)));
     }
 
+    [Fact]
+    public void Apply_plan_adds_execution_speed_and_keeps_the_other_bits()
+    {
+        Assert.Equal(EcoQos.Eco, EcoQos.PlanApply(EcoQos.SystemManaged));
+        Assert.Equal(new PowerThrottlingState(1, 5, 5), EcoQos.PlanApply(new PowerThrottlingState(1, 4, 4))); // timer bit kept
+        Assert.Equal(new PowerThrottlingState(1, 5, 1), EcoQos.PlanApply(new PowerThrottlingState(1, 4, 0)));
+        Assert.True(EcoQos.IsEco(EcoQos.PlanApply(new PowerThrottlingState(1, 4, 4))));
+    }
+
+    [Fact]
+    public void Recover_plan_clears_only_execution_speed()
+    {
+        Assert.Equal(EcoQos.SystemManaged, EcoQos.PlanRecover(EcoQos.Eco));
+        Assert.Equal(new PowerThrottlingState(1, 4, 4), EcoQos.PlanRecover(new PowerThrottlingState(1, 5, 5)));
+        Assert.False(EcoQos.IsEco(EcoQos.PlanRecover(new PowerThrottlingState(1, 5, 5))));
+        // Apply then recover gives the original back when the process changed nothing in between.
+        var orig = new PowerThrottlingState(1, 4, 4);
+        Assert.Equal(orig, EcoQos.PlanRecover(EcoQos.PlanApply(orig)));
+    }
+
     // ───────────────────────────── Crash marker ─────────────────────────────
 
     [Fact]

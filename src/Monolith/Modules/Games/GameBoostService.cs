@@ -439,8 +439,8 @@ public sealed partial class GameBoostService : ObservableObject
 
     /// <summary>
     /// Efficiency mode instead of closing (Windows 11): for every close-list process that is not excluded, reads its
-    /// PROCESS_POWER_THROTTLING_STATE, skips the ones that already control EXECUTION_SPEED themselves (Edge, Chrome), writes
-    /// EcoQoS and keeps handle + original state for the exact restore. Priority is never touched. The crash marker is written
+    /// PROCESS_POWER_THROTTLING_STATE, skips the ones that already control EXECUTION_SPEED themselves (Edge, Chrome), adds
+    /// EXECUTION_SPEED to that state (other bits kept) and keeps handle + original state for the exact restore. Priority is never touched. The crash marker is written
     /// as soon as the first process is tagged and updated with every further one.
     /// </summary>
     private async Task ThrottleAppsAsync(BoostPlan plan, GameEntry? game)
@@ -512,7 +512,7 @@ public sealed partial class GameBoostService : ObservableObject
                     skipped.Add((name, EcoQos.IsEco(orig) ? "уже управляет режимом сам (режим эффективности включён)" : "уже управляет режимом сам"));
                     continue;
                 }
-                if (!EcoQos.WriteState(h, EcoQos.Eco))
+                if (!EcoQos.WriteState(h, EcoQos.PlanApply(orig)))
                 {
                     var err = Marshal.GetLastWin32Error();
                     h.Dispose();
@@ -859,8 +859,8 @@ public sealed partial class GameBoostService : ObservableObject
 
     /// <summary>
     /// A crash marker exists (MONOLITH died during a session with efficiency mode on): every listed process that is still
-    /// running with the same PID and start time is reset to the system-managed state {1, 0, 0}. The exact original is lost
-    /// with the crash — the log says so; system-managed is what a process that never called the API has. Blocking; elevated
+    /// running with the same PID and start time gets EXECUTION_SPEED taken out of its masks (system-managed speed, other bits
+    /// untouched). The exact original is lost with the crash — the log says so. Blocking; elevated
     /// only (the marker lives in the admin-only folder). Returns the line to show, or null when there was nothing to do.
     /// Only processes of this session and user are touched (same checks as the close list), so a forged marker can at most
     /// put a process of the user back to the default state.
@@ -896,8 +896,9 @@ public sealed partial class GameBoostService : ObservableObject
                         gone++; // the PID was reused by another process: not ours
                         continue;
                     }
-                    if (EcoQos.ReadState(h) is { } now && !EcoQos.IsEco(now)) continue; // already back (app reset it itself)
-                    if (EcoQos.WriteState(h, EcoQos.SystemManaged)) reset.Add(SafeName(p));
+                    if (EcoQos.ReadState(h) is not { } now) continue;
+                    if (!EcoQos.IsEco(now)) continue; // already back (the app reset it itself)
+                    if (EcoQos.WriteState(h, EcoQos.PlanRecover(now))) reset.Add(SafeName(p));
                 }
             }
         }
@@ -912,7 +913,7 @@ public sealed partial class GameBoostService : ObservableObject
             return null;
         }
         var text = $"Прошлый игровой сеанс не завершился: режим эффективности снят с {string.Join(", ", reset.Distinct(StringComparer.OrdinalIgnoreCase))} " +
-                   "(возвращено состояние «по умолчанию»: точное исходное после аварийного закрытия неизвестно).";
+                   "(частотами снова управляет Windows: точное исходное состояние после аварийного закрытия неизвестно).";
         Log.Warn("Игровой сеанс: " + text + (gone > 0 ? $" Уже закрыты или перезапущены: {gone}." : ""));
         return text;
     }
