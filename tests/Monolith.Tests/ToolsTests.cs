@@ -218,6 +218,7 @@ public sealed class ToolsTests
         Assert.Equal([ToolOp.BatteryReport, ToolOp.EnergyReport, ToolOp.SleepStudyReport, ToolOp.SystemSleepDiagnostics], laptop.Actions.Select(a => a.Op));
         Assert.Equal("powercfg /batteryreport · /energy · /sleepstudy · /systemsleepdiagnostics", laptop.Command);
         Assert.False(laptop.Actions.Single(a => a.Op == ToolOp.BatteryReport).RequiresAdmin);
+        Assert.True(laptop.Actions.Single(a => a.Op == ToolOp.SleepStudyReport).RequiresAdmin); // powercfg /sleepstudy needs elevation
 
         var desktop = Diagnostics(hasBattery: false, modernStandby: false)[1];
         Assert.DoesNotContain(desktop.Actions, a => a.Op == ToolOp.BatteryReport);
@@ -226,6 +227,20 @@ public sealed class ToolsTests
         var modernDesktop = Diagnostics(hasBattery: false, modernStandby: true)[1];
         Assert.Contains(modernDesktop.Actions, a => a.Op == ToolOp.SleepStudyReport);
         Assert.DoesNotContain(modernDesktop.Actions, a => a.Op == ToolOp.BatteryReport);
+    }
+
+    [Fact]
+    public void Sleep_wake_note_names_the_existing_wake_timers_tweak()
+    {
+        var tweak = Monolith.Tweaks.TweakCatalog.Find(ToolsViewModel.WakeTimersTweakId);
+        Assert.NotNull(tweak);
+        Assert.Equal("ПК не просыпается ночью по расписанию программ", tweak!.Title);
+
+        var card = Diagnostics(hasBattery: false, modernStandby: false)[0];
+        Assert.Equal("СОН И ПРОБУЖДЕНИЕ", card.Title);
+        Assert.StartsWith("Ничего не меняет.", card.Note);
+        Assert.Contains($"есть пункт «{tweak.Title}» в разделе «Оптимизация»", card.Note);
+        Assert.Contains("/requests и /waketimers пропускаются", card.Note);
     }
 
     [Fact]
@@ -246,8 +261,8 @@ public sealed class ToolsTests
         Assert.Equal(["/energy", "/output", file, "/duration", "60"], ToolsViewModel.EnergyReport.Arguments(file));
         Assert.Equal(["/sleepstudy", "/output", file, "/duration", "3"], ToolsViewModel.SleepStudyReport.Arguments(file));
         Assert.Equal(["/systemsleepdiagnostics", "/output", file], ToolsViewModel.SleepDiagnosticsReport.Arguments(file));
-        Assert.True(ToolsViewModel.EnergyReport.ExitCodeCountsProblems);
-        Assert.False(ToolsViewModel.BatteryReport.ExitCodeCountsProblems);
+        Assert.True(ToolsViewModel.EnergyReport.NonZeroExitMeansProblemsFound);
+        Assert.False(ToolsViewModel.BatteryReport.NonZeroExitMeansProblemsFound);
         Assert.True(ToolsViewModel.EnergyReport.Timeout >= TimeSpan.FromMinutes(2)); // 60 s of tracing + report generation
         foreach (var spec in new[] { ToolsViewModel.BatteryReport, ToolsViewModel.EnergyReport, ToolsViewModel.SleepStudyReport, ToolsViewModel.SleepDiagnosticsReport })
         {
@@ -267,7 +282,9 @@ public sealed class ToolsTests
 
         var found = ToolsViewModel.ClassifyPowerReport(energy, exitCode: 7, fileExists: true, opened: true, file, elevated: true);
         Assert.Equal(ToolStatus.Warning, found.Status);
-        Assert.Contains("Найдено ошибок/предупреждений: 7", found.Summary);
+        Assert.Contains("Найдены проблемы энергоэффективности", found.Summary);
+        Assert.Contains("код 7", found.Summary);
+        Assert.DoesNotContain("Найдено ошибок/предупреждений", found.Summary); // the exit code is not a count of problems
         Assert.Contains("см. отчёт", found.Summary);
 
         var clean = ToolsViewModel.ClassifyPowerReport(energy, 0, true, true, file, true);
