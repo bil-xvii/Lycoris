@@ -8,7 +8,7 @@ namespace Monolith.Modules.Optimize;
 //   ProfilesRow → FilterRow → (SectionRow, TweakItemViewModel…)* → ExpertRow → (TweakItemViewModel…)* | EmptyRow
 // Each row type has its own DataTemplate in OptimizeView.xaml.
 
-/// <summary>The four profile tiles at the top of the list.</summary>
+/// <summary>The scenario tiles at the top of the list (one row; the efficiency tile appears only where it has a real member).</summary>
 public sealed class ProfilesRow(OptimizeViewModel page)
 {
     public OptimizeViewModel Page { get; } = page;
@@ -26,35 +26,46 @@ public sealed class EmptyRow(OptimizeViewModel page)
     public OptimizeViewModel Page { get; } = page;
 }
 
-/// <summary>One profile tile: name, description and what it would do on this PC.</summary>
+/// <summary>One scenario tile: name, one-line description, tooltip and what it would do on this PC.</summary>
 public sealed partial class ProfileTileViewModel : ObservableObject
 {
     private readonly OptimizeViewModel _owner;
 
-    public ProfileTileViewModel(OptimizeViewModel owner, OptimizeProfile kind, string index, string title, string sentenceName,
-        string description, string hint, string? badge = null)
+    /// <summary>Texts come from <see cref="OptimizeLogic"/> (static per scenario); the efficiency tile is retitled for laptops.</summary>
+    public ProfileTileViewModel(OptimizeViewModel owner, OptimizeProfile kind, string index, string? badge = null)
     {
         _owner = owner;
         Kind = kind;
         Index = index;
-        Title = title;
-        SentenceName = sentenceName;
-        Description = description;
-        Hint = hint;
         Badge = badge;
+        Retitle(laptop: false);
     }
 
-    /// <summary>Longer explanation shown as the tile's tooltip.</summary>
-    public string Hint { get; }
+    /// <summary>Longer explanation shown as the tile's tooltip: what the scenario does and what it does not touch.</summary>
+    [ObservableProperty] private string _hint = "";
+    /// <summary>UPPER-CASE tile title («ТИХИЙ ПК»); the view shows it in sentence case.</summary>
+    [ObservableProperty] private string _title = "";
+    /// <summary>Name for running text and batch titles: «Игры», «Ноутбук: автономность».</summary>
+    [ObservableProperty] private string _sentenceName = "";
+    /// <summary>One trimmed line under the title.</summary>
+    [ObservableProperty] private string _description = "";
 
     public OptimizeProfile Kind { get; }
     public string Index { get; }
-    public string Title { get; }
-    /// <summary>Name for running text: «Игровой».</summary>
-    public string SentenceName { get; }
-    public string Description { get; }
-    /// <summary>Optional small mark next to the index ("ПО УМОЛЧАНИЮ").</summary>
+    /// <summary>Optional small mark next to the title ("ПО УМОЛЧАНИЮ").</summary>
     public string? Badge { get; }
+
+    /// <summary>
+    /// Chooses the laptop or desktop wording («Ноутбук: автономность» / «Тихий ПК» and the matching hint). Called once the
+    /// hardware facts are known; a no-op for the other scenarios, whose texts do not depend on the PC.
+    /// </summary>
+    public void Retitle(bool laptop)
+    {
+        Title = OptimizeLogic.ScenarioTitle(Kind, laptop);
+        SentenceName = OptimizeLogic.ScenarioName(Kind, laptop);
+        Description = OptimizeLogic.ScenarioDescription(Kind, laptop);
+        Hint = OptimizeLogic.ScenarioHint(Kind, laptop);
+    }
 
     [ObservableProperty] private bool _isSelected;
     /// <summary>How many of the profile's tweaks would change something now (null = not detected yet).</summary>
