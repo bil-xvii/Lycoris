@@ -603,6 +603,9 @@ public static partial class TweakCatalog
     /// </summary>
     private static bool SessionHoldsPlan() => ChangeJournal.Instance.FindActive("power:active")?.Source == GameSessionSource;
 
+    /// <summary>The game session switched the AC power mode for its duration (journal target cmd:powermode:ac).</summary>
+    private static bool SessionHoldsPowerMode() => ChangeJournal.Instance.FindActive("cmd:powermode:ac")?.Source == GameSessionSource;
+
     /// <summary>
     /// Whether choosing <paramref name="scheme"/> has to record a change: it is not the live plan, or it is live only for a
     /// game session. Then the choice becomes a newer layer that takes over the session's original, so it stays after the

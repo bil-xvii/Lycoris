@@ -513,8 +513,10 @@ public static partial class TweakCatalog
             if (scheme == Guid.Empty) return TweakState.Unknown;
             // The mode exists only on Balanced or a plan derived from it (Microsoft: customize-power-slider).
             if (!PowerSchemes.IsBalancedPersonality(scheme)) return TweakState.NotApplicable;
+            // A game session may hold the mode for its own duration: the user's choice is then a newer layer over the
+            // session's original, never "already applied" (mirrors SessionHoldsPlan for the plan switch).
             return ReadAcPowerMode() is { } current
-                ? current == mode ? TweakState.Applied : TweakState.NotApplied
+                ? current == mode && !SessionHoldsPowerMode() ? TweakState.Applied : TweakState.NotApplied
                 : TweakState.NotApplicable;
         },
         ApplyAction = ctx =>
@@ -522,7 +524,7 @@ public static partial class TweakCatalog
             if (!PowerSchemes.IsBalancedPersonality(PowerSchemes.GetActive()))
                 throw new InvalidOperationException("режим питания действует только на сбалансированной схеме — сначала включите её");
             var current = ReadAcPowerMode() ?? throw new InvalidOperationException("не удалось прочитать текущий режим питания");
-            if (current == mode) return;
+            if (current == mode && !SessionHoldsPowerMode()) return;
             // Only the three documented modes can be journaled (and accepted by the journal check on undo).
             if (!IsDocumentedPowerMode(current))
                 throw new InvalidOperationException($"Windows сообщила неизвестный режим питания {current:D} — MONOLITH его не меняет");

@@ -84,7 +84,7 @@ On **dual-CCD** X3D chips (7900X3D, 7950X3D, 9900X3D, 9950X3D) the driver parks 
 - **Risk:** isolated reports of stutter and VR/audio problems. Never force it on an adapter where `HwSchSupported`=0.
 - **Windows:** Win10 2004+ / Win11.
 
-#### `hags-off`: Отключить аппаратное планирование GPU (при проблемах с захватом) / HAGS off → **SAFE-OPTIONAL (troubleshooting, never pre-selected; only when HwSchSupported)**
+#### `hags-off`: Отключить аппаратное планирование GPU (при сбоях захвата) / HAGS off → **SAFE-OPTIONAL (troubleshooting, never pre-selected; only when HwSchSupported)**
 - **Mechanism:** the same value, HKLM `SYSTEM\CurrentControlSet\Control\GraphicsDrivers` → `HwSchMode` DWORD **1** (off). Default absent→delete; **reboot required**. ExclusiveGroup `hags` with `hags` / `hags-other-gpu` (one target, one choice).
 - **Evidence:** the OBS knowledge base (obsproject.com/kb/hags) names HAGS as a cause of performance problems and capture failures with OBS and hardware encoders and recommends turning it off as a troubleshooting step. It is a fix, not a boost: FPS stays within noise either way.
 - **Cost (Details must say so):** DLSS Frame Generation / Multi Frame Generation stop working without HAGS (NVIDIA requirement); the Windows 11 24H2 flip-model/VRR path is unaffected. Detection: `HwSchMode` == 1, or absent while `D3DKMTQueryAdapterInfo(WDDM_2_7_CAPS)` reports HwSchEnabled = 0. Not offered when the driver reports HwSchSupported = 0 (nothing to turn off).
