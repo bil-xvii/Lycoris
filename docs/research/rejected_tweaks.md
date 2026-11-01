@@ -34,8 +34,8 @@ finding nothing.
 - **Evidence:** Microsoft's build 10525 announcement: compressed pages take about 40 % of their size and Windows writes to the page
   file about half as often, with better responsiveness. A large «Сжатая память» / «System» working set is memory being kept
   available for other apps, not waste. Turning it off means more hard faults and disk I/O under memory pressure.
-- **Registry values:** none (cmdlet / service). SysMain is in the protected service list.
-- **MONOLITH instead:** the memory facts on «Панель» (what is in use, what is compressed).
+- **Registry values:** none (cmdlet / service). SysMain is not in the services catalog and `ServiceGuard` blocks it on «ВСЕ СЛУЖБЫ» («Спорная настройка»).
+- **MONOLITH instead:** the memory facts on «Панель» (used / available, the live meter).
 - **Sources:** https://blogs.windows.com/windows-insider/2015/08/18/announcing-windows-10-insider-preview-build-10525/ ;
   https://riverar.github.io/insiderhubcontent/memory_compression.html ;
   https://learn.microsoft.com/en-us/powershell/module/mmagent/disable-mmagent ; services.md §1A (SysMain)
@@ -86,15 +86,17 @@ finding nothing.
 - **Evidence:** on the dev machine Balanced AC is already 100 % — but that is the AMD PPM provisioning, not a universal default.
   Forcing all cores awake breaks dual-CCD X3D cache steering (Bitsum's own X3D article) and Intel Thread Director scheduling.
 - **Registry values:** none (power setting).
-- **MONOLITH instead:** the X3D/hybrid facts on «Панель» and the honest power items.
+- **MONOLITH instead:** the Dashboard game-mode check (explains why a dual-CCD X3D needs Game Mode), `power-plan-balanced-x3d` and the honest power items.
 - **Sources:** https://bitsum.com/amd-x3d-ccd-affinity/ ; https://hone.gg/research/how-game-mode-improves-performance ; gaming_tweaks.md §1, §2 C
 
 ## `power-throttling-off` — Turn off Power Throttling → DO-NOT-INCLUDE (gaming_tweaks.md §2 C `power-throttling-off`, §3)
 - **Who:** `HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling\PowerThrottlingOff=1`; `DisableUserPresenceQos`.
-- **Evidence:** Microsoft's Quality of Service table: Low and Utility (EcoQoS) throttling applies on battery; a focused game window
-  is High QoS. On desktops nothing changes; on laptops it only costs battery.
+- **Evidence:** Microsoft's Quality of Service table: Low and Utility QoS (invisible windows, background services) throttle «on
+  battery»; Eco QoS is an explicit tag an app sets on itself (`SetProcessInformation`, `PROCESS_POWER_THROTTLING_EXECUTION_SPEED`) and
+  «always selects the most efficient CPU frequency»; a focused game window is High QoS. So the key gives the game nothing: on a desktop
+  it only lets Eco-tagged background apps (browser background tabs, messengers) spend more, on a laptop it costs battery.
 - **Registry values:** `PowerThrottlingOff`, `DisableUserPresenceQos`.
-- **MONOLITH instead:** Game Boost (session-scoped) and the power-mode items.
+- **MONOLITH instead:** Game Boost (session-scoped: the High performance scheme on desktops, the «Максимальная производительность» power mode on laptops / Modern Standby) and the power-mode items.
 - **Sources:** https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service ; gaming_tweaks.md §2 C, §3
 
 ## `mpo-disableoverlays` — Disable MPO via `DisableOverlays` (24H2+) → REJECTED (gaming_tweaks.md §2 A `mpo-disable`)
@@ -112,7 +114,7 @@ finding nothing.
   standby systems». Adaptive hibernate already hibernates by drain budget (defaults 5 % per 12 h, 4 refreshes); a fixed timer «can
   result in the system fully draining the battery … or cut short a low-drain Modern Standby experience».
 - **Registry values:** none (power setting).
-- **MONOLITH instead:** «Обслуживание → Ремонт и диски → Сон и пробуждение» (sleep study / battery report) shows the real drain.
+- **MONOLITH instead:** «Обслуживание → Ремонт и диски → Отчёты о питании и сне» (SleepStudy / battery report) shows the real drain.
 - **Sources:** https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/display--sleep--and-hibernate-idle-timers ;
   https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/adaptive-hibernate
 
@@ -131,7 +133,7 @@ finding nothing.
 - **Evidence:** disables Modern Standby; firmware on Modern Standby devices often does not implement S3 properly, so sleep or resume
   fails and work is lost.
 - **Registry values:** `PlatformAoAcOverride`.
-- **MONOLITH instead:** «Сон и пробуждение» report (what keeps the PC awake, drain per session).
+- **MONOLITH instead:** the «Сон и пробуждение» card (what keeps the PC awake) and «Отчёты о питании и сне» (drain per session).
 - **Sources:** https://raw.githubusercontent.com/ChrisTitusTech/winutil/main/config/tweaks.json ; gaming_tweaks.md §2 C, §3
 
 ## `svchost-split` — disable svchost splitting → DO-NOT-INCLUDE (gaming_tweaks.md §3)
@@ -139,7 +141,7 @@ finding nothing.
 - **Evidence:** Microsoft splits services for reliability, security and diagnosability (one crash no longer takes down several
   services). Saves a few tens of MB of RAM; no measurable gaming effect. WinUtil itself warns it «can interfere with Xbox services».
 - **Registry values:** `SvcHostSplitThresholdInKB`.
-- **MONOLITH instead:** nothing is needed; the services page explains what each service costs.
+- **MONOLITH instead:** nothing is needed; the services page explains what each service does and why some are never offered.
 - **Sources:** https://learn.microsoft.com/en-us/windows/application-management/svchost-service-refactoring ;
   https://raw.githubusercontent.com/ChrisTitusTech/winutil/main/config/tweaks.json ; gaming_tweaks.md §3
 
@@ -218,7 +220,7 @@ finding nothing.
   notifications, alarms, Phone Link and Xbox; `EmptyWorkingSet` causes stutter; the laptop table in general_tweaks.md §11 says
   «Background apps: keep Power optimized»; `PowerThrottlingOff` only costs battery.
 - **Registry values:** covered by `bg-apps-global-win11` and `power-throttling-off`.
-- **MONOLITH instead:** the battery report («Сон и пробуждение») and the per-app background item.
+- **MONOLITH instead:** the battery report («Обслуживание → Ремонт и диски → Отчёты о питании и сне») and the per-app background item.
 - **Sources:** general_tweaks.md §2, §11 ; gaming_tweaks.md §2 C, §3 ; tech.md §5
 
 ## `streaming-network-priority` — DSCP priority and «network boosters» for streaming → REJECTED (network_stack.md #4, #6, #7, #9–12)
@@ -226,7 +228,7 @@ finding nothing.
 - **Evidence:** home ISPs ignore or bleach DSCP marks; the «20 % reservation» is a placebo (Raymond Chen); offloads only raise CPU
   load; NIC changes can drop the link mid-stream. The real upload problem is bufferbloat (Gettys & Nichols, ACM Queue).
 - **Registry values:** `NonBestEffortLimit`. (`NetworkThrottlingIndex` is ADVANCED in the catalog, never in a profile.)
-- **MONOLITH instead:** `net-measure-bufferbloat` and `info-router-sqm` (network_measure.md).
+- **MONOLITH instead:** the load test on «Устройства и сеть» (`NetProbes`: latency under load) and its bufferbloat finding with the SQM-on-the-router hint (`NetFindings` F10).
 - **Sources:** network_stack.md #4, #6, #7 ; network_measure.md ; https://queue.acm.org/detail.cfm?id=2071893 ;
   https://devblogs.microsoft.com/oldnewthing/20061123-14/?p=28923
 
@@ -253,7 +255,7 @@ finding nothing.
 - **Who:** «battery» presets that switch the Windows/app theme to dark (it is on Microsoft's energy-recommendation list).
 - **Evidence:** measurable only on OLED / emissive panels, none on LCD. A visual preference changed as a side effect surprises users.
 - **Registry values:** `AppsUseLightTheme`, `SystemUsesLightTheme`.
-- **MONOLITH instead:** at most a one-line manual hint for OLED laptops.
+- **MONOLITH instead:** nothing; MONOLITH never changes the theme. Monitor brightness / HDR live on «Устройства и сеть».
 - **Sources:** https://elevenforum.com/t/review-and-apply-energy-recommendations-in-windows-11.10598/ ;
   https://pureinfotech.com/enable-new-energy-recommendations-settings-windows-11/
 
@@ -263,7 +265,7 @@ finding nothing.
 - **Evidence:** Windows already turns on Do Not Disturb «when playing a game» and in full screen (on by default). The global switch is
   too broad (ADVANCED, only for a boost session with restore); the CloudStore blobs are undocumented and must never be written.
 - **Registry values:** `ToastEnabled`.
-- **MONOLITH instead:** the `dnd-in-games` check with a link to `ms-settings:notifications`.
+- **MONOLITH instead:** nothing: Windows' own «Do not disturb when playing a game» rule is on by default (Параметры → Система → Уведомления); Game Boost does not touch notifications. (No `dnd-in-games` check exists.)
 - **Sources:** gaming_tweaks.md §2 H
 
 ## `perf-plans-in-work-scenarios` — High performance / memory purge in work, streaming and battery scenarios → REJECTED
@@ -282,7 +284,7 @@ finding nothing.
   default 0 «dynamically adjusts». Since Windows 11 22H2 DO supports receiver-side LEDBAT (rLEDBAT), which yields to interactive
   traffic. The policies lock the Settings UI (ADVANCED per gaming_tweaks.md §2 F).
 - **Registry values:** `DOPercentageMaxBackgroundBandwidth`, `DOMaxBackgroundDownloadBandwidth`.
-- **MONOLITH instead:** `delivery-optimization-limit` (HTTP only, Settings store, SAFE-OPTIONAL) and the bufferbloat measurement.
+- **MONOLITH instead:** `delivery-optimization-local` («Обновления без P2P-раздачи», SAFE-DEFAULT, `DownloadMode=0` — no peer upload, no bandwidth limit; the limit stays in Windows Settings → Delivery Optimization → Advanced) and the bufferbloat measurement.
 - **Sources:** https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization-faq ;
   https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization-reference ;
   https://learn.microsoft.com/en-us/windows/deployment/do/whats-new-do ; gaming_tweaks.md §2 F ; network_stack.md #21
@@ -325,7 +327,7 @@ finding nothing.
   `LargeSystemCache` are server-era knobs with no gaming effect; `ClearPageFileAtShutdown` only slows shutdown.
 - **Registry values:** `ClearPageFileAtShutdown`, `DisablePagingExecutive`, `LargeSystemCache`. (`PagingFiles` is written only by the
   «back to system-managed» repair.)
-- **MONOLITH instead:** the page-file repair (system managed) and the memory facts on «Панель».
+- **MONOLITH instead:** `pagefile-system-managed` («Файл подкачки: автоматический размер», «Оптимизация») and the memory facts on «Панель».
 - **Sources:** https://learn.microsoft.com/en-us/archive/blogs/markrussinovich/pushing-the-limits-of-windows-virtual-memory ;
   https://www.windowslatest.com/2026/10/23/should-you-turn-off-the-page-file-on-a-32gb-pc-heres-what-microsoft-actually-recommends-k4l9/ ;
   gaming_tweaks.md §3 ; general_tweaks.md §10
@@ -336,7 +338,7 @@ finding nothing.
   interrupts system threads that manage mouse input, keyboard input, and background disk flushing»; it «may cause disk caches to not
   flush, cause the mouse to stop responding». Anti-cheat may also flag it.
 - **Registry values:** none (`PerfOptions\CpuPriorityClass` is not written).
-- **MONOLITH instead:** Game Boost raises the game to High / Above normal only, for the session.
+- **MONOLITH instead:** Game Boost raises the game to High only (never Realtime), for the session.
 - **Sources:** https://learn.microsoft.com/en-us/windows/win32/procthread/scheduling-priorities ;
   https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority ; gaming_tweaks.md §3 ; tech.md §6
 
