@@ -598,7 +598,189 @@ public sealed class DashboardRulesTests
         // A focus request with an unknown id is silently ignored by «Оптимизация» — keep the ids in sync.
         Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakBalancedPlan));
         Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakBalancedPlanX3D));
+        Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakPowerModeBestPerformance));
+        Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakHibernationOff));
+        Assert.NotNull(Monolith.Tweaks.TweakCatalog.Find(HealthRules.TweakPagefileSystemManaged));
     }
+
+    [Fact]
+    public void Energy_saver_on_mains_power_is_a_warning_on_desktops_and_info_on_laptops()
+    {
+        var desktop = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "Intel Core i7-14700K", CpuCores = 20, PowerPlan = PowerPlanKind.Balanced, EnergySaverOn = true, OnAcPower = true,
+        })!;
+        Assert.Equal("power-plan", desktop.Id);
+        Assert.Equal(CheckSeverity.Warning, desktop.Severity);
+        Assert.Equal(8, desktop.Weight);
+        Assert.Contains("ЭНЕРГОСБЕРЕЖЕНИЕ", desktop.Title);
+        // No tweak controls energy saver: the button only opens the Windows settings page.
+        Assert.Equal(CheckActionKind.OpenUri, desktop.Action!.Kind);
+        Assert.Equal("ms-settings:powersleep", desktop.Action.Target);
+        Assert.False(desktop.Action.RequiresAdmin);
+
+        var laptop = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            IsLaptop = true, CpuName = "Intel Core i7-13700H", CpuCores = 14, PowerPlan = PowerPlanKind.Balanced, EnergySaverOn = true, OnAcPower = true,
+        })!;
+        Assert.Equal(CheckSeverity.Info, laptop.Severity);
+        Assert.Equal(5, laptop.Weight);
+        Assert.Equal("ms-settings:powersleep", laptop.Action!.Target);
+
+        // It wins over the X3D advice and is reported even when the plan itself could not be read.
+        var x3d = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "AMD Ryzen 9 9950X3D 16-Core Processor", CpuCores = 16, PowerPlan = PowerPlanKind.HighPerformance, EnergySaverOn = true, OnAcPower = true,
+        })!;
+        Assert.Equal(CheckActionKind.OpenUri, x3d.Action!.Kind);
+        Assert.NotNull(HealthRules.CheckPowerPlan(new SystemSnapshot { PowerPlan = PowerPlanKind.Unknown, EnergySaverOn = true, OnAcPower = true }));
+
+        // Energy saver on battery (or with an unknown mains state) is normal: the existing logic runs.
+        var battery = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            IsLaptop = true, CpuName = "Intel Core i7-13700H", CpuCores = 14, PowerPlan = PowerPlanKind.Balanced, PowerPlanName = "Сбалансированная",
+            EnergySaverOn = true, OnAcPower = false,
+        })!;
+        Assert.Equal(CheckSeverity.Ok, battery.Severity);
+        Assert.Equal("ПЛАН ПИТАНИЯ «СБАЛАНСИРОВАННАЯ»", battery.Title);
+        Assert.Equal(CheckSeverity.Ok, HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "Intel Core i7-14700K", CpuCores = 20, PowerPlan = PowerPlanKind.Balanced, EnergySaverOn = true,
+        })!.Severity);
+    }
+
+    [Fact]
+    public void Best_efficiency_mode_on_balanced_is_info_with_the_power_mode_tweak()
+    {
+        var efficiency = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "Intel Core i7-14700K", CpuCores = 20, PowerPlan = PowerPlanKind.Balanced, PowerPlanName = "Сбалансированная",
+            AcPowerMode = Monolith.Tweaks.TweakCatalog.PowerModeBestEfficiency, OnAcPower = true, EnergySaverOn = false,
+        })!;
+        Assert.Equal(CheckSeverity.Info, efficiency.Severity);
+        Assert.Equal(5, efficiency.Weight);
+        Assert.Contains("МАКСИМАЛЬНАЯ ЭФФЕКТИВНОСТЬ", efficiency.Title);
+        // Dashboard is a shortcut into the one tweak that changes the mode; the button itself changes nothing.
+        Assert.Equal(CheckActionKind.FocusTweak, efficiency.Action!.Kind);
+        Assert.Equal(HealthRules.TweakPowerModeBestPerformance, efficiency.Action.Target);
+        Assert.False(efficiency.Action.RequiresAdmin);
+
+        // An unknown mains state (desktops without a battery) still counts: only "on battery" is excluded.
+        var unknownAc = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "Intel Core i7-14700K", CpuCores = 20, PowerPlan = PowerPlanKind.Balanced,
+            AcPowerMode = Monolith.Tweaks.TweakCatalog.PowerModeBestEfficiency,
+        })!;
+        Assert.Equal(HealthRules.TweakPowerModeBestPerformance, unknownAc.Action!.Target);
+
+        // Energy saver locks the mode to best efficiency: that case is reported as energy saver, not as the mode.
+        var saver = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "Intel Core i7-14700K", CpuCores = 20, PowerPlan = PowerPlanKind.Balanced,
+            AcPowerMode = Monolith.Tweaks.TweakCatalog.PowerModeBestEfficiency, OnAcPower = true, EnergySaverOn = true,
+        })!;
+        Assert.Equal(CheckActionKind.OpenUri, saver.Action!.Kind);
+
+        // On battery nothing new: efficiency is the point there.
+        var battery = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            IsLaptop = true, CpuName = "Intel Core i7-13700H", CpuCores = 14, PowerPlan = PowerPlanKind.Balanced, PowerPlanName = "Сбалансированная",
+            AcPowerMode = Monolith.Tweaks.TweakCatalog.PowerModeBestEfficiency, OnAcPower = false, EnergySaverOn = false,
+        })!;
+        Assert.Equal(CheckSeverity.Ok, battery.Severity);
+        Assert.Equal("ПЛАН ПИТАНИЯ «СБАЛАНСИРОВАННАЯ»", battery.Title);
+        Assert.Null(battery.Action);
+
+        // Other modes change nothing in the existing logic.
+        var performance = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "Intel Core i7-14700K", CpuCores = 20, PowerPlan = PowerPlanKind.Balanced,
+            AcPowerMode = Monolith.Tweaks.TweakCatalog.PowerModeBestPerformance, OnAcPower = true, EnergySaverOn = false,
+        })!;
+        Assert.Equal(CheckSeverity.Ok, performance.Severity);
+        Assert.Null(performance.Action);
+
+        // Dual-CCD X3D: the catalog does not offer the mode there, so the dashboard does not point to it either.
+        var x3d = HealthRules.CheckPowerPlan(new SystemSnapshot
+        {
+            CpuName = "AMD Ryzen 9 9950X3D 16-Core Processor", CpuCores = 16, PowerPlan = PowerPlanKind.Balanced,
+            AcPowerMode = Monolith.Tweaks.TweakCatalog.PowerModeBestEfficiency, OnAcPower = true, EnergySaverOn = false,
+        })!;
+        Assert.Equal(CheckSeverity.Ok, x3d.Severity);
+    }
+
+    [Fact]
+    public void Low_space_lists_system_files_and_offers_the_one_safe_lever()
+    {
+        const ulong gb = 1UL << 30;
+        var desktop = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileBytes = 9 * gb, PagefileSystemManaged = true,
+        })!;
+        Assert.Equal(CheckSeverity.Warning, desktop.Severity);
+        Assert.Equal("cleaner", desktop.Action!.Target); // the primary stays «К ОЧИСТКЕ»
+        Assert.Contains("hiberfil.sys — 13,0 ГБ", desktop.Detail);
+        Assert.Contains("«Отключить гибернацию» (ЭКСПЕРТ)", desktop.Detail);
+        Assert.Contains("pagefile.sys — 9,0 ГБ: размером управляет Windows", desktop.Detail);
+        Assert.DoesNotContain("Зарезервированное хранилище", desktop.Detail); // state not read: not mentioned
+        Assert.Equal(CheckActionKind.FocusTweak, desktop.SecondaryAction!.Kind);
+        Assert.Equal(HealthRules.TweakHibernationOff, desktop.SecondaryAction.Target);
+        Assert.False(desktop.SecondaryAction.RequiresAdmin);
+
+        // Laptop: hibernation-off is DO-NOT-INCLUDE there — the size is shown with the reason and no button.
+        var laptop = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            IsLaptop = true, SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb,
+        })!;
+        Assert.Contains("hiberfil.sys — 13,0 ГБ", laptop.Detail);
+        Assert.Contains("На ноутбуке он нужен", laptop.Detail);
+        Assert.DoesNotContain("Отключить гибернацию", laptop.Detail);
+        Assert.Null(laptop.SecondaryAction);
+
+        // A hand-set page file points to the existing repair; hibernation wins when both apply.
+        var manual = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            IsLaptop = true, SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, PagefileBytes = 2 * gb, PagefileSystemManaged = false,
+        })!;
+        Assert.Contains("pagefile.sys — 2,0 ГБ: размер задан вручную", manual.Detail);
+        Assert.Equal(HealthRules.TweakPagefileSystemManaged, manual.SecondaryAction!.Target);
+        var twoLevers = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileSystemManaged = false,
+        })!;
+        Assert.Equal(HealthRules.TweakHibernationOff, twoLevers.SecondaryAction!.Target);
+        Assert.Contains("pagefile.sys: размер задан вручную", twoLevers.Detail); // size unknown, the fact is still shown
+
+        // Reserved storage only when the state is known; no size figures are invented.
+        var reserved = HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, ReservedStorageState = "Enabled",
+        })!;
+        Assert.Contains("Зарезервированное хранилище включено: Windows освобождает его сама", reserved.Detail);
+        Assert.Null(reserved.SecondaryAction);
+        Assert.Contains("Зарезервированное хранилище отключено", HealthRules.CheckDiskSpace(new SystemSnapshot
+        {
+            SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, ReservedStorageState = "Disabled",
+        })!.Detail);
+
+        // Nothing of this on a drive with enough space, and nothing when no fact is known.
+        var fine = HealthRules.CheckDiskSpace(new SystemSnapshot { SystemDriveFree = 200 * gb, SystemDriveTotal = 500 * gb, HiberfilBytes = 13 * gb })!;
+        Assert.DoesNotContain("hiberfil", fine.Detail);
+        Assert.Null(fine.SecondaryAction);
+        var bare = HealthRules.CheckDiskSpace(new SystemSnapshot { SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb })!;
+        Assert.EndsWith("что именно будет удалено.", bare.Detail);
+        Assert.Null(bare.SecondaryAction);
+    }
+
+    [Theory]
+    [InlineData("Enabled\r\n", "Enabled")]
+    [InlineData("\r\nDisabled\r\n\r\n", "Disabled")]
+    [InlineData("enabled", "Enabled")]
+    [InlineData("Get-WindowsReservedStorageState : not recognized", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void Reserved_storage_state_is_parsed_from_powershell_output(string? output, string? expected) =>
+        Assert.Equal(expected, HealthRules.ParseReservedStorageState(output));
 
     [Fact]
     public void Memory_integrity_is_information_only()
