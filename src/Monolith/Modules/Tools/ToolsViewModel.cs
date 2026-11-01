@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
 using Monolith.Shell;
+using Monolith.Tweaks;
 using Monolith.UI;
 
 namespace Monolith.Modules.Tools;
@@ -61,6 +62,8 @@ public sealed partial class ToolsViewModel : PageViewModel
     /// <summary>Fixed volumes for the defrag card (one button per drive; free space is shown on the cleaning tab).</summary>
     private IReadOnlyList<VolumeInfo> _volumes = [];
     private bool _hasBattery;
+    /// <summary>Modern Standby (S0 low power idle): the only platform where powercfg /sleepstudy has data.</summary>
+    private bool _modernStandby;
     [ObservableProperty] private string _bootCheckText = "Чтение параметров загрузки…";
     [ObservableProperty] private bool _bootCheckScheduled;
 
@@ -82,6 +85,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         var bootTask = ReadBootCheckAsync();
         var profile = await SystemProfile.LoadAsync();
         _hasBattery = profile.HasBattery;
+        _modernStandby = await Task.Run(() => TweakCatalog.ReadPowerCaps()?.ModernStandby == true);
         _volumes = await volumesTask;
         Sections = BuildSections();
         await bootTask;
@@ -141,8 +145,12 @@ public sealed partial class ToolsViewModel : PageViewModel
             case ToolOp.NetworkReset: await RunNetworkResetAsync(); break;
             case ToolOp.StoreReset: await RunStoreResetAsync(); break;
             case ToolOp.IconCache: await RunIconCacheAsync(); break;
-            case ToolOp.BatteryReport: await RunBatteryReportAsync(); break;
+            case ToolOp.BatteryReport: await RunPowerReportAsync(BatteryReport); break;
             case ToolOp.MemoryDiagnostic: await RunMemoryDiagnosticAsync(); break;
+            case ToolOp.SleepWakeDiagnostics: await RunSleepWakeDiagnosticsAsync(); break;
+            case ToolOp.EnergyReport: await RunEnergyReportAsync(); break;
+            case ToolOp.SleepStudyReport: await RunPowerReportAsync(SleepStudyReport); break;
+            case ToolOp.SystemSleepDiagnostics: await RunPowerReportAsync(SleepDiagnosticsReport); break;
         }
     }
 
@@ -392,20 +400,165 @@ public sealed partial class ToolsViewModel : PageViewModel
                 "Кэш значков обновлён. Если значки не изменились — перезайдите в систему.", "Не удалось обновить кэш значков");
         });
 
-    private Task RunBatteryReportAsync() =>
-        ExecuteAsync("ОТЧЁТ О БАТАРЕЕ", "powercfg /batteryreport", cancellable: true, "Создание отчёта о батарее…", async ct =>
+    // ═════════════════════════════ Power & sleep (read-only) ═════════════════════════════
+
+    /// <summary>
+    /// A powercfg HTML report: written to the MONOLITH logs folder and opened without administrator rights,
+    /// exactly like the battery report. <see cref="ExitCodeCountsProblems"/>: powercfg /energy returns the number of
+    /// problems it found, so a non-zero exit code with a created report is a warning, not a failure.
+    /// </summary>
+    internal sealed record PowerReportSpec(string Title, string Display, string Busy, string Name, string FileName,
+        Func<string, string[]> Arguments, TimeSpan Timeout, bool ExitCodeCountsProblems = false);
+
+    internal static readonly PowerReportSpec BatteryReport = new("ОТЧЁТ О БАТАРЕЕ", "powercfg /batteryreport",
+        "Создание отчёта о батарее…", "Отчёт о батарее", "battery-report.html",
+        file => ["/batteryreport", "/output", file], TimeSpan.FromMinutes(2));
+
+    internal static readonly PowerReportSpec EnergyReport = new("ОТЧЁТ ОБ ЭНЕРГОЭФФЕКТИВНОСТИ", "powercfg /energy /duration 60",
+        "Отчёт об энергоэффективности: 60 секунд наблюдения…", "Отчёт об энергоэффективности", "energy-report.html",
+        file => ["/energy", "/output", file, "/duration", "60"], TimeSpan.FromMinutes(3), ExitCodeCountsProblems: true);
+
+    internal static readonly PowerReportSpec SleepStudyReport = new("ОТЧЁТ SLEEPSTUDY", "powercfg /sleepstudy /duration 3",
+        "Создание отчёта SleepStudy…", "Отчёт SleepStudy", "sleepstudy-report.html",
+        file => ["/sleepstudy", "/output", file, "/duration", "3"], TimeSpan.FromMinutes(2));
+
+    internal static readonly PowerReportSpec SleepDiagnosticsReport = new("ДИАГНОСТИКА ПЕРЕХОДОВ В СОН", "powercfg /systemsleepdiagnostics",
+        "Диагностика переходов в сон…", "Отчёт о переходах в сон", "sleep-diagnostics.html",
+        file => ["/systemsleepdiagnostics", "/output", file], TimeSpan.FromMinutes(2));
+
+    /// <summary>The five documented read-only powercfg queries of the «Сон и пробуждение» card, in run order.</summary>
+    internal static readonly IReadOnlyList<PowercfgQuery> SleepWakeQueries =
+    [
+        new("/lastwake", "Почему ПК проснулся в последний раз", RequiresAdmin: false),
+        new("/waketimers", "Активные таймеры пробуждения (программы и задачи)", RequiresAdmin: true),
+        new("/requests", "Запросы, которые не дают ПК уснуть", RequiresAdmin: true),
+        new("/devicequery wake_armed", "Устройства, которым разрешено будить ПК", RequiresAdmin: false),
+        new("/availablesleepstates", "Доступные состояния сна", RequiresAdmin: false),
+    ];
+
+    internal static string SleepWakeCommandText { get; } = "powercfg " + string.Join(" · ", SleepWakeQueries.Select(q => q.Arguments));
+
+    private const string MaintenanceTaskPath = @"\Microsoft\Windows\TaskScheduler\Maintenance Configurator";
+    private const string MaintenancePolicyKey = @"SOFTWARE\Policies\Microsoft\Windows\Task Scheduler\Maintenance";
+    private const string MaintenanceSettingKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance";
+
+    private Task RunSleepWakeDiagnosticsAsync() =>
+        ExecuteAsync("СОН И ПРОБУЖДЕНИЕ", SleepWakeCommandText, cancellable: true, "Проверка сна и пробуждения…", async ct =>
+        {
+            var elevated = Elevation.IsElevated;
+            if (!elevated)
+                Emit("/requests и /waketimers требуют прав администратора — эти две проверки пропущены, остальные выполняются.", ConsoleLineKind.Info);
+
+            var failed = 0;
+            foreach (var q in SleepWakeQueries)
+            {
+                if (q.RequiresAdmin && !elevated) continue;
+                ct.ThrowIfCancellationRequested();
+                Emit("", ConsoleLineKind.Output);
+                Emit(q.Title, ConsoleLineKind.Info);
+                Emit("powercfg " + q.Arguments, ConsoleLineKind.Command);
+                // Output is shown as is (OEM encoding); localized text is never parsed.
+                var r = await RunProcessAsync(ProcessRunner.Sys("powercfg.exe"), q.Arguments.Split(' '), OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
+                if (r.Cancelled) return null;
+                if (r.ExitCode != 0)
+                {
+                    failed++;
+                    Emit($"powercfg завершился с кодом {r.ExitCode}.", ConsoleLineKind.Info);
+                }
+            }
+
+            Emit("", ConsoleLineKind.Output);
+            Emit(await Task.Run(ReadMaintenanceWake), ConsoleLineKind.Info);
+            return failed == 0
+                ? ToolOutcome.Ok("Проверка завершена — см. вывод выше.")
+                : ToolOutcome.Warn($"Проверка завершена, команд с ошибкой: {failed} — см. вывод выше.");
+        });
+
+    /// <summary>Read-only: may Automatic Maintenance wake the PC? Group Policy wins over the Task Scheduler setting.</summary>
+    private static string ReadMaintenanceWake()
+    {
+        var task = ScheduledTasks.Query(MaintenanceTaskPath);
+        var policy = RegistryHelper.ReadInt(RegHive.HKLM, MaintenancePolicyKey, "WakeUp");
+        var setting = RegistryHelper.ReadInt(RegHive.HKLM, MaintenanceSettingKey, "WakeUp");
+        return DescribeMaintenanceWake(task.Exists, task.Enabled, policy, setting);
+    }
+
+    internal static string DescribeMaintenanceWake(bool taskExists, bool taskEnabled, int? policy, int? setting)
+    {
+        var (allowed, source) = policy is { } p ? (p != 0, "политика")
+            : setting is { } v ? (v != 0, "настройка")
+            : (true, "значение не задано — умолчание Windows");
+        var task = !taskExists ? "задача «Maintenance Configurator» не найдена"
+            : taskEnabled ? "задача «Maintenance Configurator» включена"
+            : "задача «Maintenance Configurator» отключена";
+        return $"Пробуждение для обслуживания: {(allowed ? "разрешено" : "запрещено")} ({source}); {task}.";
+    }
+
+    private async Task RunEnergyReportAsync()
+    {
+        if (GameBoostState.IsActive)
+        {
+            Ui.Toast("Дождитесь окончания игрового сеанса — отчёт энергоэффективности снимается при простое ПК.", ToastKind.Warning);
+            return;
+        }
+        if (!await Ui.ConfirmAsync(
+                "Снять отчёт об энергоэффективности?",
+                "powercfg /energy 60 секунд наблюдает за системой и составляет HTML-отчёт Windows: что мешает простою и USB-сну, кто запрашивает повышенное разрешение таймера, какова нагрузка в простое.",
+                [
+                    "60 секунд ПК должен простаивать: закройте программы и не трогайте мышь и клавиатуру",
+                    "Команда: powercfg /energy /output … /duration 60",
+                    "Ничего не меняет в системе — только наблюдение",
+                    "Отчёт сохраняется в папку журналов MONOLITH и открывается в браузере без прав администратора",
+                ],
+                confirmText: "ЗАПУСТИТЬ", footnote: "«Ошибки» в отчёте — это причины повышенного расхода энергии, а не поломки."))
+            return;
+        await RunPowerReportAsync(EnergyReport);
+    }
+
+    private Task RunPowerReportAsync(PowerReportSpec spec) =>
+        ExecuteAsync(spec.Title, spec.Display, cancellable: true, spec.Busy, async ct =>
         {
             if (!AppPaths.TryEnsureDir(AppPaths.LogsDir)) return ToolOutcome.Fail("Не удалось создать папку для отчёта: " + AppPaths.LogsDir);
-            var file = Path.Combine(AppPaths.LogsDir, "battery-report.html");
-            var r = await RunProcessAsync(ProcessRunner.Sys("powercfg.exe"), ["/batteryreport", "/output", file], OutputEncoding.Oem, TimeSpan.FromMinutes(2), ct);
+            var file = Path.Combine(AppPaths.LogsDir, spec.FileName);
+            TryDeleteStaleReport(file); // an older report must never pass for the new one
+            var r = await RunProcessAsync(ProcessRunner.Sys("powercfg.exe"), spec.Arguments(file), OutputEncoding.Oem, spec.Timeout, ct);
             if (r.Cancelled) return null;
-            if (r.ExitCode != 0 || !File.Exists(file)) return ToolOutcome.Fail($"Отчёт не создан (код {r.ExitCode}).");
-            Emit("Отчёт: " + file, ConsoleLineKind.Info);
+            var exists = File.Exists(file);
+            if (exists) Emit("Отчёт: " + file, ConsoleLineKind.Info);
             // The browser must never inherit MONOLITH's administrator rights.
-            if (await UnelevatedShell.OpenFileAsync(file))
-                return ToolOutcome.Ok("Отчёт о батарее создан и открыт в браузере.");
-            return ToolOutcome.Warn("Отчёт о батарее создан, но открыть его без прав администратора не удалось. Откройте файл вручную: " + file);
+            var opened = exists && await UnelevatedShell.OpenFileAsync(file);
+            return ClassifyPowerReport(spec, r.ExitCode, exists, opened, file, Elevation.IsElevated);
         });
+
+    internal static ToolOutcome ClassifyPowerReport(PowerReportSpec spec, int exitCode, bool fileExists, bool opened, string file, bool elevated)
+    {
+        if (!fileExists)
+            return ToolOutcome.Fail(elevated || exitCode == 0
+                ? $"Отчёт не создан (код {exitCode})."
+                : $"Отчёт не создан (код {exitCode}) — скорее всего, нужны права администратора.");
+        var openNote = opened
+            ? "открыт в браузере."
+            : "открыть его без прав администратора не удалось. Откройте файл вручную: " + file;
+        if (exitCode != 0 && spec.ExitCodeCountsProblems)
+            return ToolOutcome.Warn($"Найдено ошибок/предупреждений: {exitCode} — см. отчёт. Отчёт создан, {openNote}");
+        if (exitCode != 0)
+            return ToolOutcome.Warn($"{spec.Name} создан, но powercfg вернул код {exitCode} — отчёт может быть неполным; {openNote}");
+        return opened
+            ? ToolOutcome.Ok($"{spec.Name} создан и открыт в браузере.")
+            : ToolOutcome.Warn($"{spec.Name} создан, но {openNote}");
+    }
+
+    private static void TryDeleteStaleReport(string file)
+    {
+        try
+        {
+            if (File.Exists(file)) File.Delete(file);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Старый отчёт не удалён ({file}): {ex.Message}");
+        }
+    }
 
     private async Task RunMemoryDiagnosticAsync()
     {
@@ -620,28 +773,54 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     // ═════════════════════════════ Catalog ═════════════════════════════
 
-    private IReadOnlyList<ToolSection> BuildSections()
+    private IReadOnlyList<ToolSection> BuildSections() => BuildSections(_volumes, SystemDrive, _hasBattery, _modernStandby);
+
+    /// <summary>Pure catalog of the page: volumes, system drive and power facts come in as inputs (unit-tested).</summary>
+    internal static IReadOnlyList<ToolSection> BuildSections(IReadOnlyList<VolumeInfo> volumes, string systemDrive, bool hasBattery, bool modernStandby)
     {
+        var chkdskCommandText = string.Format(ChkdskOfflineCommand, systemDrive);
         var defragActions = new List<ToolCardAction>
         {
             new() { Op = ToolOp.DefragAll, Label = "ВСЕ ДИСКИ", IsPrimary = true, RequiresAdmin = true },
         };
-        defragActions.AddRange(_volumes.Select(DefragAction));
+        defragActions.AddRange(volumes.Select(DefragAction));
 
-        var diagnostics = new List<ToolCard>();
-        if (_hasBattery)
+        // Power reports: battery only with a battery, SleepStudy only on Modern Standby (elsewhere the report is empty).
+        var reports = new List<ToolCardAction>();
+        if (hasBattery) reports.Add(new ToolCardAction { Op = ToolOp.BatteryReport, Label = "БАТАРЕЯ" });
+        reports.Add(new ToolCardAction { Op = ToolOp.EnergyReport, Label = "ЭНЕРГИЯ, 60 С", IsPrimary = true, RequiresAdmin = true });
+        if (modernStandby) reports.Add(new ToolCardAction { Op = ToolOp.SleepStudyReport, Label = "SLEEPSTUDY" });
+        reports.Add(new ToolCardAction { Op = ToolOp.SystemSleepDiagnostics, Label = "ДИАГНОСТИКА СНА", RequiresAdmin = true });
+        var reportCommands = new List<string>();
+        if (hasBattery) reportCommands.Add("/batteryreport");
+        reportCommands.Add("/energy");
+        if (modernStandby) reportCommands.Add("/sleepstudy");
+        reportCommands.Add("/systemsleepdiagnostics");
+
+        var diagnostics = new List<ToolCard>
         {
-            diagnostics.Add(new ToolCard
+            new ToolCard
+            {
+                Glyph = Glyphs.Power,
+                Title = "СОН И ПРОБУЖДЕНИЕ",
+                Command = SleepWakeCommandText,
+                Description = "Отвечает на три вопроса средствами самой Windows: почему ПК проснулся последним (lastwake), какие таймеры и программы будят его или не дают уснуть (waketimers, requests), каким устройствам разрешено будить ПК (devicequery wake_armed) и какие состояния сна доступны.",
+                Note = "Ничего не меняет. Чтобы устройство не будило ПК: Диспетчер устройств → устройство → Управление электропитанием → снять «Разрешить этому устройству выводить компьютер из ждущего режима». Чтобы ПК не просыпался по расписанию программ, есть пункт «ПК не просыпается ночью по расписанию программ» в разделе «Оптимизация». Без прав администратора /requests и /waketimers пропускаются.",
+                Duration = "~3 С",
+                Actions = [new ToolCardAction { Op = ToolOp.SleepWakeDiagnostics, Label = "ПРОВЕРИТЬ", IsPrimary = true }],
+            },
+            new ToolCard
             {
                 Glyph = ToolGlyphs.Battery,
-                Title = "ОТЧЁТ О БАТАРЕЕ",
-                Command = "powercfg /batteryreport",
-                Description = "HTML-отчёт Windows о батарее: паспортная и текущая ёмкость (степень износа), число циклов заряда, история использования и прогноз времени работы.",
-                Note = "Отчёт сохраняется в папку журналов MONOLITH и открывается в браузере. Ничего не меняет в системе.",
-                Duration = "~5 С",
-                Actions = [new ToolCardAction { Op = ToolOp.BatteryReport, Label = "СОЗДАТЬ ОТЧЁТ", IsPrimary = true }],
-            });
-        }
+                Title = "ОТЧЁТЫ О ПИТАНИИ И СНЕ",
+                Command = "powercfg " + string.Join(" · ", reportCommands),
+                Description = "HTML-отчёты Windows: батарея (износ, циклы, прогноз), энергоэффективность (/energy — 60 секунд наблюдения: кто мешает простою и USB-сну, кто запрашивает повышенное разрешение таймера, нагрузка в простое), для Modern Standby — расход в режиме ожидания за 3 дня (/sleepstudy), а также диагностика переходов в сон (/systemsleepdiagnostics).",
+                Note = "Отчёт энергоэффективности снимается при простое: закройте программы и не трогайте ПК 60 секунд; во время игрового сеанса он не запускается. Отчёты сохраняются в папку журналов MONOLITH и открываются в браузере без прав администратора. Ничего не меняет.",
+                Duration = "5 С – 1 МИН",
+                RequiresAdmin = true,
+                Actions = reports,
+            },
+        };
         diagnostics.Add(new ToolCard
         {
             Glyph = Glyphs.Memory,
@@ -702,9 +881,9 @@ public sealed partial class ToolsViewModel : PageViewModel
                     {
                         Glyph = ToolGlyphs.HardDrive,
                         Title = "ПРОВЕРКА ДИСКА",
-                        Command = $"chkdsk {SystemDrive} /scan",
-                        Description = $"Онлайн-проверка файловой системы диска {SystemDrive} без перезагрузки — диск остаётся доступным. Покажет, есть ли ошибки, которые требуют полной проверки при загрузке.",
-                        Note = $"Полную проверку с исправлением MONOLITH не планирует. Если она нужна: откройте «Терминал (администратор)», выполните «{ChkdskCommandText}», ответьте Y и перезагрузитесь — Windows проверит диск до входа в систему.",
+                        Command = $"chkdsk {systemDrive} /scan",
+                        Description = $"Онлайн-проверка файловой системы диска {systemDrive} без перезагрузки — диск остаётся доступным. Покажет, есть ли ошибки, которые требуют полной проверки при загрузке.",
+                        Note = $"Полную проверку с исправлением MONOLITH не планирует. Если она нужна: откройте «Терминал (администратор)», выполните «{chkdskCommandText}», ответьте Y и перезагрузитесь — Windows проверит диск до входа в систему.",
                         Duration = "1–10 МИН",
                         RequiresAdmin = true,
                         Actions =
@@ -790,7 +969,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             new ToolSection
             {
                 Title = "ДИАГНОСТИКА",
-                Caption = "Встроенные средства Windows для поиска аппаратных проблем.",
+                Caption = "Встроенные средства Windows для поиска проблем со сном, питанием и оборудованием.",
                 Cards = diagnostics,
             },
         ];
