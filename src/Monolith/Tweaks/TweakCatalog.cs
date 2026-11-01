@@ -1,6 +1,7 @@
 namespace Monolith.Tweaks;
 
-public enum ProfileKind { Normal, Gaming, Recommended }
+/// <summary>Scenario of the Optimize tiles: Normal = «Работа и учёба», Streaming = «Стриминг и запись», Efficiency = «Тихий ПК» / «Ноутбук: автономность».</summary>
+public enum ProfileKind { Normal, Gaming, Recommended, Streaming, Efficiency }
 
 /// <summary>
 /// Every optimization MONOLITH knows. The list itself is built in TweakCatalog.*.cs partial files.
@@ -22,6 +23,8 @@ public static partial class TweakCatalog
     {
         ProfileKind.Normal => ProfileSet.Normal,
         ProfileKind.Gaming => ProfileSet.Gaming,
+        ProfileKind.Streaming => ProfileSet.Streaming,
+        ProfileKind.Efficiency => ProfileSet.Efficiency,
         _ => ProfileSet.Recommended,
     };
 

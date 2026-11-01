@@ -1,4 +1,4 @@
-using Monolith.Core;
+﻿using Monolith.Core;
 
 namespace Monolith.Tweaks;
 
@@ -19,7 +19,7 @@ public static partial class TweakCatalog
                       "Отмена — откатом в MONOLITH или тем же переключателем в Параметрах.",
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
             DetectFunc = () =>
             {
                 var auto = CuInt(@"Software\Microsoft\GameBar", "AutoGameModeEnabled");
@@ -107,7 +107,7 @@ public static partial class TweakCatalog
                      "Действует после перезапуска игры.",
             token: "SwapEffectUpgradeEnable",
             risk: TweakRisk.Safe,
-            defaults: ProfileSet.Gaming | ProfileSet.Recommended,
+            defaults: ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
             appliesTo: sp => sp.IsWindows11,
             notApplicableReason: "Только для Windows 11.");
 
@@ -150,7 +150,7 @@ public static partial class TweakCatalog
                       "по умолчанию, поэтому пункт чаще всего лишь подтверждает это. Ручная запись (Win+Alt+R) и скриншоты продолжают работать.",
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
             DetectFunc = () => BackgroundRecordingOff() ? TweakState.Applied : TweakState.NotApplied,
             ApplyAction = ctx =>
             {
@@ -158,7 +158,7 @@ public static partial class TweakCatalog
             },
         };
 
-        // SAFE-OPTIONAL.
+        // SAFE-OPTIONAL; pre-checked only in «Стриминг и запись» (OBS KB: Game DVR off next to OBS — no second encoder, no Win+Alt+R conflicts).
         yield return new RegistryTweak
         {
             Id = "gamedvr-capture-off",
@@ -169,6 +169,7 @@ public static partial class TweakCatalog
                       "или в Параметрах → Игры → Записи.",
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Streaming,
             Values =
             [
                 Cu(GameDvrKey, "AppCaptureEnabled", 0),
