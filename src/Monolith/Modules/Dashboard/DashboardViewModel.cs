@@ -286,9 +286,14 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     // ───────────────────────────── Check actions ─────────────────────────────
 
-    private async Task RunActionAsync(CheckItemViewModel item)
+    private Task RunActionAsync(CheckItemViewModel item) => RunActionAsync(item.Result.Action);
+
+    /// <summary>The second button of a check (e.g. the hibernation item behind a low-space warning). Same handling as the first.</summary>
+    [RelayCommand]
+    private Task RunSecondaryActionAsync(CheckItemViewModel? item) => RunActionAsync(item?.Result.SecondaryAction);
+
+    private async Task RunActionAsync(CheckAction? action)
     {
-        var action = item.Result.Action;
         if (action is null) return;
         if (action.RequiresAdmin && IsBusy)
         {

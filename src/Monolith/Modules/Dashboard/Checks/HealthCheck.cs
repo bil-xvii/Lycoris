@@ -36,6 +36,8 @@ public sealed record CheckAction(CheckActionKind Kind, string Label, string? Tar
 
 /// <summary>
 /// Result of one health check. <see cref="Weight"/> is how many points a warning costs in the health score
-/// (information costs a fifth of it, OK costs nothing).
+/// (information costs a fifth of it, OK costs nothing). <see cref="SecondaryAction"/> is an optional second button
+/// (e.g. the one large, safe lever behind a low-space warning next to «К ОЧИСТКЕ»); it is as harmless as the first one.
 /// </summary>
-public sealed record HealthCheckResult(string Id, string Title, string Detail, CheckSeverity Severity, int Weight, CheckAction? Action = null);
+public sealed record HealthCheckResult(string Id, string Title, string Detail, CheckSeverity Severity, int Weight, CheckAction? Action = null,
+    CheckAction? SecondaryAction = null);

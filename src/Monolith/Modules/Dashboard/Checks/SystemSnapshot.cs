@@ -120,6 +120,29 @@ public sealed record SystemSnapshot
     public PowerPlanKind PowerPlan { get; init; }
     public string PowerPlanName { get; init; } = "";
 
+    /// <summary>GetSystemPowerStatus.ACLineStatus: true = mains power, false = battery. Null = unknown (255).</summary>
+    public bool? OnAcPower { get; init; }
+    /// <summary>GetSystemPowerStatus.SystemStatusFlag: true = energy saver («Энергосбережение») is on. Null = unknown.</summary>
+    public bool? EnergySaverOn { get; init; }
+    /// <summary>
+    /// Windows 11 user-configured AC power mode (PowerGetUserConfiguredACPowerMode): Guid.Empty = balanced,
+    /// <see cref="Tweaks.TweakCatalog.PowerModeBestEfficiency"/> / <see cref="Tweaks.TweakCatalog.PowerModeBestPerformance"/>.
+    /// Null = unknown or a build without the function (pre-22H2).
+    /// </summary>
+    public Guid? AcPowerMode { get; init; }
+
+    /// <summary>Size of hiberfil.sys on the system drive (attributes only; the file is never opened). Null = absent or unknown.</summary>
+    public ulong? HiberfilBytes { get; init; }
+    /// <summary>Allocated size of the page files (Win32_PageFileUsage). Null = none or unknown.</summary>
+    public ulong? PagefileBytes { get; init; }
+    /// <summary>Win32_ComputerSystem.AutomaticManagedPagefile. Null = unknown.</summary>
+    public bool? PagefileSystemManaged { get; init; }
+    /// <summary>
+    /// Get-WindowsReservedStorageState: "Enabled" / "Disabled". Read only with administrator rights and only when the
+    /// system drive is already low on space (it is a servicing query, not something to run on every visit). Null = unknown.
+    /// </summary>
+    public string? ReservedStorageState { get; init; }
+
     /// <summary>Sources that report a pending restart (empty = none).</summary>
     public IReadOnlyList<string> PendingReboot { get; init; } = [];
 

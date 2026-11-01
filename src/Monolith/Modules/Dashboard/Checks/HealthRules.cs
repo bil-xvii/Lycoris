@@ -20,6 +20,11 @@ public static partial class HealthRules
     public const string TweakGameDvr = "gamedvr-off";
     public const string TweakBalancedPlan = "power-plan-balanced";
     public const string TweakBalancedPlanX3D = "power-plan-balanced-x3d";
+    public const string TweakPowerModeBestPerformance = "power-mode-best-performance";
+    public const string TweakHibernationOff = "hibernation-off";
+    public const string TweakPagefileSystemManaged = "pagefile-system-managed";
+    /// <summary>Параметры → Система → Питание: the only place that controls energy saver (no tweak does).</summary>
+    public const string PowerSettingsUri = "ms-settings:powersleep";
 
     /// <summary>Free space is "low" below this share of the system drive…</summary>
     public const double LowSpaceShare = 0.15;
@@ -209,11 +214,71 @@ public static partial class HealthRules
         var text = $"Свободно {DashFormat.Size(free)} из {DashFormat.Size(total)} ({DashFormat.Share((double)free / total)}).";
         if (!IsLowSpace(free, total))
             return new("disk-space", "МЕСТА НА СИСТЕМНОМ ДИСКЕ ДОСТАТОЧНО", text, CheckSeverity.Ok, 15);
+        var facts = SystemFileFacts(s);
         return new("disk-space", "НА СИСТЕМНОМ ДИСКЕ МАЛО МЕСТА",
             text + " Когда места мало, Windows не может установить обновления, а кэш шейдеров и файл подкачки работают хуже. " +
-            "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением MONOLITH покажет, что именно будет удалено.",
+            "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением MONOLITH покажет, что именно будет удалено." +
+            (facts.Length > 0 ? " " + facts : ""),
             CheckSeverity.Warning, IsCriticalSpace(free, total) ? 25 : 15,
-            new CheckAction(CheckActionKind.Navigate, "К ОЧИСТКЕ", "cleaner"));
+            new CheckAction(CheckActionKind.Navigate, "К ОЧИСТКЕ", "cleaner"), SystemFileLever(s));
+    }
+
+    /// <summary>
+    /// What the Windows system files on the drive take (each fact only when it is known) and why MONOLITH leaves two of
+    /// them alone: hibernation can go on desktops only (ADVANCED; DO-NOT-INCLUDE on laptops), the page file is managed
+    /// by Windows (general_tweaks.md §10), reserved storage is released by Windows itself when space runs low.
+    /// </summary>
+    public static string SystemFileFacts(SystemSnapshot s)
+    {
+        var parts = new List<string>();
+        if (s.HiberfilBytes is > 0 and var hib)
+            parts.Add($"hiberfil.sys — {DashFormat.Size(hib)}: файл гибернации и быстрого запуска." + (s.IsLaptop
+                ? " На ноутбуке он нужен: при разряде батареи Windows сохраняет через него работу."
+                : " Его можно убрать пунктом «Отключить гибернацию» (ЭКСПЕРТ) в разделе «Оптимизация»."));
+        if (s.PagefileSystemManaged == false)
+            parts.Add($"pagefile.sys{(s.PagefileBytes is > 0 and var manual ? " — " + DashFormat.Size(manual) : "")}: размер задан вручную; " +
+                      "вернуть управление Windows можно пунктом «Файл подкачки: автоматический размер» в разделе «Оптимизация».");
+        else if (s.PagefileBytes is > 0 and var pf)
+            parts.Add($"pagefile.sys — {DashFormat.Size(pf)}: размером управляет Windows, MONOLITH его не трогает — " +
+                      "отключение или уменьшение файла подкачки приводит к вылетам игр.");
+        if (ReservedStorageOn(s.ReservedStorageState) is { } reserved)
+            parts.Add($"Зарезервированное хранилище {(reserved ? "включено" : "отключено")}: Windows освобождает его сама, когда места мало — " +
+                      "отключать его не нужно, это лишь повышает риск неудачных обновлений.");
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// The one large, safe lever behind a low-space warning: hibernation off (desktops only — on a laptop the file is
+    /// needed), otherwise the page-file repair when its size was set by hand. Both buttons only open the item in «Оптимизация».
+    /// </summary>
+    public static CheckAction? SystemFileLever(SystemSnapshot s)
+    {
+        if (!s.IsLaptop && s.HiberfilBytes is > 0)
+            return new CheckAction(CheckActionKind.FocusTweak, "ГИБЕРНАЦИЯ", TweakHibernationOff);
+        if (s.PagefileSystemManaged == false)
+            return new CheckAction(CheckActionKind.FocusTweak, "ФАЙЛ ПОДКАЧКИ", TweakPagefileSystemManaged);
+        return null;
+    }
+
+    /// <summary>"Enabled" → true, "Disabled" → false, anything else → null.</summary>
+    public static bool? ReservedStorageOn(string? state) => state?.Trim().ToLowerInvariant() switch
+    {
+        "enabled" => true,
+        "disabled" => false,
+        _ => null,
+    };
+
+    /// <summary>The state word from "(Get-WindowsReservedStorageState).ReservedStorageState" output (ignores other lines).</summary>
+    public static string? ParseReservedStorageState(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return null;
+        foreach (var raw in output.Split('\n'))
+        {
+            var line = raw.Trim().TrimEnd('\r');
+            if (line.Equals("Enabled", StringComparison.OrdinalIgnoreCase)) return "Enabled";
+            if (line.Equals("Disabled", StringComparison.OrdinalIgnoreCase)) return "Disabled";
+        }
+        return null;
     }
 
     // ───────────────────────────── Devices ─────────────────────────────
@@ -315,11 +380,31 @@ public static partial class HealthRules
 
     public static HealthCheckResult? CheckPowerPlan(SystemSnapshot s)
     {
+        // Energy saver on mains power hides a performance loss behind any plan (read from GetSystemPowerStatus; on
+        // 24H2+ it can be «always on», desktops included). No tweak controls it: the button opens the Settings page.
+        if (s.EnergySaverOn == true && s.OnAcPower == true)
+            return new("power-plan", "ВКЛЮЧЕНО ЭНЕРГОСБЕРЕЖЕНИЕ ПРИ ПИТАНИИ ОТ СЕТИ",
+                "Режим энергосбережения включён, хотя компьютер работает от сети: яркость снижена на 30 %, прозрачность отключена, " +
+                "режим питания заблокирован на «Максимальная эффективность». Для игр и тяжёлых программ это потеря производительности " +
+                "без каких-либо признаков. В Windows 11 24H2+ его можно включить «всегда», в том числе на настольном ПК. " +
+                "Отключается в Параметрах → Система → Питание.",
+                s.IsLaptop ? CheckSeverity.Info : CheckSeverity.Warning, s.IsLaptop ? 5 : 8,
+                new CheckAction(CheckActionKind.OpenUri, "ПАРАМЕТРЫ ПИТАНИЯ", PowerSettingsUri));
+
         if (s.PowerPlan == PowerPlanKind.Unknown) return null;
         var name = string.IsNullOrWhiteSpace(s.PowerPlanName) ? "—" : s.PowerPlanName;
         var title = $"ПЛАН ПИТАНИЯ «{name.ToUpperInvariant()}»";
         var isX3D = s.CpuName.Contains("X3D", StringComparison.OrdinalIgnoreCase);
         var balanced = s.PowerPlan == PowerPlanKind.Balanced;
+
+        // Windows 11 power mode «Максимальная эффективность» on the balanced plan while on mains (not on battery, where
+        // it is the point). Not on dual-CCD X3D: the catalog does not offer the mode there (AMD driver interplay unverified).
+        if (balanced && s.AcPowerMode == Tweaks.TweakCatalog.PowerModeBestEfficiency && s.EnergySaverOn != true
+            && s.OnAcPower != false && !(isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores)))
+            return new("power-plan", "РЕЖИМ ПИТАНИЯ ОТ СЕТИ — «МАКСИМАЛЬНАЯ ЭФФЕКТИВНОСТЬ»",
+                "На сбалансированной схеме выбран режим питания «Максимальная эффективность»: ниже частоты и фоновая активность — " +
+                "тише и экономнее, но для игр это заметная потеря. Если ПК используется для игр, выберите «Максимальная производительность».",
+                CheckSeverity.Info, 5, new CheckAction(CheckActionKind.FocusTweak, "РЕЖИМ ПИТАНИЯ", TweakPowerModeBestPerformance));
         // Every suggestion here is the balanced plan; the button only opens its item in «Оптимизация».
         var open = new CheckAction(CheckActionKind.FocusTweak, "СХЕМА ПИТАНИЯ", TweakBalancedPlan);
 

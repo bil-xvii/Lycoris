@@ -370,6 +370,14 @@
                                                             <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </Button>
+                                                    <!-- Optional second lever (FocusTweak / Navigate / OpenUri only: it changes nothing by itself) -->
+                                                    <Button Margin="0,6,0,0" Height="30" MinWidth="128" FontSize="11.5" HorizontalAlignment="Right"
+                                                            Command="{Binding DataContext.RunSecondaryActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip="Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет"
+                                                            Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
+                                                        <TextBlock Text="{Binding Result.SecondaryAction.Label}" VerticalAlignment="Center" />
+                                                    </Button>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
