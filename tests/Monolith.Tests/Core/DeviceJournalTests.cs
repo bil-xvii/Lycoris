@@ -244,7 +244,31 @@ public sealed class DeviceJournalTests : IDisposable
 
         Assert.Equal(DisplayApplyResult.Kept, outcome.Result);
         Assert.Equal(1, _spi.Live["swap-buttons"]);
-        Assert.Single(_journal.ActiveRecords);
+        var r = Assert.Single(_journal.ActiveRecords);
+        Assert.False(r.Spi!.PendingConfirm);
+        Assert.Equal("вкл", r.NewValue);
+        Assert.Empty(_journal.PendingDisplayRecords());
+    }
+
+    [Fact]
+    public async Task Confirmed_parameter_left_pending_by_a_crash_is_reverted_at_the_next_start()
+    {
+        // SPI persists the new value at once: a record left pending (MONOLITH died during the countdown) is reverted by the startup reconcile.
+        _spi.Live["swap-buttons"] = 0;
+        DeviceConfirm.Countdown = (_, _) => Task.FromResult(true);
+        var s = await Begin();
+        var request = new CountdownRequest("ОСТАВИТЬ КНОПКИ?", "", 15, CountdownRequest.Keep, CountdownRequest.Revert, null);
+        Assert.Equal(DisplayApplyResult.Kept, (await s.SetUserParameterConfirmedAsync("swap-buttons", 1, request, DeviceTargets.Source, "Кнопки мыши")).Result);
+        var r = Assert.Single(_journal.ActiveRecords);
+        r.Spi!.PendingConfirm = true; // as the journal looks after a crash before the confirmation
+        Assert.Single(_journal.PendingDisplayRecords());
+
+        await DisplaySafeApply.ReconcileAsync(_journal);
+
+        Assert.Equal(0, _spi.Live["swap-buttons"]);
+        Assert.True(r.Reverted);
+        Assert.False(r.Spi.PendingConfirm);
+        Assert.Empty(_journal.ActiveRecords);
     }
 
     // ───────────────────────────── DDC/CI ─────────────────────────────
@@ -345,6 +369,24 @@ public sealed class DeviceJournalTests : IDisposable
 
         Assert.Equal(0.8f, _audio.Endpoints[MicId].Scalar);
         Assert.True(_audio.Endpoints[MicId].Mute);
+    }
+
+    [Fact]
+    public async Task Audio_undo_keeps_the_record_when_the_endpoint_query_fails()
+    {
+        _audio.Endpoints[MicId] = (0.8f, false);
+        var s = await Begin();
+        Assert.True(s.SetAudioLevel(MicId, "Razer", 0.5f, null, null, DeviceTargets.Source, "Уровень микрофона"));
+        _audio.PresenceFails = true; // a transient COM error is not «the device is gone»
+
+        var result = await _journal.RevertAsync(_journal.ActiveRecords);
+        Assert.False(result.Success);
+        Assert.Single(_journal.ActiveRecords);
+        Assert.Equal(0.5f, _audio.Endpoints[MicId].Scalar);
+
+        _audio.PresenceFails = false;
+        Assert.True((await _journal.RevertAsync(_journal.ActiveRecords)).Success);
+        Assert.Equal(0.8f, _audio.Endpoints[MicId].Scalar);
     }
 
     [Fact]
@@ -452,6 +494,25 @@ public sealed class DeviceJournalTests : IDisposable
         _nic.Game = null;
         Assert.True((await _journal.RevertAsync(_journal.ActiveRecords)).Success);
         Assert.Equal("2", _nic.Props["*SpeedDuplex"].Value);
+    }
+
+    [Fact]
+    public async Task Nic_undo_keeps_the_record_when_wmi_fails()
+    {
+        Nic("EEE", "1", "1", "0", "1");
+        var s = await Begin();
+        Assert.True(s.SetNicAdvancedProperty(_nic.Adapter, "EEE", "0", DeviceTargets.Source, "EEE"));
+        _nic.WmiFails = true; // a failed read is not «the adapter / property is gone»
+
+        var result = await _journal.RevertAsync(_journal.ActiveRecords);
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, e => e.Contains("WMI"));
+        Assert.Single(_journal.ActiveRecords);
+        Assert.Equal("0", _nic.Props["EEE"].Value);
+
+        _nic.WmiFails = false;
+        Assert.True((await _journal.RevertAsync(_journal.ActiveRecords)).Success);
+        Assert.Equal("1", _nic.Props["EEE"].Value);
     }
 
     [Fact]

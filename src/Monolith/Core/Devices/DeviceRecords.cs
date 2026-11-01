@@ -16,6 +16,11 @@ public sealed class SpiSnapshot
     public int Value { get; init; }
     /// <summary>The persisted HKCU value before the change; null for parameters without one (UserPreferencesMask bits).</summary>
     public RegistryValueSnapshot? Persisted { get; init; }
+    /// <summary>
+    /// Applied with an on-screen countdown (button swap, a very low pointer speed) and not confirmed yet. SPI persists the new
+    /// value at once, so a record left pending by a crash is reverted at the next start (see DisplaySafeApply.ReconcileAsync).
+    /// </summary>
+    public bool PendingConfirm { get; set; }
 }
 
 /// <summary>A display mode as GDI/CCD report it. The exact refresh is the rational <see cref="RefreshNumerator"/>/<see cref="RefreshDenominator"/>.</summary>

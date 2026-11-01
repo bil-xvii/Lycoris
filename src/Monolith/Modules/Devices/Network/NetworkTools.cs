@@ -250,7 +250,10 @@ internal static class NetworkTools
         }, ct);
     }
 
-    /// <summary>Why the load test must not run on this connection (metered, roaming, over the limit, offline), or null.</summary>
+    /// <summary>
+    /// Why the load test must not run on this connection (metered, roaming, over the limit, offline, or not known), or null.
+    /// Fails closed: the test downloads hundreds of megabytes, so only a connection Windows reports as unlimited runs it.
+    /// </summary>
     private static string? MeteredReason()
     {
         try
@@ -261,10 +264,14 @@ internal static class NetworkTools
             if (cost.NetworkCostType is global::Windows.Networking.Connectivity.NetworkCostType.Fixed or global::Windows.Networking.Connectivity.NetworkCostType.Variable
                 || cost.Roaming || cost.OverDataLimit)
                 return "Подключение лимитное: тест скачал бы сотни мегабайт, поэтому MONOLITH его не запускает.";
+            if (cost.NetworkCostType != global::Windows.Networking.Connectivity.NetworkCostType.Unrestricted)
+                return "Windows не сообщает, лимитное ли это подключение: тест скачал бы сотни мегабайт, поэтому MONOLITH его не запускает. " +
+                       "Проверьте «Лимитное подключение» в Параметрах → Сеть и Интернет.";
         }
         catch (Exception ex)
         {
             Log.Warn($"Сеть: тип подключения не прочитан — {ex.Message}");
+            return "Не удалось узнать, лимитное ли подключение: тест скачал бы сотни мегабайт, поэтому MONOLITH его не запускает. Повторите позже.";
         }
         return null;
     }

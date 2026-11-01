@@ -492,6 +492,26 @@ public sealed class VendorEnricherTests
     }
 
     [Fact]
+    public void The_displays_note_with_a_settings_link_gets_the_store_button_and_keeps_its_link()
+    {
+        // The displays package links its calibration note to the Windows HDR settings page: that link stays, the button opens the Store.
+        static DeviceCard Card() => new()
+        {
+            Key = MonitorWithCalibrationNote().Key, Kind = DeviceKind.Monitor, Title = "X27U W3",
+            Notes = [new DeviceNote("HDR включён: откалибруйте его бесплатным приложением Microsoft «Калибровка HDR в Windows» и настройте яркость SDR-контента.",
+                new DeviceLink(DeviceLinkKind.Settings, "ПАРАМЕТРЫ HDR", "ms-settings:display-hdr"))],
+        };
+        foreach (var inCatalog in new[] { false, true })
+        {
+            var cards = new List<DeviceCard> { Card() };
+            VendorEnricher.FixHdrCalibrationLinks(cards, inAppsCatalog: inCatalog);
+            var note = Assert.Single(cards[0].Notes);
+            Assert.Equal("ms-settings:display-hdr", note.Link?.Target);
+            Assert.Equal("ОТКРЫТЬ КАЛИБРОВКУ HDR", Assert.Single(cards[0].VendorApps).ButtonText);
+        }
+    }
+
+    [Fact]
     public void The_hdr_calibration_link_is_kept_when_the_apps_catalog_can_install_it()
     {
         var cards = new List<DeviceCard> { MonitorWithCalibrationNote() };

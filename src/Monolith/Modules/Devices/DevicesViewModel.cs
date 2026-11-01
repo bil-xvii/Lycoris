@@ -112,13 +112,24 @@ public sealed partial class DevicesViewModel : PageViewModel
     public bool NoDevices => HasScanned && Cards.Count == 0;
     /// <summary>Something can be applied: the plan card with its button (measurement rows go inside it).</summary>
     public bool ShowPlan => HasCards && (PlanItems.Count + OptionalItems.Count) > 0;
-    /// <summary>Nothing to apply: one line, so the page reaches «совпадает» even while measurements are still to do.</summary>
-    public bool IsPlanEmpty => HasScanned && HasCards && !ShowPlan;
-    /// <summary>Nothing to apply but some rows need a measurement first: those rows alone, without the apply bar.</summary>
-    public bool ShowMeasureOnly => IsPlanEmpty && MeasureItems.Count > 0;
-    public string PlanEmptyText => MeasureItems.Count > 0
-        ? "Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым."
-        : "Все настройки устройств и сети совпадают с рекомендуемыми.";
+    /// <summary>
+    /// Nothing recommended: one line, so the page reaches «менять нечего» even while measurements are still to do or
+    /// rows are only offered «по желанию» (those stay in the plan card below, unchecked).
+    /// </summary>
+    public bool IsPlanEmpty => HasScanned && HasCards && PlanItems.Count == 0;
+    /// <summary>Nothing to apply at all but some rows need a measurement first: those rows alone, without the apply bar.</summary>
+    public bool ShowMeasureOnly => IsPlanEmpty && !ShowPlan && MeasureItems.Count > 0;
+    /// <summary>The plan card shows its own «РЕКОМЕНДУЕТСЯ ИЗМЕНИТЬ» header only when it has such rows.</summary>
+    public bool ShowPlanHeader => PlanItems.Count > 0;
+    /// <summary>Only optional rows and measurements in the plan card: the measurement rows get their own header there.</summary>
+    public bool ShowMeasureHeaderInPlan => ShowPlan && !ShowPlanHeader && MeasureItems.Count > 0;
+    public string PlanEmptyText => (MeasureItems.Count > 0, OptionalItems.Count > 0) switch
+    {
+        (true, true) => "Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым; ниже — только по желанию.",
+        (true, false) => "Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым.",
+        (false, true) => "Менять нечего: все настройки совпадают с рекомендуемыми; ниже — только по желанию.",
+        _ => "Все настройки устройств и сети совпадают с рекомендуемыми.",
+    };
     public string MeasureHeader => $"НУЖНО ИЗМЕРЕНИЕ · {MeasureItems.Count}";
     public bool HasFindings => Findings.Count > 0;
     public bool HasOptional => OptionalItems.Count > 0;
@@ -193,38 +204,55 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     // ───────────────────────────── Scan + merge ─────────────────────────────
 
+    /// <summary>
+    /// A scan; one asked for while a scan runs (the re-scan after «НАСТРОИТЬ АВТОМАТИЧЕСКИ», a single row's re-read) is not
+    /// lost: the running scan runs once more when it finishes. Always called on the UI thread.
+    /// </summary>
     private async Task ScanAsync()
     {
-        if (Interlocked.Exchange(ref _scanning, 1) == 1) return;
+        _rescanWanted = true;
+        if (Interlocked.Exchange(ref _scanning, 1) == 1) return; // the running scan picks the request up
         IsScanning = true;
         try
         {
-            var profile = await SystemProfile.LoadAsync();
-            var interactive = await Task.Run(() => Elevation.InteractiveUserState);
-            _lastInteractive = interactive;
-            var ctx = new DeviceScanContext
+            while (_rescanWanted)
             {
-                Profile = profile, IsElevated = Elevation.IsElevated, InteractiveUser = interactive, Results = _results,
-            };
-            var result = await DeviceScan.RunAsync(ctx);
-            Merge(result.Cards);
-            FailedText = result.Failed.Count == 0 ? null
-                : $"Не удалось прочитать: {string.Join(", ", result.Failed)}. Нажмите «ОБНОВИТЬ», чтобы попробовать ещё раз.";
-            AccountNote = interactive == true || !Cards.SelectMany(c => c.Settings).Any(s => s.PerUser) ? null : Elevation.InteractiveUserProblem;
-            HasScanned = true;
-            RefreshJournalState();
-            RebuildPlan();
-            Log.Info($"Устройства и сеть: найдено {Cards.Count}, к изменению {PlanCount + OptionalItems.Count}.");
-            if (_pendingFocus is { } focus)
-            {
-                _pendingFocus = null;
-                ApplyFocus(focus);
+                _rescanWanted = false;
+                await ScanOnceAsync();
             }
         }
         finally
         {
             IsScanning = false;
             Interlocked.Exchange(ref _scanning, 0);
+        }
+    }
+
+    private bool _rescanWanted;
+
+    private async Task ScanOnceAsync()
+    {
+        var profile = await SystemProfile.LoadAsync();
+        // Both are blocking (process tokens / WMI): read off the UI thread.
+        var (interactive, accountProblem) = await Task.Run(() => (Elevation.InteractiveUserState, Elevation.InteractiveUserProblem));
+        _lastInteractive = interactive;
+        var ctx = new DeviceScanContext
+        {
+            Profile = profile, IsElevated = Elevation.IsElevated, InteractiveUser = interactive, Results = _results,
+        };
+        var result = await DeviceScan.RunAsync(ctx);
+        Merge(result.Cards);
+        FailedText = result.Failed.Count == 0 ? null
+            : $"Не удалось прочитать: {string.Join(", ", result.Failed)}. Нажмите «ОБНОВИТЬ», чтобы попробовать ещё раз.";
+        AccountNote = interactive == true || !Cards.SelectMany(c => c.Settings).Any(DevicePlan.IsPerUser) ? null : accountProblem;
+        HasScanned = true;
+        RefreshJournalState();
+        RebuildPlan();
+        Log.Info($"Устройства и сеть: найдено {Cards.Count}, к изменению {PlanCount + OptionalItems.Count}.");
+        if (_pendingFocus is { } focus)
+        {
+            _pendingFocus = null;
+            ApplyFocus(focus);
         }
     }
 
@@ -363,7 +391,7 @@ public sealed partial class DevicesViewModel : PageViewModel
         UpdateSelectedCount();
         foreach (var name in new[]
                  {
-                     nameof(ShowPlan), nameof(IsPlanEmpty), nameof(ShowMeasureOnly), nameof(PlanEmptyText), nameof(MeasureHeader),
+                     nameof(ShowPlan), nameof(IsPlanEmpty), nameof(ShowMeasureOnly), nameof(ShowPlanHeader), nameof(ShowMeasureHeaderInPlan), nameof(PlanEmptyText), nameof(MeasureHeader),
                      nameof(HasFindings), nameof(HasOptional), nameof(HasMeasure), nameof(OptionalCount),
                      nameof(FindingCount), nameof(OptionalHeader), nameof(FindingsHeader), nameof(SelectedText), nameof(SelectableCount),
                  })
@@ -655,6 +683,12 @@ public sealed partial class DevicesViewModel : PageViewModel
         _highlighted.Clear();
         SetHighlighted(target, true);
         _highlighted.Add(target);
+        // A tool sits inside a setting row: the row lights up too, then the card.
+        if (target is DeviceTool tool && Cards.SelectMany(c => c.Settings).FirstOrDefault(s => ReferenceEquals(s.Tool, tool)) is { } row)
+        {
+            SetHighlighted(row, true);
+            _highlighted.Add(row);
+        }
         var owner = target switch
         {
             DeviceSetting s => Cards.FirstOrDefault(c => c.Settings.Contains(s)),

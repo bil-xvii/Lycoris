@@ -78,9 +78,12 @@ internal static class DeviceRestore
         if (Elevation.InteractiveUserProblem is { } problem) throw new InvalidOperationException(problem);
         var writer = DeviceWriters.Audio ?? throw new InvalidOperationException(DeviceWriters.NoWriterRevert);
         SafetyLock.ThrowIfLocked("откат уровня звука");
+        // IsPresent is false only when Windows knows no endpoint with this id; a COM failure throws (the record stays), and a
+        // known but inactive endpoint (unplugged, disabled) fails the read below — also keeping the record.
         if (!writer.IsPresent(snap.EndpointId))
             return new RevertOutcome("Устройства больше нет (или его драйвер переустановлен) — откатывать нечего.", Skipped: true);
-        if (writer.Read(snap.EndpointId) is not { } live) throw new InvalidOperationException("не удалось прочитать уровень устройства");
+        if (writer.Read(snap.EndpointId) is not { } live)
+            throw new InvalidOperationException("устройство сейчас неактивно (отключено или выключено) — не удалось прочитать его уровень; подключите его и повторите откат");
 
         if (snap.Component == AudioComponent.Mute)
         {
@@ -109,6 +112,8 @@ internal static class DeviceRestore
         if (GameBoostState.IsActive) throw new InvalidOperationException("во время игрового сеанса MONOLITH не перезапускает сетевой адаптер — повторите откат после игры");
         if (writer.RunningGame() is { } game)
             throw new InvalidOperationException($"идёт игра ({game}) — MONOLITH не перезапускает сетевой адаптер, повторите откат после игры");
+        // The writer answers null only when WMI really knows no such adapter / property; a failed query throws instead, so a
+        // transient WMI error fails this undo (the record stays) and never closes it as «gone».
         if (writer.AdapterName(snap.InterfaceGuid) is null)
             return new RevertOutcome("Сетевого адаптера больше нет — откатывать нечего.", Skipped: true);
         if (writer.Read(snap.InterfaceGuid, snap.Keyword) is not { } live)

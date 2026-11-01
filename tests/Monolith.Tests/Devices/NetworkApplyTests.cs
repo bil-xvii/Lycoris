@@ -102,6 +102,26 @@ public sealed class NetworkApplyTests : IDisposable
     }
 
     [Fact]
+    public async Task Speed_duplex_only_repairs_to_auto_and_never_forces_a_speed()
+    {
+        // Research: MONOLITH returns a forced speed/duplex to auto-negotiation; it never sets a fixed speed.
+        var forced = SpeedRow("4");
+        Assert.Equal(SettingControl.Choice, forced.Control);
+        Assert.Equal([0L, 4L], forced.Options.Select(o => o.Value.Number).ToList());
+        var s = await Begin();
+        Assert.Equal(ApplyOutcome.Blocked, await forced.Apply!(s, DeviceValue.Of(6), CancellationToken.None));
+        s.Complete();
+        Assert.Equal(0, _nic.SetCalls);
+        Assert.Empty(_journal.ActiveRecords);
+
+        var auto = SpeedRow("0");
+        Assert.Equal(SettingControl.Info, auto.Control);
+        Assert.True(auto.IsReadOnly);
+        Assert.Null(auto.Recommended);
+        Assert.Equal(DeviceValue.Of(0), auto.Current);
+    }
+
+    [Fact]
     public async Task Half_duplex_after_auto_is_flagged_for_the_page()
     {
         LinkFullDuplex = false;

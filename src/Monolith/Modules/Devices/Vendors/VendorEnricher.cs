@@ -340,11 +340,16 @@ internal sealed class VendorEnricher : IDeviceEnricher
     /// </summary>
     internal static void FixHdrCalibrationLinks(List<DeviceCard> cards, bool? inAppsCatalog = null)
     {
-        if (inAppsCatalog ?? VendorApps.HdrCalibrationInAppsCatalog) return;
+        var catalogHasIt = inAppsCatalog ?? VendorApps.HdrCalibrationInAppsCatalog;
         foreach (var card in cards.Where(c => c.Kind == DeviceKind.Monitor))
         {
-            if (!card.Notes.Any(IsHdrCalibrationNote)) continue;
-            card.Notes = card.Notes.Select(n => IsHdrCalibrationNote(n) ? n with { Link = null } : n).ToList();
+            var notes = card.Notes.Where(IsHdrCalibrationNote).ToList();
+            if (notes.Count == 0) continue;
+            // A note that sends the user to «Приложения» is fine while the catalog can install the app there.
+            if (catalogHasIt && notes.Any(n => LinksToApps(n))) continue;
+            // The displays package links the note to the Windows HDR settings page (kept); only a link into «Приложения» would
+            // dead-end without the catalog entry. Either way the card gets the button that opens the Store page.
+            card.Notes = card.Notes.Select(n => IsHdrCalibrationNote(n) && LinksToApps(n) ? n with { Link = null } : n).ToList();
             AddLink(card, new VendorAppLink
             {
                 AppName = "калибровку HDR",
@@ -355,9 +360,12 @@ internal sealed class VendorEnricher : IDeviceEnricher
         }
     }
 
+    private static bool LinksToApps(DeviceNote n) => n.Link is { Kind: DeviceLinkKind.Navigate, Target: "apps" };
+
+    /// <summary>A note about Microsoft's HDR calibration app, whatever its link (into «Приложения», the HDR settings page, or none).</summary>
     private static bool IsHdrCalibrationNote(DeviceNote n) =>
-        n.Link is { Kind: DeviceLinkKind.Navigate, Target: "apps" } link
-        && (link.FocusId?.Contains(VendorApps.HdrCalibrationStoreId, StringComparison.OrdinalIgnoreCase) == true
-            || link.FocusId?.Contains("hdr", StringComparison.OrdinalIgnoreCase) == true
-            || (n.Text.Contains("HDR", StringComparison.OrdinalIgnoreCase) && n.Text.Contains("алибр", StringComparison.OrdinalIgnoreCase)));
+        (n.Link is { Kind: DeviceLinkKind.Navigate, Target: "apps" } link
+         && (link.FocusId?.Contains(VendorApps.HdrCalibrationStoreId, StringComparison.OrdinalIgnoreCase) == true
+             || link.FocusId?.Contains("hdr", StringComparison.OrdinalIgnoreCase) == true))
+        || (n.Text.Contains("HDR", StringComparison.OrdinalIgnoreCase) && n.Text.Contains("алибр", StringComparison.OrdinalIgnoreCase));
 }

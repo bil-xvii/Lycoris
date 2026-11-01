@@ -338,7 +338,7 @@ public sealed class ChangeSession
     public bool SetUserParameter(string spiId, int value, string source, string title) =>
         _journal.Exclusive(() => SetUserParameterCore(spiId, value, source, title, out _));
 
-    private bool SetUserParameterCore(string spiId, int value, string source, string title, out ChangeRecord? created)
+    private bool SetUserParameterCore(string spiId, int value, string source, string title, out ChangeRecord? created, bool pendingConfirm = false)
     {
         created = null;
         ChangeRecord? rec = null;
@@ -373,8 +373,8 @@ public sealed class ChangeSession
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.UserParameter, Target = DeviceTargets.Spi(entry.Id),
-                OldValue = entry.Describe(original.Value), NewValue = entry.Describe(value),
-                Spi = new SpiSnapshot { Id = entry.Id, Value = original.Value, Persisted = persisted },
+                OldValue = entry.Describe(original.Value), NewValue = entry.Describe(value) + (pendingConfirm ? " (не подтверждено)" : ""),
+                Spi = new SpiSnapshot { Id = entry.Id, Value = original.Value, Persisted = persisted, PendingConfirm = pendingConfirm },
                 UserSid = UserScope.CurrentSid,
             };
             RefuseUntrusted(incoming);
@@ -410,7 +410,9 @@ public sealed class ChangeSession
     /// A parameter that can leave the user unable to click (button swap, a very low pointer speed): applied, then kept
     /// only when the user confirms within the countdown — with the new button. A decline or timeout reverts this
     /// session's own record; when that fails the original is written back as a new journaled layer; when that fails too,
-    /// the outcome says how to put it back by hand (<paramref name="manualHint"/>).
+    /// the outcome says how to put it back by hand (<paramref name="manualHint"/>). SPI persists the new value at once, so
+    /// the record is marked pending until the confirmation: if MONOLITH dies during the countdown, the next start reverts it
+    /// (<see cref="DisplaySafeApply.ReconcileAsync"/>).
     /// </summary>
     public Task<DisplayApplyOutcome> SetUserParameterConfirmedAsync(string spiId, int value, CountdownRequest confirm, string source, string title,
         CancellationToken ct = default, string? manualHint = null) =>
@@ -418,14 +420,17 @@ public sealed class ChangeSession
         {
             var (applied, ok) = await Task.Run(() =>
             {
-                var done = SetUserParameterCore(spiId, value, source, title, out var r);
+                var done = SetUserParameterCore(spiId, value, source, title, out var r, pendingConfirm: true);
                 return (done, r);
             }, CancellationToken.None).ConfigureAwait(false);
             if (!applied) return new DisplayApplyOutcome(DisplayApplyResult.Failed, Errors.Count > 0 ? Errors[^1] : "не применено");
             if (ok is null) return DisplayApplyOutcome.Unchanged;
 
             if (await DeviceConfirm.CountdownAsync(confirm, ct).ConfigureAwait(false))
+            {
+                _journal.ConfirmPending(ok, SpiCatalog.Find(spiId)?.Describe(value) ?? value.ToString());
                 return new DisplayApplyOutcome(DisplayApplyResult.Kept);
+            }
 
             var revert = await _journal.RevertAsync([ok]).ConfigureAwait(false);
             if (revert.Success && ok.Reverted)

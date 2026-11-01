@@ -87,8 +87,8 @@ public sealed class ChangeRecord
     public AudioLevelSnapshot? Audio { get; set; }
     public NicPropertySnapshot? Nic { get; set; }
 
-    /// <summary>A display change applied temporarily and not confirmed on screen yet (see DisplaySafeApply).</summary>
-    [JsonIgnore] public bool IsPendingConfirm => DisplayMode?.PendingConfirm == true || DisplayHdr?.PendingConfirm == true;
+    /// <summary>A display or input change applied temporarily and not confirmed on screen yet (see DisplaySafeApply).</summary>
+    [JsonIgnore] public bool IsPendingConfirm => DisplayMode?.PendingConfirm == true || DisplayHdr?.PendingConfirm == true || Spi?.PendingConfirm == true;
 
     public bool Reverted { get; set; }
     public DateTime? RevertedUtc { get; set; }
@@ -669,7 +669,7 @@ public sealed class ChangeJournal
 
     // ───────────────────────────── Display changes awaiting confirmation ─────────────────────────────
 
-    /// <summary>A display change was confirmed on screen (or found saved after a crash): no longer pending; <paramref name="newValue"/> is the live mode.</summary>
+    /// <summary>A display or input change was confirmed on screen (or found saved after a crash): no longer pending; <paramref name="newValue"/> is the live value.</summary>
     public bool ConfirmPending(ChangeRecord r, string newValue)
     {
         bool saved;
@@ -677,6 +677,7 @@ public sealed class ChangeJournal
         {
             if (r.DisplayMode is { } mode) mode.PendingConfirm = false;
             if (r.DisplayHdr is { } hdr) hdr.PendingConfirm = false;
+            if (r.Spi is { } spi) spi.PendingConfirm = false;
             r.NewValue = newValue;
             saved = SaveLocked();
         }
@@ -684,13 +685,13 @@ public sealed class ChangeJournal
         return saved;
     }
 
-    /// <summary>Active display records applied temporarily and never confirmed (MONOLITH or the PC died during the countdown).</summary>
+    /// <summary>Active display / input records applied temporarily and never confirmed (MONOLITH or the PC died during the countdown).</summary>
     public IReadOnlyList<ChangeRecord> PendingDisplayRecords()
     {
         lock (_lock) return _data.Records.Where(r => !r.Reverted && r.IsPendingConfirm).ToList();
     }
 
-    /// <summary>A pending display record whose change is not in effect any more: closed as reverted, with <paramref name="note"/>.</summary>
+    /// <summary>A pending record whose change is not in effect any more: closed as reverted, with <paramref name="note"/>.</summary>
     public bool ClosePending(ChangeRecord r, string note)
     {
         bool saved;
@@ -698,6 +699,7 @@ public sealed class ChangeJournal
         {
             if (r.DisplayMode is { } mode) mode.PendingConfirm = false;
             if (r.DisplayHdr is { } hdr) hdr.PendingConfirm = false;
+            if (r.Spi is { } spi) spi.PendingConfirm = false;
             r.Reverted = true;
             r.RevertedUtc = DateTime.UtcNow;
             r.RevertError = null;
@@ -810,6 +812,7 @@ public sealed class ChangeJournal
                     r.RevertError = null;
                     r.HandedTo = null;
                     r.RevertNote = outcome.Note;
+                    if (r.Spi is { } spi) spi.PendingConfirm = false;
                     r.RevertVerifiedUtc = null;
                     r.RevertMismatch = null;
                     saved &= SaveLocked(); // persist each completed undo at once
@@ -972,6 +975,7 @@ public sealed class ChangeJournal
             r.RevertedUtc = DateTime.UtcNow;
             r.RevertError = null;
             r.HandedTo = newer.Id;
+            if (r.Spi is { } spiOfOlder) spiOfOlder.PendingConfirm = false;
             r.RevertVerifiedUtc = null;
             r.RevertMismatch = null;
             r.RevertNote = !newerMayOwnPlans && keep.Count > 0
@@ -1535,6 +1539,11 @@ internal static class JournalTrust
             // Windows writes REG_SZ; a third-party tool may have left a DWORD: both are put back exactly as they were.
             if (p.ValueExisted && (!DeviceRestore.IsPersistedKind(p.Kind) || (p.Data?.Length ?? 0) > 64))
                 return "тип или размер сохранённого значения не тот";
+            // Windows keeps the same number there as the live value (decimal text or a DWORD): anything else is not a value
+            // MONOLITH ever saw it write, so it is not put back.
+            if (p.ValueExisted && (!int.TryParse(p.Data, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var stored)
+                                   || !entry.IsValidOriginal(stored)))
+                return "сохранённое значение параметра вне допустимого диапазона";
         }
         return null;
     }

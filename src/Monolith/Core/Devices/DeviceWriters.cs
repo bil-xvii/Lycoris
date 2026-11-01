@@ -97,7 +97,10 @@ public interface IMonitorWriter
 /// <summary>Endpoint volume of capture devices (package «audio»).</summary>
 public interface IAudioWriter
 {
-    /// <summary>The endpoint exists and is active (an endpoint id changes when the driver is reinstalled).</summary>
+    /// <summary>
+    /// Windows knows an endpoint with this id (an endpoint id changes when the driver is reinstalled). False means «gone for
+    /// good» — undo closes its record on it — so a failed query throws instead of answering false.
+    /// </summary>
     bool IsPresent(string endpointId);
 
     (float Scalar, bool Mute)? Read(string endpointId);
@@ -112,10 +115,10 @@ public sealed record NicPropertyInfo(string Keyword, string? Value, IReadOnlyLis
 /// <summary>NDIS advanced properties of a network adapter, found by InterfaceGuid (package «network»).</summary>
 public interface INicWriter
 {
-    /// <summary>The adapter's name, or null when no adapter has this InterfaceGuid.</summary>
+    /// <summary>The adapter's name, or null when no adapter has this InterfaceGuid. A failed query throws (null closes an undo record).</summary>
     string? AdapterName(Guid interfaceGuid);
 
-    /// <summary>The property; null when the adapter or the keyword does not exist.</summary>
+    /// <summary>The property; null when the adapter or the keyword does not exist. A failed query throws (null closes an undo record).</summary>
     NicPropertyInfo? Read(Guid interfaceGuid, string keyword);
 
     /// <summary>Sets the RegistryValue (the driver restarts the adapter; blocking for the few seconds that takes).</summary>

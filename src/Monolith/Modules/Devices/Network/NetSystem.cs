@@ -176,8 +176,12 @@ public static class NetSystem
         catch (Exception ex) { Log.Warn($"Сеть: Wi-Fi не прочитан — {ex.Message}"); return new Dictionary<Guid, (int, bool?)>(); }
     }
 
-    /// <summary>The advanced properties MONOLITH reads, by InterfaceGuid (InstanceID = "{GUID}::keyword").</summary>
-    public static IReadOnlyList<NicPropertyInfo> ReadProperties(Guid adapter, string? onlyKeyword = null)
+    /// <summary>
+    /// The advanced properties MONOLITH reads, by InterfaceGuid (InstanceID = "{GUID}::keyword"). A failed WMI query is an
+    /// empty list for the scan; the writer (undo) asks for <paramref name="throwOnError"/> so that a failure is never
+    /// mistaken for «the property is gone».
+    /// </summary>
+    public static IReadOnlyList<NicPropertyInfo> ReadProperties(Guid adapter, string? onlyKeyword = null, bool throwOnError = false)
     {
         var list = new List<NicPropertyInfo>();
         var id = adapter.ToString("B").ToUpperInvariant();
@@ -203,6 +207,7 @@ public static class NetSystem
         catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
             Log.Warn($"Сеть: свойства адаптера не прочитаны — {ex.Message}");
+            if (throwOnError) throw new InvalidOperationException($"свойства сетевого адаптера не прочитаны (WMI): {ex.Message} — повторите позже", ex);
         }
         return list;
     }
