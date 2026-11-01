@@ -4,6 +4,14 @@ namespace Monolith.Core;
 
 public sealed record PowerScheme(Guid Id, string Name, bool IsActive);
 
+/// <summary>
+/// The parts of SYSTEM_POWER_CAPABILITIES MONOLITH reads (GetPwrCapabilities): hiberfil present, Modern Standby (AoAc),
+/// the hiberfil type (1 = reduced, Fast Startup only), hybrid-sleep support (FastSystemS4) and the battery facts
+/// (SystemBatteriesPresent / BatteriesAreShortTerm — short-term batteries are UPS batteries, not a laptop's).
+/// </summary>
+public readonly record struct PowerCaps(bool HiberFilePresent, bool ModernStandby, byte HiberFileType, bool FastSystemS4,
+    bool SystemBatteriesPresent, bool BatteriesAreShortTerm);
+
 /// <summary>Power plans through powrprof.dll (no parsing of localized powercfg output).</summary>
 public static class PowerSchemes
 {
@@ -106,6 +114,66 @@ public static class PowerSchemes
         PowerDeleteScheme(IntPtr.Zero, ref scheme);
     }
 
+    /// <summary>
+    /// SYSTEM_POWER_CAPABILITIES by byte offset: HiberFilePresent 8, FastSystemS4 17, AoAc 20, HiberFileType 22,
+    /// SystemBatteriesPresent 30, BatteriesAreShortTerm 31 (the structure is 76 bytes; the buffer is 128). Read-only;
+    /// null when the call fails or is unavailable (not Windows).
+    /// </summary>
+    public static PowerCaps? ReadCapabilities()
+    {
+        var buffer = Marshal.AllocHGlobal(128);
+        try
+        {
+            for (var i = 0; i < 128; i++) Marshal.WriteByte(buffer, i, 0);
+            if (!GetPwrCapabilities(buffer)) return null;
+            return new PowerCaps(
+                HiberFilePresent: Marshal.ReadByte(buffer, 8) != 0,
+                ModernStandby: Marshal.ReadByte(buffer, 20) != 0,
+                HiberFileType: Marshal.ReadByte(buffer, 22),
+                FastSystemS4: Marshal.ReadByte(buffer, 17) != 0,
+                SystemBatteriesPresent: Marshal.ReadByte(buffer, 30) != 0,
+                BatteriesAreShortTerm: Marshal.ReadByte(buffer, 31) != 0);
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    /// <summary>GUID_POWERSCHEME_PERSONALITY: a scheme-level setting (no subgroup) whose value is one of the three personality GUIDs.</summary>
+    private static readonly Guid PersonalityGuid = new("245d8541-3943-4422-b025-13a784f679b7");
+
+    /// <summary>
+    /// True when the scheme is Balanced or derived from it (personality GUID_TYPICAL_POWER_SAVINGS = the Balanced GUID):
+    /// Microsoft's power-mode slider exists on Balanced «or any plan derived from Balanced». Read-only; false on any error
+    /// (the Balanced scheme itself always counts).
+    /// </summary>
+    public static bool IsBalancedPersonality(Guid scheme)
+    {
+        if (scheme == Balanced) return true;
+        if (scheme == Guid.Empty) return false;
+        try
+        {
+            var buffer = new byte[16];
+            uint size = 16;
+            var personality = PersonalityGuid;
+            var rc = PowerReadACValue(IntPtr.Zero, ref scheme, IntPtr.Zero, ref personality, out var type, buffer, ref size);
+            return rc == 0 && type == 3 /* REG_BINARY */ && size == 16 && PersonalityIsBalanced(buffer);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Pure: the 16 bytes PowerReadACValue returns for the personality setting, compared with the Balanced GUID.</summary>
+    public static bool PersonalityIsBalanced(byte[]? value) =>
+        value is { Length: 16 } && new Guid(value) == Balanced;
+
     /// <summary>Finds an existing copy of Ultimate Performance (any scheme whose name matches the template's).</summary>
     public static Guid? FindUltimateCopy()
     {
@@ -142,6 +210,14 @@ public static class PowerSchemes
 
     [DllImport("powrprof.dll")]
     private static extern uint PowerDeleteScheme(IntPtr rootPowerKey, ref Guid schemeGuid);
+
+    [DllImport("powrprof.dll")]
+    private static extern uint PowerReadACValue(IntPtr rootPowerKey, ref Guid schemeGuid, IntPtr subGroupOfPowerSettingsGuid,
+        ref Guid powerSettingGuid, out uint type, byte[] buffer, ref uint bufferSize);
+
+    [DllImport("powrprof.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool GetPwrCapabilities(IntPtr capabilities);
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr mem);

@@ -344,6 +344,13 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", "1")).Length < 8000);
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("SwapEffectUpgradeEnable", null, createdKey: true, createdParent: true)).Length < 8000);
         Assert.True(TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBestEfficiency)).Length < 8000);
+        // powercfg lines of the AC-only items (with the self-rollback form): cmd.exe's limit is 8191 characters.
+        var sub = Guid.Parse("238c9fa8-0aad-41ed-83f4-97be242c8f20");
+        foreach (var setting in new[] { TweakCatalog.WakeTimers, TweakCatalog.ProcessorBoostMode, TweakCatalog.UsbSelectiveSuspend })
+        {
+            Assert.True(TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommand(PowerSchemes.HighPerformance, sub, setting, 2, rollbackTo: 1)).Length < 8000);
+            Assert.True(TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommand(PowerSchemes.HighPerformance, sub, setting, 1)).Length < 8000);
+        }
     }
 
     [Fact]
@@ -542,6 +549,9 @@ public sealed class TweakCatalogTests : IDisposable
         { "explorer-home-private", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
         { "news-interests-off", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.Interface },
         { "power-mode-best-performance", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
+        { "power-mode-best-efficiency-ac", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
+        { "wake-timers-important-only", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
+        { "cpu-boost-off-ac", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
         { "tcp-autotuning-normal", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.Network },
     };
 
@@ -670,9 +680,158 @@ public sealed class TweakCatalogTests : IDisposable
     [Fact]
     public void Power_setting_tweaks_say_that_undo_writes_the_value_explicitly()
     {
-        foreach (var id in new[] { "cpu-min-state-100", "usb-selective-suspend-off", "pcie-aspm-off", "wifi-power-saving-off" })
+        foreach (var id in new[] { "cpu-min-state-100", "usb-selective-suspend-off", "pcie-aspm-off", "wifi-power-saving-off",
+                     "wake-timers-important-only", "cpu-boost-off-ac" })
             Assert.Contains(TweakCatalog.PowerSettingUndoNote, TweakCatalog.Find(id)!.Details);
     }
+
+    // ───────────────────────────── Power items (AC only): wake timers, CPU boost, efficiency mode, boost-plan follow-up ─────────────────────────────
+
+    [Fact]
+    public void Ac_power_items_of_the_power_wave_are_never_pre_selected_and_explain_themselves()
+    {
+        foreach (var id in new[] { "wake-timers-important-only", "cpu-boost-off-ac", "power-mode-best-efficiency-ac", "usb-selective-suspend-off" })
+        {
+            var t = TweakCatalog.Find(id);
+            Assert.NotNull(t);
+            Assert.Equal(ProfileSet.None, t!.DefaultIn);
+            foreach (var kind in Enum.GetValues<ProfileKind>())
+                Assert.DoesNotContain(TweakCatalog.DefaultsFor(kind), x => x.Id == id);
+            Assert.Equal(TweakRisk.Optional, t.Risk);
+        }
+        // Details are honest about the trade-offs the research insists on.
+        Assert.Contains("Пробуждать компьютер", TweakCatalog.Find("wake-timers-important-only")!.Details);
+        Assert.Contains("от сети", TweakCatalog.Find("wake-timers-important-only")!.Details);
+        Assert.Contains("однопоточной", TweakCatalog.Find("cpu-boost-off-ac")!.Details);
+        Assert.Contains("Высокую производительность", TweakCatalog.Find("cpu-boost-off-ac")!.Details);
+        Assert.Contains("не аналог", TweakCatalog.Find("power-mode-best-efficiency-ac")!.Details);
+        Assert.Contains("Высокая производительность", TweakCatalog.Find("usb-selective-suspend-off")!.Details);
+        Assert.Contains("отдельной записью", TweakCatalog.Find("usb-selective-suspend-off")!.Details);
+        // The existing power-mode item kept its id and texts after the refactoring into the shared factory.
+        var perf = TweakCatalog.Find("power-mode-best-performance")!;
+        Assert.Equal("Режим питания «Максимальная производительность»", perf.Title);
+        Assert.StartsWith("Штатный режим Windows 11 — «облегчённая схема» поверх сбалансированной", perf.Details);
+        Assert.Equal(perf.NotApplicableReason, TweakCatalog.Find("power-mode-best-efficiency-ac")!.NotApplicableReason);
+    }
+
+    [Fact]
+    public void Hardware_gates_of_the_ac_power_items()
+    {
+        var boost = TweakCatalog.Find("cpu-boost-off-ac")!;
+        Assert.True(boost.IsApplicable(Profile(26100, cpu: "AMD Ryzen 7 9700X 8-Core Processor")));
+        Assert.True(boost.IsApplicable(Profile(19045, cpu: "Intel(R) Core(TM) i7-14700K")));
+        Assert.False(boost.IsApplicable(Profile(26100)));                                                     // 9800X3D (single CCD) — still X3D
+        Assert.False(boost.IsApplicable(Profile(26100, cpu: "AMD Ryzen 9 9950X3D 16-Core Processor", cores: 16)));
+
+        var efficiency = TweakCatalog.Find("power-mode-best-efficiency-ac")!;
+        Assert.False(efficiency.IsApplicable(Profile(19045)));
+        Assert.True(efficiency.IsApplicable(Profile(26100)));
+        Assert.False(efficiency.IsApplicable(Profile(26100, cpu: "AMD Ryzen 9 9950X3D 16-Core Processor", cores: 16)));
+
+        var wake = TweakCatalog.Find("wake-timers-important-only")!;
+        Assert.True(wake.IsApplicable(Profile(26100)));
+        var modern = Profile(26100);
+        typeof(SystemProfile).GetProperty(nameof(SystemProfile.IsModernStandby))!.SetValue(modern, true);
+        Assert.False(wake.IsApplicable(modern));
+    }
+
+    [Theory]
+    [InlineData(0u, TweakState.Applied)]     // «отключены» is stricter than «только важные»: never loosened
+    [InlineData(1u, TweakState.NotApplied)]  // the stock AC value: the only one the item changes
+    [InlineData(2u, TweakState.Applied)]
+    [InlineData(7u, TweakState.NotApplied)]
+    public void Wake_timers_item_never_loosens_disabled_timers(uint current, TweakState expected)
+    {
+        Assert.Equal(expected, TweakCatalog.PowerSettingState(current, 2, TweakCatalog.WakeTimersAlreadyStrict));
+        // Without the predicate only the target counts (the other PowerSettingTweaks).
+        Assert.Equal(current == 2 ? TweakState.Applied : TweakState.NotApplied, TweakCatalog.PowerSettingState(current, 2));
+    }
+
+    [Fact]
+    public void Extra_boost_plans_follow_the_game_session_decision()
+    {
+        var high = PowerSchemes.HighPerformance;
+        var ultimate = Guid.NewGuid();
+        // Desktop, option on, High exists: the session would switch there → High (and the Ultimate copy when present).
+        Assert.Equal([high], TweakCatalog.ExtraSchemesForBoost(true, false, false, false, true, null));
+        Assert.Equal([high, ultimate], TweakCatalog.ExtraSchemesForBoost(true, false, false, false, true, ultimate));
+        Assert.Equal([high], TweakCatalog.ExtraSchemesForBoost(true, false, false, false, true, high)); // no duplicate
+        // Every reason the session does not switch plans → nothing extra is written.
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(false, false, false, false, true, ultimate)); // option off
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, true, false, false, true, ultimate));   // laptop
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, true, false, true, ultimate));   // dual-CCD X3D
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, false, true, true, ultimate));   // Modern Standby
+        Assert.Empty(TweakCatalog.ExtraSchemesForBoost(true, false, false, false, false, ultimate)); // no High performance plan
+    }
+
+    [Fact]
+    public void Extra_plan_records_use_the_journal_shape_the_undo_check_already_accepts()
+    {
+        // The same catalog code builds the record for the active plan and for the boost plans; only the scheme differs.
+        var cmd = ProcessRunner.Sys("cmd.exe");
+        foreach (var scheme in new[] { PowerSchemes.HighPerformance, Guid.NewGuid() })
+        {
+            foreach (var (sub, setting, target, original) in new[]
+                     {
+                         (TweakCatalog.SubUsb, TweakCatalog.UsbSelectiveSuspend, 0u, 1u),
+                         (Guid.Parse("238c9fa8-0aad-41ed-83f4-97be242c8f20"), TweakCatalog.WakeTimers, 2u, 1u),
+                         (Guid.Parse("54533251-82be-4824-96c1-47b60b740d00"), TweakCatalog.ProcessorBoostMode, 0u, 2u),
+                     })
+            {
+                var record = new ChangeRecord
+                {
+                    Source = "tweak:usb-selective-suspend-off", Title = "t", Kind = ChangeKind.Command,
+                    Target = $"cmd:powercfg:{scheme:D}:{setting:D}:ac",
+                    RevertFile = cmd, RevertArgs = TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommand(scheme, sub, setting, original)),
+                };
+                Assert.Null(JournalTrust.Check(record));
+                // The forward (self-rollback) form is never an undo line.
+                record.RevertArgs = TweakCatalog.CmdArgs(TweakCatalog.PowerSettingCommand(scheme, sub, setting, target, rollbackTo: original));
+                Assert.NotNull(JournalTrust.Check(record));
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(true, false, true)]   // a laptop battery
+    [InlineData(true, true, false)]   // a UPS (short-term) battery: not a laptop
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    public void Battery_counts_only_when_it_is_not_a_ups(bool present, bool shortTerm, bool expected) =>
+        Assert.Equal(expected, SystemProfile.BatteryFromCaps(present, shortTerm));
+
+    [Fact]
+    public void Personality_bytes_compare_with_the_balanced_guid()
+    {
+        Assert.True(PowerSchemes.PersonalityIsBalanced(PowerSchemes.Balanced.ToByteArray()));
+        Assert.False(PowerSchemes.PersonalityIsBalanced(PowerSchemes.HighPerformance.ToByteArray()));
+        Assert.False(PowerSchemes.PersonalityIsBalanced(PowerSchemes.PowerSaver.ToByteArray()));
+        Assert.False(PowerSchemes.PersonalityIsBalanced(new byte[4]));
+        Assert.False(PowerSchemes.PersonalityIsBalanced(null));
+        Assert.True(PowerSchemes.IsBalancedPersonality(PowerSchemes.Balanced));   // the plan itself, no API call
+        Assert.False(PowerSchemes.IsBalancedPersonality(Guid.Empty));
+    }
+
+    [Fact]
+    public void Hybrid_sleep_fact_names_the_state_the_record_keeps()
+    {
+        Assert.Equal("включён в текущей схеме", TweakCatalog.HybridSleepFact(1, fastSystemS4: true));
+        Assert.Equal("выключен в текущей схеме", TweakCatalog.HybridSleepFact(0, fastSystemS4: true));
+        Assert.Equal("неизвестно", TweakCatalog.HybridSleepFact(null, fastSystemS4: true));
+        Assert.StartsWith("недоступен", TweakCatalog.HybridSleepFact(1, fastSystemS4: false));
+        var hibernate = TweakCatalog.Find("hibernation-off")!;
+        Assert.Contains("920730", hibernate.Details);
+        Assert.Contains("гибридный сон", hibernate.Warning!);
+        Assert.Contains("/type reduced", hibernate.Details);
+    }
+
+    [Theory]
+    [InlineData(0u, "отключён")]
+    [InlineData(1u, "включён")]
+    [InlineData(2u, "агрессивный")]
+    [InlineData(6u, "эффективный агрессивный при гарантии")]
+    [InlineData(9u, "9")]
+    public void Boost_mode_values_are_named(uint value, string expected) => Assert.Equal(expected, TweakCatalog.DescribeBoostMode(value));
 
     // ───────────────────────────── Accessibility shortcuts ─────────────────────────────
 
