@@ -89,6 +89,31 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void Order_is_idempotent_so_the_shared_apply_primitive_may_order_again()
+    {
+        // ApplyInSession orders every batch itself (a page collecting tweaks in its own order gets the same guarantees as
+        // the Optimize page); the Optimize batch passes through it already ordered and must not move again.
+        var batch = new List<Tweak>
+        {
+            Tweak("powercfg-setting"), Tweak("power-mode", TweakGroups.PowerModeAc, ["power-plan-balanced"]),
+            Tweak("power-plan-balanced", TweakGroups.PowerPlan), Tweak("dep", requires: ["z"]), Tweak("z"),
+        };
+        var once = TweakEngine.OrderForApply(batch);
+        Assert.Equal(["power-plan-balanced", "powercfg-setting", "power-mode", "z", "dep"], Ids(once));
+        Assert.Equal(Ids(once), Ids(TweakEngine.OrderForApply(once)));
+    }
+
+    [Fact]
+    public void Requires_cycles_are_found_and_an_acyclic_graph_has_none()
+    {
+        Assert.Equal(["a", "b"], TweakEngine.RequiresCycles([Tweak("a", requires: ["b"]), Tweak("b", requires: ["a"]), Tweak("c", requires: ["a"])]));
+        Assert.Equal(["x", "y", "z"], TweakEngine.RequiresCycles([Tweak("x", requires: ["y"]), Tweak("y", requires: ["z"]), Tweak("z", requires: ["x"])]));
+        Assert.Equal(["s"], TweakEngine.RequiresCycles([Tweak("s", requires: ["s"])]));
+        Assert.Empty(TweakEngine.RequiresCycles([Tweak("c", requires: ["b", "a"]), Tweak("b", requires: ["a"]), Tweak("a"), Tweak("m", requires: ["ghost"])]));
+        Assert.Empty(TweakEngine.RequiresCycles([]));
+    }
+
+    [Fact]
     public void Skip_reason_names_the_dependency_from_the_batch()
     {
         var plan = Tweak("power-plan-balanced", TweakGroups.PowerPlan);
@@ -134,6 +159,34 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void Checking_a_member_unchecks_exactly_the_checked_peers()
+    {
+        Tweak a = Tweak("a", "g"), b = Tweak("b", "g"), c = Tweak("c", "g"), h = Tweak("h", "h"), n = Tweak("n");
+        var rows = new List<(Tweak, bool)> { (a, true), (b, false), (c, true), (h, true), (n, true) };
+        Assert.Equal(["a", "c"], Ids(OptimizeLogic.MembersToUncheck(b, rows)));
+        Assert.Empty(OptimizeLogic.MembersToUncheck(n, rows));
+        Assert.Empty(OptimizeLogic.MembersToUncheck(h, rows));
+        // Nothing else of the group checked: nothing to uncheck.
+        Assert.Empty(OptimizeLogic.MembersToUncheck(a, [(a, true), (b, false), (c, false)]));
+    }
+
+    [Fact]
+    public void Section_is_all_selected_when_each_group_has_one_checked_member()
+    {
+        Tweak p1 = Tweak("p1", "plan"), p2 = Tweak("p2", "plan"), p3 = Tweak("p3", "plan"), n = Tweak("n"), m = Tweak("m");
+        Assert.True(OptimizeLogic.AllSelected([(p1, true), (p2, false), (p3, false), (n, true), (m, true)]));
+        Assert.True(OptimizeLogic.AllSelected([(p1, false), (p2, false), (p3, true), (n, true)]));
+        Assert.False(OptimizeLogic.AllSelected([(p1, true), (p2, false), (p3, false), (n, false), (m, true)]), "a plain row is unchecked");
+        Assert.False(OptimizeLogic.AllSelected([(p1, false), (p2, false), (p3, false), (n, true)]), "no member of the group is checked");
+        Assert.False(OptimizeLogic.AllSelected([(n, false)]));
+        Assert.False(OptimizeLogic.AllSelected([]), "an empty section is never «all selected»");
+        Assert.True(OptimizeLogic.AllSelected([(n, true), (m, true)]));
+        // Two header clicks: select (one member stays after the group rule) → «all selected» → the second click clears.
+        var afterFirstClick = new List<(Tweak, bool)> { (p1, true), (p2, false), (p3, false), (n, true) };
+        Assert.True(OptimizeLogic.AllSelected(afterFirstClick));
+    }
+
+    [Fact]
     public void Replaces_note_lists_the_applied_members()
     {
         Assert.Equal("заменит: «Схема A»", OptimizeLogic.ReplacesNote(["Схема A"]));
@@ -151,6 +204,31 @@ public sealed class TweakSelectionTests
         Assert.Equal("plan-x3d", OptimizeLogic.PendingDependency(t, _ => true));
         Assert.Null(OptimizeLogic.PendingDependency(t, _ => false));
         Assert.Null(OptimizeLogic.PendingDependency(Tweak("plain"), _ => true));
+    }
+
+    [Fact]
+    public void Row_is_applicable_now_by_its_own_state_or_through_a_pending_dependency()
+    {
+        var mode = Tweak("mode", requires: ["plan"]);
+        Assert.True(OptimizeLogic.IsApplicableNow(TweakState.NotApplied, mode, _ => false));
+        Assert.True(OptimizeLogic.IsApplicableNow(null, mode, _ => false), "unknown yet: not refused");
+        Assert.False(OptimizeLogic.IsApplicableNow(TweakState.NotApplicable, mode, _ => false));
+        Assert.True(OptimizeLogic.IsApplicableNow(TweakState.NotApplicable, mode, id => id == "plan"));
+        Assert.False(OptimizeLogic.IsApplicableNow(TweakState.NotApplicable, mode, id => id == "other"));
+        Assert.False(OptimizeLogic.IsApplicableNow(TweakState.NotApplicable, Tweak("plain"), _ => true), "no dependency to lean on");
+    }
+
+    [Fact]
+    public void Profile_tile_counts_a_dependent_default_when_its_dependency_will_be_pending()
+    {
+        var defaults = new HashSet<string>(StringComparer.Ordinal) { "plan", "mode", "other" };
+        var mode = Tweak("mode", requires: ["plan"]);
+        Assert.True(OptimizeLogic.IsProfileMember(Tweak("plan"), true, defaults, _ => true));
+        Assert.False(OptimizeLogic.IsProfileMember(Tweak("stranger"), true, defaults, _ => true), "not a default of this profile");
+        Assert.True(OptimizeLogic.IsProfileMember(mode, false, defaults, id => id == "plan"), "not applicable itself, the Balanced plan is about to be switched on");
+        Assert.False(OptimizeLogic.IsProfileMember(mode, false, defaults, id => id == "other"), "the plan is already active or not applicable: the row's own detection decides");
+        Assert.False(OptimizeLogic.IsProfileMember(Tweak("mode", requires: ["plan-x3d"]), false, defaults, _ => true), "its dependency is not a default of the profile");
+        Assert.True(OptimizeLogic.IsProfileMember(mode, true, defaults, _ => false), "applicable on its own");
     }
 
     [Fact]
@@ -241,6 +319,55 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void Two_header_clicks_on_a_section_with_a_group_end_with_nothing_checked()
+    {
+        var vm = Page(Tweak("p1", "plan"), Tweak("p2", "plan"), Tweak("p3", "plan"), Tweak("p4", "plan"), Tweak("n"));
+        foreach (var i in vm.Items) i.State = TweakState.NotApplied;
+        vm.SelectCategory(null);
+        var section = vm.Rows.OfType<SectionRow>().Single(s => s.Category == TweakCategory.Power);
+
+        vm.ToggleSection(section);
+        Assert.Equal(["p1", "n"], Ids(vm.Items.Where(i => i.IsChecked).Select(i => i.Tweak)));
+        Assert.True(section.CheckState, "one member per group: the header shows «all selected», not indeterminate");
+
+        vm.ToggleSection(section);
+        Assert.DoesNotContain(vm.Items, i => i.IsChecked);
+        Assert.False(section.CheckState);
+    }
+
+    [Fact]
+    public void Profile_tile_and_change_count_agree_on_a_dependent_row()
+    {
+        // The real wave-3 shape: Balanced plan + a power mode that is applicable only on the Balanced plan; the PC is on
+        // High performance right now, so the mode detects as not applicable.
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]));
+        vm.SetProfileDefaults(OptimizeProfile.Gaming, ["plan", "mode"]);
+        Row(vm, "plan").State = TweakState.NotApplied;
+        Row(vm, "mode").State = TweakState.NotApplicable;
+        vm.MarkDetected();
+        var tile = vm.Profiles.Single(t => t.Kind == OptimizeProfile.Gaming);
+        Assert.Equal(2, tile.Total);
+        Assert.Equal(2, tile.ToChange);
+
+        vm.SelectProfile(OptimizeProfile.Gaming);
+        Assert.True(Row(vm, "mode").IsChecked);
+        Assert.Equal(2, vm.ChangeCount);
+        Assert.Equal(2, tile.ToChange);
+    }
+
+    [Fact]
+    public void A_requires_cycle_does_not_overflow_the_view_model()
+    {
+        var vm = Page(Tweak("a", requires: ["b"]), Tweak("b", requires: ["a"]));
+        foreach (var i in vm.Items) { i.State = TweakState.NotApplied; i.SetChecked(true); }
+        foreach (var i in vm.Items) i.State = TweakState.NotApplicable;
+        Assert.All(vm.Items, i => Assert.False(i.IsApplicableNow));
+        Assert.All(vm.Items, i => Assert.Null(i.PendingDependency));
+        vm.SyncDependents();
+        Assert.All(vm.Items, i => Assert.False(i.IsChecked));
+    }
+
+    [Fact]
     public void Dependency_already_applied_is_not_pending_and_the_row_follows_its_own_detection()
     {
         var vm = Page(Tweak("plan"), Tweak("mode", requires: ["plan"]));
@@ -323,6 +450,14 @@ public sealed class TweakSelectionTests
             // A dependency is never a member of the same exclusive group (it would uncheck itself).
             Assert.All(t.Requires, r => Assert.False(t.SharesGroupWith(TweakCatalog.Find(r)!), $"{t.Id} requires its group peer «{r}»"));
         }
+    }
+
+    [Fact]
+    public void Catalog_dependencies_are_acyclic()
+    {
+        // The Optimize page follows the Requires chain to decide whether a dependent row is pending; a cycle would make
+        // that walk endless (the view model guards it, but the catalog must never need the guard).
+        Assert.Empty(TweakEngine.RequiresCycles(TweakCatalog.All));
     }
 
     [Fact]
