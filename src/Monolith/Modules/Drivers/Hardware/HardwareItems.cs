@@ -84,6 +84,8 @@ public sealed partial class HwComponentItem : ObservableObject
     [ObservableProperty] private string _statusText = "";
     [ObservableProperty] private string _statusKey = "muted";
     [ObservableProperty] private bool _hasActions;
+    /// <summary>Opened from a link («УСТАНОВИТЬ В «ДРАЙВЕРАХ»» on «Устройства и сеть»): framed for a moment.</summary>
+    [ObservableProperty] private bool _isHighlighted;
 
     internal void Update(HwComponent c)
     {
@@ -168,7 +170,7 @@ public sealed partial class HwActionItem : ObservableObject
         ButtonText = a.ButtonText;
         Glyph = a.Kind switch
         {
-            HwActionKind.GoToTab => "",
+            HwActionKind.GoToTab or HwActionKind.GoToPage => "",
             HwActionKind.OpenPage or HwActionKind.OpenStore => "",
             HwActionKind.OpenSettings => "",
             _ when a.AlreadyInstalled => "",

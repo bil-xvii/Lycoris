@@ -65,6 +65,7 @@ internal static class OptimizeLogic
         "gameboost" => "Игровой сеанс",
         "games" => "Игры",
         "drivers" => "Драйверы",
+        "devices" => "Устройства и сеть",
         _ => source,
     };
 

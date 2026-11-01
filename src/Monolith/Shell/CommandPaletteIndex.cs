@@ -14,7 +14,8 @@ public static class CommandPaletteIndex
         IEnumerable<ToolSection> toolSections,
         IEnumerable<QuickLink> quickLinks,
         IEnumerable<CuratedService> services,
-        IEnumerable<(string Key, string Title, string Subtitle, string Keywords)>? sections = null)
+        IEnumerable<(string Key, string Title, string Subtitle, string Keywords)>? sections = null,
+        IEnumerable<(string Title, string Description, string Keywords, string FocusId)>? deviceSettings = null)
     {
         var list = new List<PaletteEntry>();
 
@@ -57,8 +58,33 @@ public static class CommandPaletteIndex
                 Keywords = $"{s.Name} {ServiceCatalog.GroupTitle(s.Group)}", Risk = s.Risk, PageKey = "services", FocusId = s.Name,
             });
 
+        foreach (var (title, description, keywords, focus) in deviceSettings ?? [])
+            list.Add(new PaletteEntry
+            {
+                Kind = PaletteKind.Tweak, Title = title, Description = description, Keywords = keywords, PageKey = "devices", FocusId = focus,
+            });
+
         return list;
     }
+
+    /// <summary>
+    /// Device settings of «Устройства и сеть» (they exist only on that page): the eleven input parameters by their journal
+    /// target, the monitor, sound and network rows by device kind. The page resolves the id to the row (or the device).
+    /// </summary>
+    public static IReadOnlyList<(string Title, string Description, string Keywords, string FocusId)> DeviceEntries { get; } =
+    [
+        .. Monolith.Core.Devices.SpiCatalog.All.Select(e => (e.Title,
+            $"{(e.Id.StartsWith("keyboard", StringComparison.Ordinal) ? "Клавиатура" : "Мышь")} — раздел «Устройства и сеть», вкладка «Вручную».",
+            $"{e.Id} мышь клавиатура устройства", Monolith.Core.Devices.DeviceTargets.Spi(e.Id))),
+        ("Разрешение и частота обновления", "Режим монитора с подтверждением на экране — раздел «Устройства и сеть».", "монитор экран герц гц частота разрешение refresh", "kind:monitor"),
+        ("HDR монитора", "Включение HDR с подтверждением на экране — раздел «Устройства и сеть».", "hdr монитор экран", "display-hdr"),
+        ("Яркость и контраст монитора", "Яркость по DDC/CI — раздел «Устройства и сеть».", "яркость контраст монитор ddc", "display-brightness"),
+        ("Уровень микрофона", "Уровень записи и проверка уровня — раздел «Устройства и сеть».", "микрофон звук запись уровень", "mic-level"),
+        ("Наушники и звук", "Устройство вывода, формат и улучшения звука — раздел «Устройства и сеть».", "звук наушники колонки вывод", "kind:audiooutput"),
+        ("Сеть и пинг", "Сетевой адаптер, замер пинга и автонастройка сети — раздел «Устройства и сеть».", "сеть пинг интернет ethernet wi-fi адаптер", "kind:network"),
+        ("Частота опроса и DPI мыши", "Замер частоты опроса и проверка DPI — раздел «Устройства и сеть».", "мышь dpi опрос герц polling",
+            Monolith.Modules.Devices.Input.InputProvider.PollingRow),
+    ];
 
     /// <summary>Sections that used to be pages; their keys are navigation aliases (see MainViewModel.NavigateTo).</summary>
     public static IReadOnlyList<(string Key, string Title, string Subtitle, string Keywords)> Sections { get; } =
@@ -79,6 +105,7 @@ public static class CommandPaletteIndex
             tools?.Sections ?? [],
             tools?.QuickLinks ?? [],
             ServiceCatalog.Services,
-            Sections);
+            Sections,
+            DeviceEntries);
     }
 }

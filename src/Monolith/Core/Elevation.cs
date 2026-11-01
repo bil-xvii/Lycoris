@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 
 namespace Monolith.Core;
@@ -73,29 +74,145 @@ public static class Elevation
     /// <summary>
     /// True when this process runs under a different account than the one signed in to the desktop
     /// (e.g. a standard user approved UAC with another admin's password). HKCU then belongs to that other account.
+    /// False also when it cannot be told (see <see cref="InteractiveUserState"/>, which keeps that case apart).
     /// </summary>
-    public static bool IsRunningAsDifferentUser()
+    public static bool IsRunningAsDifferentUser() => InteractiveUserState == false;
+
+    // ───────────────────────────── Interactive user ─────────────────────────────
+
+    /// <summary>TESTS ONLY: replaces the detection (null result = «cannot tell»).</summary>
+    internal static Func<bool?>? InteractiveUserForTests { get; set; }
+
+    private static bool? _interactiveKnown;
+
+    /// <summary>
+    /// Does MONOLITH run as the person signed in to this desktop? True only when the shell (explorer.exe) of this session
+    /// was found and its owner is this process's account; false when it is another account (over-the-shoulder UAC); null
+    /// when it cannot be told (Explorer restarting, a shell replacement, MONOLITH started before the shell). Only a known
+    /// answer is cached: an unknown one is detected again next time. Blocking (process tokens): call off the UI thread.
+    /// </summary>
+    public static bool? InteractiveUserState
     {
+        get
+        {
+            if (InteractiveUserForTests is { } test) return test();
+            if (_interactiveKnown is { } known) return known;
+            var detected = DetectInteractiveUser();
+            if (detected is not null) _interactiveKnown = detected;
+            return detected;
+        }
+    }
+
+    /// <summary>
+    /// Per-user writes (mouse/keyboard parameters, microphone levels) are allowed only here. Fails closed: an account that
+    /// cannot be determined counts as «not the desktop user».
+    /// </summary>
+    public static bool IsInteractiveUser => InteractiveUserState == true;
+
+    public const string OtherAccountText =
+        "MONOLITH запущен от имени другой учётной записи администратора — эти настройки применились бы к ней, а не к вам. " +
+        "Запустите MONOLITH из своей учётной записи.";
+    public const string UnknownAccountText = "Не удалось определить пользователя рабочего стола — пользовательские настройки пока не меняются.";
+
+    /// <summary>Why per-user settings cannot be written now, or null when they can.</summary>
+    public static string? InteractiveUserProblem => InteractiveUserState switch
+    {
+        true => null,
+        false => OtherAccountText,
+        null => UnknownAccountText,
+    };
+
+    private static bool? DetectInteractiveUser()
+    {
+        string? own;
+        int session;
         try
         {
             using var me = WindowsIdentity.GetCurrent();
-            var mySid = me.User?.Value;
-            var session = Process.GetCurrentProcess().SessionId;
-            using var searcher = new System.Management.ManagementObjectSearcher(
-                $"SELECT Handle, SessionId FROM Win32_Process WHERE Name = 'explorer.exe' AND SessionId = {session}");
-            foreach (System.Management.ManagementObject p in searcher.Get())
+            own = me.User?.Value;
+            using var current = Process.GetCurrentProcess();
+            session = current.SessionId;
+        }
+        catch
+        {
+            return null;
+        }
+        if (own is null) return null;
+
+        string? shell = null;
+        try
+        {
+            foreach (var p in Process.GetProcessesByName("explorer"))
             {
                 using (p)
                 {
-                    using var outParams = p.InvokeMethod("GetOwnerSid", null, null);
-                    var sid = outParams?["Sid"]?.ToString();
-                    if (!string.IsNullOrEmpty(sid) && mySid is not null)
-                        return !string.Equals(sid, mySid, StringComparison.OrdinalIgnoreCase);
+                    try
+                    {
+                        if (shell is null && p.SessionId == session) shell = OwnerSid(p.Id);
+                    }
+                    catch { }
                 }
             }
         }
-        catch { }
-        return false;
+        catch
+        {
+            return null;
+        }
+        return shell is null ? null : string.Equals(shell, own, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    private const uint TOKEN_QUERY = 0x0008;
+    private const int TokenUser = 1;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(IntPtr token, int infoClass, IntPtr info, int length, out int returned);
+
+    /// <summary>The account SID of a process (its token's user), or null.</summary>
+    private static string? OwnerSid(int pid)
+    {
+        var process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (process == IntPtr.Zero) return null;
+        try
+        {
+            if (!OpenProcessToken(process, TOKEN_QUERY, out var token)) return null;
+            try
+            {
+                GetTokenInformation(token, TokenUser, IntPtr.Zero, 0, out var length);
+                if (length <= 0) return null;
+                var buffer = Marshal.AllocHGlobal(length);
+                try
+                {
+                    if (!GetTokenInformation(token, TokenUser, buffer, length, out _)) return null;
+                    return new SecurityIdentifier(Marshal.ReadIntPtr(buffer)).Value; // TOKEN_USER.User.Sid
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+            }
+            finally
+            {
+                CloseHandle(token);
+            }
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
     }
 
     /// <summary>Throws a friendly exception when an admin-only action is attempted without rights.</summary>

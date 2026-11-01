@@ -94,6 +94,15 @@ internal static partial class HardwareRules
         return GenericNameMarkers.Any(m => name.Contains(m, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// A software device, not hardware: no physical bus in its parent chain (read by the scanner), G HUB's virtual HID driver,
+    /// or its LGHUBDevice\ enumerator (the virtual mouse / keyboard 046D:C231 / C232 that G HUB adds).
+    /// </summary>
+    public static bool IsVirtualDevice(PnpDevice d) =>
+        d.Virtual
+        || string.Equals(d.Service, "logi_joy_vir_hid", StringComparison.OrdinalIgnoreCase)
+        || d.DeviceId.StartsWith(@"LGHUBDEVICE\", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Realtek HD Audio codec: "HDAUDIO\FUNC_01&amp;VEN_10EC&amp;DEV_0897&amp;…" → "Realtek ALC897".</summary>
     public static string? RealtekCodecName(string? deviceId)
     {

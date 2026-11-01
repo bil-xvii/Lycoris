@@ -312,6 +312,11 @@ public sealed partial class DashboardViewModel : PageViewModel
             case CheckActionKind.ApplyTweak when action.Target is { } id:
                 await ApplyTweakAsync(id);
                 break;
+            case CheckActionKind.FocusDevice when action.Target is { } target:
+                _lastCheck = DateTime.MinValue; // the user may fix it there: re-check on return
+                Ui.RequestFocus("devices", target);
+                Ui.Navigate("devices");
+                break;
         }
     }
 

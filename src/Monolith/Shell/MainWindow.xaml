@@ -12,6 +12,7 @@
         xmlns:drv="clr-namespace:Monolith.Modules.Drivers"
         xmlns:svc="clr-namespace:Monolith.Modules.Services"
         xmlns:apps="clr-namespace:Monolith.Modules.Apps"
+        xmlns:dev="clr-namespace:Monolith.Modules.Devices"
         xmlns:rest="clr-namespace:Monolith.Modules.Restore"
         xmlns:set="clr-namespace:Monolith.Modules.Settings"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=shell:MainViewModel}"
@@ -35,6 +36,7 @@
         <DataTemplate DataType="{x:Type maint:MaintenanceViewModel}"><maint:MaintenanceView /></DataTemplate>
         <DataTemplate DataType="{x:Type drv:DriversViewModel}"><drv:DriversView /></DataTemplate>
         <DataTemplate DataType="{x:Type svc:ServicesViewModel}"><svc:ServicesView /></DataTemplate>
+        <DataTemplate DataType="{x:Type dev:DevicesViewModel}"><dev:DevicesView /></DataTemplate>
         <DataTemplate DataType="{x:Type apps:AppsViewModel}"><apps:AppsView /></DataTemplate>
         <DataTemplate DataType="{x:Type rest:RestoreViewModel}"><rest:RestoreView /></DataTemplate>
         <DataTemplate DataType="{x:Type set:SettingsViewModel}"><set:SettingsView /></DataTemplate>

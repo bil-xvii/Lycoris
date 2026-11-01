@@ -70,6 +70,9 @@ public sealed partial class AppSettings : ObservableObject
     /// </summary>
     [ObservableProperty] private List<string> _driftAccepted = [];
 
+    /// <summary>The last tab of «Устройства и сеть»: "auto" (АВТОНАСТРОЙКА, default) or "manual" (ВРУЧНУЮ).</summary>
+    [ObservableProperty] private string _devicesTab = "auto";
+
     public static void Load()
     {
         try

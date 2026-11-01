@@ -4,8 +4,10 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
+using Monolith.Core.Devices;
 using Monolith.Modules.Apps;
 using Monolith.Modules.Dashboard;
+using Monolith.Modules.Devices;
 using Monolith.Modules.Drivers;
 using Monolith.Modules.Games;
 using Monolith.Modules.Maintenance;
@@ -24,6 +26,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     /// <summary>Pages in the sidebar list: all but Settings, which opens from the gear in the sidebar footer.</summary>
     public IReadOnlyList<PageViewModel> NavPages { get; }
     public MaintenanceViewModel Maintenance { get; }
+    public DevicesViewModel Devices { get; }
     public ObservableCollection<ToastItem> Toasts { get; } = new();
     public ObservableCollection<LogEntry> LogEntries => Log.Entries;
 
@@ -46,6 +49,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             new ServicesViewModel(),
             Maintenance = new MaintenanceViewModel(),
             new DriversViewModel(),
+            Devices = new DevicesViewModel(),
             new AppsViewModel(),
             new RestoreViewModel(),
             new SettingsViewModel(),
@@ -54,6 +58,9 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
         _consoleExpanded = AppSettings.Current.ShowConsole;
         Ui.Host = this;
+        // Device changes ask through the shell: the «keep or go back» countdown and yes/no questions during an undo.
+        DeviceConfirm.Countdown = Ui.CountdownConfirmAsync;
+        DeviceConfirm.Ask = (title, message, details) => Ui.ConfirmAsync(title, message, details, confirmText: "ВЕРНУТЬ", cancelText: "ОСТАВИТЬ");
         AppSettings.Current.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(AppSettings.ShowConsole))
@@ -69,13 +76,22 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     {
         await Task.Delay(1200);
 
+        // 0. Display and input changes left unconfirmed by a crash (MONOLITH or the PC died during the countdown): an
+        //    unconfirmed change is put back — after any running guard process finished its own job.
+        if (Elevation.IsElevated && ChangeJournal.Instance is { IsUnavailable: false } journal && journal.PendingDisplayRecords().Count > 0)
+        {
+            try { await Task.Run(() => DisplaySafeApply.ReconcileAsync(journal)); }
+            catch (Exception ex) { Log.Warn($"Незавершённые изменения экрана не проверены: {ex.Message}"); }
+        }
+
         // 1. Elevated with a different administrator account: HKCU settings would go to that account.
         if (Elevation.IsElevated && await Task.Run(Elevation.IsRunningAsDifferentUser))
         {
             Log.Warn("MONOLITH запущен от имени другой учётной записи администратора.");
             await Ui.AlertAsync("ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ",
                 "MONOLITH запущен от имени другого администратора, а не пользователя, который сейчас работает в Windows. " +
-                "Пользовательские настройки (игровой режим Windows, мышь, реклама, автозапуск «для меня») применятся к той учётной записи. " +
+                "Пользовательские настройки (игровой режим Windows, реклама, автозапуск «для меня») применятся к той учётной записи, " +
+                "а настройки мыши, клавиатуры и микрофона в «Устройствах и сети» будут недоступны. " +
                 "Чтобы настроить свой профиль, войдите в Windows под учётной записью администратора и запустите MONOLITH оттуда.");
         }
 
@@ -230,7 +246,13 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     public bool RestartElevated()
     {
-        if (!Elevation.TryRelaunchElevated(CurrentPage is { } p ? ["--page", p.Key] : null)) return false;
+        string[]? args = CurrentPage switch
+        {
+            DevicesViewModel d => ["--page", d.Key, "--tab", d.SelectedTab],
+            { } p => ["--page", p.Key],
+            _ => null,
+        };
+        if (!Elevation.TryRelaunchElevated(args)) return false;
         Application.Current.Shutdown();
         return true;
     }
