@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Win32.SafeHandles;
 using Monolith.Core;
+using Monolith.Tweaks;
 using Monolith.UI;
 
 namespace Monolith.Modules.Games;
@@ -19,7 +20,9 @@ public sealed record BoostChange(string Title, string Detail, BoostChangeKind Ki
 
 /// <summary>
 /// Game Boost session. Temporary changes only:
-///  • power plan → High performance (journaled under source "gameboost" so the Restore page can undo it after a crash);
+///  • power plan → High performance on desktops; where the plan cannot be switched (laptop, Modern Standby, no such plan)
+///    the Windows 11 AC power mode → «Максимальная производительность» instead (both journaled under source "gameboost"
+///    so the Restore page can undo them after a crash);
 ///  • close the user's chosen background apps (window close first, kill only after explicit confirmation);
 ///  • game process priority → High (never Realtime), restored when the session ends;
 ///  • optional one-time standby-list purge (opt-in, honest explanation).
@@ -46,6 +49,8 @@ public sealed partial class GameBoostService : ObservableObject
     private bool _sessionOpen;
     /// <summary>Power-plan switch or priority raise still running on a pool thread; an exit waits for it before reverting.</summary>
     private Task? _pendingChange;
+    /// <summary>Journal target the session's power change wrote ("power:active" or "cmd:powermode:ac"); null when none.</summary>
+    private string? _powerTarget;
 
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private bool _isTransitioning;
@@ -65,7 +70,14 @@ public sealed partial class GameBoostService : ObservableObject
 
     // ───────────────────────────── Plan ─────────────────────────────
 
-    /// <summary>Decides the power plan action for this PC right now. Blocking.</summary>
+    /// <summary>Journal target of the Windows 11 AC power mode (the same record the Optimize power-mode items write).</summary>
+    public const string PowerModeTarget = "powermode:ac";
+    private const string PowerModeTitle = "Игровой сеанс: режим питания";
+
+    /// <summary>
+    /// Decides the power action for this PC right now: the plan switch on desktops, else (laptop, Modern Standby, no High
+    /// performance plan) the Windows 11 AC power mode on a Balanced-personality plan. Blocking.
+    /// </summary>
     public static (PowerPlanAction Action, string Text) DecidePower(SystemProfile sp, bool enabled)
     {
         var active = PowerSchemes.GetActive();
@@ -74,18 +86,90 @@ public sealed partial class GameBoostService : ObservableObject
         var alreadyFast = active == PowerSchemes.HighPerformance || (ultimate is { } u && u == active);
         var journaled = ChangeJournal.Instance.FindActive("power:active");
         var managedElsewhere = journaled is not null && journaled.Source != Source;
+        var dualCcd = BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores);
+        var onBattery = GamesNative.IsOnBattery();
         // Unknown hardware (a WMI query failed): never switch blindly — it could be a laptop or a dual-CCD X3D.
-        var action = enabled && !sp.HardwareFactsKnown ? PowerPlanAction.SkipUnknownHardware : BoostPolicy.DecidePowerPlan(
+        if (enabled && !sp.HardwareFactsKnown)
+            return (PowerPlanAction.SkipUnknownHardware, BoostPolicy.Describe(PowerPlanAction.SkipUnknownHardware, activeName, sp.CpuName));
+
+        var plan = BoostPolicy.DecidePowerPlan(
             enabled,
-            BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores),
-            GamesNative.IsOnBattery(),
+            dualCcd,
+            onBattery,
             sp.IsLaptop,
             GamesNative.IsModernStandby(),
             managedElsewhere,
             enabled && PowerSchemes.Exists(PowerSchemes.HighPerformance),
             alreadyFast);
-        return (action, BoostPolicy.Describe(action, activeName, sp.CpuName));
+
+        // The power mode is read only where it may be needed (the plan is not switched here).
+        Guid? currentMode = null;
+        var mode = PowerPlanAction.SkipUnavailable;
+        if (BoostPolicy.PlanFallsBackToMode(plan))
+        {
+            currentMode = TweakCatalog.ReadAcPowerMode();
+            var modeRecord = ChangeJournal.Instance.FindActive("cmd:" + PowerModeTarget);
+            // A record of this source is a leftover session (the Games page offers to undo it); only another source "manages" the mode.
+            var modeManagedElsewhere = modeRecord is not null && modeRecord.Source != Source;
+            mode = BoostPolicy.DecidePowerMode(
+                enabled,
+                dualCcd,
+                onBattery,
+                sp.IsWindows11,
+                active != Guid.Empty && PowerSchemes.IsBalancedPersonality(active) && currentMode is not null,
+                IsEnergySaverOn(),
+                currentMode == TweakCatalog.PowerModeBestPerformance,
+                modeManagedElsewhere);
+        }
+        var action = BoostPolicy.Decide(plan, mode);
+        var modeName = currentMode is { } m ? TweakCatalog.DescribePowerMode(m) : null;
+        return (action, BoostPolicy.Describe(action, activeName, sp.CpuName, modeName, sp.IsLaptop));
     }
+
+    /// <summary>
+    /// The journaled command that sets the AC power mode to «Максимальная производительность» for the session, with its exact
+    /// undo (the current mode, one of the three documented GUIDs). Built with the catalog code, so the undo is the same
+    /// command the Optimize power-mode items record and the journal check accepts for this source and target.
+    /// </summary>
+    internal static (string Target, string File, string Args, string RevertFile, string RevertArgs, string OldValue, string NewValue, string Title)
+        PowerModeCommand(Guid current)
+    {
+        if (!TweakCatalog.IsDocumentedPowerMode(current))
+            throw new ArgumentException($"недокументированный режим питания: {current:D}", nameof(current));
+        return (PowerModeTarget,
+            TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBestPerformance)),
+            TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(current)),
+            $"от сети: {TweakCatalog.DescribePowerMode(current)}", $"от сети: {TweakCatalog.DescribePowerMode(TweakCatalog.PowerModeBestPerformance)}",
+            PowerModeTitle);
+    }
+
+    /// <summary>Energy saver (battery saver) is on: SYSTEM_POWER_STATUS.SystemStatusFlag = 1. Windows then ignores the performance mode.</summary>
+    private static bool IsEnergySaverOn()
+    {
+        try
+        {
+            return GetSystemPowerStatus(out var s) && s.SystemStatusFlag == 1;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SYSTEM_POWER_STATUS
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public int BatteryLifeTime;
+        public int BatteryFullLifeTime;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
 
     /// <summary>What a session would do now (power plan, which running apps would be closed…).</summary>
     public static async Task<BoostPlan> BuildPlanAsync(GameEntry? game)
@@ -126,6 +210,7 @@ public sealed partial class GameBoostService : ObservableObject
         _sessionOpen = true;
         Changes.Clear();
         _closedApps.Clear();
+        _powerTarget = null;
         HasGame = game is not null;
         GameName = game?.Name ?? "Без привязки к игре";
         ProcessText = null;
@@ -133,7 +218,8 @@ public sealed partial class GameBoostService : ObservableObject
         try
         {
             if (plan.PowerAction == PowerPlanAction.Switch) await SwitchPowerPlanAsync();
-            else Changes.Add(new BoostChange("План питания не изменён", plan.PowerText.Replace("План питания не меняется: ", ""), BoostChangeKind.Skipped));
+            else if (plan.PowerAction == PowerPlanAction.SwitchPowerMode) await SwitchPowerModeAsync();
+            else Changes.Add(new BoostChange("План питания не изменён", plan.PowerText.Replace(BoostPolicy.SkipPrefix, ""), BoostChangeKind.Skipped));
 
             if (plan.AppsToClose.Count > 0) await CloseAppsAsync(plan, game);
 
@@ -195,10 +281,40 @@ public sealed partial class GameBoostService : ObservableObject
         });
         _pendingChange = work;
         var (ok, from, to, error) = await work;
+        if (ok) _powerTarget = "power:active";
         Changes.Add(ok
             ? new BoostChange("План питания", $"«{from}» → «{to}». Вернётся после игры.", BoostChangeKind.Changed)
             : new BoostChange("План питания не изменён", error ?? "Windows отклонила смену схемы.", BoostChangeKind.Skipped));
     }
+
+    /// <summary>
+    /// Sets the Windows 11 AC power mode to «Максимальная производительность» for the session (the plan stays). Journaled under
+    /// <see cref="Source"/> with the current mode as the exact undo, so the stop paths and the stale-session recovery revert it
+    /// like the plan. Only one of the three documented modes can be recorded; anything else is refused.
+    /// </summary>
+    private async Task SwitchPowerModeAsync()
+    {
+        var work = Task.Run(async () =>
+        {
+            var current = TweakCatalog.ReadAcPowerMode();
+            if (current is not { } from || !TweakCatalog.IsDocumentedPowerMode(from))
+                return (false, "", "Windows сообщила неизвестный режим питания — MONOLITH его не меняет.");
+            var cmd = PowerModeCommand(from);
+            var session = await ChangeSession.BeginAsync(SessionTitle, createRestorePoint: false).ConfigureAwait(false);
+            var ok = await session.RunCommandAsync(cmd.Target, cmd.File, cmd.Args, cmd.RevertFile, cmd.RevertArgs,
+                cmd.OldValue, cmd.NewValue, Source, cmd.Title, OutputEncoding.Utf8).ConfigureAwait(false);
+            session.Complete();
+            return (ok, TweakCatalog.DescribePowerMode(from), session.Errors.FirstOrDefault());
+        });
+        _pendingChange = work;
+        var (ok, from, error) = await work;
+        if (ok) _powerTarget = "cmd:" + PowerModeTarget;
+        Changes.Add(ok
+            ? new BoostChange("Режим питания от сети",$"«{Cap(from)}» → «Максимальная производительность». Схема питания не меняется; вернётся после игры.", BoostChangeKind.Changed)
+            : new BoostChange("Режим питания не изменён", error ?? "Windows отклонила смену режима питания.", BoostChangeKind.Skipped));
+    }
+
+    private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     private async Task CloseAppsAsync(BoostPlan plan, GameEntry? game)
     {
@@ -451,8 +567,8 @@ public sealed partial class GameBoostService : ObservableObject
         try
         {
             result = await Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source));
-            // A plan chosen during the session (e.g. in Optimize) took over the session's original: it stays.
-            if (result.HandedOver > 0) planNow = ChangeJournal.Instance.FindActive("power:active");
+            // A plan or power mode chosen during the session (e.g. in Optimize) took over the session's original: it stays.
+            if (result.HandedOver > 0 && _powerTarget is { } target) planNow = ChangeJournal.Instance.FindActive(target);
         }
         catch (Exception ex)
         {
@@ -605,20 +721,24 @@ public sealed partial class GameBoostService : ObservableObject
     {
         var restored = r.Reverted - r.HandedOver;
         if (r.HandedOver == 0) return $"Исходные настройки возвращены (изменений: {restored}).";
-        const string kept = "план питания задаёт более позднее изменение, оно остаётся";
+        const string kept = "настройку питания задаёт более позднее изменение, оно остаётся";
         return restored == 0
             ? $"Запись игрового сеанса закрыта, система не изменена: {kept}."
             : $"Исходные настройки возвращены (изменений: {restored}); {kept}.";
     }
 
     /// <summary>
-    /// For the end-of-session toast: the plan chosen while the session ran (a newer layer took over the session's
-    /// original, so the plan did not go back). Null when every change of the session was undone in the system.
+    /// For the end-of-session toast: the plan (or power mode) chosen while the session ran — a newer layer took over the
+    /// session's original, so it did not go back. Null when every change of the session was undone in the system.
     /// </summary>
     public static string? KeptPlanNote(RevertResult r, ChangeRecord? planNow) =>
         r.HandedOver > 0 && planNow is not null
-            ? $"План питания остаётся «{planNow.NewValue}» — его выбрали во время сеанса («{planNow.Title}»)."
+            ? $"{PowerSubject(planNow)} остаётся «{planNow.NewValue}» — его выбрали во время сеанса («{planNow.Title}»)."
             : null;
+
+    /// <summary>"План питания" for a plan record, "Режим питания" for a power-mode record.</summary>
+    private static string PowerSubject(ChangeRecord r) =>
+        r.Target == "cmd:" + PowerModeTarget ? "Режим питания" : "План питания";
 
     /// <summary>"Игровой сеанс: план питания" → "план питания".</summary>
     private static string ShortTitle(string title)
