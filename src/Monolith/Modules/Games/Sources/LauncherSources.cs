@@ -62,7 +62,7 @@ public static class UninstallEntries
         }
         catch (Exception ex)
         {
-            Log.Warn($"Список программ ({hive}): {ex.Message}");
+            Log.Warn("Список программ ({0}): {1}", hive, ex.Message);
         }
     }
 }
@@ -182,7 +182,7 @@ public static class LauncherSources
             }
             catch (Exception ex)
             {
-                Log.Warn($"Лаунчеры: пропущена запись «{e.DisplayName}» — {ex.Message}");
+                Log.Warn("Лаунчеры: пропущена запись «{0}» — {1}", e.DisplayName, ex.Message);
             }
         }
 
@@ -235,7 +235,7 @@ public static class LauncherSources
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn($"Ubisoft Connect: пропущена запись {id} — {ex.Message}");
+                    Log.Warn("Ubisoft Connect: пропущена запись {0} — {1}", id, ex.Message);
                 }
             }
         }

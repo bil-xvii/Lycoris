@@ -126,11 +126,11 @@ public static class BoostPolicy
     public static bool IsSwitch(PowerPlanAction action) => action is PowerPlanAction.Switch or PowerPlanAction.SwitchPowerMode;
 
     /// <summary>Prefix of every skip text; the panel and the session log strip it.</summary>
-    public const string SkipPrefix = "План питания не меняется: ";
+    public static string SkipPrefix => Loc.T("План питания не меняется: ");
     /// <summary>Prefix of the plan-switch text.</summary>
-    public const string SwitchPrefix = "План питания: ";
+    public static string SwitchPrefix => Loc.T("План питания: ");
     /// <summary>Prefix of the mode-switch text.</summary>
-    public const string SwitchModePrefix = "Режим питания от сети: ";
+    public static string SwitchModePrefix => Loc.T("Режим питания от сети: ");
 
     /// <summary>
     /// One-line explanation of the decision for the panel and the confirmation dialog. <paramref name="currentMode"/> is the
@@ -141,32 +141,32 @@ public static class BoostPolicy
     public static string Describe(PowerPlanAction action, string currentName, string cpuName, string? currentMode = null, bool laptop = false,
         bool windows11 = true) => action switch
     {
-        PowerPlanAction.Switch => $"{SwitchPrefix}«{currentName}» → «Высокая производительность». Возвращается после игры.",
-        PowerPlanAction.SwitchPowerMode => $"{SwitchModePrefix}«{Cap(currentMode ?? "текущий")}» → «Максимальная производительность» (схема остаётся сбалансированной). " +
-                                           "Возвращается после игры" + (laptop ? "; от батареи ничего не меняется." : "."),
-        PowerPlanAction.SkipDisabled => "План питания не меняется (выключено).",
-        PowerPlanAction.SkipDualCcdX3D => $"{SkipPrefix}{Short(cpuName)} — X3D с двумя CCD, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.",
-        PowerPlanAction.SkipOnBattery => $"{SkipPrefix}ноутбук работает от батареи.",
+        PowerPlanAction.Switch => SwitchPrefix + Loc.Tf("«{0}» → «Высокая производительность». Возвращается после игры.", currentName),
+        PowerPlanAction.SwitchPowerMode => SwitchModePrefix + Loc.Tf("«{0}» → «Максимальная производительность» (схема остаётся сбалансированной).", Cap(currentMode ?? Loc.T("текущий"))) +
+                                           " " + Loc.T("Возвращается после игры") + (laptop ? Loc.T("; от батареи ничего не меняется.") : "."),
+        PowerPlanAction.SkipDisabled => Loc.T("План питания не меняется (выключено)."),
+        PowerPlanAction.SkipDualCcdX3D => SkipPrefix + Loc.Tf("{0} — X3D с двумя CCD, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.", Short(cpuName)),
+        PowerPlanAction.SkipOnBattery => SkipPrefix + Loc.T("ноутбук работает от батареи."),
         // Reached only when the power mode is not available either: Windows 10, or a plan that is not Balanced-personality.
-        PowerPlanAction.SkipLaptop when !windows11 => $"{SkipPrefix}на ноутбуке MONOLITH меняет только режим питания, а он есть только в Windows 11.",
-        PowerPlanAction.SkipLaptop => $"{SkipPrefix}на ноутбуке MONOLITH меняет только режим питания Windows 11 на сбалансированной схеме — включите её в «Оптимизации».",
-        PowerPlanAction.SkipModernStandby => $"{SkipPrefix}на ПК с Modern Standby доступна только «Сбалансированная» схема, а режим питания «Максимальная производительность» MONOLITH включает только в Windows 11.",
-        PowerPlanAction.SkipManagedElsewhere => $"{SkipPrefix}он уже изменён MONOLITH в разделе «Оптимизация».",
-        PowerPlanAction.SkipAlreadyFast => $"{SkipPrefix}«{currentName}» уже включена.",
-        PowerPlanAction.SkipUnknownHardware => $"{SkipPrefix}не удалось определить, ноутбук это или ПК. Нажмите «ОБНОВИТЬ» позже.",
-        PowerPlanAction.SkipEnergySaver => $"{SkipPrefix}включено энергосбережение — Windows не даёт выбрать режим «Максимальная производительность». Отключите его в Параметрах → Питание.",
-        PowerPlanAction.SkipModeAlreadyFast => $"{SkipPrefix}режим питания от сети уже «Максимальная производительность».",
-        PowerPlanAction.SkipModeManagedElsewhere => $"{SkipPrefix}режим питания уже изменён MONOLITH в разделе «Оптимизация».",
-        PowerPlanAction.SkipModeUnreadable => $"{SkipPrefix}не удалось прочитать текущий режим питания Windows — без него нет точного отката.",
-        PowerPlanAction.SkipModeUnknown => $"{SkipPrefix}Windows сообщила неизвестный режим питания — MONOLITH его не меняет.",
-        PowerPlanAction.SkipModeUntrusted => $"{SkipPrefix}журнал MONOLITH не принял бы отмену смены режима питания — ничего не меняется.",
-        _ => $"{SkipPrefix}схемы «Высокая производительность» на этом ПК нет, а режим питания MONOLITH меняет только в Windows 11 на сбалансированной схеме.",
+        PowerPlanAction.SkipLaptop when !windows11 => SkipPrefix + Loc.T("на ноутбуке MONOLITH меняет только режим питания, а он есть только в Windows 11."),
+        PowerPlanAction.SkipLaptop => SkipPrefix + Loc.T("на ноутбуке MONOLITH меняет только режим питания Windows 11 на сбалансированной схеме — включите её в «Оптимизации»."),
+        PowerPlanAction.SkipModernStandby => SkipPrefix + Loc.T("на ПК с Modern Standby доступна только «Сбалансированная» схема, а режим питания «Максимальная производительность» MONOLITH включает только в Windows 11."),
+        PowerPlanAction.SkipManagedElsewhere => SkipPrefix + Loc.T("он уже изменён MONOLITH в разделе «Оптимизация»."),
+        PowerPlanAction.SkipAlreadyFast => SkipPrefix + Loc.Tf("«{0}» уже включена.", currentName),
+        PowerPlanAction.SkipUnknownHardware => SkipPrefix + Loc.T("не удалось определить, ноутбук это или ПК. Нажмите «ОБНОВИТЬ» позже."),
+        PowerPlanAction.SkipEnergySaver => SkipPrefix + Loc.T("включено энергосбережение — Windows не даёт выбрать режим «Максимальная производительность». Отключите его в Параметрах → Питание."),
+        PowerPlanAction.SkipModeAlreadyFast => SkipPrefix + Loc.T("режим питания от сети уже «Максимальная производительность»."),
+        PowerPlanAction.SkipModeManagedElsewhere => SkipPrefix + Loc.T("режим питания уже изменён MONOLITH в разделе «Оптимизация»."),
+        PowerPlanAction.SkipModeUnreadable => SkipPrefix + Loc.T("не удалось прочитать текущий режим питания Windows — без него нет точного отката."),
+        PowerPlanAction.SkipModeUnknown => SkipPrefix + Loc.T("Windows сообщила неизвестный режим питания — MONOLITH его не меняет."),
+        PowerPlanAction.SkipModeUntrusted => SkipPrefix + Loc.T("журнал MONOLITH не принял бы отмену смены режима питания — ничего не меняется."),
+        _ => SkipPrefix + Loc.T("схемы «Высокая производительность» на этом ПК нет, а режим питания MONOLITH меняет только в Windows 11 на сбалансированной схеме."),
     };
 
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     private static string Short(string cpu) =>
-        string.IsNullOrWhiteSpace(cpu) ? "процессор" : cpu.Replace("AMD ", "", StringComparison.OrdinalIgnoreCase).Replace(" Processor", "", StringComparison.OrdinalIgnoreCase).Trim();
+        string.IsNullOrWhiteSpace(cpu) ? Loc.T("процессор") : cpu.Replace("AMD ", "", StringComparison.OrdinalIgnoreCase).Replace(" Processor", "", StringComparison.OrdinalIgnoreCase).Trim();
 }
 
 /// <summary>What a session does with the apps of the close list.</summary>
@@ -194,17 +194,16 @@ public sealed record BoostPlan(
         var names = string.Join(", ", AppsToClose.Select(a => a.Count > 1 ? $"{a.Name} ({a.Count})" : a.Name));
         if (CloseMode == BoostCloseMode.EcoQos)
             return AppsToClose.Count > 0
-                ? $"Режим эффективности для: {names}. Программы не закрываются; Windows ограничит им частоты процессора на время игры, " +
-                  "звук и голосовые программы исключены. После игры режим возвращается. Эффект небольшой, честно: без измерения на вашем ПК не обещаем."
+                ? Loc.Tf("Режим эффективности для: {0}. Программы не закрываются; Windows ограничит им частоты процессора на время игры, " +
+                  "звук и голосовые программы исключены. После игры режим возвращается. Эффект небольшой, честно: без измерения на вашем ПК не обещаем.", names)
                 : CloseListNotRunning.Count > 0
-                    ? "Приложения из списка сейчас не запущены — режим эффективности никому не назначается."
-                    : "Режим эффективности никому не назначается (список приложений пуст).";
+                    ? Loc.T("Приложения из списка сейчас не запущены — режим эффективности никому не назначается.")
+                    : Loc.T("Режим эффективности никому не назначается (список приложений пуст).");
         if (AppsToClose.Count > 0)
-            return "Закрыть приложения: " + names +
-                   ". Сначала им отправляется обычная команда «закрыть окно»; принудительное завершение — только после отдельного вопроса. Сами они после игры не откроются.";
+            return Loc.Tf("Закрыть приложения: {0}. Сначала им отправляется обычная команда «закрыть окно»; принудительное завершение — только после отдельного вопроса. Сами они после игры не откроются.", names);
         return CloseListNotRunning.Count > 0
-            ? "Приложения из списка закрытия сейчас не запущены — ничего не закрывается."
-            : "Приложения не закрываются (список закрытия пуст).";
+            ? Loc.T("Приложения из списка закрытия сейчас не запущены — ничего не закрывается.")
+            : Loc.T("Приложения не закрываются (список закрытия пуст).");
     }
 
     /// <summary>The exact list shown in the confirmation dialog.</summary>
@@ -214,14 +213,14 @@ public sealed record BoostPlan(
 
         if (game is not null)
             lines.Add(RaisePriority
-                ? "Приоритет процесса игры: «Высокий» (никогда «Реального времени»), как только игра запустится. Сбрасывается вместе с игрой."
-                : "Приоритет игры не меняется (выключено).");
+                ? Loc.T("Приоритет процесса игры: «Высокий» (никогда «Реального времени»), как только игра запустится. Сбрасывается вместе с игрой.")
+                : Loc.T("Приоритет игры не меняется (выключено)."));
         if (PurgeStandby)
-            lines.Add("Однократная очистка списка ожидания (standby) памяти. Обычно эффекта на FPS нет; первые загрузки могут стать дольше.");
+            lines.Add(Loc.T("Однократная очистка списка ожидания (standby) памяти. Обычно эффекта на FPS нет; первые загрузки могут стать дольше."));
         if (game is not null)
-            lines.Add($"Запустить «{game.Name}» и следить за процессом игры: после выхода из игры всё вернётся автоматически.");
+            lines.Add(Loc.Tf("Запустить «{0}» и следить за процессом игры: после выхода из игры всё вернётся автоматически.", game.Name));
         else
-            lines.Add("Сеанс без привязки к игре: изменения действуют до нажатия «СТОП».");
+            lines.Add(Loc.T("Сеанс без привязки к игре: изменения действуют до нажатия «СТОП»."));
         return lines;
     }
 }

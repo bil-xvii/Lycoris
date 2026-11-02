@@ -106,7 +106,7 @@ public static class GogSource
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn($"GOG: пропущена запись {id} — {ex.Message}");
+                    Log.Warn("GOG: пропущена запись {0} — {1}", id, ex.Message);
                 }
             }
         }

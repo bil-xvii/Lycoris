@@ -105,7 +105,7 @@ public static class EpicSource
             }
             catch (Exception ex)
             {
-                Log.Warn($"Epic Games: пропущен {Path.GetFileName(file)} — {ex.Message}");
+                Log.Warn("Epic Games: пропущен {0} — {1}", Path.GetFileName(file), ex.Message);
             }
         }
         return new SourceResult(GamePlatform.Epic, true, games);

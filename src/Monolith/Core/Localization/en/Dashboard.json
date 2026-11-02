@@ -1,6 +1,6 @@
 {
   "area": "Dashboard",
-  "translated": false,
+  "translated": true,
   "sources": [
     "Modules/Dashboard/**"
   ],
