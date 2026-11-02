@@ -25,13 +25,14 @@ public sealed partial class DashboardViewModel : PageViewModel
     public override string Key => "dashboard";
     public override string Index => "01";
     public override string Title => "ПАНЕЛЬ";
-    public override string Subtitle => "Состояние системы в реальном времени, оценка и рекомендации.";
+    public override string Subtitle => "Что нажать, чтобы ПК был готов к игре.";
     public override string Glyph => Glyphs.Home;
 
     public DashboardViewModel()
     {
         _monitor.Sampled += sample => Ui.Post(() => Apply(sample));
         if (Application.Current is { } app) app.Exit += (_, _) => _monitor.Dispose();
+        Tiles = BuildTiles();
     }
 
     // ───────────────────────────── Live tiles ─────────────────────────────
@@ -69,10 +70,12 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     // ───────────────────────────── Health ─────────────────────────────
 
+    /// <summary>Every check of the last run, worst first.</summary>
+    private readonly List<CheckItemViewModel> _all = [];
     /// <summary>Warnings and recommendations: full rows with explanation and action.</summary>
-    public ObservableCollection<CheckItemViewModel> Issues { get; } = [];
-    /// <summary>Checks that passed: compact grid.</summary>
-    public ObservableCollection<CheckItemViewModel> Passed { get; } = [];
+    public IEnumerable<CheckItemViewModel> Issues => _all.Where(i => !i.IsOk);
+    /// <summary>The list under the score: the checks of the chosen chip (ВНИМАНИЕ · СОВЕТЫ · В НОРМЕ).</summary>
+    public ObservableCollection<CheckItemViewModel> Visible { get; } = [];
 
     [ObservableProperty] private int _score;
     [ObservableProperty] private string _scoreText = DashFormat.Missing;
@@ -96,6 +99,7 @@ public sealed partial class DashboardViewModel : PageViewModel
     protected override async Task LoadAsync()
     {
         StartMonitor();
+        AttachHost();
         await RefreshAsync(showBusy: true);
     }
 
@@ -186,10 +190,9 @@ public sealed partial class DashboardViewModel : PageViewModel
         var results = await Task.Run(() => HealthRules.Evaluate(snapshot));
         var profile = SystemProfile.Current;
 
-        Issues.Clear();
-        Passed.Clear();
+        _all.Clear();
         foreach (var r in HealthScore.Ordered(results))
-            (r.Severity == CheckSeverity.Ok ? Passed : Issues).Add(new CheckItemViewModel(r, RunActionAsync));
+            _all.Add(new CheckItemViewModel(r, RunActionAsync, ActionLabel));
 
         WarningCount = results.Count(r => r.Severity == CheckSeverity.Warning);
         InfoCount = results.Count(r => r.Severity == CheckSeverity.Info);
@@ -203,10 +206,17 @@ public sealed partial class DashboardViewModel : PageViewModel
         PassedText = $"{OkCount} ИЗ {results.Count}";
         LastCheckText = $"Проверено в {snapshot.Now:HH:mm}";
         HasResults = results.Count > 0;
-        HasIssues = Issues.Count > 0;
+        HasIssues = Issues.Any();
         _lastCheck = DateTime.Now;
+        MarkChecked();
+        BadgeText = LaunchpadLogic.Badge(WarningCount, InfoCount);
+        SafeFixCount = _all.Count(IsSafeFix);
+        if (!_filterChosen) Filter = LaunchpadLogic.DefaultFilter(WarningCount, InfoCount);
+        RebuildVisible();
+        UpdateGpuInstalled(profile);
 
         BuildSystemRows(profile, snapshot);
+        UpdateSystemSummary();
         CpuCoresText = $"{DashFormat.Count(profile.CpuCores, "ядро", "ядра", "ядер")} · {DashFormat.Count(profile.CpuThreads, "поток", "потока", "потоков")}";
         GpuName = profile.PrimaryGpu?.Name ?? "";
 
@@ -284,125 +294,4 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     private static string Fallback(string? s) => string.IsNullOrWhiteSpace(s) ? DashFormat.Missing : s.Trim();
 
-    // ───────────────────────────── Check actions ─────────────────────────────
-
-    private Task RunActionAsync(CheckItemViewModel item) => RunActionAsync(item.Result.Action);
-
-    /// <summary>The second button of a check (e.g. the hibernation item behind a low-space warning). Same handling as the first.</summary>
-    [RelayCommand]
-    private Task RunSecondaryActionAsync(CheckItemViewModel? item) => RunActionAsync(item?.Result.SecondaryAction);
-
-    private async Task RunActionAsync(CheckAction? action)
-    {
-        if (action is null) return;
-        if (action.RequiresAdmin && IsBusy)
-        {
-            Ui.Toast("Дождитесь окончания текущей операции.", ToastKind.Info);
-            return;
-        }
-        switch (action.Kind)
-        {
-            case CheckActionKind.Navigate when action.Target is { } page:
-                _lastCheck = DateTime.MinValue; // the user may fix it there: re-check on return
-                Ui.Navigate(page);
-                break;
-            case CheckActionKind.OpenUri when action.Target is { } uri:
-                await OpenShellAsync(uri, null, "параметры Windows");
-                break;
-            case CheckActionKind.FocusTweak when action.Target is { } tweakId:
-                _lastCheck = DateTime.MinValue;
-                Ui.RequestFocus("optimize", tweakId);
-                Ui.Navigate("optimize");
-                break;
-            case CheckActionKind.ApplyTweak when action.Target is { } id:
-                await ApplyTweakAsync(id);
-                break;
-            case CheckActionKind.FocusDevice when action.Target is { } target:
-                _lastCheck = DateTime.MinValue; // the user may fix it there: re-check on return
-                Ui.RequestFocus("devices", target);
-                Ui.Navigate("devices");
-                break;
-        }
-    }
-
-    private static Task OpenShellAsync(string target, string? args, string what) => Task.Run(() =>
-    {
-        try
-        {
-            var psi = new ProcessStartInfo(target) { UseShellExecute = true };
-            if (args is not null) psi.Arguments = args;
-            Process.Start(psi);
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Не удалось открыть {what}", ex);
-            Ui.Toast($"Не удалось открыть {what}: {ex.Message}", ToastKind.Error);
-        }
-    });
-
-    private async Task ApplyTweakAsync(string id)
-    {
-        var tweak = TweakCatalog.Find(id);
-        if (tweak is null || tweak.Risk == TweakRisk.Advanced)
-        {
-            Ui.Toast("Эта настройка находится в разделе «Оптимизация».", ToastKind.Info);
-            Ui.Navigate("optimize");
-            return;
-        }
-        if (!RequireAdmin(tweak.Title)) return;
-
-        var profile = await SystemProfile.LoadAsync();
-        if (TweakEngine.Applicability(tweak, profile) is null)
-        {
-            Ui.Toast("Не удалось определить характеристики компьютера — настройку пока нельзя проверить. Попробуйте позже.", ToastKind.Warning, tweak.Title);
-            return;
-        }
-        if (TweakEngine.Applicability(tweak, profile) is not true)
-        {
-            // The check looks at the primary GPU, the catalog at every GPU: use the HAGS item that fits this PC.
-            var sibling = id switch
-            {
-                HealthRules.TweakHags => TweakCatalog.Find(HealthRules.TweakHagsOther),
-                HealthRules.TweakHagsOther => TweakCatalog.Find(HealthRules.TweakHags),
-                _ => null,
-            };
-            if (sibling is not null && sibling.Risk != TweakRisk.Advanced && TweakEngine.Applicability(sibling, profile) == true)
-                tweak = sibling;
-            else
-            {
-                // Never a dead button: explain and show the full list where the user can pick a fitting item.
-                Ui.Toast(tweak.NotApplicableReason ?? "Эта настройка не подходит для этого компьютера.", ToastKind.Warning, tweak.Title);
-                Ui.Navigate("optimize");
-                return;
-            }
-        }
-
-        var details = new List<string> { $"{tweak.Title}: {tweak.Description}" };
-        if (tweak.Restart != RestartRequirement.None) details.Add($"Вступит в силу {tweak.RestartWhen}");
-        details.Add(AppSettings.Current.CreateRestorePoints
-            ? "Перед изменением будет создана точка восстановления (если защита системы включена)"
-            : "Точка восстановления не создаётся — это выключено в разделе «Восстановление»");
-        details.Add("Исходное значение сохраняется в журнале — отменить можно в разделе «Восстановление»");
-
-        var confirmed = await Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",
-            $"MONOLITH применит настройку «{tweak.Title}» через журнал изменений. Будет сделано следующее:",
-            details, footnote: "Изменение обратимо.");
-        if (!confirmed) return;
-
-        TweakRunResult? result = null;
-        await RunBusyAsync($"Применение: {tweak.Title}…", async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
-        if (result is { } r)
-        {
-            if (r.Errors.Count > 0)
-                Ui.Toast(string.Join(Environment.NewLine, r.Errors), ToastKind.Error, "Не удалось применить");
-            else if (r.Applied > 0)
-                Ui.Toast(r.Restart == RestartRequirement.None
-                        ? "Готово. Отменить можно в разделе «Восстановление»."
-                        : $"Готово. Изменение вступит в силу {tweak.RestartWhen}.",
-                    ToastKind.Success, tweak.Title);
-            else
-                Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
-        }
-        await RefreshAsync(showBusy: false);
-    }
 }

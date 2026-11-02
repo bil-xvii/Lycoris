@@ -38,8 +38,11 @@
     <Color x:Key="C.Line3">#FF3D3D3D</Color>
     <Color x:Key="C.Text">#FFF2F2F2</Color>
     <Color x:Key="C.Text2">#FFA3A3A3</Color>
-    <Color x:Key="C.Text3">#FF6B6B6B</Color>
-    <Color x:Key="C.Text4">#FF474747</Color>
+    <!-- Text3 6.0:1 on Surface and 4.9:1 on Surface4 (labels, captions, unselected items); Text4 3.5:1 — disabled text ONLY, never for information -->
+    <Color x:Key="C.Text3">#FF939393</Color>
+    <Color x:Key="C.Text4">#FF6B6B6B</Color>
+    <!-- Outline 3:1 on Surface — the border of everything clickable (Btn, CheckBox, Toggle, Chip, inputs); Line3 stays decorative -->
+    <Color x:Key="C.Outline">#FF606060</Color>
     <Color x:Key="C.White">#FFFFFFFF</Color>
     <Color x:Key="C.Black">#FF000000</Color>
     <Color x:Key="C.Ink">#FF090909</Color>
@@ -57,6 +60,7 @@
     <SolidColorBrush x:Key="B.Text2" Color="{StaticResource C.Text2}" />
     <SolidColorBrush x:Key="B.Text3" Color="{StaticResource C.Text3}" />
     <SolidColorBrush x:Key="B.Text4" Color="{StaticResource C.Text4}" />
+    <SolidColorBrush x:Key="B.Outline" Color="{StaticResource C.Outline}" />
     <SolidColorBrush x:Key="B.White" Color="{StaticResource C.White}" />
     <SolidColorBrush x:Key="B.Black" Color="{StaticResource C.Black}" />
     <SolidColorBrush x:Key="B.Ink" Color="{StaticResource C.Ink}" />
@@ -68,6 +72,13 @@
     <SolidColorBrush x:Key="B.AccentHover" Color="#FFD9D9D9" />
     <SolidColorBrush x:Key="B.AccentPressed" Color="#FFB8B8B8" />
     <SolidColorBrush x:Key="B.OnAccent" Color="{StaticResource C.Ink}" />
+
+    <!-- Row hover: Surface3 fill with a 2 px white bar on the left edge (absolute gradient: the bar never scales) -->
+    <LinearGradientBrush x:Key="B.RowHover" MappingMode="Absolute" StartPoint="0,0" EndPoint="2,0" SpreadMethod="Pad">
+        <GradientStop Color="{StaticResource C.White}" Offset="0" />
+        <GradientStop Color="{StaticResource C.White}" Offset="0.999" />
+        <GradientStop Color="{StaticResource C.Surface3}" Offset="1" />
+    </LinearGradientBrush>
 
     <!-- Diagonal hatching: warnings, "expert" items, decorative bands -->
     <DrawingBrush x:Key="B.Hatch" TileMode="Tile" Viewport="0,0,7,7" ViewportUnits="Absolute" Stretch="None">

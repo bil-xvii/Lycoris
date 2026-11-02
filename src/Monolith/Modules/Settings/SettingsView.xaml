@@ -33,7 +33,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
+        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}" />
 
         <ScrollViewer x:Name="MainScroll" Grid.Row="1" Margin="0,16,-10,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       Focusable="False">
@@ -48,7 +48,21 @@
                     <TextBlock Text="Поведение" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
                         <StackPanel>
-                            <Border Style="{StaticResource SettingRow}" BorderThickness="0">
+                            <Border x:Name="Row_elevate" Style="{StaticResource SettingRow}" BorderThickness="0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,17,0">
+                                        <TextBlock Text="Запускать сразу с правами администратора" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="Включено: запрос UAC при каждом запуске, и все кнопки работают сразу. Выключено: MONOLITH открывается без UAC в режиме просмотра, а права запросит при первом изменении и продолжит действие сам. Действует со следующего запуска." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ElevateAtStartup}" />
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Row_confirm" Style="{StaticResource SettingRow}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -62,21 +76,7 @@
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ConfirmBeforeApply}" />
                                 </Grid>
                             </Border>
-                            <Border Style="{StaticResource SettingRow}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0,0,17,0">
-                                        <TextBlock Text="Запрашивать права администратора при запуске" Style="{StaticResource RowTitle}" />
-                                        <TextBlock Style="{StaticResource RowText}"
-                                                   Text="Выключено: MONOLITH открывается сразу, без окна UAC, а права спрашивает только когда вы что-то меняете. Включено: запрос UAC при каждом запуске. Действует со следующего запуска." />
-                                    </StackPanel>
-                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ElevateAtStartup}" />
-                                </Grid>
-                            </Border>
-                            <Border Style="{StaticResource SettingRow}">
+                            <Border x:Name="Row_monitor_interval" Style="{StaticResource SettingRow}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -117,7 +117,7 @@
                         <TextBlock Style="{StaticResource SectionCaption}" Text="Всё хранится на этом компьютере, ничего не отправляется в сеть." />
                     </StackPanel>
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
-                        <StackPanel>
+                        <StackPanel x:Name="Row_data">
                             <ItemsControl ItemsSource="{Binding DataPaths}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:DataPathItem}">
@@ -130,7 +130,7 @@
                                                 <StackPanel Margin="0,0,15,0">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding State}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                                                        <TextBlock Text="{Binding State}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}"
                                                                    VerticalAlignment="Center" Margin="9,1,0,0" />
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding Path}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text}"
@@ -151,7 +151,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <!-- Reset -->
-                            <Grid>
+                            <Grid x:Name="Row_reset">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="6" />
                                     <ColumnDefinition Width="*" />
@@ -173,7 +173,7 @@
                 <Rectangle Style="{StaticResource Divider}" Margin="0,19" />
 
                 <!-- ═══════════════ ABOUT ═══════════════ -->
-                <Grid Margin="0,0,0,9">
+                <Grid x:Name="Row_about" Margin="0,0,0,9">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="250" />
                         <ColumnDefinition Width="*" />
@@ -222,13 +222,13 @@
                                                     <StackPanel Margin="12,9">
                                                         <TextBlock Text="{Binding Tweak.Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" />
                                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" LineHeight="17">
-                                                            <Run Text="Что делают другие · " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Tweak.WhatOthersDo, Mode=OneWay}" />
+                                                            <Run Text="Что делают другие · " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Tweak.WhatOthersDo, Mode=OneWay}" />
                                                         </TextBlock>
                                                         <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0" LineHeight="17">
-                                                            <Run Text="Почему нет · " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Tweak.WhyNot, Mode=OneWay}" />
+                                                            <Run Text="Почему нет · " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Tweak.WhyNot, Mode=OneWay}" />
                                                         </TextBlock>
                                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17">
-                                                            <Run Text="Вместо этого · " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Tweak.Alternative, Mode=OneWay}" />
+                                                            <Run Text="Вместо этого · " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Tweak.Alternative, Mode=OneWay}" />
                                                         </TextBlock>
                                                     </StackPanel>
                                                 </Grid>
@@ -245,7 +245,7 @@
                         </Expander>
 
                         <!-- Licenses (collapsed) -->
-                        <Expander Margin="0,10,0,0">
+                        <Expander x:Name="Row_licenses" Margin="0,10,0,0">
                             <Expander.Header>
                                 <TextBlock Text="КОМПОНЕНТЫ И ЛИЦЕНЗИИ" Style="{StaticResource T.Label}" />
                             </Expander.Header>
@@ -264,7 +264,7 @@
                                                     <StackPanel Margin="0,0,10,0">
                                                         <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" />
                                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,2,0,0">
-                                                            <Run Text="{Binding Use, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding Copyright, Mode=OneWay}" />
+                                                            <Run Text="{Binding Use, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Copyright, Mode=OneWay}" />
                                                         </TextBlock>
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="1" Text="{Binding Version}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}"

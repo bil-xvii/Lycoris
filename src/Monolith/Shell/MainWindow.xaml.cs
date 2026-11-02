@@ -31,6 +31,11 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(CommandPaletteViewModel.Selected)) ScrollPaletteSelectionIntoView();
         };
         PreviewKeyDown += OnPreviewKeyDown;
+        // The visible «ПОИСК» button in the title bar opens the same palette as Ctrl+K.
+        vm.SearchRequested += () =>
+        {
+            if (_vm.Dialog is null && !_palette.IsOpen) OpenPalette();
+        };
 
         StateChanged += (_, _) => ApplyWindowState();
         SourceInitialized += (_, _) => ApplyDwmStyle();
@@ -163,6 +168,15 @@ public partial class MainWindow : Window
             _palette.OpenSelected();
             e.Handled = true;
         }
+    }
+
+    /// <summary>«ОТКАТ · N ▾»: a left click opens the dropdown under the button (a context menu placed at the bottom).</summary>
+    private void Undo_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { ContextMenu: { } menu } button) return;
+        menu.PlacementTarget = button;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

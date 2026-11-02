@@ -8,71 +8,6 @@
              xmlns:local="clr-namespace:Monolith.Modules.Cleaner"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:CleanerViewModel}">
     <UserControl.Resources>
-        <!-- Risk tier: БЕЗОПАСНО (outline) · ПО ЖЕЛАНИЮ (muted) · ЭКСПЕРТ (hatched) -->
-        <Style x:Key="TierChip" TargetType="Border" BasedOn="{StaticResource Tag}">
-            <Setter Property="Margin" Value="0,2,6,2" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Tier}" Value="Optional">
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Line2}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Tier}" Value="Expert">
-                    <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- НУЖНЫ ПРАВА АДМИНИСТРАТОРА: muted with rights, hatched when it blocks the row -->
-        <Style x:Key="AdminChip" TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
-            <Setter Property="Margin" Value="0,2,6,2" />
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding RequiresAdmin}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
-                <MultiDataTrigger>
-                    <MultiDataTrigger.Conditions>
-                        <Condition Binding="{Binding RequiresAdmin}" Value="True" />
-                        <Condition Binding="{Binding IsSelectable}" Value="False" />
-                    </MultiDataTrigger.Conditions>
-                    <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
-                </MultiDataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="WarnChip" TargetType="Border" BasedOn="{StaticResource Tag.Hatch}">
-            <Setter Property="Margin" Value="0,2,6,2" />
-        </Style>
-
-        <Style x:Key="MutedChip" TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
-            <Setter Property="Margin" Value="0,2,6,2" />
-        </Style>
-
-        <!-- Status chip on the right of a row -->
-        <Style x:Key="StatusChip" TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
-            <Setter Property="HorizontalAlignment" Value="Right" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding StatusTone}" Value="Normal">
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding StatusTone}" Value="Done">
-                    <Setter Property="Background" Value="{StaticResource B.White}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding StatusTone}" Value="Warning">
-                    <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
         <!-- Size readout: bright when the row is selected -->
         <Style x:Key="RowSize" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
@@ -113,7 +48,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="200" />
+                            <ColumnDefinition Width="210" />
                         </Grid.ColumnDefinitions>
 
                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Top"
@@ -123,16 +58,20 @@
                             <WrapPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontSize="15.5"
                                            FontStretch="SemiCondensed" VerticalAlignment="Center" Margin="0,0,9,0" />
-                                <Border Style="{StaticResource TierChip}">
+                                <!-- Risk: БЕЗОПАСНО · ПО ЖЕЛАНИЮ · ЭКСПЕРТ (the theme's Tag styles) -->
+                                <Border Style="{StaticResource Tag}" Margin="0,2,6,2" Visibility="{Binding IsSafeTier, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding TierText}" />
                                 </Border>
-                                <Border Style="{StaticResource AdminChip}">
-                                    <TextBlock Text="НУЖНЫ ПРАВА АДМИНИСТРАТОРА" />
+                                <Border Style="{StaticResource Tag.Muted}" Margin="0,2,6,2" Visibility="{Binding IsOptionalTier, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding TierText}" />
                                 </Border>
-                                <Border Style="{StaticResource WarnChip}" Visibility="{Binding IsAppRunning, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,6,2" Visibility="{Binding IsExpertTier, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding TierText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,6,2" Visibility="{Binding IsAppRunning, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding CloseAppTag}" />
                                 </Border>
-                                <Border Style="{StaticResource MutedChip}" Visibility="{Binding IsLong, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource Tag.Muted}" Margin="0,2,6,2" Visibility="{Binding IsLong, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="ДОЛГО" />
                                 </Border>
                             </WrapPanel>
@@ -151,11 +90,33 @@
 
                         <StackPanel Grid.Column="2" HorizontalAlignment="Right" Margin="15,0,0,0">
                             <TextBlock Text="{Binding SizeText}" Style="{StaticResource RowSize}" />
-                            <TextBlock Text="{Binding CountText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
+                            <TextBlock Text="{Binding CountText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                                        HorizontalAlignment="Right" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
-                            <Border Style="{StaticResource StatusChip}" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding StatusText}" />
-                            </Border>
+                            <!-- One status tag: muted · plain · filled (done) · hatched (needs attention) -->
+                            <Grid Margin="0,10,0,0" HorizontalAlignment="Right">
+                                <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding ToneIsMuted, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding StatusText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag}" Visibility="{Binding ToneIsNormal, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding StatusText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag.Solid}" Visibility="{Binding ToneIsDone, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding StatusText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag.Hatch}" Visibility="{Binding ToneIsWarning, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding StatusText}" />
+                                </Border>
+                            </Grid>
+                            <!-- Read-only mode: the row says why it is grey and offers the way out right here -->
+                            <Button Style="{StaticResource Btn}" Margin="0,8,0,0" HorizontalAlignment="Right"
+                                    Command="{Binding DataContext.GetRightsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    Visibility="{Binding NeedsRights, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="MONOLITH перезапустится с правами администратора и продолжит очистку — перед удалением снова покажет список.">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Admin}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="ПОЛУЧИТЬ ПРАВА" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -174,40 +135,42 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+        <!-- Header: проверено · ОБНОВИТЬ (= a new read-only analysis) · [ОТМЕНА] · РЕКОМЕНДУЕМЫЙ НАБОР · ONE main button -->
+        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}"
+                      RefreshCommand="{Binding RefreshCommand}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource Btn.Ghost}" Height="30" Margin="0,0,8,0" Command="{Binding CancelCommand}"
+                    <Button Style="{StaticResource Btn.Danger}" Margin="0,0,8,0" Command="{Binding CancelCommand}"
                             Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="ОТМЕНА" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Btn.Ghost}" Height="30" Margin="0,0,8,0" Content="ПО УМОЛЧАНИЮ" Command="{Binding ResetSelectionCommand}"
-                            ToolTip="Вернуть рекомендуемый набор пунктов" />
-                    <Button Height="30" Padding="12,0" Margin="0,0,10,0" Command="{Binding AnalyzeCommand}"
-                            ToolTip="Посчитать, сколько места занимает мусор. Ничего не удаляется.">
+                    <Button Margin="0,0,0,0" Command="{Binding ResetSelectionCommand}"
+                            ToolTip="Вернуть рекомендуемый набор пунктов">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
-                            <TextBlock Text="АНАЛИЗ" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource Btn.Primary}" Height="30" Padding="15,0" Command="{Binding CleanCommand}"
-                            ToolTip="Удалить отмеченное — после подтверждения со списком">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
-                            <TextBlock Text="ОЧИСТИТЬ" VerticalAlignment="Center" />
+                            <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="РЕКОМЕНДУЕМЫЙ НАБОР" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
             </c:PageHeader.Actions>
+            <c:PageHeader.Primary>
+                <Button Style="{StaticResource Btn.Primary}" Command="{Binding CleanCommand}"
+                        ToolTip="Удалить отмеченное — после подтверждения со списком. Если анализ устарел, он выполнится заново.">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
+                        <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </c:PageHeader.Primary>
         </c:PageHeader>
 
         <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="0,0,10,10">
 
-                <!-- ═══════════════ Summary + status: one rounded strip (RoundClip keeps the white block inside its corners) ═══════════════ -->
+                <!-- ═══════════════ Summary + status: one rounded strip ═══════════════ -->
                 <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                     <StackPanel>
                         <Grid>
@@ -226,14 +189,15 @@
                                     <TextBlock Text="{Binding FoundCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Background="{StaticResource B.White}" TextElement.Foreground="{StaticResource B.Ink}" Padding="16,14,14,12">
+                            <!-- Emphasis without white fill (white = clickable only): a raised plate with a white edge -->
+                            <Border Grid.Column="1" Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.White}" BorderThickness="0,2,0,0" Padding="16,12,14,12">
                                 <StackPanel>
-                                    <TextBlock Text="К ОЧИСТКЕ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Ink}" />
+                                    <TextBlock Text="К ОЧИСТКЕ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                     <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                        <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" Foreground="{StaticResource B.Ink}" />
-                                        <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" Foreground="{StaticResource B.Ink}" />
+                                        <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" />
+                                        <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
                                     </StackPanel>
-                                    <TextBlock Text="{Binding SelectedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" Foreground="{StaticResource B.Text3}"
+                                    <TextBlock Text="{Binding SelectedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0"
                                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                 </StackPanel>
                             </Border>
@@ -248,7 +212,7 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
-        
+
                         <!-- Status strip -->
                         <Border Padding="16,10,15,10">
                             <Grid>
@@ -289,7 +253,7 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ═══════════════ Free space: one card per fixed drive (the only drive list of the maintenance page) ═══════════════ -->
+                <!-- ═══════════════ Free space: one card per fixed drive ═══════════════ -->
                 <ItemsControl ItemsSource="{Binding Drives}" Focusable="False" Margin="0,10,-10,0">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -369,7 +333,7 @@
                                 <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                                     <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource ItemRow}" Focusable="False" Margin="0,0,0,-1" />
                                 </Border>
-                                <TextBlock Text="{Binding MissingText}" Style="{StaticResource T.Mono}" FontSize="10.5" Foreground="{StaticResource B.Text3}"
+                                <TextBlock Text="{Binding MissingText}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}"
                                            Margin="0,10,0,0" TextWrapping="Wrap"
                                            Visibility="{Binding MissingText, Converter={StaticResource NullToVis}}" />
                             </StackPanel>
@@ -377,7 +341,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- ═══════════════ Bottom: what is never deleted (collapsed) ═══════════════ -->
+                <!-- ═══════════════ Bottom: what is never deleted (secondary text only) ═══════════════ -->
                 <Expander Margin="0,22,0,0">
                     <Expander.Header>
                         <TextBlock Text="ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ" Style="{StaticResource T.Label}" />
@@ -395,7 +359,7 @@
                                         <ColumnDefinition Width="22" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                                    <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text2}"
                                                VerticalAlignment="Top" Margin="0,3,0,0" />
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" LineHeight="17" />

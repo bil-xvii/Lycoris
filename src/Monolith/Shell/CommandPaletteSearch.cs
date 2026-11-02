@@ -5,7 +5,7 @@ namespace Monolith.Shell;
 
 /// <summary>What a command-palette result points to.</summary>
 /// <remarks><see cref="Myth"/> = a rejected tweak («НЕ ДЕЛАЕМ»): opens its explanation in Settings → О программе.</remarks>
-public enum PaletteKind { Page, Tweak, Tool, Service, Myth }
+public enum PaletteKind { Page, Tweak, Tool, Service, Myth, App, Clean, Startup, Setting }
 
 /// <summary>
 /// One searchable entry of the command palette. Opening it only navigates (and may ask the page to focus an item):
@@ -36,6 +36,10 @@ public sealed class PaletteEntry
         PaletteKind.Tweak => "НАСТРОЙКА",
         PaletteKind.Tool => "ИНСТРУМЕНТ",
         PaletteKind.Myth => "НЕ ДЕЛАЕМ",
+        PaletteKind.App => "ПРОГРАММА",
+        PaletteKind.Clean => "ОЧИСТКА",
+        PaletteKind.Startup => "АВТОЗАПУСК",
+        PaletteKind.Setting => "ПАРАМЕТР",
         _ => "СЛУЖБА",
     };
 

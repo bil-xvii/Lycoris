@@ -42,6 +42,10 @@ public sealed partial class StartupViewModel : PageViewModel
     [ObservableProperty] private int _disabledCount;
     [ObservableProperty] private int _missingCount;
     [ObservableProperty] private int _visibleCount;
+    /// <summary>Enabled entries Windows measured as slowing boot (the sidebar badge and the «ЗАМЕДЛЯЕТ ЗАГРУЗКУ» chip).</summary>
+    [ObservableProperty] private int _slowCount;
+    /// <summary>The N of «ОТКЛЮЧИТЬ ЛИШНЕЕ · N»: slowing boot or pointing to a missing file, and allowed to switch off.</summary>
+    [ObservableProperty] private int _extraCount;
     [ObservableProperty] private int _taskCount;
     [ObservableProperty] private int _selectedCount;
     [ObservableProperty] private bool _allSelected;
@@ -144,7 +148,7 @@ public sealed partial class StartupViewModel : PageViewModel
             Items.Clear();
             foreach (var e in entries)
             {
-                var item = new StartupItem(e) { IsSelected = Elevation.IsElevated && selected.Contains(e.Key) };
+                var item = new StartupItem(e) { IsSelected = selected.Contains(e.Key) };
                 item.PropertyChanged += OnItemPropertyChanged;
                 Items.Add(item);
             }
@@ -160,7 +164,8 @@ public sealed partial class StartupViewModel : PageViewModel
         UpdateJournalState();
         RefreshView();
         Recount();
-        ScanText = $"Проверено в {DateTime.Now:HH:mm} · реестр, папки автозагрузки, приложения MSIX, планировщик";
+        ScanText = "Источники: реестр, папки автозагрузки, приложения MSIX, планировщик.";
+        MarkChecked();
         IsLoaded = true;
         Log.Info($"Автозапуск: записей {TotalCount} (включено {EnabledCount}), задач при входе {TaskCount}.");
     }
@@ -196,7 +201,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (item is null) return;
         try
         {
-            if (!EnsureIdle() || !RequireAdmin("изменение автозапуска")) return;
+            if (!EnsureIdle() || !RequireAdmin("изменение автозапуска", "ToggleStartup", ToggleParameter(item.IsEnabled, item.Key))) return;
             var enable = !item.IsEnabled;
             if (!item.CanChange)
             {
@@ -223,7 +228,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (item is null) return;
         try
         {
-            if (!EnsureIdle() || !RequireAdmin("изменение задач при входе")) return;
+            if (!EnsureIdle() || !RequireAdmin("изменение задач при входе", "ToggleLogonTask", ToggleParameter(item.IsEnabled, item.Path))) return;
             var enable = !item.IsEnabled;
             if (!enable && !item.CanDisable)
             {
@@ -239,10 +244,89 @@ public sealed partial class StartupViewModel : PageViewModel
         }
     }
 
+    /// <summary>The admin-intent replay of a single switch: «ToggleStartup» + the entry key.</summary>
     [RelayCommand]
-    private async Task DisableSelectedAsync()
+    private Task ToggleKeyAsync(string? parameter)
     {
-        if (!EnsureIdle() || !RequireAdmin("отключение автозапуска")) return;
+        var (wantEnabled, key) = ParseToggleParameter(parameter);
+        if (Items.FirstOrDefault(i => string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase)) is not { } item) return Task.CompletedTask;
+        if (wantEnabled is { } want && item.IsEnabled == want) return AlreadyThere(item.DisplayName, want);
+        return ToggleAsync(item);
+    }
+
+    /// <summary>The intent remembers the state the user asked for («on:»/«off:» + key), not a bare toggle: a replay never flips an entry back.</summary>
+    internal static string ToggleParameter(bool currentlyEnabled, string key) => (currentlyEnabled ? "off:" : "on:") + key;
+
+    internal static (bool? WantEnabled, string Key) ParseToggleParameter(string? parameter)
+    {
+        if (parameter is null) return (null, "");
+        if (parameter.StartsWith("on:", StringComparison.Ordinal)) return (true, parameter[3..]);
+        if (parameter.StartsWith("off:", StringComparison.Ordinal)) return (false, parameter[4..]);
+        return (null, parameter);
+    }
+
+    private static Task AlreadyThere(string name, bool enabled)
+    {
+        Ui.Toast($"«{name}» уже {(enabled ? "включён" : "отключён")} — менять нечего.", ToastKind.Info);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>The admin-intent replay of a logon-task switch: «ToggleLogonTask» + the task path.</summary>
+    [RelayCommand]
+    private Task ToggleTaskKeyAsync(string? parameter)
+    {
+        var (wantEnabled, path) = ParseToggleParameter(parameter);
+        if (Tasks.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is not { } item) return Task.CompletedTask;
+        if (wantEnabled is { } want && item.IsEnabled == want) return AlreadyThere(item.DisplayName, want);
+        return ToggleTaskAsync(item);
+    }
+
+    /// <summary>Re-checks exactly the entries of a replayed intent (the checked rows before the relaunch).</summary>
+    private void SelectOnly(string? packedKeys)
+    {
+        var keys = IntentList.Unpack(packedKeys);
+        if (keys.Count == 0) return;
+        var set = keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _syncingSelection = true;
+        try
+        {
+            foreach (var i in Items) i.IsSelected = set.Contains(i.Key);
+        }
+        finally
+        {
+            _syncingSelection = false;
+        }
+        UpdateSelection();
+    }
+
+    private string? SelectedKeys() => IntentList.Pack(Items.Where(i => i.IsSelected).Select(i => i.Key));
+
+    /// <summary>
+    /// The page's one main button: switches off what is only extra — entries Windows measured as slowing boot and entries
+    /// whose file is gone. Nothing outside that list is touched; the confirmation lists every entry.
+    /// </summary>
+    [RelayCommand]
+    private async Task DisableExtraAsync()
+    {
+        if (!EnsureIdle() || !RequireAdmin("отключение лишнего автозапуска", "DisableExtraStartup")) return;
+        var targets = Items.Where(IsExtra).ToList();
+        if (targets.Count == 0)
+        {
+            Ui.Toast("Лишнего в автозапуске не найдено: нет записей, которые замедляют загрузку или указывают на удалённые файлы.", ToastKind.Info);
+            return;
+        }
+        if (!await ConfirmEntriesAsync(targets, enable: false)) return;
+        await ApplyEntriesAsync(targets, enable: false, createRestorePoint: targets.Count > 1);
+    }
+
+    /// <summary>Extra = enabled, allowed to switch off, and either slows boot (Windows measured it) or points to a missing file.</summary>
+    internal static bool IsExtra(StartupItem i) => i.IsEnabled && i.CanDisable && i.CanChange && (i.ShowBootDelay || !i.TargetExists);
+
+    [RelayCommand]
+    private async Task DisableSelectedAsync(string? keys)
+    {
+        if (!EnsureIdle() || !RequireAdmin("отключение автозапуска", "DisableSelectedStartup", SelectedKeys())) return;
+        SelectOnly(keys);
         var chosen = Items.Where(i => i.IsSelected).ToList();
         var locked = chosen.Where(i => i.IsEnabled && (!i.CanDisable || !i.CanChange)).ToList();
         var targets = chosen.Where(i => i.IsEnabled && i.CanDisable && i.CanChange).ToList();
@@ -258,9 +342,10 @@ public sealed partial class StartupViewModel : PageViewModel
     }
 
     [RelayCommand]
-    private async Task EnableSelectedAsync()
+    private async Task EnableSelectedAsync(string? keys)
     {
-        if (!EnsureIdle() || !RequireAdmin("включение автозапуска")) return;
+        if (!EnsureIdle() || !RequireAdmin("включение автозапуска", "EnableSelectedStartup", SelectedKeys())) return;
+        SelectOnly(keys);
         var targets = Items.Where(i => i.IsSelected && !i.IsEnabled && i.CanChange).ToList();
         if (targets.Count == 0)
         {
@@ -570,6 +655,9 @@ public sealed partial class StartupViewModel : PageViewModel
         EnabledCount = Items.Count(i => i.IsEnabled);
         DisabledCount = TotalCount - EnabledCount;
         MissingCount = Items.Count(i => !i.TargetExists);
+        SlowCount = Items.Count(i => i.ShowBootDelay);
+        ExtraCount = Items.Count(IsExtra);
+        BadgeText = SlowCount > 0 ? SlowCount.ToString() : null;
         TaskCount = Tasks.Count;
         UpdateSelection();
     }
@@ -588,6 +676,7 @@ public sealed partial class StartupViewModel : PageViewModel
             "enabled" => i.IsEnabled,
             "disabled" => !i.IsEnabled,
             "missing" => !i.TargetExists,
+            "slow" => i.ShowBootDelay,
             _ => true,
         };
         if (!passFilter) return false;

@@ -11,6 +11,37 @@ namespace Monolith.Modules.Devices;
 
 public partial class DevicesView : UserControl
 {
+    /// <summary>Visible when the row can be applied (not read-only) but its value was not changed: the reason ПРИМЕНИТЬ is grey.</summary>
+    public static System.Windows.Data.IMultiValueConverter NotDirtyEditableToVisibility { get; } =
+        new BoolsConverter(v => v is [false, false] ? Visibility.Visible : Visibility.Collapsed);
+
+    /// <summary>Visible when a row has a link and no measurement of its own (a measurement row has the «ЗАМЕРИТЬ» button instead).</summary>
+    public static System.Windows.Data.IMultiValueConverter LinkWithoutToolToVisibility { get; } =
+        new BoolsConverter(v => v is [{ } link, false] ? Visibility.Visible : Visibility.Collapsed, allowObjects: true);
+
+    /// <summary>
+    /// The panel under a plan row for its measurement (options, progress, result): visible only when there is something to
+    /// show — the tool is running, has a result, or has options to choose first. Values: has tool, running, result, has options.
+    /// </summary>
+    public static System.Windows.Data.IMultiValueConverter ToolPanelToVisibility { get; } =
+        new BoolsConverter(v => v is [true, var running, var result, var options] && (running is true || result is not null || options is true)
+            ? Visibility.Visible : Visibility.Collapsed, allowObjects: true);
+
+    private sealed class BoolsConverter(Func<object?[], Visibility> pick, bool allowObjects = false) : System.Windows.Data.IMultiValueConverter
+    {
+        public object Convert(object?[] values, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
+        {
+            // An unset binding (DependencyProperty.UnsetValue) counts as null / false.
+            var normalized = values.Select(v => v == DependencyProperty.UnsetValue ? null : v).ToArray();
+            if (!allowObjects) normalized = normalized.Select(v => (object?)(v is true)).ToArray();
+            else normalized = normalized.Select(v => v is bool b ? b : v).ToArray();
+            return pick(normalized);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, System.Globalization.CultureInfo culture) =>
+            targetTypes.Select(_ => System.Windows.Data.Binding.DoNothing).ToArray();
+    }
+
     private DevicesViewModel? _vm;
 
     public DevicesView()

@@ -82,21 +82,21 @@ public sealed partial class GamesViewModel : PageViewModel
     [ObservableProperty] private string _staleText = "";
     [ObservableProperty] private string _staleActionText = "ВЕРНУТЬ НАСТРОЙКИ";
 
-    public bool CanStartBoost => IsElevated && !Boost.IsActive && !Boost.IsTransitioning;
-    public bool CanLaunchBoosted => IsElevated && !Boost.IsActive && !Boost.IsTransitioning;
-    public string BoostTooltip => !IsElevated
-        ? "Игровой сеанс меняет схему питания — нужны права администратора."
-        : Boost.IsActive
-            ? "Игровой сеанс уже идёт — сначала остановите его."
-            : "Запустить игру и на время игры начать игровой сеанс.";
-    public string StartTooltip => !IsElevated
-        ? "Игровой сеанс меняет схему питания — нужны права администратора."
-        : "На время игры: схема питания, приоритет игры и закрытие лишних программ. Схема питания и приоритет возвращаются сами; " +
-          "закрытые программы MONOLITH заново не открывает.";
+    // Without admin rights the buttons stay enabled: a click asks for them (RequireAdmin) and repeats itself after the relaunch.
+    public bool CanStartBoost => !Boost.IsActive && !Boost.IsTransitioning;
+    public bool CanLaunchBoosted => !Boost.IsActive && !Boost.IsTransitioning;
+    /// <summary>Why «СТАРТ» will ask for something first (text next to the button, never only a tooltip); empty when nothing is needed.</summary>
+    public string StartNote => Boost.IsActive ? ""
+        : !IsElevated ? "Игровой сеанс меняет схему питания, поэтому нужны права администратора: СТАРТ предложит перезапуск с правами и продолжит сам."
+        : "";
+    public bool HasStartNote => StartNote.Length > 0;
+    /// <summary>Why the «С УСКОРЕНИЕМ» buttons are grey while a session is running.</summary>
+    public string BoostActiveNote => Boost.IsActive ? "Игровой сеанс уже идёт — «С УСКОРЕНИЕМ» снова заработает после остановки." : "";
+    public bool HasBoostActiveNote => Boost.IsActive;
     public bool IsBoostIdle => !Boost.IsActive;
     public string BoostStatus => Boost.IsTransitioning && !Boost.IsActive ? "ЗАПУСК"
         : Boost.IsActive ? (string.IsNullOrEmpty(Boost.PhaseText) ? "АКТИВЕН" : Boost.PhaseText)
-        : IsElevated ? "ВЫКЛЮЧЕН" : "НЕДОСТУПЕН";
+        : "ВЫКЛЮЧЕН";
 
     // ───────────────────────────── Readiness state ─────────────────────────────
 
@@ -113,7 +113,7 @@ public sealed partial class GamesViewModel : PageViewModel
     private string? _dgpuName;
     private IReadOnlyDictionary<string, string> _gpuValues = new Dictionary<string, string>();
 
-    public bool CanChangeGpu => IsElevated && GpuWritable && !IsGpuChanging;
+    public bool CanChangeGpu => GpuWritable && !IsGpuChanging;
     partial void OnGpuWritableChanged(bool value) => OnPropertyChanged(nameof(CanChangeGpu));
     partial void OnIsGpuChangingChanged(bool value) => OnPropertyChanged(nameof(CanChangeGpu));
 
@@ -137,6 +137,7 @@ public sealed partial class GamesViewModel : PageViewModel
 
         CheckStale();
         await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync());
+        MarkChecked();
         await OfferStaleRestoreAsync();
     }
 
@@ -149,6 +150,7 @@ public sealed partial class GamesViewModel : PageViewModel
         var rescan = DateTime.Now - _lastScan > TimeSpan.FromMinutes(3) ? ScanAsync() : Task.CompletedTask;
         // The GPU choice may have been changed in Windows Settings or undone in «Восстановление» meanwhile.
         await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), rescan);
+        MarkChecked();
     }
 
     public override void Deactivate()
@@ -185,6 +187,7 @@ public sealed partial class GamesViewModel : PageViewModel
     {
         _all = scan.Games.Select(g => new GameCardViewModel(g)).ToList();
         TotalCount = _all.Count;
+        BadgeText = TotalCount > 0 ? TotalCount.ToString() : null; // the sidebar badge = games in the library
 
         Sources.Clear();
         foreach (var s in scan.Sources.Where(s => s.Platform != GamePlatform.Custom)) Sources.Add(s);
@@ -244,6 +247,7 @@ public sealed partial class GamesViewModel : PageViewModel
     private async Task Refresh()
     {
         await Task.WhenAll(ScanAsync(), RefreshReadinessAsync(), RefreshPowerNoteAsync());
+        MarkChecked();
     }
 
     [RelayCommand]
@@ -380,11 +384,17 @@ public sealed partial class GamesViewModel : PageViewModel
         }
     }
 
+    /// <summary>Replay target of the GPU switch after a relaunch with admin rights (parameter = the game's id).</summary>
+    [RelayCommand]
+    private Task ToggleGpuGame(string? id) => CardById(id) is { } card ? ToggleGpu(card) : Task.CompletedTask;
+
+    private GameCardViewModel? CardById(string? id) => id is null ? null : _all.FirstOrDefault(c => c.Entry.Id == id);
+
     [RelayCommand]
     private async Task ToggleGpu(GameCardViewModel? card)
     {
         if (card is null) return;
-        if (IsGpuChanging || !RequireAdmin("Высокопроизводительный GPU для игры"))
+        if (IsGpuChanging || !RequireAdmin("Высокопроизводительный GPU для игры", "ToggleGpuGame", card.Entry.Id))
         {
             card.SyncGpuToggle();
             return;
@@ -562,6 +572,11 @@ public sealed partial class GamesViewModel : PageViewModel
     [RelayCommand]
     private Task PlayBoosted(GameCardViewModel? card) => card is null ? Task.CompletedTask : StartBoostFlowAsync(card.Entry);
 
+    /// <summary>Replay target of «С УСКОРЕНИЕМ» after a relaunch with admin rights (parameter = the game's id).</summary>
+    [RelayCommand]
+    private Task PlayBoostedGame(string? id) => CardById(id) is { } card ? StartBoostFlowAsync(card.Entry) : Task.CompletedTask;
+
+    /// <summary>Starts a game session without a game (the Dashboard tile «ИГРОВОЙ СЕАНС · СТАРТ» calls this after <c>EnsureLoadedAsync</c>).</summary>
     [RelayCommand]
     private Task StartBoost() => StartBoostFlowAsync(null);
 
@@ -574,7 +589,7 @@ public sealed partial class GamesViewModel : PageViewModel
 
     private async Task StartBoostFlowAsync(GameEntry? game)
     {
-        if (!RequireAdmin("Игровой сеанс")) return;
+        if (!(game is null ? RequireAdmin("Игровой сеанс", "StartBoost") : RequireAdmin("Игровой сеанс", "PlayBoostedGame", game.Id))) return;
         if (Boost.IsActive || Boost.IsTransitioning)
         {
             Ui.Toast("Игровой сеанс уже идёт. Сначала остановите его кнопкой «СТОП».", ToastKind.Warning, "ИГРОВОЙ СЕАНС");
@@ -629,7 +644,10 @@ public sealed partial class GamesViewModel : PageViewModel
         OnPropertyChanged(nameof(CanLaunchBoosted));
         OnPropertyChanged(nameof(IsBoostIdle));
         OnPropertyChanged(nameof(BoostStatus));
-        OnPropertyChanged(nameof(BoostTooltip));
+        OnPropertyChanged(nameof(StartNote));
+        OnPropertyChanged(nameof(HasStartNote));
+        OnPropertyChanged(nameof(BoostActiveNote));
+        OnPropertyChanged(nameof(HasBoostActiveNote));
     }
 
     private void StartTicker()
@@ -726,7 +744,7 @@ public sealed partial class GamesViewModel : PageViewModel
     [RelayCommand]
     private async Task RestoreStale()
     {
-        if (!RequireAdmin("Вернуть настройки игрового сеанса")) return;
+        if (!RequireAdmin("Вернуть настройки игрового сеанса", "RestoreStale")) return;
         await RunBusyAsync("Откат игрового сеанса…", async () =>
         {
             var r = await Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(GameBoostService.Source));

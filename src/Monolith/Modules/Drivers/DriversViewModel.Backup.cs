@@ -76,7 +76,7 @@ public sealed partial class DriversViewModel
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task ExportBackupAsync()
     {
-        if (!RequireAdmin("резервное копирование драйверов")) return;
+        if (!RequireAdmin("резервное копирование драйверов", "ExportBackup")) return;
         var (free, _) = SystemProfile.SystemDriveSpace();
         var details = new List<string>
         {
@@ -152,11 +152,21 @@ public sealed partial class DriversViewModel
 
     // ───────────────────────────── Restore ─────────────────────────────
 
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private async Task RestoreBackupAsync(BackupItem? item)
+    /// <summary>The backup a command parameter names: the row itself (a click) or its folder name as text (the admin-intent replay).</summary>
+    private BackupItem? BackupFor(object? target) => target switch
     {
-        if (item is null) return;
-        if (!RequireAdmin("восстановление драйверов")) return;
+        BackupItem item => item,
+        string name when name.Length > 0 => Backups.FirstOrDefault(b => string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase)),
+        _ => null,
+    };
+
+    private bool CanModifyWith(object? target) => CanModify();
+
+    [RelayCommand(CanExecute = nameof(CanModifyWith))]
+    private async Task RestoreBackupAsync(object? target)
+    {
+        if (BackupFor(target) is not { } item) return;
+        if (!RequireAdmin("восстановление драйверов", "RestoreBackup", item.Name)) return;
 
         // Check the backup against its manifest before anything else (no restore point for a refused backup).
         var plan = await Task.Run(() => DriverBackupService.PlanRestore(item.Path));
@@ -223,11 +233,11 @@ public sealed partial class DriversViewModel
 
     // ───────────────────────────── Delete / open ─────────────────────────────
 
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private async Task DeleteBackupAsync(BackupItem? item)
+    [RelayCommand(CanExecute = nameof(CanModifyWith))]
+    private async Task DeleteBackupAsync(object? target)
     {
-        if (item is null) return;
-        if (!RequireAdmin("удаление резервной копии")) return;
+        if (BackupFor(target) is not { } item) return;
+        if (!RequireAdmin("удаление резервной копии", "DeleteBackup", item.Name)) return;
         var confirmed = await Ui.ConfirmAsync(
             "УДАЛИТЬ РЕЗЕРВНУЮ КОПИЮ?",
             "Папка копии будет удалена безвозвратно (не в корзину). Установленные драйверы это не затрагивает.",

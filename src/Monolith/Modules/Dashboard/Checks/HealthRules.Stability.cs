@@ -266,9 +266,9 @@ public static partial class HealthRules
         if (causes.Contains(CrashCause.Processor) || causes.Contains(CrashCause.Memory)) detail += " MONOLITH настройки BIOS не меняет.";
 
         var action = causes.Contains(CrashCause.Memory)
-            ? new CheckAction(CheckActionKind.Navigate, "ПРОВЕРКА ПАМЯТИ", "tools")
+            ? new CheckAction(CheckActionKind.Navigate, "ПРОВЕРИТЬ ПАМЯТЬ", "tools")
             : causes.Contains(CrashCause.Gpu) || causes.Contains(CrashCause.Driver)
-                ? new CheckAction(CheckActionKind.Navigate, "К ДРАЙВЕРАМ", "drivers")
+                ? new CheckAction(CheckActionKind.Navigate, "ПРОВЕРИТЬ ДРАЙВЕРЫ", "drivers", "tab:updates")
                 : null;
         var days = DashFormat.Count(a.Days, "ДЕНЬ", "ДНЯ", "ДНЕЙ");
         return warning

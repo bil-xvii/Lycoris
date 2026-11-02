@@ -30,7 +30,8 @@ not from riskier changes.
 5. Destructive or irreversible actions (deleting files, uninstalling, driver installs) always show a confirmation
    dialog (`Ui.ConfirmAsync`) listing exactly what will happen.
 6. Without admin rights the app runs read-only: check `Elevation.IsElevated` / `PageViewModel.RequireAdmin` (it offers
-   the relaunch with admin rights; the action never runs unelevated).
+   the relaunch with admin rights and, given a command name, replays that command once in the elevated copy through its
+   usual confirmation; the action never runs unelevated).
 7. `%ProgramData%\MONOLITH` is locked to Administrators/SYSTEM (`AppPaths.SecureMachineDir`); a non-elevated
    process never writes there. The journal is treated as untrusted input: undo commands are limited to System32
    tools and autostart/hijack registry locations are refused (`ChangeJournal.IsForbiddenRestoreTarget`).
@@ -65,8 +66,8 @@ src/Monolith/
   Tweaks/                Tweak model (RegistryTweak, ServiceTweak, ScheduledTaskTweak, CustomTweak),
                          TweakEngine (apply/revert via journal), TweakCatalog (+ partial files with items)
   Shell/                 MainWindow (custom chrome, sidebar, console, toasts, dialogs), MainViewModel, PageViewModel
-  UI/                    Ui facade (ConfirmAsync, AlertAsync, Toast, Navigate, Post), Glyphs, Converters,
-                         Controls/ (PageHeader, Meter, Sparkline, ArcGauge)
+  UI/                    Ui facade (ConfirmAsync, ConfirmOptionAsync, AlertAsync, Toast, Navigate, RequestFocus, Post),
+                         Glyphs, Converters, Controls/ (PageHeader, StickyBar, Meter, Sparkline, ArcGauge)
   Theme/                 Colors.xaml, Typography.xaml, Controls.xaml, Converters.xaml
   Modules/<Name>/        one folder per page: <Name>View.xaml(.cs) + <Name>ViewModel.cs + module services
 tests/Monolith.Tests/    xUnit
@@ -81,28 +82,83 @@ Modules/Cleaner + Modules/Tools), drivers, devices («УСТРОЙСТВА И С
 Modules/Devices with Input, Displays, Audio, Network, Vendors — each package adds its provider/writer through the partial
 hooks `DeviceProviders.<Name>.cs` / `DeviceWriters.<Name>.cs`), apps, restore; settings opens from the gear in the sidebar footer.
 Navigation: `Ui.Navigate("optimize")`. Aliases: "startup" → services tab, "cleaner"/"tools" → maintenance tab.
-Deep links: `Ui.RequestFocus(pageKey, id)` (optimize: tweak id; services: "tab:…" or service name; devices: "tab:auto|manual",
-"kind:monitor", a card key, a setting id, a journal target such as "spi:mouse-speed", "tool:<id>"; drivers: "tab:…",
-"periph:<VID>"). Ctrl+K = command palette.
+Deep links: `Ui.RequestFocus(pageKey, id)` (optimize: tweak id; services: "tab:…", a service name or "startup:<entry key>";
+devices: "tab:auto|manual", "kind:monitor", a card key, a setting id, a journal target such as "spi:mouse-speed",
+"tool:<id>"; drivers: "tab:<DriversTab>", "periph:<VID>"; apps: "app:<winget id>"; cleaner: "clean:<item id>"; settings:
+"myth:<id>", "setting:<row>"; restore: "section:last-batch|journal|restore-points|drift" — prefixes in
+`CommandPaletteIndex`). Ctrl+K or the title-bar «ПОИСК» = command palette.
+`Shell/`: also `AdminIntent` (replay of an action after the relaunch with admin rights), `CommandPaletteIndex`.
 
-## Minimal UI (owner rule)
+## Obvious UI (owner rule, 01.11.2026)
 
-The UI is minimal but functional: every function lives in exactly ONE place; no duplicates across pages.
-- Bulk undo and restore points (incl. the auto-point toggle) → Restore only; per-row ОТКАТИТЬ stays on its row.
-- Game-boost options → Games; gaming readiness checks → Dashboard; Windows settings as tweaks → Optimize only
-  (Dashboard fix buttons are shortcuts into the same tweaks); DiagTrack → Optimize; vendor driver tools → Drivers;
-  hardware facts → Dashboard; services expert mode → ВСЕ СЛУЖБЫ toolbar.
-- Device settings, measurements and network tuning (mouse, keyboard, monitors incl. the refresh rate, sound, network
-  adapter, ping/DPI/polling/mic tests) → Devices only. Windows settings there that are Optimize tweaks
-  (mouse-acceleration-off, vrr-optimization, auto-hdr, audio-ducking, wifi-power-saving-off, tcp-autotuning-normal,
-  delivery-optimization-local, dns-*, ipv6-prefer-ipv4…) are applied by the АВТОНАСТРОЙКА plan through TweakEngine with the
-  tweak's own journal source (like Dashboard fix buttons) and are read-only rows «В ОПТИМИЗАЦИИ» in ВРУЧНУЮ — never a
-  second toggle. Vendor apps (G HUB, Synapse, INZONE Hub) are opened from Devices and installed from Drivers → ПЕРИФЕРИЯ;
-  Drivers → МОНИТОРЫ shows drivers only (the refresh verdict lives on the monitor cards; the Dashboard check is a shortcut).
-- Read-only mode: one global strip under the title bar — no per-page read-only callouts.
-- No explanatory hero blocks, numbered section captions or "how it works" panels on pages; one muted line or a
-  tooltip instead. The full safety explanation lives once in Settings → О ПРОГРАММЕ.
-Before adding UI, check whether the function already exists elsewhere and extend that place instead.
+Owner: «Всё слишком разбросано… Чтобы было понятно, куда нажимать. Чтобы я видел ярлыки, а не чтобы они скрывались
+где-то в фоне.» The old «Minimal UI» rule (one place, no duplicates, tooltips instead of text) produced hidden actions and
+is replaced by this one. The audit with evidence: `docs/ux/ux-audit.md`; the approved layout: `docs/ux/option-a.html`.
+
+1. **Logic lives in ONE place, shortcuts live wherever the user needs them.** The change itself is one command on one
+   page (bulk undo → Restore, tweaks → Optimize, game-boost options → Games, device settings → Devices, services expert
+   mode → ВСЕ СЛУЖБЫ…). Shortcuts to it (Dashboard tiles, the title-bar «ОТКАТ · N», toasts, «ОТКРЫТЬ В …» buttons) call
+   that same command with the same confirmation — never a second implementation, never a second toggle.
+2. **Every action is a visible, labelled button**: icon + text, ≥ 30 px, outlined with `B.Outline` (`Btn`), or the ONE
+   white main button of the page (`Btn.Primary` / `Btn.Hero`). Never icon-only (`Btn.Icon` is for the window caption and
+   nothing else), never hover-only, never only in a ContextMenu, Ctrl+K or a tooltip. `Btn.Ghost` only next to a labelled
+   main button; `Btn.Link` = an outlined jump to another page («ОТКРЫТЬ В ОПТИМИЗАЦИИ →»); `Btn.Danger` is hatched at rest.
+3. **White fill = clickable, and only that.** Tags are status, never white and never an outlined capsule (`Tag`,
+   `Tag.Solid`, `Tag.Muted`, `Tag.Hatch` — filled R.Xs blocks). One state vocabulary everywhere: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО ·
+   ИЗМЕНЕНО MONOLITH (+ ОТКАТИТЬ) · НЕПРИМЕНИМО; risk БЕЗОПАСНО / ПО ЖЕЛАНИЮ / ЭКСПЕРТ. No local tag styles in modules.
+4. **Contrast and sizes.** Text ≥ 4.5:1 (`B.Text`, `B.Text2`, `B.Text3` #8A8A8A for captions), `B.Text4` #6B6B6B only
+   for disabled; outlines ≥ 3:1 (`B.Outline` #606060 for Btn / CheckBox / Toggle / Chip / TextBox borders, `Line*` only
+   decorative). `T.Label` and `T.Caption` 12 px, tags 11, mono 11.5–12; no FontSize 9–10.5 anywhere; glyphs in buttons 12–13.
+5. **The reason for anything grey is text next to it** (`T.Caption`), never only a tooltip. A tooltip may repeat, never
+   replace. Read-only mode: buttons are NOT disabled — a click calls `RequireAdmin(action, command, parameter)`, MONOLITH
+   relaunches with rights, reopens the page and replays that command once (see «Admin intent replay» below). The one
+   global read-only strip under the title bar is the only read-only explanation; no per-page callouts.
+6. **Expanders hide only secondary text** — never an action and never «что изменится / риск / как откатить». The
+   Expander header is an outlined «ПОКАЗАТЬ N ▾» / «ПОДРОБНЕЕ ▾» button; «сейчас X → станет Y» is always visible.
+7. **Tabs and filters look different.** Page tabs = a framed segmented control (`SegmentBar` + `Segment`, or TabControl;
+   selected = white block). Filters = `Chip` / `Chip.Toggle` in one row with the search box. Counters = the one `TabBadge`
+   style (`TabBadge.Alert` for attention), no Opacity, no «…».
+8. **One page anatomy** (`c:PageHeader` → tabs → optional summary strip → list panel → list → `c:StickyBar`):
+   header = title, subtitle, «проверено HH:MM» (`Checked`), the one word «ОБНОВИТЬ» (`RefreshCommand`), secondary
+   `Actions`, ONE `Primary` button; the list is the page's only ScrollViewer; the sticky bar sits OUTSIDE the scroll in
+   the last grid row with «ВЫБРАНО N · ПРИМЕНИТЬ · N». Navigation between pages is `Ui.Navigate` + `Ui.RequestFocus` to
+   the exact row, never «see page X».
+9. **Search is visible**: the title-bar «ПОИСК Ctrl+K» button opens the command palette; the index
+   (`Shell/CommandPaletteIndex`) covers pages, tweaks, tools, services, device settings, rejected tweaks, the Apps catalog,
+   cleanup items, autostart entries (live scan), Settings rows, Drivers tabs and Restore sections. The palette only opens.
+10. **Sidebar** groups ОБЗОР · УСКОРЕНИЕ · ОБСЛУЖИВАНИЕ · ЗАЩИТА (`MainViewModel.NavGroupOf`) with a badge from
+    `PageViewModel.BadgeText` — set from values the page already has (last analysis, journal count); never start work
+    only for a badge.
+11. **Compact stays** (cards 14 px, rows 12/8, buttons 30 px, title 24 px) — but never by hiding actions.
+Before adding UI: the logic goes to its one page; the shortcut goes where the user looks for it.
+
+### Shared shell pieces (use them, do not re-implement)
+
+- `c:PageHeader` (`UI/Controls/PageHeader`): `Title`, `Subtitle`, `Checked` («проверено 15:40» — bind
+  `PageViewModel.CheckedText`, set with `MarkChecked()`), `RefreshCommand` (+ `RefreshText`, default «ОБНОВИТЬ»),
+  `Actions` (secondary buttons), `Primary` (the ONE `Btn.Primary`). Embedded in a host page it shows only the right side.
+- `c:StickyBar` (`UI/Controls/StickyBar`): `Count`, `CountLabel` («ВЫБРАНО»), `Detail` («БУДЕТ ИЗМЕНЕНО 2»), `Text` (one
+  muted line), `Actions` (last one = `Btn.Hero`). Place it in the last grid row, outside the page's ScrollViewer.
+- Theme: `Btn*`, `SegmentBar` + `Segment`, `Chip` (RadioButton) / `Chip.Toggle` (ToggleButton), `TabBadge(.Alert)`,
+  `Row` (hover = Surface3 + left bar), Expander (outlined header), `Tag*` (status only).
+- `PageViewModel`: `BadgeText`, `CheckedAt`/`CheckedText`/`MarkChecked()`, `EnsureLoadedAsync()` (await the first load),
+  `IsLoaded`, `RequireAdmin(action)` and `RequireAdmin(action, command, parameter)`.
+- Shell: `MainViewModel.OpenSearchCommand` (palette), `RevertLastBatchCommand` / `OpenRestoreCenterCommand` (the title-bar
+  «ОТКАТ · N ▾» menu; `LastBatchTitle` from the journal), toasts with labelled «ОТКРЫТЬ» / «ЗАКРЫТЬ», the status bar
+  «ЖУРНАЛ ДЕЙСТВИЙ · N» button (the console), `DialogViewModel.OptionText/OptionChecked` (`Ui.ConfirmOptionAsync`).
+
+### Admin intent replay (read-only mode)
+
+`PageViewModel.RequireAdmin(action, command, parameter)` builds a `Shell/AdminIntent` {page key, command name without
+the «Command» suffix, text parameter}. The relaunch carries it as `--replay-page … --replay-command … [--replay-param …]`
+(`Elevation.RelaunchArguments` strips this run's `--page/--tab/--replay-*` first). The elevated copy (App → `PendingIntent`)
+runs `MainViewModel.ReplayIntentAsync` after the startup checks: opens the page, awaits `EnsureLoadedAsync`, finds the
+public ICommand property «{Command}Command» on the page (else on the shell) and executes it once with the parameter — so
+the command's own checks and confirmation run as if the user had clicked. Nothing else is remembered or applied; a
+command that cannot run gives a toast «повторите действие». The «Нужны права» dialog has the checkbox
+«Всегда запускать MONOLITH с правами администратора» (`AppSettings.ElevateAtStartup`). Tests: `AdminIntentTests`.
+Pages: pass a command name for every action that needs rights (`RequireAdmin("Применение оптимизаций", "Apply")`,
+`RequireAdmin("Откат пакета", "RevertBatch", batch.Id.ToString())` with a text-parameter-taking command).
 
 ## Conventions
 
@@ -134,18 +190,22 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   `F.Mono` (Cascadia Mono / Consolas — numbers, ids, logs), `F.Icons` (Segoe Fluent Icons; codes in `UI/Glyphs.cs`).
 - Text styles: `T.Display`, `T.H1`, `T.H2`, `T.H3`, `T.Label` (small caps-like labels), `T.Body`, `T.BodyStrong`,
   `T.Caption`, `T.Mono`, `T.Stat` + `T.StatUnit` (big numbers), `T.Icon`.
-- Buttons: default outline `Btn`, `Btn.Primary` (white block), `Btn.Hero` (big primary), `Btn.Ghost`,
-  `Btn.Danger` (hatched on hover), `Btn.Icon` (content = glyph), `Btn.Link`.
-- Inputs: CheckBox (R.Xs box), `Toggle` (CheckBox style, R.Md rounded-rect switch with R.Xs knob), `Segment` (RadioButton
-  tabs with underline), `Tile` (RadioButton card), TextBox (`Tag` = placeholder), ComboBox, Slider, ProgressBar (thin),
-  TabControl/TabItem (underline), Expander.
-- Surfaces: `Card`, `Card.Flush`, `Card.Hover`, `Card.Inverted`, `Callout`, `Row` (list row with hover + bottom
-  hairline), `Divider`, `DividerV`, tags `Tag`, `Tag.Solid`, `Tag.Hatch` (risk/expert), `Tag.Muted`.
+- Buttons (all outlined `B.Outline`, 30 px, icon + text): default `Btn`, `Btn.Primary` (white block — the ONE main
+  action), `Btn.Hero` (big primary, sticky bar), `Btn.Ghost` (outlined, muted text; secondary only), `Btn.Danger` (hatched
+  at rest), `Btn.Link` (outlined jump to another page), `Btn.Icon` (glyph only — window caption ONLY), `Btn.Caption`.
+- Inputs: CheckBox (R.Xs box, Outline border), `Toggle` (CheckBox style, R.Md rounded-rect switch with R.Xs knob),
+  `SegmentBar` + `Segment` (framed segmented tabs, selected = white block), `Chip` / `Chip.Toggle` (filters next to the
+  search box), `TabBadge` / `TabBadge.Alert` (counters), `Tile` (RadioButton card), TextBox (`Tag` = placeholder),
+  ComboBox, Slider, ProgressBar (thin), TabControl/TabItem (segmented), Expander (outlined «ПОКАЗАТЬ ▾» header).
+- Surfaces: `Card`, `Card.Flush`, `Card.Hover`, `Card.Inverted`, `Callout`, `Row` (list row with Surface3 hover + white
+  left bar + bottom hairline), `Divider`, `DividerV`, tags `Tag`, `Tag.Solid` (Surface4, never white), `Tag.Hatch`
+  (risk/expert), `Tag.Muted` — status only, never an action.
 - Lists: `List.Plain` (ListBox without selection chrome).
 - Converters: `BoolToVis`, `InverseBoolToVis`, `NullToVis` (param "invert"), `InverseBool`, `Bytes`, `Equals`,
   `EqualsToVis`, `Upper`, `Sentence` (all-caps → sentence case, keeps acronyms/brands), `Percent`.
-- Controls (`xmlns:c="clr-namespace:Monolith.UI.Controls"`): `c:PageHeader` (Index/Title/Subtitle/Actions),
-  `c:Meter` (segmented bar 0–100), `c:Sparkline` (Values = ObservableCollection<double>), `c:ArcGauge` (0–100).
+- Controls (`xmlns:c="clr-namespace:Monolith.UI.Controls"`): `c:PageHeader` (Title/Subtitle/Checked/RefreshCommand/
+  Actions/Primary), `c:StickyBar` (Count/CountLabel/Detail/Text/Actions), `c:Meter` (segmented bar 0–100), `c:Sparkline`
+  (Values = ObservableCollection<double>), `c:ArcGauge` (0–100).
 - Clearly rounded corners, still strict (owner, 27.10: «вообще не округлен… сделай ещё более круглым, не такой
   заостренный, но строгим, агрессивным и профессиональным»). Only the shape tokens from Theme/Colors.xaml, via
   `{StaticResource R.*}` — never a literal radius, never change the values:
@@ -169,8 +229,9 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   rows 12/8, 8–16 px gaps, buttons/inputs 30 px high, page title 24 px. The main list of a page must get most of the
   screen — no big hero blocks above it.
   Risk shown as tags: БЕЗОПАСНО (`Tag`), ПО ЖЕЛАНИЮ (`Tag.Muted`), ЭКСПЕРТ (`Tag.Hatch`).
-- Page root: `Grid` with `c:PageHeader` on top (bind Title/Subtitle; Index is no longer shown), content below with
-  its own `ScrollViewer` when needed. The shell already adds 24/16 px margins.
+- Page root: `Grid` rows = `c:PageHeader` (Title/Subtitle/Checked/RefreshCommand/Primary; Index is no longer shown) →
+  tabs (`SegmentBar`) → summary strip → list panel (search + `Chip` filters) → the list, the page's ONLY `ScrollViewer`
+  (`*` row) → `c:StickyBar` (Auto row, outside the scroll). The shell already adds 24/16 px margins.
 
 ## Build, run, verify
 

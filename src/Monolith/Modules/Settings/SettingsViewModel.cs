@@ -67,6 +67,9 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// <summary>Id of the rejected-tweak row the view should scroll to (set after a focus request; one-shot, see SettingsView).</summary>
     [ObservableProperty] private string? _focusedRejectedId;
 
+    /// <summary>Row of «setting:&lt;row&gt;» the view scrolls to (elevate, confirm, monitor-interval, data, reset, about, licenses); one-shot.</summary>
+    [ObservableProperty] private string? _focusedSettingId;
+
     private readonly DispatcherTimer _highlightTimer = new() { Interval = TimeSpan.FromSeconds(2.5) };
     private RejectedRow? _highlighted;
 
@@ -111,6 +114,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     protected override Task LoadAsync()
     {
         ApplyFocus(Ui.TakeFocusRequest(Key));
+        MarkChecked();
         return RefreshPathsAsync();
     }
 
@@ -124,6 +128,12 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// <summary>Handles «myth:{id}»: expands the list, highlights the row for a moment and asks the view to scroll to it.</summary>
     private void ApplyFocus(string? focusId)
     {
+        if (focusId is not null && focusId.StartsWith(CommandPaletteIndex.SettingFocusPrefix, StringComparison.Ordinal))
+        {
+            FocusedSettingId = null; // re-raise even for the same row
+            FocusedSettingId = focusId[CommandPaletteIndex.SettingFocusPrefix.Length..];
+            return;
+        }
         if (focusId is null || !focusId.StartsWith(RejectedTweaks.FocusPrefix, StringComparison.Ordinal)) return;
         var id = focusId[RejectedTweaks.FocusPrefix.Length..];
         var row = Rejected.FirstOrDefault(r => r.Id == id);

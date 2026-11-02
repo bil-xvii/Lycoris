@@ -28,6 +28,13 @@ public sealed partial class PlanItem : ObservableObject
     public bool Selectable { get; init; }
     public string? DisabledReason { get; init; }
 
+    /// <summary>
+    /// A measurement row runs its tool right here («ЗАМЕРИТЬ»: progress and result under the row) instead of sending the user
+    /// to another tab. Null for rows that are not measurements or whose tool could not be found.
+    /// </summary>
+    public DeviceTool? MeasureTool { get; init; }
+    public bool HasMeasureTool => MeasureTool is not null;
+
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private bool _isHighlighted;
 
@@ -86,6 +93,14 @@ public static class DevicePlan
         s.PerUser || (s.TweakId is { } id && Monolith.Tweaks.TweakCatalog.Find(id) is Monolith.Tweaks.RegistryTweak t
                       && t.Values.Count > 0 && t.Values.All(v => v.Hive == Monolith.Core.RegHive.HKCU));
 
+    /// <summary>The tool a measurement row asks for: the setting's own tool, else the card's tool named by the row's link.</summary>
+    internal static DeviceTool? ToolOf(DeviceCard card, DeviceSetting setting, DeviceLink? link)
+    {
+        if (setting.Tool is { } own) return own;
+        if (link is not { Kind: DeviceLinkKind.Tool, FocusId: { Length: > 0 } id }) return null;
+        return card.Tools.Concat(card.Settings.Select(s => s.Tool).OfType<DeviceTool>()).FirstOrDefault(t => t.Id == id);
+    }
+
     private static IReadOnlyList<PlanItem> BuildCore(IEnumerable<DeviceCard> cards, bool interactiveUser, IReadOnlyDictionary<string, bool>? previousSelection)
     {
         var items = new List<PlanItem>();
@@ -125,6 +140,7 @@ public static class DevicePlan
                 {
                     Card = card, Setting = s, Kind = kind, Policy = rec.Policy, Link = rec.Link ?? s.Link, Selectable = selectable,
                     DisabledReason = disabled, Reason = rec.Reason,
+                    MeasureTool = kind == PlanItemKind.Measurement ? ToolOf(card, s, rec.Link ?? s.Link) : null,
                     From = s.Current is { } c ? s.FormatValue(c) : "—",
                     To = kind is PlanItemKind.Advice or PlanItemKind.Measurement ? "" : s.FormatValue(rec.Value),
                 };

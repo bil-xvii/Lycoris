@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
+using Monolith.Modules.Startup;
 using Monolith.UI;
 
 namespace Monolith.Modules.Services;
@@ -18,8 +19,8 @@ public sealed partial class ServicesViewModel
     [NotifyPropertyChangedFor(nameof(AllTaskCount))]
     private ObservableCollection<TaskItem> _taskItems = [];
 
-    /// <summary>Tab badge: Microsoft tasks + third-party logon tasks.</summary>
-    public int AllTaskCount => TaskItems.Count + Startup.TaskCount;
+    /// <summary>Tab badge: Microsoft data-collection tasks (third-party logon tasks are on the АВТОЗАПУСК tab).</summary>
+    public int AllTaskCount => TaskItems.Count;
     [ObservableProperty] private string _missingTasksText = "";
     [ObservableProperty] private int _taskEnabledCount;
     [ObservableProperty] private int _taskDisabledCount;
@@ -101,12 +102,26 @@ public sealed partial class ServicesViewModel
         SelectedTaskCount = TaskItems.Count(t => t.IsSelected && t.IsSelectable);
     }
 
-    private bool CanApplyTasks() => !IsBusy && CanModify && SelectedTaskCount > 0;
+    private bool CanApplyTasks(string? paths) => !IsBusy && CanModify && (paths is not null || SelectedTaskCount > 0);
 
     [RelayCommand(CanExecute = nameof(CanApplyTasks))]
-    private async Task ApplyTasksAsync()
+    private async Task ApplyTasksAsync(string? paths)
     {
-        if (!RequireAdmin("отключение задач планировщика")) return;
+        if (!RequireAdmin("отключение задач планировщика", "ApplyTasks", IntentList.Pack(TaskItems.Where(t => t.IsSelected && t.CanSelect).Select(t => t.Path)))) return;
+        if (IntentList.Unpack(paths) is { Count: > 0 } replayed)
+        {
+            var set = replayed.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            _bulkTaskSelect = true;
+            try
+            {
+                foreach (var t in TaskItems) t.IsSelected = set.Contains(t.Path) && t.IsSelectable;
+            }
+            finally
+            {
+                _bulkTaskSelect = false;
+            }
+            UpdateTaskStats();
+        }
         var selected = TaskItems.Where(t => t.IsSelected && t.CanSelect).ToList();
         if (selected.Count == 0) return;
 
@@ -162,7 +177,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanRowAction))]
     private async Task RevertTaskAsync(string? path)
     {
-        if (string.IsNullOrEmpty(path) || !RequireAdmin("откат изменения задачи")) return;
+        if (string.IsNullOrEmpty(path) || !RequireAdmin("откат изменения задачи", "RevertTask", path)) return;
         // The row means «back to how it was before MONOLITH»: every active change of this task, newest first.
         var layers = ChangeJournal.Instance.ActiveLayers("task:" + path);
         var record = layers.LastOrDefault();
