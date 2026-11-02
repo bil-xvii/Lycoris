@@ -25,8 +25,8 @@
     <sys:Double x:Key="R.Xl.D">16</sys:Double>
 
     <!--
-        Lycoris palette — strictly monochrome.
-        Hierarchy is made with luminance, weight, hatching and inversion, never with hue.
+        Lycoris palette — black and white plus ONE restrained red accent (C.Red* below).
+        Hierarchy is made with luminance, weight, hatching and inversion; hue is only that accent.
     -->
     <Color x:Key="C.Base">#FF090909</Color>
     <Color x:Key="C.Surface">#FF101010</Color>
@@ -48,6 +48,20 @@
     <Color x:Key="C.Ink">#FF090909</Color>
     <Color x:Key="C.Scrim">#D8000000</Color>
 
+    <!--
+        RED ACCENT (owner, 02.11): the palette stays black and white; red is a precise accent of the brand (spider lily), of
+        attention / risk, of dangerous actions and of live states — never body text, never large fills, never a theme recolour.
+        No other hue anywhere (tests/ThemeContrastTests enforces both the contrast and the "no other hue").
+        Red       borders, bars, dots, the logo mark, a small badge fill (white text on it >= 6:1)
+        RedHover  the hover edge of a danger outline
+        RedText   red TEXT and glyphs on dark: >= 4.5:1 on Base, Surface, Surface2, Surface3 and RedDeep
+        RedDeep   the tint behind a risk tag / warning strip (always together with a Red outline)
+    -->
+    <Color x:Key="C.Red">#FFB3121F</Color>
+    <Color x:Key="C.RedHover">#FFD11A29</Color>
+    <Color x:Key="C.RedText">#FFEA5B63</Color>
+    <Color x:Key="C.RedDeep">#FF45080E</Color>
+
     <SolidColorBrush x:Key="B.Base" Color="{StaticResource C.Base}" />
     <SolidColorBrush x:Key="B.Surface" Color="{StaticResource C.Surface}" />
     <SolidColorBrush x:Key="B.Surface2" Color="{StaticResource C.Surface2}" />
@@ -66,6 +80,10 @@
     <SolidColorBrush x:Key="B.Ink" Color="{StaticResource C.Ink}" />
     <SolidColorBrush x:Key="B.Scrim" Color="{StaticResource C.Scrim}" />
     <SolidColorBrush x:Key="B.Transparent" Color="Transparent" />
+    <SolidColorBrush x:Key="B.Red" Color="{StaticResource C.Red}" />
+    <SolidColorBrush x:Key="B.RedHover" Color="{StaticResource C.RedHover}" />
+    <SolidColorBrush x:Key="B.RedText" Color="{StaticResource C.RedText}" />
+    <SolidColorBrush x:Key="B.RedDeep" Color="{StaticResource C.RedDeep}" />
 
     <!-- Accent is pure white: primary actions are inverted blocks -->
     <SolidColorBrush x:Key="B.Accent" Color="{StaticResource C.White}" />

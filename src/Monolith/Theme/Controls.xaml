@@ -159,12 +159,13 @@
 
     <!-- Danger: outline, lightly hatched at rest (it IS destructive, not only on hover), full hatching on hover -->
     <Style x:Key="Btn.Danger" TargetType="Button" BasedOn="{StaticResource Btn}">
+        <Setter Property="Foreground" Value="{StaticResource B.RedText}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid>
-                        <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource B.Text2}" BorderThickness="1" CornerRadius="{StaticResource R.Md}" />
-                        <Border x:Name="Hatch" Background="{StaticResource B.Hatch}" Opacity="0.35" Margin="1" CornerRadius="{StaticResource R.Md}" />
+                        <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource B.Red}" BorderThickness="1" CornerRadius="{StaticResource R.Md}" />
+                        <Border x:Name="Hatch" Background="{StaticResource B.Hatch}" Opacity="0.2" Margin="1" CornerRadius="{StaticResource R.Md}" />
                         <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           TextElement.Foreground="{TemplateBinding Foreground}" />
@@ -172,10 +173,11 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Hatch" Property="Opacity" Value="1" />
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.RedHover}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.RedDeep}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface4}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.RedDeep}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
@@ -484,8 +486,17 @@
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
     </Style>
     <Style x:Key="TabBadge.Alert" TargetType="Border" BasedOn="{StaticResource TabBadge}">
-        <Setter Property="Background" Value="{StaticResource B.Text2}" />
-        <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
+        <Setter Property="Background" Value="{StaticResource B.Red}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource B.White}" />
+    </Style>
+
+    <!-- Red status dot (7 px, R.Xs): problem / live / active. Dot.Red = filled; use next to a text label, never alone. -->
+    <Style x:Key="Dot.Red" TargetType="Border">
+        <Setter Property="Width" Value="7" />
+        <Setter Property="Height" Value="7" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource B.Red}" />
+        <Setter Property="CornerRadius" Value="{StaticResource R.Xs}" />
     </Style>
 
     <!-- Radio as a selectable tile (profile cards). Content is any element. -->
@@ -731,7 +742,7 @@
     <!-- ══════════════════════════════ ProgressBar ══════════════════════════════ -->
     <Style TargetType="ProgressBar">
         <Setter Property="Height" Value="3" />
-        <Setter Property="Foreground" Value="{StaticResource B.White}" />
+        <Setter Property="Foreground" Value="{StaticResource B.Red}" />
         <Setter Property="Background" Value="{StaticResource B.Line2}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Template">
@@ -942,11 +953,19 @@
         <Setter Property="Background" Value="{StaticResource B.Surface4}" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
     </Style>
-    <Style x:Key="Tag.Hatch" TargetType="Border" BasedOn="{StaticResource Tag}">
-        <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-        <Setter Property="BorderBrush" Value="{StaticResource B.Outline}" />
+    <!-- Risk / expert / problem: a thin red outline on the RedDeep tint, red text (>= 4.5:1). Tag.Hatch is the old name of the same style. -->
+    <Style x:Key="Tag.Risk" TargetType="Border" BasedOn="{StaticResource Tag}">
+        <Setter Property="Background" Value="{StaticResource B.RedDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Red}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource B.RedText}" />
+    </Style>
+    <Style x:Key="Tag.Hatch" TargetType="Border" BasedOn="{StaticResource Tag.Risk}" />
+
+    <!-- Warning strip / callout about a real risk: RedDeep tint with a red outline (text inside stays B.Text) -->
+    <Style x:Key="Callout.Risk" TargetType="Border" BasedOn="{StaticResource Callout}">
+        <Setter Property="Background" Value="{StaticResource B.RedDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Red}" />
     </Style>
     <Style x:Key="Tag.Muted" TargetType="Border" BasedOn="{StaticResource Tag}">
         <Setter Property="Background" Value="{StaticResource B.Surface2}" />
@@ -980,7 +999,7 @@
                                 <!-- Inset R.Md plate; the selection marker is a short rounded bar on its left edge -->
                                 <Grid x:Name="Root" Background="Transparent" Height="34">
                                     <Border x:Name="Plate" Margin="10,1,8,1" Background="Transparent" CornerRadius="{StaticResource R.Md}">
-                                        <Rectangle x:Name="Bar" Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.White}"
+                                        <Rectangle x:Name="Bar" Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.Red}"
                                                    RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" Visibility="Hidden" />
                                     </Border>
                                     <ContentPresenter x:Name="Cp" Margin="20,0,16,0" VerticalAlignment="Center" TextElement.Foreground="{StaticResource B.Text2}" />

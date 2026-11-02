@@ -37,7 +37,7 @@
                                         <Setter Property="StrokeThickness" Value="1.5" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding IsFailed}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                        <Setter Property="Fill" Value="{StaticResource B.Red}" />
                                         <Setter Property="Stroke" Value="{StaticResource B.Text}" />
                                         <Setter Property="StrokeThickness" Value="1" />
                                     </DataTrigger>
@@ -257,7 +257,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Rectangle Fill="{StaticResource B.HatchStrong}" />
+                <Rectangle Fill="{StaticResource B.Red}" />
                 <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="11,9,10,9"
                            Text="{Binding DriftCount, StringFormat={loc:T 'ИЗМЕНЕНО ВНЕ LYCORIS · {0}'}}" />
                 <TextBlock Grid.Column="2" Text="{Binding DriftLine}" Style="{StaticResource T.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
@@ -387,7 +387,7 @@
                                 <Rectangle Width="14" Height="14" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Center" Margin="0,2,9,0">
                                     <Rectangle.Style>
                                         <Style TargetType="Rectangle">
-                                            <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                            <Setter Property="Fill" Value="{StaticResource B.Red}" />
                                             <Setter Property="Stroke" Value="{StaticResource B.Text2}" />
                                             <Setter Property="StrokeThickness" Value="1" />
                                             <Style.Triggers>

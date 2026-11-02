@@ -61,10 +61,10 @@
             <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Severity}" Value="Warning">
-                    <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Outline}" />
+                    <Setter Property="Background" Value="{StaticResource B.RedDeep}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Red}" />
                     <Setter Property="BorderThickness" Value="1" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.RedText}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Severity}" Value="Info">
                     <Setter Property="Background" Value="{StaticResource B.Surface4}" />
@@ -91,7 +91,7 @@
                       RefreshCommand="{Binding RefreshChecksCommand}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="7" Height="7" Background="{StaticResource B.Text2}" CornerRadius="{StaticResource R.Xs}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Dot.Red}" />
                     <TextBlock Text="LIVE" Style="{StaticResource T.Mono}" FontWeight="Bold" Foreground="{StaticResource B.Text2}" Margin="7,0,0,0" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding IntervalText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" Margin="7,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
@@ -125,7 +125,19 @@
                                  AutomationProperties.Name="{loc:T 'Показать проблемы'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{loc:T ВНИМАНИЕ}" VerticalAlignment="Center" />
-                            <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding WarningCount}" /></Border>
+                            <Border>
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource TabBadge.Alert}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WarningCount}" Value="0">
+                                                <Setter Property="Background" Value="{StaticResource B.Surface4}" />
+                                                <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding WarningCount}" />
+                            </Border>
                         </StackPanel>
                     </RadioButton>
                     <RadioButton Style="{StaticResource Chip}" GroupName="DashFilter" IsChecked="{Binding ShowInfos, Mode=TwoWay}"

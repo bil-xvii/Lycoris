@@ -86,7 +86,7 @@
                 <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line}" />
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
                     <!-- Logo: Lycoris mark (Theme/Brand.xaml) -->
-                    <Path Data="{StaticResource G.LycorisMark}" Fill="{StaticResource B.White}" Stretch="Uniform" Width="26" Height="26" VerticalAlignment="Center" />
+                    <Path Data="{StaticResource G.LycorisMark}" Fill="{StaticResource B.Red}" Stretch="Uniform" Width="26" Height="26" VerticalAlignment="Center" />
                     <TextBlock Text="LYCORIS" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
                                FontWeight="Bold" FontStretch="Condensed" FontSize="21" Foreground="{StaticResource B.Text}" />
                     <TextBlock Text="{Binding Version}" Margin="10,3,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}"
@@ -99,6 +99,7 @@
                             Visibility="{Binding Updates.ButtonVisible, Converter={StaticResource BoolToVis}}"
                             ToolTip="{loc:T 'Вышла новая версия Lycoris. Нажмите, чтобы посмотреть, что изменится, и обновить.'}">
                         <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource Dot.Red}" Margin="0,0,8,0" />
                             <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Updates.ButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
@@ -532,13 +533,24 @@
                                             <Setter Property="Fill" Value="{StaticResource B.White}" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsAlert}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                                    <Setter Property="Fill" Value="{StaticResource B.Red}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Rectangle.Style>
                                 </Rectangle>
-                                <TextBlock Grid.Column="1" Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="15" Margin="14,14,0,0" VerticalAlignment="Top" />
+                                <TextBlock Grid.Column="1" Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="15" Margin="14,14,0,0" VerticalAlignment="Top">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAlert}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource B.RedText}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <StackPanel Grid.Column="2" Margin="12,12,12,12">
                                     <TextBlock Text="{Binding Title}" Margin="0,0,0,3">
                                         <TextBlock.Style>
@@ -668,7 +680,7 @@
                                     <Setter Property="Fill" Value="{StaticResource B.White}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsDanger}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                            <Setter Property="Fill" Value="{StaticResource B.Red}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
