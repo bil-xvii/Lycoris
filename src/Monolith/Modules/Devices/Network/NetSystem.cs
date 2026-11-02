@@ -149,7 +149,7 @@ public static class NetSystem
         }
         catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
-            Log.Warn($"Сеть: не удалось прочитать адаптеры — {ex.Message}");
+            Log.Warn("Сеть: не удалось прочитать адаптеры — {0}", ex.Message);
             return [];
         }
 
@@ -173,7 +173,7 @@ public static class NetSystem
     private static IReadOnlyDictionary<Guid, (int State, bool? RadioOff)> SafeWlan()
     {
         try { return NetNative.WlanInterfaces(); }
-        catch (Exception ex) { Log.Warn($"Сеть: Wi-Fi не прочитан — {ex.Message}"); return new Dictionary<Guid, (int, bool?)>(); }
+        catch (Exception ex) { Log.Warn("Сеть: Wi-Fi не прочитан — {0}", ex.Message); return new Dictionary<Guid, (int, bool?)>(); }
     }
 
     /// <summary>
@@ -206,8 +206,8 @@ public static class NetSystem
         }
         catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
-            Log.Warn($"Сеть: свойства адаптера не прочитаны — {ex.Message}");
-            if (throwOnError) throw new InvalidOperationException($"свойства сетевого адаптера не прочитаны (WMI): {ex.Message} — повторите позже", ex);
+            Log.Warn("Сеть: свойства адаптера не прочитаны — {0}", ex.Message);
+            if (throwOnError) throw new InvalidOperationException(Loc.Tf("свойства сетевого адаптера не прочитаны (WMI): {0} — повторите позже", ex.Message), ex);
         }
         return list;
     }
@@ -361,11 +361,11 @@ public static class NetSystem
     /// <summary>Known updaters and launchers (process name → what the user sees).</summary>
     private static readonly Dictionary<string, string> KnownDownloaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["steam"] = "Steam", ["steamservice"] = "Steam", ["Battle.net"] = "Battle.net", ["Agent"] = "Battle.net (агент обновлений)",
+        ["steam"] = "Steam", ["steamservice"] = "Steam", ["Battle.net"] = "Battle.net", ["Agent"] = Loc.T("Battle.net (агент обновлений)"),
         ["EpicGamesLauncher"] = "Epic Games", ["EADesktop"] = "EA app", ["EABackgroundService"] = "EA app", ["upc"] = "Ubisoft Connect",
         ["UbisoftConnect"] = "Ubisoft Connect", ["RiotClientServices"] = "Riot Client", ["OneDrive"] = "OneDrive", ["Dropbox"] = "Dropbox",
         ["GoogleDriveFS"] = "Google Drive", ["qbittorrent"] = "qBittorrent", ["utorrent"] = "µTorrent", ["BitTorrent"] = "BitTorrent",
-        ["MoUsoCoreWorker"] = "Центр обновления Windows", ["wuauclt"] = "Центр обновления Windows", ["GameInputSvc"] = "Xbox",
+        ["MoUsoCoreWorker"] = Loc.T("Центр обновления Windows"), ["wuauclt"] = Loc.T("Центр обновления Windows"), ["GameInputSvc"] = "Xbox",
         ["XboxPcApp"] = "Xbox", ["GamingServices"] = "Xbox (Gaming Services)",
     };
 
@@ -411,7 +411,7 @@ public static class NetSystem
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
             {
-                n = $"процесс {pid}";
+                n = Loc.Tf("процесс {0}", pid);
             }
             return names[pid] = n;
         }
@@ -449,7 +449,7 @@ public static class NetGames
     public static string? RunningGame()
     {
         if (RunningGameForTests is { } fake) return fake();
-        if (GameBoostState.IsActive) return "игровой сеанс Game Boost";
+        if (GameBoostState.IsActive) return Loc.T("игровой сеанс Game Boost");
         return RunningGames().FirstOrDefault().Name;
     }
 

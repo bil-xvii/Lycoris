@@ -28,9 +28,9 @@ internal static class ReceiverHints
     public static string? Name(string? vid, string? pid)
     {
         if (!string.Equals(vid, Logitech, StringComparison.OrdinalIgnoreCase) || pid is null) return null;
-        if (LightspeedPids.Contains(pid)) return "LIGHTSPEED-приёмник Logitech";
-        if (BoltPids.Contains(pid)) return "Приёмник Logi Bolt";
-        if (UnifyingPids.Contains(pid)) return "Приёмник Unifying";
+        if (LightspeedPids.Contains(pid)) return Loc.T("LIGHTSPEED-приёмник Logitech");
+        if (BoltPids.Contains(pid)) return Loc.T("Приёмник Logi Bolt");
+        if (UnifyingPids.Contains(pid)) return Loc.T("Приёмник Unifying");
         return null;
     }
 
@@ -51,7 +51,7 @@ internal static class ReceiverHints
     }
 
     /// <summary>«раньше по кабелю подключалась: PRO X2 SUPERSTRIKE» — a hint only, never «this is the mouse behind the receiver».</summary>
-    public static string HistoryText(string name) => $"раньше по кабелю подключалась: {name.Trim()}";
+    public static string HistoryText(string name) => Loc.Tf("раньше по кабелю подключалась: {0}", name.Trim());
 
     /// <summary>«USB Receiver», «Wireless Controller»… (exact strings, ignoring case and spaces around).</summary>
     public static bool IsGenericProductName(string? name) =>

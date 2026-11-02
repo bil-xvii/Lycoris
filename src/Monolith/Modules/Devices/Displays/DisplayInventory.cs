@@ -74,12 +74,12 @@ public sealed record MonitorInfo
     {
         OUTPUT_HDMI => "HDMI",
         OUTPUT_DISPLAYPORT_EXTERNAL => "DisplayPort",
-        OUTPUT_DISPLAYPORT_USB_TUNNEL => "DisplayPort через USB-C",
+        OUTPUT_DISPLAYPORT_USB_TUNNEL => Loc.T("DisplayPort через USB-C"),
         OUTPUT_DVI => "DVI",
         OUTPUT_HD15 => "VGA",
         OUTPUT_MIRACAST => "Miracast",
-        OUTPUT_INDIRECT_WIRED or OUTPUT_INDIRECT_VIRTUAL => "виртуальный",
-        _ when IsInternal => "встроенный",
+        OUTPUT_INDIRECT_WIRED or OUTPUT_INDIRECT_VIRTUAL => Loc.T("виртуальный"),
+        _ when IsInternal => Loc.T("встроенный"),
         _ => "",
     };
 
@@ -138,7 +138,7 @@ internal static class Ccd
 
             var tech = path.targetInfo.outputTechnology;
             var name = target.monitorFriendlyDeviceName?.Trim();
-            if (string.IsNullOrEmpty(name)) name = DisplayNative.IsInternal(tech) ? "Встроенный дисплей" : "Монитор";
+            if (string.IsNullOrEmpty(name)) name = DisplayNative.IsInternal(tech) ? Loc.T("Встроенный дисплей") : Loc.T("Монитор");
             result.Add(new ActivePath(path, target.monitorDevicePath, name, gdi, tech));
         }
         return result;
@@ -251,17 +251,17 @@ public static class DisplayInventory
         try { paths = Ccd.ActivePaths(); }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {
-            Log.Warn($"Мониторы: CCD недоступен ({ex.Message}).");
+            Log.Warn("Мониторы: CCD недоступен ({0}).", ex.Message);
             return list;
         }
 
-        var q = Val(Ccd.Query, "режимы");
-        var primaries = Ref(PrimaryGdiNames, "основной монитор") ?? [];
+        var q = Val(Ccd.Query, Loc.T("режимы"));
+        var primaries = Ref(PrimaryGdiNames, Loc.T("основной монитор")) ?? [];
         foreach (var p in paths)
         {
             if (!DeviceTargets.IsMonitorPath(p.MonitorPath)) continue;
-            var current = Ref(() => Ccd.CurrentMode(p), "текущий режим");
-            var modes = p.GdiName is { } gdi ? Ref(() => Ccd.OfferedModes(gdi, current), "список режимов") ?? [] : [];
+            var current = Ref(() => Ccd.CurrentMode(p), Loc.T("текущий режим"));
+            var modes = p.GdiName is { } gdi ? Ref(() => Ccd.OfferedModes(gdi, current), Loc.T("список режимов")) ?? [] : [];
             var edid = Ref(() => EdidParser.Parse(ReadEdid(p.MonitorPath)), "EDID");
             var portrait = current is { } c && c.Width < c.Height;
             var internalPanel = DisplayNative.IsInternal(p.OutputTechnology);
@@ -269,7 +269,7 @@ public static class DisplayInventory
             list.Add(new MonitorInfo
             {
                 MonitorPath = p.MonitorPath,
-                Name = Ref(() => PreferName(p.Name, edid), "имя") ?? p.Name,
+                Name = Ref(() => PreferName(p.Name, edid), Loc.T("имя")) ?? p.Name,
                 GdiName = p.GdiName,
                 AdapterKey = MonitorMath.LuidKey(p.TargetAdapter.HighPart, p.TargetAdapter.LowPart),
                 TargetId = p.TargetId,
@@ -277,12 +277,12 @@ public static class DisplayInventory
                 IsPrimary = p.GdiName is { } g && primaries.Contains(g),
                 Current = current,
                 Modes = modes,
-                PreferredSize = Val(() => PreferredSize(p, portrait), "родное разрешение"),
-                PixelRate = q is { } qq ? Val(() => PixelRate(p, qq.Modes), "частота пикселей") : null,
+                PreferredSize = Val(() => PreferredSize(p, portrait), Loc.T("родное разрешение")),
+                PixelRate = q is { } qq ? Val(() => PixelRate(p, qq.Modes), Loc.T("частота пикселей")) : null,
                 Edid = edid,
                 Color = Ref(() => Ccd.Color(p.TargetAdapter, p.TargetId, osBuild), "HDR"),
-                SdrWhiteNits = Val(() => SdrWhite(p), "яркость SDR"),
-                ScalePercent = p.GdiName is { } sg ? Val(() => Scale(sg), "масштаб") : null,
+                SdrWhiteNits = Val(() => SdrWhite(p), Loc.T("яркость SDR")),
+                ScalePercent = p.GdiName is { } sg ? Val(() => Scale(sg), Loc.T("масштаб")) : null,
                 Brightness = internalPanel ? null : Val(() => DdcMonitorWriter.Read(p.MonitorPath, MonitorVcp.Brightness), "DDC/CI"),
                 Contrast = internalPanel ? null : Val(() => DdcMonitorWriter.Read(p.MonitorPath, MonitorVcp.Contrast), "DDC/CI"),
             });
@@ -318,7 +318,7 @@ public static class DisplayInventory
         try { return read(); }
         catch (Exception ex)
         {
-            Log.Warn($"Мониторы: не удалось прочитать {what} — {ex.Message}");
+            Log.Warn("Мониторы: не удалось прочитать {0} — {1}", what, ex.Message);
             return null;
         }
     }
@@ -328,14 +328,14 @@ public static class DisplayInventory
         try { return read(); }
         catch (Exception ex)
         {
-            Log.Warn($"Мониторы: не удалось прочитать {what} — {ex.Message}");
+            Log.Warn("Мониторы: не удалось прочитать {0} — {1}", what, ex.Message);
             return null;
         }
     }
 
     /// <summary>The friendly name, or the EDID name when Windows only says «Монитор».</summary>
     private static string PreferName(string ccdName, EdidInfo? edid) =>
-        ccdName is "Монитор" or "Generic PnP Monitor" && edid?.Name is { Length: > 0 } n ? n : ccdName;
+        (ccdName == Loc.T("Монитор") || ccdName == Loc.Keep("Монитор") || ccdName == "Generic PnP Monitor") && edid?.Name is { Length: > 0 } n ? n : ccdName;
 
     private static HashSet<string> PrimaryGdiNames()
     {

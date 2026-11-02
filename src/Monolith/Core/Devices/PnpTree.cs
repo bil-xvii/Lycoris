@@ -70,7 +70,7 @@ public static class PnpTree
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or ExternalException)
         {
-            Log.Warn($"Список устройств {enumerator} не прочитан: {ex.Message}");
+            Log.Warn("Список устройств {0} не прочитан: {1}", enumerator, ex.Message);
         }
         return result;
     }

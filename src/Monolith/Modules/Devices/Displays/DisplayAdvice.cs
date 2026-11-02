@@ -19,7 +19,6 @@ public sealed record BottleneckAdvice(string Text, bool OnMotherboard);
 /// </summary>
 public static class DisplayAdvice
 {
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
 
     /// <summary>Effective link rates, Gbit/s (Wikipedia DisplayPort / HDMI, research §3 display-link-bandwidth).</summary>
     public const double Hdmi20 = 14.4, Hdmi21 = 42.0, DpHbr2 = 17.28, DpHbr3 = 25.92;
@@ -87,10 +86,10 @@ public static class DisplayAdvice
         }
 
         var policy = (sizeChange && !native.Certain) || (refreshChange && ctx.IsInternal) ? RecommendPolicy.Suggest : RecommendPolicy.Include;
-        var reason = sizeChange && refreshChange ? $"Родное разрешение и {hz} Гц — самое чёткое изображение, плавнее игры и интерфейс"
-            : sizeChange ? "Родное разрешение монитора — самое чёткое изображение"
-            : ctx.IsInternal ? $"Экран умеет {hz} Гц — плавнее игры и интерфейс; от батареи расход чуть выше"
-            : $"Монитор умеет {hz} Гц — плавнее игры и интерфейс";
+        var reason = sizeChange && refreshChange ? Loc.Tf("Родное разрешение и {0} Гц — самое чёткое изображение, плавнее игры и интерфейс", hz)
+            : sizeChange ? Loc.T("Родное разрешение монитора — самое чёткое изображение")
+            : ctx.IsInternal ? Loc.Tf("Экран умеет {0} Гц — плавнее игры и интерфейс; от батареи расход чуть выше", hz)
+            : Loc.Tf("Монитор умеет {0} Гц — плавнее игры и интерфейс", hz);
         return new ModeAdvice(new OfferedMode(target.Width, target.Height, hz), policy, reason);
     }
 
@@ -118,7 +117,7 @@ public static class DisplayAdvice
 
         var hz = (int)Math.Round(edidMax);
         var parts = new List<string>();
-        if (onIntegratedGpu) parts.Add("монитор подключён к материнской плате — переключите кабель в разъём видеокарты");
+        if (onIntegratedGpu) parts.Add(Loc.T("монитор подключён к материнской плате — переключите кабель в разъём видеокарты"));
         var clock = edid.PixelClockAt(native.Width, native.Height, edidMax);
         var need = clock is { } c ? Bandwidth(c, 8) : (double?)null;
         switch (outputTechnology)
@@ -126,27 +125,27 @@ public static class DisplayAdvice
             case DisplayNative.OUTPUT_HDMI:
                 if (need is null || need > Hdmi20)
                     parts.Add(need is { } n
-                        ? $"HDMI 2.0 пропускает до 14,4 Гбит/с, а для {hz} Гц нужно ≈ {n.ToString("0.0", Ru)} — нужен DisplayPort или HDMI 2.1 (порт и кабель)"
-                        : "HDMI 2.0 часто не тянет высокую частоту — нужен DisplayPort или HDMI 2.1 (порт и кабель)");
+                        ? Loc.Tf("HDMI 2.0 пропускает до 14,4 Гбит/с, а для {0} Гц нужно ≈ {1} — нужен DisplayPort или HDMI 2.1 (порт и кабель)", hz, n.ToString("0.0", Loc.Culture))
+                        : Loc.T("HDMI 2.0 часто не тянет высокую частоту — нужен DisplayPort или HDMI 2.1 (порт и кабель)"));
                 break;
             case DisplayNative.OUTPUT_DISPLAYPORT_EXTERNAL or DisplayNative.OUTPUT_DISPLAYPORT_USB_TUNNEL:
-                parts.Add("возьмите сертифицированный VESA кабель DisplayPort 1.4 и проверьте версию DisplayPort в меню монитора");
+                parts.Add(Loc.T("возьмите сертифицированный VESA кабель DisplayPort 1.4 и проверьте версию DisplayPort в меню монитора"));
                 break;
         }
-        parts.Add("переходники, доки и KVM часто ограничивают частоту");
-        return new BottleneckAdvice($"Монитор умеет {hz} Гц, а Windows предлагает максимум {offeredMaxAtNative} Гц: {string.Join("; ", parts)}.", onIntegratedGpu);
+        parts.Add(Loc.T("переходники, доки и KVM часто ограничивают частоту"));
+        return new BottleneckAdvice(Loc.Tf("Монитор умеет {0} Гц, а Windows предлагает максимум {1} Гц: {2}.", hz, offeredMaxAtNative, string.Join("; ", parts)), onIntegratedGpu);
     }
 
     // ───────────────────────────── Texts ─────────────────────────────
 
     /// <summary>«ограничьте FPS до 237» — at least 3 below the refresh rate keeps G-SYNC/FreeSync engaged (Blur Busters).</summary>
-    public static string FpsCapText(int maxHz) => $"ограничьте FPS до {Math.Max(1, maxHz - 3).ToString(CultureInfo.InvariantCulture)}";
+    public static string FpsCapText(int maxHz) => Loc.Tf("ограничьте FPS до {0}", Math.Max(1, maxHz - 3).ToString(CultureInfo.InvariantCulture));
 
     /// <summary>The VRR row: «48–240 Гц» and what to do in the driver panel.</summary>
     public static string VrrRangeText((int Min, int Max) range) =>
-        $"{range.Min.ToString(CultureInfo.InvariantCulture)}–{range.Max.ToString(CultureInfo.InvariantCulture)} Гц";
+        Loc.Tf("{0}–{1} Гц", range.Min.ToString(CultureInfo.InvariantCulture), range.Max.ToString(CultureInfo.InvariantCulture));
 
-    public static string VrrHint(int maxHz) => $"Включите G-SYNC/FreeSync в панели видеокарты и {FpsCapText(maxHz)} — плавно и без лишней задержки";
+    public static string VrrHint(int maxHz) => Loc.Tf("Включите G-SYNC/FreeSync в панели видеокарты и {0} — плавно и без лишней задержки", FpsCapText(maxHz));
 
     /// <summary>
     /// A neutral HDR hint (MONOLITH cannot read the DisplayHDR tier, so it never recommends a value), with the peak
@@ -154,12 +153,12 @@ public static class DisplayAdvice
     /// </summary>
     public static string HdrHint(EdidInfo? edid)
     {
-        const string text = "Для HDR-игр и видео. На OLED и с локальным затемнением — лучше всего, на HDR400 без него — лучше выкл.";
-        return edid?.MaxLuminanceNits is { } nits and > 0 ? $"{text} Пик ≈ {Math.Round(nits).ToString("0", Ru)} нит" : text;
+        var text = Loc.T("Для HDR-игр и видео. На OLED и с локальным затемнением — лучше всего, на HDR400 без него — лучше выкл.");
+        return edid?.MaxLuminanceNits is { } nits and > 0 ? text + Loc.Tf(" Пик ≈ {0} нит", Math.Round(nits).ToString("0", Loc.Culture)) : text;
     }
 
     /// <summary>«~200 нит» of SDR content while HDR is on.</summary>
-    public static string SdrWhiteText(double nits) => $"SDR-контент ≈ {Math.Round(nits).ToString("0", Ru)} нит";
+    public static string SdrWhiteText(double nits) => Loc.Tf("SDR-контент ≈ {0} нит", Math.Round(nits).ToString("0", Loc.Culture));
 
 
     /// <summary>

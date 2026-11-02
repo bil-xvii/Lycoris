@@ -130,7 +130,7 @@ internal static class VendorApps
         try { entries = DriverInventory.ReadUninstallEntries(); }
         catch (Exception ex)
         {
-            Log.Warn($"Программы производителей: список программ не прочитан ({ex.Message}).");
+            Log.Warn("Программы производителей: список программ не прочитан ({0}).", ex.Message);
             entries = [];
         }
         var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -194,17 +194,17 @@ internal static class VendorApps
         problem = null;
         if (!app.IsLaunchable || app.ExeUnderProgramFiles is not { Length: > 0 } rel)
         {
-            problem = app.IsRgbUnifier ? "программа без цифровой подписи — MONOLITH её не запускает" : "нет проверенного способа запуска";
+            problem = app.IsRgbUnifier ? Loc.T("программа без цифровой подписи — MONOLITH её не запускает") : Loc.T("нет проверенного способа запуска");
             return null;
         }
         if (string.IsNullOrWhiteSpace(env.ProgramFiles))
         {
-            problem = "папка Program Files не найдена";
+            problem = Loc.T("папка Program Files не найдена");
             return null;
         }
         if (Path.IsPathRooted(rel))
         {
-            problem = "путь ведёт за пределы Program Files";
+            problem = Loc.T("путь ведёт за пределы Program Files");
             return null;
         }
         string full, root;
@@ -215,17 +215,17 @@ internal static class VendorApps
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            problem = "неверный путь";
+            problem = Loc.T("неверный путь");
             return null;
         }
         if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
         {
-            problem = "путь ведёт за пределы Program Files";
+            problem = Loc.T("путь ведёт за пределы Program Files");
             return null;
         }
         if (!env.FileExists(full))
         {
-            problem = "программа не найдена в Program Files";
+            problem = Loc.T("программа не найдена в Program Files");
             return null;
         }
         // The file and every folder up to Program Files: a link could point the fixed path somewhere else.
@@ -233,7 +233,7 @@ internal static class VendorApps
         {
             if (env.IsReparsePoint(p))
             {
-                problem = "в пути есть ссылка на другую папку";
+                problem = Loc.T("в пути есть ссылка на другую папку");
                 return null;
             }
         }
@@ -249,7 +249,7 @@ internal static class VendorApps
         try
         {
             if (ResolveExe(app, env, out var problem) is not { } exe) return (false, problem);
-            if (env.LastWriteUtc(exe) is not { } stamp) return (false, "файл программы недоступен");
+            if (env.LastWriteUtc(exe) is not { } stamp) return (false, Loc.T("файл программы недоступен"));
 
             (bool Ok, string Signer) signature;
             if (SignatureCache.TryGetValue(exe, out var cached) && cached.Stamp == stamp) signature = (cached.Ok, cached.Signer);
@@ -258,10 +258,10 @@ internal static class VendorApps
                 signature = await env.VerifySignature(exe, app.Signers).ConfigureAwait(false);
                 SignatureCache[exe] = (stamp, signature.Ok, signature.Signer);
             }
-            if (!signature.Ok) return (false, $"цифровая подпись не подтверждена ({signature.Signer})");
+            if (!signature.Ok) return (false, Loc.Tf("цифровая подпись не подтверждена ({0})", signature.Signer));
 
             var started = await env.Start(exe, app.Args, Path.GetDirectoryName(exe)).ConfigureAwait(false);
-            return started ? (true, null) : (false, "Windows не запустила программу без прав администратора");
+            return started ? (true, null) : (false, Loc.T("Windows не запустила программу без прав администратора"));
         }
         catch (Exception ex)
         {
@@ -275,11 +275,11 @@ internal static class VendorApps
         var (ok, problem) = await TryLaunchAsync(app, LaunchEnvironment.System).ConfigureAwait(false);
         if (ok)
         {
-            Log.Info($"Открыт {app.Name} (подпись проверена, без прав администратора).");
+            Log.Info("Открыт {0} (подпись проверена, без прав администратора).", app.Name);
             return true;
         }
-        var text = $"Не удалось открыть {app.Name}: {problem}.";
-        Log.Warn(text);
+        var text = Loc.Tf("Не удалось открыть {0}: {1}.", app.Name, problem);
+        Log.Warn("Не удалось открыть {0}: {1}.", app.Name, problem);
         Ui.Toast(text, ToastKind.Warning, app.Name.ToUpperInvariant());
         return false;
     }
