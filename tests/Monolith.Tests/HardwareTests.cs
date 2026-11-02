@@ -636,7 +636,7 @@ public sealed class HardwareTests
     [Fact]
     public void Go_to_page_actions_are_never_installable()
     {
-        var a = new HwAction("go", HwActionKind.GoToPage, HwSource.Manual, "Открыть", "…", "MONOLITH") { Url = "devices", FocusId = "kind:monitor" };
+        var a = new HwAction("go", HwActionKind.GoToPage, HwSource.Manual, "Открыть", "…", "Lycoris") { Url = "devices", FocusId = "kind:monitor" };
         Assert.False(a.IsInstallable);
         var item = new HwActionItem(a, _ => { });
         item.IsSelected = true;

@@ -274,7 +274,7 @@ public partial class MainWindow : Window
 
         Ui.Toast("Начат новый журнал изменений.", ToastKind.Success);
         Ui.Toast("Эта страница уже выполняет задачу — повтор действия не нужен. Проверьте список «ЗАДАЧИ».", ToastKind.Info, "ПРОДОЛЖИТЬ", navigateTo: "restore");
-        Ui.Toast("Старые файлы журнала не удалось отложить. Подробности — в консоли MONOLITH.", ToastKind.Error, "НЕ УДАЛОСЬ НАЧАТЬ НОВЫЙ ЖУРНАЛ");
+        Ui.Toast("Старые файлы журнала не удалось отложить. Подробности — в консоли Lycoris.", ToastKind.Error, "НЕ УДАЛОСЬ НАЧАТЬ НОВЫЙ ЖУРНАЛ");
         await Task.Delay(700);
         SaveVisual(RootBorder, Path.Combine(outDir, "shell-1-toasts.png"));
         _vm.Toasts.Clear();
@@ -290,7 +290,7 @@ public partial class MainWindow : Window
         SaveVisual(RootBorder, Path.Combine(outDir, "shell-4-palette-russian-query.png"));
         ClosePalette();
 
-        var reset = Ui.ConfirmAsync("Сбросить настройки?", "Параметры MONOLITH вернутся к значениям по умолчанию.",
+        var reset = Ui.ConfirmAsync("Сбросить настройки?", "Параметры Lycoris вернутся к значениям по умолчанию.",
             Monolith.Modules.Settings.SettingsDefaults.Describe(), confirmText: "СБРОСИТЬ");
         await Task.Delay(600);
         SaveVisual(RootBorder, Path.Combine(outDir, "shell-5-dialog-confirm.png"));
@@ -313,7 +313,7 @@ public partial class MainWindow : Window
         _vm.Dialog?.CancelCommand.Execute(null);
         await exit;
 
-        await Ui.AlertAsync("ЖУРНАЛ НЕДОСТУПЕН", "Старые файлы журнала не удалось отложить. Подробности — в консоли MONOLITH.")
+        await Ui.AlertAsync("ЖУРНАЛ НЕДОСТУПЕН", "Старые файлы журнала не удалось отложить. Подробности — в консоли Lycoris.")
             .WaitAsync(TimeSpan.FromMilliseconds(700)).ContinueWith(_ => { });
         SaveVisual(RootBorder, Path.Combine(outDir, "shell-9-dialog-alert.png"));
         _vm.Dialog?.ConfirmCommand.Execute(null);

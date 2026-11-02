@@ -16,7 +16,7 @@ public static partial class TweakCatalog
             Details = Loc.T("Штатная функция (Параметры → Игры → Игровой режим), по умолчанию включена — пункт проверяет, что её никто не отключил, " +
                       "и при необходимости включает обратно. Прирост среднего FPS в независимых тестах около нуля; польза — меньше фоновых помех во время игры. " +
                       "На Ryzen X3D с двумя CCD игровой режим нужен драйверу AMD, чтобы переводить игру на ядра с 3D-кэшем. " +
-                      "Отмена — откатом в MONOLITH или тем же переключателем в Параметрах."),
+                      "Отмена — откатом в Lycoris или тем же переключателем в Параметрах."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
@@ -62,7 +62,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Аппаратное планирование GPU (другие видеокарты)"),
             Description = Loc.T("Включает HAGS на видеокарте, драйвер которой его поддерживает (кроме RTX 40/50 — для них основной пункт)."),
             Details = Loc.T("Эффект на FPS — в пределах погрешности. Некоторые технологии генерации кадров требуют HAGS. На старых видеокартах и в VR " +
-                      "иногда появляются рывки — тогда откатите пункт. MONOLITH предлагает его только если драйвер сам сообщает о поддержке. " +
+                      "иногда появляются рывки — тогда откатите пункт. Lycoris предлагает его только если драйвер сам сообщает о поддержке. " +
                       "Вступает в силу после перезагрузки."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,
@@ -76,7 +76,7 @@ public static partial class TweakCatalog
 
         // SAFE-OPTIONAL (gaming_tweaks.md §2 A, hags-off): HwSchMode = 1 — the value Settings writes for «Выкл.». A fix for
         // capture/stutter problems (OBS KB), not a boost; never pre-checked. Fills the gap where the driver enabled HAGS by
-        // default (no HwSchMode value) and MONOLITH had nothing of its own to revert: the journal records absent → delete.
+        // default (no HwSchMode value) and Lycoris had nothing of its own to revert: the journal records absent → delete.
         yield return new CustomTweak
         {
             Id = HagsOffId,
@@ -84,7 +84,7 @@ public static partial class TweakCatalog
             Description = Loc.T("Выключает HAGS: лечение рывков и сбоев захвата в OBS и аппаратных кодировщиках, а не ускорение."),
             Details = Loc.T("База знаний OBS называет HAGS причиной проблем производительности и сбоев захвата и советует отключить его как шаг " +
                       "диагностики. Цена: DLSS Frame Generation / Multi Frame Generation на GeForce RTX 40/50 перестают работать. Если HAGS " +
-                      "включил драйвер по умолчанию, раньше MONOLITH не мог его выключить с откатом — теперь может: откат удаляет значение " +
+                      "включил драйвер по умолчанию, раньше Lycoris не мог его выключить с откатом — теперь может: откат удаляет значение " +
                       "(возвращается умолчание драйвера) или возвращает прежнее. Вступает в силу после перезагрузки."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,
@@ -102,7 +102,7 @@ public static partial class TweakCatalog
             title: Loc.Key("Оптимизация оконных игр"),
             description: Loc.T("Игры на DirectX 10/11 в оконном и безрамочном режиме переходят на современную модель вывода кадров (flip model)."),
             details: Loc.T("Параметры → Дисплей → Графика → «Оптимизации для оконных игр». По данным Microsoft это снижает задержку вывода " +
-                     "и позволяет работать VRR и Auto HDR в окне. MONOLITH меняет только флаг SwapEffectUpgradeEnable в строке настроек DirectX, " +
+                     "и позволяет работать VRR и Auto HDR в окне. Lycoris меняет только флаг SwapEffectUpgradeEnable в строке настроек DirectX, " +
                      "остальные настройки не трогает. Изредка отдельная игра работает с разрывами кадров — её можно исключить в тех же Параметрах. " +
                      "Действует после перезапуска игры."),
             token: "SwapEffectUpgradeEnable",
@@ -131,7 +131,7 @@ public static partial class TweakCatalog
             description: Loc.T("Windows добавляет HDR играм DirectX 11/12, которые сами его не поддерживают. Работает только на мониторе с включённым HDR."),
             details: Loc.T("Параметры → Дисплей → Графика → «Auto HDR». Силу эффекта можно задать для каждой игры в Game Bar (Win+G → Параметры → " +
                      "Игровые функции → «Настроить интенсивность HDR»). Некоторые игры выглядят перенасыщенными — тогда отключите Auto HDR для них " +
-                     "в Game Bar или откатите пункт. MONOLITH меняет только флаг AutoHDREnable в строке настроек DirectX, остальные настройки " +
+                     "в Game Bar или откатите пункт. Lycoris меняет только флаг AutoHDREnable в строке настроек DirectX, остальные настройки " +
                      "не трогает. Действует со следующего запуска игры."),
             token: "AutoHDREnable",
             risk: TweakRisk.Optional,
@@ -165,7 +165,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Запись и скриншоты Game Bar"),
             Description = Loc.T("Отключает захват видео и скриншотов через Xbox Game Bar (Win+Alt+R, Win+Alt+PrtScn)."),
             Details = Loc.T("Оверлей Game Bar, игровой режим и распознавание игр продолжают работать. Если вы ничего не записываете, прироста нет — " +
-                      "пункт для тех, кто пишет видео другой программой и не хочет случайных захватов. Отмена — откатом в MONOLITH " +
+                      "пункт для тех, кто пишет видео другой программой и не хочет случайных захватов. Отмена — откатом в Lycoris " +
                       "или в Параметрах → Игры → Записи."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,

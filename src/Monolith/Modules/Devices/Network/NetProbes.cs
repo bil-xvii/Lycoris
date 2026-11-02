@@ -87,7 +87,7 @@ public static class NetPing
 /// <summary>What a Don't-Fragment echo got back.</summary>
 public enum DfReply { Ok, TooBig, Timeout }
 
-/// <summary>Path MTU by Don't-Fragment echoes (finding F20: only a black hole is worth reporting; MONOLITH never changes the MTU).</summary>
+/// <summary>Path MTU by Don't-Fragment echoes (finding F20: only a black hole is worth reporting; Lycoris never changes the MTU).</summary>
 public static class MtuSearch
 {
     private const int Overhead = 28; // IPv4 header 20 + ICMP 8
@@ -203,7 +203,7 @@ public static class LoadTest
             UseCookies = false,
         };
         using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("MONOLITH");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("Lycoris");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         long total = 0;
         var active = 0;
@@ -324,7 +324,7 @@ public static class ValveRegions
     public static async Task<IReadOnlyList<SdrPop>> FetchAsync(CancellationToken ct)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("MONOLITH");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("Lycoris");
         var json = await http.GetStringAsync(ConfigUrl, ct).ConfigureAwait(false);
         return Parse(json);
     }

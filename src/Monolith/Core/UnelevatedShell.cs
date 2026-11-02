@@ -6,9 +6,9 @@ using System.Runtime.InteropServices;
 namespace Monolith.Core;
 
 /// <summary>
-/// Starts programs with the desktop user's normal (non-elevated) token from an elevated MONOLITH:
+/// Starts programs with the desktop user's normal (non-elevated) token from an elevated Lycoris:
 /// asks the desktop's Explorer window for its shell view and calls IShellDispatch2.ShellExecute on it,
-/// so Explorer — not MONOLITH — creates the process (research §13). Used for elevation-prohibited, user-scope
+/// so Explorer — not Lycoris — creates the process (research §13). Used for elevation-prohibited, user-scope
 /// and Store packages, and for opening web pages (a browser must never run as administrator).
 /// </summary>
 public static class UnelevatedShell
@@ -77,7 +77,7 @@ public static class UnelevatedShell
         });
 
     /// <summary>
-    /// Opens a web page or a store link. When MONOLITH is elevated, the browser / Store is started through the
+    /// Opens a web page or a store link. When Lycoris is elevated, the browser / Store is started through the
     /// desktop shell, so it never inherits administrator rights; otherwise (or if that fails) a normal shell open.
     /// </summary>
     public static async Task<bool> OpenAsync(string target)
@@ -131,7 +131,7 @@ public static class UnelevatedShell
 
     /// <summary>
     /// Opens a local HTML report (e.g. powercfg /batteryreport output) in the default browser. Only existing
-    /// .html files under <see cref="AppPaths.LogsDir"/> are accepted. When MONOLITH is elevated the browser is started
+    /// .html files under <see cref="AppPaths.LogsDir"/> are accepted. When Lycoris is elevated the browser is started
     /// through the desktop shell, so it never runs as administrator; there is no elevated fallback.
     /// </summary>
     public static async Task<bool> OpenFileAsync(string path)
@@ -163,7 +163,7 @@ public static class UnelevatedShell
 
     /// <summary>
     /// Starts a program, game or launcher link (steam://, com.epicgames.launcher://, …) as the signed-in user:
-    /// through the desktop shell when MONOLITH is elevated (games must never inherit administrator rights),
+    /// through the desktop shell when Lycoris is elevated (games must never inherit administrator rights),
     /// a normal shell start otherwise. Returns false if it could not be started without elevation.
     /// </summary>
     public static async Task<bool> StartAsUserAsync(string fileOrUri, string arguments = "", string? directory = null)
@@ -205,7 +205,7 @@ public static class UnelevatedShell
         })
         {
             IsBackground = true,
-            Name = "MONOLITH shell launcher",
+            Name = "Lycoris shell launcher",
         };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();

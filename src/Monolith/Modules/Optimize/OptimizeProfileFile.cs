@@ -74,7 +74,7 @@ internal static partial class OptimizeProfileFile
     {
         error = null;
         if (bytes is null || bytes.Length == 0) { error = Loc.T("Файл пуст."); return null; }
-        if (bytes.Length > MaxBytes) { error = Loc.Tf("Файл больше {0} КБ — это не профиль MONOLITH.", MaxBytes / 1024); return null; }
+        if (bytes.Length > MaxBytes) { error = Loc.Tf("Файл больше {0} КБ — это не профиль Lycoris.", MaxBytes / 1024); return null; }
 
         string text;
         try
@@ -95,11 +95,11 @@ internal static partial class OptimizeProfileFile
             if (root.ValueKind != JsonValueKind.Object) return Fail(Loc.T("Ожидался объект JSON."), out error);
 
             if (!root.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.String || format.GetString() != FormatTag)
-                return Fail(Loc.T("Это не файл профиля MONOLITH."), out error);
+                return Fail(Loc.T("Это не файл профиля Lycoris."), out error);
             if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var v) || v < 1)
                 return Fail(Loc.T("Не указана версия формата профиля."), out error);
             if (v > FormatVersion)
-                return Fail(Loc.T("Профиль создан более новой версией MONOLITH. Обновите программу."), out error);
+                return Fail(Loc.T("Профиль создан более новой версией Lycoris. Обновите программу."), out error);
 
             if (!root.TryGetProperty("tweaks", out var tweaks) || tweaks.ValueKind != JsonValueKind.Array)
                 return Fail(Loc.T("В профиле нет списка настроек."), out error);

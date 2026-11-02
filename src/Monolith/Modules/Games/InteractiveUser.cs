@@ -5,7 +5,7 @@ using Monolith.Core;
 namespace Monolith.Modules.Games;
 
 /// <summary>
-/// The person logged in at this console. When MONOLITH is elevated through UAC with a different admin
+/// The person logged in at this console. When Lycoris is elevated through UAC with a different admin
 /// account, HKCU belongs to that admin — the user's own settings (Game Mode, Steam path…) then live in
 /// HKU\&lt;SID of explorer.exe's owner&gt; (docs/research/gaming_tweaks.md §0). Read-only.
 /// </summary>

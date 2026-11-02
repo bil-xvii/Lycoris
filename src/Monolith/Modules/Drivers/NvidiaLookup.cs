@@ -33,7 +33,7 @@ internal static partial class NvidiaLookup
     private static readonly Lazy<HttpClient> Http = new(() =>
     {
         var c = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        c.DefaultRequestHeaders.UserAgent.ParseAdd("MONOLITH/1.0");
+        c.DefaultRequestHeaders.UserAgent.ParseAdd("Lycoris/1.0");
         return c;
     });
 

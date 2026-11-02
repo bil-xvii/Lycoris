@@ -282,7 +282,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     private void ApplyEnvironment(CleanEnvironment env)
     {
         ForeignUserText = env.ForeignSessionUser is { } user
-            ? Loc.Tf("MONOLITH запущен от имени другой учётной записи ({0}) — очистка пользовательских кэшей отключена, запустите его под своей.", user)
+            ? Loc.Tf("Lycoris запущен от имени другой учётной записи ({0}) — очистка пользовательских кэшей отключена, запустите его под своей.", user)
             : null;
         ServicingText = env.Servicing.Any
             ? Loc.Tf("{0}. Системные временные папки, журналы и очистка WinSxS будут пропущены, пока Windows не завершит обслуживание — перезагрузите ПК и повторите анализ.", Capitalize(env.Servicing.Describe()))

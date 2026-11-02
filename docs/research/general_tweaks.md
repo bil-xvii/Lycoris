@@ -1,8 +1,8 @@
-# MONOLITH: Everyday and Recommended Windows optimizations catalog
+# Lycoris: Everyday and Recommended Windows optimizations catalog
 
 ## 0. Conventions used in this catalog
 
-**How each change is undone:** before any write, save `{hive, path, valueName, kind, rawBytes | ABSENT}`. To revert, write the raw original back. If the value was absent before, delete it. If MONOLITH created the key, delete the key. Windows is inconsistent about defaults, so never "revert to the documented default". Restore what was actually there. On this machine `TailoredExperiencesWithDiagnosticDataEnabled = 2`, which is not a boolean.
+**How each change is undone:** before any write, save `{hive, path, valueName, kind, rawBytes | ABSENT}`. To revert, write the raw original back. If the value was absent before, delete it. If Lycoris created the key, delete the key. Windows is inconsistent about defaults, so never "revert to the documented default". Restore what was actually there. On this machine `TailoredExperiencesWithDiagnosticDataEnabled = 2`, which is not a boolean.
 
 **Classes**
 - **SAFE-DEFAULT**: applied by default in the profile marked.
@@ -132,14 +132,14 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 - Windows 10 counterpart of `widgets.off`: offer only on builds 19041–19045, so the two rows never appear together.
 - Edition table: Windows 10 Pro/Business/Enterprise/Education = yes, Home not listed (the key is reported to be honoured there, undocumented) → Details say «официально: Pro и выше».
 - Microsoft: on Windows 10 it also turns off "weather and more" on the lock screen, and the taskbar context-menu entry disappears.
-- Revert = delete the value; the empty `Windows Feeds` key is removed (MONOLITH created it). The user's own HKCU feed mode comes back untouched.
+- Revert = delete the value; the empty `Windows Feeds` key is removed (Lycoris created it). The user's own HKCU feed mode comes back untouched.
 - **Rejected:** writing `HKCU\…\Feeds\ShellFeedsTaskbarViewMode`. Since 2022 the value is protected (writes are reverted or fail with access denied, Microsoft Q&A, TenForums): a placebo. DO-NOT-INCLUDE.
 
 **`ai.paint` / `ai.notepad`: AI features in Paint and Notepad. SAFE-OPTIONAL.** Catalog ids `paint-ai-off`, `notepad-ai-off`.
 - Paint: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint` → `DisableCocreator`, `DisableGenerativeFill`, `DisableImageCreator` = 1 (DWORD). Policy CSP WindowsAI, device scope, Pro/Ent/Edu, Windows 11 22H2 10.0.22621.4870+ / 24H2 10.0.26100.3360+, ADMX WindowsCopilot.admx. Absent = available. Restart Paint.
 - Notepad: `HKLM\SOFTWARE\Policies\WindowsNotepad\DisableAIFeatures`=1 (Microsoft Learn «Manage Notepad»: Windows 11 22H2+, Notepad 11.2503.16.0+, machine-wide). Restart Notepad.
 - Home is not in the CSP edition table; the apps read the keys, but say «официально: Pro и выше» for Paint. Gate both on Windows 11 (22621+).
-- Revert = delete the values. `…\Policies\Paint` is removed when MONOLITH created it. **Known gap:** `SOFTWARE\Policies\WindowsNotepad` is only two levels deep and `RegistryHelper.TryDeleteEmptyKeyChain` never deletes keys above three segments, so the empty key stays after undo unless the helper allows `SOFTWARE\Policies\<Vendor>` (requested from the core owner).
+- Revert = delete the values. `…\Policies\Paint` is removed when Lycoris created it. **Known gap:** `SOFTWARE\Policies\WindowsNotepad` is only two levels deep and `RegistryHelper.TryDeleteEmptyKeyChain` never deletes keys above three segments, so the empty key stays after undo unless the helper allows `SOFTWARE\Policies\<Vendor>` (requested from the core owner).
 - **Rejected:** `HideAIActionsMenu` (HKLM `…\Policies\Microsoft\Windows\Explorer`) appears only on blogs, no Microsoft documentation → DO-NOT-INCLUDE; the supported route is Settings → Apps → Actions, and since build 26220.7344 the «AI actions» menu disappears when all actions are off. `DisableSettingsAgent`, `ConfigureAgentConnectors`, `DisableRecallDataProviders` are Enterprise/Education-only or Insider-only → placebo on Home/Pro, DO-NOT-INCLUDE. `DisableWidgetsOnLockScreen` is Insider-only: wait.
 
 **`copilot.*`: «Copilot»**
@@ -185,7 +185,7 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
   - `32` = Downloads cleanup on.
   - `512` = Downloads days.
 - Current state here: `01=1`, `2048=0`; everything else absent (revert = delete).
-- **MONOLITH preset:** `01=1`, `2048=0` or `30`, `04=1`, `08=1`, `256=30`, `32=0`, `512=0`. **Never auto-delete Downloads** because of data-loss risk.
+- **Lycoris preset:** `01=1`, `2048=0` or `30`, `04=1`, `08=1`, `256=30`, `32=0`, `512=0`. **Never auto-delete Downloads** because of data-loss risk.
 - `HKLM\SOFTWARE\Policies\Microsoft\Windows\StorageSense` (`AllowStorageSenseGlobal`, `ConfigStorageSenseGlobalCadence` …) locks the UI. Not used.
 
 **`sys.faststartup`: «Отключить быстрый запуск» / Fast Startup off.**
@@ -197,14 +197,14 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 **`sys.hibernate`: «Отключить гибернацию» / `powercfg /h off`.** Catalog id `hibernation-off`.
 - Deletes `hiberfil.sys` (about 40% of RAM; ~13 GB at 32 GB) and implicitly disables Fast Startup.
 - Revert: `powercfg /h on`, then restore `HiberbootEnabled`.
-- **Hybrid sleep (Microsoft KB 920730, verbatim):** «You may lose data if you make hibernation unavailable and a power loss occurs while the hybrid sleep setting is turned on. When you make hibernation unavailable, hybrid sleep does not work.» Hybrid sleep is on by default on desktops, so the Details and the Warning must say that plain sleep keeps working but hybrid sleep stops, and that a power loss during sleep then loses unsaved work. Whether it applies on this PC is read-only: `SYSTEM_POWER_CAPABILITIES.FastSystemS4` («supports the hybrid sleep state»; false e.g. with an active hypervisor, as on the dev machine) and the active plan's `HYBRIDSLEEP` AC value (`SUB_SLEEP` 238c9fa8-… / 94ac6d29-73ce-41a6-809f-6363ba21b47e, 1 = on). MONOLITH records the fact in the journal record's old value («гибернация включена, гибридный сон: включён в текущей схеме / выключен / недоступен»); the texts stay generic.
+- **Hybrid sleep (Microsoft KB 920730, verbatim):** «You may lose data if you make hibernation unavailable and a power loss occurs while the hybrid sleep setting is turned on. When you make hibernation unavailable, hybrid sleep does not work.» Hybrid sleep is on by default on desktops, so the Details and the Warning must say that plain sleep keeps working but hybrid sleep stops, and that a power loss during sleep then loses unsaved work. Whether it applies on this PC is read-only: `SYSTEM_POWER_CAPABILITIES.FastSystemS4` («supports the hybrid sleep state»; false e.g. with an active hypervisor, as on the dev machine) and the active plan's `HYBRIDSLEEP` AC value (`SUB_SLEEP` 238c9fa8-… / 94ac6d29-73ce-41a6-809f-6363ba21b47e, 1 = on). Lycoris records the fact in the journal record's old value («гибернация включена, гибридный сон: включён в текущей схеме / выключен / недоступен»); the texts stay generic.
 - `powercfg /h /type reduced` (Fast Startup only, half-size file) is a **manual alternative only** — hibernation and hybrid sleep are unavailable with it too, so it is mentioned in the Details and not offered as a second item: `hibernation-off` stays the single item. The revert still restores a reduced file when that was the original type.
 - Desktops: ADVANCED.
 - **Laptops: DO-NOT-INCLUDE.** The critical-battery action and Modern Standby both fall back to hibernation, so data would be lost.
 
 **`sys.timeouts`: «Экран и сон по рекомендации Microsoft» — screen-off / sleep idle timeouts, only shortened. SAFE-OPTIONAL, never in a profile.** Catalog ids `battery-screen-off-3min`, `battery-sleep-10min` (DC, laptops) and `screen-off-ac-10m`, `sleep-ac-30m` (AC, every PC incl. desktops — owner 01.11: «правка не только для ноутбука, но и для настольного компьютера»).
 - **Settings:** `SUB_VIDEO` 7516b95f-f776-4464-8c53-06167f40cc99 / `VIDEOIDLE` 3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e (seconds, 0 = never) and `SUB_SLEEP` 238c9fa8-0aad-41ed-83f4-97be242c8f20 / `STANDBYIDLE` 29f6c1db-86da-48c5-9fdb-f2b67b1f44da (seconds, 0 = never), always of the ACTIVE plan, one journal record per setting.
-- **Evidence:** Microsoft's «Learn more about energy recommendations» (Settings → System → Power → Energy recommendations) lists «Turn off my screen after 3 (or 10) minutes» and «Put my device to sleep after 3 (or 10) minutes» — Microsoft gives both values for both settings «depending on the system». **MONOLITH's own choice**, stated as such in the Details: battery — screen 180 s, sleep 600 s; mains — screen 600 s, sleep 1800 s (the stock Balanced AC values on Windows 10/11 desktops; most «never»-set PCs are gaming desktops that then run and light the room all night). Screen and idle time are the largest power drains Windows itself controls.
+- **Evidence:** Microsoft's «Learn more about energy recommendations» (Settings → System → Power → Energy recommendations) lists «Turn off my screen after 3 (or 10) minutes» and «Put my device to sleep after 3 (or 10) minutes» — Microsoft gives both values for both settings «depending on the system». **Lycoris's own choice**, stated as such in the Details: battery — screen 180 s, sleep 600 s; mains — screen 600 s, sleep 1800 s (the stock Balanced AC values on Windows 10/11 desktops; most «never»-set PCs are gaming desktops that then run and light the room all night). Screen and idle time are the largest power drains Windows itself controls.
 - **Only shortens (`onlyShorten`):** a value is written only when the current one is 0 (never) or longer than the target; shorter values count as applied and are never lengthened. Preview shows current → new from the record texts («от батареи: через 15 мин» → «через 3 мин»; «от сети: никогда» → «через 30 мин»).
 - **DC:** `powercfg /setdcvalueindex {scheme} {sub} {setting} {v} && powercfg /setactive SCHEME_CURRENT` with the same self-rollback as the AC command; read with `PowerReadDCValueIndex`; target `powercfg:{scheme}:{setting}:dc`; a dedicated journal regex (`/setdcvalueindex`) as strict as the AC one. The AC values are never touched by the DC items and vice versa. Refused during a Game Boost session (its temporary plan), as for every PowerSettingTweak.
 - **Undo:** the original index written back explicitly (same `PowerSettingUndoNote` caveat as the other powercfg items: an override where the plan default was used). Not a data-loss risk: apps that present or play video hold power requests that block idle sleep; a desktop with hybrid sleep saves the session to disk.
@@ -234,11 +234,11 @@ The base path for the `ContentDeliveryManager` values is `HKCU\Software\Microsof
 **`sys.edge.background`: «Microsoft Edge без фонового запуска». SAFE-OPTIONAL, never default.** Catalog id `edge-background-off`.
 - `HKLM\SOFTWARE\Policies\Microsoft\Edge` → `StartupBoostEnabled`=0 (Edge ≥ 88) and `BackgroundModeEnabled`=0 (Edge ≥ 77), REG_DWORD, absent by default. Documented Edge policies, mandatory path, dynamic policy refresh, no domain-join restriction (unlike e.g. HomepageLocation), so they work on unmanaged Home/Pro.
 - The Recommended path (`…\Edge\Recommended`) is ignored once the user touched the toggle, so detection could not confirm the effect: use the mandatory path.
-- Startup boost does write `HKCU\…\CurrentVersion\Run\MicrosoftEdgeAutoLaunch_<hash>` (`--no-startup-window --win-session-start`), which the Startup tab already shows; with the policy Edge removes it itself and does not relaunch after the last window closes. MONOLITH never writes the Run value (IsForbiddenRestoreTarget); Edge recreates it after revert because its own preference was never touched.
+- Startup boost does write `HKCU\…\CurrentVersion\Run\MicrosoftEdgeAutoLaunch_<hash>` (`--no-startup-window --win-session-start`), which the Startup tab already shows; with the policy Edge removes it itself and does not relaunch after the last window closes. Lycoris never writes the Run value (IsForbiddenRestoreTarget); Edge recreates it after revert because its own preference was never touched.
 - **Honest effect:** Microsoft calls the resource impact of startup boost "limited" and enables it automatically only for people who use Edge every few days (> 4 GB RAM, or > 1 GB with a modern disk). Background mode is off by default, so that half only locks it. No FPS claim, no RAM promise.
 - **Side effects (Details):** the first Edge launch after sign-in is slower; sites and installed web apps cannot notify while Edge is closed; edge://settings/system shows the toggles locked «Управляется вашей организацией».
 - Never touch EdgeUpdate or WebView2 policies (`services.md`: never disable edgeupdate). Offer only when msedge.exe exists.
-- Revert = delete both values; the empty `Policies\Microsoft\Edge` key is removed when MONOLITH created it (TryDeleteEmptyKeyChain skips it when WebView2/Recommended subkeys exist).
+- Revert = delete both values; the empty `Policies\Microsoft\Edge` key is removed when Lycoris created it (TryDeleteEmptyKeyChain skips it when WebView2/Recommended subkeys exist).
 
 ---
 
@@ -343,7 +343,7 @@ Optional extra: transparency off, `HKCU\…\Themes\Personalize\EnableTransparenc
 - Version pin: `TargetReleaseVersion`=1, `ProductVersion`="Windows 11", `TargetReleaseVersionInfo`="25H2". Catalog id `wu-target-version` (SAFE-OPTIONAL, never in a profile; ExclusiveGroup `wu-feature-updates` with `wu-defer-feature-updates` — one of the two).
   - **Pro and higher only** (Home ignores the policy; `IsHomeEdition` → not offered). **GA versions only:** the pin value is the installed `DisplayVersion`, offered only when it is in the catalog's end-of-servicing table (Home/Pro: 23H2 → 2025-11-11, 24H2 → 2026-10-13, 25H2 → 2027-10-12, 26H1 → 2028-03-14 (GA, new devices only), 26H2 → 2028-10-10 — verified 01.11.2026 on the release-health page; a later version is added only after learn.microsoft.com/windows/release-health/windows11-release-information lists its date). Insider/preview builds are never pinned.
   - **60-day post-EOS behaviour (Microsoft, Windows Update for Business docs):** a device pinned to a version that reached end of servicing keeps the pin for about 60 days and is then automatically moved to a supported version; until then it gets **no** security updates. The item therefore says so in the Details, and the Dashboard warns 90 days before the end-of-servicing date so the user un-pins in time.
-  - Settings shows «Некоторыми параметрами управляет ваша организация» while the pin is active. Revert = delete the three values (the empty policy key MONOLITH created is removed with them).
+  - Settings shows «Некоторыми параметрами управляет ваша организация» while the pin is active. Revert = delete the three values (the empty policy key Lycoris created is removed with them).
 - Settings will show "managed by your organization". Revert = delete the values. SAFE-OPTIONAL.
 - `ExcludeWUDriversInQualityUpdate`=1 stops Windows Update from replacing GPU drivers but also blocks useful drivers. ADVANCED.
 
@@ -409,7 +409,7 @@ Rules:
   replaced (Microsoft: the power-mode slider exists on «Balanced or any plan derived from it»; replacing an OEM plan can cost
   battery life). The tile is hidden while the hardware facts are unknown or when its only applicable member is a plan switch
   (Windows 10, dual-CCD X3D): a «Тихий ПК» that makes nothing quieter is not offered. The desktop effect («тише») is unmeasured
-  by MONOLITH — the tooltip says «эффект зависит от производителя, измерьте».
+  by Lycoris — the tooltip says «эффект зависит от производителя, измерьте».
 - **Manual follow-ups** (text only, in the apply-result dialog, only for the scenario applied): Streaming → Do not disturb «во время
   игры» (CloudStore blobs are never written); Quiet PC → FPS cap in the GPU panel, fan curves in BIOS / vendor utility; Laptop →
   vendor charge limit, keep dynamic refresh rate on. No vendor names, no page references.

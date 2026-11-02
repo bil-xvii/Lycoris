@@ -1,7 +1,7 @@
 namespace Monolith.Tweaks;
 
 /// <summary>
-/// A popular «optimization» MONOLITH deliberately does not offer. Pure data: read by Settings → О программе («Что MONOLITH не
+/// A popular «optimization» Lycoris deliberately does not offer. Pure data: read by Settings → О программе («Что Lycoris не
 /// делает и почему»), by the command palette (kind НЕ ДЕЛАЕМ) and by the catalog tests, which assert that none of
 /// <see cref="RegistryValueNames"/> is ever written by a <see cref="RegistryTweak"/>.
 /// </summary>
@@ -9,7 +9,7 @@ namespace Monolith.Tweaks;
 /// <param name="Title">Sentence-case Russian title (what the tweak is usually called).</param>
 /// <param name="WhatOthersDo">What some optimizers do, in plain language — never a product name (those live in the research file only).</param>
 /// <param name="WhyNot">1–3 sentences with the mechanism: why it does not help or why it harms.</param>
-/// <param name="Alternative">The MONOLITH place that does the honest thing instead.</param>
+/// <param name="Alternative">The Lycoris place that does the honest thing instead.</param>
 /// <param name="RegistryValueNames">Registry value names the catalog must never write (may be empty for non-registry tweaks).</param>
 /// <param name="Keywords">Extra search words (English terms, GUIDs, slang) for the command palette.</param>
 /// <param name="Research">Research reference: «rejected_tweaks.md §id» plus the binding section(s) of the other research files.</param>
@@ -117,7 +117,7 @@ public static class RejectedTweaks
         R("svchost-split", Loc.T("Отключить разделение svchost"),
             Loc.T("Некоторые оптимизаторы ставят SvcHostSplitThresholdInKB равным объёму памяти, чтобы службы снова жили в нескольких процессах."),
             Loc.T("Microsoft разделила службы по процессам ради надёжности и безопасности: сбой одной не валит остальные. Экономия — десятки мегабайт памяти без влияния на игры, а побочный эффект — проблемы со службами Xbox."),
-            Loc.T("Страница «Автозапуск и службы» объясняет, что делает каждая служба и почему некоторые MONOLITH не трогает."),
+            Loc.T("Страница «Автозапуск и службы» объясняет, что делает каждая служба и почему некоторые Lycoris не трогает."),
             Loc.Keep("svchost split svchostsplitthresholdinkb службы процессы память"),
             "gaming_tweaks.md §3",
             "SvcHostSplitThresholdInKB"),
@@ -140,7 +140,7 @@ public static class RejectedTweaks
         R("mitigations-off", Loc.T("Отключить защиту от Spectre и Meltdown"),
             Loc.T("Некоторые оптимизаторы записывают FeatureSettingsOverride, выключая аппаратные меры защиты процессора ради пары процентов."),
             Loc.T("Это снимает защиту от уязвимостей процессора — ослабление безопасности в обмен на единицы процентов в редких сценариях, упирающихся в процессор."),
-            Loc.T("Единственный компромисс с безопасностью в MONOLITH — «Отключить целостность памяти (HVCI)» в «Оптимизации», и он экспертный, с предупреждением."),
+            Loc.T("Единственный компромисс с безопасностью в Lycoris — «Отключить целостность памяти (HVCI)» в «Оптимизации», и он экспертный, с предупреждением."),
             Loc.Keep("spectre meltdown mitigations featuresettingsoverride безопасность уязвимости"),
             "gaming_tweaks.md §3",
             "FeatureSettingsOverride", "FeatureSettingsOverrideMask"),
@@ -206,7 +206,7 @@ public static class RejectedTweaks
         R("dark-mode-auto", Loc.T("Тёмная тема как часть режима автономности"),
             Loc.T("Некоторые режимы экономии батареи переключают тему Windows на тёмную."),
             Loc.T("Экономия измерима только на OLED-экранах, на ЖК её нет. Внешний вид — личное предпочтение, и его смена как побочный эффект сценария только удивляет."),
-            Loc.T("MONOLITH тему не меняет; яркость и HDR монитора настраиваются на странице «Устройства и сеть»."),
+            Loc.T("Lycoris тему не меняет; яркость и HDR монитора настраиваются на странице «Устройства и сеть»."),
             Loc.Keep("dark mode тёмная тема темная тема oled батарея appsuselighttheme"),
             "general_tweaks.md §11",
             "AppsUseLightTheme", "SystemUsesLightTheme"),

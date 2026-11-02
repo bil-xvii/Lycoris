@@ -5,7 +5,7 @@ namespace Monolith.Modules.Settings;
 
 public sealed record IntervalOption(int Milliseconds, string Label, string Hint);
 
-/// <summary>A file or folder MONOLITH keeps its data in.</summary>
+/// <summary>A file or folder Lycoris keeps its data in.</summary>
 public sealed partial class DataPathItem : ObservableObject
 {
     public required string Title { get; init; }
@@ -20,7 +20,7 @@ public sealed record LicenseItem(string Name, string Version, string License, st
 
 public sealed record PrincipleItem(string Title, string Text);
 
-/// <summary>One row of «Что MONOLITH не делает и почему»: the rejected tweak plus the transient palette highlight.</summary>
+/// <summary>One row of «Что Lycoris не делает и почему»: the rejected tweak plus the transient palette highlight.</summary>
 public sealed partial class RejectedRow(RejectedTweak tweak) : ObservableObject
 {
     public RejectedTweak Tweak { get; } = tweak;

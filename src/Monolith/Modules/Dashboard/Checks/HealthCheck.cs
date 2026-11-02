@@ -12,7 +12,7 @@ public enum CheckSeverity
 
 public enum CheckActionKind
 {
-    /// <summary>Open another MONOLITH page (<see cref="CheckAction.Target"/> = page key).</summary>
+    /// <summary>Open another Lycoris page (<see cref="CheckAction.Target"/> = page key).</summary>
     Navigate,
     /// <summary>Open a Windows settings page / URI (<see cref="CheckAction.Target"/> = "ms-settings:…").</summary>
     OpenUri,

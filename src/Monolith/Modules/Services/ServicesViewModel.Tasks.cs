@@ -179,7 +179,7 @@ public sealed partial class ServicesViewModel
     private async Task RevertTaskAsync(string? path)
     {
         if (string.IsNullOrEmpty(path) || !RequireAdmin(Loc.T("откат изменения задачи"), "RevertTask", path)) return;
-        // The row means «back to how it was before MONOLITH»: every active change of this task, newest first.
+        // The row means «back to how it was before Lycoris»: every active change of this task, newest first.
         var layers = ChangeJournal.Instance.ActiveLayers("task:" + path);
         var record = layers.LastOrDefault();
         if (record is null)
@@ -200,7 +200,7 @@ public sealed partial class ServicesViewModel
         var current = info.Enabled ? Loc.T("Включена") : Loc.T("Отключена");
         var drift = !string.Equals(current, record.NewValue, StringComparison.Ordinal);
         var message = drift
-            ? Loc.Tf("Состояние задачи уже изменено без MONOLITH: сейчас «{0}». Всё равно вернуть исходное «{1}»?", current, original)
+            ? Loc.Tf("Состояние задачи уже изменено без Lycoris: сейчас «{0}». Всё равно вернуть исходное «{1}»?", current, original)
             : Loc.T("Задача вернётся в исходное состояние из журнала.");
         if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;

@@ -12,7 +12,7 @@ using Monolith.UI;
 namespace Monolith.Modules.Restore;
 
 /// <summary>
-/// The undo center: every change MONOLITH made (journal), reverting one record / one batch / everything,
+/// The undo center: every change Lycoris made (journal), reverting one record / one batch / everything,
 /// and Windows System Restore (status, enabling, restore points).
 /// </summary>
 public sealed partial class RestoreViewModel : PageViewModel
@@ -26,7 +26,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     public override string Key => "restore";
     public override string Index => "10";
     public override string Title => Loc.T("ВОССТАНОВЛЕНИЕ");
-    public override string Subtitle => Loc.T("Журнал изменений MONOLITH, откат и точки восстановления Windows.");
+    public override string Subtitle => Loc.T("Журнал изменений Lycoris, откат и точки восстановления Windows.");
     public override string Glyph => Glyphs.History;
 
     public ObservableCollection<BatchItem> Batches { get; } = new();
@@ -50,7 +50,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private bool _isFilterEmpty;
     [ObservableProperty] private string _filterEmptyText = "";
 
-    // ── drift: active records changed outside MONOLITH (competitors.md §3 must-have #5) ──
+    // ── drift: active records changed outside Lycoris (competitors.md §3 must-have #5) ──
     [ObservableProperty] private int _driftCount;
     [ObservableProperty] private bool _hasDrift;
     [ObservableProperty] private bool _hasReapplicableDrift;
@@ -228,10 +228,10 @@ public sealed partial class RestoreViewModel : PageViewModel
 
         var journalEmpty = batches.Count == 0 && records.Count == 0;
         IsFilterEmpty = Batches.Count == 0;
-        FilterEmptyText = journalEmpty ? Loc.T("Журнал пуст — MONOLITH ещё ничего не менял в системе.") : Filter switch
+        FilterEmptyText = journalEmpty ? Loc.T("Журнал пуст — Lycoris ещё ничего не менял в системе.") : Filter switch
         {
-            JournalFilter.Active => Loc.T("Активных изменений нет — система в исходном состоянии относительно MONOLITH."),
-            JournalFilter.Drifted => Loc.T("Все настройки MONOLITH на месте — вне MONOLITH ничего не изменено."),
+            JournalFilter.Active => Loc.T("Активных изменений нет — система в исходном состоянии относительно Lycoris."),
+            JournalFilter.Drifted => Loc.T("Все настройки Lycoris на месте — вне Lycoris ничего не изменено."),
             _ => Loc.T("Откаченных изменений пока нет."),
         };
         NotifyCommands();
@@ -277,14 +277,14 @@ public sealed partial class RestoreViewModel : PageViewModel
                 HasDrift = list.Count > 0;
                 HasReapplicableDrift = list.Any(DriftReapply.CanReapply);
                 DriftLine = list.Count == 0 ? "" :
-                    Loc.T("Windows или другая программа изменила эти настройки после MONOLITH.");
+                    Loc.T("Windows или другая программа изменила эти настройки после Lycoris.");
                 if (!HasDrift && Filter == JournalFilter.Drifted) Filter = JournalFilter.All; // rebuilds
                 else Rebuild();
             } while (_driftPending);
         }
         catch (Exception ex)
         {
-            Log.Warn("Проверка изменений вне MONOLITH не выполнена: {0}", ex.Message);
+            Log.Warn("Проверка изменений вне Lycoris не выполнена: {0}", ex.Message);
         }
         finally
         {
@@ -366,7 +366,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         await ReapplyAsync(_drift.Values.Where(DriftReapply.CanReapply).ToList());
     }
 
-    /// <summary>Waits for the live «изменено вне MONOLITH» read (started at load) so a replayed command sees its result.</summary>
+    /// <summary>Waits for the live «изменено вне Lycoris» read (started at load) so a replayed command sees its result.</summary>
     private async Task EnsureDriftAsync()
     {
         await RefreshDriftAsync();
@@ -378,9 +378,9 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (items.Count == 0) return;
         var lines = DriftReapply.DescribeForConfirm(items, id => Monolith.Tweaks.TweakCatalog.Find(id)?.Title);
         if (!await Ui.ConfirmAsync("ПРИМЕНИТЬ СНОВА?",
-                Loc.T("MONOLITH снова запишет значения, которые он ставил раньше, отдельным пакетом. Откат этого пакета вернёт нынешние значения, а «ОТКАТИТЬ ВСЁ» — исходные (до MONOLITH)."),
+                Loc.T("Lycoris снова запишет значения, которые он ставил раньше, отдельным пакетом. Откат этого пакета вернёт нынешние значения, а «ОТКАТИТЬ ВСЁ» — исходные (до Lycoris)."),
                 lines, confirmText: Loc.T("ПРИМЕНИТЬ СНОВА"),
-                footnote: Loc.T("Если Windows снова сбросит настройку после обновления, MONOLITH покажет это при следующем запуске.")))
+                footnote: Loc.T("Если Windows снова сбросит настройку после обновления, Lycoris покажет это при следующем запуске.")))
             return;
 
         var result = await Task.Run(() => DriftReapply.ApplyAsync(items));
@@ -400,7 +400,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         var kept = await Task.Run(() => DriftDetector.PruneIgnored(AppSettings.Current.DriftAccepted, journal.ActiveRecords));
         kept.Add(d.IgnoreKey);
         AppSettings.Current.DriftAccepted = kept; // new list → PropertyChanged → saved
-        Ui.Toast(Loc.Tf("«{0}»: новое значение принято. Откат по-прежнему вернёт исходное значение (до MONOLITH).", Loc.Sink(item.Title)), ToastKind.Info);
+        Ui.Toast(Loc.Tf("«{0}»: новое значение принято. Откат по-прежнему вернёт исходное значение (до Lycoris).", Loc.Sink(item.Title)), ToastKind.Info);
         await RefreshDriftAsync();
     }
 
@@ -415,9 +415,9 @@ public sealed partial class RestoreViewModel : PageViewModel
         var drive = SystemProfile.SystemDrive.TrimEnd('\\');
         (ProtectionTitle, ProtectionText) = (enabled, blocked) switch
         {
-            (_, true) => (Loc.T("ЗАПРЕЩЕНА"), Loc.T("Защита системы отключена групповой политикой. Включить её может только администратор организации; до этого откат возможен только через журнал MONOLITH.")),
+            (_, true) => (Loc.T("ЗАПРЕЩЕНА"), Loc.T("Защита системы отключена групповой политикой. Включить её может только администратор организации; до этого откат возможен только через журнал Lycoris.")),
             (true, _) => (Loc.T("ВКЛЮЧЕНА"), Loc.Tf("Windows хранит точки восстановления для диска {0} — через них можно вернуть системные файлы, реестр и драйверы к прежнему состоянию.", drive)),
-            _ => (Loc.T("ВЫКЛЮЧЕНА"), Loc.Tf("Точки восстановления для диска {0} не создаются. Изменения MONOLITH всё равно откатываются через журнал, но страховки на уровне Windows нет.", drive)),
+            _ => (Loc.T("ВЫКЛЮЧЕНА"), Loc.Tf("Точки восстановления для диска {0} не создаются. Изменения Lycoris всё равно откатываются через журнал, но страховки на уровне Windows нет.", drive)),
         };
         NotifyCommands();
         await LoadPointsAsync();
@@ -429,7 +429,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         {
             RestorePoints.Clear();
             PointsCountText = "";
-            PointsMessage = Loc.T("Windows показывает список точек только администратору. Кнопка ниже перезапустит MONOLITH с правами и откроет список здесь; можно и открыть «Восстановление системы».");
+            PointsMessage = Loc.T("Windows показывает список точек только администратору. Кнопка ниже перезапустит Lycoris с правами и откроет список здесь; можно и открыть «Восстановление системы».");
             return;
         }
 
@@ -476,7 +476,7 @@ public sealed partial class RestoreViewModel : PageViewModel
             await RefreshProtectionAsync();
         }
 
-        var result = await RestorePointService.CreateAsync(Loc.T("MONOLITH: точка, созданная вручную"));
+        var result = await RestorePointService.CreateAsync(Loc.T("Lycoris: точка, созданная вручную"));
         Ui.Toast(result.Message, result.Outcome switch
         {
             RestorePointOutcome.Created => ToastKind.Success,
@@ -494,7 +494,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (!RequireAdmin(Loc.T("Включение защиты системы"), "EnableProtection")) return;
         var drive = SystemProfile.SystemDrive.TrimEnd('\\');
         if (!await Ui.ConfirmAsync("Включить защиту системы?",
-                Loc.Tf("Windows начнёт создавать точки восстановления для диска {0} — перед обновлениями, установкой драйверов и изменениями MONOLITH.", drive),
+                Loc.Tf("Windows начнёт создавать точки восстановления для диска {0} — перед обновлениями, установкой драйверов и изменениями Lycoris.", drive),
                 [
                     Loc.Tf("Защита включается для диска {0} (то же, что «Защита системы» → «Настроить» → «Включить защиту»)", drive),
                     Loc.T("Под точки выделяется часть места на диске; старые точки Windows удаляет сама, когда место заканчивается"),
@@ -561,7 +561,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         {
             var ok = await Ui.ConfirmAsync(
                 "Не создавать точки восстановления?",
-                Loc.T("MONOLITH перестанет создавать точку восстановления Windows перед пакетами изменений."),
+                Loc.T("Lycoris перестанет создавать точку восстановления Windows перед пакетами изменений."),
                 [
                     Loc.T("Журнал отката продолжит работать: каждое изменение по-прежнему можно откатить на этой странице"),
                     Loc.T("Пропадёт вторая страховка: если система не загрузится, вернуться будет не к чему"),
@@ -593,12 +593,12 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (ResolveRecord(parameter) is not { CanRevert: true } item) return;
         var journal = _journal;
         var record = item.Record;
-        // Research services.md §3.5: show the real current value and warn when it changed after MONOLITH.
+        // Research services.md §3.5: show the real current value and warn when it changed after Lycoris.
         var (live, newer, shadow, bottom, account) = await Task.Run(() =>
         {
             var n = journal.NewerLayer(record);
             var s = n is null ? journal.ShadowedBy(record) : null;
-            // The oldest active change of the target: its original is the value from before MONOLITH.
+            // The oldest active change of the target: its original is the value from before Lycoris.
             var first = ReferenceEquals(journal.ActiveLayers(record.Target).FirstOrDefault(), record);
             var me = record.IsLegacyPerUser && UserScope.CurrentSid is { } sid ? UserScope.AccountName(sid) : null;
             return (LiveState.Read(record, isTop: n is null && s is null), n, s, first, me);
@@ -606,30 +606,30 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (shadow is not null)
         {
             await Ui.AlertAsync("Сначала откатите более позднее изменение",
-                Loc.Tf("«{0}» записано старой версией MONOLITH без учётной записи. Сейчас это значение в профиле текущей учётной записи " +
+                Loc.Tf("«{0}» записано старой версией Lycoris без учётной записи. Сейчас это значение в профиле текущей учётной записи " +
                 "задаёт «{1}», и откат старой записи заменил бы его. Сначала откатите «{1}».", Loc.Sink(item.Title), Loc.Sink(shadow.Title)));
             return;
         }
         var lines = new List<string>
         {
             $"{item.KindLabel}: {item.Target}",
-            live.Drifted is null && newer is null && Loc.Sink(item.NewValue) is { Length: > 0 } applied ? Loc.Tf("Установлено MONOLITH: {0}", applied) : Loc.Tf("Сейчас: {0}", Loc.Sink(live.Text)),
+            live.Drifted is null && newer is null && Loc.Sink(item.NewValue) is { Length: > 0 } applied ? Loc.Tf("Установлено Lycoris: {0}", applied) : Loc.Tf("Сейчас: {0}", Loc.Sink(live.Text)),
             newer is null ? Loc.Tf("Станет: {0}", Loc.Sink(item.OldValue)) : Loc.Tf("Останется как сейчас; исходное «{0}» перейдёт к «{1}»", Loc.Sink(item.OldValue), Loc.Sink(newer.Title)),
         };
         if (live.IsDrifted)
-            lines.Add(Loc.Tf("После MONOLITH значение изменили (Windows, политика или вы): MONOLITH ставил «{0}». Откат заменит текущее значение исходным.", Loc.Sink(item.NewValue)));
+            lines.Add(Loc.Tf("После Lycoris значение изменили (Windows, политика или вы): Lycoris ставил «{0}». Откат заменит текущее значение исходным.", Loc.Sink(item.NewValue)));
         if (account is not null)
             lines.Add(Loc.Tf("Запись старой версии без учётной записи: исходное значение запишется в профиль {0}. Если изменение делали под другой учётной записью, у неё оно останется.", account));
         if (record.IsLegacyMerged)
             lines.Add(Loc.Tf("Также откатит: {0} — они меняли тот же параметр.", string.Join(", ", record.AlsoSources.Distinct().Select(RestoreFormat.SourceTitle))));
         var message = newer is not null
             ? (bottom
-                ? Loc.Tf("Сейчас значение задаёт более позднее изменение «{0}». Откат «{1}» систему не изменит: исходное значение «{2}» перейдёт к нему, и его откат вернёт то, что было до MONOLITH.", Loc.Sink(newer.Title), Loc.Sink(item.Title), Loc.Sink(item.OldValue))
+                ? Loc.Tf("Сейчас значение задаёт более позднее изменение «{0}». Откат «{1}» систему не изменит: исходное значение «{2}» перейдёт к нему, и его откат вернёт то, что было до Lycoris.", Loc.Sink(newer.Title), Loc.Sink(item.Title), Loc.Sink(item.OldValue))
                 : Loc.Tf("Сейчас значение задаёт более позднее изменение «{0}». Откат «{1}» систему не изменит: исходное значение «{2}» перейдёт к нему, и его откат вернёт значение, которое было до «{1}».", Loc.Sink(newer.Title), Loc.Sink(item.Title), Loc.Sink(item.OldValue)))
             : live.IsDrifted
                 ? (bottom
-                    ? Loc.Tf("«{0}» изменено вне MONOLITH. Если откатить, вернётся значение, которое было до MONOLITH, а более позднее изменение пропадёт.", Loc.Sink(item.Title))
-                    : Loc.Tf("«{0}» изменено вне MONOLITH. Если откатить, вернётся значение, которое было до этого изменения («{1}»), а более позднее изменение пропадёт.", Loc.Sink(item.Title), Loc.Sink(item.OldValue)))
+                    ? Loc.Tf("«{0}» изменено вне Lycoris. Если откатить, вернётся значение, которое было до Lycoris, а более позднее изменение пропадёт.", Loc.Sink(item.Title))
+                    : Loc.Tf("«{0}» изменено вне Lycoris. Если откатить, вернётся значение, которое было до этого изменения («{1}»), а более позднее изменение пропадёт.", Loc.Sink(item.Title), Loc.Sink(item.OldValue)))
                 : Loc.Tf("«{0}» вернётся к значению, которое было до этого изменения.", Loc.Sink(item.Title));
         if (!await Ui.ConfirmAsync("Откатить изменение?", message, lines, confirmText: Loc.T("ОТКАТИТЬ"), danger: live.IsDrifted))
             return;
@@ -700,7 +700,7 @@ public sealed partial class RestoreViewModel : PageViewModel
 
         var (lines, drifted, _) = await DescribeLiveAsync(journal, active);
         if (!await Ui.ConfirmAsync("Откатить все изменения?",
-                Loc.Tf("{0} {1} к исходным значениям — от последнего к первому.", active.Count, Loc.Plural(active.Count, "активное изменение MONOLITH вернётся", "активных изменения MONOLITH вернутся", "активных изменений MONOLITH вернутся")) +
+                Loc.Tf("{0} {1} к исходным значениям — от последнего к первому.", active.Count, Loc.Plural(active.Count, "активное изменение Lycoris вернётся", "активных изменения Lycoris вернутся", "активных изменений Lycoris вернутся")) +
                 DriftSentence(drifted) + (left.Length > 0 ? Loc.Tf(" Не войдут в откат: {0}", left) : "") +
                 Loc.T(" Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются."),
                 lines,
@@ -751,7 +751,7 @@ public sealed partial class RestoreViewModel : PageViewModel
             else if (live.IsDrifted)
             {
                 drifted++;
-                lines.Add(Loc.Tf("ИЗМЕНЕНО ВНЕ MONOLITH · {0} · {1}: сейчас «{2}» (MONOLITH ставил «{3}») → «{4}»", Loc.Sink(r.Title), RestoreFormat.DescribeTarget(r.Target), Loc.Sink(live.Text), Loc.Sink(r.NewValue), Loc.Sink(r.OldValue)));
+                lines.Add(Loc.Tf("ИЗМЕНЕНО ВНЕ LYCORIS · {0} · {1}: сейчас «{2}» (Lycoris ставил «{3}») → «{4}»", Loc.Sink(r.Title), RestoreFormat.DescribeTarget(r.Target), Loc.Sink(live.Text), Loc.Sink(r.NewValue), Loc.Sink(r.OldValue)));
             }
             else
             {
@@ -763,7 +763,7 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     private static string DriftSentence(int drifted) => drifted == 0
         ? ""
-        : Loc.Tf(" {0} {1} после MONOLITH (Windows, политикой или вами) — откат заменит и {2} исходным значением; такие пункты отмечены «ИЗМЕНЕНО ВНЕ MONOLITH».", drifted, Loc.Plural(drifted, "значение изменено", "значения изменены", "значений изменено"), (drifted == 1 ? Loc.T("его") : Loc.T("их")));
+        : Loc.Tf(" {0} {1} после Lycoris (Windows, политикой или вами) — откат заменит и {2} исходным значением; такие пункты отмечены «ИЗМЕНЕНО ВНЕ LYCORIS».", drifted, Loc.Plural(drifted, "значение изменено", "значения изменены", "значений изменено"), (drifted == 1 ? Loc.T("его") : Loc.T("их")));
 
     private static string KeptSentence(int kept) => kept == 0
         ? ""
@@ -796,7 +796,7 @@ public sealed partial class RestoreViewModel : PageViewModel
                 result.Errors.Concat(result.Mismatches.Select(m => Loc.Tf("НЕ СОВПАДАЕТ · {0}", m))));
         else
             await Ui.AlertAsync("Откат не совпал с исходным",
-                Loc.T("После отката MONOLITH прочитал значения заново, и эти отличаются от записанных до изменения: их могла сразу поменять Windows, политика или другая программа. Строки отмечены «НЕ СОВПАДАЕТ».") + tail,
+                Loc.T("После отката Lycoris прочитал значения заново, и эти отличаются от записанных до изменения: их могла сразу поменять Windows, политика или другая программа. Строки отмечены «НЕ СОВПАДАЕТ».") + tail,
                 result.Mismatches);
     }
 }

@@ -151,7 +151,7 @@ public static class NetworkCards
                 RecommendPolicy.Suggest, link) { NeedsMeasurement = true };
         if (!string.Equals(check.Fingerprint, s.Fingerprint, StringComparison.Ordinal))
             return new Recommendation(DeviceValue.Of(Loc.T("повтор")),
-                Loc.T("Сеть настроена после замера — замерьте ещё раз, и MONOLITH покажет «было → стало»"),
+                Loc.T("Сеть настроена после замера — замерьте ещё раз, и Lycoris покажет «было → стало»"),
                 RecommendPolicy.Suggest, link) { NeedsMeasurement = true };
         return null;
     }
@@ -229,7 +229,7 @@ public static class NetworkCards
         var gameBlock = s.RunningGame is { } game ? Loc.Tf("Идёт игра ({0}) — адаптер сейчас не перезапускается.", game) : null;
         if (a.Medium == NetMedium.Ethernet && a.Property("*SpeedDuplex") is { } sd && Number(sd) is { } current && sd.ValidValues.Contains("0"))
         {
-            // Research (network_adapter.md): MONOLITH only repairs a forced speed/duplex back to auto-negotiation — it never
+            // Research (network_adapter.md): Lycoris only repairs a forced speed/duplex back to auto-negotiation — it never
             // forces a speed. Already auto: a read-only row; forced: the choice is «auto» or leaving it as it is.
             var setting = current == 0
                 ? new DeviceSetting
@@ -244,7 +244,7 @@ public static class NetworkCards
                 {
                     Id = "nic:*SpeedDuplex", Title = Loc.T("Скорость и дуплекс"), Order = 0, Control = SettingControl.Choice,
                     Options = [new DeviceOption(DeviceValue.Of(0), SpeedDuplexLabel(0)), new DeviceOption(DeviceValue.Of(current), SpeedDuplexLabel(current))],
-                    Hint = Loc.T("Автосогласование — верно почти всегда; MONOLITH только возвращает его, другую скорость не задаёт"),
+                    Hint = Loc.T("Автосогласование — верно почти всегда; Lycoris только возвращает его, другую скорость не задаёт"),
                     Default = DeviceValue.Of(0), Format = v => SpeedDuplexLabel(v.Number), AppliesWhen = Loc.T("ПЕРЕЗАПУСК АДАПТЕРА"),
                     JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, "*SpeedDuplex"),
                     ReadCurrent = () => ReadNumber(a.InterfaceGuid, "*SpeedDuplex"),
@@ -333,13 +333,13 @@ public static class NetworkCards
         var name = NetFindings.Short(a.Description);
         if (NetGames.RunningGame() is { } game)
         {
-            session.Errors.Add(Loc.Tf("{0}: идёт игра ({1}) — во время игры MONOLITH не перезапускает сетевой адаптер.", title, game));
+            session.Errors.Add(Loc.Tf("{0}: идёт игра ({1}) — во время игры Lycoris не перезапускает сетевой адаптер.", title, game));
             return ApplyOutcome.Blocked;
         }
         if (DeviceWriters.Nic?.Read(a.InterfaceGuid, keyword) is { } live && Number(live) == value.Number) return ApplyOutcome.NoChange;
         if (keyword == "*SpeedDuplex" && value.Number != 0)
         {
-            session.Errors.Add(Loc.Tf("{0}: MONOLITH только возвращает автосогласование — фиксированную скорость он не задаёт.", title));
+            session.Errors.Add(Loc.Tf("{0}: Lycoris только возвращает автосогласование — фиксированную скорость он не задаёт.", title));
             return ApplyOutcome.Blocked;
         }
         var ok = await Ui.ConfirmAsync("Перезапустить сетевой адаптер?",

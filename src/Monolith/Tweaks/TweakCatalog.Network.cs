@@ -85,7 +85,7 @@ public static partial class TweakCatalog
                       "значение Windows по умолчанию во всех редакциях; на исправной системе пункт ничего не меняет. Иногда автонастройку " +
                       "выключают намеренно — из-за старого роутера или межсетевого экрана, который плохо работает с масштабированием окна " +
                       "TCP (RFC 1323). Если после применения соединения стали хуже, откатите пункт: прежний уровень вернётся точно. Уровень, " +
-                      "заданный групповой политикой, MONOLITH не меняет. На пинг в играх не влияет. Действует сразу для новых соединений. " +
+                      "заданный групповой политикой, Lycoris не меняет. На пинг в играх не влияет. Действует сразу для новых соединений. " +
                       "Если у линии есть bufferbloat (пинг растёт во время загрузок — «Устройства и сеть» → «Тест под нагрузкой»), быстрые " +
                       "загрузки сильнее заполняют очередь роутера и пинг во время скачивания может вырасти: это лечится SQM на роутере или " +
                       "лимитом скорости в лаунчере, а не выключенной автонастройкой."),
@@ -94,7 +94,7 @@ public static partial class TweakCatalog
             DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             // Policy-managed or mixed templates are reported as "not applicable", so profiles skip them instead of failing.
             NotApplicableReason = Loc.T("Уровень автонастройки задан групповой политикой или шаблоны TCP настроены по-разному — " +
-                                  "MONOLITH их не меняет, потому что не сможет вернуть каждый точно."),
+                                  "Lycoris их не меняет, потому что не сможет вернуть каждый точно."),
             DetectFunc = () => ReadTcpAutotuning() is { } s
                 ? PlanTcpAutotuning(s) switch
                 {
@@ -111,10 +111,10 @@ public static partial class TweakCatalog
                     case TcpAutotuningPlan.AlreadyNormal:
                         return;
                     case TcpAutotuningPlan.ByPolicy:
-                        throw new InvalidOperationException(Loc.T("уровень автонастройки TCP задан групповой политикой — MONOLITH его не меняет"));
+                        throw new InvalidOperationException(Loc.T("уровень автонастройки TCP задан групповой политикой — Lycoris его не меняет"));
                     case TcpAutotuningPlan.Mixed:
                         throw new InvalidOperationException(
-                            Loc.Tf("шаблоны TCP настроены по-разному ({0}); одна команда не вернёт каждый из них точно, поэтому MONOLITH их не меняет",
+                            Loc.Tf("шаблоны TCP настроены по-разному ({0}); одна команда не вернёт каждый из них точно, поэтому Lycoris их не меняет",
                                 string.Join(", ", s.Templates.Select(t => $"{t.Name}: {TcpAutotuningLevels[t.Level]}"))));
                 }
                 var original = TcpAutotuningLevels[s.Templates[0].Level];
@@ -196,7 +196,7 @@ public static partial class TweakCatalog
                       "предпочтений адресов. Нужен, только если замер в «Устройства и сеть» показал, что IPv6 у вашего провайдера заметно " +
                       "хуже IPv4 (на 10 мс и больше или с потерями) — такое бывает при неисправном или туннельном IPv6. Большинство игровых " +
                       "серверов работает по IPv4, поэтому на пинг в играх это обычно не влияет; помогает лаунчерам и сайтам. Если параметр " +
-                      "уже задан с другими битами (частичное отключение IPv6), MONOLITH его не меняет. Откат возвращает прежнее значение. " +
+                      "уже задан с другими битами (частичное отключение IPv6), Lycoris его не меняет. Откат возвращает прежнее значение. " +
                       "Нужна перезагрузка."),
             Category = TweakCategory.Network,
             Risk = TweakRisk.Advanced,
@@ -226,7 +226,7 @@ public static partial class TweakCatalog
                         SetDword(ctx, RegHive.HKLM, Tcpip6Parameters, "DisabledComponents", 0x20);
                         return;
                     default:
-                        throw new InvalidOperationException(Loc.T("DisabledComponents уже задан другими битами — MONOLITH его не меняет"));
+                        throw new InvalidOperationException(Loc.T("DisabledComponents уже задан другими битами — Lycoris его не меняет"));
                 }
             },
         };

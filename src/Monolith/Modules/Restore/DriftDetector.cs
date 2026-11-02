@@ -5,7 +5,7 @@ using Monolith.Modules.Startup;
 
 namespace Monolith.Modules.Restore;
 
-/// <summary>How a drifted record can be put back to the value MONOLITH set.</summary>
+/// <summary>How a drifted record can be put back to the value Lycoris set.</summary>
 public enum DriftFix
 {
     /// <summary>No direct re-apply: only "show" on the owning page.</summary>
@@ -20,7 +20,7 @@ public enum DriftFix
     StartupEntry,
 }
 
-/// <summary>An active journal record whose live value no longer equals what MONOLITH set.</summary>
+/// <summary>An active journal record whose live value no longer equals what Lycoris set.</summary>
 public sealed record DriftItem(ChangeRecord Record, string Applied, string Live, DriftFix Fix, string? TweakId, string? OwnerPage)
 {
     public string IgnoreKey => DriftDetector.IgnoreKey(Record, Live);
@@ -28,7 +28,7 @@ public sealed record DriftItem(ChangeRecord Record, string Applied, string Live,
 
 /// <summary>
 /// Drift detection (competitors.md §3 must-have #5): Windows feature updates and other programs silently reset
-/// settings MONOLITH applied. Pure logic with an injected live reader; <see cref="DetectLive"/> uses
+/// settings Lycoris applied. Pure logic with an injected live reader; <see cref="DetectLive"/> uses
 /// <see cref="LiveState.Read"/> and must run off the UI thread. Never changes anything.
 /// </summary>
 public static class DriftDetector
@@ -49,7 +49,7 @@ public static class DriftDetector
 
     /// <summary>
     /// Records that drifted: active, the newest layer of their target (an older layer's value was replaced by a later
-    /// MONOLITH change on purpose), comparable (not a command, not a temporary Game Boost change), the target still
+    /// Lycoris change on purpose), comparable (not a command, not a temporary Game Boost change), the target still
     /// exists and its live value differs from <see cref="ChangeRecord.NewValue"/>. <paramref name="ignored"/> holds
     /// <see cref="IgnoreKey"/> values the user accepted («ЗАБЫТЬ»); a later different value is reported again.
     /// </summary>
@@ -79,7 +79,7 @@ public static class DriftDetector
 
     /// <summary>
     /// Device settings are never drift: users change pointer speed, brightness, mic level or the display mode on purpose
-    /// and often, so a «changed outside MONOLITH» notice would only be noise.
+    /// and often, so a «changed outside Lycoris» notice would only be noise.
     /// </summary>
     public static bool IsCandidate(ChangeRecord r) =>
         !r.Reverted && r.Kind != ChangeKind.Command && !r.TouchedBy(GameBoostSource) && !JournalTrust.IsDeviceKind(r.Kind);
@@ -136,7 +136,7 @@ public static class DriftDetector
         return ignored.Where(k => k.IndexOf('|') is var i and > 0 && ids.Contains(k[..i])).Distinct(StringComparer.Ordinal).ToList();
     }
 
-    /// <summary>Inverse of <see cref="ServiceControl.DescribeStart"/> for the modes MONOLITH sets.</summary>
+    /// <summary>Inverse of <see cref="ServiceControl.DescribeStart"/> for the modes Lycoris sets.</summary>
     public static bool TryParseServiceStart(string? text, out ServiceStartMode mode, out bool delayed)
     {
         foreach (var (m, d) in new[] { (ServiceStartMode.Automatic, true), (ServiceStartMode.Automatic, false), (ServiceStartMode.Manual, false), (ServiceStartMode.Disabled, false) })
@@ -207,13 +207,13 @@ public static class DriftDetector
         return string.IsNullOrWhiteSpace(value) ? LiveState.Unknown : value.Trim();
     }
 
-    public static string RowText(DriftItem d) => Loc.Tf("MONOLITH установил: {0} · сейчас: {1}", Loc.Sink(d.Applied), Loc.Sink(d.Live));
+    public static string RowText(DriftItem d) => Loc.Tf("Lycoris установил: {0} · сейчас: {1}", Loc.Sink(d.Applied), Loc.Sink(d.Live));
 
     /// <summary>Startup notice: names the Windows build change when there was one.</summary>
     public static string NoticeText(int count, string? previousBuild, string? currentBuild)
     {
-        var what = Loc.N(count, "{0} настройку MONOLITH", "{0} настройки MONOLITH", "{0} настроек MONOLITH");
-        var tail = Loc.T(" Раздел «Восстановление» → «ИЗМЕНЕНО ВНЕ MONOLITH»: можно применить снова или оставить как есть.");
+        var what = Loc.N(count, "{0} настройку Lycoris", "{0} настройки Lycoris", "{0} настроек Lycoris");
+        var tail = Loc.T(" Раздел «Восстановление» → «ИЗМЕНЕНО ВНЕ LYCORIS»: можно применить снова или оставить как есть.");
         return BuildChanged(previousBuild, currentBuild)
             ? Loc.Tf("После обновления Windows (сборка {0} → {1}) система изменила {2}.{3}", previousBuild, currentBuild, what, tail)
             : Loc.Tf("Windows или другая программа изменила {0}.{1}", what, tail);

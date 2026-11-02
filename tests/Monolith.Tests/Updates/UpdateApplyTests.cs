@@ -72,8 +72,8 @@ internal sealed class FakeEnv : IUpdateEnvironment
 
 public sealed class UpdateApplyTests
 {
-    private const string Old = @"C:\Apps\MONOLITH\MONOLITH.exe";
-    private const string Self = @"C:\Apps\MONOLITH\MONOLITH.exe.new";
+    private const string Old = @"C:\Apps\MONOLITH\Lycoris.exe";
+    private const string Self = @"C:\Apps\MONOLITH\Lycoris.exe.new";
 
     private static FakeEnv Env()
     {
@@ -187,8 +187,8 @@ public sealed class UpdateApplyTests
     [Theory]
     [InlineData("--apply-update")]
     [InlineData("--apply-update", "relative.txt", "5")]
-    [InlineData("--apply-update", @"C:\x\MONOLITH.exe", "abc")]
-    [InlineData("--apply-update", @"C:\x\MONOLITH.exe", "0")]
+    [InlineData("--apply-update", @"C:\x\Lycoris.exe", "abc")]
+    [InlineData("--apply-update", @"C:\x\Lycoris.exe", "0")]
     public void Bad_arguments_change_nothing(params string[] args)
     {
         var e = Env();
@@ -244,7 +244,7 @@ public sealed class UpdateApplyTests
         var e = Env();
         e.Drive = DriveKindInfo.Removable;
         Assert.Equal(UpdateRoute.InPlace, UpdateApplier.Plan(e, Old, false).Route);
-        var desktop = @"C:\Users\Me\Desktop\MONOLITH.exe";
+        var desktop = @"C:\Users\Me\Desktop\Lycoris.exe";
         e.Files[desktop] = "X";
         Assert.Equal(UpdateRoute.InPlace, UpdateApplier.Plan(e, desktop, false).Route);
     }
@@ -253,7 +253,7 @@ public sealed class UpdateApplyTests
     public void A_multi_file_development_build_is_never_replaced()
     {
         var e = Env();
-        e.Files[@"C:\Apps\MONOLITH\MONOLITH.dll"] = "dll";
+        e.Files[@"C:\Apps\MONOLITH\Lycoris.dll"] = "dll";
         Assert.Equal(UpdateRoute.Unsupported, UpdateApplier.Plan(e, Old, false).Route);
         Assert.Equal(UpdateRoute.Unsupported, UpdateApplier.Plan(e, @"C:\Apps\Missing.exe", false).Route);
         e.Files[@"C:\Program Files\dotnet\dotnet.exe"] = "x";
@@ -311,7 +311,7 @@ public sealed class UpdateGateTests
 }
 
 /// <summary>
-/// The replacement on a real disk in a temp folder with tiny real Windows exes (never MONOLITH, never the network):
+/// The replacement on a real disk in a temp folder with tiny real Windows exes (never Lycoris, never the network):
 /// proves the rename/copy/rollback and the launch of a process, not only the logic.
 /// </summary>
 public sealed class UpdateOnDiskTests : IDisposable
@@ -335,8 +335,8 @@ public sealed class UpdateOnDiskTests : IDisposable
     [Fact]
     public void Replace_succeeds_with_a_new_exe_that_starts_and_keeps_one_backup()
     {
-        var oldExe = Path.Combine(_dir, "MONOLITH.exe");
-        var self = Path.Combine(_dir, "MONOLITH.exe.new");
+        var oldExe = Path.Combine(_dir, "Lycoris.exe");
+        var self = Path.Combine(_dir, "Lycoris.exe.new");
         File.Copy(Sys("whoami.exe"), oldExe);
         File.Copy(Sys("hostname.exe"), self);       // starts and ends with code 0
         var oldBytes = File.ReadAllBytes(oldExe);
@@ -353,8 +353,8 @@ public sealed class UpdateOnDiskTests : IDisposable
     [Fact]
     public void Rollback_restores_the_old_exe_byte_for_byte_when_the_new_one_fails()
     {
-        var oldExe = Path.Combine(_dir, "MONOLITH.exe");
-        var self = Path.Combine(_dir, "MONOLITH.exe.new");
+        var oldExe = Path.Combine(_dir, "Lycoris.exe");
+        var self = Path.Combine(_dir, "Lycoris.exe.new");
         File.Copy(Sys("hostname.exe"), oldExe);
         File.Copy(Sys("findstr.exe"), self);        // no arguments → exits with code 2
         var oldBytes = File.ReadAllBytes(oldExe);
@@ -383,16 +383,16 @@ public sealed class UpdateOnDiskTests : IDisposable
         Assert.True(env.CanWriteFolder(_dir));
         Assert.False(env.CanWriteFolder(Path.Combine(_dir, "does-not-exist")));
         Assert.Empty(Directory.GetFiles(_dir)); // the probe cleaned up
-        Assert.Equal(DriveKindInfo.Network, env.DriveKind(@"\\server\share\MONOLITH.exe"));
+        Assert.Equal(DriveKindInfo.Network, env.DriveKind(@"\\server\share\Lycoris.exe"));
         Assert.Contains(env.DriveKind(Path.Combine(_dir, "x.exe")), new[] { DriveKindInfo.Fixed, DriveKindInfo.Removable });
     }
 
     [Fact]
     public async Task Launcher_stages_next_to_the_exe_and_starts_the_updater_with_the_right_arguments()
     {
-        var exe = Path.Combine(_dir, "MONOLITH.exe");
+        var exe = Path.Combine(_dir, "Lycoris.exe");
         File.Copy(Sys("hostname.exe"), exe);
-        var staged = Path.Combine(_dir, "stage", "MONOLITH-1.0.1.exe");
+        var staged = Path.Combine(_dir, "stage", "Lycoris-1.0.1.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(staged)!);
         File.Copy(Sys("hostname.exe"), staged); // harmless: prints an error for unknown arguments and exits
         var sha = await UpdateVerifier.Sha256Async(staged, default);
@@ -408,9 +408,9 @@ public sealed class UpdateOnDiskTests : IDisposable
     [Fact]
     public async Task Launcher_refuses_a_file_that_changed_after_verification_and_cleans_its_copy()
     {
-        var exe = Path.Combine(_dir, "MONOLITH.exe");
+        var exe = Path.Combine(_dir, "Lycoris.exe");
         File.Copy(Sys("hostname.exe"), exe);
-        var staged = Path.Combine(_dir, "MONOLITH-1.0.1.exe");
+        var staged = Path.Combine(_dir, "Lycoris-1.0.1.exe");
         File.Copy(Sys("hostname.exe"), staged);
         var plan = new UpdatePlan(UpdateRoute.InPlace, exe, null);
 
@@ -423,7 +423,7 @@ public sealed class UpdateOnDiskTests : IDisposable
     [Fact]
     public async Task An_unsupported_plan_starts_nothing()
     {
-        var plan = new UpdatePlan(UpdateRoute.Unsupported, Path.Combine(_dir, "MONOLITH.exe"), "почему");
+        var plan = new UpdatePlan(UpdateRoute.Unsupported, Path.Combine(_dir, "Lycoris.exe"), "почему");
         var result = await UpdateLauncher.StartAsync(plan, new StagedUpdate("x", "y", 1, Kit.Release()), 1);
         Assert.False(result.Started);
         Assert.Equal("почему", result.Error);
@@ -443,15 +443,15 @@ public sealed class UpdateOnDiskTests : IDisposable
     [Fact]
     public void Cleanup_removes_the_leftovers_and_only_old_staged_downloads()
     {
-        var exe = Path.Combine(_dir, "MONOLITH.exe");
+        var exe = Path.Combine(_dir, "Lycoris.exe");
         File.WriteAllText(exe, "current");
         File.WriteAllText(exe + ".old", "old");
         File.WriteAllText(exe + ".new", "new");
         var updates = Path.Combine(_dir, "Updates");
         Directory.CreateDirectory(updates);
-        File.WriteAllText(Path.Combine(updates, "MONOLITH-1.0.0.exe"), "x");
-        File.WriteAllText(Path.Combine(updates, "MONOLITH-1.0.1.exe"), "x");
-        File.WriteAllText(Path.Combine(updates, "MONOLITH-1.0.2.exe"), "x");   // newer than the running build: kept
+        File.WriteAllText(Path.Combine(updates, "Lycoris-1.0.0.exe"), "x");
+        File.WriteAllText(Path.Combine(updates, "Lycoris-1.0.1.exe"), "x");
+        File.WriteAllText(Path.Combine(updates, "Lycoris-1.0.2.exe"), "x");   // newer than the running build: kept
         File.WriteAllText(Path.Combine(updates, "notes.txt"), "x");
 
         UpdateCleanup.Run(exe, updates, new SemVer(1, 0, 1, 0, ""));
@@ -459,9 +459,9 @@ public sealed class UpdateOnDiskTests : IDisposable
         Assert.True(File.Exists(exe));
         Assert.False(File.Exists(exe + ".old"));
         Assert.False(File.Exists(exe + ".new"));
-        Assert.False(File.Exists(Path.Combine(updates, "MONOLITH-1.0.0.exe")));
-        Assert.False(File.Exists(Path.Combine(updates, "MONOLITH-1.0.1.exe")));
-        Assert.True(File.Exists(Path.Combine(updates, "MONOLITH-1.0.2.exe")));
+        Assert.False(File.Exists(Path.Combine(updates, "Lycoris-1.0.0.exe")));
+        Assert.False(File.Exists(Path.Combine(updates, "Lycoris-1.0.1.exe")));
+        Assert.True(File.Exists(Path.Combine(updates, "Lycoris-1.0.2.exe")));
         Assert.True(File.Exists(Path.Combine(updates, "notes.txt")));
     }
 }

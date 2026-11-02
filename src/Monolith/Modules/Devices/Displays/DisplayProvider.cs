@@ -38,7 +38,7 @@ public sealed class DisplayProvider : IDeviceProvider
     public const string AutoHdrTweak = "auto-hdr";
     public const string VrrTweak = "vrr-optimization";
 
-    private static string NoDisplayWriter => Loc.T("Эта версия MONOLITH не умеет менять параметры экрана.");
+    private static string NoDisplayWriter => Loc.T("Эта версия Lycoris не умеет менять параметры экрана.");
 
     public Task<IReadOnlyList<DeviceCard>> DetectAsync(DeviceScanContext ctx, CancellationToken ct) => Task.Run(() =>
     {
@@ -256,7 +256,7 @@ public sealed class DisplayProvider : IDeviceProvider
             Format = v => v.Number != 0 ? Loc.T("вкл") : Loc.T("выкл"),
             Current = DeviceValue.Of(color.HdrEnabled),
             ReadCurrent = () => DeviceWriters.Display?.ReadHdrEnabled(path) is { } on ? DeviceValue.Of(on) : null,
-            DisabledReason = color.LimitedByPolicy ? Loc.T("HDR запрещён политикой или драйвером видеокарты — MONOLITH его не включает.")
+            DisabledReason = color.LimitedByPolicy ? Loc.T("HDR запрещён политикой или драйвером видеокарты — Lycoris его не включает.")
                 : DeviceWriters.Display is null ? NoDisplayWriter : null,
             Apply = writable
                 ? async (s, v, ct) =>
@@ -307,7 +307,7 @@ public sealed class DisplayProvider : IDeviceProvider
             Order = contrast ? 31 : 30,
             Current = DeviceValue.Of(r.Value),
             ReadCurrent = () => DeviceWriters.Monitor?.Get(path, code) is { } now ? DeviceValue.Of(now.Value) : null,
-            DisabledReason = writable ? null : Loc.T("Эта версия MONOLITH не умеет менять яркость и контраст монитора."),
+            DisabledReason = writable ? null : Loc.T("Эта версия Lycoris не умеет менять яркость и контраст монитора."),
             Apply = writable
                 ? async (s, v, ct) =>
                 {

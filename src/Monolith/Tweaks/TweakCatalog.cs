@@ -4,7 +4,7 @@ namespace Monolith.Tweaks;
 public enum ProfileKind { Normal, Gaming, Recommended, Streaming, Efficiency }
 
 /// <summary>
-/// Every optimization MONOLITH knows. The list itself is built in TweakCatalog.*.cs partial files.
+/// Every optimization Lycoris knows. The list itself is built in TweakCatalog.*.cs partial files.
 ///
 /// Canonical ids (other modules reference these — keep them stable):
 ///   game-mode, hags, gamedvr-off, power-plan-performance, mouse-acceleration-off,

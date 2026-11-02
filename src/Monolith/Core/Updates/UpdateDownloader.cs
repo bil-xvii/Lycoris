@@ -8,7 +8,7 @@ namespace Monolith.Core.Updates;
 public sealed record StagedUpdate(string Path, string Sha256, long Size, ReleaseInfo Release);
 
 /// <summary>
-/// Downloads MONOLITH.exe of a release into a folder and verifies it (CLAUDE.md rule 9 spirit, extended for the app itself):
+/// Downloads Lycoris.exe of a release into a folder and verifies it (CLAUDE.md rule 9 spirit, extended for the app itself):
 /// HTTPS only, every redirect hop's host on the allow-list BEFORE it is requested, size window, SHA-256 against the
 /// .sha256 asset and GitHub's digest, MZ/PE x64 header, Authenticode signer compared with the running exe. A file that
 /// fails any check is deleted. Streams through <see cref="VendorDownloads.CopyResponseToFileAsync"/>.
@@ -35,7 +35,7 @@ public sealed class UpdateDownloader
     /// <summary>Folder for staged updates: %LocalAppData%\MONOLITH\Updates.</summary>
     public static string DefaultFolder => System.IO.Path.Combine(AppPaths.UserDir, "Updates");
 
-    public string FileNameFor(ReleaseInfo r) => "MONOLITH-" + r.VersionText + ".exe";
+    public string FileNameFor(ReleaseInfo r) => "Lycoris-" + r.VersionText + ".exe";
 
     public async Task<StagedUpdate> DownloadAsync(ReleaseInfo release, string folder, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {

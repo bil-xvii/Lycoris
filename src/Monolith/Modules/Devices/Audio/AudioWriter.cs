@@ -5,8 +5,8 @@ namespace Monolith.Modules.Devices.Audio;
 
 /// <summary>
 /// Endpoint volume of capture endpoints through IAudioEndpointVolume (documented). Only ChangeSession.SetAudioLevel and the
-/// journal's undo call the Set* methods (DeviceWriters wraps them with the self-test SafetyLock). Every Set passes MONOLITH's
-/// fixed event context. Render endpoints are refused here too: MONOLITH never raises an output volume. Any HRESULT failure
+/// journal's undo call the Set* methods (DeviceWriters wraps them with the self-test SafetyLock). Every Set passes Lycoris's
+/// fixed event context. Render endpoints are refused here too: Lycoris never raises an output volume. Any HRESULT failure
 /// returns false; blocking, MTA only (callers on an STA thread are moved to the pool).
 /// </summary>
 internal sealed class AudioWriter : IAudioWriter

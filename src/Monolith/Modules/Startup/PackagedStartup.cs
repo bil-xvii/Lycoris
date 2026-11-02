@@ -43,7 +43,7 @@ public sealed record PackageFullName(string FullName, string Name, Version? Vers
 /// Task Manager keeps their switch (docs/research/general_tweaks.md §1, "Packaged (MSIX) apps"):
 /// <c>HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\&lt;PackageFamilyName&gt;\&lt;TaskId&gt;</c>,
 /// DWORD <c>State</c>. Discovery is read-only: a task is listed only when that value already exists and the installed
-/// package's manifest declares the task. MONOLITH never creates these keys and never touches policy states (3/4).
+/// package's manifest declares the task. Lycoris never creates these keys and never touches policy states (3/4).
 /// </summary>
 public static class PackagedStartup
 {
@@ -52,7 +52,7 @@ public static class PackagedStartup
     public const string StateValue = "State";
 
     // Same shape the journal accepts for a packaged startup mark (JournalTrust): anything else could not be undone, so
-    // MONOLITH does not change it either.
+    // Lycoris does not change it either.
     private static readonly Regex FamilyNamePattern = new(@"^[A-Za-z0-9.\-]{3,50}_[a-z0-9]{13}$",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex TaskIdPattern = new(@"^[A-Za-z0-9._\-]{1,128}$", RegexOptions.CultureInvariant);
@@ -62,7 +62,7 @@ public static class PackagedStartup
     /// <summary>The journal key of the State value (same format as <see cref="ChangeSession.SetRegistry"/>).</summary>
     public static string JournalTarget(string familyName, string taskId) => $@"reg:HKCU\{KeyPath(familyName, taskId)}\{StateValue}";
 
-    /// <summary>Names MONOLITH may write (and the journal will later accept for undo).</summary>
+    /// <summary>Names Lycoris may write (and the journal will later accept for undo).</summary>
     public static bool IsJournalSafe(string? familyName, string? taskId) =>
         familyName is not null && taskId is not null && FamilyNamePattern.IsMatch(familyName) && TaskIdPattern.IsMatch(taskId);
 
@@ -70,7 +70,7 @@ public static class PackagedStartup
 
     public static bool IsPolicy(int? state) => state is (int)PackagedTaskState.DisabledByPolicy or (int)PackagedTaskState.EnabledByPolicy;
 
-    /// <summary>States the user (and so MONOLITH, like Task Manager) may switch: 0, 1 and 2.</summary>
+    /// <summary>States the user (and so Lycoris, like Task Manager) may switch: 0, 1 and 2.</summary>
     public static bool IsUserChangeable(int? state) => state is >= 0 and <= 2;
 
     /// <summary>What Task Manager writes: 2 to turn on, 1 (disabled by user — an app cannot re-enable itself from it) to turn off.</summary>
@@ -80,25 +80,25 @@ public static class PackagedStartup
     public static string? WriteRefusal(int? liveState) => liveState switch
     {
         null => Loc.T("задача автозапуска не найдена — приложение удалено или обновлено. Обновите список"),
-        3 or 4 => Loc.T("состоянием управляет администратор или групповая политика — MONOLITH его не меняет"),
-        < 0 or > 4 => Loc.Tf("неизвестное состояние задачи ({0}) — MONOLITH его не меняет", liveState),
+        3 or 4 => Loc.T("состоянием управляет администратор или групповая политика — Lycoris его не меняет"),
+        < 0 or > 4 => Loc.Tf("неизвестное состояние задачи ({0}) — Lycoris его не меняет", liveState),
         _ => null,
     };
 
-    /// <summary>The State recorded before MONOLITH changed it. Null when the journal snapshot is not a DWORD State.</summary>
+    /// <summary>The State recorded before Lycoris changed it. Null when the journal snapshot is not a DWORD State.</summary>
     public static int? OriginalState(RegistryValueSnapshot snapshot) =>
         snapshot is { ValueExisted: true, Kind: RegistryValueKind.DWord }
         && uint.TryParse(snapshot.Data, NumberStyles.None, CultureInfo.InvariantCulture, out var v) && v <= int.MaxValue
             ? (int)v
             : null;
 
-    /// <summary>Was the task on before MONOLITH changed it? Null when the journal snapshot is not a DWORD State.</summary>
+    /// <summary>Was the task on before Lycoris changed it? Null when the journal snapshot is not a DWORD State.</summary>
     public static bool? OriginalEnabled(RegistryValueSnapshot snapshot) =>
         OriginalState(snapshot) is { } v ? IsEnabled(v) : null;
 
     /// <summary>
     /// The State a switch leaves (same rule as <see cref="StartupChanges.SetEntriesAsync"/>): back to the state the task
-    /// had before MONOLITH (<paramref name="before"/>) the journal restores that exact value — 0 stays 0 —, otherwise
+    /// had before Lycoris (<paramref name="before"/>) the journal restores that exact value — 0 stays 0 —, otherwise
     /// the Task Manager value (<see cref="TargetState"/>) is written.
     /// </summary>
     public static int StateAfterSwitch(bool enable, int? before) =>
@@ -106,7 +106,7 @@ public static class PackagedStartup
 
     /// <summary>"= …" text of the State a switch leaves, for the confirmation dialog.</summary>
     public static string SwitchText(bool enable, int state) =>
-        state != TargetState(enable) ? Loc.Tf("{0} ({1}) — как было до MONOLITH", state, StateText(state))
+        state != TargetState(enable) ? Loc.Tf("{0} ({1}) — как было до Lycoris", state, StateText(state))
         : enable ? Loc.T("2 (включено)")
         : Loc.T("1 (отключено пользователем — как в Диспетчере задач)");
 

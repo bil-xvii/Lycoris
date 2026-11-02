@@ -13,7 +13,7 @@ public sealed record DiskVerdict(DiskHealth Disk, bool Severe, bool Hot, IReadOn
 /// <summary>
 /// Hardware facts that cost FPS or data when wrong: which adapter drives the monitor, drive health, Resizable BAR and
 /// the PCIe link of the graphics card. All read-only: the fixes are physical (cable, slot, backup) or in BIOS, and
-/// MONOLITH changes none of them. Sources: gaming_tweaks.md §I (gpu-panel-reco, rebar-detect), tech.md §7.
+/// Lycoris changes none of them. Sources: gaming_tweaks.md §I (gpu-panel-reco, rebar-detect), tech.md §7.
 /// </summary>
 public static partial class HealthRules
 {
@@ -94,7 +94,7 @@ public static partial class HealthRules
             Loc.Tf("{0} подключён ко встроенной графике ({1}), а видеокарта {2} простаивает или копирует " +
             "кадры через неё — меньше FPS и больше задержка. Подключите кабель монитора к разъёму на видеокарте: это " +
             "горизонтальный ряд портов в нижней части задней панели, под разъёмами материнской платы. Встроенную графику " +
-            "выключать не нужно, а второй монитор на ней — нормальная схема. MONOLITH здесь ничего не меняет.",
+            "выключать не нужно, а второй монитор на ней — нормальная схема. Lycoris здесь ничего не меняет.",
             display.Name, igpu!.Name, card.Name),
             CheckSeverity.Warning, 12);
     }
@@ -186,14 +186,14 @@ public static partial class HealthRules
                           "откажет, нельзя.");
             if (bad.Any(v => v.Hot))
                 detail += " " + Loc.T("Перегрев сокращает срок службы и замедляет запись: проверьте обдув корпуса и радиатор M.2.");
-            detail += " " + Loc.T("MONOLITH накопители не «ремонтирует» и ничего на них не меняет.");
+            detail += " " + Loc.T("Lycoris накопители не «ремонтирует» и ничего на них не меняет.");
             return new("disk-health", bad.Count == 1 ? Loc.T("НАКОПИТЕЛЬ ТРЕБУЕТ ВНИМАНИЯ") : Loc.T("НАКОПИТЕЛИ ТРЕБУЮТ ВНИМАНИЯ"),
                 detail, CheckSeverity.Warning, bad.Any(v => v.Severe) ? 20 : 12);
         }
 
         var text = string.Join("; ", disks.Select(DiskSummary)) + ".";
         if (!s.Elevated)
-            text += " " + Loc.T("Износ, температура и счётчики ошибок доступны при запуске MONOLITH с правами администратора.");
+            text += " " + Loc.T("Износ, температура и счётчики ошибок доступны при запуске Lycoris с правами администратора.");
         else if (disks.Any(d => !d.HasCounters))
             text += " " + Loc.T("Часть накопителей не сообщает счётчики износа (так бывает с USB-адаптерами и RAID) — это не ошибка.");
         return new("disk-health", Loc.T("НАКОПИТЕЛИ: ПРОБЛЕМ НЕ НАЙДЕНО"), text, CheckSeverity.Ok, 10);
@@ -248,7 +248,7 @@ public static partial class HealthRules
                     "(ранним RTX 30 нужно обновление VBIOS с сайта производителя карты), " +
                     "платформа её не поддерживает", link.GpuName) +
                     (s.IsLaptop ? Loc.T(" (на ноутбуке это решает производитель).") : ".") + bios +
-                    " " + Loc.T("При включённом BitLocker сначала сохраните ключ восстановления. MONOLITH настройки BIOS не меняет."),
+                    " " + Loc.T("При включённом BitLocker сначала сохраните ключ восстановления. Lycoris настройки BIOS не меняет."),
                     CheckSeverity.Info, 3);
             default:
                 return null;
@@ -278,7 +278,7 @@ public static partial class HealthRules
                 "хотя карта и слот поддерживают {3}×{4}, — " +
                 "линия работает ниже возможностей карты. Частые причины: карта не до конца вставлена в слот или перекошена, " +
                 "загрязнены контакты, некачественный райзер-кабель. Выключите ПК, отключите питание и переустановите карту до " +
-                "щелчка фиксатора. MONOLITH ничего не меняет.",
+                "щелчка фиксатора. Lycoris ничего не меняет.",
                 link.GpuName, genLowered ? $"{link.CurrentGen}.0 " : "", link.CurrentWidth, genLowered ? $"{maxGen}.0 " : "", maxWidth),
                 CheckSeverity.Warning, 6);
         if (genLowered)
@@ -286,7 +286,7 @@ public static partial class HealthRules
                 Loc.Tf("{0} под нагрузкой работает на PCIe {1}.0 ×{2}, хотя карта и " +
                 "слот поддерживают PCIe {3}.0, — пропускная способность линии ниже возможной. Частые причины: райзер-кабель " +
                 "для более старой версии PCIe, плохой контакт в слоте, скорость линии, ограниченная вручную в BIOS. " +
-                "MONOLITH ничего не меняет.", link.GpuName, link.CurrentGen, link.CurrentWidth ?? maxWidth, maxGen), CheckSeverity.Info, 4);
+                "Lycoris ничего не меняет.", link.GpuName, link.CurrentGen, link.CurrentWidth ?? maxWidth, maxGen), CheckSeverity.Info, 4);
 
         var text = Loc.Tf("{0}: PCIe {1}.0 ×{2}", link.GpuName, maxGen, maxWidth) + (!link.UnderLoad
             ? Loc.T(" — столько поддерживают карта и слот; в простое скорость линии снижается для экономии энергии, это нормально.")

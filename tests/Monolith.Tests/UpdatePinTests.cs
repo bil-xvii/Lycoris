@@ -291,7 +291,7 @@ public sealed class UpdatePinRegistryTests : IDisposable
         var result = await new ChangeJournal(_journalPath).RevertAllAsync(); // reloaded from disk, like after a restart
         Assert.True(result.Success, string.Join("; ", result.Errors));
         Assert.Equal(before, Capture(PinValues));
-        Assert.False(RegistryHelper.KeyExists(RegHive.HKLM, Policy));                          // MONOLITH created it
+        Assert.False(RegistryHelper.KeyExists(RegHive.HKLM, Policy));                          // Lycoris created it
         Assert.True(RegistryHelper.KeyExists(RegHive.HKLM, @"SOFTWARE\Policies\Microsoft\Windows")); // existed before
         Assert.Equal(TweakState.NotApplied, pin.Detect());
     }
@@ -311,7 +311,7 @@ public sealed class UpdatePinRegistryTests : IDisposable
         Assert.True((await new ChangeJournal(_journalPath).RevertAllAsync()).Success);
 
         Assert.Equal(before, Capture(PinValues));
-        Assert.True(RegistryHelper.KeyExists(RegHive.HKLM, Policy)); // not created by MONOLITH: stays
+        Assert.True(RegistryHelper.KeyExists(RegHive.HKLM, Policy)); // not created by Lycoris: stays
     }
 
     [Fact]

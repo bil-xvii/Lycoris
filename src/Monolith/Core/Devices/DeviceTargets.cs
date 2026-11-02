@@ -36,7 +36,7 @@ public static class DeviceTargets
     public static bool IsEndpointId(string? id) => id is not null && EndpointId.IsMatch(id);
 
     /// <summary>
-    /// Microphones and other capture endpoints. MONOLITH writes levels only there: it never raises an output volume,
+    /// Microphones and other capture endpoints. Lycoris writes levels only there: it never raises an output volume,
     /// so a render endpoint in a level record is refused (a forged journal could otherwise blast a headset).
     /// </summary>
     public static bool IsCaptureEndpointId(string? id) => id is not null && CaptureEndpointId.IsMatch(id);
@@ -48,7 +48,7 @@ public static class DeviceTargets
     // ───────────────────────────── Network adapters ─────────────────────────────
 
     /// <summary>
-    /// The only NDIS advanced properties MONOLITH may write (research network_adapter.md): speed/duplex back to auto
+    /// The only NDIS advanced properties Lycoris may write (research network_adapter.md): speed/duplex back to auto
     /// negotiation, and Energy-Efficient Ethernet (Microsoft *EEE, Realtek EEE / AdvancedEEE). Never offloads, RSS,
     /// buffers, interrupt moderation, flow control, jumbo frames or vendor Wi-Fi knobs (DO-NOT-INCLUDE).
     /// </summary>

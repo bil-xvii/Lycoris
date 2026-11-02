@@ -360,7 +360,7 @@ public sealed class ToolsTests
         var reverted = new ChangeRecord { Title = "C", Reverted = true, RevertedUtc = new DateTime(2026, 10, 26, 17, 40, 0, DateTimeKind.Utc) };
 
         Assert.Equal(RecordState.Active, RestoreFormat.StateOf(active));
-        Assert.Equal("ИЗМЕНЕНО MONOLITH", RestoreFormat.StatusText(active));
+        Assert.Equal("ИЗМЕНЕНО LYCORIS", RestoreFormat.StatusText(active));
         Assert.Equal(RecordState.Failed, RestoreFormat.StateOf(failed));
         Assert.Equal("ОШИБКА ОТКАТА", RestoreFormat.StatusText(failed));
         Assert.Equal(RecordState.Reverted, RestoreFormat.StateOf(reverted));
@@ -432,7 +432,7 @@ public sealed class ToolsTests
     [Fact]
     public void Monolith_points_are_marked()
     {
-        Assert.True(RestoreFormat.IsMonolithPoint("MONOLITH: точка, созданная вручную"));
+        Assert.True(RestoreFormat.IsMonolithPoint("Lycoris: точка, созданная вручную"));
         Assert.False(RestoreFormat.IsMonolithPoint("Windows Update"));
         Assert.False(RestoreFormat.IsMonolithPoint(null));
     }

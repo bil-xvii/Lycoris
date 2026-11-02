@@ -25,7 +25,7 @@
     <sys:Double x:Key="R.Xl.D">16</sys:Double>
 
     <!--
-        MONOLITH palette — strictly monochrome.
+        Lycoris palette — strictly monochrome.
         Hierarchy is made with luminance, weight, hatching and inversion, never with hue.
     -->
     <Color x:Key="C.Base">#FF090909</Color>

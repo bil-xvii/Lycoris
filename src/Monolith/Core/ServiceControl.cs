@@ -22,7 +22,7 @@ public static class ServiceControl
     private const string ServicesKey = @"SYSTEM\CurrentControlSet\Services";
 
     /// <summary>
-    /// Services MONOLITH will never modify: core OS, security, networking basics, updates, audio, licensing.
+    /// Services Lycoris will never modify: core OS, security, networking basics, updates, audio, licensing.
     /// Changing any of them can leave Windows unbootable, offline, unpatched or unprotected.
     /// </summary>
     public static readonly IReadOnlySet<string> Protected = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -115,7 +115,7 @@ public static class ServiceControl
     public static void SetStartMode(string name, ServiceStartMode mode, bool delayedAutoStart = false, bool allowProtected = false)
     {
         if (!allowProtected && IsProtected(name))
-            throw new InvalidOperationException(Loc.Tf("Служба «{0}» критична для Windows — MONOLITH её не изменяет.", name));
+            throw new InvalidOperationException(Loc.Tf("Служба «{0}» критична для Windows — Lycoris её не изменяет.", name));
         SafetyLock.ThrowIfLocked(Loc.T("изменение службы"));
         Elevation.Demand(Loc.T("изменение служб"));
 
@@ -138,7 +138,7 @@ public static class ServiceControl
 
     /// <summary>
     /// Puts a start configuration back exactly: the start type and the stored DelayedAutostart flag (for every start
-    /// type, not only Automatic). Protected services are refused here too: MONOLITH never journals them.
+    /// type, not only Automatic). Protected services are refused here too: Lycoris never journals them.
     /// </summary>
     public static void Restore(ServiceStartSnapshot s)
     {
@@ -148,7 +148,7 @@ public static class ServiceControl
             return;
         }
         if (IsProtected(s.Name))
-            throw new InvalidOperationException(Loc.Tf("Служба «{0}» критична для Windows — MONOLITH её не изменяет.", s.Name));
+            throw new InvalidOperationException(Loc.Tf("Служба «{0}» критична для Windows — Lycoris её не изменяет.", s.Name));
         SafetyLock.ThrowIfLocked(Loc.T("изменение службы"));
         Elevation.Demand(Loc.T("изменение служб"));
 
@@ -162,7 +162,7 @@ public static class ServiceControl
                     throw new Win32Exception(Marshal.GetLastWin32Error(), Loc.Tf("Не удалось вернуть отложенный запуск {0}", s.Name));
                 return;
             }
-            // Not Automatic: set the flag first, while the service still has the start type MONOLITH gave it.
+            // Not Automatic: set the flag first, while the service still has the start type Lycoris gave it.
             if (current?.RawDelayed != raw && !SetDelayedFlag(svc, raw))
                 Log.Warn("Служба {0}: не удалось вернуть флаг отложенного запуска ({1}). Windows учитывает его только для автоматического запуска.", s.Name, raw ? "1" : "0");
             SetStartType(svc, s.Name, s.StartMode);

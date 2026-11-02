@@ -53,7 +53,7 @@ public static class EcoQos
 
     /// <summary>
     /// True when the process already manages EXECUTION_SPEED itself (ControlMask has the bit). Such a process is skipped: its
-    /// own setting is the exact state it wants, and MONOLITH would not know when it changes it again.
+    /// own setting is the exact state it wants, and Lycoris would not know when it changes it again.
     /// </summary>
     public static bool IsSelfManaged(PowerThrottlingState state) => (state.ControlMask & ExecutionSpeed) != 0;
 
@@ -85,13 +85,13 @@ public static class EcoQos
     /// <summary>
     /// Why a close-list process must not be put into efficiency mode, or null when it may. Besides the protected names
     /// (never offered at all) this refuses voice, streaming, audio, overlay and peripheral software, anti-cheat helpers,
-    /// MONOLITH itself and every process with an active audio session (Microsoft marks audible processes as HighQoS).
+    /// Lycoris itself and every process with an active audio session (Microsoft marks audible processes as HighQoS).
     /// </summary>
     public static string? ExclusionReason(string processName, int pid, int selfPid, IReadOnlySet<int> activeAudioPids)
     {
         var name = UserProcesses.NormalizeName(processName);
         if (name.Length == 0) return Loc.T("имя процесса не прочитано");
-        if (pid == selfPid || name.StartsWith("monolith", StringComparison.OrdinalIgnoreCase)) return Loc.T("это сам MONOLITH");
+        if (pid == selfPid || name.StartsWith("monolith", StringComparison.OrdinalIgnoreCase) || name.StartsWith("lycoris", StringComparison.OrdinalIgnoreCase)) return Loc.T("это сам Lycoris");
         if (UserProcesses.IsProtectedName(name)) return Loc.T("системный процесс, драйвер, античит или лаунчер");
         if (GameProcessFinder.IsHelper(name)) return Loc.T("вспомогательный процесс игры или античита");
         if (UserProcesses.IsNeverThrottled(name)) return Loc.T("звук, голос, стрим, оверлей или периферия — не ограничивается");
@@ -314,7 +314,7 @@ internal interface IAudioSessionManager2 : IAudioSessionManager
     [PreserveSig] new int GetAudioSessionControl(IntPtr sessionGuid, uint streamFlags, out IAudioSessionControl sessionControl);
     [PreserveSig] new int GetSimpleAudioVolume(IntPtr sessionGuid, uint streamFlags, [MarshalAs(UnmanagedType.IUnknown)] out object audioVolume);
     [PreserveSig] int GetSessionEnumerator(out IAudioSessionEnumerator sessionEnum);
-    /// <summary>Declared for the vtable; MONOLITH registers no notifications.</summary>
+    /// <summary>Declared for the vtable; Lycoris registers no notifications.</summary>
     [PreserveSig] int RegisterSessionNotification(IntPtr notification);
     [PreserveSig] int UnregisterSessionNotification(IntPtr notification);
     [PreserveSig] int RegisterDuckNotification([MarshalAs(UnmanagedType.LPWStr)] string? sessionId, IntPtr notification);
@@ -333,7 +333,7 @@ internal interface IAudioSessionControl
 {
     [PreserveSig] int GetState(out int state);
     [PreserveSig] int GetDisplayName([MarshalAs(UnmanagedType.LPWStr)] out string name);
-    /// <summary>Setters declared for the vtable only; MONOLITH never calls them.</summary>
+    /// <summary>Setters declared for the vtable only; Lycoris never calls them.</summary>
     [PreserveSig] int SetDisplayName([MarshalAs(UnmanagedType.LPWStr)] string name, IntPtr eventContext);
     [PreserveSig] int GetIconPath([MarshalAs(UnmanagedType.LPWStr)] out string path);
     [PreserveSig] int SetIconPath([MarshalAs(UnmanagedType.LPWStr)] string path, IntPtr eventContext);

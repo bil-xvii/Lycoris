@@ -120,7 +120,7 @@ public sealed class OptimizeTests
         Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Custom, false));
         var streaming = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Streaming, false));
         Assert.Contains("Не беспокоить", streaming);
-        Assert.Contains("MONOLITH не пишет", streaming);
+        Assert.Contains("Lycoris не пишет", streaming);
         var quiet = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Efficiency, false));
         Assert.Contains("FPS", quiet);
         Assert.Contains("вентиляторов", quiet);

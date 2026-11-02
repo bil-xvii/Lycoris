@@ -114,7 +114,7 @@ public enum HwStatus
     Installed,
     UpdateAvailable,
     NotInstalled,
-    /// <summary>Something to do that MONOLITH never does itself (BIOS, XMP, display settings, vendor site).</summary>
+    /// <summary>Something to do that Lycoris never does itself (BIOS, XMP, display settings, vendor site).</summary>
     ManualOnly,
     /// <summary>Could not be checked (yet): offline, Windows Update still searching…</summary>
     Unchecked,
@@ -140,7 +140,7 @@ public enum HwActionKind
     OpenSettings,
     /// <summary>Advice only (BIOS settings, …).</summary>
     Note,
-    /// <summary>Another MONOLITH page (Url = page key, only "devices"; <see cref="HwAction.FocusId"/> = item there). Never installs.</summary>
+    /// <summary>Another Lycoris page (Url = page key, only "devices"; <see cref="HwAction.FocusId"/> = item there). Never installs.</summary>
     GoToPage,
 }
 

@@ -157,8 +157,8 @@ public sealed class BoostPolicyTests
         Assert.Contains("уже «Максимальная производительность»", BoostPolicy.Describe(PowerPlanAction.SkipModeAlreadyFast, "x", ""));
         Assert.Contains("«Оптимизация»", BoostPolicy.Describe(PowerPlanAction.SkipModeManagedElsewhere, "x", ""));
         Assert.Contains("не удалось прочитать текущий режим питания", BoostPolicy.Describe(PowerPlanAction.SkipModeUnreadable, "x", ""));
-        Assert.Contains("неизвестный режим питания — MONOLITH его не меняет", BoostPolicy.Describe(PowerPlanAction.SkipModeUnknown, "x", ""));
-        Assert.Contains("журнал MONOLITH не принял бы отмену", BoostPolicy.Describe(PowerPlanAction.SkipModeUntrusted, "x", ""));
+        Assert.Contains("неизвестный режим питания — Lycoris его не меняет", BoostPolicy.Describe(PowerPlanAction.SkipModeUnknown, "x", ""));
+        Assert.Contains("журнал Lycoris не принял бы отмену", BoostPolicy.Describe(PowerPlanAction.SkipModeUntrusted, "x", ""));
     }
 
     [Fact]
@@ -255,7 +255,7 @@ public sealed class BoostPolicyTests
         Assert.DoesNotContain("ноутбук", desktop);
 
         var laptop = GamingReadiness.BalancedHint(laptop: true, windows11: true, modernStandby: false, highPerformanceExists: true);
-        Assert.Contains("На ноутбуке игровой сеанс MONOLITH включает режим питания «Максимальная производительность» (от сети)", laptop);
+        Assert.Contains("На ноутбуке игровой сеанс Lycoris включает режим питания «Максимальная производительность» (от сети)", laptop);
 
         // A desktop with Modern Standby or without the plan gets the same lever, described without «ноутбук».
         foreach (var hint in new[]

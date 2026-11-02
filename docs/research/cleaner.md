@@ -1,4 +1,4 @@
-# MONOLITH: safe junk cleaner design
+# Lycoris: safe junk cleaner design
 
 ## 0. Facts checked on the dev machine (build 26300, read-only)
 
@@ -217,7 +217,7 @@ Never run these while a build is running (`dotnet`, `MSBuild`, `node` processes)
   - The cached packages are needed to repair, patch and uninstall MSI products. Losing them can force a reinstall.
   - "Orphan" detection (PatchCleaner-style) is heuristic.
   - `$PatchCache$` is the baseline cache that lets a patch be removed without source media.
-  - The only supported way to limit it is the `MaxPatchCacheSize` policy (`HKLM\Software\Policies\Microsoft\Windows\Installer`, DWORD %, default 10). MONOLITH doesn't touch it.
+  - The only supported way to limit it is the `MaxPatchCacheSize` policy (`HKLM\Software\Policies\Microsoft\Windows\Installer`, DWORD %, default 10). Lycoris doesn't touch it.
 - **System areas:** `%ProgramData%\Package Cache` (Burn/VS/VC++ bundles, needed for uninstall), WinSxS, DriverStore, `System Volume Information`, `pagefile.sys`, `hiberfil.sys`, `Windows\Logs\MeasuredBoot`.
 - **App data:** `%LOCALAPPDATA%\Packages\*\LocalState`, `OfficeFileCache`, `INetCache\Content.Outlook`.
 - **Already listed above:** Prefetch, browser data stores, shader caches of installed games.
@@ -319,7 +319,7 @@ Handler key names are English on every UI language. Do not use `/verylowdisk` or
   - `ConfigStorageSenseRecycleBinCleanupThreshold` (0–365, default 30)
   - `ConfigStorageSenseDownloadsCleanupThreshold` (0–365, default 0 = never)
   - `ConfigStorageSenseCloudContentDehydrationThreshold`
-- Writing these **locks the user's UI** (policy semantics), so **MONOLITH must not write them**.
+- Writing these **locks the user's UI** (policy semantics), so **Lycoris must not write them**.
 - Instead, deep-link to `ms-settings:storagepolicies` (Storage Sense), `ms-settings:storagesense` (Storage) and `ms-settings:storagerecommendations`.
 - To display the current state, read `HKCU\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy`. Here `"01"=1` means on, and `"2048"=0` is observed to be the cadence. The numbered value names are **undocumented**: read only.
 - Note: the SilentCleanup and StorageSense tasks may already clear temp files and the DirectX shader cache on their own schedule.

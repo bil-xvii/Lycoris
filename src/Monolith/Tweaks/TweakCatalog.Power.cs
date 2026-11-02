@@ -30,7 +30,7 @@ public static partial class TweakCatalog
     /// <summary>VIDEOIDLE (Turn off display after), seconds; 0 = never.</summary>
     internal static readonly Guid VideoIdle = new("3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e");
 
-    /// <summary>Microsoft's energy recommendations name 3 or 10 minutes «depending on the system»; these numbers are MONOLITH's choice.</summary>
+    /// <summary>Microsoft's energy recommendations name 3 or 10 minutes «depending on the system»; these numbers are Lycoris's choice.</summary>
     internal const uint BatteryScreenOffSeconds = 180, BatterySleepSeconds = 600, AcScreenOffSeconds = 600, AcSleepSeconds = 1800;
 
     private static readonly string TimeoutsAdvice =
@@ -69,7 +69,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Схема «Максимальная производительность»"),
             Description = Loc.T("Создаёт копию скрытой схемы Ultimate Performance (если её ещё нет) и включает её."),
             Details = Loc.T("Для игр результат практически такой же, как у «Высокой производительности», но выше нагрев и потребление в простое. " +
-                      "Если копия схемы уже есть, MONOLITH использует её. Созданную MONOLITH копию откат удалит и вернёт прежнюю схему."),
+                      "Если копия схемы уже есть, Lycoris использует её. Созданную Lycoris копию откат удалит и вернёт прежнюю схему."),
             Category = TweakCategory.Power,
             Risk = TweakRisk.Advanced,
             Warning = Loc.T("Прироста в играх по сравнению с «Высокой производительностью» почти нет, а потребление энергии и нагрев в простое " +
@@ -99,7 +99,7 @@ public static partial class TweakCatalog
                     created = scheme;
                 }
                 if (!ctx.SetPowerScheme(scheme, created) && created is { } orphan)
-                    PowerSchemes.Delete(orphan); // activation failed: remove the unused copy MONOLITH just made
+                    PowerSchemes.Delete(orphan); // activation failed: remove the unused copy Lycoris just made
             },
         };
 
@@ -115,7 +115,7 @@ public static partial class TweakCatalog
             Details = Loc.T("Современные процессоры (CPPC/EPP) сами мгновенно повышают частоту под нагрузкой, поэтому в играх разница с " +
                       "«Высокой производительностью» почти незаметна, а в простое компьютер тише и экономичнее. Для Ryzen X3D с одним CCD " +
                       "это рекомендация AMD. Если активна схема производителя на основе сбалансированной («AMD Ryzen Balanced», " +
-                      "OEM Recommended), пункт считается применённым: схема уже сбалансированная (вариант производителя), MONOLITH её " +
+                      "OEM Recommended), пункт считается применённым: схема уже сбалансированная (вариант производителя), Lycoris её " +
                       "не заменяет. Прежняя схема возвращается при откате."),
             Category = TweakCategory.Power,
             Risk = TweakRisk.Safe,
@@ -156,7 +156,7 @@ public static partial class TweakCatalog
                          "и нагрев под лёгкой нагрузкой, тише вентиляторы."),
             details: Loc.T("Штатный режим Windows 11 («облегчённая схема» поверх сбалансированной): Windows смещает управление процессором и " +
                      "ограничение фоновых процессов в сторону экономии. Пиковая производительность ниже — для игр и тяжёлой работы пункт " +
-                     "не подходит. Это не аналог «тихих» режимов утилит производителя: кривые вентиляторов и лимиты мощности MONOLITH не " +
+                     "не подходит. Это не аналог «тихих» режимов утилит производителя: кривые вентиляторов и лимиты мощности Lycoris не " +
                      "трогает, эффект зависит от производителя — измерьте. Меняется только режим от сети. Применяется сразу " +
                      "(PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим."));
 
@@ -197,7 +197,7 @@ public static partial class TweakCatalog
                 if (current == PowerModeBestEfficiency) return;
                 // Only the three documented modes can be journaled (and accepted by the journal check on undo).
                 if (!IsDocumentedPowerMode(current))
-                    throw new InvalidOperationException(Loc.Tf("Windows сообщила неизвестный режим питания от батареи {0} — MONOLITH его не меняет", current.ToString("D")));
+                    throw new InvalidOperationException(Loc.Tf("Windows сообщила неизвестный режим питания от батареи {0} — Lycoris его не меняет", current.ToString("D")));
                 RunJournaled(ctx, "powermode:dc", PowerShellExe, PowerShellArgs(PowerModeScriptDc(PowerModeBestEfficiency)),
                     PowerShellExe, PowerShellArgs(PowerModeScriptDc(current)),
                     Ru(() => Loc.Tf("от батареи: {0}", DescribePowerMode(current))), Ru(() => Loc.Tf("от батареи: {0}", DescribePowerMode(PowerModeBestEfficiency))), OutputEncoding.Utf8);
@@ -290,7 +290,7 @@ public static partial class TweakCatalog
                          "пакета, тише вентиляторы."),
             details: Loc.T("Самый сильный штатный рычаг Windows для тихого ПК без записи кривых вентиляторов. Цена — большая потеря однопоточной " +
                      "производительности (десятки процентов); игры, упирающиеся в процессор, станут медленнее. Параметр хранится в схеме: на " +
-                     "настольном ПК игровой сеанс MONOLITH переключает схему на «Высокую производительность», где буст остаётся включённым — " +
+                     "настольном ПК игровой сеанс Lycoris переключает схему на «Высокую производительность», где буст остаётся включённым — " +
                      "только на время игры. Известное лечение «взвывающих» вентиляторов при коротких всплесках нагрузки."),
             category: TweakCategory.Power,
             risk: TweakRisk.Optional,
@@ -324,7 +324,7 @@ public static partial class TweakCatalog
             id: "screen-off-ac-10m",
             title: Loc.Key("Экран гаснет через 10 минут от сети"),
             description: Loc.T("В текущей схеме питания экран при работе от сети выключается не позже чем через 10 минут простоя."),
-            details: TimeoutsAdvice + Loc.T("10 минут от сети — выбор MONOLITH, он же стандарт сбалансированной схемы. ") + TimeoutsOnlyShorten +
+            details: TimeoutsAdvice + Loc.T("10 минут от сети — выбор Lycoris, он же стандарт сбалансированной схемы. ") + TimeoutsOnlyShorten +
                      Loc.T("Меняется только значение «от сети» текущей схемы; на ноутбуке значение от батареи — отдельный пункт."),
             category: TweakCategory.Power,
             risk: TweakRisk.Optional,
@@ -340,7 +340,7 @@ public static partial class TweakCatalog
             title: Loc.Key("Сон через 30 минут от сети"),
             description: Loc.T("В текущей схеме питания компьютер при работе от сети засыпает не позже чем через 30 минут простоя — не " +
                          "работает, не шумит и не светит всю ночь."),
-            details: TimeoutsAdvice + Loc.T("30 минут от сети — выбор MONOLITH для настольного ПК, он же стандарт сбалансированной схемы. ") +
+            details: TimeoutsAdvice + Loc.T("30 минут от сети — выбор Lycoris для настольного ПК, он же стандарт сбалансированной схемы. ") +
                      TimeoutsOnlyShorten + Loc.T("Пробуждение по сети и задачи с флагом «Пробуждать компьютер» работают как прежде; на " +
                      "настольном ПК с гибридным сном работа сохраняется и на диск. Меняется только значение «от сети» текущей схемы."),
             category: TweakCategory.Power,
@@ -358,7 +358,7 @@ public static partial class TweakCatalog
             id: "battery-screen-off-3min",
             title: Loc.Key("Экран гаснет через 3 минуты на батарее"),
             description: Loc.T("В текущей схеме питания экран при работе от батареи выключается не позже чем через 3 минуты простоя."),
-            details: TimeoutsAdvice + Loc.T("3 минуты — выбор MONOLITH. ") + TimeoutsOnlyShorten +
+            details: TimeoutsAdvice + Loc.T("3 минуты — выбор Lycoris. ") + TimeoutsOnlyShorten +
                      Loc.T("Меняется только значение «от батареи» текущей схемы; значение от сети не трогается."),
             category: TweakCategory.Power,
             risk: TweakRisk.Optional,
@@ -375,7 +375,7 @@ public static partial class TweakCatalog
             id: "battery-sleep-10min",
             title: Loc.Key("Сон через 10 минут на батарее"),
             description: Loc.T("В текущей схеме питания ноутбук при работе от батареи засыпает не позже чем через 10 минут простоя."),
-            details: TimeoutsAdvice + Loc.T("10 минут — выбор MONOLITH. ") + TimeoutsOnlyShorten +
+            details: TimeoutsAdvice + Loc.T("10 минут — выбор Lycoris. ") + TimeoutsOnlyShorten +
                      Loc.T("Меняется только значение «от батареи» текущей схемы; значение от сети не трогается."),
             category: TweakCategory.Power,
             risk: TweakRisk.Optional,
@@ -569,7 +569,7 @@ public static partial class TweakCatalog
             if (current == mode && !SessionHoldsPowerMode()) return;
             // Only the three documented modes can be journaled (and accepted by the journal check on undo).
             if (!IsDocumentedPowerMode(current))
-                throw new InvalidOperationException(Loc.Tf("Windows сообщила неизвестный режим питания {0} — MONOLITH его не меняет", current.ToString("D")));
+                throw new InvalidOperationException(Loc.Tf("Windows сообщила неизвестный режим питания {0} — Lycoris его не меняет", current.ToString("D")));
             RunJournaled(ctx, "powermode:ac", PowerShellExe, PowerShellArgs(PowerModeScript(mode)),
                 PowerShellExe, PowerShellArgs(PowerModeScript(current)),
                 Ru(() => Loc.Tf("от сети: {0}", DescribePowerMode(current))), Ru(() => Loc.Tf("от сети: {0}", DescribePowerMode(mode))), OutputEncoding.Utf8);

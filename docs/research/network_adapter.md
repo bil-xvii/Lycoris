@@ -76,7 +76,7 @@ Restart time: the 1–6 s range comes from Microchip ("typically a second or mor
 | 192.168.1.1 | **2/s × 40** | **0 %** | 0–2 ms (integer API) | | | |
 | 1.1.1.1 | **2/s × 40** | **0 %** | | | | |
 
-The "loss" at 10–20 pings/s is **ICMP rate limiting** by the router and the public resolvers, not packet loss. At 2/s it vanished, and the NIC discard counter did not move. The rule for MONOLITH's measurement code is therefore: never probe faster than ~2 pings/s per target, and never call ICMP loss "packet loss" without a second target or a slow rate. The router answers ICMP in ~1 ms with spikes to ~8 ms. That is typical for a consumer router's CPU answering pings, and it is not caused by the NIC.
+The "loss" at 10–20 pings/s is **ICMP rate limiting** by the router and the public resolvers, not packet loss. At 2/s it vanished, and the NIC discard counter did not move. The rule for Lycoris's measurement code is therefore: never probe faster than ~2 pings/s per target, and never call ICMP loss "packet loss" without a second target or a slow rate. The router answers ICMP in ~1 ms with spikes to ~8 ms. That is typical for a consumer router's CPU answering pings, and it is not caused by the NIC.
 
 ---
 
@@ -86,7 +86,7 @@ The "loss" at 10–20 pings/s is **ICMP rate limiting** by the router and the pu
 - `MSFT_NetAdapter`: InterfaceGuid, Name, InterfaceDescription, ComponentID, `NdisPhysicalMedium` (14 = 802.3, 9 = native 802.11), `MediaConnectState`, `Speed` (bps), `FullDuplex`, `MediaDuplexState` (0 unknown, 1 half, 2 full), DriverProvider, DriverVersionString, DriverDate, HardwareInterface, Virtual.
 - `MSFT_NetAdapterAdvancedPropertySettingData` (what `Get-NetAdapterAdvancedProperty -AllProperties` returns): `RegistryKeyword`, `RegistryValue`, `ValidRegistryValues`, `DefaultRegistryValue`, `NumericParameterMinValue/MaxValue`, `DisplayName`/`DisplayValue`. **DisplayName and DisplayValue come from the driver's INF strings and may be localized: use them for display only and match by `RegistryKeyword`.**
 - The backing store is `HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\NNNN`. Find NNNN by `NetCfgInstanceId == InterfaceGuid`. Values are REG_SZ. `Ndi\params\<keyword>` holds type, default, min, max and the enum. This key is readable without admin (verified).
-- Keywords **without** a DisplayName (`ASPM`, `CLKREQ`, `ForceMode`, `*IfType`, …) are driver-internal. MONOLITH never touches them.
+- Keywords **without** a DisplayName (`ASPM`, `CLKREQ`, `ForceMode`, `*IfType`, …) are driver-internal. Lycoris never touches them.
 
 **Write (admin).** Set-NetAdapterAdvancedProperty: "Changes are made directly into the registry". Without `-NoRestart` it restarts the adapter, because "Many advanced properties require restarting the network adapter" ([Set-NetAdapterAdvancedProperty](https://learn.microsoft.com/en-us/powershell/module/netadapter/set-netadapteradvancedproperty)). Microsoft's driver docs say the same of the Advanced tab: "The miniport driver is automatically restarted after a change" ([selective suspend keywords](https://learn.microsoft.com/en-us/windows-hardware/drivers/network/standardized-inf-keywords-for-ndis-selective-suspend)).
 - Use the same pattern as `DnsScript`: a PowerShell script through `RunJournaled`. It resolves the adapter by `InterfaceGuid` at run time, because names and ifIndex change. It then checks that the keyword exists **and** that the target value is in `ValidRegistryValues` (enum) or within min/max (int). Then it runs `Set-NetAdapterAdvancedProperty -Name $a.Name -RegistryKeyword '<kw>' -RegistryValue '<v>' -ErrorAction Stop`.
@@ -272,7 +272,7 @@ There is **no generic property editor**. That is Device Manager's job, and an ed
 ### `wifi-background-scan-off`: Отключить фоновое сканирование Wi-Fi → **DO-NOT-INCLUDE**
 - **Mechanism people use:** `netsh wlan set autoconfig enabled=no interface=…` or the "WLAN Optimizer" freeware.
 - Periodic ping spikes from background scans are widely reported, but the evidence is anecdotal ([gHacks](https://www.ghacks.net/?p=54335), [Intel community](https://community.intel.com/t5/Wireless/AX201-ping-spikes/m-p/1573530)). Turning autoconfig off stops automatic reconnects and is easy to forget.
-- MONOLITH should only **detect** periodic spikes in `wifi-link-audit` and recommend a cable.
+- Lycoris should only **detect** periodic spikes in `wifi-link-audit` and recommend a cable.
 
 ### `wifi7-mlo`: Wi-Fi 7 MLO → **INFO-ONLY**
 - Windows 11 24H2 supports Wi-Fi 7 for consumer APs, including Multi-Link Operation ([Insider build 26063](https://blogs.windows.com/windows-insider/2024/02/22/announcing-windows-11-insider-preview-build-26063-canary-channel/); enterprise APs added 09/2025 per the [Windows IT Pro blog](https://techcommunity.microsoft.com/blog/windows-itpro-blog/introducing-wi-fi-7-for-enterprise-connectivity/4456751)). It needs a Wi-Fi 7 router with MLO enabled and a current client driver. FastConnect 7800 lists MLO in hardware ([Qualcomm brief](https://www.qualcomm.com/content/dam/qcomm-martech/dm-assets/documents/fastconnect-7800-product-brief_final19.pdf)).
@@ -281,7 +281,7 @@ There is **no generic property editor**. That is Device Manager's job, and an ed
 
 ### Killer E3x00 notes
 - The Killer E3000/E3100 are 2.5GbE controllers; the E3100 is named in the 2023 EEE disconnect mitigation together with I225/I226 ([Guru3D](https://www.guru3d.com/news-story/intel-patches-i226i225killer-e3100-2-5gbe-network-dropout-issues-by-disabling-eee.html)). The same `net-eee-off` and `net-speed-duplex-auto` rules apply.
-- The Killer software's traffic prioritization only shapes this PC's own traffic and cannot fix congestion caused by other devices or the router. Older Killer products are end-of-support ([Intel 000059296](https://intel.com/content/www/us/en/support/articles/000059296.html)). MONOLITH should not try to control Killer software.
+- The Killer software's traffic prioritization only shapes this PC's own traffic and cannot fix congestion caused by other devices or the router. Older Killer products are end-of-support ([Intel 000059296](https://intel.com/content/www/us/en/support/articles/000059296.html)). Lycoris should not try to control Killer software.
 
 ---
 

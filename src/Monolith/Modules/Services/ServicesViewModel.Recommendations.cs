@@ -144,7 +144,7 @@ public sealed partial class ServicesViewModel
     private string? BlockReasonFor(CuratedService entry)
     {
         if (ServiceControl.IsProtected(entry.Name) || ServiceGuard.IsHardBlocked(entry.Name))
-            return Loc.T("Служба защищена MONOLITH и не изменяется.");
+            return Loc.T("Служба защищена Lycoris и не изменяется.");
         return entry.Gate switch
         {
             ServiceGate.NotInsider when Machine?.IsInsider == true =>
@@ -298,7 +298,7 @@ public sealed partial class ServicesViewModel
     private async Task RevertServiceAsync(string? name)
     {
         if (string.IsNullOrEmpty(name) || !RequireAdmin(Loc.T("откат изменения службы"), "RevertService", name)) return;
-        // The row means «back to how it was before MONOLITH»: every active change of this service, newest first.
+        // The row means «back to how it was before Lycoris»: every active change of this service, newest first.
         var layers = ChangeJournal.Instance.ActiveLayers("svc:" + name);
         var record = layers.LastOrDefault();
         if (record is null)
@@ -319,7 +319,7 @@ public sealed partial class ServicesViewModel
         var current = live.Describe();
         var drift = !string.Equals(current, record.NewValue, StringComparison.Ordinal);
         var message = drift
-            ? Loc.Tf("Тип запуска уже изменён без MONOLITH (обновлением Windows, политикой или вручную): сейчас «{0}», MONOLITH ставил «{1}». Всё равно вернуть исходное значение?", current, record.NewValue)
+            ? Loc.Tf("Тип запуска уже изменён без Lycoris (обновлением Windows, политикой или вручную): сейчас «{0}», Lycoris ставил «{1}». Всё равно вернуть исходное значение?", current, record.NewValue)
             : Loc.T("Служба вернётся к исходному типу запуска из журнала. Работающая служба не останавливается.");
         if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;

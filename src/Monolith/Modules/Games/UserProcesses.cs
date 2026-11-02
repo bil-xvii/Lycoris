@@ -10,7 +10,7 @@ public sealed record RunningApp(string Name, string Description, int Count, long
 /// <summary>
 /// Which running processes Game Boost may close. Strict filter — a process is closable only when it:
 /// runs in this interactive session (never session 0 / services), belongs to the logged-in user,
-/// is not critical, is not MONOLITH, and is not on the protected list (Windows shell and security,
+/// is not critical, is not Lycoris, and is not on the protected list (Windows shell and security,
 /// drivers' helpers, anti-cheat, game launchers that the game itself needs).
 /// </summary>
 public static class UserProcesses
@@ -45,7 +45,7 @@ public static class UserProcesses
     [
         "easyanticheat", "eosoverlayrenderer", "epiconlineservices", "battleye", "beservice", "faceit", "vgc",
         "nvcontainer", "nvdisplay", "searchprotocolhost", "searchfilterhost", "msedgewebview2", "steamwebhelper",
-        "riotclient", "gamebar", "monolith",
+        "riotclient", "gamebar", "monolith", "lycoris",
     ];
 
     /// <summary>

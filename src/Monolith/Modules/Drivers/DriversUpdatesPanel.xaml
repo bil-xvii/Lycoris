@@ -103,7 +103,7 @@
                         <TextBlock Text="{loc:T Требуется перезагрузка}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
                                    Foreground="{StaticResource B.Ink}" />
                         <TextBlock FontFamily="{StaticResource F.Body}" FontSize="12.5" Foreground="{StaticResource B.Ink}" TextWrapping="Wrap" Margin="0,2,0,0"
-                                   Text="{loc:T 'Требуется перезагрузка для завершения установки драйвера. MONOLITH не перезагружает компьютер сам — сохраните работу и перезагрузите, когда будет удобно.'}" />
+                                   Text="{loc:T 'Требуется перезагрузка для завершения установки драйвера. Lycoris не перезагружает компьютер сам — сохраните работу и перезагрузите, когда будет удобно.'}" />
                     </StackPanel>
                 </Grid>
             </Border>

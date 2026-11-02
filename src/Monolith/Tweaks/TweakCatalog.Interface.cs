@@ -20,7 +20,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Советы и предложения Windows"),
             Description = Loc.T("Отключает советы по Windows, «экран приветствия» после обновлений и напоминания «завершить настройку устройства»."),
             Details = Loc.T("Это те же переключатели, что в Параметрах → Система → Уведомления → Дополнительные параметры. На производительность " +
-                      "не влияет — убирает назойливые уведомления и полноэкранные предложения после обновлений. Отмена — откатом в MONOLITH " +
+                      "не влияет — убирает назойливые уведомления и полноэкранные предложения после обновлений. Отмена — откатом в Lycoris " +
                       "или в Параметрах."),
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Safe,
@@ -165,7 +165,7 @@ public static partial class TweakCatalog
                       "редакциях. Сами картинки «Windows: интересное» на экране блокировки и рабочем столе остаются. Эффект узкий: основную " +
                       "рекламу уже убирают пункты «Советы и предложения Windows» и «Советы на экране блокировки», этот закрывает ещё и " +
                       "продвижение сторонних приложений. Остальные политики «интересного» работают только в Enterprise и Education, поэтому " +
-                      "MONOLITH их не предлагает. Откат удаляет политику. Действует после выхода из системы."),
+                      "Lycoris их не предлагает. Откат удаляет политику. Действует после выхода из системы."),
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.SignOut,
@@ -313,7 +313,7 @@ public static partial class TweakCatalog
                       "файлы с Office.com» и в новых сборках Windows 11 «Показать раздел рекомендаций» (если флажка в вашей версии нет, " +
                       "значение ни на что не влияет). Полезно при демонстрации экрана: недавние документы не видны посторонним, а Проводник " +
                       "не запрашивает облачные рекомендации. Закреплённые и часто используемые папки остаются — «часто используемые папки» " +
-                      "MONOLITH не выключает, иначе «Главная» становится пустой. Журнал и списки переходов не удаляются. Политика не " +
+                      "Lycoris не выключает, иначе «Главная» становится пустой. Журнал и списки переходов не удаляются. Политика не " +
                       "используется, поэтому флажки можно вернуть и вручную. Применяется после перезапуска Проводника."),
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Optional,
@@ -417,7 +417,7 @@ public static partial class TweakCatalog
             Id = "menu-show-delay",
             Title = Loc.Key("Быстрые меню"),
             Description = Loc.T("Задержка перед открытием вложенных меню уменьшается с 400 до 150 мс."),
-            Details = Loc.T("Влияет только на субъективную отзывчивость интерфейса, на игры — нет. Значение 0 MONOLITH не ставит: меню начинают " +
+            Details = Loc.T("Влияет только на субъективную отзывчивость интерфейса, на игры — нет. Значение 0 Lycoris не ставит: меню начинают " +
                       "дёргаться при движении мыши. Действует после выхода из системы."),
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Optional,
@@ -456,7 +456,7 @@ public static partial class TweakCatalog
             Description = Loc.T("Пятикратное нажатие Shift, долгое удержание правого Shift или Num Lock больше не открывает окна «Залипание " +
                           "клавиш», «Фильтрация ввода» и «Озвучивание переключения», которые сворачивают игру."),
             Details = Loc.T("Выключаются только сочетания клавиш — как переключатели «Сочетание клавиш для …» в Параметрах → Специальные " +
-                      "возможности → Клавиатура. Сами функции остаются доступны там же, а если какая-то из них у вас уже включена, MONOLITH " +
+                      "возможности → Клавиатура. Сами функции остаются доступны там же, а если какая-то из них у вас уже включена, Lycoris " +
                       "её не трогает. Остальные настройки этих функций сохраняются. FPS не меняется — пропадают только окна, которые " +
                       "отбирают фокус у игры. Откат возвращает прежние значения в точности; если после применения вы меняли эти функции " +
                       "в Параметрах, откат вернёт и их прежнее состояние (Восстановление покажет такие изменения). Действует после выхода " +
@@ -465,7 +465,7 @@ public static partial class TweakCatalog
             Risk = TweakRisk.Optional,
             DefaultIn = ProfileSet.Gaming | ProfileSet.Streaming,
             Restart = RestartRequirement.SignOut,
-            NotApplicableReason = Loc.T("Залипание клавиш, фильтрация ввода и озвучивание переключения у вас включены — MONOLITH их не трогает."),
+            NotApplicableReason = Loc.T("Залипание клавиш, фильтрация ввода и озвучивание переключения у вас включены — Lycoris их не трогает."),
             DetectFunc = () =>
             {
                 var keys = AccessibilityHotkeyTargets();
@@ -535,13 +535,13 @@ public static partial class TweakCatalog
     internal static int ClearAccessibilityHotkey(int flags) => flags & ~AccessibilityHotkeyBit;
 
     /// <summary>
-    /// The Flags MONOLITH may change for one feature, or null: unreadable values and features that are switched on
+    /// The Flags Lycoris may change for one feature, or null: unreadable values and features that are switched on
     /// (the user relies on them, shortcut included) are left exactly as they are.
     /// </summary>
     internal static int? ChangeableAccessibilityFlags(object? raw, int defaultValue) =>
         ParseAccessibilityFlags(raw, defaultValue) is { } flags && (flags & AccessibilityFeatureOnBit) == 0 ? flags : null;
 
-    /// <summary>The features MONOLITH may change, with their current Flags.</summary>
+    /// <summary>The features Lycoris may change, with their current Flags.</summary>
     internal static IReadOnlyList<(string Path, int Flags)> AccessibilityHotkeyTargets()
     {
         var result = new List<(string, int)>();

@@ -18,7 +18,7 @@ public enum ServiceGate
 
 /// <summary>
 /// One service from the curated allowlist (docs/research/services.md §1).
-/// MONOLITH changes only the start type: it never stops a running service and never touches triggers.
+/// Lycoris changes only the start type: it never stops a running service and never touches triggers.
 /// </summary>
 public sealed record CuratedService
 {
@@ -32,7 +32,7 @@ public sealed record CuratedService
     /// <summary>What stops working after the change (the risk, in plain words).</summary>
     public required string Impact { get; init; }
     public required ServiceGroup Group { get; init; }
-    /// <summary>The start type MONOLITH sets: Manual (preferred) or Disabled where research says so.</summary>
+    /// <summary>The start type Lycoris sets: Manual (preferred) or Disabled where research says so.</summary>
     public required ServiceStartMode Target { get; init; }
     /// <summary>Profiles in which the entry is recommended.</summary>
     public ProfileSet Profiles { get; init; }
@@ -49,7 +49,7 @@ public sealed record CuratedService
     public bool IsPreselectedIn(ProfileSet profile) => !Conditional && profile != ProfileSet.None && (Profiles & profile) == profile;
 }
 
-/// <summary>A telemetry scheduled task from research §4.1. MONOLITH only disables it (and re-enables on revert).</summary>
+/// <summary>A telemetry scheduled task from research §4.1. Lycoris only disables it (and re-enables on revert).</summary>
 public sealed record CuratedTask
 {
     /// <summary>Full task path ("\Microsoft\Windows\…\Name"). For <see cref="IsPrefix"/> entries: folder + name prefix.</summary>

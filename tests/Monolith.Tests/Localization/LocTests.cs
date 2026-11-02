@@ -68,8 +68,8 @@ public sealed class LocTests
     public void Text_without_cyrillic_is_never_a_missing_key()
     {
         using var _ = Loc.UseLanguage("en");
-        Assert.Equal("MONOLITH 1.0", Loc.T("MONOLITH 1.0"));
-        Assert.DoesNotContain("MONOLITH 1.0", Loc.MissingKeys);
+        Assert.Equal("Lycoris 1.0", Loc.T("Lycoris 1.0"));
+        Assert.DoesNotContain("Lycoris 1.0", Loc.MissingKeys);
         Assert.Equal("", Loc.T(""));
     }
 

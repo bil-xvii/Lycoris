@@ -461,7 +461,7 @@ public sealed partial class DriversViewModel
                     Ui.Toast("Не удалось открыть параметры Windows. Откройте их вручную: Параметры → Дисплей.", ToastKind.Warning);
                 return;
             default:
-                // Web pages and Store links: never with MONOLITH's administrator token.
+                // Web pages and Store links: never with Lycoris's administrator token.
                 if (!await UnelevatedShell.OpenAsync(target))
                     Ui.Toast(Loc.Tf("Не удалось открыть страницу без прав администратора. Адрес: {0}", target), ToastKind.Warning, Loc.T("ССЫЛКА НЕ ОТКРЫТА"));
                 return;
@@ -516,8 +516,8 @@ public sealed partial class DriversViewModel
         details.Add(Loc.T("Сначала: точка восстановления системы"));
         if (hasDrivers)
         {
-            details.Add(Loc.T("Перед драйвером видеокарты: копия её текущего драйвера (pnputil) в папку резервных копий MONOLITH"));
-            details.Add(Loc.T("Установщики драйверов открываются по одному — пройдите их шаги; MONOLITH ждёт завершения каждого. Экран может мигнуть"));
+            details.Add(Loc.T("Перед драйвером видеокарты: копия её текущего драйвера (pnputil) в папку резервных копий Lycoris"));
+            details.Add(Loc.T("Установщики драйверов открываются по одному — пройдите их шаги; Lycoris ждёт завершения каждого. Экран может мигнуть"));
         }
         if (selected.Any(a => a.Action.Kind == HwActionKind.Winget))
             details.Add(Loc.T("Программы через winget ставятся по очереди без вопросов (--silent), без --force и без перезагрузки"));
@@ -617,7 +617,7 @@ public sealed partial class DriversViewModel
 
     private async Task<bool> CreateHardwareRestorePointAsync()
     {
-        var rp = await RestorePointService.CreateAsync(Loc.T("MONOLITH: драйверы и компоненты для ПК"));
+        var rp = await RestorePointService.CreateAsync(Loc.T("Lycoris: драйверы и компоненты для ПК"));
         HardwareResults.Add(new HwResultItem(Loc.T("Точка восстановления"), rp.Created ? Loc.T("СОЗДАНА") : Loc.T("НЕ СОЗДАНА"), rp.Created, rp.Message));
         if (rp.Created)
         {
@@ -733,7 +733,7 @@ public sealed partial class DriversViewModel
         // 3. The vendor's own installer, interactively; wait until the user finishes it.
         item.SetJob(HwJobState.Running, Loc.T("УСТАНОВКА · ОКНО УСТАНОВЩИКА"));
         HwInstallIndeterminate = true;
-        HwInstallDetail = Loc.T("Пройдите шаги установщика производителя. MONOLITH ждёт его завершения.");
+        HwInstallDetail = Loc.T("Пройдите шаги установщика производителя. Lycoris ждёт его завершения.");
         var code = await VendorInstallerRunner.RunAndWaitAsync(path, ct);
         if (code is null)
         {

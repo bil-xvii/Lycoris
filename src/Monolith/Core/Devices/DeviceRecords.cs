@@ -39,7 +39,7 @@ public sealed record DisplayModeSpec(int Width, int Height, int Frequency, uint 
 
     /// <summary>
     /// Plausible values only (the journal is untrusted input). GDI reports 0 or 1 Hz for «hardware default», so an
-    /// original may carry 0; MONOLITH never sets such a mode (<see cref="IsSaneTarget"/>).
+    /// original may carry 0; Lycoris never sets such a mode (<see cref="IsSaneTarget"/>).
     /// </summary>
     [JsonIgnore]
     public bool IsSane =>
@@ -51,7 +51,7 @@ public sealed record DisplayModeSpec(int Width, int Height, int Frequency, uint 
         && Orientation is >= 0 and <= 3
         && Math.Abs((long)PositionX) <= 65536 && Math.Abs((long)PositionY) <= 65536;
 
-    /// <summary>A mode MONOLITH may set: sane and with a real refresh rate.</summary>
+    /// <summary>A mode Lycoris may set: sane and with a real refresh rate.</summary>
     [JsonIgnore]
     public bool IsSaneTarget => IsSane && Frequency >= 1 && ExactHz >= 1;
 
@@ -95,7 +95,7 @@ public sealed class DisplayHdrSnapshot
     public bool? AcmBefore { get; init; }
 }
 
-/// <summary>The two MCCS VCP codes MONOLITH reads and writes over DDC/CI (nothing else, never vendor codes).</summary>
+/// <summary>The two MCCS VCP codes Lycoris reads and writes over DDC/CI (nothing else, never vendor codes).</summary>
 public enum MonitorVcp : byte
 {
     Brightness = 0x10,

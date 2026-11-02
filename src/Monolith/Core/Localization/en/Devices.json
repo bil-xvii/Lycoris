@@ -11,7 +11,7 @@
     "{0} · {1}: пункт «Оптимизации», {2} → {3}": "{0} · {1}: Optimize item, {2} → {3}",
     " (подтвердите на экране за 15 с)": " (confirm on screen within 15 s)",
     "Настроить автоматически?": "Auto-tune now?",
-    "MONOLITH изменит выбранные настройки. Перед изменением исходные значения записываются в журнал:": "MONOLITH will change the selected settings. Before each change, the original values are saved to the change log:",
+    "Lycoris изменит выбранные настройки. Перед изменением исходные значения записываются в журнал:": "Lycoris will change the selected settings. Before each change, the original values are saved to the change log:",
     "Каждое изменение откатывается по одному — в «Вручную» или в «Восстановлении».": "Each change can be undone one by one — in Manual or in Restore.",
     "Часть изменений вступит в силу после выхода из системы.": "Some changes take effect after you sign out.",
     "Часть изменений вступит в силу после перезагрузки.": "Some changes take effect after a restart.",

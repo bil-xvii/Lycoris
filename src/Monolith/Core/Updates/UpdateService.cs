@@ -52,13 +52,13 @@ public sealed record UpdateCheckResult(UpdateCheckStatus Status, ReleaseInfo? Re
 }
 
 /// <summary>
-/// "Is there a newer MONOLITH?" — one anonymous GET of the public releases repository
+/// "Is there a newer Lycoris?" — one anonymous GET of the public releases repository
 /// (<see cref="LatestReleaseUrl"/>), at most once per 12 hours for background checks, with ETag. Never throws (except for the
 /// caller's own cancellation) and never shows an error: a failure is a log line and a <see cref="UpdateCheckStatus.Failed"/> result.
 /// </summary>
 public sealed class UpdateService
 {
-    public const string Repository = "bil-xvii/MONOLITH-releases";
+    public const string Repository = "bil-xvii/Lycoris-releases";
     public static readonly Uri LatestReleaseUrl = new($"https://api.github.com/repos/{Repository}/releases/latest");
     public static readonly TimeSpan CheckInterval = TimeSpan.FromHours(12);
     public static readonly TimeSpan SnoozeLength = TimeSpan.FromHours(24);
@@ -300,7 +300,7 @@ public static class UpdateHttp
 
     private static HttpClient Configure(HttpClient c)
     {
-        c.DefaultRequestHeaders.UserAgent.ParseAdd("MONOLITH/" + AppVersion.CurrentText);
+        c.DefaultRequestHeaders.UserAgent.ParseAdd("Lycoris/" + AppVersion.CurrentText);
         return c;
     }
 }

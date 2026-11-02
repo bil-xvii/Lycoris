@@ -93,7 +93,7 @@ public static class UpdateLauncher
 public static class UpdateCleanup
 {
     /// <summary>
-    /// A minute after a successful start: delete MONOLITH.exe.old / .new beside the exe and downloaded files of versions that
+    /// A minute after a successful start: delete Lycoris.exe.old / .new beside the exe and downloaded files of versions that
     /// are not newer than this build. Never touches anything else; every failure is ignored.
     /// </summary>
     public static void Run(string exePath, string updatesFolder, SemVer current)
@@ -103,7 +103,7 @@ public static class UpdateCleanup
         try
         {
             if (!Directory.Exists(updatesFolder)) return;
-            foreach (var f in Directory.EnumerateFiles(updatesFolder, "MONOLITH-*.exe*"))
+            foreach (var f in Directory.EnumerateFiles(updatesFolder, "Lycoris-*.exe*").Concat(Directory.EnumerateFiles(updatesFolder, "MONOLITH-*.exe*")))
             {
                 var name = Path.GetFileName(f);
                 if (name.EndsWith(".part", StringComparison.OrdinalIgnoreCase))
@@ -111,7 +111,7 @@ public static class UpdateCleanup
                     if (DateTime.UtcNow - File.GetLastWriteTimeUtc(f) > TimeSpan.FromHours(6)) TryDelete(f);
                     continue;
                 }
-                var text = Path.GetFileNameWithoutExtension(name)["MONOLITH-".Length..];
+                var text = Path.GetFileNameWithoutExtension(name)[(name.StartsWith("MONOLITH-", StringComparison.OrdinalIgnoreCase) ? "MONOLITH-" : "Lycoris-").Length..];
                 if (!SemVer.TryParse(text, out var v) || v <= current) TryDelete(f);
             }
         }

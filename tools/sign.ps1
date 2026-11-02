@@ -1,14 +1,14 @@
-﻿# Signs MONOLITH.exe with Authenticode (SHA-256 + RFC 3161 timestamp), so Windows shows a publisher name instead of
+﻿# Signs Lycoris.exe with Authenticode (SHA-256 + RFC 3161 timestamp), so Windows shows a publisher name instead of
 # «Издатель: неизвестно». Certificate sources, first match wins:
 #   -PfxPath <file>      a purchased certificate in a .pfx file (asks for its password)
 #   -Thumbprint <hex>    a certificate in Cert:\CurrentUser\My or Cert:\LocalMachine\My (also hardware tokens / cloud HSM
 #                        certificates that are visible in the store)
 #   (default)            the personal "CN=MONOLITH" certificate made by tools\signing-cert.ps1
 #
-# Usage:  powershell -ExecutionPolicy Bypass -File tools\sign.ps1 [-File publish\MONOLITH.exe] [-Thumbprint ...] [-NoTimestamp]
+# Usage:  powershell -ExecutionPolicy Bypass -File tools\sign.ps1 [-File publish\Lycoris.exe] [-Thumbprint ...] [-NoTimestamp]
 # Exit code 0 = signed and the signature is valid on this PC; 2 = no certificate available (nothing changed); 1 = error.
 param(
-    [string]$File = (Join-Path (Split-Path -Parent $PSScriptRoot) 'publish\MONOLITH.exe'),
+    [string]$File = (Join-Path (Split-Path -Parent $PSScriptRoot) 'publish\Lycoris.exe'),
     [string]$Thumbprint,
     [string]$PfxPath,
     [string]$Subject = 'CN=MONOLITH',
@@ -20,9 +20,9 @@ $ErrorActionPreference = 'Stop'
 $File = [IO.Path]::GetFullPath($File)
 if (-not (Test-Path -LiteralPath $File)) { Write-Error "Нет файла: $File"; exit 1 }
 
-# A single-file app reads parts of itself lazily: never modify MONOLITH.exe while it runs.
-$running = Get-Process -Name MONOLITH -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ([IO.Path]::GetFullPath($_.Path) -ieq $File) }
-if ($running) { Write-Error 'MONOLITH.exe сейчас запущен из этого файла — закройте программу и повторите.'; exit 1 }
+# A single-file app reads parts of itself lazily: never modify Lycoris.exe while it runs.
+$running = Get-Process -Name Lycoris -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ([IO.Path]::GetFullPath($_.Path) -ieq $File) }
+if ($running) { Write-Error 'Lycoris.exe сейчас запущен из этого файла — закройте программу и повторите.'; exit 1 }
 
 $cert = $null
 if ($PfxPath) {

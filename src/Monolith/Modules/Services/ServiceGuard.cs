@@ -3,7 +3,7 @@ using Monolith.Core;
 namespace Monolith.Modules.Services;
 
 /// <summary>
-/// Defense in depth for the ВСЕ СЛУЖБЫ tab (docs/research/services.md §2): services MONOLITH never modifies,
+/// Defense in depth for the ВСЕ СЛУЖБЫ tab (docs/research/services.md §2): services Lycoris never modifies,
 /// on top of <see cref="ServiceControl.Protected"/>. Locked services are shown with a lock and no actions.
 /// </summary>
 public static class ServiceGuard
@@ -14,7 +14,7 @@ public static class ServiceGuard
     private static readonly string Shell = Loc.T("Оболочка, Microsoft Store, ввод текста, буфер обмена и уведомления.");
     private static readonly string Network = Loc.T("Сеть, VPN или брандмауэр: без неё пропадёт подключение или защита.");
     private static readonly string Security = Loc.T("Безопасность Windows: отключение ослабляет защиту.");
-    private static readonly string Servicing = Loc.T("Обновления, активация или восстановление системы (на них опирается и MONOLITH).");
+    private static readonly string Servicing = Loc.T("Обновления, активация или восстановление системы (на них опирается и Lycoris).");
     private static readonly string Media = Loc.T("Звук, камеры или устройства ввода.");
     private static readonly string Virtualization = Loc.T("Виртуализация и VBS: WSL2, песочница, защита памяти.");
     private static readonly string Diagnostics = Loc.T("Диагностика, нужная самой Windows (средства устранения неполадок).");
@@ -64,7 +64,7 @@ public static class ServiceGuard
         ("GoogleUpdaterInternalService", Updater),
     ];
 
-    /// <summary>Services that must stay disabled: MONOLITH never enables or starts them.</summary>
+    /// <summary>Services that must stay disabled: Lycoris never enables or starts them.</summary>
     private static readonly HashSet<string> NeverEnable = new(StringComparer.OrdinalIgnoreCase) { "RemoteRegistry" };
 
     private static Dictionary<string, string> Build(params (string Reason, string[] Names)[] groups)
@@ -97,7 +97,7 @@ public static class ServiceGuard
         (serviceType & 0x40) != 0 || !ServiceControl.BaseName(name).Equals(name, StringComparison.Ordinal);
 
     /// <summary>
-    /// Returns why MONOLITH refuses to touch this service, or null when changes are allowed.
+    /// Returns why Lycoris refuses to touch this service, or null when changes are allowed.
     /// Order matters: the most specific, most useful explanation wins.
     /// </summary>
     public static string? GetLockReason(string name, int serviceType, int start, int errorControl, int launchProtected, string imagePath)
@@ -109,7 +109,7 @@ public static class ServiceGuard
             var template = ServiceControl.BaseName(name);
             return Loc.Tf("Пользовательская служба (шаблон «{0}»). Windows создаёт её копию при каждом входе; изменение шаблона " +
                    "действует на всех пользователей, а отключение ломает буфер обмена Win+V, уведомления и «Связь с телефоном». " +
-                   "MONOLITH такие службы не меняет.", template);
+                   "Lycoris такие службы не меняет.", template);
         }
         if (HardBlockReason(name) is { } reason)
             return reason;
@@ -125,7 +125,7 @@ public static class ServiceGuard
     }
 
     /// <summary>
-    /// Services whose start type has exactly one place in MONOLITH: an Optimize tweak (service name → tweak id).
+    /// Services whose start type has exactly one place in Lycoris: an Optimize tweak (service name → tweak id).
     /// They are read-only here even in expert mode, so the same value is never changed from two pages.
     /// </summary>
     private static readonly Dictionary<string, string> OptimizeOwned = new(StringComparer.OrdinalIgnoreCase)
@@ -150,8 +150,8 @@ public static class ServiceGuard
     {
         if (expertMode || ServiceCatalog.IsCurated(name)) return null;
         var what = isThirdParty
-            ? Loc.T("Служба стороннего производителя: MONOLITH не знает, какие функции её программы от неё зависят.")
-            : Loc.T("Этой службы нет в проверенном списке MONOLITH: последствия её изменения не изучены.");
+            ? Loc.T("Служба стороннего производителя: Lycoris не знает, какие функции её программы от неё зависят.")
+            : Loc.T("Этой службы нет в проверенном списке Lycoris: последствия её изменения не изучены.");
         return what + Loc.T(" Здесь она только для просмотра. Менять такие службы на свой риск можно после включения " +
                "«Экспертного режима служб» над списком.");
     }

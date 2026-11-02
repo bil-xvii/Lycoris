@@ -122,7 +122,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     {
         await Task.Delay(1200);
 
-        // 0. Display and input changes left unconfirmed by a crash (MONOLITH or the PC died during the countdown): an
+        // 0. Display and input changes left unconfirmed by a crash (Lycoris or the PC died during the countdown): an
         //    unconfirmed change is put back — after any running guard process finished its own job.
         if (Elevation.IsElevated && ChangeJournal.Instance is { IsUnavailable: false } journal && journal.PendingDisplayRecords().Count > 0)
         {
@@ -137,19 +137,19 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         // 1. Elevated with a different administrator account: HKCU settings would go to that account.
         if (Elevation.IsElevated && await Task.Run(Elevation.IsRunningAsDifferentUser))
         {
-            Log.Warn("MONOLITH запущен от имени другой учётной записи администратора.");
+            Log.Warn("Lycoris запущен от имени другой учётной записи администратора.");
             await Ui.AlertAsync("ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ",
-                "MONOLITH запущен от имени другого администратора, а не пользователя, который сейчас работает в Windows. " +
+                "Lycoris запущен от имени другого администратора, а не пользователя, который сейчас работает в Windows. " +
                 "Пользовательские настройки (игровой режим Windows, реклама, автозапуск «для меня») применятся к той учётной записи, " +
                 "а настройки мыши, клавиатуры и микрофона в «Устройствах и сети» будут недоступны. " +
-                "Чтобы настроить свой профиль, войдите в Windows под учётной записью администратора и запустите MONOLITH оттуда.");
+                "Чтобы настроить свой профиль, войдите в Windows под учётной записью администратора и запустите Lycoris оттуда.");
         }
 
         // 2. The journal folder was writable by non-admins: its contents were set aside, never replayed.
         if (ChangeJournal.Instance.QuarantinedFile is { } quarantined)
         {
             await Ui.AlertAsync("ЖУРНАЛ ОТЛОЖЕН",
-                "Папка данных MONOLITH была доступна для записи обычным пользователям, поэтому старый журнал изменений нельзя считать надёжным. " +
+                "Папка данных Lycoris была доступна для записи обычным пользователям, поэтому старый журнал изменений нельзя считать надёжным. " +
                 "Он сохранён отдельно и не будет выполняться; права на папку исправлены. Изменения, сделанные раньше, можно отменить точкой восстановления Windows.",
                 [quarantined]);
         }
@@ -158,9 +158,9 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         if (ChangeJournal.Instance.UnavailableReason is { } unavailable && Elevation.IsElevated)
         {
             var start = await Ui.ConfirmAsync("ЖУРНАЛ НЕДОСТУПЕН",
-                Loc.Tf("{0} Пока журнал недоступен, MONOLITH ничего не меняет в системе — иначе изменения нельзя было бы отменить. " +
+                Loc.Tf("{0} Пока журнал недоступен, Lycoris ничего не меняет в системе — иначе изменения нельзя было бы отменить. " +
                 "Можно начать новый журнал: старые файлы не удаляются, а сохраняются рядом с отметкой времени. " +
-                "Изменения, записанные в старом журнале, из MONOLITH отменить будет нельзя — только точкой восстановления Windows.", unavailable),
+                "Изменения, записанные в старом журнале, из Lycoris отменить будет нельзя — только точкой восстановления Windows.", unavailable),
                 confirmText: "НАЧАТЬ НОВЫЙ ЖУРНАЛ", danger: true);
             if (start)
             {
@@ -168,11 +168,11 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                     Ui.Toast("Начат новый журнал изменений.", ToastKind.Success);
                 else
                     await Ui.AlertAsync("НЕ УДАЛОСЬ НАЧАТЬ НОВЫЙ ЖУРНАЛ",
-                        "Старые файлы журнала не удалось отложить. Подробности — в консоли MONOLITH.");
+                        "Старые файлы журнала не удалось отложить. Подробности — в консоли Lycoris.");
             }
         }
 
-        // 3. Game Boost changes left active (e.g. MONOLITH or the PC crashed during a game).
+        // 3. Game Boost changes left active (e.g. Lycoris or the PC crashed during a game).
         var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
         {
@@ -200,7 +200,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             }
         }
 
-        // 4. Drift: settings MONOLITH applied were changed afterwards (Windows feature update, another program).
+        // 4. Drift: settings Lycoris applied were changed afterwards (Windows feature update, another program).
         await CheckDriftAsync();
 
         // 5. The action the user clicked before the relaunch with admin rights: repeated once, through its own command.
@@ -222,12 +222,12 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             if (build.Length > 0 && build != previous) AppSettings.Current.LastWindowsBuild = build;
             if (drift.Count == 0) return;
 
-            Log.Warn("Изменено вне MONOLITH: {0} (сборка Windows {1} → {2}).", drift.Count, previous, build);
-            Ui.Toast(DriftDetector.NoticeText(drift.Count, previous, build), ToastKind.Warning, "ИЗМЕНЕНО ВНЕ MONOLITH", navigateTo: "restore");
+            Log.Warn("Изменено вне Lycoris: {0} (сборка Windows {1} → {2}).", drift.Count, previous, build);
+            Ui.Toast(DriftDetector.NoticeText(drift.Count, previous, build), ToastKind.Warning, "ИЗМЕНЕНО ВНЕ LYCORIS", navigateTo: "restore");
         }
         catch (Exception ex)
         {
-            Log.Warn("Проверка изменений вне MONOLITH не выполнена: {0}", ex.Message);
+            Log.Warn("Проверка изменений вне Lycoris не выполнена: {0}", ex.Message);
         }
     }
 
@@ -406,12 +406,12 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     {
         if (_coordinator.ListedCount > 0)
         {
-            Ui.Toast("Сначала дождитесь окончания задач (список «ЗАДАЧИ»), затем перезапустите MONOLITH.", ToastKind.Warning, "ПЕРЕЗАПУСК");
+            Ui.Toast("Сначала дождитесь окончания задач (список «ЗАДАЧИ»), затем перезапустите Lycoris.", ToastKind.Warning, "ПЕРЕЗАПУСК");
             return false;
         }
         if (!Elevation.TryRelaunchSameRights(CurrentPageArgs()))
         {
-            Ui.Toast("Не удалось перезапустить MONOLITH. Закройте его и откройте снова вручную.", ToastKind.Error, "ПЕРЕЗАПУСК");
+            Ui.Toast("Не удалось перезапустить Lycoris. Закройте его и откройте снова вручную.", ToastKind.Error, "ПЕРЕЗАПУСК");
             return false;
         }
         Application.Current.Shutdown();

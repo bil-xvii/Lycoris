@@ -485,7 +485,7 @@ public sealed class GamesTests
     [InlineData("EpicGamesLauncher")]
     [InlineData("RiotClientServices")]
     [InlineData("GameBar")]
-    [InlineData("MONOLITH")]
+    [InlineData("Lycoris")]
     [InlineData("")]
     public void System_security_anticheat_and_launcher_processes_are_never_closable(string name) =>
         Assert.True(UserProcesses.IsProtectedName(name));
@@ -638,11 +638,11 @@ public sealed class GamesTests
         // Nothing journaled: write (and journal) the merged value.
         Assert.Equal(GpuChange.Write, GpuPreference.Decide(true, null, null));
         Assert.Equal(GpuChange.Write, GpuPreference.Decide(false, 2, null)); // chosen in Windows Settings → «let Windows decide»
-        // Turning MONOLITH's own change back = revert its record: the previous string (or absence) comes back exactly.
+        // Turning Lycoris's own change back = revert its record: the previous string (or absence) comes back exactly.
         Assert.Equal(GpuChange.Revert, GpuPreference.Decide(false, 2, Original(null)));
         Assert.Equal(GpuChange.Revert, GpuPreference.Decide(false, 2, Original("GpuPreference=1;SwapEffectUpgradeEnable=1;")));
         Assert.Equal(GpuChange.Revert, GpuPreference.Decide(true, 0, Original("GpuPreference=2;")));
-        // Changed outside MONOLITH after its record: writing again keeps the record's true original (merge by target).
+        // Changed outside Lycoris after its record: writing again keeps the record's true original (merge by target).
         Assert.Equal(GpuChange.Write, GpuPreference.Decide(true, 0, Original(null)));
     }
 

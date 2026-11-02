@@ -148,7 +148,7 @@ public static class DisplayAdvice
     public static string VrrHint(int maxHz) => Loc.Tf("Включите G-SYNC/FreeSync в панели видеокарты и {0} — плавно и без лишней задержки", FpsCapText(maxHz));
 
     /// <summary>
-    /// A neutral HDR hint (MONOLITH cannot read the DisplayHDR tier, so it never recommends a value), with the peak
+    /// A neutral HDR hint (Lycoris cannot read the DisplayHDR tier, so it never recommends a value), with the peak
     /// luminance from the EDID when known. At most 120 characters.
     /// </summary>
     public static string HdrHint(EdidInfo? edid)

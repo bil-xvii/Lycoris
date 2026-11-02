@@ -81,7 +81,7 @@ public static class Elevation
         }
         catch (Exception ex)
         {
-            Log.Error("Не удалось перезапустить MONOLITH", ex);
+            Log.Error("Не удалось перезапустить Lycoris", ex);
             return false;
         }
     }
@@ -132,9 +132,9 @@ public static class Elevation
     private static bool? _interactiveKnown;
 
     /// <summary>
-    /// Does MONOLITH run as the person signed in to this desktop? True only when the shell (explorer.exe) of this session
+    /// Does Lycoris run as the person signed in to this desktop? True only when the shell (explorer.exe) of this session
     /// was found and its owner is this process's account; false when it is another account (over-the-shoulder UAC); null
-    /// when it cannot be told (Explorer restarting, a shell replacement, MONOLITH started before the shell). Only a known
+    /// when it cannot be told (Explorer restarting, a shell replacement, Lycoris started before the shell). Only a known
     /// answer is cached: an unknown one is detected again next time. Blocking (process tokens): call off the UI thread.
     /// </summary>
     public static bool? InteractiveUserState
@@ -156,8 +156,8 @@ public static class Elevation
     public static bool IsInteractiveUser => InteractiveUserState == true;
 
     public static string OtherAccountText =>
-        Loc.T("MONOLITH запущен от имени другой учётной записи администратора — эти настройки применились бы к ней, а не к вам. " +
-              "Запустите MONOLITH из своей учётной записи.");
+        Loc.T("Lycoris запущен от имени другой учётной записи администратора — эти настройки применились бы к ней, а не к вам. " +
+              "Запустите Lycoris из своей учётной записи.");
     public static string UnknownAccountText => Loc.T("Не удалось определить пользователя рабочего стола — пользовательские настройки пока не меняются.");
 
     /// <summary>Why per-user settings cannot be written now, or null when they can.</summary>
@@ -265,6 +265,6 @@ public static class Elevation
     public static void Demand(string action)
     {
         if (!IsElevated)
-            throw new UnauthorizedAccessException(Loc.Tf("Для действия «{0}» нужны права администратора. Перезапустите MONOLITH от имени администратора.", Loc.Sink(action)));
+            throw new UnauthorizedAccessException(Loc.Tf("Для действия «{0}» нужны права администратора. Перезапустите Lycoris от имени администратора.", Loc.Sink(action)));
     }
 }

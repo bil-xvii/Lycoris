@@ -128,7 +128,7 @@ public sealed partial class GpuCardItem : ObservableObject
 
     // ── Direct download of the vendor's installer (DriverDownloads) ──
 
-    /// <summary>Official installer MONOLITH can download for this card (NVIDIA: only when a newer driver exists).</summary>
+    /// <summary>Official installer Lycoris can download for this card (NVIDIA: only when a newer driver exists).</summary>
     internal DriverPackage? Package { get; private set; }
 
     public bool HasDownload => Package is not null && (!IsInformational || IsMissingDriver);
@@ -145,7 +145,7 @@ public sealed partial class GpuCardItem : ObservableObject
 
     public string DownloadHint => Package is not { } p ? "" :
         Loc.Tf("Официальный установщик {0} скачивается прямо с {1}, проверяется по цифровой подписи {2} ", p.VendorName, p.Url.Host, p.Signer) +
-        Loc.T("и запускается после точки восстановления.") + (Elevation.IsElevated ? "" : Loc.T(" Без прав администратора нажмите — MONOLITH запросит их и продолжит."));
+        Loc.T("и запускается после точки восстановления.") + (Elevation.IsElevated ? "" : Loc.T(" Без прав администратора нажмите — Lycoris запросит их и продолжит."));
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
@@ -351,8 +351,8 @@ public sealed partial class GpuCardItem : ObservableObject
             return Loc.T("Дополнительный встроенный адаптер. Его драйвер приходит через Windows Update — отдельных действий не нужно.");
         return Vendor switch
         {
-            GpuVendor.Nvidia => Loc.T("Когда выходит новый драйвер, MONOLITH скачивает официальный установщик прямо с сервера NVIDIA. Обновлять можно и через NVIDIA App. Windows Update тоже присылает драйверы NVIDIA, но обычно с опозданием."),
-            GpuVendor.Amd => Loc.T("Свежий драйвер Adrenalin ставит официальный установщик AMD: он сам определит видеокарту. MONOLITH скачивает его прямо с сервера AMD. В winget пакета AMD нет."),
+            GpuVendor.Nvidia => Loc.T("Когда выходит новый драйвер, Lycoris скачивает официальный установщик прямо с сервера NVIDIA. Обновлять можно и через NVIDIA App. Windows Update тоже присылает драйверы NVIDIA, но обычно с опозданием."),
+            GpuVendor.Amd => Loc.T("Свежий драйвер Adrenalin ставит официальный установщик AMD: он сам определит видеокарту. Lycoris скачивает его прямо с сервера AMD. В winget пакета AMD нет."),
             GpuVendor.Intel => Loc.T("Драйвер видеоядра Intel проверяет Intel Driver & Support Assistant; Windows Update тоже присылает его, но реже."),
             _ => Loc.T("Драйвер этого адаптера обновляется через Windows Update."),
         };
@@ -434,7 +434,7 @@ public sealed partial class WuUpdateItem : ObservableObject
     public bool KindIsOptional => IsOptional && !IsFirmware;
     public bool KindIsRecommended => !IsOptional && !IsFirmware;
     public string KindHint => IsFirmware
-        ? Loc.T("Обновление прошивки (UEFI/BIOS). MONOLITH не прошивает оборудование — установите его в параметрах Windows Update или утилитой производителя.")
+        ? Loc.T("Обновление прошивки (UEFI/BIOS). Lycoris не прошивает оборудование — установите его в параметрах Windows Update или утилитой производителя.")
         : IsOptional
             ? FixesProblem
                 ? Loc.T("Необязательный драйвер для устройства, которое сейчас работает с ошибкой: он может её исправить. Отметьте его, если хотите попробовать.")

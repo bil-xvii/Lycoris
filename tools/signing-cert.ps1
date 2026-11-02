@@ -1,5 +1,5 @@
 ﻿# One-time setup on YOUR OWN PC: creates a personal code-signing certificate "CN=MONOLITH" and makes this PC trust it,
-# so the UAC prompt shows «Проверенный издатель: MONOLITH» instead of «Издатель: неизвестно».
+# so the UAC prompt shows «Проверенный издатель: Lycoris» instead of «Издатель: неизвестно».
 # The trust is local: other PCs still see "unknown publisher" (that needs a certificate from a public CA, see docs/signing.md).
 #
 # Usage (PowerShell as administrator):
@@ -35,7 +35,7 @@ if ($Remove) {
         ($_.Subject -eq $Subject -and $_.Issuer -eq $Subject) -or ($thumbs -contains $_.Thumbprint) })
     foreach ($c in $roots) { Remove-Item -LiteralPath "Cert:\LocalMachine\Root\$($c.Thumbprint)"; "Доверие снято: $($c.Thumbprint)" }
     foreach ($c in $mine) { Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($c.Thumbprint)" -DeleteKey; "Сертификат удалён: $($c.Thumbprint)" }
-    if (-not $roots -and -not $mine) { 'Сертификата MONOLITH на этом ПК нет — удалять нечего.' }
+    if (-not $roots -and -not $mine) { 'Сертификата Lycoris на этом ПК нет — удалять нечего.' }
     return
 }
 
@@ -62,10 +62,10 @@ if (Get-ChildItem Cert:\LocalMachine\Root | Where-Object Thumbprint -eq $cert.Th
     } finally {
         Remove-Item -LiteralPath $cer -Force -ErrorAction SilentlyContinue
     }
-    'Готово: этот ПК доверяет подписи MONOLITH.'
+    'Готово: этот ПК доверяет подписи Lycoris.'
 }
 
 ''
-'Дальше: tools\publish.ps1 подписывает MONOLITH.exe автоматически (или вручную: tools\sign.ps1).'
+'Дальше: tools\publish.ps1 подписывает Lycoris.exe автоматически (или вручную: tools\sign.ps1).'
 'Важно: закрытый ключ остаётся в вашей учётной записи и не экспортируется. Не давайте никому доступ к ней;'
 'отменить всё можно командой: tools\signing-cert.ps1 -Remove'

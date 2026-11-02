@@ -10,12 +10,12 @@ public sealed record ReapplyResult(int Applied, IReadOnlyList<string> Errors);
 /// <summary>
 /// «ПРИМЕНИТЬ СНОВА» for drifted records. Every write goes through <see cref="ChangeSession"/> and becomes a new layer
 /// of the target in its own batch: undoing that batch goes back to the value Windows (or another program) had set,
-/// undoing everything still ends at the value from before MONOLITH. Tweaks are re-applied through
+/// undoing everything still ends at the value from before Lycoris. Tweaks are re-applied through
 /// <see cref="TweakEngine"/>, exactly as the Optimize page does. Call off the UI thread, after the user confirmed.
 /// </summary>
 public static class DriftReapply
 {
-    public const string BatchTitle = "Повторное применение: изменено вне MONOLITH"; // loc:ignore stored as the journal batch title (Russian on disk); shown through Loc.Sink
+    public const string BatchTitle = "Повторное применение: изменено вне Lycoris"; // loc:ignore stored as the journal batch title (Russian on disk); shown through Loc.Sink
 
     public static bool CanReapply(DriftItem d) => d.Fix != DriftFix.None;
 

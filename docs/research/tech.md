@@ -1,4 +1,4 @@
-# MONOLITH: implementation research for the C# WPF / .NET 10 build
+# Lycoris: implementation research for the C# WPF / .NET 10 build
 
 I checked these facts on the dev machine with read-only calls (Windows 11 Pro 26300, ru-RU system locale, OEM CP 866, ANSI CP 1251, RTX 5070 Ti + AMD iGPU). The calls were PDH, D3DKMT and powrprof run through in-memory `Add-Type` C#, plus CIM, `reg query` and raw stdout byte dumps. Facts confirmed this way are marked ✅.
 
@@ -328,13 +328,13 @@ for (uint i = 0; ; i++) { var b = new byte[16]; uint sz = 16;
 - **Apply:**
   1. Journal `{originalActive}`.
   2. Duplicate Ultimate with `PowerDuplicateScheme(Ultimate)` (admin).
-  3. Rename it «MONOLITH Ultimate» and journal `{createdGuid}`.
+  3. Rename it «Lycoris Ultimate» and journal `{createdGuid}`.
   4. Make it active with `PowerSetActiveScheme`.
 - **Revert:** call `PowerSetActiveScheme(original)`, falling back to Balanced if the original is gone. Then call `PowerDeleteScheme(createdGuid)`, only for the GUID we created; an active scheme can't be deleted.
 - **Classification: DEBATED.**
   - Desktop gain is usually ≤1 %, at the cost of more idle power and heat.
   - AMD recommends Balanced for **dual-CCD X3D** chips (7950X3D/9950X3D), because the 3D V-Cache optimizer depends on Balanced and Game Bar. Single-CCD chips like the 9800X3D aren't affected.
-  - Never apply on battery or Modern Standby. On Modern Standby (`GetPwrCapabilities().AoAc`), only Balanced exists; use the Windows 11 "Power mode" overlay instead (Best performance `ded574b5-45a0-4f42-8737-46345c09c238`). It is set with the documented `PowerSetUserConfiguredACPowerMode` / read with `PowerGetUserConfiguredACPowerMode` (Microsoft Learn, three GUIDs) — MONOLITH's `power-mode-best-performance` tweak does this through the journal; see gaming_tweaks.md §2 C.
+  - Never apply on battery or Modern Standby. On Modern Standby (`GetPwrCapabilities().AoAc`), only Balanced exists; use the Windows 11 "Power mode" overlay instead (Best performance `ded574b5-45a0-4f42-8737-46345c09c238`). It is set with the documented `PowerSetUserConfiguredACPowerMode` / read with `PowerGetUserConfiguredACPowerMode` (Microsoft Learn, three GUIDs) — Lycoris's `power-mode-best-performance` tweak does this through the journal; see gaming_tweaks.md §2 C.
 
 ---
 
@@ -509,10 +509,10 @@ What the «Задержки драйверов (DPC/ISR)» card on Maintenance �
 - `EVENT_TRACE_SYSTEM_LOGGER_MODE` exists since Windows 8 (6.2, WDK 8 header; Geoff Chappell's `LogFileMode` notes). It lets any
   uniquely named session receive SystemTraceProvider (kernel) events. Windows allows at most **8 system loggers**; the first two
   slots are the «NT Kernel Logger» and the «Circular Kernel Context Logger». A full table returns `ERROR_NO_SYSTEM_RESOURCES` (1450) —
-  MONOLITH reports it («закройте LatencyMon, xperf/WPR…») and does nothing else.
+  Lycoris reports it («закройте LatencyMon, xperf/WPR…») and does nothing else.
 - The global **«NT Kernel Logger» is never started, stopped or queried** (another tool — LatencyMon, xperf, WPR, Process Lasso —
   may own it). On start `QueryAllTracesW` lists the sessions and only names beginning with `MONOLITH-DpcLatency-` (a leftover of a
-  crashed MONOLITH) are stopped with `ControlTraceW(EVENT_TRACE_CONTROL_STOP)`. Session name: `MONOLITH-DpcLatency-{GuidN}`.
+  crashed Lycoris) are stopped with `ControlTraceW(EVENT_TRACE_CONTROL_STOP)`. Session name: `MONOLITH-DpcLatency-{GuidN}`.
 - Consumer: `OpenTraceW` with a real-time `EVENT_TRACE_LOGFILEW` (`ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME 0x100 |
   PROCESS_TRACE_MODE_EVENT_RECORD 0x10000000 | PROCESS_TRACE_MODE_RAW_TIMESTAMP 0x1000`; values from `evntcons.h`), `ProcessTrace`
   on a dedicated thread. After 60 s (or cancel, or any exception) `finally` calls `ControlTraceW(STOP)` — which ends
@@ -521,7 +521,7 @@ What the «Задержки драйверов (DPC/ISR)» card on Maintenance �
 - Game sessions: the card refuses to start while `GameBoostState.IsActive`, and a game session that begins during the 60 s
   stops the trace at once (outcome «Измерение остановлено: начался игровой сеанс», no verdict for the partial data).
 - Permissions: only administrators, «Performance Log Users» and LocalSystem services may control trace sessions;
-  `ERROR_ACCESS_DENIED` (5) → «нужны права администратора». MONOLITH refuses the card without elevation (`RequireAdmin`).
+  `ERROR_ACCESS_DENIED` (5) → «нужны права администратора». Lycoris refuses the card without elevation (`RequireAdmin`).
 
 ### 10.2 Events: PerfInfo DPC/ISR (verified)
 - Class GUID (EVENT_RECORD `ProviderId` for classic kernel events): **PerfInfo `{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}`**;
@@ -546,7 +546,7 @@ What the «Задержки драйверов (DPC/ISR)» card on Maintenance �
 - **Windows 11 24H2+**: both APIs return **zeroed kernel addresses unless `SeDebugPrivilege` is enabled** in the caller's token
   (Microsoft Learn `EnumDeviceDrivers` remarks: «Starting with Windows 11 24H2 … requires SeDebugPrivilege … otherwise every
   address is NULL»; windows-internals.com «KASLR leaks restriction»: `SystemModuleInformation` keeps `DllBase = 0`). The privilege
-  belongs to administrators only and is disabled by default, so `KernelModules.EnableDebugPrivilege` turns it on for MONOLITH's own
+  belongs to administrators only and is disabled by default, so `KernelModules.EnableDebugPrivilege` turns it on for Lycoris's own
   token (`AdjustTokenPrivileges`), logs a refusal and falls back to «неизвестный модуль». Least privilege: the previous state is
   captured (`PreviousState`) and the privilege is disabled again right after the module list is read (unless it was already
   enabled), so later `OpenProcess` calls and child processes never inherit it; a failed restore is logged. Nothing about the
@@ -555,7 +555,7 @@ What the «Задержки драйверов (DPC/ISR)» card on Maintenance �
 ### 10.4 Thresholds (provenance: community practice, not a Microsoft standard)
 - LatencyMon (Resplendence) is the de-facto community tool; its reports flag DPC/ISR routines whose execution time exceeds roughly
   1 ms as «likely to interrupt the audio stream resulting in dropouts, clicks and pops», and bucket counts at < 250 µs / 250–500 /
-  500–1000 / 1000–2000 / 2000–4000 / ≥ 4000 µs. MONOLITH states the verdict as practice, not fact:
+  500–1000 / 1000–2000 / 2000–4000 / ≥ 4000 µs. Lycoris states the verdict as practice, not fact:
   **max < 500 µs — «в норме»; 500–1000 — «повышенные»; > 1000 — «высокие: возможны треск звука и рывки»**. Per module the report
   shows count, max µs, p99 µs (1 µs histogram buckets up to 10 ms, overflow bucket above) and total ms; flagged modules get a
   family hint (ndis.sys → network stack, nvlddmkm.sys → NVIDIA, dxgkrnl.sys → graphics subsystem, ACPI.sys → firmware/BIOS,

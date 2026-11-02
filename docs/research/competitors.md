@@ -1,4 +1,4 @@
-# MONOLITH: competitor and user-needs research
+# Lycoris: competitor and user-needs research
 
 Research covers 11 products (~40 sources) plus read-only checks on the dev machine, run on 2026‑10‑26.
 
@@ -14,7 +14,7 @@ Research covers 11 products (~40 sources) plus read-only checks on the dev machi
   3. detection of settings Windows has reset ("drift"),
   4. a before/after frametime benchmark,
   5. a read-only finder for hardware misconfiguration.
-- **BoosterX exists and is aimed at the Russian market** (boosterx.org, prices in ₽). It is MONOLITH's most direct competitor.
+- **BoosterX exists and is aimed at the Russian market** (boosterx.org, prices in ₽). It is Lycoris's most direct competitor.
 - **Positioning:** «Измеряет. Объясняет. Откатывает.» ("Measures. Explains. Reverts.") The product should be anti-placebo by design.
 
 ---
@@ -138,7 +138,7 @@ R7. No bundling, no ads, no resident process unless the user opts in. Ship code-
 
 ---
 
-## 3. What makes MONOLITH better: prioritised features
+## 3. What makes Lycoris better: prioritised features
 
 ### Must-have (v1)
 
@@ -199,7 +199,7 @@ reversible: true | partial | false   (APPX removal = partial: reinstall from the
 **7. Profiles.**
 - **Обычный / Рекомендуемый / Игровой** (Normal / Recommended / Gaming), built only from Safe/Low changes with Documented or Vendor-documented evidence.
 - The Gaming profile prefers **temporary per-session** changes, which revert automatically when the game exits.
-- **Crash safety:** if MONOLITH crashes during a session, a stale-session marker triggers the revert at the next launch or logon.
+- **Crash safety:** if Lycoris crashes during a session, a stale-session marker triggers the revert at the next launch or logon.
 
 **8. Junk cleaner limited to documented locations.**
 - **Allowed:** `%TEMP%` (files older than N days), Delivery Optimization cache, Windows Update download cache (via the service-safe path), crash dumps, thumbnail cache, Recycle Bin (only with confirmation), and DISM `/StartComponentCleanup`.

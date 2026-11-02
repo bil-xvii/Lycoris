@@ -57,7 +57,7 @@ internal sealed class Clock(DateTime start)
 
 internal static class Kit
 {
-    public const string BaseUrl = "https://github.com/bil-xvii/MONOLITH-releases/releases/download/";
+    public const string BaseUrl = "https://github.com/bil-xvii/Lycoris-releases/releases/download/";
 
     /// <summary>A minimal but valid PE32+ x64 header padded with <paramref name="seed"/>-dependent bytes up to <paramref name="size"/>.</summary>
     public static byte[] FakePe(int size, byte seed = 1)
@@ -77,14 +77,14 @@ internal static class Kit
     public static string ReleaseJson(string tag = "v1.0.1", long size = 2048, string? digest = null, bool sha = true,
         bool draft = false, bool prerelease = false, string notes = "## What's new\n- one", bool exe = true) =>
         "{" +
-        $"\"tag_name\":\"{tag}\",\"name\":\"MONOLITH {tag}\",\"draft\":{(draft ? "true" : "false")},\"prerelease\":{(prerelease ? "true" : "false")}," +
-        $"\"html_url\":\"https://github.com/bil-xvii/MONOLITH-releases/releases/tag/{tag}\"," +
+        $"\"tag_name\":\"{tag}\",\"name\":\"Lycoris {tag}\",\"draft\":{(draft ? "true" : "false")},\"prerelease\":{(prerelease ? "true" : "false")}," +
+        $"\"html_url\":\"https://github.com/bil-xvii/Lycoris-releases/releases/tag/{tag}\"," +
         $"\"body\":{System.Text.Json.JsonSerializer.Serialize(notes)},\"assets\":[" +
-        (exe ? "{\"name\":\"MONOLITH.exe\",\"state\":\"uploaded\",\"size\":" + size + "," +
+        (exe ? "{\"name\":\"Lycoris.exe\",\"state\":\"uploaded\",\"size\":" + size + "," +
                (digest is null ? "" : $"\"digest\":\"sha256:{digest}\",") +
-               $"\"browser_download_url\":\"{BaseUrl}{tag}/MONOLITH.exe\"}}" : "") +
+               $"\"browser_download_url\":\"{BaseUrl}{tag}/Lycoris.exe\"}}" : "") +
         (exe && sha ? "," : "") +
-        (sha ? $"{{\"name\":\"MONOLITH.exe.sha256\",\"state\":\"uploaded\",\"size\":80,\"browser_download_url\":\"{BaseUrl}{tag}/MONOLITH.exe.sha256\"}}" : "") +
+        (sha ? $"{{\"name\":\"Lycoris.exe.sha256\",\"state\":\"uploaded\",\"size\":80,\"browser_download_url\":\"{BaseUrl}{tag}/Lycoris.exe.sha256\"}}" : "") +
         "]}";
 
     public static ReleaseInfo Release(string tag = "v1.0.1", long size = 2048, string? digest = null, bool sha = true) =>

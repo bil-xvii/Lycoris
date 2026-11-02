@@ -14,7 +14,7 @@ namespace Monolith;
 /// Startup:
 ///  1. One instance only.
 ///  2. Load settings. Only with «Запрашивать права при запуске» on: without admin rights → ask via UAC
-///     (declined = read-only mode). By default MONOLITH opens instantly read-only and asks for rights
+///     (declined = read-only mode). By default Lycoris opens instantly read-only and asks for rights
 ///     the first time a change needs them (PageViewModel.RequireAdmin), reopening on the same page.
 ///  3. Collect system info in the background, open the main window.
 /// Command line:
@@ -22,7 +22,7 @@ namespace Monolith;
 ///  --page &lt;key&gt;           open a specific page
 ///  --tab &lt;key&gt;            with --page: open that page's tab ("--page devices --tab manual", "--page services --tab tasks")
 ///  --replay-page &lt;key&gt; --replay-command &lt;Name&gt; [--replay-param &lt;text&gt;]
-///                          INTERNAL (Shell/AdminIntent): set by MONOLITH when it relaunches itself with admin rights
+///                          INTERNAL (Shell/AdminIntent): set by Lycoris when it relaunches itself with admin rights
 ///                          after the user clicked an action; the elevated copy opens the page and runs that page's
 ///                          «{Name}Command» once, with its usual confirmation. Only honoured together with --elevated.
 ///  --lang ru|en            interface language for this run only (QA / screenshots); default = Settings (auto = Windows language)
@@ -34,13 +34,13 @@ namespace Monolith;
 ///  --selftest &lt;dir&gt;       exercise every page with all system writes locked; report.md + exit code = failed pages
 ///  --apply-update &lt;old exe&gt; &lt;pid&gt;
 ///                          INTERNAL (Core/Updates): the NEW exe, started by the old copy after a verified download; headless:
-///                          waits for the old process, sets MONOLITH.exe aside as .old, copies itself to MONOLITH.exe, starts it,
+///                          waits for the old process, sets Lycoris.exe aside as .old, copies itself to Lycoris.exe, starts it,
 ///                          rolls back if it crashes within 10 s.
 ///  --demo-update           with --snapshot (QA only): pretend a newer version exists (title bar button, Settings About)
-///  --display-guard …       INTERNAL: the guard of a display change (Core/Devices/DisplaySafeApply). Started by MONOLITH
-///                          itself, no window; it reverts the display mode/HDR if MONOLITH dies or the user never
+///  --display-guard …       INTERNAL: the guard of a display change (Core/Devices/DisplaySafeApply). Started by Lycoris
+///                          itself, no window; it reverts the display mode/HDR if Lycoris dies or the user never
 ///                          confirms. Runs before every other startup step and marks itself (DisplayGuardProcess) so a
-///                          new MONOLITH never mistakes it for a hung copy.
+///                          new Lycoris never mistakes it for a hung copy.
 /// </summary>
 public partial class App : Application
 {
@@ -67,7 +67,7 @@ public partial class App : Application
         }
 
         // The self-update's headless step: this process is the NEW exe, started by the old one. No window, no instance lock
-        // (the old copy has to be gone first): it swaps the files, starts the new MONOLITH.exe and rolls back on a crash.
+        // (the old copy has to be gone first): it swaps the files, starts the new Lycoris.exe and rolls back on a crash.
         if (e.Args.Length > 0 && e.Args[0].Equals(Monolith.Core.Updates.UpdateApplyMode.Switch, StringComparison.OrdinalIgnoreCase))
         {
             base.OnStartup(e);
@@ -79,7 +79,7 @@ public partial class App : Application
             try { code = Monolith.Core.Updates.UpdateApplyMode.Run(e.Args); }
             catch (Exception ex) { Log.Error("Обновление: непредвиденная ошибка", ex); code = 11; }
             if (Monolith.Core.Updates.UpdateApplyMode.FailureText(code, e.Args.Length > 1 ? e.Args[1] : "") is { } failure)
-                MessageBox.Show(failure, "MONOLITH", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(failure, "Lycoris", MessageBoxButton.OK, MessageBoxImage.Warning);
             Shutdown(code);
             return;
         }
@@ -152,7 +152,7 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                Log.Error("Не удалось проверить, запущен ли MONOLITH", ex);
+                Log.Error("Не удалось проверить, запущен ли Lycoris", ex);
                 _singleInstance?.Dispose();
                 _singleInstance = null;
                 ActivateExistingInstance();
@@ -184,8 +184,8 @@ public partial class App : Application
             RestorePointService.RecoverPendingFrequency();
         }
         _ = SystemProfile.LoadAsync();
-        if (Elevation.IsElevated) Log.Info("MONOLITH запущен с правами администратора.");
-        else Log.Info("MONOLITH запущен в режиме просмотра (без прав администратора).");
+        if (Elevation.IsElevated) Log.Info("Lycoris запущен с правами администратора.");
+        else Log.Info("Lycoris запущен в режиме просмотра (без прав администратора).");
 
         // QA: pretend an update exists (title-bar button, Settings → О программе) without any network.
         if (snapshot && HasArg(args, "--demo-update")) UpdateController.Instance.EnableDemo();
@@ -201,7 +201,7 @@ public partial class App : Application
             Ui.RequestFocus(MainViewModel.ResolvePageKey(startPage), "tab:" + tab);
         vm.NavigateTo(startPage);
         // «--replay-page … --replay-command …»: the action the user clicked before the relaunch with admin rights.
-        // Only an elevated copy started by MONOLITH itself replays it, once, after the startup checks.
+        // Only an elevated copy started by Lycoris itself replays it, once, after the startup checks.
         if (!snapshot && HasArg(args, "--elevated") && Elevation.IsElevated && AdminIntent.Parse(args) is { } intent)
             vm.PendingIntent = intent;
 
@@ -309,7 +309,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        // Only an elevated MONOLITH writes the machine journal (Save is a no-op otherwise).
+        // Only an elevated Lycoris writes the machine journal (Save is a no-op otherwise).
         if (Elevation.IsElevated)
         {
             // Closed while a restore point was being created: put the lifted 24-hour limit back now.
@@ -327,11 +327,11 @@ public partial class App : Application
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         // Keep the app alive: log, notify, continue. While closing there is nothing to keep alive: the exit watchdog
-        // ends the process, so a half-finished shutdown can never leave a windowless MONOLITH holding the instance lock.
+        // ends the process, so a half-finished shutdown can never leave a windowless Lycoris holding the instance lock.
         if (SelfTestRunner.IsRunning) SelfTestRunner.ReportUnhandled(e.Exception);
         if (_closing)
         {
-            Log.Error("Ошибка при закрытии MONOLITH", e.Exception);
+            Log.Error("Ошибка при закрытии Lycoris", e.Exception);
             e.Handled = true;
             return;
         }
@@ -353,10 +353,10 @@ public partial class App : Application
         new Thread(() =>
         {
             Thread.Sleep(TimeSpan.FromSeconds(20));
-            Log.Warn("MONOLITH не завершился за 20 с после закрытия окна — завершение принудительно.");
+            Log.Warn("Lycoris не завершился за 20 с после закрытия окна — завершение принудительно.");
             Environment.Exit(0);
         })
-        { IsBackground = true, Name = "MONOLITH exit watchdog" }.Start();
+        { IsBackground = true, Name = "Lycoris exit watchdog" }.Start();
     }
 
     private static bool SingleInstanceMutexExists()
@@ -392,21 +392,21 @@ public partial class App : Application
         var hung = OtherInstances().Where(p => SafeHasNoWindow(p)).ToList();
         if (hung.Count == 0) return false;
         var answer = MessageBox.Show(
-            Loc.T("Предыдущая копия MONOLITH не отвечает: процесс работает, но окна у него нет — скорее всего, он завис при закрытии.\n\n" +
-            "Завершить её и открыть MONOLITH? Если та копия была запущена с правами администратора, Windows попросит подтверждение."),
-            "MONOLITH", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.Yes);
+            Loc.T("Предыдущая копия Lycoris не отвечает: процесс работает, но окна у него нет — скорее всего, он завис при закрытии.\n\n" +
+            "Завершить её и открыть Lycoris? Если та копия была запущена с правами администратора, Windows попросит подтверждение."),
+            "Lycoris", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.Yes);
         if (answer != MessageBoxResult.Yes) return false;
 
         foreach (var p in hung) EndProcess(p);
         for (var i = 0; i < 20 && SingleInstanceMutexExists(); i++) Thread.Sleep(500);
         if (!SingleInstanceMutexExists()) return true;
-        MessageBox.Show(Loc.T("Не удалось завершить зависшую копию MONOLITH. Завершите процесс MONOLITH.exe в диспетчере задач " +
-                        "(вкладка «Подробности») и запустите программу снова."), "MONOLITH", MessageBoxButton.OK, MessageBoxImage.Warning);
+        MessageBox.Show(Loc.T("Не удалось завершить зависшую копию Lycoris. Завершите процесс Lycoris.exe в диспетчере задач " +
+                        "(вкладка «Подробности») и запустите программу снова."), "Lycoris", MessageBoxButton.OK, MessageBoxImage.Warning);
         return false;
     }
 
     /// <summary>
-    /// Other MONOLITH copies — never a display guard: it has no window by design, must finish its job (it may be about to
+    /// Other Lycoris copies — never a display guard: it has no window by design, must finish its job (it may be about to
     /// put the old display mode back) and ends by itself at its deadline. It is neither activated nor offered to be ended.
     /// </summary>
     private static IEnumerable<Process> OtherInstances()

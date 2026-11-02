@@ -12,7 +12,7 @@ public enum GpuChange
     None,
     /// <summary>Write the merged preference string (journaled through ChangeSession).</summary>
     Write,
-    /// <summary>Revert MONOLITH's own journal record: its original already is the wanted state, so it comes back exactly.</summary>
+    /// <summary>Revert Lycoris's own journal record: its original already is the wanted state, so it comes back exactly.</summary>
     Revert,
 }
 
@@ -92,7 +92,7 @@ public static class GpuPreference
     }
 
     /// <summary>
-    /// How to reach the wanted state. When MONOLITH's own active record already holds the wanted state as its
+    /// How to reach the wanted state. When Lycoris's own active record already holds the wanted state as its
     /// original, the record is reverted — the exact previous string comes back (or the value is deleted when it was
     /// absent) instead of stacking a second change on top. Otherwise the merged string is written and journaled.
     /// </summary>
@@ -133,7 +133,7 @@ public static class GpuPreference
     }
 
     /// <summary>
-    /// The game's own exe when MONOLITH knows it reliably: a user-added game (the user picked it) or GOG's primary
+    /// The game's own exe when Lycoris knows it reliably: a user-added game (the user picked it) or GOG's primary
     /// play task inside the game folder. Steam, Epic and Ubisoft start games by URL, EA/Battle.net entries are often
     /// launcher stubs and Riot's exe is the Riot Client — setting the preference on those would do nothing for the game.
     /// </summary>
@@ -204,9 +204,9 @@ public static class GpuPreference
         var action = !elevated
             ? Loc.T("Только просмотр: менять можно с правами администратора.")
             : !writable
-                ? Loc.T("MONOLITH запущен от другой учётной записи администратора, а эта настройка принадлежит вашей — измените её в «Параметры → Система → Дисплей → Графика».")
+                ? Loc.T("Lycoris запущен от другой учётной записи администратора, а эта настройка принадлежит вашей — измените её в «Параметры → Система → Дисплей → Графика».")
                 : high.Count > 0
-                    ? Loc.T("Выключите, чтобы вернуть прежний выбор: если включал MONOLITH, вернётся ровно то значение, что было до него.")
+                    ? Loc.T("Выключите, чтобы вернуть прежний выбор: если включал Lycoris, вернётся ровно то значение, что было до него.")
                     : Loc.Tf("Включите, чтобы игра всегда запускалась на {0} — как «Высокая производительность» в параметрах графики Windows. " +
                       "Подействует со следующего запуска игры; от батареи ноутбук разрядится быстрее. Отменяется этим же переключателем.", gpu);
         return state + " " + action;
@@ -228,14 +228,14 @@ public sealed record GpuChangeOutcome(int Applied, IReadOnlyList<string> Errors)
 
 /// <summary>
 /// Registry side of <see cref="GpuPreference"/>. Reading is allowed without admin rights; every change goes through
-/// ChangeSession (journal + .reg backup) under source "games", and turning a switch back reverts MONOLITH's own
+/// ChangeSession (journal + .reg backup) under source "games", and turning a switch back reverts Lycoris's own
 /// record so the exact previous string returns.
 /// </summary>
 public static class GpuPreferenceStore
 {
     /// <summary>
-    /// Where the interactive user's preferences live, and whether MONOLITH may change them. When UAC elevated
-    /// MONOLITH with another admin account, HKCU is that admin's hive: the player's own key (HKU\&lt;SID&gt;) is shown
+    /// Where the interactive user's preferences live, and whether Lycoris may change them. When UAC elevated
+    /// Lycoris with another admin account, HKCU is that admin's hive: the player's own key (HKU\&lt;SID&gt;) is shown
     /// read-only and the switch is left to Windows Settings.
     /// </summary>
     public static (RegHive Hive, string Path, bool Writable) Location()
@@ -334,7 +334,7 @@ public static class GpuPreferenceStore
         var errors = new List<string>();
         var applied = 0;
         if (!Location().Writable)
-            return new GpuChangeOutcome(0, [Loc.T("MONOLITH запущен от другой учётной записи — измените настройку в параметрах Windows.")]);
+            return new GpuChangeOutcome(0, [Loc.T("Lycoris запущен от другой учётной записи — измените настройку в параметрах Windows.")]);
 
         var writes = new List<(string Exe, string Data)>();
         var reverts = new List<ChangeRecord>();
@@ -348,7 +348,7 @@ public static class GpuPreferenceStore
             var snapshot = RegistryHelper.Snapshot(RegHive.HKCU, GpuPreference.KeyPath, exe);
             if (snapshot.ValueExisted && snapshot.Kind != RegistryValueKind.String)
             {
-                errors.Add(Loc.Tf("{0}: в реестре значение необычного типа ({1}) — MONOLITH его не меняет", GpuPreference.FileName(exe), snapshot.Kind));
+                errors.Add(Loc.Tf("{0}: в реестре значение необычного типа ({1}) — Lycoris его не меняет", GpuPreference.FileName(exe), snapshot.Kind));
                 continue;
             }
             // No change without an undo the journal will accept later: check the record shape before writing anything.
@@ -371,7 +371,7 @@ public static class GpuPreferenceStore
                 case GpuChange.Write:
                     if (!snapshot.KeyExisted && !RegistryHelper.KeyExists(RegHive.HKCU, GpuPreference.ParentPath))
                     {
-                        // The undo removes a key MONOLITH created only one level deep: never leave an empty DirectX key behind.
+                        // The undo removes a key Lycoris created only one level deep: never leave an empty DirectX key behind.
                         errors.Add(Loc.T("в реестре нет раздела DirectX — выберите видеокарту в «Параметры → Система → Дисплей → Графика»"));
                         continue;
                     }
