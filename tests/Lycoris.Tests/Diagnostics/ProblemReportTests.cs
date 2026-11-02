@@ -388,6 +388,76 @@ public sealed class ProblemReportTests
     }
 
     [Fact]
+    public void DesktopMustBeAnExistingPlainFolderInsideTheProfileOnALocalDisk()
+    {
+        var profile = TempDir();
+        var outside = TempDir();
+        try
+        {
+            var desktop = Path.Combine(profile, "Desktop");
+            Directory.CreateDirectory(desktop);
+            Assert.Null(ProblemReport.ValidateDesktop(desktop, profile, out var canonical));
+            Assert.NotNull(canonical);
+            Assert.NotNull(ProblemReport.ValidateDesktop(outside, profile, out _));                          // outside the profile
+            Assert.NotNull(ProblemReport.ValidateDesktop(profile, profile, out _));                          // the profile itself
+            Assert.NotNull(ProblemReport.ValidateDesktop(Path.Combine(profile, "NoSuch"), profile, out _));  // missing: never created
+            Assert.False(Directory.Exists(Path.Combine(profile, "NoSuch")));
+            Assert.NotNull(ProblemReport.ValidateDesktop("//server/share/Desktop", "//server/share", out _)); // UNC
+            Assert.NotNull(ProblemReport.ValidateDesktop("Desktop", profile, out _));                        // relative
+            Assert.NotNull(ProblemReport.ValidateDesktop(Path.Combine(desktop, "..", "..", Path.GetFileName(outside)), profile, out _)); // dot-dot escape
+            Assert.NotNull(ProblemReport.ValidateDesktop(null, profile, out _));
+        }
+        finally { Cleanup(profile); Cleanup(outside); }
+    }
+
+    [Fact]
+    public void DesktopThatIsOrSitsBehindAJunctionIsRefused()
+    {
+        var profile = TempDir();
+        var outside = TempDir();
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(outside, "Desktop"));
+            var desktopLink = Path.Combine(profile, "Desktop");
+            if (!TryJunction(desktopLink, Path.Combine(outside, "Desktop"))) return;
+            Assert.NotNull(ProblemReport.ValidateDesktop(desktopLink, profile, out _));
+            var midLink = Path.Combine(profile, "OneDrive");
+            if (TryJunction(midLink, outside)) Assert.NotNull(ProblemReport.ValidateDesktop(Path.Combine(midLink, "Desktop"), profile, out _));
+        }
+        finally { Cleanup(profile); Cleanup(outside); }
+    }
+
+    [Fact]
+    public void ReportFileIsCreatedExclusivelyWithAUniqueNameAndNeverOverwrites()
+    {
+        var dir = TempDir();
+        try
+        {
+            var a = ProblemReport.WriteUnique(dir, new byte[] { 1, 2, 3 }, dir);
+            var b = ProblemReport.WriteUnique(dir, new byte[] { 4 }, dir);
+            Assert.NotEqual(a, b);
+            Assert.Matches(@"Lycoris-report-\d{4}-\d\d-\d\d-\d\d-\d\d-\d\d-[0-9a-f]{6}\.zip$", a);
+            Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(a));
+            Assert.Equal(2, Directory.GetFiles(dir).Length);
+        }
+        finally { Cleanup(dir); }
+    }
+
+    [Fact]
+    public void ReportFileThatLandedInAnotherFolderIsDeletedAndRefused()
+    {
+        var dir = TempDir();
+        var expected = TempDir();
+        try
+        {
+            Assert.Throws<IOException>(() => ProblemReport.WriteUnique(dir, new byte[] { 1 }, expected));
+            Assert.Empty(Directory.GetFiles(dir));
+            Assert.Empty(Directory.GetFiles(expected));
+        }
+        finally { Cleanup(dir); Cleanup(expected); }
+    }
+
+    [Fact]
     public void JournalSummaryHasNoTitlesTargetsOrValues()
     {
         var records = new[]

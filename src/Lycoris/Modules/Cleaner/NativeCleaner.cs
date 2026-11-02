@@ -83,7 +83,7 @@ internal static class NativeCleaner
         return GetFinalPath(h);
     }
 
-    private static string? GetFinalPath(SafeFileHandle h)
+    internal static string? GetFinalPath(SafeFileHandle h)
     {
         var buffer = new char[1024];
         var len = GetFinalPathNameByHandleW(h, buffer, (uint)buffer.Length, 0);

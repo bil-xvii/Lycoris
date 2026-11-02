@@ -41,12 +41,8 @@ public sealed partial class SettingsViewModel : PageViewModel
         string? folder = null;
         await RunBusyAsync(OperationClass.Background, ProblemReportText.Busy, async () =>
         {
-            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            var report = await Task.Run(() => ProblemReport.Create());
-            Directory.CreateDirectory(desktop);
-            var path = Path.Combine(desktop, $"Lycoris-report-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}.zip");
-            await File.WriteAllBytesAsync(path, report.Archive);
-            folder = desktop;
+            // The folder is checked and the file created exclusively inside ProblemReport (never CreateDirectory, never overwrite).
+            folder = await Task.Run(() => ProblemReport.SaveToDesktop(ProblemReport.Create().Archive));
         });
         if (folder is not null) Ui.Toast(ProblemReportText.Saved, ToastKind.Success, openFolderPath: folder);
     }
