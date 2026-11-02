@@ -219,6 +219,11 @@ public partial class App : Application
         if (!snapshot && HasArg(args, "--elevated") && Elevation.IsElevated && AdminIntent.Parse(args) is { } intent)
             vm.PendingIntent = intent;
 
+        if (WizardStartupPolicy.ShouldAutoShow(AppSettings.Current.FirstRunCompleted, AppSettings.Current.FirstRunWizardInProgress, File.Exists(AppPaths.SettingsReadFile), ChangeJournal.Instance.Records.Count > 0,
+                AppSettings.Current.ExpertMode, AppSettings.Current.LastProfile, vm.PendingIntent is not null || HasArg(args, "--replay-page"),
+                snapshot || selfTestDir is not null, snapshotDir is not null && HasArg(args, "--demo-wizard")))
+            window.Wizard.Open();
+
         if (snapshot)
         {
             window.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -268,12 +273,13 @@ public partial class App : Application
                 {
                     await Task.Delay(800);
                     if (HasArg(args, "--demo-tasks")) await vm.StartDemoTasksAsync();
+                    if (HasArg(args, "--demo-wizard")) await window.WizardDemoShotsAsync(Path.GetFullPath(snapshotDir!));
                     await window.SnapshotPagesAsync(Path.GetFullPath(snapshotDir!), only, wait, HasArg(args, "--full"));
                     if (HasArg(args, "--demo-shell")) await window.ShellDemoShotsAsync(Path.GetFullPath(snapshotDir!));
                 }
                 catch (Exception ex)
                 {
-                    File.WriteAllText(Path.Combine(Path.GetFullPath(snapshotDir!), "snapshot-error.txt"), ex.ToString());
+                    Directory.CreateDirectory(Path.GetFullPath(snapshotDir!)); File.WriteAllText(Path.Combine(Path.GetFullPath(snapshotDir!), "snapshot-error.txt"), ex.ToString());
                 }
                 finally
                 {

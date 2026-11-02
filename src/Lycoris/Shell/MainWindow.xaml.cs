@@ -9,6 +9,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Lycoris.Modules.Maintenance;
+using Lycoris.Core.Localization;
 using Lycoris.UI;
 
 namespace Lycoris.Shell;
@@ -17,13 +18,37 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly CommandPaletteViewModel _palette;
+    public WizardViewModel Wizard { get; }
+
+    public async Task WizardDemoShotsAsync(string directory)
+    {
+        Directory.CreateDirectory(directory);
+        Wizard.OpenDemo();
+        for (var i = 1; i <= 3; i++)
+        {
+            Wizard.Step = i;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                UpdateLayout();
+                var language = Loc.Culture.Name.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ru";
+                var size = $"{(int)ActualWidth}x{(int)ActualHeight}";
+                SaveVisual(RootBorder, Path.Combine(directory, $"wizard-implemented-{language}-{size}-{i}.png"));
+                if (language == "ru" && ActualWidth >= 1300 && ActualHeight >= 800)
+                    SaveVisual(RootBorder, Path.Combine(directory, $"wizard-implemented-ru-{i}.png"));
+            }, DispatcherPriority.Render);
+        }
+        Wizard.IsOpen = false;
+    }
 
     public MainWindow(MainViewModel vm)
     {
         UiA11y.Install();
         InitializeComponent();
         _vm = vm;
+        Wizard = new WizardViewModel(() => { }, _ => Ui.Navigate("home"));
         DataContext = vm;
+        WizardLayer.DataContext = Wizard;
+        vm.WizardRequested += Wizard.Open;
         FitToWorkArea();
 
         _palette = new CommandPaletteViewModel(() => CommandPaletteIndex.Build(_vm.Pages));
@@ -157,6 +182,7 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && Wizard.IsOpen) { Wizard.SkipCommand.Execute(null); e.Handled = true; return; }
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control)
         {
             e.Handled = true;

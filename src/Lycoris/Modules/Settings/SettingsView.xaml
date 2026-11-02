@@ -40,6 +40,8 @@
                       Focusable="False">
             <StackPanel Margin="0,0,10,0">
 
+                <Button Style="{StaticResource Btn}" Content="{loc:T ЗАПУСТИТЬ МАСТЕР ЗАНОВО}" Command="{Binding RestartWizardCommand}" HorizontalAlignment="Left" Margin="0,0,0,16" />
+
                 <!-- ═══════════════ UPDATES (always on top: version, last check, result, every action) ═══════════════ -->
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>

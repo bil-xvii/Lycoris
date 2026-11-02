@@ -24,6 +24,8 @@ namespace Lycoris.Shell;
 
 public sealed partial class MainViewModel : ObservableObject, IUiHost
 {
+    public event Action? WizardRequested;
+    public void OpenWizard() => WizardRequested?.Invoke();
     /// <summary>Every top-level page (the self-test and snapshots walk this list).</summary>
     public ObservableCollection<PageViewModel> Pages { get; }
     /// <summary>Pages in the sidebar list: all but Settings, which opens from the gear in the sidebar footer.</summary>

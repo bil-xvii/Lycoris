@@ -17,6 +17,7 @@ namespace Lycoris.Modules.Settings;
 /// <summary>Preferences (stored per user in settings.json), data locations and "about".</summary>
 public sealed partial class SettingsViewModel : PageViewModel
 {
+    [RelayCommand] private void RestartWizard() => (Ui.Host as MainViewModel)?.OpenWizard();
     public override string Key => "settings";
     public override string Index => "11";
     public override string Title => Loc.T("НАСТРОЙКИ");
