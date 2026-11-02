@@ -46,13 +46,7 @@ public static partial class ProblemReport
         Add("settings.json", ReadSettings);
         Add("journal.txt", ReadJournal);
         Add("README.txt", () => "Локальный диагностический архив. Содержит report.txt, до трёх последних журналов работы, безопасные настройки и краткую сводку журнала изменений. Значения реестра, пользовательские пути и секреты не включены. Архив не отправляется автоматически." );
-        try
-        {
-            if (Directory.Exists(AppPaths.LogsDir))
-                foreach (var path in Directory.EnumerateFiles(AppPaths.LogsDir).Where(p => !IsLink(p)).OrderByDescending(SafeLastWrite).Take(3))
-                    try { entries["logs/" + Path.GetFileName(path)] = Utf8(Anonymize(SafeIo.ReadText(path, MaxLogBytes))); } catch { }
-        }
-        catch { }
+        foreach (var (name, data) in CollectLogs(AppPaths.LogsDir)) entries[name] = data;
 
         var items = entries.Select(e => new Item(e.Key, e.Value.LongLength)).ToArray();
         using var ms = new MemoryStream();
@@ -73,6 +67,20 @@ public static partial class ProblemReport
             try { entries[name] = Utf8(Anonymize(section())); }
             catch { entries[name] = Utf8("нет данных"); }
         }
+    }
+
+    /// <summary>Newest logs of a folder as anonymized bytes under FIXED names (logs/log-N.txt): the source file name is never used.</summary>
+    internal static IReadOnlyList<(string Name, byte[] Data)> CollectLogs(string dir)
+    {
+        var result = new List<(string, byte[])>();
+        try
+        {
+            if (!Directory.Exists(dir)) return result;
+            foreach (var path in Directory.EnumerateFiles(dir).Where(p => !IsLink(p)).OrderByDescending(SafeLastWrite).Take(3))
+                try { result.Add(($"logs/log-{result.Count + 1}.txt", Utf8(Anonymize(SafeIo.ReadText(path, MaxLogBytes))))); } catch { }
+        }
+        catch { }
+        return result;
     }
 
     private static byte[] Utf8(string text) => Encoding.UTF8.GetBytes(text);
