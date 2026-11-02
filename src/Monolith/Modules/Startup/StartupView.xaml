@@ -184,7 +184,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="230" />
                                     <ColumnDefinition Width="210" />
-                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="225" />
                                 </Grid.ColumnDefinitions>
                                 <CheckBox IsChecked="{Binding AllSelected}" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="{loc:T Выбрать все видимые записи}" />
                                 <TextBlock Grid.Column="1" Text="{loc:T ПРИЛОЖЕНИЕ И КОМАНДА}" Style="{StaticResource ColLabel}" />
@@ -204,7 +204,7 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="230" />
                                                 <ColumnDefinition Width="210" />
-                                                <ColumnDefinition Width="190" />
+                                                <ColumnDefinition Width="225" />
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Always visible: read-only mode asks for rights when the action is pressed -->
@@ -327,7 +327,7 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="230" />
                                                 <ColumnDefinition Width="210" />
-                                                <ColumnDefinition Width="190" />
+                                                <ColumnDefinition Width="225" />
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Text="{x:Static ui:Glyphs.Services}" FontFamily="{StaticResource F.Icons}" FontSize="14" Foreground="{StaticResource B.Text3}"
