@@ -1,4 +1,4 @@
-# Lycoris icon generator (spider lily, Lycoris radiata).
+﻿# Lycoris icon generator (spider lily, Lycoris radiata).
 # Usage:  tools\make-icon.ps1 -Variant A|B|All     (default All)
 #   A = white flower on near-black tile (monochrome, matches the app)
 #   B = deep-red flower on near-black tile

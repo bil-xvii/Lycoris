@@ -1,4 +1,4 @@
-# Builds the release: one self-contained Lycoris.exe (no .NET install needed) into .\publish
+﻿# Builds the release: one self-contained Lycoris.exe (no .NET install needed) into .\publish
 # and signs it when a signing certificate is available (tools\sign.ps1; set one up with tools\signing-cert.ps1).
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\publish.ps1 [-Shortcut] [-NoSign]
 param([switch]$Shortcut, [switch]$NoSign)

@@ -1,4 +1,4 @@
-# One-time setup on YOUR OWN PC: creates a personal code-signing certificate "CN=Lycoris" and makes this PC trust it,
+﻿# One-time setup on YOUR OWN PC: creates a personal code-signing certificate "CN=Lycoris" and makes this PC trust it,
 # so the UAC prompt shows «Проверенный издатель: Lycoris» instead of «Издатель: неизвестно».
 # The trust is local: other PCs still see "unknown publisher" (that needs a certificate from a public CA, see docs/signing.md).
 #
