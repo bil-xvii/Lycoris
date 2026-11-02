@@ -20,14 +20,29 @@ public partial class SettingsView : UserControl
             {
                 _vm.PropertyChanged += OnVmPropertyChanged;
                 if (_vm.FocusedRejectedId is not null) ScrollToFocusedRejected();
+                if (_vm.FocusedSettingId is not null) ScrollToFocusedSetting();
             }
         };
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(SettingsViewModel.FocusedSettingId) && _vm?.FocusedSettingId is not null) ScrollToFocusedSetting();
         if (e.PropertyName == nameof(SettingsViewModel.FocusedRejectedId) && _vm?.FocusedRejectedId is not null) ScrollToFocusedRejected();
     }
+
+    /// <summary>«setting:&lt;row&gt;» from the palette: scrolls to the named row (Row_&lt;id&gt; with '-' as '_'); an unknown id leaves the page as is.</summary>
+    private void ScrollToFocusedSetting() => Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+    {
+        if (_vm?.FocusedSettingId is not { } id) return;
+        _vm.FocusedSettingId = null;
+        if (id == "licenses" && FindName("Row_licenses") is Expander ex) ex.IsExpanded = true;
+        if (FindName("Row_" + id.Replace('-', '_')) is FrameworkElement el)
+        {
+            UpdateLayout();
+            el.BringIntoView();
+        }
+    });
 
     /// <summary>
     /// Brings the requested «Что MONOLITH не делает» row into view once the expander has opened and laid out its rows
