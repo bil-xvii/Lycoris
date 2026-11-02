@@ -407,7 +407,7 @@ writes on the dev PC — tests use the fakes (`DeviceWriters.OverrideForTests`),
   network_*.md, design docs/research/devices_design.md).
 - Verified on Windows 11 (28.10.2026): build 0 warnings, all unit tests pass, `--selftest` all pages OK (incl.
   devices/auto and devices/manual). Device writes (SPI, display mode/HDR + guard, DDC, mic level, NIC) and the live
-  measurements are unit-tested with fakes only — the manual pre-ship checks in devices_design.md §5 are still open.
+  measurements are unit-tested with fakes; on 02.11.2026 the owner authorised real-hardware checks: opt-in tests `tests/Monolith.Tests/Hardware` (`LYCORIS_HW_TESTS=1`), results in `docs/hardware-verification-2026-11.md` (§5 b–d, f done; a, e, g open).
 - Two Claude sessions once developed in parallel (a cloud one on `main`, a local one); the local line is kept on branch
   `local/windows-line` for reference only. Before starting work: `git fetch` and build on top of `origin/main`.
 - Never rename, overwrite or delete Lycoris.exe while it runs (single-file app: it loads parts of itself from the
