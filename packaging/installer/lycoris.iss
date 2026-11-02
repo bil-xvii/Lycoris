@@ -1,4 +1,4 @@
-#define AppName "Lycoris"
+﻿#define AppName "Lycoris"
 #ifndef AppVersion
   #error Pass /DAppVersion=x.y.z from build-installer.ps1
 #endif
@@ -16,7 +16,9 @@ OutputBaseFilename=Lycoris-Setup-{#AppVersion}
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 UninstallDisplayIcon={app}\Lycoris.exe
+#ifdef Sign
 SignTool=LycorisSign
+#endif
 WizardStyle=modern
 CloseApplications=yes
 CloseApplicationsFilter=Lycoris.exe
