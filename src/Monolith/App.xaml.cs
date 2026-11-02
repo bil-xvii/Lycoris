@@ -78,6 +78,13 @@ public partial class App : Application
         var e2eDir = ArgValue(args, "--e2e");
         if (e2eDir is not null)
         {
+            // «--e2e» applies and reverts REAL tweaks (and asks for rights itself): any program could start it with the user's
+            // consent click on a UAC prompt that looks like MONOLITH's. Only a developer build, or an explicit opt-in, runs it.
+            if (!E2eAllowed())
+            {
+                Shutdown(2);
+                return;
+            }
             RunEndToEnd(args, e2eDir);
             return;
         }
@@ -153,6 +160,7 @@ public partial class App : Application
         }
 
         Log.PruneOldLogs();
+        Monolith.Core.Security.SelfIntegrity.Start(); // background: exe SHA-256, signature, location, unpacked libraries (diagnostics + elevation gate)
         if (Elevation.IsElevated && !snapshot)
         {
             // Lock down %ProgramData%\MONOLITH before the journal is read, then repair an interrupted restore point.
@@ -239,6 +247,16 @@ public partial class App : Application
 
         window.Show();
         _ = vm.RunStartupChecksAsync();
+    }
+
+    /// <summary>True in a Debug build, or when the environment variable MONOLITH_E2E=1 is set for this run.</summary>
+    private static bool E2eAllowed()
+    {
+#if DEBUG
+        return true;
+#else
+        return Environment.GetEnvironmentVariable("MONOLITH_E2E") == "1";
+#endif
     }
 
     /// <summary>"--e2e &lt;dir&gt;": headless real-system apply/revert test (asks for admin rights once).</summary>

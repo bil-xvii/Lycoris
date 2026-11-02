@@ -261,6 +261,8 @@ public abstract partial class PageViewModel : ObservableObject
     protected bool RequireAdmin(string action, string command, string? parameter = null) =>
         RequireAdmin(action, new AdminIntent(Key, command, parameter));
 
+    private static int _writableFolderWarned;
+
     private static bool RequireAdmin(string action, AdminIntent? intent)
     {
         if (Elevation.IsElevated) return true;
@@ -270,8 +272,12 @@ public abstract partial class PageViewModel : ObservableObject
             {
                 try
                 {
+                    var text = ElevationPromptText(action, intent is not null);
+                    // The program lies in a folder any program can write to: say so (once per run), with the fix.
+                    if (Core.Security.SelfIntegrity.InWritableFolder && Interlocked.Exchange(ref _writableFolderWarned, 1) == 0)
+                        text += "\n\n" + Core.Security.SelfIntegrity.WritableFolderWarning;
                     var (ok, always) = await Ui.ConfirmOptionAsync("Нужны права администратора",
-                        ElevationPromptText(action, intent is not null), ElevationAlwaysOption,
+                        text, ElevationAlwaysOption,
                         confirmText: "ПЕРЕЗАПУСТИТЬ С ПРАВАМИ", cancelText: "НЕ СЕЙЧАС");
                     if (!ok) return;
                     if (always) AppSettings.Current.ElevateAtStartup = true;

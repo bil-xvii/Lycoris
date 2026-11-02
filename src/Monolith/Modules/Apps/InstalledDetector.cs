@@ -195,7 +195,7 @@ public static class InstalledDetector
         try
         {
             if (!File.Exists(CacheFile)) return null;
-            var dto = JsonSerializer.Deserialize<CacheDto>(File.ReadAllText(CacheFile));
+            var dto = JsonSerializer.Deserialize<CacheDto>(Monolith.Core.Security.SafeIo.ReadText(CacheFile));
             if (dto?.Packages is null) return null;
             return new InstalledSnapshot(new Dictionary<string, string>(dto.Packages, StringComparer.OrdinalIgnoreCase), dto.CheckedAt, true)
             {

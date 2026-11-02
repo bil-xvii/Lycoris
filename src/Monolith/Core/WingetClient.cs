@@ -70,7 +70,31 @@ public static partial class WingetClient
         get
         {
             var alias = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", "winget.exe");
-            return File.Exists(alias) ? alias : null;
+            if (!File.Exists(alias)) return null;
+            if (IsTrustedAlias(alias, Elevation.IsElevated)) return alias;
+            if (Interlocked.Exchange(ref _aliasWarned, 1) == 0)
+                Log.Warn("winget.exe в профиле пользователя — не ссылка Windows, а обычный файл; с правами администратора он не запускается.");
+            return null;
+        }
+    }
+
+    private static int _aliasWarned;
+
+    /// <summary>
+    /// The «winget.exe» in %LocalAppData%\Microsoft\WindowsApps is an app-execution ALIAS (a reparse point that Windows resolves
+    /// to the signed Desktop App Installer package) in a folder the user can write to. An elevated process must never run a
+    /// plain file from there: a program running as the user could have replaced the alias with its own exe. Pure; unit-tested.
+    /// </summary>
+    internal static bool IsTrustedAlias(string path, bool elevated)
+    {
+        if (!elevated) return true; // a normal-rights start runs with the user's own rights anyway
+        try
+        {
+            return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -274,14 +298,16 @@ public static partial class WingetClient
     public static async Task<Dictionary<string, string>> ExportInstalledAsync(CancellationToken ct = default)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var file = Path.Combine(Path.GetTempPath(), $"monolith_wg_{Guid.NewGuid():N}.json");
+        // A private folder (admin-only when elevated), never the shared %TEMP%: nobody can swap the file between winget's write and our read.
+        var file = Security.SafeIo.NewPrivateTempFile(".json");
+        if (file is null) return result;
         try
         {
             var args = new List<string> { "export", "-o", file, "--include-versions" };
             args.AddRange(Common);
             await RunAsync(args, null, ct, log: false).ConfigureAwait(false);
             if (!File.Exists(file)) return result;
-            return ParseExport(await File.ReadAllTextAsync(file, ct).ConfigureAwait(false));
+            return ParseExport(Security.SafeIo.ReadText(file, 16 * 1024 * 1024));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

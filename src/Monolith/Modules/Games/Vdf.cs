@@ -34,6 +34,9 @@ public sealed class VdfNode
 /// </summary>
 public static class VdfParser
 {
+    /// <summary>Real files nest 4-5 levels; a deeper file is hostile.</summary>
+    public const int MaxDepth = 64;
+
     private enum Kind { Text, Open, Close, Conditional }
 
     private readonly record struct Token(Kind Kind, string Text);
@@ -43,12 +46,13 @@ public static class VdfParser
         var root = new VdfNode();
         if (string.IsNullOrEmpty(text)) return root;
         var pos = 0;
-        ParseObject(text, ref pos, root, topLevel: true);
+        ParseObject(text, ref pos, root, topLevel: true, depth: 0);
         return root;
     }
 
-    private static void ParseObject(string s, ref int pos, VdfNode target, bool topLevel)
+    private static void ParseObject(string s, ref int pos, VdfNode target, bool topLevel, int depth)
     {
+        if (depth > MaxDepth) { pos = s.Length; return; } // hostile nesting: stop (a stack overflow cannot be caught)
         while (true)
         {
             var tok = Next(s, ref pos);
@@ -59,7 +63,7 @@ public static class VdfParser
                     if (topLevel) continue; // stray brace at top level
                     return;
                 case Kind.Open:
-                    ParseObject(s, ref pos, new VdfNode(), topLevel: false); // anonymous block: skip
+                    ParseObject(s, ref pos, new VdfNode(), topLevel: false, depth + 1); // anonymous block: skip
                     continue;
                 case Kind.Conditional:
                     continue;
@@ -77,7 +81,7 @@ public static class VdfParser
             {
                 case Kind.Open:
                     var child = new VdfNode();
-                    ParseObject(s, ref pos, child, topLevel: false);
+                    ParseObject(s, ref pos, child, topLevel: false, depth + 1);
                     target.Add(key, child);
                     break;
                 case Kind.Text:

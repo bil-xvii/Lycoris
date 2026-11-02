@@ -273,6 +273,7 @@
     "Недопустимое имя файла: «{0}»": "Invalid file name: “{0}”",
     "winget без прав администратора: прервано пользователем.": "winget without administrator rights: interrupted by the user.",
     "Не удалось прервать winget: {0}": "Could not stop winget: {0}",
-    "ОБНОВИТЬ{0}": "UPDATE{0}"
+    "ОБНОВИТЬ{0}": "UPDATE{0}",
+    "winget.exe в профиле пользователя — не ссылка Windows, а обычный файл; с правами администратора он не запускается.": "winget.exe in the user profile is a plain file, not a Windows link; it is not run with administrator rights."
   }
 }

@@ -175,7 +175,7 @@ internal static partial class DriverBackupService
         try
         {
             var file = Path.Combine(dir, BackupFolders.ManifestFile);
-            return File.Exists(file) ? JsonSerializer.Deserialize<BackupManifest>(File.ReadAllText(file)) : null;
+            return File.Exists(file) ? JsonSerializer.Deserialize<BackupManifest>(Monolith.Core.Security.SafeIo.ReadText(file)) : null;
         }
         catch
         {

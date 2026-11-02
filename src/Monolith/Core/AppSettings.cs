@@ -100,7 +100,10 @@ public sealed partial class AppSettings : ObservableObject
         {
             if (File.Exists(AppPaths.SettingsFile))
             {
-                Current = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.SettingsFile), JsonOptions) ?? new AppSettings();
+                // The file is user-writable: bounded read (no links, no huge file), then every value is clamped to what the app could have written.
+                Current = JsonSerializer.Deserialize<AppSettings>(Security.SafeIo.ReadText(AppPaths.SettingsFile), JsonOptions) ?? new AppSettings();
+                var fixes = Security.SettingsValidator.Sanitize(Current);
+                if (fixes > 0) Log.Warn("В настройках исправлено значений: {0} (недопустимые значения заменены безопасными).", fixes);
             }
         }
         catch (Exception ex)

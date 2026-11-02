@@ -116,6 +116,8 @@
     "не удалось прочитать подпись": "could not read the signature",
     "Не удалось удалить {0}: {1}": "Could not delete {0}: {1}",
     "Проверка цифровой подписи…": "Verifying the digital signature…",
-    "{0:0}% · {1} из {2}": "{0:0}% · {1} of {2}"
+    "{0:0}% · {1} из {2}": "{0:0}% · {1} of {2}",
+    "Сервер сообщает слишком большой размер файла — загрузка отменена.": "The server reports an unreasonably large file size — download cancelled.",
+    "Файл больше допустимого размера — загрузка прервана.": "The file is larger than allowed — download stopped."
   }
 }

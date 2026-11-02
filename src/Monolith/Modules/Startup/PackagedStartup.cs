@@ -370,7 +370,7 @@ public static class PackagedStartup
         {
             var info = new FileInfo(path);
             if (!info.Exists || info.Length > 8_000_000) return null;
-            return ParseManifest(File.ReadAllText(path));
+            return ParseManifest(Monolith.Core.Security.SafeIo.ReadText(path));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException
                                        or ArgumentException or NotSupportedException)

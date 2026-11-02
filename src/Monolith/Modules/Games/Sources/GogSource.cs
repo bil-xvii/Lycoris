@@ -83,7 +83,7 @@ public static class GogSource
                     {
                         var gameId = k.GetValue("gameID")?.ToString() ?? id;
                         var info = Path.Combine(dir, $"goggame-{gameId}.info");
-                        if (File.Exists(info) && ParsePrimaryPlayTask(File.ReadAllText(info)) is { } task)
+                        if (File.Exists(info) && ParsePrimaryPlayTask(Monolith.Core.Security.SafeIo.ReadText(info)) is { } task)
                         {
                             exe = Path.IsPathRooted(task.Path) ? task.Path : Path.Combine(dir, task.Path);
                             args = task.Arguments;

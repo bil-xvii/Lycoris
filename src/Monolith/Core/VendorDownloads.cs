@@ -60,6 +60,9 @@ public static partial class VendorDownloads
     /// <summary>A download that receives nothing for this long is treated as broken.</summary>
     private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(60);
 
+    /// <summary>No vendor installer is larger (the biggest GPU driver packages are ~1 GB); a stream that never ends cannot fill the disk.</summary>
+    internal const long MaxDownloadBytes = 6L << 30;
+
     private static readonly Lazy<HttpClient> LazyHttp = new(() =>
     {
         var handler = new SocketsHttpHandler
@@ -286,6 +289,7 @@ public static partial class VendorDownloads
                 throw new InvalidOperationException(Loc.T("Вместо установщика сервер вернул веб-страницу. Попробуйте позже или откройте официальный сайт."));
 
             var total = resp.Content.Headers.ContentLength;
+            if (total > MaxDownloadBytes) throw new InvalidOperationException(Loc.T("Сервер сообщает слишком большой размер файла — загрузка отменена."));
             await using var src = await resp.Content.ReadAsStreamAsync(stall.Token).ConfigureAwait(false);
             await using var dst = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true);
             var buffer = new byte[1 << 16];
@@ -296,6 +300,7 @@ public static partial class VendorDownloads
             {
                 await dst.WriteAsync(buffer.AsMemory(0, read), stall.Token).ConfigureAwait(false);
                 done += read;
+                if (done > MaxDownloadBytes) throw new InvalidOperationException(Loc.T("Файл больше допустимого размера — загрузка прервана."));
                 stall.CancelAfter(StallTimeout);
                 if (sw.ElapsedMilliseconds > 250)
                 {
@@ -333,8 +338,7 @@ public static partial class VendorDownloads
     /// </summary>
     public static async Task<(bool Ok, string Signer)> VerifySignatureAsync(string path, IReadOnlyList<string> expectedSigners)
     {
-        var escaped = path.Replace("'", "''");
-        var script = $"$s = Get-AuthenticodeSignature -LiteralPath '{escaped}'; $c = $s.SignerCertificate; " +
+        var script = $"$s = Get-AuthenticodeSignature -LiteralPath {Security.PsText.Literal(path)}; $c = $s.SignerCertificate; " +
                      "[pscustomobject]@{ Status = \"$($s.Status)\"; " +
                      "Subject = $(if ($c) { $c.Subject } else { '' }); " +
                      "Names = $(if ($c) { $c.SubjectName.Format($true) } else { '' }) } | ConvertTo-Json -Compress";

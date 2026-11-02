@@ -158,6 +158,9 @@ public sealed class SelfTestRunner
         // Concurrency: many read-only / measure operations from several pages at once, plus a synthetic storm through the coordinator.
         reports.Add(await TestConcurrencyAsync());
 
+        // Security: the hostile-input corpus against every parser and validator (read-only, offline).
+        reports.Add(await TestSecurityAsync());
+
         _lagRunning = false;
         lagThread.Join(2000);
         Log.Written -= OnLog;
@@ -173,6 +176,34 @@ public sealed class SelfTestRunner
         }
         IsRunning = false;
         return reports.Count(r => r.Status == "FAIL");
+    }
+
+    /// <summary>
+    /// «БЕЗОПАСНОСТЬ» (read-only): the hostile-input corpus (<see cref="Monolith.Core.Security.SecurityCorpus"/>) against the parsers and
+    /// validators, plus the state of the process hardening. Fails on any hostile input that is accepted.
+    /// </summary>
+    private async Task<PageReport> TestSecurityAsync()
+    {
+        var r = new PageReport { Key = "security", Title = "БЕЗОПАСНОСТЬ" };
+        Drain();
+        var corpus = await Task.Run(Monolith.Core.Security.SecurityCorpus.Run);
+        r.Exercised.Add($"hostile-input corpus: {corpus.Checks} checks, {corpus.Failures.Count} failed");
+        foreach (var failure in corpus.Failures) r.Errors.Add("не отклонено: " + failure);
+
+        var h = Monolith.Core.Security.Hardening.Current;
+        r.Exercised.Add($"DLL search restricted: {h.DllDirectoriesRestricted}, trusted native folders: {h.TrustedNativeDirectories}, image-load policy: {h.ImageLoadPolicy}"
+                        + (h.Details.Length > 0 ? " (" + h.Details + ")" : ""));
+        if (!h.DllDirectoriesRestricted) r.Warnings.Add("поиск DLL не ограничен: " + h.Details);
+        if (!h.ImageLoadPolicy) r.Warnings.Add("политика загрузки образов не применена: " + h.Details);
+
+        var self = Monolith.Core.Security.SelfIntegrity.HashAtStart;
+        r.Exercised.Add($"exe SHA-256: {self ?? "(not yet computed)"}, signature: {Monolith.Core.Security.SelfIntegrity.Signature}, writable folder: {Monolith.Core.Security.SelfIntegrity.WritableReason ?? "no"}");
+        if (Monolith.Core.Security.SelfIntegrity.Signature == Monolith.Core.Security.SignatureState.Tampered)
+            r.Errors.Add("подпись MONOLITH.exe не совпадает с файлом");
+        foreach (var bad in Monolith.Core.Security.SelfIntegrity.BadNativeLibraries) r.Errors.Add("распакованная библиотека без подписи: " + bad);
+
+        Collect(r);
+        return r;
     }
 
     /// <summary>

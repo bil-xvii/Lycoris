@@ -24,7 +24,14 @@ public enum CleanMethod
 }
 
 /// <summary>An external command of a developer tool ("dotnet nuget locals http-cache --clear").</summary>
-public sealed record ToolCommand(string File, string Arguments, string Display, OutputEncoding Encoding = OutputEncoding.Utf8);
+public sealed record ToolCommand(string File, string Arguments, string Display, OutputEncoding Encoding = OutputEncoding.Utf8)
+{
+    /// <summary>The developer tool that actually runs (npm.cmd, pip.exe…) when <see cref="File"/> is only the cmd.exe that starts it; null = <see cref="File"/> itself.</summary>
+    public string? Tool { get; init; }
+
+    /// <summary>The program whose location decides whether an elevated MONOLITH may run this command.</summary>
+    public string Program => Tool ?? File;
+}
 
 /// <summary>One line of the cleanup catalog.</summary>
 public sealed class CleanDefinition
@@ -579,7 +586,7 @@ _ => Loc.T("Корзина, журналы, дампы сбоев и обслу�
             },
             Commands = env => env.NpmPath is not { } npm ? [] :
             [
-                new ToolCommand(ProcessRunner.Sys("cmd.exe"), $"/d /s /c \"\"{npm}\" cache verify\"", "npm cache verify", OutputEncoding.Oem),
+                new ToolCommand(ProcessRunner.Sys("cmd.exe"), $"/d /s /c \"\"{npm}\" cache verify\"", "npm cache verify", OutputEncoding.Oem) { Tool = npm },
             ],
         });
         list.Add(new CleanDefinition
@@ -592,7 +599,7 @@ _ => Loc.T("Корзина, журналы, дампы сбоев и обслу�
             Targets = env => [new CleanTarget { Base = Path.Combine(env.LocalAppData, @"Yarn\Cache"), Label = "Yarn · Cache" }],
             Commands = env => env.YarnPath is not { } yarn ? [] :
             [
-                new ToolCommand(ProcessRunner.Sys("cmd.exe"), $"/d /s /c \"\"{yarn}\" cache clean\"", "yarn cache clean", OutputEncoding.Oem),
+                new ToolCommand(ProcessRunner.Sys("cmd.exe"), $"/d /s /c \"\"{yarn}\" cache clean\"", "yarn cache clean", OutputEncoding.Oem) { Tool = yarn },
             ],
         });
         list.Add(new CleanDefinition
