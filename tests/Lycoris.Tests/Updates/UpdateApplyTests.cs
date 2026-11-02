@@ -181,7 +181,7 @@ public sealed class UpdateApplyTests
         var e = Env();
         e.NewVersionBehaviour = expected == ApplyOutcome.Updated ? ProcessWatch.StillRunning : ProcessWatch.ExitedFailed;
         e.NewExitCode = 1;
-        Assert.Equal(code, UpdateApplyMode.Run([UpdateApplyMode.Switch, Old, "42"], e, Self));
+        Assert.Equal(code, UpdateApplyMode.Run([UpdateApplyMode.Switch, Old, "42"], e, Self, elevated: false));
     }
 
     [Theory]
