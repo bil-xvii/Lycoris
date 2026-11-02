@@ -239,6 +239,47 @@ public sealed partial class DeviceSetting : ObservableObject
         return v.Key;
     }
 
+    /// <summary>
+    /// A value given as text (the replay of ПРИМЕНИТЬ after a relaunch with admin rights) turned back into a value this row
+    /// really offers: one of its options, the toggle's two states, a slider number inside its range and step, or a
+    /// resolution + refresh pair both offered. Anything else is refused — the text is never trusted as a value.
+    /// </summary>
+    public bool TryParseValue(string key, out DeviceValue value)
+    {
+        value = default;
+        if (string.IsNullOrEmpty(key)) return false;
+        switch (Control)
+        {
+            case SettingControl.Choice when Options.FirstOrDefault(o => o.Value.Key == key) is { } option:
+                value = option.Value;
+                return true;
+            case SettingControl.Toggle when On.Key == key || Off.Key == key:
+                value = On.Key == key ? On : Off;
+                return true;
+            case SettingControl.Slider:
+                if (SpecialOption is { } special && special.Value.Key == key) { value = special.Value; return true; }
+                if (long.TryParse(key, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)
+                    && n >= Min && n <= Max && (Step <= 1 || (n - Min) % Step == 0))
+                {
+                    value = DeviceValue.Of(n);
+                    return true;
+                }
+                return false;
+            case SettingControl.DualChoice:
+                var at = key.LastIndexOf('@');
+                if (at <= 0 || at >= key.Length - 1) return false;
+                var primary = Options.FirstOrDefault(o => o.Value.Key == key[..at]);
+                var secondary = primary is null ? null : SecondaryFor(primary.Value).FirstOrDefault(o => o.Value.Key == key[(at + 1)..]);
+                if (primary is null || secondary is null) return false;
+                value = DeviceValue.Dual(primary.Value, secondary.Value);
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>The value ПРИМЕНИТЬ would write, as text for the admin-intent parameter.</summary>
+    public string? StagedKey => Staged?.Key;
+
     public bool IsDirty => Staged is { } s && (Current is not { } c || !SameValue(s, c));
     public bool CanApply => !IsReadOnly && IsDirty && DisabledReason is null && !IsApplying;
     /// <summary>The row's control can be used (moving it only stages a value; ПРИМЕНИТЬ applies).</summary>
@@ -386,6 +427,7 @@ public sealed partial class DeviceTool : ObservableObject
     public string Description { get; init; } = "";
     public string ButtonText { get; init; } = "ИЗМЕРИТЬ";
     public IReadOnlyList<DeviceOption> Options { get; init; } = [];
+    public bool HasOptions => Options.Count > 0;
     /// <summary>The run happens on a drag pad in the row (DPI test): the pad captures the mouse so nothing else reacts.</summary>
     public bool NeedsDragPad { get; init; }
     public string PadText { get; init; } = "Зажмите левую кнопку здесь и, не отпуская, проведите мышь вправо";
