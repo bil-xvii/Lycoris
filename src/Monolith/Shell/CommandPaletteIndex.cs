@@ -54,7 +54,7 @@ public static class CommandPaletteIndex
         foreach (var link in quickLinks)
             list.Add(new PaletteEntry
             {
-                Kind = PaletteKind.Tool, Title = link.Title, Description = $"Быстрый запуск в разделе «Обслуживание → Ремонт и диски»: {link.Command}.",
+                Kind = PaletteKind.Tool, Title = link.Title, Description = Loc.Tf("Быстрый запуск в разделе «Обслуживание → Ремонт и диски»: {0}.", link.Command),
                 Keywords = link.Command, PageKey = MaintenanceViewModel.ToolsTab,
             });
 
@@ -100,24 +100,24 @@ public static class CommandPaletteIndex
     public static IReadOnlyList<(string Title, string Description, string Keywords, string FocusId)> DeviceEntries { get; } =
     [
         .. Monolith.Core.Devices.SpiCatalog.All.Select(e => (e.Title,
-            $"{(e.Id.StartsWith("keyboard", StringComparison.Ordinal) ? "Клавиатура" : "Мышь")} — раздел «Устройства и сеть», вкладка «Вручную».",
-            $"{e.Id} мышь клавиатура устройства", Monolith.Core.Devices.DeviceTargets.Spi(e.Id))),
-        ("Разрешение и частота обновления", "Режим монитора с подтверждением на экране — раздел «Устройства и сеть».", "монитор экран герц гц частота разрешение refresh", "kind:monitor"),
-        ("HDR монитора", "Включение HDR с подтверждением на экране — раздел «Устройства и сеть».", "hdr монитор экран", "display-hdr"),
-        ("Яркость и контраст монитора", "Яркость по DDC/CI — раздел «Устройства и сеть».", "яркость контраст монитор ddc", "display-brightness"),
-        ("Уровень микрофона", "Уровень записи и проверка уровня — раздел «Устройства и сеть».", "микрофон звук запись уровень", "mic-level"),
-        ("Наушники и звук", "Устройство вывода, формат и улучшения звука — раздел «Устройства и сеть».", "звук наушники колонки вывод", "kind:audiooutput"),
-        ("Сеть и пинг", "Сетевой адаптер, замер пинга и автонастройка сети — раздел «Устройства и сеть».", "сеть пинг интернет ethernet wi-fi адаптер", "kind:network"),
-        ("Частота опроса и DPI мыши", "Замер частоты опроса и проверка DPI — раздел «Устройства и сеть».", "мышь dpi опрос герц polling",
+            Loc.Tf("{0} — раздел «Устройства и сеть», вкладка «Вручную».", e.Id.StartsWith("keyboard", StringComparison.Ordinal) ? Loc.T("Клавиатура") : Loc.T("Мышь")),
+            $"{e.Id} " + Loc.Keep("мышь клавиатура устройства"), Monolith.Core.Devices.DeviceTargets.Spi(e.Id))),
+        (Loc.Key("Разрешение и частота обновления"), Loc.Key("Режим монитора с подтверждением на экране — раздел «Устройства и сеть»."), Loc.Keep("монитор экран герц гц частота разрешение refresh"), "kind:monitor"),
+        (Loc.Key("HDR монитора"), Loc.Key("Включение HDR с подтверждением на экране — раздел «Устройства и сеть»."), Loc.Keep("hdr монитор экран"), "display-hdr"),
+        (Loc.Key("Яркость и контраст монитора"), Loc.Key("Яркость по DDC/CI — раздел «Устройства и сеть»."), Loc.Keep("яркость контраст монитор ddc"), "display-brightness"),
+        (Loc.Key("Уровень микрофона"), Loc.Key("Уровень записи и проверка уровня — раздел «Устройства и сеть»."), Loc.Keep("микрофон звук запись уровень"), "mic-level"),
+        (Loc.Key("Наушники и звук"), Loc.Key("Устройство вывода, формат и улучшения звука — раздел «Устройства и сеть»."), Loc.Keep("звук наушники колонки вывод"), "kind:audiooutput"),
+        (Loc.Key("Сеть и пинг"), Loc.Key("Сетевой адаптер, замер пинга и автонастройка сети — раздел «Устройства и сеть»."), Loc.Keep("сеть пинг интернет ethernet wi-fi адаптер"), "kind:network"),
+        (Loc.Key("Частота опроса и DPI мыши"), Loc.Key("Замер частоты опроса и проверка DPI — раздел «Устройства и сеть»."), Loc.Keep("мышь dpi опрос герц polling"),
             Monolith.Modules.Devices.Input.InputProvider.PollingRow),
     ];
 
     /// <summary>Sections that used to be pages; their keys are navigation aliases (see MainViewModel.NavigateTo).</summary>
     public static IReadOnlyList<(string Key, string Title, string Subtitle, string Keywords)> Sections { get; } =
     [
-        (MaintenanceViewModel.CleanerTab, "ОЧИСТКА", "Временные файлы, кэши и мусор — раздел «Обслуживание».", "обслуживание мусор"),
-        (MaintenanceViewModel.ToolsTab, "РЕМОНТ И ДИСКИ", "Проверка и восстановление Windows, диски и сеть — раздел «Обслуживание».", "инструменты обслуживание"),
-        (MainViewModel.StartupAlias, "АВТОЗАПУСК", "Программы, которые запускаются вместе с Windows, — раздел «Автозапуск и службы».", "службы задачи"),
+        (MaintenanceViewModel.CleanerTab, Loc.Key("ОЧИСТКА"), Loc.Key("Временные файлы, кэши и мусор — раздел «Обслуживание»."), Loc.Keep("обслуживание мусор")),
+        (MaintenanceViewModel.ToolsTab, Loc.Key("РЕМОНТ И ДИСКИ"), Loc.Key("Проверка и восстановление Windows, диски и сеть — раздел «Обслуживание»."), Loc.Keep("инструменты обслуживание")),
+        (MainViewModel.StartupAlias, Loc.Key("АВТОЗАПУСК"), Loc.Key("Программы, которые запускаются вместе с Windows, — раздел «Автозапуск и службы»."), Loc.Keep("службы задачи")),
     ];
 
     // ───────────── Focus-id prefixes the pages resolve (documented in CLAUDE.md «Deep links») ─────────────
@@ -135,70 +135,72 @@ public static class CommandPaletteIndex
 
     /// <summary>The Apps catalog (verified winget / Store packages): «Steam», «Discord», «7-Zip»…</summary>
     public static IReadOnlyList<Entry> AppEntries { get; } = AppCatalog.All
-        .Select(a => new Entry(PaletteKind.App, a.Name, $"{a.Description} — раздел «Приложения», {AppCatalog.Info(a.Category).Title.ToLowerInvariant()}.",
-            $"{a.Id} {AppCatalog.Info(a.Category).Title} программа установить {a.Website}", "apps", AppFocusPrefix + a.Id))
+        .Select(a => new Entry(PaletteKind.App, a.Name, Loc.Tf("{0} — раздел «Приложения», {1}.", a.Description, AppCatalog.Info(a.Category).Title.ToLowerInvariant()),
+            $"{a.Id} {AppCatalog.Info(a.Category).Title} " + Loc.Keep("программа установить") + $" {a.Website}", "apps", AppFocusPrefix + a.Id))
         .ToList();
 
     /// <summary>The cleanup catalog: «Корзина», «Кэш DirectX», «Временные файлы Windows»…</summary>
     public static IReadOnlyList<Entry> CleanEntries { get; } = CleanCatalog.All
-        .Select(c => new Entry(PaletteKind.Clean, c.Name, $"{c.Description} — раздел «Обслуживание → Очистка», {CleanCatalog.CategoryTitle(c.Category).ToLowerInvariant()}.",
-            $"{c.Id} {CleanCatalog.CategoryTitle(c.Category)} очистка мусор кэш удалить", MaintenanceViewModel.CleanerTab, CleanFocusPrefix + c.Id))
+        .Select(c => new Entry(PaletteKind.Clean, c.Name, Loc.Tf("{0} — раздел «Обслуживание → Очистка», {1}.", c.Description, CleanCatalog.CategoryTitle(c.Category).ToLowerInvariant()),
+            $"{c.Id} {CleanCatalog.CategoryTitle(c.Category)} " + Loc.Keep("очистка мусор кэш удалить"), MaintenanceViewModel.CleanerTab, CleanFocusPrefix + c.Id))
         .ToList();
 
     /// <summary>Rows of the Settings page (static: the page has a fixed set of options).</summary>
     public static IReadOnlyList<Entry> SettingsEntries { get; } =
     [
-        new(PaletteKind.Setting, "Запускать сразу с правами администратора", "Запрос UAC при каждом запуске вместо перезапуска при первом изменении — раздел «Настройки».",
-            "права администратора uac запуск elevate", "settings", SettingFocusPrefix + "elevate"),
-        new(PaletteKind.Setting, "Подтверждение перед применением", "Показывать точный список изменений перед применением — раздел «Настройки».",
-            "подтверждение применить список изменений confirm", "settings", SettingFocusPrefix + "confirm"),
-        new(PaletteKind.Setting, "Интервал обновления мониторинга", "Как часто Панель опрашивает процессор, видеокарту, память и диски — раздел «Настройки».",
-            "мониторинг интервал панель опрос", "settings", SettingFocusPrefix + "monitor-interval"),
-        new(PaletteKind.Setting, "Журнал действий (консоль)", "Показывать журнал действий MONOLITH внизу окна — раздел «Настройки».",
-            "консоль журнал лог", "settings", SettingFocusPrefix + "console"),
-        new(PaletteKind.Setting, "Папки данных MONOLITH", "Где лежат настройки, журнал изменений, резервные копии и логи — раздел «Настройки».",
-            "данные папки журнал резервные копии логи файлы", "settings", SettingFocusPrefix + "data"),
-        new(PaletteKind.Setting, "Сброс настроек MONOLITH", "Вернуть параметры MONOLITH к значениям по умолчанию — раздел «Настройки».",
-            "сброс по умолчанию настройки", "settings", SettingFocusPrefix + "reset"),
-        new(PaletteKind.Setting, "Как MONOLITH защищает систему", "Журнал отката, точки восстановления, что никогда не делается — раздел «Настройки → О программе».",
-            "безопасность защита откат о программе", "settings", SettingFocusPrefix + "about"),
-        new(PaletteKind.Setting, "Компоненты и лицензии", "Версия, шрифты, библиотеки — раздел «Настройки → О программе».",
-            "лицензии версия компоненты о программе", "settings", SettingFocusPrefix + "licenses"),
+        new(PaletteKind.Setting, Loc.Key("Язык / Language"), Loc.Key("Язык интерфейса: авто, русский или English — раздел «Настройки»."),
+            Loc.Keep("язык language english русский английский интерфейс локализация"), "settings", SettingFocusPrefix + "language"),
+        new(PaletteKind.Setting, Loc.Key("Запускать сразу с правами администратора"), Loc.Key("Запрос UAC при каждом запуске вместо перезапуска при первом изменении — раздел «Настройки»."),
+            Loc.Keep("права администратора uac запуск elevate"), "settings", SettingFocusPrefix + "elevate"),
+        new(PaletteKind.Setting, Loc.Key("Подтверждение перед применением"), Loc.Key("Показывать точный список изменений перед применением — раздел «Настройки»."),
+            Loc.Keep("подтверждение применить список изменений confirm"), "settings", SettingFocusPrefix + "confirm"),
+        new(PaletteKind.Setting, Loc.Key("Интервал обновления мониторинга"), Loc.Key("Как часто Панель опрашивает процессор, видеокарту, память и диски — раздел «Настройки»."),
+            Loc.Keep("мониторинг интервал панель опрос"), "settings", SettingFocusPrefix + "monitor-interval"),
+        new(PaletteKind.Setting, Loc.Key("Журнал действий (консоль)"), Loc.Key("Показывать журнал действий MONOLITH внизу окна — раздел «Настройки»."),
+            Loc.Keep("консоль журнал лог"), "settings", SettingFocusPrefix + "console"),
+        new(PaletteKind.Setting, Loc.Key("Папки данных MONOLITH"), Loc.Key("Где лежат настройки, журнал изменений, резервные копии и логи — раздел «Настройки»."),
+            Loc.Keep("данные папки журнал резервные копии логи файлы"), "settings", SettingFocusPrefix + "data"),
+        new(PaletteKind.Setting, Loc.Key("Сброс настроек MONOLITH"), Loc.Key("Вернуть параметры MONOLITH к значениям по умолчанию — раздел «Настройки»."),
+            Loc.Keep("сброс по умолчанию настройки"), "settings", SettingFocusPrefix + "reset"),
+        new(PaletteKind.Setting, Loc.Key("Как MONOLITH защищает систему"), Loc.Key("Журнал отката, точки восстановления, что никогда не делается — раздел «Настройки → О программе»."),
+            Loc.Keep("безопасность защита откат о программе"), "settings", SettingFocusPrefix + "about"),
+        new(PaletteKind.Setting, Loc.Key("Компоненты и лицензии"), Loc.Key("Версия, шрифты, библиотеки — раздел «Настройки → О программе»."),
+            Loc.Keep("лицензии версия компоненты о программе"), "settings", SettingFocusPrefix + "licenses"),
     ];
 
     /// <summary>Tabs of the Drivers page («tab:&lt;DriversTab&gt;», resolved by the page).</summary>
     public static IReadOnlyList<Entry> DriverTabEntries { get; } =
     [
-        new(PaletteKind.Page, "ПОДБОР ДРАЙВЕРОВ ДЛЯ ВАШЕГО ПК", "Видеокарта, чипсет, сеть, звук: что установлено и что стоит обновить — раздел «Драйверы».",
-            "драйверы видеокарта nvidia amd intel чипсет gpu подбор", "drivers", "tab:Hardware", IsSection: true),
-        new(PaletteKind.Page, "ОБНОВЛЕНИЯ ДРАЙВЕРОВ ИЗ WINDOWS UPDATE", "Необязательные обновления драйверов Центра обновления — раздел «Драйверы».",
-            "драйверы обновления windows update", "drivers", "tab:Updates", IsSection: true),
-        new(PaletteKind.Page, "ПРОБЛЕМНЫЕ УСТРОЙСТВА", "Устройства с ошибками и без драйвера — раздел «Драйверы».",
-            "драйверы проблемы устройства ошибка диспетчер устройств", "drivers", "tab:Problems", IsSection: true),
-        new(PaletteKind.Page, "УСТАНОВЛЕННЫЕ ДРАЙВЕРЫ", "Список установленных драйверов и их версии — раздел «Драйверы».",
-            "драйверы установленные версии список", "drivers", "tab:Installed", IsSection: true),
-        new(PaletteKind.Page, "РЕЗЕРВНАЯ КОПИЯ ДРАЙВЕРОВ", "Сохранить и восстановить драйверы — раздел «Драйверы».",
-            "драйверы резервная копия бэкап восстановить", "drivers", "tab:Backup", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("ПОДБОР ДРАЙВЕРОВ ДЛЯ ВАШЕГО ПК"), Loc.Key("Видеокарта, чипсет, сеть, звук: что установлено и что стоит обновить — раздел «Драйверы»."),
+            Loc.Keep("драйверы видеокарта nvidia amd intel чипсет gpu подбор"), "drivers", "tab:Hardware", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("ОБНОВЛЕНИЯ ДРАЙВЕРОВ ИЗ WINDOWS UPDATE"), Loc.Key("Необязательные обновления драйверов Центра обновления — раздел «Драйверы»."),
+            Loc.Keep("драйверы обновления windows update"), "drivers", "tab:Updates", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("ПРОБЛЕМНЫЕ УСТРОЙСТВА"), Loc.Key("Устройства с ошибками и без драйвера — раздел «Драйверы»."),
+            Loc.Keep("драйверы проблемы устройства ошибка диспетчер устройств"), "drivers", "tab:Problems", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("УСТАНОВЛЕННЫЕ ДРАЙВЕРЫ"), Loc.Key("Список установленных драйверов и их версии — раздел «Драйверы»."),
+            Loc.Keep("драйверы установленные версии список"), "drivers", "tab:Installed", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("РЕЗЕРВНАЯ КОПИЯ ДРАЙВЕРОВ"), Loc.Key("Сохранить и восстановить драйверы — раздел «Драйверы»."),
+            Loc.Keep("драйверы резервная копия бэкап восстановить"), "drivers", "tab:Backup", IsSection: true),
     ];
 
     /// <summary>Parts of the Restore page.</summary>
     public static IReadOnlyList<Entry> RestoreEntries { get; } =
     [
-        new(PaletteKind.Page, "ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ ИЗМЕНЕНИЙ", "Вернуть последние изменения MONOLITH — раздел «Восстановление».",
-            "откат отменить вернуть последний пакет журнал", "restore", RestoreSectionPrefix + "last-batch", IsSection: true),
-        new(PaletteKind.Page, "ЖУРНАЛ ИЗМЕНЕНИЙ MONOLITH", "Каждое изменение с исходным значением и кнопкой отката — раздел «Восстановление».",
-            "журнал изменений история откат", "restore", RestoreSectionPrefix + "journal", IsSection: true),
-        new(PaletteKind.Page, "ТОЧКИ ВОССТАНОВЛЕНИЯ WINDOWS", "Создать точку, включить защиту системы, открыть восстановление Windows — раздел «Восстановление».",
-            "точка восстановления защита системы windows создать", "restore", RestoreSectionPrefix + "restore-points", IsSection: true),
-        new(PaletteKind.Page, "ИЗМЕНЕНО ВНЕ MONOLITH", "Настройки MONOLITH, изменённые Windows или другой программой — раздел «Восстановление».",
-            "изменено вне monolith drift расхождение", "restore", RestoreSectionPrefix + "drift", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ ИЗМЕНЕНИЙ"), Loc.Key("Вернуть последние изменения MONOLITH — раздел «Восстановление»."),
+            Loc.Keep("откат отменить вернуть последний пакет журнал"), "restore", RestoreSectionPrefix + "last-batch", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("ЖУРНАЛ ИЗМЕНЕНИЙ MONOLITH"), Loc.Key("Каждое изменение с исходным значением и кнопкой отката — раздел «Восстановление»."),
+            Loc.Keep("журнал изменений история откат"), "restore", RestoreSectionPrefix + "journal", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("ТОЧКИ ВОССТАНОВЛЕНИЯ WINDOWS"), Loc.Key("Создать точку, включить защиту системы, открыть восстановление Windows — раздел «Восстановление»."),
+            Loc.Keep("точка восстановления защита системы windows создать"), "restore", RestoreSectionPrefix + "restore-points", IsSection: true),
+        new(PaletteKind.Page, Loc.Key("ИЗМЕНЕНО ВНЕ MONOLITH"), Loc.Key("Настройки MONOLITH, изменённые Windows или другой программой — раздел «Восстановление»."),
+            Loc.Keep("изменено вне monolith drift расхождение"), "restore", RestoreSectionPrefix + "drift", IsSection: true),
     ];
 
     /// <summary>Autostart entries found by the last scan (live data; empty until the АВТОЗАПУСК tab has loaded).</summary>
     public static IEnumerable<Entry> StartupEntries(IEnumerable<(string Key, string Name, string? Publisher, string? Command)> items) =>
         items.Select(i => new Entry(PaletteKind.Startup, i.Name,
-            $"{(string.IsNullOrWhiteSpace(i.Publisher) ? "Программа" : i.Publisher)} в автозапуске — раздел «Автозапуск и службы», вкладка «Автозапуск».",
-            $"{i.Publisher} {i.Command} автозапуск startup", "services", StartupFocusPrefix + i.Key));
+            Loc.Tf("{0} в автозапуске — раздел «Автозапуск и службы», вкладка «Автозапуск».", string.IsNullOrWhiteSpace(i.Publisher) ? Loc.T("Программа") : i.Publisher),
+            $"{i.Publisher} {i.Command} " + Loc.Keep("автозапуск startup"), "services", StartupFocusPrefix + i.Key));
 
     /// <summary>Everything static (no live scans): catalogs, Settings rows, Drivers tabs, Restore sections.</summary>
     public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries);

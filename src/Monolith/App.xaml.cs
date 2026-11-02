@@ -25,6 +25,7 @@ namespace Monolith;
 ///                          INTERNAL (Shell/AdminIntent): set by MONOLITH when it relaunches itself with admin rights
 ///                          after the user clicked an action; the elevated copy opens the page and runs that page's
 ///                          «{Name}Command» once, with its usual confirmation. Only honoured together with --elevated.
+///  --lang ru|en            interface language for this run only (QA / screenshots); default = Settings (auto = Windows language)
 ///  --snapshot &lt;dir&gt;       render every page to PNG and exit (QA); tabbed pages once per tab ("devices-auto", "devices-manual")
 ///  --pages a,b,c --wait ms limit / tune --snapshot (a page key shoots all its tabs, "devices-manual" only that tab)
 ///  --demo-tasks            with --snapshot (QA only): pretend operations fill the «ЗАДАЧИ» list and it is shown open
@@ -61,7 +62,7 @@ public partial class App : Application
 
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
-        AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("Необработанная ошибка: " + ex.ExceptionObject);
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("Необработанная ошибка: {0}", ex.ExceptionObject);
         TaskScheduler.UnobservedTaskException += (_, ex) =>
         {
             Log.Error("Ошибка фоновой задачи", ex.Exception);
@@ -88,6 +89,11 @@ public partial class App : Application
             Ui.AutoAnswer = false;
         }
 
+        // Settings first: the interface language is fixed for the whole run, before any window, dialog or view-model exists
+        // ("--lang en|ru" overrides it for this run only: QA / screenshots).
+        AppSettings.Load();
+        Loc.Initialize(ArgValue(args, "--lang") ?? AppSettings.Current.Language);
+
         // Already running? Bring that window up instead of asking for admin rights again. A copy that is still
         // closing (or hangs without a window) is waited for / offered to be ended — never a silent exit.
         if (!snapshot && !HasArg(args, "--elevated") && SingleInstanceMutexExists() && !HandOverToExistingInstance())
@@ -97,7 +103,6 @@ public partial class App : Application
         }
 
         // Preferences decide whether to ask for admin rights right away (off by default: open instantly, ask later).
-        AppSettings.Load();
         if (!Elevation.IsElevated && !noElevate && AppSettings.Current.ElevateAtStartup)
         {
             if (Elevation.TryRelaunchElevated())
@@ -155,7 +160,8 @@ public partial class App : Application
             RestorePointService.RecoverPendingFrequency();
         }
         _ = SystemProfile.LoadAsync();
-        Log.Info($"MONOLITH запущен{(Elevation.IsElevated ? " с правами администратора" : " в режиме просмотра (без прав администратора)")}.");
+        if (Elevation.IsElevated) Log.Info("MONOLITH запущен с правами администратора.");
+        else Log.Info("MONOLITH запущен в режиме просмотра (без прав администратора).");
 
         var vm = new MainViewModel();
         var window = new MainWindow(vm);
@@ -356,16 +362,16 @@ public partial class App : Application
         var hung = OtherInstances().Where(p => SafeHasNoWindow(p)).ToList();
         if (hung.Count == 0) return false;
         var answer = MessageBox.Show(
-            "Предыдущая копия MONOLITH не отвечает: процесс работает, но окна у него нет — скорее всего, он завис при закрытии.\n\n" +
-            "Завершить её и открыть MONOLITH? Если та копия была запущена с правами администратора, Windows попросит подтверждение.",
+            Loc.T("Предыдущая копия MONOLITH не отвечает: процесс работает, но окна у него нет — скорее всего, он завис при закрытии.\n\n" +
+            "Завершить её и открыть MONOLITH? Если та копия была запущена с правами администратора, Windows попросит подтверждение."),
             "MONOLITH", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.Yes);
         if (answer != MessageBoxResult.Yes) return false;
 
         foreach (var p in hung) EndProcess(p);
         for (var i = 0; i < 20 && SingleInstanceMutexExists(); i++) Thread.Sleep(500);
         if (!SingleInstanceMutexExists()) return true;
-        MessageBox.Show("Не удалось завершить зависшую копию MONOLITH. Завершите процесс MONOLITH.exe в диспетчере задач " +
-                        "(вкладка «Подробности») и запустите программу снова.", "MONOLITH", MessageBoxButton.OK, MessageBoxImage.Warning);
+        MessageBox.Show(Loc.T("Не удалось завершить зависшую копию MONOLITH. Завершите процесс MONOLITH.exe в диспетчере задач " +
+                        "(вкладка «Подробности») и запустите программу снова."), "MONOLITH", MessageBoxButton.OK, MessageBoxImage.Warning);
         return false;
     }
 

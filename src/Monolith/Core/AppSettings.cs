@@ -88,6 +88,12 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>The last tab of «Устройства и сеть»: "auto" (АВТОНАСТРОЙКА, default) or "manual" (ВРУЧНУЮ).</summary>
     [ObservableProperty] private string _devicesTab = "auto";
 
+    /// <summary>
+    /// Interface language: "auto" (default: the Windows display language, Russian → ru, anything else → en), "ru" or "en".
+    /// Read once at startup (<c>Loc.Initialize</c>); a change takes effect after MONOLITH restarts.
+    /// </summary>
+    [ObservableProperty] private string _language = "auto";
+
     public static void Load()
     {
         try

@@ -10,8 +10,11 @@ public enum ToastKind { Info, Success, Warning, Error }
 
 public sealed partial class ToastItem : ObservableObject
 {
-    public required string Message { get; init; }
-    public string? Title { get; init; }
+    // Texts reach the screen through Loc.Sink: a Russian text the tables know is shown in the interface language.
+    public required string Message { get => _message; init => _message = Loc.Sink(value); }
+    private readonly string _message = "";
+    public string? Title { get => _title; init => _title = value is null ? null : Loc.Sink(value); }
+    private readonly string? _title;
     public ToastKind Kind { get; init; }
     /// <summary>Page key opened by the toast's «ОТКРЫТЬ» link; null = no link.</summary>
     public string? NavigateTo { get; init; }
@@ -30,23 +33,32 @@ public sealed partial class DialogViewModel : ObservableObject
 {
     private readonly TaskCompletionSource<bool> _tcs = new();
 
-    public required string Title { get; init; }
-    public required string Message { get; init; }
-    public IReadOnlyList<string> Details { get; init; } = [];
-    public string ConfirmText { get; init; } = "ПРИМЕНИТЬ";
-    public string CancelText { get; init; } = "ОТМЕНА";
+    // Every text goes through Loc.Sink (translated when the tables know the Russian original, otherwise shown as is).
+    public required string Title { get => _title; init => _title = Loc.Sink(value); }
+    private readonly string _title = "";
+    public required string Message { get => _message; init => _message = Loc.Sink(value); }
+    private readonly string _message = "";
+    public IReadOnlyList<string> Details { get => _details; init => _details = value.Select(Loc.Sink).ToList(); }
+    private readonly IReadOnlyList<string> _details = [];
+    public string ConfirmText { get => _confirmText; init => _confirmText = Loc.Sink(value); }
+    private readonly string _confirmText = Loc.T("ПРИМЕНИТЬ");
+    public string CancelText { get => _cancelText; init => _cancelText = Loc.Sink(value); }
+    private readonly string _cancelText = Loc.T("ОТМЕНА");
     public bool ShowCancel { get; init; } = true;
     public bool IsDanger { get; init; }
     public bool HasDetails => Details.Count > 0;
-    public string? Footnote { get; init; }
+    public string? Footnote { get => _footnote; init => _footnote = value is null ? null : Loc.Sink(value); }
+    private readonly string? _footnote;
 
     /// <summary>An optional checkbox under the message («Всегда запускать с правами»); null = none.</summary>
-    public string? OptionText { get; init; }
+    public string? OptionText { get => _optionText; init => _optionText = value is null ? null : Loc.Sink(value); }
+    private readonly string? _optionText;
     public bool HasOption => !string.IsNullOrEmpty(OptionText);
     [ObservableProperty] private bool _optionChecked;
 
     /// <summary>An optional middle button (the exit dialog: «ОТМЕНИТЬ БЕЗОПАСНЫЕ И ВЫЙТИ»); null = none.</summary>
-    public string? ExtraText { get; init; }
+    public string? ExtraText { get => _extraText; init => _extraText = value is null ? null : Loc.Sink(value); }
+    private readonly string? _extraText;
     public bool HasExtra => !string.IsNullOrEmpty(ExtraText);
     /// <summary>True when the user pressed the middle button (the result is then false).</summary>
     public bool ExtraChosen { get; private set; }
@@ -82,6 +94,12 @@ public interface IUiHost
     /// With <paramref name="intent"/> the elevated copy also repeats that action once (see <see cref="Monolith.Shell.AdminIntent"/>).
     /// </summary>
     bool RestartElevated(Monolith.Shell.AdminIntent? intent = null);
+
+    /// <summary>
+    /// Relaunches MONOLITH with the same rights on the current page (a setting that is read at startup, the language, changed);
+    /// false when it cannot be done now (operations running) — the host then says why.
+    /// </summary>
+    bool RestartSameRights();
 }
 
 /// <summary>
@@ -104,8 +122,10 @@ public static class Ui
 
     /// <summary>Asks the user to confirm. Returns true on confirm.</summary>
     public static Task<bool> ConfirmAsync(string title, string message, IEnumerable<string>? details = null,
-        string confirmText = "ПРИМЕНИТЬ", string cancelText = "ОТМЕНА", bool danger = false, string? footnote = null)
+        string? confirmText = null, string? cancelText = null, bool danger = false, string? footnote = null)
     {
+        confirmText ??= Loc.T("ПРИМЕНИТЬ");
+        cancelText ??= Loc.T("ОТМЕНА");
         if (AutoAnswer is { } auto)
         {
             lock (AutoAnswered) AutoAnswered.Add(title);
@@ -185,8 +205,10 @@ public static class Ui
     /// <see cref="ConfirmAsync"/>, the checkbox off.
     /// </summary>
     public static async Task<(bool Confirmed, bool Option)> ConfirmOptionAsync(string title, string message, string optionText,
-        string confirmText = "ПРИМЕНИТЬ", string cancelText = "ОТМЕНА")
+        string? confirmText = null, string? cancelText = null)
     {
+        confirmText ??= Loc.T("ПРИМЕНИТЬ");
+        cancelText ??= Loc.T("ОТМЕНА");
         if (AutoAnswer is { } auto)
         {
             lock (AutoAnswered) AutoAnswered.Add(title);
@@ -233,7 +255,7 @@ public static class Ui
                 var vm = new DialogViewModel
                 {
                     Title = title, Message = message, Details = details?.ToList() ?? [],
-                    ConfirmText = "ПОНЯТНО", ShowCancel = false,
+                    ConfirmText = Loc.T("ПОНЯТНО"), ShowCancel = false,
                 };
                 Host.Dialog = vm;
                 try { return await vm.Result; }
@@ -282,7 +304,7 @@ public static class Ui
             }
             catch (Exception ex)
             {
-                Monolith.Core.Log.Warn($"Окно подтверждения не открылось: {ex.Message}");
+                Monolith.Core.Log.Warn("Окно подтверждения не открылось: {0}", ex.Message);
                 tcs.TrySetResult(false);
             }
         });
@@ -313,6 +335,9 @@ public static class Ui
     /// intent, the elevated copy repeats that action once.
     /// </summary>
     public static void RestartElevated(Monolith.Shell.AdminIntent? intent = null) => Post(() => Host?.RestartElevated(intent));
+
+    /// <summary>Restarts MONOLITH with the same rights (language change); see <see cref="IUiHost.RestartSameRights"/>.</summary>
+    public static bool RestartApp() => Host?.RestartSameRights() ?? false;
 
     /// <summary>
     /// Opens a page. Old keys still work: "cleaner" / "tools" open the tab of «maintenance»,

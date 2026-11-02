@@ -82,7 +82,7 @@ public partial class MainWindow : Window
         try { leave = await _vm.ConfirmExitAsync(); }
         catch (Exception ex)
         {
-            Monolith.Core.Log.Warn("Диалог выхода не показан: " + ex.Message);
+            Monolith.Core.Log.Warn("Диалог выхода не показан: {0}", ex.Message);
             leave = true;
         }
         if (!leave) return;
@@ -116,14 +116,14 @@ public partial class MainWindow : Window
             RootBorder.Margin = new Thickness(t.Left + 4, t.Top + 4, t.Right + 4, t.Bottom + 4);
             RootBorder.BorderThickness = new Thickness(0);
             MaxButton.Content = "";
-            MaxButton.ToolTip = "Восстановить";
+            MaxButton.ToolTip = Loc.T("Восстановить");
         }
         else
         {
             RootBorder.Margin = new Thickness(0);
             RootBorder.BorderThickness = new Thickness(1);
             MaxButton.Content = "";
-            MaxButton.ToolTip = "Развернуть";
+            MaxButton.ToolTip = Loc.T("Развернуть");
         }
     }
 

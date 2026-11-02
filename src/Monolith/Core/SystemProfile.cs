@@ -109,10 +109,10 @@ public sealed class SystemProfile
         get
         {
             var bytes = RamInstalledBytes > 0 ? RamInstalledBytes : RamTotalBytes;
-            return bytes == 0 ? "—" : $"{Math.Round(bytes / 1024d / 1024 / 1024)} ГБ";
+            return bytes == 0 ? "—" : Loc.Tf("{0} ГБ", Math.Round(bytes / 1024d / 1024 / 1024));
         }
     }
-    public string OsText => $"{OsName} {OsDisplayVersion} (сборка {OsBuild}{(OsUbr > 0 ? "." + OsUbr : "")})".Trim();
+    public string OsText => Loc.Tf("{0} {1} (сборка {2}{3})", OsName, OsDisplayVersion, OsBuild, OsUbr > 0 ? "." + OsUbr : "").Trim();
 
     /// <summary>
     /// Collects the profile once and caches it. A failed, timed-out or incomplete collection is retried on a
@@ -289,7 +289,7 @@ public sealed class SystemProfile
                         17 => "NVMe", 11 => "SATA", 7 => "USB", 8 => "RAID", 10 => "SAS", 3 => "ATA", _ => "—",
                     };
                     if (bus == "NVMe" && media == "—") media = "SSD";
-                    list.Add(new DiskInfo(mo["FriendlyName"]?.ToString() ?? "Диск", media, Convert.ToUInt64(mo["Size"] ?? 0UL), bus));
+                    list.Add(new DiskInfo(mo["FriendlyName"]?.ToString() ?? Loc.T("Диск"), media, Convert.ToUInt64(mo["Size"] ?? 0UL), bus));
                 }
             }
         }
@@ -391,7 +391,7 @@ public sealed class SystemProfile
 
     public static string FormatBytes(double bytes)
     {
-        string[] units = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
+        string[] units = [Loc.T("Б"), Loc.T("КБ"), Loc.T("МБ"), Loc.T("ГБ"), Loc.T("ТБ")];
         var i = 0;
         while (bytes >= 1024 && i < units.Length - 1) { bytes /= 1024; i++; }
         return i == 0 ? $"{bytes:0} {units[i]}" : $"{bytes:0.#} {units[i]}";

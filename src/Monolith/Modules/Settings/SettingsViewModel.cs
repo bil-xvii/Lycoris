@@ -19,8 +19,8 @@ public sealed partial class SettingsViewModel : PageViewModel
 {
     public override string Key => "settings";
     public override string Index => "11";
-    public override string Title => "НАСТРОЙКИ";
-    public override string Subtitle => "Поведение программы, данные и сведения о MONOLITH.";
+    public override string Title => Loc.T("НАСТРОЙКИ");
+    public override string Subtitle => Loc.T("Поведение программы, данные и сведения о MONOLITH.");
     public override string Glyph => Glyphs.Settings;
 
     /// <summary>Bound directly for simple toggles; every change is saved by AppSettings itself.</summary>
@@ -29,33 +29,33 @@ public sealed partial class SettingsViewModel : PageViewModel
     public IReadOnlyList<IntervalOption> IntervalOptions { get; } = SettingsDefaults.IntervalChoices
         .Select(ms => new IntervalOption(ms, SettingsDefaults.FormatInterval(ms), ms switch
         {
-            <= 500 => "максимально плавно",
-            <= 1000 => "по умолчанию",
-            <= 2000 => "экономнее",
-            _ => "минимальная нагрузка",
+            <= 500 => Loc.T("максимально плавно"),
+            <= 1000 => Loc.T("по умолчанию"),
+            <= 2000 => Loc.T("экономнее"),
+            _ => Loc.T("минимальная нагрузка"),
         }))
         .ToList();
 
     public IReadOnlyList<DataPathItem> DataPaths { get; } =
     [
-        new DataPathItem { Title = "ЖУРНАЛ ИЗМЕНЕНИЙ", Path = AppPaths.JournalFile, IsFile = true,
-            Description = "Исходные значения всего, что менял MONOLITH. По нему работает откат." },
-        new DataPathItem { Title = "РЕЗЕРВНЫЕ КОПИИ", Path = AppPaths.BackupsDir,
-            Description = "Копии разделов реестра (.reg) перед каждым пакетом изменений." },
-        new DataPathItem { Title = "ЖУРНАЛЫ РАБОТЫ", Path = AppPaths.LogsDir,
-            Description = "Ежедневные логи консоли и отчёты; хранятся 14 дней." },
-        new DataPathItem { Title = "НАСТРОЙКИ", Path = AppPaths.SettingsFile, IsFile = true,
-            Description = "Параметры MONOLITH для текущего пользователя Windows." },
+        new DataPathItem { Title = Loc.T("ЖУРНАЛ ИЗМЕНЕНИЙ"), Path = AppPaths.JournalFile, IsFile = true,
+            Description = Loc.T("Исходные значения всего, что менял MONOLITH. По нему работает откат.") },
+        new DataPathItem { Title = Loc.T("РЕЗЕРВНЫЕ КОПИИ"), Path = AppPaths.BackupsDir,
+            Description = Loc.T("Копии разделов реестра (.reg) перед каждым пакетом изменений.") },
+        new DataPathItem { Title = Loc.T("ЖУРНАЛЫ РАБОТЫ"), Path = AppPaths.LogsDir,
+            Description = Loc.T("Ежедневные логи консоли и отчёты; хранятся 14 дней.") },
+        new DataPathItem { Title = Loc.T("НАСТРОЙКИ"), Path = AppPaths.SettingsFile, IsFile = true,
+            Description = Loc.T("Параметры MONOLITH для текущего пользователя Windows.") },
     ];
 
     public IReadOnlyList<PrincipleItem> Principles { get; } =
     [
-        new("ЖУРНАЛ ДО ИЗМЕНЕНИЯ", "Исходное значение записывается в журнал раньше, чем меняется система. Любое изменение настроек (реестр, службы, задачи, схемы питания) откатывается — по одному, пакетом или все сразу."),
-        new("ТОЧКА ВОССТАНОВЛЕНИЯ", "Перед каждым пакетом изменений создаётся точка восстановления Windows (если защита системы включена), а затронутые разделы реестра копируются в .reg."),
-        new("ТОЛЬКО ДОКАЗАННОЕ", "Каждый пункт честно описывает свой эффект — даже если он близок к нулю. Приёмы без работающего механизма и «ускорители» не включены."),
-        new("ЗАЩИЩЁННЫЕ СЛУЖБЫ", "Центр обновления, Защитник, брандмауэр, сеть, звук и другие критичные службы не изменяются никогда."),
-        new("БЕЗ ЧИСТКИ РЕЕСТРА", "Реестр не «чистится»: Microsoft не поддерживает такие программы, пользы нет, а риск сломать систему реален."),
-        new("НЕОБРАТИМОЕ — ТОЛЬКО С ПОДТВЕРЖДЕНИЕМ", "Удаление файлов, установка драйверов и программ, сброс сети не откатываются из журнала — поэтому перед ними всегда показывается подтверждение со списком последствий."),
+        new(Loc.T("ЖУРНАЛ ДО ИЗМЕНЕНИЯ"), Loc.T("Исходное значение записывается в журнал раньше, чем меняется система. Любое изменение настроек (реестр, службы, задачи, схемы питания) откатывается — по одному, пакетом или все сразу.")),
+        new(Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ"), Loc.T("Перед каждым пакетом изменений создаётся точка восстановления Windows (если защита системы включена), а затронутые разделы реестра копируются в .reg.")),
+        new(Loc.T("ТОЛЬКО ДОКАЗАННОЕ"), Loc.T("Каждый пункт честно описывает свой эффект — даже если он близок к нулю. Приёмы без работающего механизма и «ускорители» не включены.")),
+        new(Loc.T("ЗАЩИЩЁННЫЕ СЛУЖБЫ"), Loc.T("Центр обновления, Защитник, брандмауэр, сеть, звук и другие критичные службы не изменяются никогда.")),
+        new(Loc.T("БЕЗ ЧИСТКИ РЕЕСТРА"), Loc.T("Реестр не «чистится»: Microsoft не поддерживает такие программы, пользы нет, а риск сломать систему реален.")),
+        new(Loc.T("НЕОБРАТИМОЕ — ТОЛЬКО С ПОДТВЕРЖДЕНИЕМ"), Loc.T("Удаление файлов, установка драйверов и программ, сброс сети не откатываются из журнала — поэтому перед ними всегда показывается подтверждение со списком последствий.")),
     ];
 
     /// <summary>«Что MONOLITH не делает и почему» — the single rejected-tweaks list (Tweaks/RejectedTweaks.cs), one row each.</summary>
@@ -81,15 +81,15 @@ public sealed partial class SettingsViewModel : PageViewModel
     public SettingsViewModel()
     {
         var app = Assembly.GetExecutingAssembly();
-        VersionLine = $"MONOLITH {SettingsDefaults.VersionOf(app)} · сборка {BuildDate()} · {RuntimeInformation.FrameworkDescription} · {RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
+        VersionLine = Loc.Tf("MONOLITH {0} · сборка {1} · {2} · {3}", SettingsDefaults.VersionOf(app), BuildDate(), RuntimeInformation.FrameworkDescription, RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
 
         const string netFoundation = "© .NET Foundation and Contributors";
         Licenses =
         [
-            new LicenseItem("CommunityToolkit.Mvvm", SettingsDefaults.VersionOf(typeof(ObservableObject).Assembly), "MIT", netFoundation, "MVVM: свойства и команды"),
-            new LicenseItem("System.Management", SettingsDefaults.VersionOf(typeof(ManagementObject).Assembly), "MIT", netFoundation, "WMI: сведения о системе, точки восстановления"),
-            new LicenseItem("System.ServiceProcess.ServiceController", SettingsDefaults.VersionOf(typeof(System.ServiceProcess.ServiceController).Assembly), "MIT", netFoundation, "Управление службами"),
-            new LicenseItem(".NET и WPF", Environment.Version.ToString(3), "MIT", netFoundation, "Среда выполнения и интерфейс"),
+            new LicenseItem("CommunityToolkit.Mvvm", SettingsDefaults.VersionOf(typeof(ObservableObject).Assembly), "MIT", netFoundation, Loc.T("MVVM: свойства и команды")),
+            new LicenseItem("System.Management", SettingsDefaults.VersionOf(typeof(ManagementObject).Assembly), "MIT", netFoundation, Loc.T("WMI: сведения о системе, точки восстановления")),
+            new LicenseItem("System.ServiceProcess.ServiceController", SettingsDefaults.VersionOf(typeof(System.ServiceProcess.ServiceController).Assembly), "MIT", netFoundation, Loc.T("Управление службами")),
+            new LicenseItem(".NET и WPF", Environment.Version.ToString(3), "MIT", netFoundation, Loc.T("Среда выполнения и интерфейс")),
         ];
 
         AppSettings.Current.PropertyChanged += (_, e) =>
@@ -155,7 +155,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         try
         {
             var file = AppPaths.ExecutablePath;
-            return File.Exists(file) ? File.GetLastWriteTime(file).ToString("dd.MM.yyyy") : "—";
+            return File.Exists(file) ? Loc.DateText(File.GetLastWriteTime(file)) : "—";
         }
         catch
         {
@@ -168,6 +168,44 @@ public sealed partial class SettingsViewModel : PageViewModel
         OnPropertyChanged(nameof(SelectedInterval));
         OnPropertyChanged(nameof(Settings));
     }
+
+    // ═════════════════════════════ Language ═════════════════════════════
+
+    private string _languageChoice = Loc.Mode;
+
+    /// <summary>The segmented choice: "auto" | "ru" | "en". Saved at once; the language itself is read at startup.</summary>
+    public string LanguageChoice
+    {
+        get => _languageChoice;
+        set
+        {
+            var v = Loc.NormalizeMode(value);
+            if (v == _languageChoice) return;
+            _languageChoice = v;
+            AppSettings.Current.Language = v;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(LanguagePending));
+            OnPropertyChanged(nameof(LanguageNote));
+            if (LanguagePending) _ = OfferRestartAsync();
+        }
+    }
+
+    /// <summary>The chosen language is not the one this run uses: it applies after a restart.</summary>
+    public bool LanguagePending => _languageChoice != Loc.Mode;
+
+    public string? LanguageNote => LanguagePending ? Loc.T("Язык изменится после перезапуска MONOLITH.") : null;
+
+    /// <summary>Asked once, in BOTH languages (the user may not read the one that is on screen now).</summary>
+    private async Task OfferRestartAsync()
+    {
+        var restart = await Ui.ConfirmAsync(Loc.Keep("Язык / Language"),
+            Loc.Keep("Перезапустить MONOLITH сейчас, чтобы применить язык?\nRestart MONOLITH now to apply the language?"),
+            confirmText: Loc.Keep("ПЕРЕЗАПУСТИТЬ / RESTART"), cancelText: Loc.Keep("ПОЗЖЕ / LATER"));
+        if (restart) Ui.RestartApp();
+    }
+
+    [RelayCommand]
+    private void RestartForLanguage() => Ui.RestartApp();
 
     // ═════════════════════════════ Monitoring ═════════════════════════════
 
@@ -203,20 +241,20 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             if (item.IsFile)
             {
-                if (!File.Exists(item.Path)) return (false, "ещё не создан");
+                if (!File.Exists(item.Path)) return (false, Loc.T("ещё не создан"));
                 var fi = new FileInfo(item.Path);
-                return (true, $"{SystemProfile.FormatBytes(fi.Length)} · изменён {fi.LastWriteTime:dd.MM.yyyy HH:mm}");
+                return (true, Loc.Tf("{0} · изменён {1}", SystemProfile.FormatBytes(fi.Length), Loc.DateTimeText(fi.LastWriteTime)));
             }
-            if (!Directory.Exists(item.Path)) return (false, "ещё не создана");
+            if (!Directory.Exists(item.Path)) return (false, Loc.T("ещё не создана"));
             var files = Directory.EnumerateFiles(item.Path, "*", new System.IO.EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint })
                 .Select(f => new FileInfo(f)).ToList();
-            if (files.Count == 0) return (true, "пусто");
+            if (files.Count == 0) return (true, Loc.T("пусто"));
             var size = files.Sum(f => f.Length);
-            return (true, $"{files.Count} {RestoreFormat.Plural(files.Count, "файл", "файла", "файлов")} · {SystemProfile.FormatBytes(size)}");
+            return (true, Loc.N(files.Count, "{0} файл", "{0} файла", "{0} файлов") + " · " + SystemProfile.FormatBytes(size));
         }
         catch (Exception ex)
         {
-            return (false, "недоступно: " + ex.Message);
+            return (false, Loc.Tf("недоступно: {0}", ex.Message));
         }
     }
 
