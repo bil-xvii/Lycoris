@@ -26,7 +26,7 @@ internal sealed record DriverPackage(
         GpuVendor.Nvidia => "NVIDIA",
         GpuVendor.Amd => "AMD",
         GpuVendor.Intel => "Intel",
-        _ => "производителя",
+        _ => Loc.T("производителя"),
     };
 
     /// <summary>Size for the UI ("989 МБ"), or null when the server has not told it yet.</summary>
@@ -70,7 +70,7 @@ internal static partial class DriverDownloads
         {
             Referer = p.Referer,
             RequiredFreeSpace = RequiredFreeSpace(p.Vendor),
-            Label = $"драйвер {p.VendorName} {p.Version}",
+            Label = Loc.Tf("драйвер {0} {1}", p.VendorName, p.Version),
         };
 
     // ───────────────────────────── NVIDIA ─────────────────────────────
@@ -116,7 +116,7 @@ internal static partial class DriverDownloads
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            Log.Info($"AMD: не удалось получить ссылку на установщик ({ex.GetType().Name}).");
+            Log.Info("AMD: не удалось получить ссылку на установщик ({0}).", ex.GetType().Name);
             return null;
         }
     }
@@ -138,9 +138,9 @@ internal static partial class DriverDownloads
     public static async Task<string> DownloadAsync(DriverPackage p, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {
         if (!IsAllowedDownload(p.Url) || !string.Equals(SafeFileName(p.Url), p.FileName, StringComparison.Ordinal))
-            throw new InvalidOperationException("Ссылка ведёт не на официальный сервер производителя — загрузка отменена.");
-        SafetyLock.ThrowIfLocked("загрузка драйвера");
-        Elevation.Demand("загрузка драйвера");
+            throw new InvalidOperationException(Loc.T("Ссылка ведёт не на официальный сервер производителя — загрузка отменена."));
+        SafetyLock.ThrowIfLocked(Loc.T("загрузка драйвера"));
+        Elevation.Demand(Loc.T("загрузка драйвера"));
         var path = await VendorDownloads.DownloadAsync(ToRequest(p), progress, ct).ConfigureAwait(false);
         CleanupOld(p);
         return path;
@@ -174,14 +174,14 @@ internal static partial class DriverDownloads
     /// </summary>
     public static void LaunchInstaller(string path)
     {
-        SafetyLock.ThrowIfLocked("запуск установщика драйвера");
-        Elevation.Demand("запуск установщика драйвера");
+        SafetyLock.ThrowIfLocked(Loc.T("запуск установщика драйвера"));
+        Elevation.Demand(Loc.T("запуск установщика драйвера"));
         var full = Path.GetFullPath(path);
         if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(DownloadsDir), StringComparison.OrdinalIgnoreCase) ||
             !full.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(full))
-            throw new InvalidOperationException("Установщик не найден в папке загрузок MONOLITH.");
+            throw new InvalidOperationException(Loc.T("Установщик не найден в папке загрузок MONOLITH."));
         using var _ = Process.Start(new ProcessStartInfo(full) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(full)! });
-        Log.Info($"Запущен официальный установщик: {Path.GetFileName(full)}");
+        Log.Info("Запущен официальный установщик: {0}", Path.GetFileName(full));
     }
 
     /// <summary>Keeps only the newest installer per vendor (and no leftover partial files) to save disk space.</summary>
@@ -197,7 +197,7 @@ internal static partial class DriverDownloads
         }
         catch (Exception ex)
         {
-            Log.Info($"Старые установщики не удалены: {ex.Message}");
+            Log.Info("Старые установщики не удалены: {0}", ex.Message);
         }
     }
 

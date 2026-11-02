@@ -33,31 +33,19 @@ internal static class DriverAge
     public static string Format(int? months)
     {
         if (months is not { } m) return "—";
-        if (m < 1) return "меньше месяца";
-        if (m < 12) return $"{m} мес.";
+        if (m < 1) return Loc.T("меньше месяца");
+        if (m < 12) return Loc.Tf("{0} мес.", m);
         var years = m / 12;
         var rest = m % 12;
-        var y = $"{years} {YearWord(years)}";
-        return rest == 0 ? y : $"{y} {rest} мес.";
-    }
-
-    public static string YearWord(int n)
-    {
-        var mod100 = n % 100;
-        if (mod100 is >= 11 and <= 14) return "лет";
-        return (n % 10) switch
-        {
-            1 => "год",
-            2 or 3 or 4 => "года",
-            _ => "лет",
-        };
+        var y = Loc.N(years, "{0} год", "{0} года", "{0} лет");
+        return rest == 0 ? y : Loc.Tf("{0} {1} мес.", y, rest);
     }
 
     public static string VerdictText(DriverAgeVerdict v) => v switch
     {
-        DriverAgeVerdict.Fresh => "СВЕЖИЙ",
-        DriverAgeVerdict.Aging => "СТАРШЕ 6 МЕС.",
-        DriverAgeVerdict.Old => "СТАРШЕ ГОДА",
-        _ => "ДАТА НЕИЗВЕСТНА",
+        DriverAgeVerdict.Fresh => Loc.T("СВЕЖИЙ"),
+        DriverAgeVerdict.Aging => Loc.T("СТАРШЕ 6 МЕС."),
+        DriverAgeVerdict.Old => Loc.T("СТАРШЕ ГОДА"),
+        _ => Loc.T("ДАТА НЕИЗВЕСТНА"),
     };
 }

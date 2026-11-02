@@ -126,7 +126,7 @@ internal static class DriverInventory
                 var id = Str(mo["DeviceID"]);
                 var name = Str(mo["Name"]);
                 list.Add(new ProblemDeviceInfo(
-                    name.Length > 0 ? name : "Неизвестное устройство",
+                    name.Length > 0 ? name : Loc.T("Неизвестное устройство"),
                     id,
                     Str(mo["PNPClass"]),
                     ids,
@@ -172,7 +172,7 @@ internal static class DriverInventory
         }
         catch (Exception ex)
         {
-            Log.Warn($"Драйверы: не удалось прочитать сведения видеоадаптера: {ex.Message}");
+            Log.Warn("Драйверы: не удалось прочитать сведения видеоадаптера: {0}", ex.Message);
             return null;
         }
 

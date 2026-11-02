@@ -5,7 +5,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
-             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}"
+             xmlns:loc="clr-namespace:Monolith.UI">
     <UserControl.Resources>
         <local:AllTrueToVisibilityConverter x:Key="Drv.AllTrueToVis" />
     </UserControl.Resources>
@@ -23,21 +24,21 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center" Margin="0,0,15,0">
-                <TextBlock Text="Проблемные устройства" Style="{StaticResource T.H2}" />
+                <TextBlock Text="{loc:T Проблемные устройства}" Style="{StaticResource T.H2}" />
                 <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0"
-                           Text="Устройства, для которых Windows сообщает ошибку в диспетчере устройств, — с объяснением кода и тем, что с ним делать." />
+                           Text="{loc:T 'Устройства, для которых Windows сообщает ошибку в диспетчере устройств, — с объяснением кода и тем, что с ним делать.'}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Command="{Binding FindInWindowsUpdateCommand}" ToolTip="Windows Update подбирает драйверы и для проблемных устройств">
+                <Button Command="{Binding FindInWindowsUpdateCommand}" ToolTip="{loc:T Windows Update подбирает драйверы и для проблемных устройств}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="ИСКАТЬ В WINDOWS UPDATE" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ИСКАТЬ В WINDOWS UPDATE}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Button Command="{Binding OpenDeviceManagerCommand}" Margin="8,0,0,0">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE772;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="ДИСПЕТЧЕР УСТРОЙСТВ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ДИСПЕТЧЕР УСТРОЙСТВ}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -67,9 +68,9 @@
                         <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="24" Foreground="{StaticResource B.Text}" />
                     </Border>
                     <StackPanel Grid.Column="1" Margin="17,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="Все устройства работают нормально" Style="{StaticResource T.Display}" FontSize="24" LineHeight="34" TextWrapping="Wrap" />
+                        <TextBlock Text="{loc:T Все устройства работают нормально}" Style="{StaticResource T.Display}" FontSize="24" LineHeight="34" TextWrapping="Wrap" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,10,0,0" MaxWidth="640" HorizontalAlignment="Left"
-                                   Text="Windows не сообщает об ошибках ни для одного подключённого устройства. Отключённые сейчас устройства (код 45) ошибкой не считаются." />
+                                   Text="{loc:T Windows не сообщает об ошибках ни для одного подключённого устройства. Отключённые сейчас устройства (код 45) ошибкой не считаются.}" />
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                             <Border Style="{StaticResource Tag}">
                                 <TextBlock Text="{Binding InventoryTime}" />
@@ -111,7 +112,7 @@
                                             </Style>
                                         </Border.Style>
                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                            <TextBlock Text="КОД" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12"
+                                            <TextBlock Text="{loc:T КОД}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12"
                                                        HorizontalAlignment="Center" Foreground="{StaticResource B.Text2}" />
                                             <TextBlock Text="{Binding Code, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
                                                        FontSize="30" HorizontalAlignment="Center" />
@@ -133,7 +134,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="ЧТО ДЕЛАТЬ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" Margin="0,3,9,0" />
+                                            <TextBlock Text="{loc:T ЧТО ДЕЛАТЬ}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" Margin="0,3,9,0" />
                                             <TextBlock Grid.Column="1" Text="{Binding Action}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" />
                                         </Grid>
                                         <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Margin="0,9,0,0"
@@ -144,12 +145,12 @@
                                                            Foreground="{StaticResource B.Text}" MaxWidth="520" TextTrimming="CharacterEllipsis" ToolTip="{Binding DeviceId}" />
                                                 <!-- Labelled (was an icon-only button) -->
                                                 <Button Margin="10,0,0,0"
-                                                        ToolTip="Скопировать ID оборудования — по нему ищут драйвер на сайте производителя"
+                                                        ToolTip="{loc:T Скопировать ID оборудования — по нему ищут драйвер на сайте производителя}"
                                                         Command="{Binding DataContext.CopyHardwareIdCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding HardwareId}">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="{x:Static ui:Glyphs.Copy}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                                        <TextBlock Text="КОПИРОВАТЬ ID" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{loc:T КОПИРОВАТЬ ID}" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Button>
                                             </StackPanel>
@@ -161,17 +162,17 @@
                                                 Visibility="{Binding CanEnable, Converter={StaticResource BoolToVis}}"
                                                 Command="{Binding DataContext.EnableDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
-                                                ToolTip="pnputil /enable-device — с записью в журнал отката">
+                                                ToolTip="{loc:T pnputil /enable-device — с записью в журнал отката}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{x:Static ui:Glyphs.Power}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                <TextBlock Text="ВКЛЮЧИТЬ УСТРОЙСТВО" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:T ВКЛЮЧИТЬ УСТРОЙСТВО}" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
                                         <Button MinWidth="176" Visibility="{Binding SuggestsWindowsUpdate, Converter={StaticResource BoolToVis}}"
                                                 Command="{Binding DataContext.FindInWindowsUpdateCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                <TextBlock Text="НАЙТИ ДРАЙВЕР" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:T НАЙТИ ДРАЙВЕР}" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
                                     </StackPanel>

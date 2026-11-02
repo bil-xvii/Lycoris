@@ -76,9 +76,9 @@ internal static partial class DriverBackupService
             try
             {
                 Directory.Move(dir, Path.Combine(Root, $"untrusted-{stamp}-{name}"));
-                Log.Warn($"Резервная копия драйверов {name} отложена: папка данных была доступна другим пользователям.");
+                Log.Warn("Резервная копия драйверов {0} отложена: папка данных была доступна другим пользователям.", name);
             }
-            catch (Exception ex) { Log.Warn($"Не удалось отложить резервную копию {name}: {ex.Message}"); }
+            catch (Exception ex) { Log.Warn("Не удалось отложить резервную копию {0}: {1}", name, ex.Message); }
         }
     }
 
@@ -107,7 +107,7 @@ internal static partial class DriverBackupService
             }
             catch (Exception ex)
             {
-                Log.Warn($"Резервная копия {Path.GetFileName(dir)}: {ex.Message}");
+                Log.Warn("Резервная копия {0}: {1}", Path.GetFileName(dir), ex.Message);
             }
         }
         return result.OrderByDescending(b => b.Created).ThenByDescending(b => b.Name, StringComparer.Ordinal).ToList();
@@ -201,7 +201,7 @@ internal static partial class DriverBackupService
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось записать описание резервной копии: {ex.Message}");
+            Log.Warn("Не удалось записать описание резервной копии: {0}", ex.Message);
         }
     }
 
@@ -219,7 +219,7 @@ internal static partial class DriverBackupService
     /// <summary>Exports every third-party driver package. Output lines are streamed to <paramref name="onLine"/>.</summary>
     public static async Task<(PnputilOutcome Outcome, string Folder)> ExportAllAsync(Action<string> onLine, Action<int> onPackage, CancellationToken ct)
     {
-        Elevation.Demand("резервное копирование драйверов");
+        Elevation.Demand(Loc.T("резервное копирование драйверов"));
         var dir = await Task.Run(() => CreateTarget(BackupKind.Full), ct).ConfigureAwait(false);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var r = await ProcessRunner.RunAsync(Pnputil, ["/export-driver", "*", dir], new ProcessRunOptions
@@ -253,7 +253,7 @@ internal static partial class DriverBackupService
     /// </summary>
     public static async Task<(int Exported, string? Folder)> ExportPackagesAsync(IReadOnlyCollection<string> oemInfs, string note, CancellationToken ct)
     {
-        Elevation.Demand("резервное копирование драйверов");
+        Elevation.Demand(Loc.T("резервное копирование драйверов"));
         var infs = oemInfs.Where(SignedDriverInfo.IsOemInf).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (infs.Count == 0) return (0, null);
         var dir = await Task.Run(() => CreateTarget(BackupKind.BeforeUpdate), ct).ConfigureAwait(false);
@@ -264,7 +264,7 @@ internal static partial class DriverBackupService
             var r = await ProcessRunner.RunAsync(Pnputil, ["/export-driver", inf, dir],
                 new ProcessRunOptions { Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromMinutes(10) }, ct).ConfigureAwait(false);
             if (r.Success) ok++;
-            else Log.Warn($"Не удалось сохранить {inf}: код {r.ExitCode}");
+            else Log.Warn("Не удалось сохранить {0}: код {1}", inf, r.ExitCode);
         }
         if (ok == 0)
         {
@@ -285,23 +285,23 @@ internal static partial class DriverBackupService
     public static RestorePlan PlanRestore(string backupDir)
     {
         if (!BackupFolders.IsDirectChild(Root, backupDir) || !Directory.Exists(backupDir))
-            return new RestorePlan([], "Папка резервной копии не найдена или находится вне хранилища MONOLITH.");
+            return new RestorePlan([], Loc.T("Папка резервной копии не найдена или находится вне хранилища MONOLITH."));
         if (AppPaths.MachineDirWasInsecure)
-            return new RestorePlan([], "Папка данных MONOLITH была доступна для записи другим пользователям этого компьютера — " +
-                "содержимому старых копий нельзя доверять. Создайте новую резервную копию; восстановление из этой отключено.");
+            return new RestorePlan([], Loc.T("Папка данных MONOLITH была доступна для записи другим пользователям этого компьютера — " +
+                "содержимому старых копий нельзя доверять. Создайте новую резервную копию; восстановление из этой отключено."));
         try
         {
             var info = new DirectoryInfo(backupDir);
             if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) || !BackupFolders.TryParse(info.Name, out _, out _))
-                return new RestorePlan([], "Это не папка резервной копии MONOLITH.");
+                return new RestorePlan([], Loc.T("Это не папка резервной копии MONOLITH."));
             if (!IsTrustedOwner(info))
-                return new RestorePlan([], "Владелец папки копии — не администратор системы. Восстановление из неё отключено.");
+                return new RestorePlan([], Loc.T("Владелец папки копии — не администратор системы. Восстановление из неё отключено."));
 
             var manifest = ReadManifest(backupDir);
             if (manifest is null)
-                return new RestorePlan([], "В копии нет описания (monolith-backup.json) — нельзя проверить, что в ней только сохранённые драйверы.");
+                return new RestorePlan([], Loc.T("В копии нет описания (monolith-backup.json) — нельзя проверить, что в ней только сохранённые драйверы."));
             if (!TryScanInfs(info, out var onDisk))
-                return new RestorePlan([], "В копии есть ссылки на другие папки (junction/symlink) — восстановление отключено.");
+                return new RestorePlan([], Loc.T("В копии есть ссылки на другие папки (junction/symlink) — восстановление отключено."));
 
             var error = CheckAgainstManifest(manifest.Packages, onDisk, out var toInstall);
             if (error is not null) return new RestorePlan([], error);
@@ -309,7 +309,7 @@ internal static partial class DriverBackupService
         }
         catch (Exception ex)
         {
-            return new RestorePlan([], $"Не удалось проверить копию: {ex.Message}");
+            return new RestorePlan([], Loc.Tf("Не удалось проверить копию: {0}", ex.Message));
         }
     }
 
@@ -322,12 +322,12 @@ internal static partial class DriverBackupService
         out List<string> toInstall)
     {
         toInstall = [];
-        if (manifest is not { Count: > 0 }) return "В описании копии нет ни одного пакета драйверов.";
+        if (manifest is not { Count: > 0 }) return Loc.T("В описании копии нет ни одного пакета драйверов.");
         var expected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in manifest)
         {
             if (!IsPlainName(p.Folder) || !IsPlainName(p.InfFile) || !p.InfFile.EndsWith(".inf", StringComparison.OrdinalIgnoreCase))
-                return "Описание копии повреждено (недопустимое имя пакета).";
+                return Loc.T("Описание копии повреждено (недопустимое имя пакета).");
             var rel = p.Folder + Path.DirectorySeparatorChar + p.InfFile;
             if (expected.Add(rel)) toInstall.Add(rel);
         }
@@ -341,7 +341,7 @@ internal static partial class DriverBackupService
             if (!expected.Contains(rel))
             {
                 toInstall.Clear();
-                return $"В копии есть драйвер, которого нет в её описании: {rel}. Восстановление отключено — копию могли изменить.";
+                return Loc.Tf("В копии есть драйвер, которого нет в её описании: {0}. Восстановление отключено — копию могли изменить.", rel);
             }
             present.Add(rel);
         }
@@ -350,7 +350,7 @@ internal static partial class DriverBackupService
         if (missing is not null)
         {
             toInstall.Clear();
-            return $"В копии не хватает файла {missing} — копия повреждена.";
+            return Loc.Tf("В копии не хватает файла {0} — копия повреждена.", missing);
         }
         return null;
     }
@@ -392,22 +392,22 @@ internal static partial class DriverBackupService
     /// <summary>Installs the INFs of <see cref="PlanRestore"/> one by one (never "*.inf /subdirs").</summary>
     public static async Task<PnputilOutcome> RestoreAsync(string backupDir, Action<string> onLine, CancellationToken ct)
     {
-        Elevation.Demand("восстановление драйверов");
+        Elevation.Demand(Loc.T("восстановление драйверов"));
         var plan = await Task.Run(() => PlanRestore(backupDir), ct).ConfigureAwait(false);
         if (!plan.Ok) return new PnputilOutcome(-1, false, false, plan.Error!, false);
 
         var codes = new List<int>();
         foreach (var inf in plan.InfPaths)
         {
-            if (ct.IsCancellationRequested) return new PnputilOutcome(-1, false, false, "Операция отменена.", true);
+            if (ct.IsCancellationRequested) return new PnputilOutcome(-1, false, false, Loc.T("Операция отменена."), true);
             var r = await ProcessRunner.RunAsync(Pnputil, ["/add-driver", inf, "/install"], new ProcessRunOptions
             {
                 Encoding = OutputEncoding.Oem,
                 Timeout = TimeSpan.FromMinutes(30),
                 OnOutput = onLine,
             }, ct).ConfigureAwait(false);
-            if (r.Cancelled) return new PnputilOutcome(r.ExitCode, false, false, "Операция отменена.", true);
-            if (r.TimedOut) return new PnputilOutcome(r.ExitCode, false, false, "pnputil не завершился за 30 минут.", false);
+            if (r.Cancelled) return new PnputilOutcome(r.ExitCode, false, false, Loc.T("Операция отменена."), true);
+            if (r.TimedOut) return new PnputilOutcome(r.ExitCode, false, false, Loc.T("pnputil не завершился за 30 минут."), false);
             codes.Add(r.ExitCode);
         }
         return CombineRestore(codes);
@@ -416,7 +416,7 @@ internal static partial class DriverBackupService
     /// <summary>One outcome for several per-package pnputil runs.</summary>
     public static PnputilOutcome CombineRestore(IReadOnlyList<int> exitCodes)
     {
-        if (exitCodes.Count == 0) return new PnputilOutcome(-1, false, false, "В копии нет пакетов для восстановления.", false);
+        if (exitCodes.Count == 0) return new PnputilOutcome(-1, false, false, Loc.T("В копии нет пакетов для восстановления."), false);
         var outcomes = exitCodes.Select(c => DescribeExit(c, export: false)).ToList();
         var failed = outcomes.Where(o => !o.Success).ToList();
         var reboot = outcomes.Any(o => o.RebootRequired);
@@ -425,8 +425,8 @@ internal static partial class DriverBackupService
             if (reboot) return DescribeExit(ExitRebootRequired, export: false);
             return exitCodes.Any(c => c == 0) ? DescribeExit(0, export: false) : DescribeExit(ExitNothingToUpdate, export: false);
         }
-        var message = $"Восстановлено пакетов: {outcomes.Count - failed.Count} из {outcomes.Count}. " +
-                      $"Не удалось: {failed.Count} — {failed[^1].Message}" + (reboot ? " Для завершения нужна перезагрузка." : "");
+        var message = Loc.Tf("Восстановлено пакетов: {0} из {1}. ", outcomes.Count - failed.Count, outcomes.Count) +
+                      Loc.Tf("Не удалось: {0} — {1}", failed.Count, failed[^1].Message) + (reboot ? Loc.T(" Для завершения нужна перезагрузка.") : "");
         return new PnputilOutcome(failed[^1].ExitCode, false, reboot, message, false);
     }
 
@@ -435,15 +435,15 @@ internal static partial class DriverBackupService
     /// <summary>Deletes a backup folder. Only direct children of the backup root; links are removed, never followed.</summary>
     public static Task DeleteAsync(string backupDir) => Task.Run(() =>
     {
-        Elevation.Demand("удаление резервной копии драйверов");
+        Elevation.Demand(Loc.T("удаление резервной копии драйверов"));
         if (!BackupFolders.IsDirectChild(Root, backupDir))
-            throw new InvalidOperationException("Удалять можно только папки резервных копий MONOLITH.");
+            throw new InvalidOperationException(Loc.T("Удалять можно только папки резервных копий MONOLITH."));
         var info = new DirectoryInfo(backupDir);
         if (!info.Exists) return;
         if (!BackupFolders.TryParse(info.Name, out _, out _))
-            throw new InvalidOperationException("Это не папка резервной копии MONOLITH.");
+            throw new InvalidOperationException(Loc.T("Это не папка резервной копии MONOLITH."));
         DeleteTree(info);
-        Log.Info($"Резервная копия драйверов удалена: {info.Name}");
+        Log.Info("Резервная копия драйверов удалена: {0}", info.Name);
     });
 
     private static void DeleteTree(DirectoryInfo dir) => SafeTree.Delete(dir.FullName);
@@ -456,7 +456,7 @@ internal static partial class DriverBackupService
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось удалить неполную копию {Path.GetFileName(dir)}: {ex.Message}");
+            Log.Warn("Не удалось удалить неполную копию {0}: {1}", Path.GetFileName(dir), ex.Message);
         }
     }
 
@@ -473,20 +473,20 @@ internal static partial class DriverBackupService
 
     public static PnputilOutcome Describe(ProcessResult r, bool export)
     {
-        if (r.Cancelled) return new PnputilOutcome(r.ExitCode, false, false, "Операция отменена.", true);
-        if (r.TimedOut) return new PnputilOutcome(r.ExitCode, false, false, "pnputil не завершился за 30 минут.", false);
+        if (r.Cancelled) return new PnputilOutcome(r.ExitCode, false, false, Loc.T("Операция отменена."), true);
+        if (r.TimedOut) return new PnputilOutcome(r.ExitCode, false, false, Loc.T("pnputil не завершился за 30 минут."), false);
         return DescribeExit(r.ExitCode, export);
     }
 
     public static PnputilOutcome DescribeExit(int exitCode, bool export) => exitCode switch
     {
-        0 => new PnputilOutcome(0, true, false, export ? "Драйверы сохранены." : "Драйверы добавлены и установлены.", false),
-        ExitRebootRequired => new PnputilOutcome(exitCode, true, true, "Готово. Для завершения нужна перезагрузка.", false),
+        0 => new PnputilOutcome(0, true, false, export ? Loc.T("Драйверы сохранены.") : Loc.T("Драйверы добавлены и установлены."), false),
+        ExitRebootRequired => new PnputilOutcome(exitCode, true, true, Loc.T("Готово. Для завершения нужна перезагрузка."), false),
         ExitNothingToUpdate when !export => new PnputilOutcome(exitCode, true, false,
-            "Пакеты добавлены в хранилище драйверов, но устройства не обновлены: текущие драйверы такие же или новее.", false),
-        5 => new PnputilOutcome(exitCode, false, false, "Отказано в доступе — нужны права администратора.", false),
-        -1 => new PnputilOutcome(exitCode, false, false, "Не удалось запустить pnputil.", false),
-        _ => new PnputilOutcome(exitCode, false, false, $"pnputil завершился с кодом {exitCode}.", false),
+            Loc.T("Пакеты добавлены в хранилище драйверов, но устройства не обновлены: текущие драйверы такие же или новее."), false),
+        5 => new PnputilOutcome(exitCode, false, false, Loc.T("Отказано в доступе — нужны права администратора."), false),
+        -1 => new PnputilOutcome(exitCode, false, false, Loc.T("Не удалось запустить pnputil."), false),
+        _ => new PnputilOutcome(exitCode, false, false, Loc.Tf("pnputil завершился с кодом {0}.", exitCode), false),
     };
 }
 
@@ -524,7 +524,7 @@ internal static class SafeTree
 
     private static void Delete(string path, int depth)
     {
-        if (depth > MaxDepth) throw new IOException($"Слишком глубокая вложенность папок: {path}");
+        if (depth > MaxDepth) throw new IOException(Loc.Tf("Слишком глубокая вложенность папок: {0}", path));
         // A folder is opened without FILE_SHARE_DELETE: nobody else can rename/delete/replace it while we work in it.
         using var h = CreateFileW(ToExtended(path), DELETE | FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES,
             FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING,

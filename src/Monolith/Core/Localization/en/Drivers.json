@@ -1,0 +1,9 @@
+{
+  "area": "Drivers",
+  "translated": false,
+  "sources": [
+    "Modules/Drivers/**"
+  ],
+  "ignore": [],
+  "en": {}
+}
