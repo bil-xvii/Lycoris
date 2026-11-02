@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 
 namespace Monolith.Modules.Apps;
 
@@ -24,9 +25,49 @@ public partial class AppsView : UserControl
     private void Attach(AppsViewModel? vm)
     {
         if (ReferenceEquals(_vm, vm)) return;
-        if (_vm is not null) _vm.QueueLog.CollectionChanged -= OnLogChanged;
+        if (_vm is not null)
+        {
+            _vm.QueueLog.CollectionChanged -= OnLogChanged;
+            _vm.PropertyChanged -= OnVmPropertyChanged;
+        }
         _vm = vm;
-        if (_vm is not null) _vm.QueueLog.CollectionChanged += OnLogChanged;
+        if (_vm is not null)
+        {
+            _vm.QueueLog.CollectionChanged += OnLogChanged;
+            _vm.PropertyChanged += OnVmPropertyChanged;
+            if (_vm.FocusedAppId is not null) ScrollToFocusedApp();
+        }
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppsViewModel.FocusedAppId) && _vm?.FocusedAppId is not null) ScrollToFocusedApp();
+    }
+
+    /// <summary>
+    /// «app:&lt;id&gt;» (palette): scrolls the catalog to the program's card once the filter change has been laid out
+    /// (deferred at Background priority; never inside a CollectionChanged handler).
+    /// </summary>
+    private void ScrollToFocusedApp() => Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+    {
+        if (_vm?.FocusedAppId is not { } id) return;
+        _vm.FocusedAppId = null; // one-shot
+        UpdateLayout();
+        var card = FindCard(CatalogList, id);
+        card?.BringIntoView();
+    });
+
+    /// <summary>The visual element of the card whose item has this catalog id (cards live in non-virtualized panels).</summary>
+    private static FrameworkElement? FindCard(DependencyObject root, string id)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement { DataContext: AppItemViewModel item } fe && item.Entry.Id == id && fe is Border or ContentPresenter)
+                return fe;
+            if (FindCard(child, id) is { } found) return found;
+        }
+        return null;
     }
 
     /// <summary>
