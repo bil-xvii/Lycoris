@@ -26,7 +26,11 @@ public partial class MainWindow : Window
         DataContext = vm;
         FitToWorkArea();
 
-        _palette = new CommandPaletteViewModel(() => CommandPaletteIndex.Build(_vm.Pages));
+        _palette = new CommandPaletteViewModel(() => CommandPaletteIndex.Build(_vm.Pages), action =>
+        {
+            var settings = _vm.Pages.OfType<Lycoris.Modules.Settings.SettingsViewModel>().FirstOrDefault();
+            if (settings is not null) _ = settings.CreateProblemReportCommand.ExecuteAsync(null);
+        });
         PaletteOverlay.DataContext = _palette;
         _palette.PropertyChanged += (_, e) =>
         {
