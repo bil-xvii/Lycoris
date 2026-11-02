@@ -29,6 +29,7 @@ public static partial class ProblemReport
     private static readonly Regex OneDriveRx = R(@"\bOneDrive +- +" + Seg);
     // \\server\share\… (also JSON-escaped): the whole network path goes, the server, the share and any profile folder below them.
     private static readonly Regex UncPathRx = R(@"(?<![\w:.])[\\/]{2,4}(?![\\/?.])[^\\/\s""'<>|:*?]+(?:[\\/]+" + Seg + ")+");
+    private static readonly Regex NetworkRootRx = R(@"(?<![\w:.])[\\/][^\\/\s""'<>|:*?]+[\\/][^\\/\s""'<>|:*?]+(?:[\\/]+|$)");
     // EUI-64 (8 bytes) and EUI-48 (6 bytes) with «:» or «-», Cisco «aabb.ccdd.eeff», and 12 unseparated hex digits that hold a letter (not a timestamp, not a GUID tail).
     private static readonly Regex MacRx = R(@"(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){7}[0-9a-f]{2}(?![0-9a-f])|(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])|(?<![0-9a-f])(?:[0-9a-f]{4}\.){2}[0-9a-f]{4}(?![0-9a-f])|(?<![0-9a-f:-])(?=[0-9a-f]*[a-f])[0-9a-f]{12}(?![0-9a-f])(?!-[0-9a-f])");
     private static readonly Regex MacExactRx = R(@"^(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}$|^(?:[0-9a-f]{2}[:-]){7}[0-9a-f]{2}$");
@@ -107,6 +108,7 @@ public static partial class ProblemReport
         if (line.Length > MaxLineChars) return ExcludedLine;
         // Paths first: the profile folder of ANY account is cut whole (also the user's own, before its name becomes «<user>»).
         line = UncPathRx.Replace(line, "<unc>");
+        line = NetworkRootRx.Replace(line, "<unc>");
         line = ProfilePathRx.Replace(line, "%USERPROFILE%");
         line = OneDriveRx.Replace(line, "OneDrive");
         line = EmailRx.Replace(line, "<email>");   // before the names: «alice@corp.com» must not become «<user>@corp.com»

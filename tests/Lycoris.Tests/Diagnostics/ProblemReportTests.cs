@@ -91,6 +91,14 @@ public sealed class ProblemReportTests
     }
 
     [Theory]
+    [InlineData(@"\server\resource", "server")]
+    [InlineData("/server/resource", "server")]
+    public void SingleSeparatorNetworkRootsAreRemoved(string input, string leak)
+    {
+        Assert.DoesNotContain(leak, ProblemReport.Anonymize(input, "zzq", "qqpc"), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
     [InlineData("addr fe80::1%eth0 up", "fe80", "eth0")]
     [InlineData("addr fe80::abcd:1%Ethernet 2 up", "abcd", "Ethernet")]
     [InlineData("glued deadfe80::1234 x", "1234", "fe80")]
