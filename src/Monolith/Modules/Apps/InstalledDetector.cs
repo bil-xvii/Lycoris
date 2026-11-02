@@ -75,7 +75,9 @@ public static class InstalledDetector
         }
 
         var snapshot = new InstalledSnapshot(map, DateTime.Now, false) { Unmanaged = Unmanaged() };
-        SaveCache(snapshot);
+        // A failed export (no network, sources not set up yet) gives a degraded list: it must not replace the last good one.
+        if (exportOk) SaveCache(snapshot);
+        else Log.Warn("winget export не вернул списка — результат проверки не сохранён в кэш.");
         return snapshot;
     }
 
