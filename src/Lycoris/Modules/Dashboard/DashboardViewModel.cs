@@ -27,7 +27,7 @@ public sealed partial class DashboardViewModel : PageViewModel
     public override string Index => "01";
     public override string Title => Loc.Key("ПАНЕЛЬ");
     public override string Subtitle => Loc.Key("Что нажать, чтобы ПК был готов к игре.");
-    public override string Glyph => Glyphs.Home;
+    public override string Glyph => Glyphs.Chart;
 
     public DashboardViewModel()
     {
