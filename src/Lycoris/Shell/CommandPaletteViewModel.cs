@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lycoris.Core;
 using Lycoris.UI;
 
 namespace Lycoris.Shell;
@@ -64,6 +65,12 @@ public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEn
         if (item is null) return;
         var e = item.Entry;
         Close();
+        if (e.FocusId is "mode:simple" or "mode:expert")
+        {
+            AppSettings.Current.ExpertMode = e.FocusId == "mode:expert";
+            Ui.Navigate("home");
+            return;
+        }
         if (e.FocusId is { } id) Ui.RequestFocus(e.PageKey, id);
         Ui.Navigate(e.PageKey);
     }

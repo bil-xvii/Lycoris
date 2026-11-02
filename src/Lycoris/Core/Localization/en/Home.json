@@ -1,0 +1,31 @@
+{
+  "area": "Home",
+  "translated": true,
+  "sources": ["Modules/Home/**"],
+  "ignore": [],
+  "en": {
+    "Главная": "Home",
+    "Выберите цель или посмотрите, что можно улучшить безопасно.": "Choose a goal or see what can be safely improved.",
+    "Доктор собирает сведения при первом открытии Панели.": "Doctor is collecting information when Dashboard opens for the first time.",
+    "Проблем не найдено": "No problems found",
+    "Доктор нашёл {0} проблему": "Doctor found {0} problem|Doctor found {0} problems",
+    "Доктор нашёл {0} проблемы": "Doctor found {0} problems",
+    "Доктор нашёл {0} проблем": "Doctor found {0} problems",
+    "ПОСМОТРЕТЬ И ИСПРАВИТЬ БЕЗОПАСНОЕ": "REVIEW AND FIX SAFE ITEMS",
+    "Игры": "Games",
+    "Игровой профиль оптимизации и настройки игр.": "Gaming optimization profile and game settings.",
+    "БЕЗОПАСНО": "SAFE",
+    "ВЫБРАТЬ": "SELECT",
+    "Работа": "Work",
+    "Ближайший готовый сценарий — обычный режим без игрового профиля.": "The closest available scenario is the normal profile, without gaming tweaks.",
+    "Ноутбук от батареи": "Laptop on battery",
+    "Сценарий автономности; доступность зависит от устройства.": "Battery life scenario; availability depends on the device.",
+    "Тишина и охлаждение": "Quiet and cool",
+    "Ближайший готовый сценарий — обычный режим; отдельных настроек охлаждения нет.": "The closest available scenario is the normal profile; there are no dedicated cooling settings.",
+    "ИГРЫ": "GAMES",
+    "ОЧИСТКА": "CLEANUP",
+    "ОТКАТ": "UNDO",
+    "ПРОСТОЙ": "SIMPLE",
+    "ЭКСПЕРТ": "EXPERT"
+  }
+}

@@ -26,7 +26,9 @@ public sealed partial class TweakItemViewModel : ObservableObject
     public string Title => Tweak.Title;
     public string Description => Tweak.Description;
     public string Details => Tweak.Details;
-    public bool HasDetails => !string.IsNullOrWhiteSpace(Tweak.Details);
+    public bool HasDetails => _owner.ExpertMode && !string.IsNullOrWhiteSpace(Tweak.Details);
+    public bool ShowRiskDetails => IsAdvanced && _owner.ExpertMode;
+    internal void RefreshExpertMode() { OnPropertyChanged(nameof(HasDetails)); OnPropertyChanged(nameof(ShowRiskDetails)); }
     public TweakCategory Category => Tweak.Category;
     public string CategoryText => Tweak.CategoryText;
     public string RiskText => Tweak.RiskText;

@@ -233,7 +233,7 @@
 
                             <!-- Expert risk: always visible -->
                             <Border Margin="0,8,0,0" BorderBrush="{StaticResource B.Outline}" BorderThickness="1" CornerRadius="{StaticResource R.Md}"
-                                    ui:RoundClip.Content="True" Visibility="{Binding IsAdvanced, Converter={StaticResource BoolToVis}}">
+                                    ui:RoundClip.Content="True" Visibility="{Binding ShowRiskDetails, Converter={StaticResource BoolToVis}}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="8" />
@@ -257,7 +257,7 @@
                                     <TextBlock Text="{Binding RiskText}" />
                                 </Border>
                                 <Border Style="{StaticResource Tag.Hatch}" Margin="0,0,6,0"
-                                        Visibility="{Binding RiskKey, Converter={StaticResource EqualsToVis}, ConverterParameter=Advanced}">
+                                        Visibility="{Binding ShowRiskDetails, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding RiskText}" />
                                 </Border>
                                 <Border Style="{StaticResource Tag}" Margin="0,0,6,0" Visibility="{Binding HasRestart, Converter={StaticResource BoolToVis}}">

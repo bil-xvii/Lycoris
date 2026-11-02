@@ -17,6 +17,10 @@
   ],
   "ignore": [],
   "en": {
+    "Переключить на простой режим": "Switch to simple mode",
+    "Показывать короткие пояснения и простые названия.": "Show concise explanations and familiar names.",
+    "Переключить на экспертный режим": "Switch to expert mode",
+    "Показывать технические сведения и расширенную диагностику.": "Show technical details and extended diagnostics.",
     "Необработанная ошибка: {0}": "Unhandled error: {0}",
     "Ошибка фоновой задачи": "Background task error",
     "Не удалось проверить, запущен ли Lycoris": "Could not check whether Lycoris is already running",

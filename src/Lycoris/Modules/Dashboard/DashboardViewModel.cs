@@ -32,6 +32,12 @@ public sealed partial class DashboardViewModel : PageViewModel
     public DashboardViewModel()
     {
         _monitor.Sampled += sample => Ui.Post(() => Apply(sample));
+        Ui.FocusRequested += request =>
+        {
+            if (request.PageKey != Key || request.ItemId != "health:issues") return;
+            _filterChosen = true;
+            Filter = CheckFilter.Warning;
+        };
         if (Application.Current is { } app) app.Exit += (_, _) => _monitor.Dispose();
         Tiles = BuildTiles();
     }
