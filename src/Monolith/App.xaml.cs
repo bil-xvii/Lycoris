@@ -32,6 +32,11 @@ namespace Monolith;
 ///  --demo-shell            with --snapshot (QA only): also renders toasts, the palette, dialogs and the task list ("shell-*.png")
 ///  --full                  with --snapshot: also "&lt;page&gt;-full.png" — the page's whole scrolled list, not only the window
 ///  --selftest &lt;dir&gt;       exercise every page with all system writes locked; report.md + exit code = failed pages
+///  --apply-update &lt;old exe&gt; &lt;pid&gt;
+///                          INTERNAL (Core/Updates): the NEW exe, started by the old copy after a verified download; headless:
+///                          waits for the old process, sets MONOLITH.exe aside as .old, copies itself to MONOLITH.exe, starts it,
+///                          rolls back if it crashes within 10 s.
+///  --demo-update           with --snapshot (QA only): pretend a newer version exists (title bar button, Settings About)
 ///  --display-guard …       INTERNAL: the guard of a display change (Core/Devices/DisplaySafeApply). Started by MONOLITH
 ///                          itself, no window; it reverts the display mode/HDR if MONOLITH dies or the user never
 ///                          confirms. Runs before every other startup step and marks itself (DisplayGuardProcess) so a
@@ -57,6 +62,24 @@ public partial class App : Application
             int code;
             try { code = Monolith.Core.Devices.DeviceWriters.Display?.RunGuard(e.Args) ?? 2; }
             catch { code = 3; }
+            Shutdown(code);
+            return;
+        }
+
+        // The self-update's headless step: this process is the NEW exe, started by the old one. No window, no instance lock
+        // (the old copy has to be gone first): it swaps the files, starts the new MONOLITH.exe and rolls back on a crash.
+        if (e.Args.Length > 0 && e.Args[0].Equals(Monolith.Core.Updates.UpdateApplyMode.Switch, StringComparison.OrdinalIgnoreCase))
+        {
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            AppSettings.Load();
+            Loc.Initialize(AppSettings.Current.Language);
+            var code = 2;
+            try { code = Monolith.Core.Updates.UpdateApplyMode.Run(e.Args); }
+            catch (Exception ex) { Log.Error("Обновление: непредвиденная ошибка", ex); code = 11; }
+            if (Monolith.Core.Updates.UpdateApplyMode.FailureText(code, e.Args.Length > 1 ? e.Args[1] : "") is { } failure)
+                MessageBox.Show(failure, "MONOLITH", MessageBoxButton.OK, MessageBoxImage.Warning);
             Shutdown(code);
             return;
         }
@@ -164,6 +187,9 @@ public partial class App : Application
         if (Elevation.IsElevated) Log.Info("MONOLITH запущен с правами администратора.");
         else Log.Info("MONOLITH запущен в режиме просмотра (без прав администратора).");
 
+        // QA: pretend an update exists (title-bar button, Settings → О программе) without any network.
+        if (snapshot && HasArg(args, "--demo-update")) UpdateController.Instance.EnableDemo();
+
         var vm = new MainViewModel();
         var window = new MainWindow(vm);
         MainWindow = window;
@@ -239,6 +265,8 @@ public partial class App : Application
 
         window.Show();
         _ = vm.RunStartupChecksAsync();
+        UpdateController.Instance.ScheduleStartupCheck();
+        UpdateController.Instance.ScheduleCleanup();
     }
 
     /// <summary>"--e2e &lt;dir&gt;": headless real-system apply/revert test (asks for admin rights once).</summary>

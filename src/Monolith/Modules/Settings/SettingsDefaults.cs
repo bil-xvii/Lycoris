@@ -21,6 +21,7 @@ public static class SettingsDefaults
         target.ConfirmBeforeApply = d.ConfirmBeforeApply;
         target.ServicesExpertMode = d.ServicesExpertMode;
         target.ShowConsole = d.ShowConsole;
+        target.AutoCheckUpdates = d.AutoCheckUpdates;
         target.MonitorIntervalMs = d.MonitorIntervalMs;
         target.LastProfile = d.LastProfile;
         target.GameBoostPowerPlan = d.GameBoostPowerPlan;
@@ -38,6 +39,7 @@ public static class SettingsDefaults
             Loc.Tf("Подтверждение перед применением — {0}", OnOff(d.ConfirmBeforeApply)),
             Loc.Tf("Экспертный режим служб — {0}", OnOff(d.ServicesExpertMode)),
             Loc.Tf("Консоль операций — {0}", d.ShowConsole ? Loc.T("показана") : Loc.T("скрыта")),
+            Loc.Tf("Автоматическая проверка обновлений — {0}", OnOff(d.AutoCheckUpdates)),
             Loc.Tf("Интервал обновления мониторинга — {0}", FormatInterval(d.MonitorIntervalMs)),
             Loc.Tf("Игровой сеанс: план питания — {0}, приоритет игры — {1}, очистка памяти ожидания — {2}", OnOff(d.GameBoostPowerPlan), OnOff(d.GameBoostPriority), OnOff(d.GameBoostPurgeStandby)),
             Loc.T("Последний выбранный профиль оптимизации — «Рекомендуемый»"),
