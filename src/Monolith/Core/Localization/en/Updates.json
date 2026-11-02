@@ -1,4 +1,4 @@
-﻿{
+{
   "area": "Updates",
   "translated": true,
   "sources": [
@@ -122,6 +122,17 @@
     "ПОВТОРИТЬ": "RETRY",
     "ЗАКРЫТЬ": "CLOSE",
     "ПОЗЖЕ": "LATER",
-    "ОТМЕНА": "CANCEL"
+    "ОТМЕНА": "CANCEL",
+    "Обновление отклонено: целевой файл не похож на MONOLITH или номер процесса не его.": "Update refused: the target file does not look like MONOLITH or the process id is not its own.",
+    "Обновление отклонено: программа обновления с правами администратора запущена без контрольной суммы.": "Update refused: the elevated updater was started without a checksum.",
+    "Обновление отклонено: файл программы обновления не совпадает с проверенным.": "Update refused: the updater file is not the one that was verified.",
+    "Обновление отклонено: новая программа не новее установленной.": "Update refused: the new program is not newer than the installed one.",
+    "Обновление отклонено проверкой безопасности: файл обновления не совпал с проверенным, либо целью указана не программа MONOLITH. Ничего не изменено.": "Update refused by a security check: the update file is not the one that was verified, or the target is not a MONOLITH program. Nothing was changed.",
+    "У релиза нет подписи владельца — обновление отменено.": "The release has no owner signature — update cancelled.",
+    "Не удалось получить подпись релиза — обновление отменено.": "Could not get the release signature — update cancelled.",
+    "Канал обновлений не защищён подписью владельца (ключ не задан): контрольная сумма из того же релиза защищает только от повреждения файла.": "The update channel is not protected by the owner signature (no key set): the checksum from the same release only protects against a damaged file.",
+    "Подпись релиза не подтверждена — файл удалён, обновление отменено.": "The release signature is not valid — file deleted, update cancelled.",
+    "Версия внутри файла не совпадает с версией релиза — файл удалён, обновление отменено.": "The version inside the file does not match the release version — file deleted, update cancelled.",
+    "Скачанная версия не новее установленной — обновление отменено.": "The downloaded version is not newer than the installed one — update cancelled."
   }
 }

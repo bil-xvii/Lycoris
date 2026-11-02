@@ -227,6 +227,9 @@ internal sealed class DisplayWriter : IDisplayWriter
             armed = new EventWaitHandle(false, EventResetMode.ManualReset, ArmedEventName(recordId), out var armedNew);
             if (!keepNew || !armedNew) throw new InvalidOperationException(Loc.T("событие защитного процесса уже существует"));
 
+            // The guard is this exe started again with THIS (elevated) token and no UAC prompt: it must still be the file we started from.
+            if (Elevation.IsElevated && Monolith.Core.Security.SelfIntegrity.CheckBeforeElevation() is { Allowed: false } refusal)
+                throw new InvalidOperationException(refusal.Reason ?? "integrity check");
             var psi = new ProcessStartInfo(AppPaths.ExecutablePath) { UseShellExecute = false, CreateNoWindow = true };
             foreach (var arg in BuildGuardArgs(recordId, deadlineUtc, Environment.ProcessId, action)) psi.ArgumentList.Add(arg);
             process = Process.Start(psi) ?? throw new InvalidOperationException(Loc.T("процесс не запустился"));

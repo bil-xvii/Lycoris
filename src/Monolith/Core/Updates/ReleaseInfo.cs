@@ -17,6 +17,8 @@ public sealed record ReleaseInfo
     public string ExeDigest { get; init; } = "";
     /// <summary>URL of MONOLITH.exe.sha256 ("" when the release has none).</summary>
     public string ShaUrl { get; init; } = "";
+    /// <summary>URL of MONOLITH.exe.sig, the owner's ECDSA signature of the release statement (<see cref="Monolith.Core.Security.ReleaseSignature"/>); "" when the release has none.</summary>
+    public string SigUrl { get; init; } = "";
 
     [JsonIgnore]
     public SemVer Version => SemVer.TryParse(Tag, out var v) ? v : default;
@@ -43,6 +45,7 @@ public static class ReleaseParser
 {
     public const string ExeAssetName = "MONOLITH.exe";
     public const string ShaAssetName = "MONOLITH.exe.sha256";
+    public const string SigAssetName = "MONOLITH.exe.sig";
 
     private static readonly JsonSerializerOptions CacheOptions = new() { WriteIndented = false };
 
@@ -63,7 +66,7 @@ public static class ReleaseParser
             if (Bool(root, "draft")) { problem = "draft"; return null; }
             if (Bool(root, "prerelease") || version.IsPrerelease) { problem = "prerelease"; return null; }
 
-            string exeUrl = "", digest = "", shaUrl = "";
+            string exeUrl = "", digest = "", shaUrl = "", sigUrl = "";
             long exeSize = 0;
             if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
             {
@@ -85,6 +88,10 @@ public static class ReleaseParser
                     {
                         shaUrl = url;
                     }
+                    else if (name.Equals(SigAssetName, StringComparison.Ordinal))
+                    {
+                        sigUrl = url;
+                    }
                 }
             }
             if (exeUrl.Length == 0) { problem = "no " + ExeAssetName + " asset"; return null; }
@@ -99,6 +106,7 @@ public static class ReleaseParser
                 ExeSize = exeSize,
                 ExeDigest = digest,
                 ShaUrl = shaUrl,
+                SigUrl = sigUrl,
             };
         }
         catch (JsonException ex)

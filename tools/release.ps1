@@ -104,6 +104,7 @@ if ($dry) {
     Write-Host "  tools\publish.ps1 $(if ($NoSign) { '-NoSign' })   -> $exe"
     Write-Host "  $exe --selftest <temp>   (exit code must be 0)"
     Write-Host "  write $sha   ('<sha256>  MONOLITH.exe')"
+    Write-Host "  tools\release-key.ps1 -Sign -> $exe.sig   (owner signature; mandatory once the public key is pinned in ReleaseSignature.cs)"
     Write-Host "  gh release create $tag --repo $PublicRepo --title 'MONOLITH $versionText' --notes-file <notes> MONOLITH.exe MONOLITH.exe.sha256"
     Write-Host "  gh release create $tag --repo $SourceRepo --target $($head.Substring(0,8)) --title 'MONOLITH $versionText' --notes-file <notes> MONOLITH.exe MONOLITH.exe.sha256"
     Write-Host 'WhatIf: nothing was built, tagged or published.' -ForegroundColor Green
@@ -132,11 +133,25 @@ $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText($sha, "$hash  MONOLITH.exe`n", (New-Object Text.UTF8Encoding $false))
 Write-Host "SHA-256 $hash"
 
+# 7b. the owner's signature (tools\release-key.ps1). Once the public key is pinned in the app (Core\Security\ReleaseSignature.cs),
+#     every installed copy refuses a release that has no valid MONOLITH.exe.sig - so a missing key must stop the release here.
+$extraAssets = @()
+$pinned = (Get-Content (Join-Path $root 'src\Monolith\Core\Security\ReleaseSignature.cs') -Raw) -match 'PinnedPublicKey\s*=\s*"[A-Za-z0-9+/=]+"'
+$keyFile = if ($env:MONOLITH_RELEASE_KEY) { $env:MONOLITH_RELEASE_KEY } else { Join-Path $env:USERPROFILE '.monolith-release\release-key.pk8' }
+if (Test-Path $keyFile) {
+    Step 'Sign the release (owner key)'
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'release-key.ps1') -Sign -File $exe -Version $versionText -KeyFile $keyFile
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$exe.sig")) { Fail 'signing the release failed' }
+    $extraAssets = @("$exe.sig")
+}
+elseif ($pinned) { Fail "the app pins a release public key, but there is no private key at $keyFile - installed copies would refuse this release" }
+else { Write-Warning 'No release signing key: this release is NOT signed by the owner (installed copies cannot tell it from a forged one). Create a key: tools\release-key.ps1 -New' }
+
 # 8. releases
 [IO.File]::WriteAllText($notesTmp, $notes + "`n", (New-Object Text.UTF8Encoding $false))
 foreach ($repo in @($PublicRepo, $SourceRepo)) {
     Step "gh release create $tag in $repo"
-    $ghArgs = @('release', 'create', $tag, $exe, $sha, '--repo', $repo, '--title', "MONOLITH $versionText", '--notes-file', $notesTmp)
+    $ghArgs = @('release', 'create', $tag, $exe, $sha) + $extraAssets + @('--repo', $repo, '--title', "MONOLITH $versionText", '--notes-file', $notesTmp)
     if ($repo -eq $SourceRepo) { $ghArgs += @('--target', $head) }
     if ($PSCmdlet.ShouldProcess($repo, "gh release create $tag")) {
         & gh @ghArgs

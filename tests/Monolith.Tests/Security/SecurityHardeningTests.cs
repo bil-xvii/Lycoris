@@ -479,6 +479,19 @@ public sealed class SecurityHardeningTests
     }
 
     [Fact]
+    public void A_signature_made_by_tools_release_key_ps1_verifies()
+    {
+        // Fixture produced once by `tools\release-key.ps1 -New` + `-Sign` (Windows PowerShell 5.1, CNG) on a file of the bytes 1..200;
+        // the private key was discarded. Proves the script and ReleaseSignature agree on key format, statement text and signature layout.
+        const string publicKey = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEnNsAluk/tIA/sbsCd3105faMLTOBNiAcZEw/E5GjcrRxAH3WBApTlx3DAjAZB2B1c06SCTd6hXRQbJAKW2ZhoQ==";
+        const string signature = "lQwH0Uy/XBD7ac2bo2N3fF1w83fJZCd6FAAmc18l0YS6C4wh/qcuC8Xri/df05CKXqNlX6LV8rwU5LmiG9Kd/A==";
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Enumerable.Range(1, 200).Select(i => (byte)i).ToArray()));
+        Assert.Equal("a48742653620d8aeee06f9aef53889980ead41a44aeb11c5b0996dfc4fbc127b", hash);
+        Assert.True(ReleaseSignature.Verify(ReleaseSignature.SignedStatement("1.2.3", "MONOLITH.exe", hash), signature, publicKey));
+        Assert.False(ReleaseSignature.Verify(ReleaseSignature.SignedStatement("1.2.4", "MONOLITH.exe", hash), signature, publicKey));
+    }
+
+    [Fact]
     public void Verify_never_throws_on_garbage()
     {
         var (_, pub) = ReleaseSignature.GenerateKeyPair();
