@@ -53,6 +53,25 @@ internal static class StartupTiming
         if (_samples % 5 == 0) Flush();
     }
 
+    /// <summary>QA leak check (--cycle-pages N): visits every page N times, then reports the managed heap after a full GC and live view counts.</summary>
+    public static async Task CyclePagesAsync(Shell.MainViewModel vm, int rounds)
+    {
+        await Task.Delay(6000);
+        Mark("cycle start heap " + (GC.GetTotalMemory(true) / 1048576) + " MB");
+        for (var r = 1; r <= rounds; r++)
+        {
+            foreach (var page in vm.Pages.ToList())
+            {
+                vm.NavigateTo(page.Key);
+                await Task.Delay(700);
+            }
+            vm.NavigateTo("dashboard");
+            await Task.Delay(700);
+            for (var i = 0; i < 3; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); await Task.Delay(100); }
+            Mark("round " + r + " heap after GC " + (GC.GetTotalMemory(true) / 1048576) + " MB, WS " + (Process.GetCurrentProcess().WorkingSet64 / 1048576) + " MB");
+        }
+    }
+
     public static void Flush()
     {
         if (_file is null) return;
@@ -64,6 +83,7 @@ internal static class StartupTiming
             {
                 var sb = new StringBuilder(Lines.ToString());
                 if (_samples > 0) sb.Append("monitor Sample() avg ").Append((_sampleMs / _samples).ToString("0.0", CultureInfo.InvariantCulture)).Append(" ms over ").Append(_samples).AppendLine(" samples");
+                sb.Append("managed heap ").Append(GC.GetTotalMemory(false) / 1048576).Append(" MB, committed ").Append(GC.GetGCMemoryInfo().TotalCommittedBytes / 1048576).AppendLine(" MB");
                 sb.Append("working set ").Append(p.WorkingSet64 / 1048576).AppendLine(" MB");
                 sb.Append("private ").Append(p.PrivateMemorySize64 / 1048576).AppendLine(" MB");
                 sb.Append("cpu total ").Append(p.TotalProcessorTime.TotalMilliseconds.ToString("0", CultureInfo.InvariantCulture)).AppendLine(" ms");

@@ -14,14 +14,25 @@ public partial class DriversHardwarePanel : UserControl
     public DriversHardwarePanel()
     {
         InitializeComponent();
-        DataContextChanged += (_, _) =>
-        {
-            if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
-            _vm = DataContext as DriversViewModel;
-            if (_vm is null) return;
-            _vm.PropertyChanged += OnVmPropertyChanged;
-            if (_vm.HardwareFocusTarget is not null) ScrollToFocus();
-        };
+        DataContextChanged += (_, _) => { if (IsLoaded) Sync(); };
+        Loaded += (_, _) => Sync();
+        Unloaded += (_, _) => Release();
+    }
+
+    /// <summary>The view subscribes to its page view-model only while it is on screen: the view-model lives for the whole run, a subscription left behind would keep every closed copy of this view (and its rows) alive and still react to focus requests.</summary>
+    private void Sync()
+    {
+        if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm = DataContext as DriversViewModel;
+        if (_vm is null) return;
+        _vm.PropertyChanged += OnVmPropertyChanged;
+        if (_vm.HardwareFocusTarget is not null) ScrollToFocus();
+    }
+
+    private void Release()
+    {
+        if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm = null;
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)

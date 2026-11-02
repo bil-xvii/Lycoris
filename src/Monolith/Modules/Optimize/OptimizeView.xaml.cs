@@ -14,16 +14,27 @@ public partial class OptimizeView : UserControl
     public OptimizeView()
     {
         InitializeComponent();
-        DataContextChanged += (_, _) =>
+        DataContextChanged += (_, _) => { if (IsLoaded) Sync(); };
+        Loaded += (_, _) => Sync();
+        Unloaded += (_, _) => Release();
+    }
+
+    /// <summary>The view subscribes to its page view-model only while it is on screen: the view-model lives for the whole run, a subscription left behind would keep every closed copy of this view (and its rows) alive and still react to focus requests.</summary>
+    private void Sync()
+    {
+        if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm = DataContext as OptimizeViewModel;
+        if (_vm is not null)
         {
-            if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
-            _vm = DataContext as OptimizeViewModel;
-            if (_vm is not null)
-            {
-                _vm.PropertyChanged += OnVmPropertyChanged;
-                if (_vm.FocusedItem is not null) ScrollToFocused();
-            }
-        };
+            _vm.PropertyChanged += OnVmPropertyChanged;
+            if (_vm.FocusedItem is not null) ScrollToFocused();
+        }
+    }
+
+    private void Release()
+    {
+        if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm = null;
     }
 
     /// <summary>«ПРОФИЛЬ…» opens its export/import menu right under the button on a normal click.</summary>
