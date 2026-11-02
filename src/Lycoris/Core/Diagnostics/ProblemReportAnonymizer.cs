@@ -23,7 +23,12 @@ public static partial class ProblemReport
     // No left boundary for the long words (camelCase: accessToken, clientSecret); «key» and «sid» need one or a lower→Upper hump (monkey is not a key).
     private const string SecretWords = @"(?:token|secret|passw(?:or)?d|pwd|bearer|authorization|cookie|credential|session|signature|connectionstring|парол\w*|ключ\w*|токен\w*|куки|(?<![A-Za-z])key|(?-i:(?<=[a-z])Key)|(?<![A-Za-z])sid|(?-i:(?<=[a-z])Sid))";
 
-    private static readonly Regex ProfilePathRx = R(@"(?:[A-Z]:)?[\\/]+(?:Users|home)[\\/]+[^\\/\s""'<>|:*?]+");
+    // A path segment may hold single spaces («Мария Иванова», «OneDrive - Компания»): it runs to the next slash, but stops before « C:\».
+    private const string Seg = @"(?:[^\\/\s""'<>|:*?]| (?![A-Za-z]:))+";
+    private static readonly Regex ProfilePathRx = R(@"(?:[A-Z]:)?[\\/]+(?:Users|home|Documents and Settings|Пользователи)[\\/]+" + Seg);
+    private static readonly Regex OneDriveRx = R(@"\bOneDrive +- +" + Seg);
+    // \\server\share\… (also JSON-escaped): the whole network path goes, the server, the share and any profile folder below them.
+    private static readonly Regex UncPathRx = R(@"(?<![\w:.])[\\/]{2,4}(?![\\/?.])[^\\/\s""'<>|:*?]+(?:[\\/]+" + Seg + ")+");
     private static readonly Regex MacRx = R(@"(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])|(?<![0-9a-f])(?:[0-9a-f]{4}\.){2}[0-9a-f]{4}(?![0-9a-f])");
     private static readonly Regex Ipv6Rx = R(@"(?<![0-9a-f:.])(?:[0-9a-f]{0,4}:){2,}[0-9a-f.:]*(?:%\w+)?");
     private static readonly Regex Ipv4Rx = R(@"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d])");
@@ -31,10 +36,10 @@ public static partial class ProblemReport
     private static readonly Regex BasicAuthRx = R(@"\bbasic\s+[A-Za-z0-9+/]{8,}={0,2}");
     private static readonly Regex SecretWordRx = R(SecretWords);
     private static readonly Regex LongTokenRx = R(@"(?<![A-Za-z0-9+/_=-])[A-Za-z0-9+/_-]{24,}={0,2}(?![A-Za-z0-9+/_=-])", RegexOptions.CultureInvariant);
-    private static readonly Regex SecretValueRx = R(@"(" + SecretWords + @"\w*(?:\s*[:=]\s*|\s+(?=bearer\s|\S{24,})))(?:""[^""]*""|'[^']*'|\S+)");
+    private static readonly Regex SecretValueRx = R(@"(" + SecretWords + @"\w*(?:\\?[""']?\s*[:=]\s*|\s+))((?:(?:bearer|basic|digest|negotiate|ntlm)\s+)?(?:\\?""[^""]*""|\\?'[^']*'|\S+))");
     private static readonly Regex SerialRx = R(@"\b(?:serial(?:\s*(?:number|no\.?))?|s/n|серийный\s+номер)\s*[:=#]?\s*[\w-]+");
     private static readonly Regex UsersPathLeftRx = R(@"[\\/]+(?:Users|home)[\\/]+");
-    private static readonly Regex LongRunRx = R(@"[A-Za-z0-9+/_-]{24,}", RegexOptions.CultureInvariant);
+    private static readonly Regex LongRunRx = R(@"(?=[A-Za-z0-9+/_-]*\d)(?=[A-Za-z0-9+/_-]*[A-Za-z])[A-Za-z0-9+/_-]{16,}", RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Removes identity data line by line. Text is first normalized (Unicode FormKC, no invisible format characters, '/' as '\'
@@ -93,8 +98,11 @@ public static partial class ProblemReport
     private static string CleanLine(string line, Regex? namesRx, Dictionary<string, string> map)
     {
         if (line.Length > MaxLineChars) return ExcludedLine;
-        if (namesRx is not null) line = namesRx.Replace(line, m => map.TryGetValue(m.Value, out var r) ? r : "<user>");
+        // Paths first: the profile folder of ANY account is cut whole (also the user's own, before its name becomes «<user>»).
+        line = UncPathRx.Replace(line, "<unc>");
         line = ProfilePathRx.Replace(line, "%USERPROFILE%");
+        line = OneDriveRx.Replace(line, "OneDrive");
+        if (namesRx is not null) line = namesRx.Replace(line, m => map.TryGetValue(m.Value, out var r) ? r : "<user>");
         line = MacRx.Replace(line, "<mac>");
         line = Ipv6Rx.Replace(line, m => ReplaceIpv6(m.Value));
         line = Ipv4Rx.Replace(line, m => System.Net.IPAddress.TryParse(m.Value, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "<ip>" : m.Value);
