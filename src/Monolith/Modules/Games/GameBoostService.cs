@@ -557,7 +557,15 @@ public sealed partial class GameBoostService : ObservableObject
                     _throttled[pid] = (h, orig, startUtc, name);
                     marker = _throttled.Select(kv => new EcoQosMarkerEntry(kv.Key, kv.Value.StartUtc)).ToList();
                 }
-                EcoQos.WriteMarker(marker);
+                if (!EcoQos.WriteMarker(marker))
+                {
+                    // Without the crash marker a dead Lycoris would leave this program throttled for good: undo it now.
+                    lock (_raisedLock) _throttled.Remove(pid);
+                    EcoQos.WriteState(h, EcoQos.PlanRestore(orig));
+                    h.Dispose();
+                    skipped.Add((name, Loc.T("не удалось записать отметку сеанса — без неё режим не возвращается после сбоя")));
+                    continue;
+                }
                 tagged.Add(name);
             }
         }

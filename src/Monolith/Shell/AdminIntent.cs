@@ -47,8 +47,8 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         return new AdminIntent(page.Trim(), command.Trim(), string.IsNullOrEmpty(parameter) ? null : parameter);
     }
 
-    /// <summary>Longest parameter a replayed command may receive (ids, service names, GUIDs, tab keys are far shorter).</summary>
-    public const int MaxParameterLength = 200;
+    /// <summary>Longest parameter a replayed command may receive: ids, GUIDs, tab keys are short, a packed list of checked items (IntentList, base64) is a few KB; the command line takes 32 K.</summary>
+    public const int MaxParameterLength = 4096;
 
     /// <summary>Page keys are lower-case words with digits and hyphens («optimize», «devices-manual»).</summary>
     public static bool IsPageKey(string? key) =>
