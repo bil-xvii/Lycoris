@@ -189,7 +189,7 @@ public static class DeviceScan
     internal static string? HintProblem(DeviceSetting s) =>
         s.Apply is null && s.TweakId is null ? null
         : string.IsNullOrWhiteSpace(s.Hint) ? "у настройки «" + s.Title + "» нет пояснения" // loc:ignore developer diagnostic
-        : s.Hint.Length > 120 ? "пояснение настройки «" + s.Title + "» длиннее 120 символов" // loc:ignore developer diagnostic
+        : s.Hint.Length > (Loc.Language == "en" ? 160 : 120) ? "пояснение настройки «" + s.Title + "» длиннее 120 символов" // loc:ignore developer diagnostic
         : null;
 
     private static void CheckHints(DeviceCard card)
