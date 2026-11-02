@@ -7,4 +7,4 @@ License: Proprietary
 ShortDescription: Windows utility with a change journal and rollback support.
 Description: Lycoris helps review Windows settings and provides a journal for supported changes.
 ManifestType: defaultLocale
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
