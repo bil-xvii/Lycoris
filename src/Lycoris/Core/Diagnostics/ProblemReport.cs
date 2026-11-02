@@ -63,9 +63,8 @@ public static partial class ProblemReport
         var result = new List<(string, byte[])>();
         try
         {
-            if (!Directory.Exists(dir) || IsLink(dir)) return result;
-            var parent = Path.GetDirectoryName(Path.GetFullPath(dir).TrimEnd('\\', '/'));
-            if (parent is not null && IsLink(parent)) return result;
+            if (!Directory.Exists(dir)) return result;
+            if (HasLinkedComponent(dir)) return [("logs/log-unavailable.txt", Utf8("логи недоступны (ссылка)"))];
             var candidates = Directory.EnumerateFiles(dir, "*.log").Take(MaxLogFilesEnumerated)
                 .Where(p => p.EndsWith(".log", StringComparison.OrdinalIgnoreCase) && !IsLink(p))   // «*.log» also matches «.log2» through 8.3 names
                 .OrderByDescending(SafeLastWrite).Take(maxFiles).ToList();
@@ -87,20 +86,10 @@ public static partial class ProblemReport
     /// <summary>The whole file, or its last <see cref="MaxLogBytes"/> bytes (from the next full line) when it is larger.</summary>
     internal static string ReadLogTail(string path)
     {
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-        var length = fs.Length;
-        var take = (int)Math.Min(length, MaxLogBytes);
-        var cut = length > take;
-        if (cut) fs.Seek(length - take, SeekOrigin.Begin);
-        var buffer = new byte[take];
-        var got = 0;
-        while (got < take)
-        {
-            var n = fs.Read(buffer, got, take - got);
-            if (n == 0) break;
-            got += n;
-        }
-        var text = Encoding.UTF8.GetString(buffer, 0, got);
+        var info = new FileInfo(path);
+        var cut = info.Length > MaxLogBytes;
+        var buffer = SafeIo.ReadTailNoFollow(path, MaxLogBytes);
+        var text = Encoding.UTF8.GetString(buffer);
         if (text.Length > 0 && text[0] == '﻿') text = text[1..];
         if (!cut) return text;
         var nl = text.IndexOf('\n');
@@ -108,6 +97,22 @@ public static partial class ProblemReport
     }
 
     private static byte[] Utf8(string text) => Encoding.UTF8.GetBytes(text);
+    private static bool HasLinkedComponent(string path)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(full)!;
+            var current = root;
+            foreach (var part in full[root.Length..].Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = Path.Combine(current, part);
+                if (IsLink(current)) return true;
+            }
+            return false;
+        }
+        catch { return true; }
+    }
     private static bool IsLink(string path) { try { return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint); } catch { return true; } }
     private static DateTime SafeLastWrite(string path) { try { return File.GetLastWriteTimeUtc(path); } catch { return DateTime.MinValue; } }
 
