@@ -108,10 +108,14 @@ public static partial class ProblemReport
         return JsonSerializer.Serialize(safe, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private static string ReadJournal()
+    private static string ReadJournal() => SummarizeJournal(ChangeJournal.Instance.Records);
+
+    /// <summary>Only the change kind and the number of changes of the last 20 records: no titles, targets, values or times.</summary>
+    internal static string SummarizeJournal(IEnumerable<ChangeRecord> records)
     {
-        var records = ChangeJournal.Instance.Records.TakeLast(20).Select(r => new { Time = r.TimestampUtc, r.Title, Changes = 1 });
-        return JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true });
+        var summary = records.TakeLast(20).GroupBy(r => r.Kind).OrderBy(g => g.Key.ToString(), StringComparer.Ordinal)
+            .Select(g => new { Kind = g.Key.ToString(), Changes = g.Count() });
+        return JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true });
     }
 
     private static string BuildReport()
