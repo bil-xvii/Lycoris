@@ -122,7 +122,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Background="{StaticResource B.Red}" />
+                    <Border Background="{StaticResource B.Warning}" />
                     <TextBlock Grid.Column="1" Text="&#xE7E8;" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" Margin="10,0,0,0" />
                     <TextBlock Grid.Column="2" Style="{StaticResource T.Body}" FontSize="12.5" Margin="9,9,10,9" VerticalAlignment="Center"
                                Text="{loc:T Windows уже ожидает перезагрузки после предыдущих обновлений. Перед установкой драйверов лучше перезагрузить компьютер.}" />

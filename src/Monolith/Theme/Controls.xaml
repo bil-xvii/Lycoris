@@ -353,9 +353,9 @@
                             <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource B.Text2}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Fill" Property="Background" Value="{StaticResource B.White}" />
-                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource B.White}" />
-                            <Setter TargetName="Knob" Property="Background" Value="{StaticResource B.Ink}" />
+                            <Setter TargetName="Fill" Property="Background" Value="{StaticResource B.Success}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource B.Success}" />
+                            <Setter TargetName="Knob" Property="Background" Value="{StaticResource B.White}" />
                             <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
                             <Setter TargetName="Knob" Property="Margin" Value="0,0,4.5,0" />
                         </Trigger>
@@ -485,9 +485,25 @@
         <Setter Property="TextElement.FontWeight" Value="Bold" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
     </Style>
+    <!-- Alert = something needs attention: amber block with ink text (red is reserved for danger / failure) -->
     <Style x:Key="TabBadge.Alert" TargetType="Border" BasedOn="{StaticResource TabBadge}">
-        <Setter Property="Background" Value="{StaticResource B.Red}" />
-        <Setter Property="TextElement.Foreground" Value="{StaticResource B.White}" />
+        <Setter Property="Background" Value="{StaticResource B.Warning}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
+    </Style>
+
+    <!-- Semantic status dots (7 px, R.Xs), same rules as Dot.Red: always next to a text label -->
+    <Style x:Key="Dot.Green" TargetType="Border">
+        <Setter Property="Width" Value="7" />
+        <Setter Property="Height" Value="7" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource B.Success}" />
+        <Setter Property="CornerRadius" Value="{StaticResource R.Xs}" />
+    </Style>
+    <Style x:Key="Dot.Amber" TargetType="Border" BasedOn="{StaticResource Dot.Green}">
+        <Setter Property="Background" Value="{StaticResource B.Warning}" />
+    </Style>
+    <Style x:Key="Dot.Info" TargetType="Border" BasedOn="{StaticResource Dot.Green}">
+        <Setter Property="Background" Value="{StaticResource B.Info}" />
     </Style>
 
     <!-- Red status dot (7 px, R.Xs): problem / live / active. Dot.Red = filled; use next to a text label, never alone. -->
@@ -742,7 +758,7 @@
     <!-- ══════════════════════════════ ProgressBar ══════════════════════════════ -->
     <Style TargetType="ProgressBar">
         <Setter Property="Height" Value="3" />
-        <Setter Property="Foreground" Value="{StaticResource B.Red}" />
+        <Setter Property="Foreground" Value="{StaticResource B.Info}" />
         <Setter Property="Background" Value="{StaticResource B.Line2}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Template">
@@ -970,6 +986,42 @@
     <Style x:Key="Tag.Muted" TargetType="Border" BasedOn="{StaticResource Tag}">
         <Setter Property="Background" Value="{StaticResource B.Surface2}" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
+    </Style>
+
+    <!--
+        Semantic tags and strips (same recipe as Tag.Risk: very dark tint + 1 px outline of the hue + the hue's text colour).
+        Tag.Ok = applied / done / safe · Tag.Warn = needs attention / partial / pending · Tag.Info = information / optional.
+        The label always says what it is; the hue only helps the eye.
+    -->
+    <Style x:Key="Tag.Ok" TargetType="Border" BasedOn="{StaticResource Tag}">
+        <Setter Property="Background" Value="{StaticResource B.SuccessDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Success}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource B.SuccessText}" />
+    </Style>
+    <Style x:Key="Tag.Warn" TargetType="Border" BasedOn="{StaticResource Tag}">
+        <Setter Property="Background" Value="{StaticResource B.WarningDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Warning}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource B.WarningText}" />
+    </Style>
+    <Style x:Key="Tag.Info" TargetType="Border" BasedOn="{StaticResource Tag}">
+        <Setter Property="Background" Value="{StaticResource B.InfoDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Info}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource B.InfoText}" />
+    </Style>
+    <Style x:Key="Callout.Ok" TargetType="Border" BasedOn="{StaticResource Callout}">
+        <Setter Property="Background" Value="{StaticResource B.SuccessDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Success}" />
+    </Style>
+    <Style x:Key="Callout.Warn" TargetType="Border" BasedOn="{StaticResource Callout}">
+        <Setter Property="Background" Value="{StaticResource B.WarningDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Warning}" />
+    </Style>
+    <Style x:Key="Callout.Info" TargetType="Border" BasedOn="{StaticResource Callout}">
+        <Setter Property="Background" Value="{StaticResource B.InfoDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Info}" />
     </Style>
 
     <Style x:Key="Divider" TargetType="Rectangle">

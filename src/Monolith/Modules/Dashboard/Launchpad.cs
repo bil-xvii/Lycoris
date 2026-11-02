@@ -44,6 +44,9 @@ public sealed partial class LaunchTile : ObservableObject
 
     public bool IsSecondary => !IsPrimary;
 
+    /// <summary>Hue of the tile's thin top line and glyph: Red = the live game session (brand), Success = safe improvement / safety net, Info = read-only or measuring.</summary>
+    public string Accent => Key switch { "game" => "Red", "optimize" or "undo" => "Success", _ => "Info" };
+
     public void Apply(TileState s)
     {
         Value = s.Value;

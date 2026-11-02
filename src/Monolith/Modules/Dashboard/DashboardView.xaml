@@ -60,15 +60,24 @@
             <Setter Property="Background" Value="{StaticResource B.Surface2}" />
             <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
             <Style.Triggers>
+                <!-- ВНИМАНИЕ = amber (needs a look, not a failure) · СОВЕТ = steel blue · В НОРМЕ = green -->
                 <DataTrigger Binding="{Binding Severity}" Value="Warning">
-                    <Setter Property="Background" Value="{StaticResource B.RedDeep}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Red}" />
+                    <Setter Property="Background" Value="{StaticResource B.WarningDeep}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Warning}" />
                     <Setter Property="BorderThickness" Value="1" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.RedText}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.WarningText}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Severity}" Value="Info">
-                    <Setter Property="Background" Value="{StaticResource B.Surface4}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                    <Setter Property="Background" Value="{StaticResource B.InfoDeep}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Info}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.InfoText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Severity}" Value="Ok">
+                    <Setter Property="Background" Value="{StaticResource B.SuccessDeep}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Success}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.SuccessText}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -108,8 +117,33 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Text="{Binding ScoreText}" Style="{StaticResource T.Stat}" FontSize="40" LineHeight="44" LineStackingStrategy="BlockLineHeight"
-                           VerticalAlignment="Center" />
+                <!-- The score: the number takes the tier hue (green >= 90, amber >= 70, red < 50) and a short segmented bar repeats it; the verdict words say the same -->
+                <StackPanel VerticalAlignment="Center" MinWidth="58">
+                    <TextBlock Text="{Binding ScoreText}" FontSize="40" LineHeight="44" LineStackingStrategy="BlockLineHeight">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Good"><Setter Property="Foreground" Value="{StaticResource B.SuccessText}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Fair"><Setter Property="Foreground" Value="{StaticResource B.WarningText}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Poor"><Setter Property="Foreground" Value="{StaticResource B.WarningText}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Bad"><Setter Property="Foreground" Value="{StaticResource B.RedText}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <c:Meter Value="{Binding Score}" Segments="10" Gap="2" Height="4" Margin="0,3,0,0">
+                        <c:Meter.Style>
+                            <Style TargetType="c:Meter">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Good"><Setter Property="Fill" Value="{StaticResource B.Success}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Fair"><Setter Property="Fill" Value="{StaticResource B.Warning}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Poor"><Setter Property="Fill" Value="{StaticResource B.Warning}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ScoreTier}" Value="Bad"><Setter Property="Fill" Value="{StaticResource B.Red}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </c:Meter.Style>
+                    </c:Meter>
+                </StackPanel>
                 <StackPanel Grid.Column="1" Margin="16,0,16,0" VerticalAlignment="Center">
                     <TextBlock Style="{StaticResource T.H3}" TextTrimming="CharacterEllipsis">
                         <Run Text="{Binding Verdict, Converter={StaticResource Sentence}, Mode=OneWay}" /><Run Text="{loc:T ' · оценка '}" Foreground="{StaticResource B.Text2}" /><Run Text="{Binding ScoreText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text="{loc:T ' из 100'}" Foreground="{StaticResource B.Text2}" />
@@ -185,11 +219,33 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type local:LaunchTile}">
-                    <Border Style="{StaticResource Card}" Margin="0,0,10,0" Padding="12,11,12,12">
+                    <Border Style="{StaticResource Card}" Margin="0,0,10,0" Padding="0">
                         <StackPanel>
+                            <!-- Thin top line in the tile's hue (the card clips it to the rounded corners); the label below says what the tile is -->
+                            <Border Height="2">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource B.Info}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Accent}" Value="Red"><Setter Property="Background" Value="{StaticResource B.Red}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding Accent}" Value="Success"><Setter Property="Background" Value="{StaticResource B.Success}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <StackPanel Margin="12,9,12,12">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text2}"
-                                           VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource B.InfoText}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Accent}" Value="Red"><Setter Property="Foreground" Value="{StaticResource B.RedText}" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding Accent}" Value="Success"><Setter Property="Foreground" Value="{StaticResource B.SuccessText}" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBlock Text="{Binding Label}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
@@ -211,6 +267,7 @@
                                     </StackPanel>
                                 </Button>
                             </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </DataTemplate>
@@ -311,7 +368,7 @@
                                     <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
                                         <Run Text="{Binding CpuClockText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding CpuCoresText, Mode=OneWay}" />
                                     </TextBlock>
-                                    <c:Meter Value="{Binding CpuLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="90" />
+                                    <c:Meter Value="{Binding CpuLoad}" Segments="24" Height="5" Margin="0,5,0,0" WarnThreshold="75" HotThreshold="90" />
                                 </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource Divider}" Margin="0,10,0,0" />
@@ -332,7 +389,7 @@
                                     <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
                                         <Run Text="{Binding GpuTempText, Mode=OneWay}" /><Run Text=" · VRAM " /><Run Text="{Binding GpuVramText, Mode=OneWay}" />
                                     </TextBlock>
-                                    <c:Meter Value="{Binding GpuLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="95" />
+                                    <c:Meter Value="{Binding GpuLoad}" Segments="24" Height="5" Margin="0,5,0,0" WarnThreshold="80" HotThreshold="95" />
                                 </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource Divider}" Margin="0,10,0,0" />
@@ -353,7 +410,7 @@
                                     <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
                                         <Run Text="{Binding RamUsedText, Mode=OneWay}" /><Run Text="{loc:T ' занято'}" />
                                     </TextBlock>
-                                    <c:Meter Value="{Binding RamLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="90" />
+                                    <c:Meter Value="{Binding RamLoad}" Segments="24" Height="5" Margin="0,5,0,0" WarnThreshold="75" HotThreshold="90" />
                                 </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource Divider}" Margin="0,10,0,0" />
@@ -374,7 +431,7 @@
                                     <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
                                         <Run Text="↓ " /><Run Text="{Binding NetDownText, Mode=OneWay}" /><Run Text="   ↑ " /><Run Text="{Binding NetUpText, Mode=OneWay}" />
                                     </TextBlock>
-                                    <c:Meter Value="{Binding DiskLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="90" />
+                                    <c:Meter Value="{Binding DiskLoad}" Segments="24" Height="5" Margin="0,5,0,0" WarnThreshold="75" HotThreshold="90" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>

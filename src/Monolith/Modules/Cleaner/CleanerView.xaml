@@ -60,10 +60,10 @@
                                 <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontSize="15.5"
                                            FontStretch="SemiCondensed" VerticalAlignment="Center" Margin="0,0,9,0" />
                                 <!-- Risk: БЕЗОПАСНО · ПО ЖЕЛАНИЮ · ЭКСПЕРТ (the theme's Tag styles) -->
-                                <Border Style="{StaticResource Tag}" Margin="0,2,6,2" Visibility="{Binding IsSafeTier, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource Tag.Ok}" Margin="0,2,6,2" Visibility="{Binding IsSafeTier, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding TierText}" />
                                 </Border>
-                                <Border Style="{StaticResource Tag.Muted}" Margin="0,2,6,2" Visibility="{Binding IsOptionalTier, Converter={StaticResource BoolToVis}}">
+                                <Border Style="{StaticResource Tag.Info}" Margin="0,2,6,2" Visibility="{Binding IsOptionalTier, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding TierText}" />
                                 </Border>
                                 <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,6,2" Visibility="{Binding IsExpertTier, Converter={StaticResource BoolToVis}}">
@@ -279,7 +279,7 @@
                                         <TextBlock Grid.Column="2" Text="{Binding FreeText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
                                                    FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" Margin="0,0,0,1" />
                                     </Grid>
-                                    <c:Meter Value="{Binding UsedPercent}" Segments="32" Gap="2" Height="8" HotThreshold="90" Margin="0,10,0,0" />
+                                    <c:Meter Value="{Binding UsedPercent}" Segments="32" Gap="2" Height="8" WarnThreshold="75" HotThreshold="90" Margin="0,10,0,0" />
                                     <TextBlock Text="{Binding Caption}" Style="{StaticResource T.Caption}" Margin="0,7,0,0" />
                                 </StackPanel>
                             </Border>
@@ -298,11 +298,11 @@
                             <ColumnDefinition Width="6" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Rectangle Fill="{StaticResource B.HatchStrong}" />
+                        <Rectangle Fill="{StaticResource B.Info}" />
                         <StackPanel Grid.Column="1" Margin="12,10,14,11">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Sync}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{StaticResource B.Text}" Margin="0,0,10,0" />
+                                           Foreground="{StaticResource B.InfoText}" Margin="0,0,10,0" />
                                 <TextBlock Text="{loc:T 'Windows выполняет обслуживание'}" Style="{StaticResource T.H3}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Text="{Binding ServicingText}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,6,0,0" />

@@ -532,9 +532,10 @@
                                         <Style TargetType="Rectangle">
                                             <Setter Property="Fill" Value="{StaticResource B.White}" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsAlert}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource B.Red}" />
-                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Success"><Setter Property="Fill" Value="{StaticResource B.Success}" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Info"><Setter Property="Fill" Value="{StaticResource B.Info}" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Warning"><Setter Property="Fill" Value="{StaticResource B.Warning}" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Error"><Setter Property="Fill" Value="{StaticResource B.Red}" /></DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Rectangle.Style>
@@ -544,9 +545,10 @@
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsAlert}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource B.RedText}" />
-                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Success"><Setter Property="Foreground" Value="{StaticResource B.SuccessText}" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Info"><Setter Property="Foreground" Value="{StaticResource B.InfoText}" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Warning"><Setter Property="Foreground" Value="{StaticResource B.WarningText}" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding Kind}" Value="Error"><Setter Property="Foreground" Value="{StaticResource B.RedText}" /></DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
