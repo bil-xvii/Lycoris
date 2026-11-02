@@ -161,6 +161,11 @@ public sealed class SelfTestRunner
         // Security: the hostile-input corpus against every parser and validator (read-only, offline).
         reports.Add(await TestSecurityAsync());
 
+        // Updates: a fake check and a fake download (in-memory server, temp folder, nothing replaced).
+        var updates = new PageReport { Key = "updates", Title = "ОБНОВЛЕНИЯ" };
+        await UpdateSelfTest.RunAsync(updates.Exercised, updates.Errors);
+        reports.Add(updates);
+
         _lagRunning = false;
         lagThread.Join(2000);
         Log.Written -= OnLog;

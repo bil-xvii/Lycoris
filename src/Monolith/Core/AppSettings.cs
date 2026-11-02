@@ -94,6 +94,26 @@ public sealed partial class AppSettings : ObservableObject
     /// </summary>
     [ObservableProperty] private string _language = "auto";
 
+    // ───────── Updates (Core/Updates) ─────────
+
+    /// <summary>Look for a new MONOLITH version in the background (at most every 12 hours). Default on.</summary>
+    [ObservableProperty] private bool _autoCheckUpdates = true;
+
+    /// <summary>UTC time (ISO 8601) of the last successful check against the public releases page; "" = never.</summary>
+    [ObservableProperty] private string _updateLastCheckUtc = "";
+
+    /// <summary>ETag of the last release answer (If-None-Match saves GitHub's anonymous request quota).</summary>
+    [ObservableProperty] private string _updateETag = "";
+
+    /// <summary>Version the user chose to skip («ПРОПУСТИТЬ ЭТУ ВЕРСИЮ»); a newer one is announced again.</summary>
+    [ObservableProperty] private string _updateDismissedVersion = "";
+
+    /// <summary>UTC time (ISO 8601) until which «НАПОМНИТЬ ПОЗЖЕ» hides the title-bar button.</summary>
+    [ObservableProperty] private string _updateSnoozedUntilUtc = "";
+
+    /// <summary>The latest release as the last check saw it (JSON), so the button shows at once, also offline.</summary>
+    [ObservableProperty] private string _updateCachedRelease = "";
+
     public static void Load()
     {
         try

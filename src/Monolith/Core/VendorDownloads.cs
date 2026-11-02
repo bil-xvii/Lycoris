@@ -8,6 +8,13 @@ using System.Text.RegularExpressions;
 
 namespace Monolith.Core;
 
+/// <summary>Authenticode facts of one file: Windows status text ("Valid", "NotSigned", …), signer organization, certificate thumbprint.</summary>
+public sealed record SignatureInfo(string Status, string Org, string Thumbprint)
+{
+    public bool HasSigner => Org.Length > 0 || Thumbprint.Length > 0;
+    public bool IsValid => Status.Equals("Valid", StringComparison.OrdinalIgnoreCase);
+}
+
 public readonly record struct DownloadProgress(long Done, long? Total)
 {
     public double Percent => Total is > 0 ? Math.Clamp(Done * 100d / Total.Value, 0, 100) : 0;
@@ -285,6 +292,28 @@ public static partial class VendorDownloads
             // A redirect must not leave the vendor's servers.
             if (resp.RequestMessage?.RequestUri is { } final && !IsAllowedUrl(final, r.AllowedHosts))
                 throw new InvalidOperationException(Loc.T("Сервер перенаправил загрузку на постороннюю ссылку — загрузка отменена."));
+            await CopyResponseToFileAsync(resp, r.Url.Host, part, progress, stall, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(Loc.T("Сервер больше минуты не передаёт данные — загрузка прервана. Проверьте подключение к интернету и повторите."));
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException(Loc.Tf("Не удалось скачать файл с {0}: {1}", r.Url.Host, ex.Message), ex);
+        }
+    }
+
+    /// <summary>
+    /// Writes an HTTP answer to <paramref name="part"/> (FileShare.None) with progress and the stall watchdog; the caller has
+    /// already checked status and host. Shared by the vendor installers and the MONOLITH self-update (Core/Updates).
+    /// Throws InvalidOperationException with a Russian message; the stall token's cancellation passes through.
+    /// </summary>
+    internal static async Task CopyResponseToFileAsync(HttpResponseMessage resp, string host, string part, IProgress<DownloadProgress>? progress,
+        CancellationTokenSource stall, CancellationToken ct)
+    {
+        try
+        {
             if (resp.Content.Headers.ContentType?.MediaType is { } media && media.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(Loc.T("Вместо установщика сервер вернул веб-страницу. Попробуйте позже или откройте официальный сайт."));
 
@@ -312,23 +341,18 @@ public static partial class VendorDownloads
             progress?.Report(new DownloadProgress(done, total));
             if (total is { } t && done != t) throw new InvalidOperationException(Loc.T("Загрузка оборвалась — файл неполный. Повторите попытку."));
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            throw new InvalidOperationException(Loc.T("Сервер больше минуты не передаёт данные — загрузка прервана. Проверьте подключение к интернету и повторите."));
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new InvalidOperationException(Loc.Tf("Не удалось скачать файл с {0}: {1}", r.Url.Host, ex.Message), ex);
-        }
         catch (IOException ex) when (ex is HttpIOException || ex.InnerException is System.Net.Sockets.SocketException)
         {
-            throw new InvalidOperationException(Loc.Tf("Соединение с {0} оборвалось — загрузка прервана. Повторите попытку.", r.Url.Host), ex);
+            throw new InvalidOperationException(Loc.Tf("Соединение с {0} оборвалось — загрузка прервана. Повторите попытку.", host), ex);
         }
         catch (IOException ex)
         {
             throw new InvalidOperationException(Loc.Tf("Не удалось записать файл на диск: {0}", ex.Message), ex);
         }
     }
+
+    /// <summary>A download that receives nothing for this long is treated as broken (the stall watchdog of <see cref="CopyResponseToFileAsync"/>).</summary>
+    internal static TimeSpan StallLimit => StallTimeout;
 
     // ───────────────────────────── Signature ─────────────────────────────
 
@@ -338,12 +362,46 @@ public static partial class VendorDownloads
     /// </summary>
     public static async Task<(bool Ok, string Signer)> VerifySignatureAsync(string path, IReadOnlyList<string> expectedSigners)
     {
-        var script = $"$s = Get-AuthenticodeSignature -LiteralPath {Security.PsText.Literal(path)}; $c = $s.SignerCertificate; " +
-                     "[pscustomobject]@{ Status = \"$($s.Status)\"; " +
-                     "Subject = $(if ($c) { $c.Subject } else { '' }); " +
-                     "Names = $(if ($c) { $c.SubjectName.Format($true) } else { '' }) } | ConvertTo-Json -Compress";
-        var r = await ProcessRunner.RunPowerShellAsync(script, new ProcessRunOptions { LogCommand = false, Timeout = TimeSpan.FromMinutes(2) }).ConfigureAwait(false);
+        var r = await ProcessRunner.RunPowerShellAsync(SignatureScript(path), new ProcessRunOptions { LogCommand = false, Timeout = TimeSpan.FromMinutes(2) }).ConfigureAwait(false);
         return EvaluateSignature(r.StdOut, expectedSigners);
+    }
+
+    /// <summary>The PowerShell that reads an Authenticode signature as one JSON line (Status, Subject, Thumbprint, Names).</summary>
+    internal static string SignatureScript(string path)
+    {
+        return $"$s = Get-AuthenticodeSignature -LiteralPath {Security.PsText.Literal(path)}; $c = $s.SignerCertificate; " +
+               "[pscustomobject]@{ Status = \"$($s.Status)\"; " +
+               "Subject = $(if ($c) { $c.Subject } else { '' }); " +
+               "Thumbprint = $(if ($c) { $c.Thumbprint } else { '' }); " +
+               "Names = $(if ($c) { $c.SubjectName.Format($true) } else { '' }) } | ConvertTo-Json -Compress";
+    }
+
+    /// <summary>Signature facts of a file whatever its status (the self-update compares the signers of two files).</summary>
+    public static async Task<SignatureInfo> InspectSignatureAsync(string path)
+    {
+        var r = await ProcessRunner.RunPowerShellAsync(SignatureScript(path), new ProcessRunOptions { LogCommand = false, Timeout = TimeSpan.FromMinutes(2) }).ConfigureAwait(false);
+        return ParseSignatureInfo(r.StdOut);
+    }
+
+    /// <summary>Interprets the JSON of <see cref="SignatureScript"/>; unreadable output = status "Unknown" without a signer. Pure.</summary>
+    public static SignatureInfo ParseSignatureInfo(string? output)
+    {
+        try
+        {
+            var json = (output ?? "").Trim();
+            var start = json.IndexOf('{');
+            if (start < 0) return new SignatureInfo("Unknown", "", "");
+            using var doc = JsonDocument.Parse(json[start..]);
+            var root = doc.RootElement;
+            string Get(string n) => root.TryGetProperty(n, out var v) ? v.GetString() ?? "" : "";
+            var fields = ParseNameLines(Get("Names"));
+            var org = fields.TryGetValue("O", out var o) ? o : fields.TryGetValue("CN", out var cn) ? cn : "";
+            return new SignatureInfo(Get("Status"), org, Get("Thumbprint"));
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return new SignatureInfo("Unknown", "", "");
+        }
     }
 
     /// <summary>Interprets the JSON written by <see cref="VerifySignatureAsync"/>. Pure — unit-tested.</summary>
