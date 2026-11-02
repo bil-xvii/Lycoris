@@ -141,6 +141,33 @@ public sealed class ProblemReportTests
     }
 
     [Fact]
+    public void CurrentIdentitiesCoverEveryNameThisPcAndAccountHave()
+    {
+        var needles = ProblemReport.CurrentIdentities.Select(i => i.Needle).ToList();
+        Assert.Contains(Environment.UserName, needles);
+        Assert.Contains(Environment.MachineName, needles);
+        Assert.Contains(System.Net.Dns.GetHostName(), needles);
+        if (!string.IsNullOrEmpty(Environment.UserDomainName)) Assert.Contains(Environment.UserDomainName, needles);
+        var leaf = Path.GetFileName(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).TrimEnd('\\'));
+        if (leaf.Length > 0) Assert.Contains(leaf, needles);
+        // and the default call really removes them
+        var r = ProblemReport.Anonymize($"{Environment.UserName} {Environment.MachineName} {System.Net.Dns.GetHostName()}");
+        Assert.DoesNotContain(Environment.UserName, r, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(Environment.MachineName, r, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FullDnsNameAndDomainAndSidsAreRemoved()
+    {
+        var ids = ProblemReport.IdentitiesFrom(["DESKTOP-ABCDEFG", "desktop-abcdefghijk.corp.example.com"], ["bob", "Боб Профиль"], ["CORP", "corp.example.com"]);
+        var r = ProblemReport.Anonymize("host desktop-abcdefghijk.corp.example.com netbios DESKTOP-ABCDEFG user CORP\\bob dir Боб Профиль sid S-1-5-21-1111111111-2222222222-3333333333-1001 s2 S-1-12-1-1-2-3-4 ok S-1-5-18",
+            ids, TimeSpan.FromSeconds(5));
+        foreach (var leak in new[] { "abcdefghijk", "corp", "bob", "Боб", "1111111111", "S-1-12-1-1", "example" })
+            Assert.DoesNotContain(leak, r, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("S-1-5-18", r);
+    }
+
+    [Fact]
     public void GuidTailsAndTimestampsAreNotTakenForMacs()
     {
         var r = ProblemReport.Anonymize("id {6F9619FF-8B86-D011-B42D-00C04FC964FF} t 202611030000 time 12:34:56", "zzq", "qqpc");

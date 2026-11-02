@@ -34,6 +34,8 @@ public static partial class ProblemReport
     private static readonly Regex MacExactRx = R(@"^(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}$|^(?:[0-9a-f]{2}[:-]){7}[0-9a-f]{2}$");
     // No left boundary: an address glued to hex letters («deadfe80::1») is still found (the glued letters stay, the address does not).
     private static readonly Regex Ipv6Rx = R(@"(?:[0-9a-f]{0,4}:){2,}[0-9a-f.:]*(?:%[\w.-]+)?");
+    // Domain and Azure AD account SIDs identify one person; well-known SIDs (S-1-5-18, S-1-5-32-544) are not matched.
+    private static readonly Regex SidRx = R(@"\bS-1-(?:5-21|12-1)(?:-\d+){3,5}\b");
     private static readonly Regex Ipv4Rx = R(@"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d])");
     // Local part: every RFC 5322 «atext» character; domain: Unicode labels, TLD of letters («.рф») or punycode («.xn--p1ai»).
     private static readonly Regex EmailRx = R(@"[\w.+'%!#$&*/=?^`{|}~-]+@[\w.-]+\.(?:\p{L}{2,}|xn--[\w-]+)");
@@ -55,11 +57,9 @@ public static partial class ProblemReport
     /// </summary>
     public static string Anonymize(string? value, string? userName = null, string? computerName = null)
     {
-        var names = new List<(string Needle, string Replacement)>
-        {
-            (userName ?? Environment.UserName, "<user>"), (computerName ?? Environment.MachineName, "<pc>"),
-        };
-        return Anonymize(value, names, DefaultBudget);
+        // Without explicit names: everything this account and this PC are known by (see ProblemReportIdentity). Explicit names are for tests.
+        if (userName is null && computerName is null) return Anonymize(value, CurrentIdentities, DefaultBudget);
+        return Anonymize(value, IdentitiesFrom([computerName ?? Environment.MachineName], [userName ?? Environment.UserName], []), DefaultBudget);
     }
 
     internal static string Anonymize(string? value, IEnumerable<(string Needle, string Replacement)> identities, TimeSpan budget)
@@ -111,6 +111,7 @@ public static partial class ProblemReport
         line = OneDriveRx.Replace(line, "OneDrive");
         line = EmailRx.Replace(line, "<email>");   // before the names: «alice@corp.com» must not become «<user>@corp.com»
         if (namesRx is not null) line = namesRx.Replace(line, m => map.TryGetValue(m.Value, out var r) ? r : "<user>");
+        line = SidRx.Replace(line, "<sid>");
         line = Ipv6Rx.Replace(line, m => ReplaceIpv6(m.Value));
         line = MacRx.Replace(line, "<mac>");
         line = Ipv4Rx.Replace(line, m => System.Net.IPAddress.TryParse(m.Value, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "<ip>" : m.Value);
