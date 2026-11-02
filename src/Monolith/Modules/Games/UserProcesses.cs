@@ -46,6 +46,9 @@ public static class UserProcesses
         "easyanticheat", "eosoverlayrenderer", "epiconlineservices", "battleye", "beservice", "faceit", "vgc",
         "nvcontainer", "nvdisplay", "searchprotocolhost", "searchfilterhost", "msedgewebview2", "steamwebhelper",
         "riotclient", "gamebar", "monolith",
+        // Third-party security software: settings.json is user-writable, so a program could put the antivirus into the close list.
+        "mbam", "malwarebytes", "avast", "avgui", "avgsvc", "avgnt", "avira", "bdagent", "bdservicehost", "bitdefender", "ekrn", "egui",
+        "kaspersky", "mcshield", "mcafee", "nortonsecurity", "sophos", "hmpalert", "crowdstrike", "csfalcon", "sentinelagent", "carbonblack",
     ];
 
     /// <summary>

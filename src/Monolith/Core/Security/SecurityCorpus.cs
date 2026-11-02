@@ -158,6 +158,31 @@ public static class SecurityCorpus
             return Monolith.Modules.Startup.PackagedStartup.ParseManifest(bomb) is null;
         });
 
+        Expect("XML from outside: a DTD / entity bomb is refused, plain XML is read", () =>
+        {
+            try { SafeXml.Parse("<?xml version=\"1.0\"?><!DOCTYPE l [<!ENTITY a \"aaaaaaaaaa\">]><r>&a;</r>"); return false; }
+            catch (System.Xml.XmlException) { }
+            return SafeXml.Parse("<r><a>1</a></r>").Root?.Element("a")?.Value == "1";
+        });
+        Expect("update: an ordinary release answer with hostile fields is refused or harmless", () =>
+        {
+            var json = "{\"tag_name\":\"v9.9.9\",\"assets\":[{\"name\":\"MONOLITH.exe\",\"state\":\"uploaded\",\"size\":-5,\"browser_download_url\":\"http://evil.example/MONOLITH.exe\"}]}";
+            var release = Updates.ReleaseParser.TryParse(json, out _);
+            // Whatever the parser keeps, the downloader's host check must refuse the link.
+            return release is null || !Updates.UpdateVerifier.IsAssetUrl(release.ExeUrl, new Updates.UpdatePolicy(), Updates.ReleaseParser.ExeAssetName);
+        });
+        Expect("update: links outside the releases repository are refused", () =>
+        {
+            var policy = new Updates.UpdatePolicy();
+            foreach (var u in new[] { "https://github.com/evil/MONOLITH-releases/releases/download/v1/MONOLITH.exe", "https://github.com/bil-xvii/MONOLITH-releases/releases/download/../../x/MONOLITH.exe",
+                         "https://evil.github.com/bil-xvii/MONOLITH-releases/releases/download/v1/MONOLITH.exe", "https://github.com:444/bil-xvii/MONOLITH-releases/releases/download/v1/MONOLITH.exe",
+                         "https://u:p@github.com/bil-xvii/MONOLITH-releases/releases/download/v1/MONOLITH.exe", "http://github.com/bil-xvii/MONOLITH-releases/releases/download/v1/MONOLITH.exe" })
+                if (Updates.UpdateVerifier.IsAssetUrl(u, policy, "MONOLITH.exe")) return false;
+            return Updates.UpdateVerifier.IsAssetUrl("https://github.com/bil-xvii/MONOLITH-releases/releases/download/v1.0.1/MONOLITH.exe", policy, "MONOLITH.exe");
+        });
+        Expect("update: the updater refuses a forged call", () =>
+            Updates.UpdateApplyMode.Run(["--apply-update", @"C:\Windows\System32\cmd.exe", "1", new string('a', 64)], new Updates.SystemUpdateEnvironment(), @"C:\nope\MONOLITH.exe.new", elevated: true) == 13);
+
         // ── Environment / signatures / release channel ──
         Expect("environment: injecting variables are removed from a child", () =>
         {

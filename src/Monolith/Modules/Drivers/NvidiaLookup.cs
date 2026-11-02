@@ -32,7 +32,7 @@ internal static partial class NvidiaLookup
 
     private static readonly Lazy<HttpClient> Http = new(() =>
     {
-        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(15), MaxResponseContentBufferSize = 8 * 1024 * 1024 };
         c.DefaultRequestHeaders.UserAgent.ParseAdd("MONOLITH/1.0");
         return c;
     });
@@ -56,7 +56,7 @@ internal static partial class NvidiaLookup
     {
         var key = NormalizeName(gpuName);
         if (key.Length == 0) return null;
-        var doc = XDocument.Parse(xml);
+        var doc = Monolith.Core.Security.SafeXml.Parse(xml);
         NvidiaProduct? best = null;
         foreach (var lv in doc.Descendants("LookupValue"))
         {
@@ -151,7 +151,7 @@ internal static partial class NvidiaLookup
         try
         {
             if (File.Exists(cacheFile) && DateTime.Now - File.GetLastWriteTime(cacheFile) < CacheMaxAge)
-                return await File.ReadAllTextAsync(cacheFile, ct).ConfigureAwait(false);
+                return Monolith.Core.Security.SafeIo.ReadText(cacheFile, 8 * 1024 * 1024);
         }
         catch { }
 
