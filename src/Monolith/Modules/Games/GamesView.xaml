@@ -290,26 +290,20 @@
                     <!-- Count + search + platform filter (only when there are games) -->
                     <StackPanel Grid.Row="1" Margin="0,0,9,0" Visibility="{Binding HasGames, Converter={StaticResource BoolToVis}}">
                         <!-- Summary strip: count · search · platform chips (filters sit next to the search box) -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                        <WrapPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                                 <TextBlock Text="{Binding TotalCount}" Style="{StaticResource T.Stat}" FontSize="26" />
                                 <TextBlock Text="{Binding CountUnit}" Style="{StaticResource T.StatUnit}" Margin="8,0,0,4" VerticalAlignment="Bottom" />
                             </StackPanel>
-                            <Grid Grid.Column="1" Width="230" VerticalAlignment="Center" Margin="0,0,8,0">
+                            <Grid Width="230" VerticalAlignment="Center" Margin="0,0,8,0">
                                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="{loc:T 'Поиск по названию'}" Padding="10,0,21,0" />
                                 <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text3}"
                                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False"
                                            Visibility="{Binding SearchText, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
                             </Grid>
-                            <Button Grid.Column="2" Content="{loc:T 'ОЧИСТИТЬ'}" Command="{Binding ClearSearchCommand}" Margin="0,0,8,0" VerticalAlignment="Center"
+                            <Button Content="{loc:T 'ОЧИСТИТЬ'}" Command="{Binding ClearSearchCommand}" Margin="0,0,8,0" VerticalAlignment="Center"
                                     Visibility="{Binding SearchText, Converter={StaticResource NullToVis}}" />
-                            <ItemsControl Grid.Column="3" ItemsSource="{Binding Platforms}" Focusable="False" VerticalAlignment="Center">
+                            <ItemsControl ItemsSource="{Binding Platforms}" Focusable="False" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel Orientation="Horizontal" />
@@ -329,7 +323,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </Grid>
+                        </WrapPanel>
                         <!-- Why the «С УСКОРЕНИЕМ» buttons are grey: text, not a tooltip -->
                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,8,0,0" Foreground="{StaticResource B.Text2}" Text="{Binding BoostActiveNote}"
                                    Visibility="{Binding HasBoostActiveNote, Converter={StaticResource BoolToVis}}" />
