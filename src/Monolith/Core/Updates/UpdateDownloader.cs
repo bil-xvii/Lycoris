@@ -21,16 +21,38 @@ public sealed class UpdateDownloader
     private readonly Func<string, Task<SignatureInfo>> _inspect;
     private readonly string _currentExe;
 
-    public UpdateDownloader(HttpClient http, UpdatePolicy policy, Func<string, Task<SignatureInfo>> inspectSignature, string currentExe)
+    private readonly Func<string, SemVer?>? _versionOf;
+    private readonly Func<SemVer> _currentVersion;
+    private readonly string _pinnedKey;
+
+    /// <param name="versionOf">Reads the version stored inside a downloaded exe; null = not checked (unit tests with fake exes only).</param>
+    /// <param name="pinnedKey">The owner's release public key (Base64 SPKI); null = <see cref="Security.ReleaseSignature.PinnedPublicKey"/>.</param>
+    /// <param name="currentVersion">The running build's version (default <see cref="AppVersion.Current"/>).</param>
+    public UpdateDownloader(HttpClient http, UpdatePolicy policy, Func<string, Task<SignatureInfo>> inspectSignature, string currentExe,
+        Func<string, SemVer?>? versionOf = null, string? pinnedKey = null, Func<SemVer>? currentVersion = null)
     {
         _http = http;
         _policy = policy;
         _inspect = inspectSignature;
         _currentExe = currentExe;
+        _versionOf = versionOf;
+        _pinnedKey = pinnedKey ?? Security.ReleaseSignature.PinnedPublicKey;
+        _currentVersion = currentVersion ?? (() => AppVersion.Current);
     }
 
     public static UpdateDownloader CreateDefault() =>
-        new(UpdateHttp.CreateDownloadClient(), new UpdatePolicy(), VendorDownloads.InspectSignatureAsync, AppPaths.ExecutablePath);
+        new(UpdateHttp.CreateDownloadClient(), new UpdatePolicy(), VendorDownloads.InspectSignatureAsync, AppPaths.ExecutablePath, ExeVersion);
+
+    /// <summary>The product/file version stored in a PE file's version resource, or null.</summary>
+    internal static SemVer? ExeVersion(string path)
+    {
+        try
+        {
+            var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(path);
+            return SemVer.Parse(info.ProductVersion) ?? SemVer.Parse(info.FileVersion);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
 
     /// <summary>Folder for staged updates: %LocalAppData%\MONOLITH\Updates.</summary>
     public static string DefaultFolder => System.IO.Path.Combine(AppPaths.UserDir, "Updates");
@@ -70,6 +92,27 @@ public sealed class UpdateDownloader
         }
         var expected = UpdateVerifier.ExpectedHash(fromFile, release.ExeDigest);
 
+        // 1b. The owner's signature of the release (hash + version + file name). With a pinned key it is REQUIRED: the hash comes from
+        //     the same server as the file, so it only proves the download is not damaged — the signature proves the owner made it.
+        string? signature = null;
+        if (_pinnedKey.Length > 0)
+        {
+            if (release.SigUrl.Length == 0 || !UpdateVerifier.IsAssetUrl(release.SigUrl, _policy, ReleaseParser.SigAssetName))
+                throw new UpdateRefusedException(Loc.T("У релиза нет подписи владельца — обновление отменено."));
+            try
+            {
+                signature = (await GetSmallTextAsync(new Uri(release.SigUrl), ct).ConfigureAwait(false)).Trim();
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or OperationCanceledException && !ct.IsCancellationRequested)
+            {
+                throw new UpdateRefusedException(Loc.T("Не удалось получить подпись релиза — обновление отменено."));
+            }
+        }
+        else
+        {
+            Log.Warn("Канал обновлений не защищён подписью владельца (ключ не задан): контрольная сумма из того же релиза защищает только от повреждения файла.");
+        }
+
         // 2. The file itself.
         var final = System.IO.Path.Combine(folder, FileNameFor(release));
         var part = final + ".part";
@@ -106,6 +149,19 @@ public sealed class UpdateDownloader
                 throw new UpdateRefusedException(Loc.T("Контрольная сумма скачанного файла не совпала — файл удалён, обновление отменено."));
             if (!UpdateVerifier.FileIsPe64(part))
                 throw new UpdateRefusedException(Loc.T("Скачанный файл не является программой Windows x64 — файл удалён, обновление отменено."));
+            if (_pinnedKey.Length > 0 &&
+                !Security.ReleaseSignature.Verify(Security.ReleaseSignature.SignedStatement(release.VersionText, ReleaseParser.ExeAssetName, actual), signature, _pinnedKey))
+                throw new UpdateRefusedException(Loc.T("Подпись релиза не подтверждена — файл удалён, обновление отменено."));
+            // The version INSIDE the file must be the one the release announces, and newer than this build: an old (even genuine and
+            // signed) release cannot be offered as a new one — the cached release in settings.json is user-writable.
+            if (_versionOf is not null)
+            {
+                var inside = _versionOf(part);
+                if (inside is null || inside.Value.CompareTo(release.Version) != 0)
+                    throw new UpdateRefusedException(Loc.T("Версия внутри файла не совпадает с версией релиза — файл удалён, обновление отменено."));
+                if (inside.Value <= _currentVersion())
+                    throw new UpdateRefusedException(Loc.T("Скачанная версия не новее установленной — обновление отменено."));
+            }
 
             var currentSig = await _inspect(_currentExe).ConfigureAwait(false);
             var newSig = await _inspect(part).ConfigureAwait(false);

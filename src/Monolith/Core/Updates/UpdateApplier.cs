@@ -34,6 +34,23 @@ public interface IUpdateEnvironment
     bool CanWriteFolder(string folder);
     DriveKindInfo DriveKind(string path);
     void Delay(TimeSpan time);
+
+    // ── Security checks of the headless updater (default: allowed, so file-system fakes stay simple; the real one checks) ──
+
+    /// <summary>True when <paramref name="path"/> is a MONOLITH program (not an arbitrary .exe the updater could be pointed at).</summary>
+    bool IsMonolithExe(string path) => true;
+
+    /// <summary>True when no process <paramref name="pid"/> runs, or the one that runs is <paramref name="exe"/> (a forged pid names something else).</summary>
+    bool PidRunsExe(int pid, string exe) => true;
+
+    /// <summary>True when the program <paramref name="candidate"/> has a strictly newer version than <paramref name="current"/> (no downgrade, no re-install of the same).</summary>
+    bool IsNewerThan(string candidate, string current) => true;
+
+    /// <summary>
+    /// Opens <paramref name="path"/> so that nobody can write, rename or delete it while the returned handle lives, hashes it and
+    /// reports whether it is the file with <paramref name="sha256"/>. Default: no check (identical = true, no handle).
+    /// </summary>
+    IDisposable? HoldIfIdentical(string path, string sha256, out bool identical) { identical = true; return null; }
 }
 
 public enum UpdateRoute
@@ -194,6 +211,67 @@ public sealed class SystemUpdateEnvironment : IUpdateEnvironment
     public void Delete(string path) => File.Delete(path);
     public void Delay(TimeSpan time) => Thread.Sleep(time);
 
+    public bool IsMonolithExe(string path)
+    {
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(path);
+            return string.Equals(info.ProductName, "MONOLITH", StringComparison.Ordinal) && new FileInfo(path).Length > (1 << 20);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    public bool PidRunsExe(int pid, string exe)
+    {
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+            var image = p.MainModule?.FileName;
+            return image is null || string.Equals(Path.GetFullPath(image), Path.GetFullPath(exe), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException) { return true; }         // no such process: it has already closed
+        catch (InvalidOperationException) { return true; } // exited meanwhile
+        catch (Win32Exception) { return true; }            // cannot read an elevated process's path: the wait step decides
+    }
+
+    public bool IsNewerThan(string candidate, string current)
+    {
+        var next = VersionOf(candidate);
+        if (next is null) return false;
+        var now = VersionOf(current);
+        return now is null || next.Value > now.Value;
+    }
+
+    private static SemVer? VersionOf(string path)
+    {
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(path);
+            return SemVer.Parse(info.ProductVersion) ?? SemVer.Parse(info.FileVersion);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    public IDisposable? HoldIfIdentical(string path, string sha256, out bool identical)
+    {
+        identical = false;
+        FileStream? fs = null;
+        try
+        {
+            // FileShare.Read: while this handle lives nobody can write, rename or delete the file (a running exe can still be renamed otherwise).
+            fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            identical = string.Equals(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(fs)), sha256, StringComparison.OrdinalIgnoreCase);
+            if (identical) return fs;
+            fs.Dispose();
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            fs?.Dispose();
+            return null;
+        }
+    }
+
     public bool WaitForExit(int pid, TimeSpan timeout)
     {
         try
@@ -265,17 +343,77 @@ public static class UpdateApplyMode
 {
     public const string Switch = "--apply-update";
 
-    /// <summary>Exit codes: 0 updated, 2 bad arguments, 10 rolled back, 11 nothing changed, 12 rollback failed.</summary>
-    public static int Run(string[] args, IUpdateEnvironment? env = null, string? self = null)
+    /// <summary>
+    /// Exit codes: 0 updated, 2 bad arguments, 10 rolled back, 11 nothing changed, 12 rollback failed, 13 refused by a security check.
+    /// Arguments: <c>--apply-update &lt;old exe&gt; &lt;pid&gt; [&lt;sha256 of this updater&gt;]</c>. Anybody can start this mode with any arguments (and an
+    /// elevated copy would then act with administrator rights), so before touching a file it checks that (1) the target is a MONOLITH
+    /// program outside the Windows folders, (2) the pid is not a forged one (it is the target's own process, or gone), (3) when a hash is
+    /// given — and an elevated updater REQUIRES it — this very file is the one the old copy verified, and it is held against swapping
+    /// while the files are exchanged, (4) the new program is strictly newer (no downgrade).
+    /// </summary>
+    public static int Run(string[] args, IUpdateEnvironment? env = null, string? self = null, bool? elevated = null)
     {
         if (args.Length < 3 || !int.TryParse(args[2], out var pid) || pid <= 0) return 2;
         string oldExe;
         try { oldExe = Path.GetFullPath(args[1]); }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return 2; }
         if (!oldExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return 2;
+        var expectedHash = args.Length > 3 ? args[3] : null;
+        if (expectedHash is not null && !UpdateVerifier.IsSha256Hex(expectedHash)) return 2;
 
+        env ??= new SystemUpdateEnvironment();
         self ??= AppPaths.ExecutablePath;
-        var outcome = UpdateApplier.Apply(env ?? new SystemUpdateEnvironment(), self, oldExe, pid);
+        if (IsProtectedFolder(oldExe) || !env.IsMonolithExe(oldExe) || !env.PidRunsExe(pid, oldExe))
+        {
+            Log.Warn("Обновление отклонено: целевой файл не похож на MONOLITH или номер процесса не его.");
+            return 13;
+        }
+        if ((elevated ?? Elevation.IsElevated) && expectedHash is null)
+        {
+            Log.Warn("Обновление отклонено: программа обновления с правами администратора запущена без контрольной суммы.");
+            return 13;
+        }
+        IDisposable? held = null;
+        try
+        {
+            if (expectedHash is not null)
+            {
+                held = env.HoldIfIdentical(self, expectedHash, out var identical);
+                if (!identical)
+                {
+                    Log.Warn("Обновление отклонено: файл программы обновления не совпадает с проверенным.");
+                    return 13;
+                }
+            }
+            if (!env.IsNewerThan(self, oldExe))
+            {
+                Log.Warn("Обновление отклонено: новая программа не новее установленной.");
+                return 13;
+            }
+            return ExitCodeOf(UpdateApplier.Apply(env, self, oldExe, pid));
+        }
+        finally
+        {
+            held?.Dispose();
+        }
+    }
+
+    /// <summary>The Windows folder and everything below it: never a target of the updater (pure).</summary>
+    internal static bool IsProtectedFolder(string path)
+    {
+        try
+        {
+            var windows = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) + Path.DirectorySeparatorChar;
+            return Path.GetFullPath(path).StartsWith(windows, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return true;
+        }
+    }
+
+    private static int ExitCodeOf(ApplyOutcome outcome)
+    {
         return outcome switch
         {
             ApplyOutcome.Updated => 0,
@@ -291,6 +429,7 @@ public static class UpdateApplyMode
         10 => Loc.T("Новая версия MONOLITH не запустилась. Прежняя версия возвращена и запущена снова — ничего не потеряно."),
         11 => Loc.T("Обновление не выполнено: прежняя копия MONOLITH не закрылась или её файл занят. Ничего не изменено — запустите MONOLITH и повторите обновление."),
         12 => Loc.Tf("Новая версия MONOLITH не запустилась, и прежнюю не удалось вернуть автоматически. Она сохранена рядом: {0}.old — переименуйте её в MONOLITH.exe.", oldExe),
+        13 => Loc.T("Обновление отклонено проверкой безопасности: файл обновления не совпал с проверенным, либо целью указана не программа MONOLITH. Ничего не изменено."),
         _ => null,
     };
 }

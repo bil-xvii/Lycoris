@@ -62,6 +62,9 @@ public static class UpdateLauncher
             psi.ArgumentList.Add(UpdateApplyMode.Switch);
             psi.ArgumentList.Add(plan.ExePath);
             psi.ArgumentList.Add(oldPid.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // The handshake: the updater hashes ITS OWN file and refuses to run when it is not the file verified here
+            // (the staged copy lies in a folder the user — and any program running as the user — can write to).
+            psi.ArgumentList.Add(staged.Sha256);
             Log.Info("Обновление: запускаем программу обновления ({0}).", plan.Route == UpdateRoute.Elevated ? "elevated, UAC" : "normal");
             using var p = Process.Start(psi);
             return p is null ? new LaunchResult(false, Loc.T("Не удалось запустить программу обновления.")) : new LaunchResult(true, null);

@@ -7,7 +7,7 @@ using Monolith.Core.Updates;
 namespace Monolith.Tests.Updates;
 
 /// <summary>An in-memory file system and process table for <see cref="UpdateApplier"/>.</summary>
-internal sealed class FakeEnv : IUpdateEnvironment
+internal class FakeEnv : IUpdateEnvironment
 {
     public Dictionary<string, string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Log { get; } = [];
