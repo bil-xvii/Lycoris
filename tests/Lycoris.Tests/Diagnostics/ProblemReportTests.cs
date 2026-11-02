@@ -45,6 +45,33 @@ public sealed class ProblemReportTests
         Assert.DoesNotContain(name, r);
     }
 
+    [Theory]
+    [InlineData(@"open D:\Users\Мария Иванова\Documents", "Мария,Иванова")]
+    [InlineData(@"open D:\Users\Ann Marie Lee\x", "Ann,Marie,Lee")]
+    [InlineData(@"{""p"":""C:\\Users\\Иван Петров\\x""}", "Иван,Петров")]
+    [InlineData(@"C:\Documents and Settings\Bob Smith\Desktop", "Bob,Smith")]
+    [InlineData(@"D:\OneDrive - Контосо Групп\Docs", "Контосо,Групп")]
+    [InlineData(@"C:\Users\bob\OneDrive - Contoso Ltd\Docs", "Contoso,Ltd,bob")]
+    [InlineData(@"\\SRV\profiles$\carol\Desktop", "SRV,profiles,carol")]
+    [InlineData(@"\\fileserver01\Home Dirs\Dana Lee\Documents\a.txt", "fileserver01,Home,Dirs,Dana,Lee")]
+    [InlineData(@"{""p"":""\\\\SRV\\profiles$\\carol\\Desktop""}", "SRV,profiles,carol")]
+    public void EveryPartOfAProfileOrNetworkPathIsRemoved(string input, string parts)
+    {
+        var r = ProblemReport.Anonymize(input, "someoneelse", "pc");
+        foreach (var part in parts.Split(','))
+            Assert.DoesNotContain(part, r);
+    }
+
+    [Fact]
+    public void OwnProfilePathKeepsTheRestOfTheLine()
+    {
+        var r = ProblemReport.Anonymize(@"load failed C:\Users\alice\AppData\Local\app\x.dll code 5", "alice", "pc");
+        Assert.DoesNotContain("alice", r, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("load failed", r);
+        Assert.Contains("code 5", r);
+        Assert.DoesNotContain("<line removed>", r);
+    }
+
     [Fact]
     public void InvisibleCharactersAndFullwidthDoNotHideTheUserName()
     {
@@ -95,6 +122,30 @@ public sealed class ProblemReportTests
         var r = ProblemReport.Anonymize(input, "zzq", "qqpc");
         Assert.DoesNotContain("LEAK1234", r);
         Assert.DoesNotContain("dXNlcjpw", r);
+    }
+
+    [Theory]
+    [InlineData("\"password\":\"hunter2\"", "hunter2")]
+    [InlineData("password hunter2", "hunter2")]
+    [InlineData("Bearer abc123", "abc123")]
+    [InlineData("Authorization: Bearer abc123", "abc123")]
+    [InlineData("{\\\"token\\\":\\\"s3cr3t\\\"}", "s3cr3t")]
+    [InlineData("pwd = 'p w d'", "p w d")]
+    [InlineData("passwd:x1", "x1")]
+    [InlineData("PASSWORD=\"a b\" next", "a b")]
+    [InlineData("пароль Qwerty1", "Qwerty1")]
+    public void ShortAndJsonSecretValuesAreRedactedWhateverTheirShape(string input, string leak)
+    {
+        Assert.DoesNotContain(leak, ProblemReport.Anonymize(input, "zzq", "qqpc"));
+    }
+
+    [Fact]
+    public void SecretWordWithoutSeparatorBesideATokenDropsTheLine()
+    {
+        var r = ProblemReport.Anonymize("ok\nsecret deadbeef12345678deadbeef12\ntoken\nabc9def8ghi7jkl6mno5 token\nfine", "zzq", "qqpc");
+        Assert.DoesNotContain("deadbeef", r);
+        Assert.DoesNotContain("abc9def8", r);
+        Assert.Contains("fine", r);
     }
 
     [Fact]
