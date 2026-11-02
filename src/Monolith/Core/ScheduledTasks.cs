@@ -32,8 +32,8 @@ public static class ScheduledTasks
 
     public static void SetEnabled(string taskPath, bool enabled)
     {
-        SafetyLock.ThrowIfLocked("изменение задачи планировщика");
-        Elevation.Demand("изменение задач планировщика");
+        SafetyLock.ThrowIfLocked(Loc.T("изменение задачи планировщика"));
+        Elevation.Demand(Loc.T("изменение задач планировщика"));
         var (folder, name) = Split(taskPath);
         object? service = null;
         try
@@ -52,7 +52,7 @@ public static class ScheduledTasks
 
     private static object CreateService()
     {
-        var type = Type.GetTypeFromProgID("Schedule.Service") ?? throw new InvalidOperationException("Планировщик заданий недоступен.");
+        var type = Type.GetTypeFromProgID("Schedule.Service") ?? throw new InvalidOperationException(Loc.T("Планировщик заданий недоступен."));
         var service = Activator.CreateInstance(type)!;
         ((dynamic)service).Connect();
         return service;

@@ -113,9 +113,9 @@ public static partial class VendorDownloads
         if (!m.Success) return null;
         var unit = m.Groups[2].Value.ToUpperInvariant() switch
         {
-            "KB" => "КБ",
-            "MB" => "МБ",
-            "GB" => "ГБ",
+            "KB" => Loc.T("КБ"),
+            "MB" => Loc.T("МБ"),
+            "GB" => Loc.T("ГБ"),
             _ => null,
         };
         return unit is null ? null : $"{m.Groups[1].Value.Replace('.', ',')} {unit}";
@@ -162,11 +162,11 @@ public static partial class VendorDownloads
     public static string? Validate(VendorDownloadRequest r)
     {
         if (!IsAllowedUrl(r.Url, r.AllowedHosts) || !string.Equals(SafeFileName(r.Url), r.FileName, StringComparison.Ordinal))
-            return "Ссылка ведёт не на официальный сервер производителя — загрузка отменена.";
+            return Loc.T("Ссылка ведёт не на официальный сервер производителя — загрузка отменена.");
         if (r.Signers.Count == 0 || r.Signers.Any(string.IsNullOrWhiteSpace))
-            return "Для этого файла не задан ожидаемый подписант — загрузка отменена.";
+            return Loc.T("Для этого файла не задан ожидаемый подписант — загрузка отменена.");
         if (!IsDownloadFolder(r.Folder))
-            return "Файл можно сохранить только в защищённую папку загрузок MONOLITH — загрузка отменена.";
+            return Loc.T("Файл можно сохранить только в защищённую папку загрузок MONOLITH — загрузка отменена.");
         return null;
     }
 
@@ -192,7 +192,7 @@ public static partial class VendorDownloads
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            Log.Info($"{r.Label}: размер установщика неизвестен ({ex.GetType().Name}).");
+            Log.Info("{0}: размер установщика неизвестен ({1}).", r.Label, ex.GetType().Name);
             return null;
         }
     }
@@ -206,8 +206,8 @@ public static partial class VendorDownloads
     public static async Task<string> DownloadAsync(VendorDownloadRequest r, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {
         if (Validate(r) is { } problem) throw new InvalidOperationException(problem);
-        SafetyLock.ThrowIfLocked("загрузка установщика");
-        Elevation.Demand("загрузка установщика");
+        SafetyLock.ThrowIfLocked(Loc.T("загрузка установщика"));
+        Elevation.Demand(Loc.T("загрузка установщика"));
         var dir = PrepareFolder(r.Folder);
         var target = Path.Combine(dir, r.FileName);
 
@@ -222,7 +222,7 @@ public static partial class VendorDownloads
             var (ok, _) = await VerifySignatureAsync(target, r.Signers).ConfigureAwait(false);
             if (ok)
             {
-                Log.Info($"Установщик уже скачан и подпись подтверждена: {r.FileName}");
+                Log.Info("Установщик уже скачан и подпись подтверждена: {0}", r.FileName);
                 return target;
             }
             TryDelete(target);
@@ -230,7 +230,7 @@ public static partial class VendorDownloads
 
         var drive = new DriveInfo(Path.GetPathRoot(dir)!);
         if (drive.AvailableFreeSpace < r.RequiredFreeSpace)
-            throw new InvalidOperationException($"Мало места на диске {drive.Name}: нужно хотя бы {SystemProfile.FormatBytes(r.RequiredFreeSpace)}.");
+            throw new InvalidOperationException(Loc.Tf("Мало места на диске {0}: нужно хотя бы {1}.", drive.Name, SystemProfile.FormatBytes(r.RequiredFreeSpace)));
 
         var part = target + ".part";
         try
@@ -250,9 +250,9 @@ public static partial class VendorDownloads
         if (!valid)
         {
             TryDelete(target);
-            throw new InvalidOperationException($"Цифровая подпись файла не подтверждена ({signer}). Файл удалён — устанавливать его небезопасно.");
+            throw new InvalidOperationException(Loc.Tf("Цифровая подпись файла не подтверждена ({0}). Файл удалён — устанавливать его небезопасно.", signer));
         }
-        Log.Success($"Установщик скачан и подпись проверена: {r.FileName} ({signer}).");
+        Log.Success("Установщик скачан и подпись проверена: {0} ({1}).", r.FileName, signer);
         return target;
     }
 
@@ -260,10 +260,10 @@ public static partial class VendorDownloads
     private static string PrepareFolder(string folder)
     {
         if (!AppPaths.TryEnsureDir(RootDir) || !AppPaths.TryEnsureDir(folder))
-            throw new InvalidOperationException("Не удалось создать защищённую папку загрузок MONOLITH (нужны права администратора) — загрузка отменена.");
+            throw new InvalidOperationException(Loc.T("Не удалось создать защищённую папку загрузок MONOLITH (нужны права администратора) — загрузка отменена."));
         foreach (var d in new[] { RootDir, folder })
             if (new DirectoryInfo(d).Attributes.HasFlag(FileAttributes.ReparsePoint))
-                throw new InvalidOperationException("Папка загрузок MONOLITH подменена ссылкой — загрузка отменена.");
+                throw new InvalidOperationException(Loc.T("Папка загрузок MONOLITH подменена ссылкой — загрузка отменена."));
         return folder;
     }
 
@@ -278,12 +278,12 @@ public static partial class VendorDownloads
             if (r.Referer is not null) req.Headers.Referrer = new Uri(r.Referer);
             using var resp = await Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, stall.Token).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode)
-                throw new InvalidOperationException($"Сервер {r.Url.Host} ответил ошибкой {(int)resp.StatusCode}. Попробуйте позже или откройте официальный сайт.");
+                throw new InvalidOperationException(Loc.Tf("Сервер {0} ответил ошибкой {1}. Попробуйте позже или откройте официальный сайт.", r.Url.Host, (int)resp.StatusCode));
             // A redirect must not leave the vendor's servers.
             if (resp.RequestMessage?.RequestUri is { } final && !IsAllowedUrl(final, r.AllowedHosts))
-                throw new InvalidOperationException("Сервер перенаправил загрузку на постороннюю ссылку — загрузка отменена.");
+                throw new InvalidOperationException(Loc.T("Сервер перенаправил загрузку на постороннюю ссылку — загрузка отменена."));
             if (resp.Content.Headers.ContentType?.MediaType is { } media && media.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Вместо установщика сервер вернул веб-страницу. Попробуйте позже или откройте официальный сайт.");
+                throw new InvalidOperationException(Loc.T("Вместо установщика сервер вернул веб-страницу. Попробуйте позже или откройте официальный сайт."));
 
             var total = resp.Content.Headers.ContentLength;
             await using var src = await resp.Content.ReadAsStreamAsync(stall.Token).ConfigureAwait(false);
@@ -305,23 +305,23 @@ public static partial class VendorDownloads
             }
             await dst.FlushAsync(ct).ConfigureAwait(false);
             progress?.Report(new DownloadProgress(done, total));
-            if (total is { } t && done != t) throw new InvalidOperationException("Загрузка оборвалась — файл неполный. Повторите попытку.");
+            if (total is { } t && done != t) throw new InvalidOperationException(Loc.T("Загрузка оборвалась — файл неполный. Повторите попытку."));
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new InvalidOperationException("Сервер больше минуты не передаёт данные — загрузка прервана. Проверьте подключение к интернету и повторите.");
+            throw new InvalidOperationException(Loc.T("Сервер больше минуты не передаёт данные — загрузка прервана. Проверьте подключение к интернету и повторите."));
         }
         catch (HttpRequestException ex)
         {
-            throw new InvalidOperationException($"Не удалось скачать файл с {r.Url.Host}: {ex.Message}", ex);
+            throw new InvalidOperationException(Loc.Tf("Не удалось скачать файл с {0}: {1}", r.Url.Host, ex.Message), ex);
         }
         catch (IOException ex) when (ex is HttpIOException || ex.InnerException is System.Net.Sockets.SocketException)
         {
-            throw new InvalidOperationException($"Соединение с {r.Url.Host} оборвалось — загрузка прервана. Повторите попытку.", ex);
+            throw new InvalidOperationException(Loc.Tf("Соединение с {0} оборвалось — загрузка прервана. Повторите попытку.", r.Url.Host), ex);
         }
         catch (IOException ex)
         {
-            throw new InvalidOperationException($"Не удалось записать файл на диск: {ex.Message}", ex);
+            throw new InvalidOperationException(Loc.Tf("Не удалось записать файл на диск: {0}", ex.Message), ex);
         }
     }
 
@@ -349,7 +349,7 @@ public static partial class VendorDownloads
         {
             var json = (output ?? "").Trim();
             var start = json.IndexOf('{');
-            if (start < 0) return (false, "нет данных о подписи");
+            if (start < 0) return (false, Loc.T("нет данных о подписи"));
             using var doc = JsonDocument.Parse(json[start..]);
             var root = doc.RootElement;
             var status = root.TryGetProperty("Status", out var st) ? st.GetString() ?? "" : "";
@@ -358,20 +358,20 @@ public static partial class VendorDownloads
 
             var fields = ParseNameLines(names);
             var org = fields.TryGetValue("O", out var o) ? o : fields.TryGetValue("CN", out var cn) ? cn : "";
-            var display = org.Length > 0 ? org : subject.Length > 0 ? subject : "без подписи";
+            var display = org.Length > 0 ? org : subject.Length > 0 ? subject : Loc.T("без подписи");
             if (!status.Equals("Valid", StringComparison.OrdinalIgnoreCase))
-                return (false, $"статус «{(status.Length > 0 ? status : "нет")}», подписант «{display}»");
+                return (false, Loc.Tf("статус «{0}», подписант «{1}»", status.Length > 0 ? status : Loc.T("нет"), display));
 
             var matches = expectedSigners.Any(expected =>
                 (fields.TryGetValue("O", out var org2) && SignerMatches(org2, expected)) ||
                 (fields.TryGetValue("CN", out var cn2) && SignerMatches(cn2, expected)));
             return matches
-                ? (true, $"подписан: {display}")
-                : (false, $"подписант «{display}», а ожидался {string.Join(" или ", expectedSigners.Select(s => $"«{s}»"))}");
+                ? (true, Loc.Tf("подписан: {0}", display))
+                : (false, Loc.Tf("подписант «{0}», а ожидался {1}", display, string.Join(Loc.T(" или "), expectedSigners.Select(s => "«" + s + "»"))));
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
-            return (false, "не удалось прочитать подпись");
+            return (false, Loc.T("не удалось прочитать подпись"));
         }
     }
 
@@ -416,13 +416,13 @@ public static partial class VendorDownloads
     public static void TryDelete(string file)
     {
         try { File.Delete(file); }
-        catch (Exception ex) { Log.Warn($"Не удалось удалить {Path.GetFileName(file)}: {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Не удалось удалить {0}: {1}", Path.GetFileName(file), ex.Message); }
     }
 
     public static string FormatProgress(DownloadProgress p) =>
         p.Verifying
-            ? "Проверка цифровой подписи…"
+            ? Loc.T("Проверка цифровой подписи…")
             : p.Total is > 0
-                ? string.Create(CultureInfo.CurrentCulture, $"{p.Percent:0}% · {SystemProfile.FormatBytes(p.Done)} из {SystemProfile.FormatBytes(p.Total.Value)}")
+                ? Loc.Tf("{0:0}% · {1} из {2}", p.Percent, SystemProfile.FormatBytes(p.Done), SystemProfile.FormatBytes(p.Total.Value))
                 : SystemProfile.FormatBytes(p.Done);
 }

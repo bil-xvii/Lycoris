@@ -210,11 +210,11 @@ public static class ProcessRunner
         try
         {
             if (!process.Start())
-                return ProcessResult.Failed($"Не удалось запустить {psi.FileName}");
+                return ProcessResult.Failed(Loc.Tf("Не удалось запустить {0}", psi.FileName));
         }
         catch (Exception ex)
         {
-            Log.Error($"Не удалось запустить {display}", ex);
+            Log.Error("Не удалось запустить {0}", ex, display);
             return ProcessResult.Failed(ex.Message);
         }
 
@@ -238,7 +238,7 @@ public static class ProcessRunner
             if (stillRunning)
             {
                 timedOut = true;
-                Log.Warn($"Превышено время ожидания, процесс оставлен работать: {display}");
+                Log.Warn("Превышено время ожидания, процесс оставлен работать: {0}", display);
             }
             else
             {
@@ -252,7 +252,8 @@ public static class ProcessRunner
             cancelled = ct.IsCancellationRequested;
             try { process.Kill(entireProcessTree: true); } catch { }
             try { await process.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); } catch { }
-            Log.Warn(timedOut ? $"Превышено время ожидания: {display}" : $"Отменено: {display}");
+            if (timedOut) Log.Warn("Превышено время ожидания: {0}", display);
+            else Log.Warn("Отменено: {0}", display);
         }
 
         int exit;

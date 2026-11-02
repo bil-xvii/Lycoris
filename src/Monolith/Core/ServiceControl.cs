@@ -102,12 +102,12 @@ public static class ServiceControl
 
     public static string DescribeStart(ServiceStartMode mode, bool delayed) => mode switch
     {
-        ServiceStartMode.Automatic when delayed => "Автоматически (отложенный запуск)",
-        ServiceStartMode.Automatic => "Автоматически",
-        ServiceStartMode.Manual => "Вручную",
-        ServiceStartMode.Disabled => "Отключена",
-        ServiceStartMode.Boot => "Загрузка",
-        ServiceStartMode.System => "Система",
+        ServiceStartMode.Automatic when delayed => Loc.T("Автоматически (отложенный запуск)"),
+        ServiceStartMode.Automatic => Loc.T("Автоматически"),
+        ServiceStartMode.Manual => Loc.T("Вручную"),
+        ServiceStartMode.Disabled => Loc.T("Отключена"),
+        ServiceStartMode.Boot => Loc.T("Загрузка"),
+        ServiceStartMode.System => Loc.T("Система"),
         _ => mode.ToString(),
     };
 
@@ -115,9 +115,9 @@ public static class ServiceControl
     public static void SetStartMode(string name, ServiceStartMode mode, bool delayedAutoStart = false, bool allowProtected = false)
     {
         if (!allowProtected && IsProtected(name))
-            throw new InvalidOperationException($"Служба «{name}» критична для Windows — MONOLITH её не изменяет.");
-        SafetyLock.ThrowIfLocked("изменение службы");
-        Elevation.Demand("изменение служб");
+            throw new InvalidOperationException(Loc.Tf("Служба «{0}» критична для Windows — MONOLITH её не изменяет.", name));
+        SafetyLock.ThrowIfLocked(Loc.T("изменение службы"));
+        Elevation.Demand(Loc.T("изменение служб"));
 
         var before = Query(name);
         WithService(name, svc =>
@@ -130,9 +130,9 @@ public static class ServiceControl
             if (before is not null && before.StartMode != mode)
             {
                 try { SetStartType(svc, name, before.StartMode); }
-                catch (Exception ex) { Log.Warn($"Служба {name}: не удалось вернуть тип запуска после ошибки: {ex.Message}"); }
+                catch (Exception ex) { Log.Warn("Служба {0}: не удалось вернуть тип запуска после ошибки: {1}", name, ex.Message); }
             }
-            throw new Win32Exception(error, $"Не удалось изменить отложенный запуск {name}");
+            throw new Win32Exception(error, Loc.Tf("Не удалось изменить отложенный запуск {0}", name));
         });
     }
 
@@ -148,9 +148,9 @@ public static class ServiceControl
             return;
         }
         if (IsProtected(s.Name))
-            throw new InvalidOperationException($"Служба «{s.Name}» критична для Windows — MONOLITH её не изменяет.");
-        SafetyLock.ThrowIfLocked("изменение службы");
-        Elevation.Demand("изменение служб");
+            throw new InvalidOperationException(Loc.Tf("Служба «{0}» критична для Windows — MONOLITH её не изменяет.", s.Name));
+        SafetyLock.ThrowIfLocked(Loc.T("изменение службы"));
+        Elevation.Demand(Loc.T("изменение служб"));
 
         var current = Query(s.Name);
         WithService(s.Name, svc =>
@@ -159,13 +159,12 @@ public static class ServiceControl
             {
                 SetStartType(svc, s.Name, s.StartMode);
                 if (!SetDelayedFlag(svc, raw))
-                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Не удалось вернуть отложенный запуск {s.Name}");
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), Loc.Tf("Не удалось вернуть отложенный запуск {0}", s.Name));
                 return;
             }
             // Not Automatic: set the flag first, while the service still has the start type MONOLITH gave it.
             if (current?.RawDelayed != raw && !SetDelayedFlag(svc, raw))
-                Log.Warn($"Служба {s.Name}: не удалось вернуть флаг отложенного запуска ({(raw ? "1" : "0")}). " +
-                         "Windows учитывает его только для автоматического запуска.");
+                Log.Warn("Служба {0}: не удалось вернуть флаг отложенного запуска ({1}). Windows учитывает его только для автоматического запуска.", s.Name, raw ? "1" : "0");
             SetStartType(svc, s.Name, s.StartMode);
         });
     }
@@ -177,7 +176,7 @@ public static class ServiceControl
         try
         {
             var svc = OpenService(scm, name, SERVICE_CHANGE_CONFIG | SERVICE_QUERY_CONFIG);
-            if (svc == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), $"Не удалось открыть службу {name}");
+            if (svc == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error(), Loc.Tf("Не удалось открыть службу {0}", name));
             try
             {
                 action(svc);
@@ -197,7 +196,7 @@ public static class ServiceControl
     {
         if (!ChangeServiceConfig(svc, SERVICE_NO_CHANGE, (uint)mode, SERVICE_NO_CHANGE,
                 null, null, IntPtr.Zero, null, null, null, null))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Не удалось изменить тип запуска {name}");
+            throw new Win32Exception(Marshal.GetLastWin32Error(), Loc.Tf("Не удалось изменить тип запуска {0}", name));
     }
 
     private static bool SetDelayedFlag(IntPtr svc, bool delayed)
@@ -220,7 +219,7 @@ public static class ServiceControl
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось остановить службу {name}: {ex.Message}");
+            Log.Warn("Не удалось остановить службу {0}: {1}", name, ex.Message);
             return false;
         }
     }
@@ -238,7 +237,7 @@ public static class ServiceControl
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось запустить службу {name}: {ex.Message}");
+            Log.Warn("Не удалось запустить службу {0}: {1}", name, ex.Message);
             return false;
         }
     }
