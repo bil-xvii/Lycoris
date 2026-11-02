@@ -48,6 +48,22 @@
     "ПОДОБРАТЬ ДРАЙВЕРЫ": "FIND DRIVERS",
     "Подбор по вашему железу, установка только после подтверждения": "Matched to your hardware; nothing is installed without confirmation",
     "ПРОСТОЙ": "SIMPLE",
-    "ЭКСПЕРТ": "EXPERT"
+    "ЭКСПЕРТ": "EXPERT",
+    "Что можно улучшить": "What you can improve",
+    "Пока не удалось получить результаты проверки.": "Could not get check results yet.",
+    "Нет данных": "No data",
+    "ПРОВЕРИТЬ СНОВА": "CHECK AGAIN",
+    "ПОДРОБНЕЕ": "MORE DETAILS",
+    "ВСЕ ПРОБЛЕМЫ": "ALL ISSUES",
+    "ПОСМОТРЕТЬ НАСТРОЙКУ": "VIEW SETTING",
+    "ОТКРЫТЬ МОНИТОР": "OPEN MONITOR",
+    "ОТКРЫТЬ АВТОЗАПУСК": "OPEN STARTUP APPS",
+    "ОТКРЫТЬ ВОССТАНОВЛЕНИЕ": "OPEN RESTORE",
+    "ОТКРЫТЬ ДРАЙВЕРЫ": "OPEN DRIVERS",
+    "ОТКРЫТЬ ИНСТРУМЕНТЫ": "OPEN TOOLS",
+    "До перезагрузки часть изменений не вступит в силу.": "Some changes will not take effect until you restart.",
+    "Программы в фоне могут замедлять вход в Windows.": "Background programs can slow down Windows sign-in.",
+    "Сбалансированный режим снижает нагрев и расход энергии в простое.": "Balanced mode reduces heat and power use while idle.",
+    "Правило: {0}": "Rule: {0}"
   }
 }

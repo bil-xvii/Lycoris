@@ -55,7 +55,34 @@ public sealed class HomeTests
         var home = new HomeViewModel(dashboard);
 
         Assert.Equal("home", home.Key);
-        Assert.Equal("Доктор собирает сведения при первом открытии Панели.", home.DoctorText);
-        Assert.Equal("Ok", home.DoctorSeverity);
+        Assert.Equal("Нет данных", home.DoctorStatus);
+        Assert.False(home.DoctorHasData);
     }
+
+    [Fact]
+    public void Doctor_sorts_by_severity_then_weight_and_limits_to_three()
+    {
+        using var _ = Loc.UseLanguage("ru");
+        var source = Enumerable.Range(0, 5).Select(i => new Lycoris.Modules.Dashboard.CheckItemViewModel(
+            new Lycoris.Modules.Dashboard.Checks.HealthCheckResult($"rule-{i}", $"Заголовок {i}", "Причина", i == 4 ? Lycoris.Modules.Dashboard.Checks.CheckSeverity.Info : Lycoris.Modules.Dashboard.Checks.CheckSeverity.Warning, i),
+            _ => Task.CompletedTask)).ToArray();
+        Assert.Equal(["rule-3", "rule-2", "rule-1"], HomeViewModel.BuildDoctorIssues(source).Select(i => i.RuleId));
+        Assert.Empty(HomeViewModel.BuildDoctorIssues([]));
+    }
+
+    [Fact]
+    public async Task Doctor_button_dispatches_the_existing_rule_command_with_its_rule_id()
+    {
+        string? invoked = null;
+        var home = new HomeViewModel(new DashboardViewModel(), id => { invoked = id; return Task.CompletedTask; });
+        var issue = new DoctorIssue("startup", "Заголовок", "Причина", "Подробности", "Warning", "Dot.Amber", "Открыть", "ПО ЖЕЛАНИЮ", "Правило: startup");
+        await home.RunDoctorActionCommand.ExecuteAsync(issue);
+        Assert.Equal("startup", invoked);
+    }
+
+    [Theory]
+    [InlineData("pending-reboot", "До перезагрузки часть изменений не вступит в силу.")]
+    [InlineData("startup", "Программы в фоне могут замедлять вход в Windows.")]
+    public void Doctor_reason_is_short_and_plain(string ruleId, string expected) =>
+        Assert.Equal(expected, HomeViewModel.DoctorReason(ruleId, "Технические подробности. Дополнительные сведения."));
 }
