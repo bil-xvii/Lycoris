@@ -40,7 +40,7 @@ internal static class SessionActions
         var session = CurrentSessionId();
         var running = FindExplorers(session);
         var oldIds = running.Select(p => p.Id).ToHashSet();
-        Log.Info($"Перезапуск Проводника: процессов в сеансе {session} — {running.Count}.");
+        Log.Info("Перезапуск Проводника: процессов в сеансе {0} — {1}.", session, running.Count);
 
         foreach (var p in running)
         {
@@ -56,7 +56,7 @@ internal static class SessionActions
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn($"Проводник (PID {p.Id}) не завершён: {ex.Message}");
+                    Log.Warn("Проводник (PID {0}) не завершён: {1}", p.Id, ex.Message);
                 }
             }
         }
@@ -65,22 +65,22 @@ internal static class SessionActions
         var survivors = stillRunning.Count(p => oldIds.Contains(p.Id));
         DisposeAll(stillRunning);
         if (survivors > 0)
-            return new(false, "Не удалось завершить Проводник. Изменения вступят в силу после выхода из системы или перезагрузки.");
+            return new(false, Loc.T("Не удалось завершить Проводник. Изменения вступят в силу после выхода из системы или перезагрузки."));
 
         if (oldIds.Count > 0 && AutoRestartShellEnabled() && WaitForNewExplorer(session, oldIds, TimeSpan.FromSeconds(8)))
         {
             Log.Success("Проводник перезапущен.");
-            return new(true, "Проводник перезапущен — изменения интерфейса применены.");
+            return new(true, Loc.T("Проводник перезапущен — изменения интерфейса применены."));
         }
 
         if (StartUnelevated(ExplorerPath, session) && WaitForNewExplorer(session, oldIds, TimeSpan.FromSeconds(8)))
         {
             Log.Success("Проводник запущен заново.");
-            return new(true, "Проводник перезапущен — изменения интерфейса применены.");
+            return new(true, Loc.T("Проводник перезапущен — изменения интерфейса применены."));
         }
 
         Log.Warn("Проводник не запустился автоматически.");
-        return new(false, "Проводник не запустился сам. Нажмите Ctrl+Shift+Esc → «Запустить новую задачу» → введите explorer и нажмите Enter.");
+        return new(false, Loc.T("Проводник не запустился сам. Нажмите Ctrl+Shift+Esc → «Запустить новую задачу» → введите explorer и нажмите Enter."));
     }
 
     private static int CurrentSessionId()
@@ -135,7 +135,7 @@ internal static class SessionActions
             }
             catch (Exception ex)
             {
-                Log.Warn($"Не удалось запустить Проводник: {ex.Message}");
+                Log.Warn("Не удалось запустить Проводник: {0}", ex.Message);
                 return false;
             }
         }
@@ -153,7 +153,7 @@ internal static class SessionActions
                     }
                     catch (Exception ex)
                     {
-                        Log.Warn($"Запуск Проводника через {name}: {ex.Message}");
+                        Log.Warn("Запуск Проводника через {0}: {1}", name, ex.Message);
                     }
                 }
             }
@@ -194,7 +194,7 @@ internal static class SessionActions
             var cmd = new StringBuilder($"\"{exe}\"");
             if (!CreateProcessW(exe, cmd, IntPtr.Zero, IntPtr.Zero, false, flags, env, Path.GetDirectoryName(exe), ref si, out var pi))
             {
-                Log.Warn($"Запуск Проводника: {new Win32Exception(Marshal.GetLastWin32Error()).Message}");
+                Log.Warn("Запуск Проводника: {0}", new Win32Exception(Marshal.GetLastWin32Error()).Message);
                 return false;
             }
             CloseHandle(pi.hThread);
@@ -220,18 +220,18 @@ internal static class SessionActions
     public static async Task<SessionActionResult> ScheduleRebootAsync()
     {
         var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("shutdown.exe"),
-            ["/r", "/t", RebootDelaySeconds.ToString(CultureInfo.InvariantCulture), "/c", "MONOLITH: перезагрузка для применения настроек"],
+            ["/r", "/t", RebootDelaySeconds.ToString(CultureInfo.InvariantCulture), "/c", Loc.T("MONOLITH: перезагрузка для применения настроек")],
             new ProcessRunOptions { Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromSeconds(30) }).ConfigureAwait(false);
         if (r.Success)
         {
-            Log.Warn($"Перезагрузка запланирована через {RebootDelaySeconds} с.");
-            return new(true, $"Компьютер перезагрузится через {RebootDelaySeconds} секунд.");
+            Log.Warn("Перезагрузка запланирована через {0} с.", RebootDelaySeconds);
+            return new(true, Loc.Tf("Компьютер перезагрузится через {0} секунд.", RebootDelaySeconds));
         }
         if (r.ExitCode == 1190) // ERROR_SHUTDOWN_IS_SCHEDULED
-            return new(true, "Перезагрузка уже запланирована.");
+            return new(true, Loc.T("Перезагрузка уже запланирована."));
         var details = r.Combined.Trim();
-        Log.Error($"Не удалось запланировать перезагрузку (код {r.ExitCode}). {details}");
-        return new(false, $"Не удалось запланировать перезагрузку (код {r.ExitCode}). Перезагрузите компьютер вручную.");
+        Log.Error("Не удалось запланировать перезагрузку (код {0}). {1}", r.ExitCode, details);
+        return new(false, Loc.Tf("Не удалось запланировать перезагрузку (код {0}). Перезагрузите компьютер вручную.", r.ExitCode));
     }
 
     // ───────────────────────────── Win32 ─────────────────────────────

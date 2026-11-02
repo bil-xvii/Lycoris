@@ -248,14 +248,14 @@ public static partial class TweakCatalog
     /// <summary>UI effects switched off by the "performance" preset: (SPI_GET*, SPI_SET*, Russian name).</summary>
     internal static readonly (uint Get, uint Set, string Name)[] VisualEffectFlags =
     [
-        (0x1002, 0x1003, "анимация меню"),
-        (0x1004, 0x1005, "анимация списков"),
-        (0x1006, 0x1007, "плавная прокрутка списков"),
-        (0x1016, 0x1017, "анимация подсказок"),
-        (0x1014, 0x1015, "затухание выделения"),
-        (0x101A, 0x101B, "тень курсора"),
-        (0x1024, 0x1025, "тени окон"),
-        (0x1042, 0x1043, "анимация элементов окон"),
+        (0x1002, 0x1003, Loc.Key("анимация меню")),
+        (0x1004, 0x1005, Loc.Key("анимация списков")),
+        (0x1006, 0x1007, Loc.Key("плавная прокрутка списков")),
+        (0x1016, 0x1017, Loc.Key("анимация подсказок")),
+        (0x1014, 0x1015, Loc.Key("затухание выделения")),
+        (0x101A, 0x101B, Loc.Key("тень курсора")),
+        (0x1024, 0x1025, Loc.Key("тени окон")),
+        (0x1042, 0x1043, Loc.Key("анимация элементов окон")),
     ];
 
     internal sealed record VisualEffectsState(bool[] Flags, int MinAnimate)
@@ -540,10 +540,17 @@ public static partial class TweakCatalog
                Convert.ToBase64String(Encoding.Unicode.GetBytes(full));
     }
 
+    /// <summary>Runs <paramref name="f"/> with Russian texts: the journal (data on disk) stores Russian whatever the UI language is.</summary>
+    internal static T Ru<T>(Func<T> f)
+    {
+        using var _ = Loc.UseLanguage(Loc.Ru);
+        return f();
+    }
+
     /// <summary>Runs a journaled command (with its undo command). Tweaks run on a worker thread, so blocking is fine.</summary>
     private static bool RunJournaled(TweakContext ctx, string target, string file, string args, string revertFile, string revertArgs,
         string oldValue, string newValue, OutputEncoding encoding = OutputEncoding.Oem) =>
-        ctx.Session.RunCommandAsync(target, file, args, revertFile, revertArgs, oldValue, newValue, ctx.Source, ctx.Tweak.Title, encoding)
+        ctx.Session.RunCommandAsync(target, file, args, revertFile, revertArgs, oldValue, newValue, ctx.Source, ctx.Tweak.TitleRu, encoding)
             .GetAwaiter().GetResult();
 
     /// <summary>The Add-Type block that exposes SystemParametersInfoW to the visual-effects scripts.</summary>
@@ -583,12 +590,12 @@ public static partial class TweakCatalog
         {
             var call = $"[Monolith.Spi]::Set(0x{action:X},0,[IntPtr]{(on ? 1 : 0)},3)";
             sb.Append(strict
-                ? $"if(-not {call}){{throw 'Windows отклонила изменение эффекта 0x{action:X}'}};"
+                ? $"if(-not {call}){{throw 'Windows отклонила изменение эффекта 0x{action:X}'}};" // loc:ignore: PowerShell error text, stored in the journal script
                 : $"try{{[void]{call}}}catch{{}};");
         }
         var anim = $"[Monolith.Spi]::SetAnimation(0x49,8,[int[]]@(8,{minAnimate}),3)";
         sb.Append(strict
-            ? $"if(-not {anim}){{throw 'Windows отклонила изменение анимации окон'}};"
+            ? $"if(-not {anim}){{throw 'Windows отклонила изменение анимации окон'}};" // loc:ignore: PowerShell error text, stored in the journal script
             : $"try{{[void]{anim}}}catch{{}};");
     }
 
@@ -661,10 +668,10 @@ public static partial class TweakCatalog
     /// Shared by every <see cref="PowerSettingTweak"/>: powercfg has no per-setting "back to the plan default", and the
     /// override keys belong to the Power service, so the undo writes the original number explicitly.
     /// </summary>
-    internal const string PowerSettingUndoNote =
-        "Откат возвращает прежнее значение, но записывает его в схему явно. Если раньше параметр брался из значений схемы " +
+    internal static readonly string PowerSettingUndoNote =
+        Loc.T("Откат возвращает прежнее значение, но записывает его в схему явно. Если раньше параметр брался из значений схемы " +
         "по умолчанию, вернуть и это можно кнопкой «Восстановить для схемы параметры по умолчанию» в Панели управления → " +
-        "Электропитание (она сбрасывает все параметры этой схемы).";
+        "Электропитание (она сбрасывает все параметры этой схемы).");
 
     /// <summary>
     /// True when the plan has its own AC value for the setting; false when the value comes from the plan's defaults
@@ -689,9 +696,9 @@ public static partial class TweakCatalog
     /// <summary>Idle timeout in seconds as the records and previews say it: «никогда» (0) or «через N мин».</summary>
     internal static string DescribeTimeout(uint seconds)
     {
-        if (seconds == 0) return "никогда";
-        if (seconds < 60) return $"через {seconds} с";
-        return seconds % 60 == 0 ? $"через {seconds / 60} мин" : $"через {seconds / 60} мин {seconds % 60} с";
+        if (seconds == 0) return Loc.T("никогда");
+        if (seconds < 60) return Loc.Tf("через {0} с", seconds);
+        return seconds % 60 == 0 ? Loc.Tf("через {0} мин", seconds / 60) : Loc.Tf("через {0} мин {1} с", seconds / 60, seconds % 60);
     }
 
     /// <summary>
@@ -783,12 +790,12 @@ public static partial class TweakCatalog
             // During a game session the active plan is the session's temporary one: a setting changed now would be
             // recorded against that plan and silently stop applying when the session ends.
             if (SessionHoldsPlan())
-                throw new InvalidOperationException("сначала завершите игровой сеанс — сейчас действует его временная схема питания");
+                throw new InvalidOperationException(Loc.T("сначала завершите игровой сеанс — сейчас действует его временная схема питания"));
             var scheme = PowerSchemes.GetActive();
-            if (scheme == Guid.Empty) throw new InvalidOperationException("не удалось определить активную схему питания");
+            if (scheme == Guid.Empty) throw new InvalidOperationException(Loc.T("не удалось определить активную схему питания"));
             var satisfied = Satisfied(alsoSatisfied, onlyShorten, target);
             var current = ReadIndex(dc, scheme, subgroup, setting)
-                          ?? throw new InvalidOperationException("параметр отсутствует в текущей схеме питания");
+                          ?? throw new InvalidOperationException(Loc.T("параметр отсутствует в текущей схеме питания"));
             if (PowerSettingState(current, target, satisfied) != TweakState.Applied)
                 WriteValue(ctx, dc, scheme, subgroup, setting, current, target, describe);
 
@@ -817,13 +824,18 @@ public static partial class TweakCatalog
     private static void WriteValue(TweakContext ctx, bool dc, Guid scheme, Guid subgroup, Guid setting, uint current, uint target, Func<uint, string> describe)
     {
         var plan = PowerSchemes.GetName(scheme);
-        var side = dc ? "от батареи" : "от сети";
         // The effective value is restored either way; say honestly when it came from the plan's defaults.
-        var origin = HasOverride(dc, scheme, subgroup, setting) ? "" : " (по умолчанию схемы; при откате будет записано явно)";
+        // The journal texts stay Russian (Ru): the Restore page translates them when it shows them.
+        var (oldText, newText) = Ru(() =>
+        {
+            var side = dc ? Loc.T("от батареи") : Loc.T("от сети");
+            var origin = HasOverride(dc, scheme, subgroup, setting) ? "" : Loc.T(" (по умолчанию схемы; при откате будет записано явно)");
+            return (Loc.Tf("{0}, {1}: {2}{3}", plan, side, describe(current), origin), Loc.Tf("{0}, {1}: {2}", plan, side, describe(target)));
+        });
         RunJournaled(ctx, PowercfgTarget(dc, scheme, setting),
             CmdExe, CmdArgs(PowerSettingCommand(dc, scheme, subgroup, setting, target, rollbackTo: current)),
             CmdExe, CmdArgs(PowerSettingCommand(dc, scheme, subgroup, setting, current, rollbackTo: null)),
-            $"{plan}, {side}: {describe(current)}{origin}", $"{plan}, {side}: {describe(target)}");
+            oldText, newText);
     }
 
     /// <summary>The journal target of a plan setting's AC or DC record (without the "cmd:" prefix ChangeSession adds).</summary>
