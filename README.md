@@ -21,7 +21,7 @@
 
 ## Как Lycoris защищает систему
 
-1. Перед каждым изменением исходное значение сохраняется в журнал (`%ProgramData%\MONOLITH\journal.json`), а затрагиваемые ключи реестра — в `.reg`-копии.
+1. Перед каждым изменением исходное значение сохраняется в журнал (`%ProgramData%\Lycoris\journal.json`), а затрагиваемые ключи реестра — в `.reg`-копии.
 2. Перед пакетом изменений создаётся точка восстановления Windows.
 3. Только документированные настройки, проверенные по исследованиям (см. `docs/research`). Никаких «чисток реестра», отключения обновлений, защитника, файла подкачки и прочих мифов.
 4. Критичные службы Windows изменять нельзя — они заблокированы в коде.
@@ -40,8 +40,8 @@
 ## Сборка из исходников (нужен .NET 10 SDK)
 
 ```
-dotnet build src/Monolith/Monolith.csproj -c Debug
-dotnet test tests/Monolith.Tests/Monolith.Tests.csproj
+dotnet build src/Lycoris/Lycoris.csproj -c Debug
+dotnet test tests/Lycoris.Tests/Lycoris.Tests.csproj
 powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сборка в publish\Lycoris.exe
 ```
 

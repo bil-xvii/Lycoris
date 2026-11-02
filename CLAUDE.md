@@ -15,7 +15,7 @@ not from riskier changes.
    `SetTaskEnabled`, `RunCommandAsync`; device settings: `SetUserParameter` / `SetUserParameterConfirmedAsync` (SPI mouse
    and keyboard), `SetDisplayModeAsync`, `SetDisplayHdrAsync`, `SetMonitorSettingAsync` (DDC/CI), `SetAudioLevel` (capture
    endpoints only), `SetNicAdvancedProperty`). It records the original value in the undo journal
-   (`%ProgramData%\MONOLITH\journal.json`) *before* changing anything, exports touched registry keys to `.reg`
+   (`%ProgramData%\Lycoris\journal.json`) *before* changing anything, exports touched registry keys to `.reg`
    backups, and creates a System Restore point per batch. Never write to the registry / services / power plans
    directly from a module (reading is fine). The device writers (`Core/Devices/DeviceWriters`, implemented in
    `Modules/Devices/*`) are called only by ChangeSession and `DeviceRestore`, and every mutating call is SafetyLock-guarded.
@@ -32,14 +32,14 @@ not from riskier changes.
 6. Without admin rights the app runs read-only: check `Elevation.IsElevated` / `PageViewModel.RequireAdmin` (it offers
    the relaunch with admin rights and, given a command name, replays that command once in the elevated copy through its
    usual confirmation; the action never runs unelevated).
-7. `%ProgramData%\MONOLITH` is locked to Administrators/SYSTEM (`AppPaths.SecureMachineDir`); a non-elevated
+7. `%ProgramData%\Lycoris` is locked to Administrators/SYSTEM (`AppPaths.SecureMachineDir`); a non-elevated
    process never writes there. The journal is treated as untrusted input: undo commands are limited to System32
    tools and autostart/hijack registry locations are refused (`ChangeJournal.IsForbiddenRestoreTarget`).
 8. Browsers, games and launchers are never started with Lycoris's admin token: use
    `UnelevatedShell.OpenAsync` (web pages) / `UnelevatedShell.StartAsUserAsync` (programs, launcher URIs).
 9. Installers are downloaded only through the shared `Core/VendorDownloads` mechanism (per-request vendor HTTPS hosts
    allow-list, also after redirects + valid Authenticode signature of an expected vendor signer, files kept in the
-   admin-only `%ProgramData%\MONOLITH\Downloads`; refused without admin rights). Drivers use it via
+   admin-only `%ProgramData%\Lycoris\Downloads`; refused without admin rights). Drivers use it via
    `Modules/Drivers/DriverDownloads`; the Apps page uses it when winget reports an installer hash mismatch
    (`CatalogEntry.VendorInstaller`) — a confirmation lists host/signer/file, and the installer is then started with
    `UnelevatedShell.StartAsUserAsync`. The winget hash is never bypassed.
@@ -57,7 +57,7 @@ not from riskier changes.
 ## Layout
 
 ```
-src/Monolith/
+src/Lycoris/
   App.xaml(.cs)          startup, optional UAC relaunch, single instance, --snapshot QA mode
   Core/Localization/     Loc (ru text = key → English table), en/<Area>.json translation files (see «Localization»)
   Core/                  system layer (no UI): AppPaths, Log, Elevation, ProcessRunner, RegistryHelper,
@@ -71,7 +71,7 @@ src/Monolith/
                          Glyphs, Converters, Controls/ (PageHeader, StickyBar, Meter, Sparkline, ArcGauge)
   Theme/                 Colors.xaml, Typography.xaml, Controls.xaml, Converters.xaml
   Modules/<Name>/        one folder per page: <Name>View.xaml(.cs) + <Name>ViewModel.cs + module services
-tests/Monolith.Tests/    xUnit
+tests/Lycoris.Tests/    xUnit
 docs/research/           research reports (competitors, tweaks, cleaner, drivers, services, apps catalog, tech)
 tools/                   loc-scan.ps1 + LocScan/ (localization progress and helper), autosave.ps1, make-icon.ps1, extract-research.ps1, publish.ps1 (build + auto-sign),
                          sign.ps1 / signing-cert.ps1 (Authenticode signing; owner guide in docs/signing.md)
@@ -106,7 +106,7 @@ is replaced by this one. The audit with evidence: `docs/ux/ux-audit.md`; the app
    main button; `Btn.Link` = an outlined jump to another page («ОТКРЫТЬ В ОПТИМИЗАЦИИ →»); `Btn.Danger` = red outline + red text, lightly hatched at rest.
 3. **White fill = clickable, and only that.** Tags are status, never white and never an outlined capsule (`Tag`,
    `Tag.Solid`, `Tag.Muted`, `Tag.Hatch`/`Tag.Risk` (red) — filled R.Xs blocks). One state vocabulary everywhere: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО ·
-   ИЗМЕНЕНО LYCORIS (+ ОТКАТИТЬ) · НЕПРИМЕНИМО; risk БЕЗОПАСНО / ПО ЖЕЛАНИЮ / ЭКСПЕРТ. No local tag styles in modules.
+   ИЗМЕНЕНО Lycoris (+ ОТКАТИТЬ) · НЕПРИМЕНИМО; risk БЕЗОПАСНО / ПО ЖЕЛАНИЮ / ЭКСПЕРТ. No local tag styles in modules.
 4. **Contrast and sizes.** Text ≥ 4.5:1 (`B.Text`, `B.Text2`, `B.Text3` #8A8A8A for captions), `B.Text4` #6B6B6B only
    for disabled; outlines ≥ 3:1 (`B.Outline` #606060 for Btn / CheckBox / Toggle / Chip / TextBox borders, `Line*` only
    decorative). `T.Label` and `T.Caption` 12 px, tags 11, mono 11.5–12; no FontSize 9–10.5 anywhere; glyphs in buttons 12–13.
@@ -217,7 +217,7 @@ Owner: «чтобы при выполнении много задач однов
 
 Owner: «Ещё нужно добавить английский язык». Full guide, glossary and style: `docs/localization.md`. **Every new or changed user-visible string
 goes through `Loc`; the Russian original is the key** (`Loc.T("Применить")`, formatted `Loc.Tf("Выбрано {0}", n)`, plural `Loc.N(n, "{0} файл", "{0} файла", "{0} файлов")`,
-XAML `{loc:T Применить}` with `xmlns:loc="clr-namespace:Monolith.UI"`). Never `$"…"` with Russian text (use `Loc.Tf` / `Log.Info("… {0}", x)`), never a private
+XAML `{loc:T Применить}` with `xmlns:loc="clr-namespace:Lycoris.UI"`). Never `$"…"` with Russian text (use `Loc.Tf` / `Log.Info("… {0}", x)`), never a private
 `ru-RU` culture (use `Loc.Culture`, `Loc.DateText/DateTimeText/TimeText/SecondsText`), never concatenate translated fragments.
 
 - **Language:** `AppSettings.Language` = auto (Windows language: ru* → ru, else en) | ru | en; read once at startup (`Loc.Initialize`), changed in Settings → «Язык / Language»
@@ -281,7 +281,7 @@ very dark Deep tints, muted (not neon) saturation, and pure-grey neutrals.
 - Lists: `List.Plain` (ListBox without selection chrome).
 - Converters: `BoolToVis`, `InverseBoolToVis`, `NullToVis` (param "invert"), `InverseBool`, `Bytes`, `Equals`,
   `EqualsToVis`, `Upper`, `Sentence` (all-caps → sentence case, keeps acronyms/brands), `Percent`.
-- Controls (`xmlns:c="clr-namespace:Monolith.UI.Controls"`): `c:PageHeader` (Title/Subtitle/Checked/RefreshCommand/
+- Controls (`xmlns:c="clr-namespace:Lycoris.UI.Controls"`): `c:PageHeader` (Title/Subtitle/Checked/RefreshCommand/
   Actions/Primary), `c:StickyBar` (Count/CountLabel/Detail/Text/Actions), `c:Meter` (segmented bar 0–100), `c:Sparkline`
   (Values = ObservableCollection<double>), `c:ArcGauge` (0–100).
 - Clearly rounded corners, still strict (owner, 27.10: «вообще не округлен… сделай ещё более круглым, не такой
@@ -314,7 +314,7 @@ very dark Deep tints, muted (not neon) saturation, and pure-grey neutrals.
 ## Updates (owner, 02.11.2026: «показывало, что есть обновление, нажать "обновить" в самой программе»)
 
 `Core/Updates/*` + `Shell/UpdateController`. Owner flow and failure modes: `docs/releasing.md`; antivirus notes: `docs/antivirus.md`.
-- The version has ONE source: `<Version>` in Monolith.csproj (`AppVersion.Current`). Release = `tools/release.ps1` (publishes
+- The version has ONE source: `<Version>` in Lycoris.csproj (`AppVersion.Current`). Release = `tools/release.ps1` (publishes
   Lycoris.exe + Lycoris.exe.sha256 to the PUBLIC repo `bil-xvii/Lycoris-releases` and the private one; `-WhatIf` = dry run).
 - The app asks ONLY `api.github.com/repos/bil-xvii/Lycoris-releases/releases/latest`, anonymously, ≤ 1 request / 12 h (ETag,
   cache in AppSettings), as an `OperationClass.Background` operation; a background failure is a log line, never a toast.
@@ -323,19 +323,19 @@ very dark Deep tints, muted (not neon) saturation, and pure-grey neutrals.
   .sha256 asset AND GitHub's digest, PE x64, signer must equal the running exe's signer). Streams through
   `VendorDownloads.CopyResponseToFileAsync` (shared with driver/installer downloads — extend it, never fork).
 - **Never overwrite the running exe.** The old copy stages the verified file (`Lycoris.exe.new`, or runs it from
-  `%LocalAppData%\MONOLITH\Updates` elevated when the folder is protected), starts it as `--apply-update <old exe> <pid>`
+  `%LocalAppData%\Lycoris\Updates` elevated when the folder is protected), starts it as `--apply-update <old exe> <pid>`
   (headless, `UpdateApplier`), which waits for the old process, renames old → `.old`, COPIES itself to the old name, starts it,
   watches 10 s and rolls back on a crash. `UpdateCleanup` removes `.old/.new` one minute after a good start.
   Refused while any listed operation runs or a game session is active (`UpdateController.BlockerText`); a network/read-only
-  location or a multi-file dev build is told plainly (`UpdateApplier.Plan`). Tests: `tests/Monolith.Tests/Updates/*` (fake
+  location or a multi-file dev build is told plainly (`UpdateApplier.Plan`). Tests: `tests/Lycoris.Tests/Updates/*` (fake
   HTTP, fake file system, tiny real exes in a temp folder; no network, Lycoris.exe is never touched).
 
 ## Security (owner, 02.11.2026: «добавь защиту от взлома»)
 
 Full audit, threat model, findings table and the owner's to-do list: `docs/security-audit.md`. Code: `Core/Security/*`; tests:
-`tests/Monolith.Tests/Security/*`; self-test stage «БЕЗОПАСНОСТЬ» runs `SecurityCorpus` (hostile inputs against every parser).
+`tests/Lycoris.Tests/Security/*`; self-test stage «БЕЗОПАСНОСТЬ» runs `SecurityCorpus` (hostile inputs against every parser).
 Attacker model: any program running as the same user (it writes Desktop, Downloads, `%LocalAppData%`, `%TEMP%`, HKCU, the user's Documents and
-environment, and can start Lycoris.exe with any arguments). The elevated MONOLITH must never trust anything such a program can write.
+environment, and can start Lycoris.exe with any arguments). The elevated Lycoris must never trust anything such a program can write.
 
 1. **No user-writable input is trusted by an elevated process without validation.** Settings, caches, markers, manifests, imported files: read with
    `SafeIo.ReadText/ReadBytes` (size limit, no links, `FileShare.Read`), parse with `System.Text.Json` into fixed types (never type names), XML only through
@@ -349,15 +349,15 @@ environment, and can start Lycoris.exe with any arguments). The elevated MONOLIT
 4. **Starting Lycoris.exe again with rights** (`Elevation.TryRelaunchElevated/SameRights`, display guard, updater) must pass `SelfIntegrity.CheckBeforeElevation()`
    (hash re-check, hostile location, signature, unpacked natives). UAC binds to the exe path, not to its bytes. New self-starts: same gate.
 5. **Launch arguments are attacker input.** `--replay-*` only for allow-listed commands (`AdminIntent.Replayable`) with a plain page key and a ≤ 4096-char printable
-   parameter; a new replayable command must have its own confirmation dialog. `--e2e` only in Debug or with `MONOLITH_E2E=1`. `--apply-update` validates its
+   parameter; a new replayable command must have its own confirmation dialog. `--e2e` only in Debug or with `Lycoris_E2E=1`. `--apply-update` validates its
    target/pid/hash (exit 13). Add no argument that changes the system without a confirmation.
 6. **Process hardening** is applied by `Hardening` (module initializer, before any other code): DLL search = System32 + the runtime's native folders, image-load policy.
    Every `[DllImport]` names a System32 library (`DefaultDllImportSearchPaths(System32)` is assembly-wide); load anything else by full path after `PathTrust`/signature checks.
    Do not enable dynamic-code prohibition or signature-only policies (JIT, WPF, GPU drivers).
 7. **Update channel** (`Core/Updates`): hash = integrity only; authenticity = the owner's ECDSA signature (`ReleaseSignature`, `tools/release-key.ps1`, key pinned in
-   `PinnedPublicKey`); version inside the file must equal the release and be newer; the updater never touches a file that is not a MONOLITH program outside `%WINDIR%`.
+   `PinnedPublicKey`); version inside the file must equal the release and be newer; the updater never touches a file that is not a Lycoris program outside `%WINDIR%`.
 8. **Never add**: packers/obfuscators/anti-debug (antivirus false positives, no protection), network listeners/pipes without an ACL and a design review, credentials or
-   keys in the repo (the release private key lives only in `%USERPROFILE%\.monolith-release`), `HttpClient` certificate-validation callbacks, `http://` URLs.
+   keys in the repo (the release private key lives only in `%USERPROFILE%\.lycoris-release`), `HttpClient` certificate-validation callbacks, `http://` URLs.
 
 Checklist for new code that reads a file/registry value/command line/network answer, starts a process or loads a library: (1) who can write this input? (2) size and
 shape limit? (3) is the result used as a path, command, URL or registry key — validated against an allow-list? (4) does an elevated process use it without the user seeing it?
@@ -366,14 +366,14 @@ shape limit? (3) is the result used as a path, command, URL or registry key — 
 ## Build, run, verify
 
 ```
-dotnet build src/Monolith/Monolith.csproj -c Debug
-dotnet test tests/Monolith.Tests/Monolith.Tests.csproj
+dotnet build src/Lycoris/Lycoris.csproj -c Debug
+dotnet test tests/Lycoris.Tests/Lycoris.Tests.csproj
 # QA screenshots of pages (no admin, no UAC): writes PNGs into the folder
-src/Monolith/bin/Debug/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe --snapshot snapshots/run1 --pages dashboard,optimize --wait 2500
+src/Lycoris/bin/Debug/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe --snapshot snapshots/run1 --pages dashboard,optimize --wait 2500
 # tabbed pages are shot once per tab (07-devices-auto.png, 07-devices-manual.png; "--pages devices-manual" = that tab only);
 # --full also saves the page's whole scrolled list (…-full.png). --page devices --tab manual opens a page on a tab.
 # Release single-file exe
-dotnet publish src/Monolith/Monolith.csproj -c Release -r win-x64 --self-contained true -o publish
+dotnet publish src/Lycoris/Lycoris.csproj -c Release -r win-x64 --self-contained true -o publish
 ```
 ```
 # Full UI self-test (no admin, all system writes locked, dialogs auto-cancelled): report.md + PNG per page,
@@ -392,7 +392,7 @@ By default the app opens without a UAC prompt (read-only) and `PageViewModel.Req
 admin rights on the same page when a change needs them; Settings → «Запрашивать права администратора при запуске»
 (`AppSettings.ElevateAtStartup`) restores the prompt at startup. `--no-elevate` always stays read-only.
 Never apply real tweaks on the dev machine during automated testing — use read-only paths and unit tests
-(registry tests use `HKCU\Software\MONOLITH-Tests`). The same for devices: no display mode/HDR/DDC/SPI/audio level/NIC
+(registry tests use `HKCU\Software\Lycoris-Tests`). The same for devices: no display mode/HDR/DDC/SPI/audio level/NIC
 writes on the dev PC — tests use the fakes (`DeviceWriters.OverrideForTests`), the redirected registry and
 `ChangeJournal.ForTests`; read-only probing (enumeration, WMI, EDID) is fine. `--display-guard …` is an internal switch
 (Lycoris starts it for a display change); never run it by hand against real displays.
@@ -407,7 +407,7 @@ writes on the dev PC — tests use the fakes (`DeviceWriters.OverrideForTests`),
   network_*.md, design docs/research/devices_design.md).
 - Verified on Windows 11 (28.10.2026): build 0 warnings, all unit tests pass, `--selftest` all pages OK (incl.
   devices/auto and devices/manual). Device writes (SPI, display mode/HDR + guard, DDC, mic level, NIC) and the live
-  measurements are unit-tested with fakes; on 02.11.2026 the owner authorised real-hardware checks: opt-in tests `tests/Monolith.Tests/Hardware` (`LYCORIS_HW_TESTS=1`), results in `docs/hardware-verification-2026-11.md` (§5 b–d, f done; a, e, g open).
+  measurements are unit-tested with fakes; on 02.11.2026 the owner authorised real-hardware checks: opt-in tests `tests/Lycoris.Tests/Hardware` (`Lycoris_HW_TESTS=1`), results in `docs/hardware-verification-2026-11.md` (§5 b–d, f done; a, e, g open).
 - Two Claude sessions once developed in parallel (a cloud one on `main`, a local one); the local line is kept on branch
   `local/windows-line` for reference only. Before starting work: `git fetch` and build on top of `origin/main`.
 - Never rename, overwrite or delete Lycoris.exe while it runs (single-file app: it loads parts of itself from the

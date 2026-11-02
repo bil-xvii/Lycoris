@@ -1,0 +1,641 @@
+using Lycoris.Core;
+
+namespace Lycoris.Tweaks;
+
+/// <summary>
+/// Power plans and power settings (gaming_tweaks.md §1, §2 C; general_tweaks.md §6, §11).
+/// DC rule (general_tweaks.md §11, 01.11): the battery side is changed only in the saving direction (Best efficiency mode,
+/// shorter timeouts); AC items never call the DC setters; every DC item names its desktop counterpart.
+/// Ryzen X3D rules: a dual-CCD X3D always stays on Balanced (the 3D V-Cache driver needs it to steer games);
+/// PROCTHROTTLEMIN is never touched on any X3D; core parking is never touched at all.
+/// </summary>
+public static partial class TweakCatalog
+{
+    private static readonly Guid SubProcessor = new("54533251-82be-4824-96c1-47b60b740d00");
+    private static readonly Guid ProcessorMinState = new("893dee8e-2bef-41e0-89c6-b55d0929964c");
+    /// <summary>PERFBOOSTMODE (hidden, documented on Learn: options-for-perf-state-engine-perfboostmode): 0 = Disabled.</summary>
+    internal static readonly Guid ProcessorBoostMode = new("be337238-0d82-4146-a960-4f3749d470c7");
+    internal static readonly Guid SubUsb = new("2a737441-1930-4402-8d77-b2bebba308a3");
+    internal static readonly Guid UsbSelectiveSuspend = new("48e6b7a6-50f5-4782-a5d4-53bb8f07e226");
+    private static readonly Guid SubPciExpress = new("501a4d13-42af-4429-9fd1-a8218c268e20");
+    private static readonly Guid PcieAspm = new("ee12f906-d277-404b-b6da-e5fa1a576df5");
+    private static readonly Guid SubSleep = new("238c9fa8-0aad-41ed-83f4-97be242c8f20");
+    /// <summary>HYBRIDSLEEP (Allow hybrid sleep): 1 = on. Read-only here.</summary>
+    private static readonly Guid HybridSleep = new("94ac6d29-73ce-41a6-809f-6363ba21b47e");
+    /// <summary>RTCWAKE (Allow wake timers): 0 = disabled, 1 = enabled, 2 = important wake timers only.</summary>
+    internal static readonly Guid WakeTimers = new("bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d");
+    /// <summary>STANDBYIDLE (Sleep after), seconds; 0 = never.</summary>
+    internal static readonly Guid StandbyIdle = new("29f6c1db-86da-48c5-9fdb-f2b67b1f44da");
+    internal static readonly Guid SubVideo = new("7516b95f-f776-4464-8c53-06167f40cc99");
+    /// <summary>VIDEOIDLE (Turn off display after), seconds; 0 = never.</summary>
+    internal static readonly Guid VideoIdle = new("3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e");
+
+    /// <summary>Microsoft's energy recommendations name 3 or 10 minutes «depending on the system»; these numbers are Lycoris's choice.</summary>
+    internal const uint BatteryScreenOffSeconds = 180, BatterySleepSeconds = 600, AcScreenOffSeconds = 600, AcSleepSeconds = 1800;
+
+    private static readonly string TimeoutsAdvice =
+        Loc.T("Microsoft в «Рекомендациях по энергопотреблению» советует 3 или 10 минут (зависит от устройства); ");
+    private static readonly string TimeoutsOnlyShorten =
+        Loc.T("Пункт только сокращает время: если у вас уже короче — ничего не меняется. Воспроизведение видео и презентации удерживают " +
+        "систему от сна сами (запросы питания), фоновые загрузки — не всегда: кто мешает сну, покажет карточка «Сон и пробуждение» " +
+        "(Обслуживание → Ремонт и диски). ");
+
+    private static IEnumerable<Tweak> PowerTweaks()
+    {
+        // SAFE-OPTIONAL: desktop, not dual-CCD X3D (DO-NOT-INCLUDE there). Pre-checked only in the Gaming profile.
+        yield return new CustomTweak
+        {
+            Id = "power-plan-performance",
+            Title = Loc.Key("Схема «Высокая производительность»"),
+            Description = Loc.T("Включает стандартную схему питания «Высокая производительность»: процессор не уходит в глубокое энергосбережение в простое."),
+            Details = Loc.T("На современных процессорах прирост среднего FPS — 0–2 %, зато растёт потребление и нагрев в простое. На Ryzen X3D " +
+                      "с одним CCD (5800X3D, 7800X3D, 9800X3D) разницы в FPS нет, и AMD рекомендует сбалансированную схему ради меньшего " +
+                      "потребления — пункт можно снять. Прежняя схема запоминается и возвращается при откате."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Gaming,
+            ExclusiveGroup = TweakGroups.PowerPlan,
+            AppliesTo = sp => !sp.IsLaptop && !IsDualCcdX3D(sp),
+            NotApplicableReason = Loc.T("Не для ноутбуков и Ryzen X3D с двумя CCD: им нужна сбалансированная схема."),
+            DetectFunc = () => SchemeState(PowerSchemes.HighPerformance),
+            ApplyAction = ctx => ActivateScheme(ctx, PowerSchemes.HighPerformance,
+                Loc.T("схема «Высокая производительность» недоступна на этом ПК (Modern Standby оставляет только сбалансированную)")),
+        };
+
+        // ADVANCED: desktop only, not dual-CCD X3D, not Modern Standby.
+        yield return new CustomTweak
+        {
+            Id = "power-plan-ultimate",
+            Title = Loc.Key("Схема «Максимальная производительность»"),
+            Description = Loc.T("Создаёт копию скрытой схемы Ultimate Performance (если её ещё нет) и включает её."),
+            Details = Loc.T("Для игр результат практически такой же, как у «Высокой производительности», но выше нагрев и потребление в простое. " +
+                      "Если копия схемы уже есть, Lycoris использует её. Созданную Lycoris копию откат удалит и вернёт прежнюю схему."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Advanced,
+            Warning = Loc.T("Прироста в играх по сравнению с «Высокой производительностью» почти нет, а потребление энергии и нагрев в простое " +
+                      "заметно выше. Только для настольных ПК с хорошим охлаждением."),
+            ExclusiveGroup = TweakGroups.PowerPlan,
+            AppliesTo = sp => !sp.IsLaptop && !IsDualCcdX3D(sp) && !IsModernStandby(),
+            NotApplicableReason = Loc.T("Не для ноутбуков, систем с Modern Standby и Ryzen X3D с двумя CCD."),
+            DetectFunc = () =>
+            {
+                var copy = PowerSchemes.FindUltimateCopy();
+                return copy is { } id && !SchemeChangeNeeded(PowerSchemes.GetActive(), id, SessionHoldsPlan())
+                    ? TweakState.Applied : TweakState.NotApplied;
+            },
+            ApplyAction = ctx =>
+            {
+                Guid scheme;
+                Guid? created = null;
+                if (PowerSchemes.FindUltimateCopy() is { } existing)
+                {
+                    if (!SchemeChangeNeeded(PowerSchemes.GetActive(), existing, SessionHoldsPlan())) return;
+                    scheme = existing;
+                }
+                else
+                {
+                    // Only duplicate the hidden template when no copy exists; the journal deletes this copy on undo.
+                    scheme = PowerSchemes.Duplicate(PowerSchemes.UltimateTemplate);
+                    created = scheme;
+                }
+                if (!ctx.SetPowerScheme(scheme, created) && created is { } orphan)
+                    PowerSchemes.Delete(orphan); // activation failed: remove the unused copy Lycoris just made
+            },
+        };
+
+        // SAFE-DEFAULT in Recommended, «Работа и учёба» and the efficiency scenario everywhere (dual-CCD X3D systems use the
+        // dedicated item below). A vendor plan derived from Balanced («AMD Ryzen Balanced», OEM Recommended) already counts as
+        // applied: Microsoft's power-mode slider exists on «Balanced or any plan derived from it», and replacing an OEM plan
+        // can cost battery life — the opposite of the scenario's goal (scenario-efficiency review, 01.11).
+        yield return new CustomTweak
+        {
+            Id = "power-plan-balanced",
+            Title = Loc.Key("Сбалансированная схема питания"),
+            Description = Loc.T("Включает стандартную схему «Сбалансированная», рекомендованную Microsoft и производителями процессоров."),
+            Details = Loc.T("Современные процессоры (CPPC/EPP) сами мгновенно повышают частоту под нагрузкой, поэтому в играх разница с " +
+                      "«Высокой производительностью» почти незаметна, а в простое компьютер тише и экономичнее. Для Ryzen X3D с одним CCD " +
+                      "это рекомендация AMD. Если активна схема производителя на основе сбалансированной («AMD Ryzen Balanced», " +
+                      "OEM Recommended), пункт считается применённым: схема уже сбалансированная (вариант производителя), Lycoris её " +
+                      "не заменяет. Прежняя схема возвращается при откате."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Safe,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended | ProfileSet.Efficiency,
+            ExclusiveGroup = TweakGroups.PowerPlan,
+            AppliesTo = sp => !IsDualCcdX3D(sp),
+            NotApplicableReason = Loc.T("Для Ryzen X3D с двумя CCD используется пункт «Схема питания для Ryzen X3D (2 CCD)»."),
+            DetectFunc = () => BalancedSchemeState(PowerSchemes.GetActive(), PowerSchemes.IsBalancedPersonality, SessionHoldsPlan(), PowerSchemes.Exists),
+            ApplyAction = ctx =>
+            {
+                // A Balanced-derived vendor plan stays (see above); the session's temporary plan never counts.
+                if (PowerSchemes.IsBalancedPersonality(PowerSchemes.GetActive()) && !SessionHoldsPlan()) return;
+                ActivateScheme(ctx, PowerSchemes.Balanced, Loc.T("сбалансированная схема питания не найдена"));
+            },
+        };
+
+        // SAFE-OPTIONAL (Windows 11, Balanced-personality plan, AC only; not on dual-CCD X3D: its interplay with the AMD driver is unverified).
+        yield return PowerModeTweak(
+            id: "power-mode-best-performance",
+            mode: PowerModeBestPerformance,
+            title: Loc.Key("Режим питания «Максимальная производительность»"),
+            description: Loc.T("На сбалансированной схеме выбирает режим питания «Максимальная производительность» (Параметры → Система → Питание) для работы от сети."),
+            details: Loc.T("Штатный режим Windows 11 — «облегчённая схема» поверх сбалансированной: Windows смещает настройки управления процессором " +
+                     "и ограничения фоновых процессов в сторону производительности, а сама схема «Сбалансированная» остаётся активной. " +
+                     "Заметнее всего на ноутбуках и ПК с настройками производителя; на настольных ПК эффект обычно невелик, а потребление " +
+                     "в простое немного растёт. Меняется только режим при питании от сети, режим от батареи не трогается. Применяется сразу " +
+                     "через документированную функцию Windows (PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим. На Ryzen " +
+                     "X3D с двумя CCD не предлагается: совместимость режима с драйвером AMD 3D V-Cache не проверена."));
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C): the same documented mechanism towards efficiency. Pre-checked only in the
+        // efficiency scenario («Тихий ПК» / «Ноутбук: автономность», general_tweaks.md §11).
+        yield return PowerModeTweak(
+            id: "power-mode-best-efficiency-ac",
+            defaults: ProfileSet.Efficiency,
+            mode: PowerModeBestEfficiency,
+            title: Loc.Key("Режим питания «Максимальная эффективность» от сети"),
+            description: Loc.T("На сбалансированной схеме выбирает режим питания «Максимальная эффективность» для работы от сети: ниже частоты " +
+                         "и нагрев под лёгкой нагрузкой, тише вентиляторы."),
+            details: Loc.T("Штатный режим Windows 11 («облегчённая схема» поверх сбалансированной): Windows смещает управление процессором и " +
+                     "ограничение фоновых процессов в сторону экономии. Пиковая производительность ниже — для игр и тяжёлой работы пункт " +
+                     "не подходит. Это не аналог «тихих» режимов утилит производителя: кривые вентиляторов и лимиты мощности Lycoris не " +
+                     "трогает, эффект зависит от производителя — измерьте. Меняется только режим от сети. Применяется сразу " +
+                     "(PowerSetUserConfiguredACPowerMode); откат возвращает прежний режим."));
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, DC rule amended 01.11): the battery side, saving direction only. Pre-checked only
+        // in «Ноутбук: автономность» (general_tweaks.md §11).
+        yield return new CustomTweak
+        {
+            Id = "power-mode-best-efficiency-dc",
+            Title = Loc.Key("Режим питания от батареи — «Максимальная эффективность»"),
+            Description = Loc.T("На сбалансированной схеме выбирает для работы от батареи режим «Максимальная эффективность»: дольше " +
+                          "автономность, холоднее и тише."),
+            Details = Loc.T("То же, что переключатель в Параметрах → Система → Питание и батарея → Режим питания (от батареи). " +
+                      "Производительность от батареи ниже — игры на батарее станут медленнее; от сети ничего не меняется. " +
+                      "Политики не используются, переключатель в Параметрах остаётся доступным; включённое энергосбережение " +
+                      "может перекрывать режим. Применяется сразу (PowerSetUserConfiguredDCPowerMode); откат возвращает прежний режим."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Efficiency,
+            ExclusiveGroup = TweakGroups.PowerModeDc,
+            Requires = PowerModeRequires,
+            AppliesTo = sp => sp.IsWindows11 && sp.IsLaptop && !IsDualCcdX3D(sp),
+            NotApplicableReason = Loc.T("Только для ноутбуков с Windows 11 на сбалансированной схеме и не для Ryzen X3D с двумя CCD. " +
+                                  "На настольном ПК то же делает пункт «Режим питания «Максимальная эффективность» от сети»."),
+            DetectFunc = () =>
+            {
+                var scheme = PowerSchemes.GetActive();
+                if (scheme == Guid.Empty) return TweakState.Unknown;
+                if (!PowerSchemes.IsBalancedPersonality(scheme)) return TweakState.NotApplicable;
+                return ReadDcPowerMode() is { } current
+                    ? current == PowerModeBestEfficiency ? TweakState.Applied : TweakState.NotApplied
+                    : TweakState.NotApplicable;
+            },
+            ApplyAction = ctx =>
+            {
+                if (!PowerSchemes.IsBalancedPersonality(PowerSchemes.GetActive()))
+                    throw new InvalidOperationException(Loc.T("режим питания действует только на сбалансированной схеме — сначала включите её"));
+                var current = ReadDcPowerMode() ?? throw new InvalidOperationException(Loc.T("не удалось прочитать текущий режим питания от батареи"));
+                if (current == PowerModeBestEfficiency) return;
+                // Only the three documented modes can be journaled (and accepted by the journal check on undo).
+                if (!IsDocumentedPowerMode(current))
+                    throw new InvalidOperationException(Loc.Tf("Windows сообщила неизвестный режим питания от батареи {0} — Lycoris его не меняет", current.ToString("D")));
+                RunJournaled(ctx, "powermode:dc", PowerShellExe, PowerShellArgs(PowerModeScriptDc(PowerModeBestEfficiency)),
+                    PowerShellExe, PowerShellArgs(PowerModeScriptDc(current)),
+                    Ru(() => Loc.Tf("от батареи: {0}", DescribePowerMode(current))), Ru(() => Loc.Tf("от батареи: {0}", DescribePowerMode(PowerModeBestEfficiency))), OutputEncoding.Utf8);
+            },
+        };
+
+        // SAFE-DEFAULT on dual-CCD X3D: the 3D V-Cache driver steers games to the cache CCD only on Balanced.
+        yield return new CustomTweak
+        {
+            Id = "power-plan-balanced-x3d",
+            Title = Loc.Key("Схема питания для Ryzen X3D (2 CCD)"),
+            Description = Loc.T("Включает сбалансированную схему — только на ней драйвер AMD 3D V-Cache переводит игры на ядра с 3D-кэшем."),
+            Details = Loc.T("На Ryzen 9 X3D с двумя CCD (7900X3D, 7950X3D, 9900X3D, 9950X3D) драйвер AMD «паркует» частотный CCD во время игры " +
+                      "только при сбалансированной схеме и включённом игровом режиме Windows; «Высокая» и «Максимальная производительность» это " +
+                      "отключают, и игра теряет преимущество 3D-кэша. Проверьте также в BIOS: CPPC Dynamic Preferred Cores = Auto/Driver; " +
+                      "если игра не распознана, отметьте её в Game Bar (Win+G) как игру. Прежняя схема возвращается при откате."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Safe,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming | ProfileSet.Efficiency,
+            ExclusiveGroup = TweakGroups.PowerPlan,
+            AppliesTo = IsDualCcdX3D,
+            NotApplicableReason = Loc.T("Только для AMD Ryzen X3D с двумя CCD (7900X3D, 7950X3D, 9900X3D, 9950X3D)."),
+            DetectFunc = () => SchemeState(PowerSchemes.Balanced),
+            ApplyAction = ctx => ActivateScheme(ctx, PowerSchemes.Balanced, Loc.T("сбалансированная схема питания не найдена")),
+        };
+
+        // ADVANCED, not on X3D.
+        yield return PowerSettingTweak(
+            id: "cpu-min-state-100",
+            title: Loc.Key("Минимальное состояние процессора 100 %"),
+            description: Loc.T("В текущей схеме питания (при работе от сети) минимальное состояние процессора поднимается до 100 %."),
+            details: Loc.T("C-состояния и CPPC продолжают работать, поэтому частота не «закрепляется» — измеримый эффект близок к нулю, " +
+                     "а потребление в простое растёт. Меняется только значение «от сети» текущей схемы; прежнее значение восстанавливается при откате."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Advanced,
+            defaults: ProfileSet.None,
+            subgroup: SubProcessor,
+            setting: ProcessorMinState,
+            target: 100,
+            describe: v => $"{v} %",
+            appliesTo: sp => !sp.CpuIsX3D,
+            notApplicableReason: Loc.T("Не для процессоров Ryzen X3D: параметр мешает работе драйвера AMD 3D V-Cache."),
+            warning: Loc.T("Эффект на производительность близок к нулю, а потребление энергии и нагрев в простое растут."));
+
+        // SAFE-OPTIONAL (AC only).
+        yield return PowerSettingTweak(
+            id: "usb-selective-suspend-off",
+            title: Loc.Key("Без отключения USB-устройств"),
+            description: Loc.T("При питании от сети Windows перестаёт усыплять простаивающие USB-устройства."),
+            details: Loc.T("FPS не меняет. Помогает при пропаданиях и задержке пробуждения USB-ЦАП, беспроводных донглов мышей и геймпадов, " +
+                     "VR-шлемов. Немного растёт потребление в простое. Меняется только значение «от сети» текущей схемы; режим от батареи не трогается. " +
+                     "Если включена опция игрового сеанса «Схема питания», значение записывается и в схему «Высокая производительность», " +
+                     "на которую сеанс переключает ПК: иначе во время игры Windows снова усыпляла бы USB-устройства — у «Высокой " +
+                     "производительности» этот параметр по умолчанию включён. Каждая схема откатывается отдельной записью."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubUsb,
+            setting: UsbSelectiveSuspend,
+            target: 0,
+            describe: v => v == 0 ? Loc.T("запрещено") : Loc.T("разрешено"),
+            alsoSchemes: ExtraSchemesForBoost);
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, AC only): 1 → 2; «отключены» (0) is stricter and is never loosened.
+        yield return PowerSettingTweak(
+            id: "wake-timers-important-only",
+            title: Loc.Key("ПК не просыпается ночью по расписанию программ"),
+            description: Loc.T("При питании от сети Windows разрешает будить компьютер только важным таймерам (например, перезагрузке после " +
+                         "обновления), а не любым программам."),
+            details: Loc.T("Обычные таймеры пробуждения ставят лаунчеры, обновляторы, резервное копирование и задачи обслуживания — ПК включается " +
+                     "ночью, шумит и светит. Ночные задачи с флагом «Пробуждать компьютер для выполнения» теперь выполнятся только когда ПК " +
+                     "уже работает. Устройства (мышь, сетевая карта), которые будят ПК, — отдельная причина: см. карточку «Сон и пробуждение» " +
+                     "(Обслуживание → Ремонт и диски → Диагностика). Меняется только значение «от сети» текущей схемы."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubSleep,
+            setting: WakeTimers,
+            target: 2,
+            describe: v => v switch { 0 => Loc.T("отключены"), 1 => Loc.T("включены"), 2 => Loc.T("только важные"), _ => v.ToString() },
+            appliesTo: sp => !sp.IsModernStandby,
+            notApplicableReason: Loc.T("На ПК с Modern Standby поведение таймеров не проверено."),
+            alsoSatisfied: WakeTimersAlreadyStrict);
+
+        // SAFE-OPTIONAL (gaming_tweaks.md §2 C, AC only), never pre-selected; not on any X3D.
+        yield return PowerSettingTweak(
+            id: "cpu-boost-off-ac",
+            title: Loc.Key("Без турбобуста процессора от сети"),
+            description: Loc.T("В текущей схеме питания (от сети) отключает Turbo Boost / Precision Boost: заметно ниже мощность и температура " +
+                         "пакета, тише вентиляторы."),
+            details: Loc.T("Самый сильный штатный рычаг Windows для тихого ПК без записи кривых вентиляторов. Цена — большая потеря однопоточной " +
+                     "производительности (десятки процентов); игры, упирающиеся в процессор, станут медленнее. Параметр хранится в схеме: на " +
+                     "настольном ПК игровой сеанс Lycoris переключает схему на «Высокую производительность», где буст остаётся включённым — " +
+                     "только на время игры. Известное лечение «взвывающих» вентиляторов при коротких всплесках нагрузки."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubProcessor,
+            setting: ProcessorBoostMode,
+            target: 0,
+            describe: DescribeBoostMode,
+            appliesTo: sp => !sp.CpuIsX3D,
+            notApplicableReason: Loc.T("Не для Ryzen X3D: управление частотами оставлено драйверу AMD."));
+
+        // SAFE-OPTIONAL (AC, desktop).
+        yield return PowerSettingTweak(
+            id: "pcie-aspm-off",
+            title: Loc.Key("Без энергосбережения PCI Express"),
+            description: Loc.T("При питании от сети отключает управление питанием линий PCI Express (Link State Power Management)."),
+            details: Loc.T("Последовательных измерений FPS нет; возможная польза — меньше микрозадержек при «пробуждении» линии видеокарты или NVMe. " +
+                     "Если BIOS управляет ASPM сам, Windows этот параметр игнорирует. Немного растёт потребление в простое."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubPciExpress,
+            setting: PcieAspm,
+            target: 0,
+            describe: v => v switch { 0 => Loc.T("откл."), 1 => Loc.T("умеренное"), 2 => Loc.T("максимальное"), _ => v.ToString() },
+            appliesTo: sp => !sp.IsLaptop,
+            notApplicableReason: Loc.T("Только для настольных ПК."));
+
+        // SAFE-OPTIONAL (general_tweaks.md §6 sys.timeouts): every PC incl. desktops (owner 01.11); AC value, only shortens.
+        yield return PowerSettingTweak(
+            id: "screen-off-ac-10m",
+            title: Loc.Key("Экран гаснет через 10 минут от сети"),
+            description: Loc.T("В текущей схеме питания экран при работе от сети выключается не позже чем через 10 минут простоя."),
+            details: TimeoutsAdvice + Loc.T("10 минут от сети — выбор Lycoris, он же стандарт сбалансированной схемы. ") + TimeoutsOnlyShorten +
+                     Loc.T("Меняется только значение «от сети» текущей схемы; на ноутбуке значение от батареи — отдельный пункт."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubVideo,
+            setting: VideoIdle,
+            target: AcScreenOffSeconds,
+            describe: DescribeTimeout,
+            onlyShorten: true);
+
+        yield return PowerSettingTweak(
+            id: "sleep-ac-30m",
+            title: Loc.Key("Сон через 30 минут от сети"),
+            description: Loc.T("В текущей схеме питания компьютер при работе от сети засыпает не позже чем через 30 минут простоя — не " +
+                         "работает, не шумит и не светит всю ночь."),
+            details: TimeoutsAdvice + Loc.T("30 минут от сети — выбор Lycoris для настольного ПК, он же стандарт сбалансированной схемы. ") +
+                     TimeoutsOnlyShorten + Loc.T("Пробуждение по сети и задачи с флагом «Пробуждать компьютер» работают как прежде; на " +
+                     "настольном ПК с гибридным сном работа сохраняется и на диск. Меняется только значение «от сети» текущей схемы."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
+            subgroup: SubSleep,
+            setting: StandbyIdle,
+            target: AcSleepSeconds,
+            describe: DescribeTimeout,
+            onlyShorten: true);
+
+        // SAFE-OPTIONAL (general_tweaks.md §6 sys.timeouts, DC rule §11): laptops, battery value, only shortens. Pre-checked only
+        // in «Ноутбук: автономность» (Microsoft's energy recommendations name exactly these two timeouts).
+        yield return PowerSettingTweakDc(
+            id: "battery-screen-off-3min",
+            title: Loc.Key("Экран гаснет через 3 минуты на батарее"),
+            description: Loc.T("В текущей схеме питания экран при работе от батареи выключается не позже чем через 3 минуты простоя."),
+            details: TimeoutsAdvice + Loc.T("3 минуты — выбор Lycoris. ") + TimeoutsOnlyShorten +
+                     Loc.T("Меняется только значение «от батареи» текущей схемы; значение от сети не трогается."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.Efficiency,
+            subgroup: SubVideo,
+            setting: VideoIdle,
+            target: BatteryScreenOffSeconds,
+            describe: DescribeTimeout,
+            appliesTo: sp => sp.IsLaptop,
+            notApplicableReason: Loc.T("Только для ноутбуков: это значение «от батареи». Для настольного ПК — пункт «Экран гаснет через 10 минут от сети»."),
+            onlyShorten: true);
+
+        yield return PowerSettingTweakDc(
+            id: "battery-sleep-10min",
+            title: Loc.Key("Сон через 10 минут на батарее"),
+            description: Loc.T("В текущей схеме питания ноутбук при работе от батареи засыпает не позже чем через 10 минут простоя."),
+            details: TimeoutsAdvice + Loc.T("10 минут — выбор Lycoris. ") + TimeoutsOnlyShorten +
+                     Loc.T("Меняется только значение «от батареи» текущей схемы; значение от сети не трогается."),
+            category: TweakCategory.Power,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.Efficiency,
+            subgroup: SubSleep,
+            setting: StandbyIdle,
+            target: BatterySleepSeconds,
+            describe: DescribeTimeout,
+            appliesTo: sp => sp.IsLaptop,
+            notApplicableReason: Loc.T("Только для ноутбуков: это значение «от батареи». Для настольного ПК — пункт «Сон через 30 минут от сети»."),
+            onlyShorten: true);
+
+        // Desktops: SAFE-DEFAULT (Recommended). Laptops: SAFE-OPTIONAL (separate item below).
+        yield return new RegistryTweak
+        {
+            Id = "fast-startup-off",
+            Title = Loc.Key("Отключить быстрый запуск"),
+            Description = Loc.T("Выключение становится полным: ядро и драйверы при включении стартуют заново, а не из файла гибернации."),
+            Details = FastStartupDetails + Loc.T(" На настольном ПК с NVMe-диском включение дольше лишь на несколько секунд."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Safe,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
+            AppliesTo = sp => !sp.IsLaptop,
+            NotApplicableReason = Loc.T("На ноутбуках используется необязательный пункт «Отключить быстрый запуск (ноутбук)»."),
+            Values = [Lm(SessionPower, "HiberbootEnabled", 0)],
+        };
+
+        yield return new RegistryTweak
+        {
+            Id = "fast-startup-off-laptop",
+            Title = Loc.Key("Отключить быстрый запуск (ноутбук)"),
+            Description = Loc.T("Выключение становится полным: ядро и драйверы при включении стартуют заново, а не из файла гибернации."),
+            Details = FastStartupDetails + Loc.T(" На ноутбуке включение станет на несколько секунд дольше, поэтому по умолчанию пункт не выбран."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Optional,
+            AppliesTo = sp => sp.IsLaptop,
+            NotApplicableReason = Loc.T("Только для ноутбуков — на настольных ПК используется основной пункт."),
+            Values = [Lm(SessionPower, "HiberbootEnabled", 0)],
+        };
+
+        // Desktops: ADVANCED. Laptops: DO-NOT-INCLUDE.
+        yield return new CustomTweak
+        {
+            Id = "hibernation-off",
+            Title = Loc.Key("Отключить гибернацию"),
+            Description = Loc.T("Выполняет powercfg /hibernate off: удаляется файл hiberfil.sys (около 40 % объёма ОЗУ), быстрый запуск тоже выключается."),
+            Details = Loc.T("Освобождает место на системном диске. Обычный сон продолжает работать, но гибридный сон (на настольных ПК включён " +
+                      "по умолчанию) перестаёт работать: если во время сна пропадёт питание, несохранённая работа будет потеряна — об этом " +
+                      "предупреждает сама Microsoft (KB 920730). Альтернатива вручную, если нужен только быстрый запуск: powercfg /h /type " +
+                      "reduced — файл вдвое меньше, но гибернация и гибридный сон при этом тоже недоступны. Откат выполняет powercfg " +
+                      "/hibernate on и возвращает прежнее значение быстрого запуска."),
+            Category = TweakCategory.Power,
+            Risk = TweakRisk.Advanced,
+            Warning = Loc.T("Гибернация и быстрый запуск станут недоступны. Если гибридный сон включён в текущей схеме (на настольных ПК — по " +
+                      "умолчанию), он перестанет работать: при пропадании питания во время сна несохранённая работа будет потеряна " +
+                      "(Microsoft, KB 920730); текущее состояние гибридного сна записывается в журнал изменений. На ноутбуках пункт не " +
+                      "предлагается: при критическом заряде Windows сохраняет работу через гибернацию, без неё несохранённые данные будут потеряны."),
+            AppliesTo = sp => !sp.IsLaptop,
+            NotApplicableReason = Loc.T("На ноутбуках не предлагается: при разряде батареи Windows сохраняет работу через гибернацию."),
+            DetectFunc = () => ReadPowerCaps() is { } caps
+                ? caps.HiberFilePresent ? TweakState.NotApplied : TweakState.Applied
+                : TweakState.Unknown,
+            ApplyAction = ctx =>
+            {
+                var caps = ReadPowerCaps() ?? throw new InvalidOperationException(Loc.T("не удалось прочитать состояние гибернации"));
+                if (!caps.HiberFilePresent) return;
+                // Fast Startup depends on hibernation: journal it explicitly so the undo restores it exactly.
+                if (LmInt(SessionPower, "HiberbootEnabled") != 0) SetDword(ctx, RegHive.HKLM, SessionPower, "HiberbootEnabled", 0);
+                var powercfg = SysTool("powercfg.exe");
+                var revert = caps.HiberFileType == 1 // HIBERFILE_TYPE_REDUCED: the file only served Fast Startup
+                    ? $"{powercfg} /hibernate on && {powercfg} /hibernate /type reduced"
+                    : $"{powercfg} /hibernate on";
+                // Read-only fact for the record: whether hybrid sleep (which hibernation off breaks, KB 920730) is in use here.
+                var active = PowerSchemes.GetActive();
+                var hybrid = active == Guid.Empty ? null : ReadAcIndex(active, SubSleep, HybridSleep);
+                RunJournaled(ctx, "hibernate", CmdExe, CmdArgs($"{powercfg} /hibernate off"), CmdExe, CmdArgs(revert),
+                    Ru(() => Loc.Tf("гибернация включена, гибридный сон: {0}", HybridSleepFact(hybrid, caps.FastSystemS4))), "гибернация отключена"); // loc:ignore: journal text (Russian)
+            },
+        };
+    }
+
+    // ───────────────────────────── Windows 11 power mode (powrprof, documented) ─────────────────────────────
+
+    /// <summary>
+    /// A Windows 11 power mode exists only on a Balanced-personality plan: the mode items depend on one of the two Balanced
+    /// switches (any one satisfies; a vendor Balanced-derived plan satisfies it by detection, see power-plan-balanced).
+    /// </summary>
+    internal static readonly IReadOnlyList<string> PowerModeRequires = ["power-plan-balanced", "power-plan-balanced-x3d"];
+
+    /// <summary>
+    /// The state of «Сбалансированная схема питания»: Applied on the stock Balanced plan AND on any plan derived from it
+    /// (<paramref name="isBalancedPersonality"/>, e.g. «AMD Ryzen Balanced», OEM Recommended) — such a plan is never replaced
+    /// — unless the live plan is only a game session's temporary one. Otherwise NotApplied while the stock Balanced plan exists.
+    /// </summary>
+    internal static TweakState BalancedSchemeState(Guid active, Func<Guid, bool> isBalancedPersonality, bool sessionPlan, Func<Guid, bool> exists)
+    {
+        if (active == Guid.Empty) return TweakState.Unknown;
+        if (isBalancedPersonality(active)) return sessionPlan ? TweakState.NotApplied : TweakState.Applied;
+        return exists(PowerSchemes.Balanced) ? TweakState.NotApplied : TweakState.NotApplicable;
+    }
+
+    /// <summary>GUID_POWER_MODE_NONE: «Сбалансированный» (no overlay).</summary>
+    public static readonly Guid PowerModeBalanced = Guid.Empty;
+    /// <summary>GUID_POWER_MODE_BEST_EFFICIENCY.</summary>
+    public static readonly Guid PowerModeBestEfficiency = new("961cc777-2547-4f9d-8174-7d86181b8a7a");
+    /// <summary>GUID_POWER_MODE_BEST_PERFORMANCE.</summary>
+    public static readonly Guid PowerModeBestPerformance = new("ded574b5-45a0-4f42-8737-46345c09c238");
+
+    /// <summary>The only values PowerSetUserConfiguredACPowerMode supports (Microsoft Learn).</summary>
+    public static bool IsDocumentedPowerMode(Guid mode) =>
+        mode == PowerModeBalanced || mode == PowerModeBestEfficiency || mode == PowerModeBestPerformance;
+
+    internal static string DescribePowerMode(Guid mode) =>
+        mode == PowerModeBestPerformance ? Loc.T("максимальная производительность")
+        : mode == PowerModeBestEfficiency ? Loc.T("максимальная эффективность")
+        : mode == PowerModeBalanced ? Loc.T("сбалансированный")
+        : mode.ToString("D");
+
+    /// <summary>The Add-Type block that exposes PowerSetUserConfiguredACPowerMode to <see cref="PowerModeScript"/>.</summary>
+    internal const string PowerModeTypeDefinition =
+        "if(-not ('Lycoris.PowerMode' -as [type])){Add-Type -Namespace Lycoris -Name PowerMode -MemberDefinition " +
+        "'[DllImport(\"powrprof.dll\", EntryPoint=\"PowerSetUserConfiguredACPowerMode\")] public static extern uint SetAc(ref Guid mode);'};";
+
+    /// <summary>
+    /// PowerShell that sets the user-configured AC power mode (one of the three documented GUIDs) and fails on any error
+    /// code. Also the only undo script JournalTrust accepts for the "powermode:ac" target.
+    /// </summary>
+    public static string PowerModeScript(Guid mode)
+    {
+        if (!IsDocumentedPowerMode(mode)) throw new ArgumentException(Loc.Tf("недокументированный режим питания: {0}", mode.ToString("D")), nameof(mode));
+        return PowerModeTypeDefinition +
+               $"$g=[Guid]'{mode:D}';$r=[Lycoris.PowerMode]::SetAc([ref]$g);" +
+               "if($r -ne 0){throw ('Windows отклонила смену режима питания, код '+$r)}"; // loc:ignore: PowerShell error text (journal script)
+    }
+
+    /// <summary>The Add-Type block that exposes PowerSetUserConfiguredDCPowerMode to <see cref="PowerModeScriptDc"/>.</summary>
+    internal const string PowerModeTypeDefinitionDc =
+        "if(-not ('Lycoris.PowerModeDc' -as [type])){Add-Type -Namespace Lycoris -Name PowerModeDc -MemberDefinition " +
+        "'[DllImport(\"powrprof.dll\", EntryPoint=\"PowerSetUserConfiguredDCPowerMode\")] public static extern uint SetDc(ref Guid mode);'};";
+
+    /// <summary>
+    /// PowerShell that sets the user-configured DC (on battery) power mode — one of the three documented GUIDs — and fails on
+    /// any error code. Also the only undo script JournalTrust accepts for the "powermode:dc" target.
+    /// </summary>
+    public static string PowerModeScriptDc(Guid mode)
+    {
+        if (!IsDocumentedPowerMode(mode)) throw new ArgumentException(Loc.Tf("недокументированный режим питания: {0}", mode.ToString("D")), nameof(mode));
+        return PowerModeTypeDefinitionDc +
+               $"$g=[Guid]'{mode:D}';$r=[Lycoris.PowerModeDc]::SetDc([ref]$g);" +
+               "if($r -ne 0){throw ('Windows отклонила смену режима питания от батареи, код '+$r)}"; // loc:ignore: PowerShell error text (journal script)
+    }
+
+    /// <summary>The AC or the DC power-mode script (<see cref="PowerModeScript"/> / <see cref="PowerModeScriptDc"/>).</summary>
+    public static string PowerModeScript(Guid mode, bool dc) => dc ? PowerModeScriptDc(mode) : PowerModeScript(mode);
+
+    /// <summary>
+    /// A Windows 11 power-mode item (one of the documented overlay GUIDs) for a Balanced-personality plan. Detect: Applied when
+    /// the user-configured AC mode equals <paramref name="mode"/>. Apply refuses undocumented current modes (no exact undo).
+    /// </summary>
+    private static CustomTweak PowerModeTweak(string id, Guid mode, string title, string description, string details,
+        ProfileSet defaults = ProfileSet.None) => new()
+    {
+        Id = id,
+        Title = title,
+        Description = description,
+        Details = details,
+        Category = TweakCategory.Power,
+        Risk = TweakRisk.Optional,
+        DefaultIn = defaults,
+        ExclusiveGroup = TweakGroups.PowerModeAc,
+        Requires = PowerModeRequires,
+        AppliesTo = sp => sp.IsWindows11 && !IsDualCcdX3D(sp),
+        NotApplicableReason = Loc.T("Только для Windows 11 на сбалансированной схеме питания и не для Ryzen X3D с двумя CCD."),
+        DetectFunc = () =>
+        {
+            var scheme = PowerSchemes.GetActive();
+            if (scheme == Guid.Empty) return TweakState.Unknown;
+            // The mode exists only on Balanced or a plan derived from it (Microsoft: customize-power-slider).
+            if (!PowerSchemes.IsBalancedPersonality(scheme)) return TweakState.NotApplicable;
+            // A game session may hold the mode for its own duration: the user's choice is then a newer layer over the
+            // session's original, never "already applied" (mirrors SessionHoldsPlan for the plan switch).
+            return ReadAcPowerMode() is { } current
+                ? current == mode && !SessionHoldsPowerMode() ? TweakState.Applied : TweakState.NotApplied
+                : TweakState.NotApplicable;
+        },
+        ApplyAction = ctx =>
+        {
+            if (!PowerSchemes.IsBalancedPersonality(PowerSchemes.GetActive()))
+                throw new InvalidOperationException(Loc.T("режим питания действует только на сбалансированной схеме — сначала включите её"));
+            var current = ReadAcPowerMode() ?? throw new InvalidOperationException(Loc.T("не удалось прочитать текущий режим питания"));
+            if (current == mode && !SessionHoldsPowerMode()) return;
+            // Only the three documented modes can be journaled (and accepted by the journal check on undo).
+            if (!IsDocumentedPowerMode(current))
+                throw new InvalidOperationException(Loc.Tf("Windows сообщила неизвестный режим питания {0} — Lycoris его не меняет", current.ToString("D")));
+            RunJournaled(ctx, "powermode:ac", PowerShellExe, PowerShellArgs(PowerModeScript(mode)),
+                PowerShellExe, PowerShellArgs(PowerModeScript(current)),
+                Ru(() => Loc.Tf("от сети: {0}", DescribePowerMode(current))), Ru(() => Loc.Tf("от сети: {0}", DescribePowerMode(mode))), OutputEncoding.Utf8);
+        },
+    };
+
+    /// <summary>
+    /// Hybrid sleep as the journal record states it: it needs FastSystemS4 (SYSTEM_POWER_CAPABILITIES; absent e.g. with an
+    /// active hypervisor) and the active plan's HYBRIDSLEEP AC value of 1.
+    /// </summary>
+    internal static string HybridSleepFact(uint? hybridSleepAc, bool fastSystemS4)
+    {
+        if (!fastSystemS4) return Loc.T("недоступен (например, активен гипервизор)");
+        return hybridSleepAc switch { 1 => Loc.T("включён в текущей схеме"), null => Loc.T("неизвестно"), _ => Loc.T("выключен в текущей схеме") };
+    }
+
+    /// <summary>RTCWAKE 0 («отключены») already keeps every program timer from waking the PC: stricter than 2, never loosened.</summary>
+    internal static bool WakeTimersAlreadyStrict(uint value) => value == 0;
+
+    /// <summary>PERFBOOSTMODE values as powercfg names them (0–4 on Learn; 5 and 6 appear in powercfg /qh on newer builds).</summary>
+    internal static string DescribeBoostMode(uint v) => v switch
+    {
+        0 => Loc.T("отключён"),
+        1 => Loc.T("включён"),
+        2 => Loc.T("агрессивный"),
+        3 => Loc.T("эффективный"),
+        4 => Loc.T("эффективный агрессивный"),
+        5 => Loc.T("агрессивный при гарантии"),
+        6 => Loc.T("эффективный агрессивный при гарантии"),
+        _ => v.ToString(),
+    };
+
+    /// <summary>The user-configured AC power mode (Windows 11), or null when the function is missing or fails. Read-only.</summary>
+    internal static Guid? ReadAcPowerMode()
+    {
+        try
+        {
+            return PowerGetUserConfiguredACPowerMode(out var mode) == 0 ? mode : null;
+        }
+        catch
+        {
+            return null; // older builds without the export, or not Windows at all
+        }
+    }
+
+    /// <summary>The user-configured DC (on battery) power mode (Windows 11), or null when the function is missing or fails. Read-only.</summary>
+    internal static Guid? ReadDcPowerMode()
+    {
+        try
+        {
+            return PowerGetUserConfiguredDCPowerMode(out var mode) == 0 ? mode : null;
+        }
+        catch
+        {
+            return null; // older builds without the export, or not Windows at all
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("powrprof.dll")]
+    private static extern uint PowerGetUserConfiguredACPowerMode(out Guid mode);
+
+    [System.Runtime.InteropServices.DllImport("powrprof.dll")]
+    private static extern uint PowerGetUserConfiguredDCPowerMode(out Guid mode);
+
+    private static readonly string FastStartupDetails =
+        Loc.T("Быстрый запуск сохраняет состояние ядра при выключении. Без него пропадают «странности» видеокарты и USB после включения, " +
+        "корректно работают dual-boot и доступ к дискам из других систем, а время работы без перезагрузки считается честно. " +
+        "Действует со следующего выключения.");
+}

@@ -1,4 +1,4 @@
-# MONOLITH autosave: commits every change in the repository and pushes it to GitHub.
+# Lycoris autosave: commits local changes in this worktree. It never pushes.
 # Called automatically by the Claude Code Stop hook (.claude/settings.json) at the end of every turn.
 # Safe to run by hand at any time. Never fails loudly: all output goes to .git/autosave.log.
 
@@ -30,11 +30,6 @@ try {
         Write-AutosaveLog "commit: $($out -join ' ')"
     }
 
-    $remote = & $git -C $repo remote 2>$null
-    if ($remote -contains 'origin') {
-        $out = & $git -C $repo push -q origin HEAD 2>&1
-        Write-AutosaveLog "push exit=$LASTEXITCODE $($out -join ' ')"
-    }
 }
 catch {
     Write-AutosaveLog "error: $_"

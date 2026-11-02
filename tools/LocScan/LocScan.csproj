@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>LocScan</AssemblyName>
-    <RootNamespace>Monolith.LocScan</RootNamespace>
+    <RootNamespace>Lycoris.LocScan</RootNamespace>
   </PropertyGroup>
 
 </Project>

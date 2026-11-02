@@ -37,4 +37,4 @@ Structure stays black/white; white fill = clickable. Red = brand, danger, failur
 | Red (existing) | danger, expert, failed, live, brand | #B3121F | #EA5B63 | #45080E |
 
 Risk vocabulary: БЕЗОПАСНО green, ПО ЖЕЛАНИЮ steel, ЭКСПЕРТ red (amber is not used for it, so it does not read as a traffic light).
-Before/after: `color-before-after-*.png`; all pages: `color-preview.png`. Enforced by `tests/Monolith.Tests/ThemeContrastTests.cs`.
+Before/after: `color-before-after-*.png`; all pages: `color-preview.png`. Enforced by `tests/Lycoris.Tests/ThemeContrastTests.cs`.

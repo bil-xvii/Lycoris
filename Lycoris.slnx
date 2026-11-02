@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Lycoris/Lycoris.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Lycoris.Tests/Lycoris.Tests.csproj" />
+  </Folder>
+</Solution>

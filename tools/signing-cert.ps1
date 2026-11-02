@@ -1,4 +1,4 @@
-﻿# One-time setup on YOUR OWN PC: creates a personal code-signing certificate "CN=MONOLITH" and makes this PC trust it,
+# One-time setup on YOUR OWN PC: creates a personal code-signing certificate "CN=Lycoris" and makes this PC trust it,
 # so the UAC prompt shows «Проверенный издатель: Lycoris» instead of «Издатель: неизвестно».
 # The trust is local: other PCs still see "unknown publisher" (that needs a certificate from a public CA, see docs/signing.md).
 #
@@ -13,21 +13,21 @@
 # Nothing else is touched. -Remove deletes exactly these two entries.
 #Requires -RunAsAdministrator
 param(
-    [string]$Subject = 'CN=MONOLITH',
+    [string]$Subject = 'CN=Lycoris',
     [int]$Years = 5,
     [switch]$Remove
 )
 
 $ErrorActionPreference = 'Stop'
-$friendly = 'MONOLITH code signing (this PC only)'
+$friendly = 'Lycoris code signing (this PC only)'
 
-function Find-MonolithCerts([string]$store) {
+function Find-LycorisCerts([string]$store) {
     Get-ChildItem $store -ErrorAction SilentlyContinue |
         Where-Object { $_.Subject -eq $Subject -and $_.FriendlyName -eq $friendly }
 }
 
 if ($Remove) {
-    $mine = @(Find-MonolithCerts 'Cert:\CurrentUser\My')
+    $mine = @(Find-LycorisCerts 'Cert:\CurrentUser\My')
     # The Root copy is imported from a .cer, which carries no FriendlyName: match our own self-issued certificate by
     # subject = issuer = $Subject, or by the thumbprint of a certificate this script created.
     $thumbs = @($mine | ForEach-Object Thumbprint)
@@ -39,7 +39,7 @@ if ($Remove) {
     return
 }
 
-$cert = Find-MonolithCerts 'Cert:\CurrentUser\My' |
+$cert = Find-LycorisCerts 'Cert:\CurrentUser\My' |
     Where-Object { $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date).AddDays(30) } |
     Sort-Object NotAfter -Descending | Select-Object -First 1
 
@@ -55,7 +55,7 @@ if ($cert) {
 if (Get-ChildItem Cert:\LocalMachine\Root | Where-Object Thumbprint -eq $cert.Thumbprint) {
     'Этот ПК уже доверяет сертификату.'
 } else {
-    $cer = Join-Path $env:TEMP "monolith-signing-$($cert.Thumbprint).cer"
+    $cer = Join-Path $env:TEMP "lycoris-signing-$($cert.Thumbprint).cer"
     try {
         Export-Certificate -Cert $cert -FilePath $cer -Type CERT | Out-Null   # public part only
         Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null

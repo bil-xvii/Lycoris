@@ -1,0 +1,35 @@
+<UserControl x:Class="Lycoris.Modules.Maintenance.MaintenanceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Lycoris.UI.Controls"
+             xmlns:loc="clr-namespace:Lycoris.UI"
+             xmlns:local="clr-namespace:Lycoris.Modules.Maintenance"
+             xmlns:clean="clr-namespace:Lycoris.Modules.Cleaner"
+             xmlns:tools="clr-namespace:Lycoris.Modules.Tools"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:MaintenanceViewModel}">
+    <UserControl.Resources>
+        <DataTemplate DataType="{x:Type clean:CleanerViewModel}"><clean:CleanerView /></DataTemplate>
+        <DataTemplate DataType="{x:Type tools:ToolsViewModel}"><tools:ToolsView /></DataTemplate>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
+
+        <!-- The tab's own header shows only its right side («проверено», ОБНОВИТЬ, actions, the ONE main button);
+             the framed tabs share that line on the left. -->
+        <ContentControl Grid.Row="1" Margin="0,14,0,0" Content="{Binding ActiveTab}" Focusable="False" c:PageHeader.IsEmbedded="True" />
+        <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource SegmentBar}" VerticalAlignment="Top" Panel.ZIndex="1">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Style="{StaticResource Segment}" Content="{loc:T ОЧИСТКА}" GroupName="MaintenanceTabs"
+                             IsChecked="{Binding TabKey, Converter={StaticResource Equals}, ConverterParameter=cleaner}" />
+                <RadioButton Style="{StaticResource Segment}" Content="{loc:T 'РЕМОНТ И ДИСКИ'}" GroupName="MaintenanceTabs"
+                             IsChecked="{Binding TabKey, Converter={StaticResource Equals}, ConverterParameter=tools}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

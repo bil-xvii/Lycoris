@@ -1,0 +1,775 @@
+<UserControl x:Class="Lycoris.Modules.Drivers.DriversHardwarePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Lycoris.UI.Controls"
+             xmlns:ui="clr-namespace:Lycoris.UI"
+             xmlns:local="clr-namespace:Lycoris.Modules.Drivers"
+             xmlns:hw="clr-namespace:Lycoris.Modules.Drivers.Hardware"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}"
+             xmlns:loc="clr-namespace:Lycoris.UI">
+    <!-- «ПОДБОР ДЛЯ ВАШЕГО ПК»: the video card pinned first, the summary tiles that filter the list, the components, the platform -->
+    <UserControl.Resources>
+        <local:AllTrueToVisibilityConverter x:Key="Drv.AllTrueToVis" />
+        <local:HasTextConverter x:Key="Drv.HasText" />
+
+        <Style x:Key="Hw.StatValue" TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
+            <Setter Property="FontSize" Value="30" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="Hw.StatCaption" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style x:Key="Drv.SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H2}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="Drv.CardFooter" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource B.Line}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Margin" Value="0,11,0,0" />
+        </Style>
+
+        <!-- Component status tag (the theme's Tag styles; never white): update = filled, missing = hatched, rest muted/plain -->
+        <DataTemplate x:Key="Hw.StatusTag">
+            <Grid VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,1,0,0">
+                <Border Style="{StaticResource Tag.Ok}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=ok}">
+                    <TextBlock Text="{Binding StatusText}" />
+                </Border>
+                <Border Style="{StaticResource Tag.Info}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=update}">
+                    <TextBlock Text="{Binding StatusText}" />
+                </Border>
+                <Border Style="{StaticResource Tag.Hatch}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=missing}">
+                    <TextBlock Text="{Binding StatusText}" />
+                </Border>
+                <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=manual|muted}">
+                    <TextBlock Text="{Binding StatusText}" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ═══════════ Recommended action ═══════════ -->
+        <DataTemplate x:Key="Hw.ActionTemplate" DataType="{x:Type hw:HwActionItem}">
+            <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Md}" Padding="14,10" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="30" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- Always visible when installable (read-only mode asks for rights when the install is pressed) -->
+                    <CheckBox VerticalAlignment="Top" Margin="0,1,0,0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanToggle}"
+                              Visibility="{Binding IsInstallable, Converter={StaticResource BoolToVis}}"
+                              ToolTip="{loc:T Отметить для установки}" />
+                    <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
+                               VerticalAlignment="Top" Margin="1,3,0,0"
+                               Visibility="{Binding IsInstallable, Converter={StaticResource InverseBoolToVis}}" />
+                    <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                        <WrapPanel>
+                            <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="13" TextWrapping="NoWrap" />
+                            <TextBlock Text="{Binding Publisher, StringFormat='   ·   {0}'}" Style="{StaticResource T.Caption}" TextWrapping="NoWrap"
+                                       VerticalAlignment="Center" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding Reason}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17" />
+                        <TextBlock Text="{Binding JobText}" Style="{StaticResource T.Mono}" FontWeight="Bold" Foreground="{StaticResource B.Text}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding JobText, Converter={StaticResource NullToVis}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,1,0,0">
+                        <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" Visibility="{Binding IsOptional, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{loc:T 'Не обязательно: ставьте, если нужны функции этой программы'}">
+                            <TextBlock Text="{loc:T ПО ЖЕЛАНИЮ}" />
+                        </Border>
+                        <Border Style="{StaticResource Tag}" ToolTip="{loc:T Источник}">
+                            <TextBlock Text="{Binding SourceText}" />
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="3" Margin="10,0,0,0" VerticalAlignment="Top"
+                            Visibility="{Binding HasButton, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding DataContext.HardwareActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}" Content="{Binding ButtonText}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- ═══════════ Detected component ═══════════ -->
+        <DataTemplate x:Key="Hw.ComponentTemplate" DataType="{x:Type hw:HwComponentItem}">
+            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,14,22,12"
+                    Visibility="{Binding IsShown, Converter={StaticResource BoolToVis}}">
+                <!-- Opened from «Устройства и сеть» (УСТАНОВИТЬ В «ДРАЙВЕРАХ»): the row lights up for a moment -->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource B.Surface3}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="168" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="{Binding Kind}" Style="{StaticResource T.Label}" TextWrapping="Wrap" Margin="0,3,16,0" />
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource T.H3}" FontSize="15" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                        <TextBlock Text="{Binding Details}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" Visibility="{Binding Details, Converter={StaticResource NullToVis}}" />
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,6,0,0"
+                                   Visibility="{Binding Note, Converter={StaticResource NullToVis}}" />
+                    </StackPanel>
+                    <ContentPresenter Grid.Column="2" ContentTemplate="{StaticResource Hw.StatusTag}" Content="{Binding}" />
+                    <ItemsControl Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,10,0,0" Focusable="False"
+                                  ItemsSource="{Binding Actions}" ItemTemplate="{StaticResource Hw.ActionTemplate}"
+                                  Visibility="{Binding HasActions, Converter={StaticResource BoolToVis}}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- ═══════════ One video card ═══════════ -->
+        <DataTemplate x:Key="Drv.GpuCard" DataType="{x:Type local:GpuCardItem}">
+            <!-- RoundClip: the primary-GPU bar runs along the top edge -->
+            <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,10,10" ui:RoundClip.Content="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Rectangle Height="3" VerticalAlignment="Top" Fill="{StaticResource B.White}"
+                               Visibility="{Binding IsPrimary, Converter={StaticResource BoolToVis}}" />
+
+                    <StackPanel Margin="14,14,14,0">
+                        <DockPanel LastChildFill="False">
+                            <Border Style="{StaticResource Tag.Solid}" DockPanel.Dock="Left">
+                                <TextBlock Text="{Binding VendorText}" />
+                            </Border>
+                            <Border Style="{StaticResource Tag}" DockPanel.Dock="Left" Margin="6,0,0,0">
+                                <TextBlock Text="{Binding RoleText}" />
+                            </Border>
+                            <Border Style="{StaticResource Tag.Hatch}" DockPanel.Dock="Right" Visibility="{Binding VerdictIsWarning, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding VerdictText}" />
+                            </Border>
+                            <Border Style="{StaticResource Tag.Muted}" DockPanel.Dock="Right">
+                                <Border.Visibility>
+                                    <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
+                                        <Binding Path="ShowVerdict" />
+                                        <Binding Path="VerdictIsWarning" Converter="{StaticResource InverseBool}" />
+                                    </MultiBinding>
+                                </Border.Visibility>
+                                <TextBlock Text="{Binding VerdictText}" />
+                            </Border>
+                        </DockPanel>
+                        <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" Margin="0,10,0,0"
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+
+                        <Grid Margin="0,11,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.3*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding VersionLabel}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{Binding VersionText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{loc:T ДАТА ДРАЙВЕРА}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" Foreground="{StaticResource B.Text2}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="{loc:T ВОЗРАСТ}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{Binding AgeText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" Foreground="{StaticResource B.Text2}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TechLine}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                                   Margin="0,10,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding TechLine}" />
+                    </StackPanel>
+
+                    <!-- Latest driver hint (NVIDIA / AMD): no white fill — white means «clickable» -->
+                    <StackPanel Grid.Row="1" Margin="14,10,14,0">
+                        <TextBlock Style="{StaticResource T.Caption}" Text="{loc:T Проверка последней версии у производителя…}"
+                                   Visibility="{Binding IsCheckingLatest, Converter={StaticResource BoolToVis}}" />
+                        <Border Padding="10,10" CornerRadius="{StaticResource R.Md}" Background="{StaticResource B.Surface2}" BorderThickness="1"
+                                BorderBrush="{StaticResource B.Line2}" Visibility="{Binding HasLatest, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource F.Icons}" FontSize="15" Margin="0,0,9,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#xE73E;" />
+                                            <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding UpdateAvailable}" Value="True">
+                                                    <Setter Property="Text" Value="&#xE896;" />
+                                                    <Setter Property="Foreground" Value="{StaticResource B.InfoText}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding LatestText, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
+                                               FontStretch="SemiCondensed" FontSize="14" Foreground="{StaticResource B.Text}" />
+                                    <TextBlock Text="{Binding LatestCaption}" Style="{StaticResource T.Caption}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <Border Grid.Column="2" Style="{StaticResource Tag.Solid}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{loc:T ЕСТЬ ОБНОВЛЕНИЕ}" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="2" Text="{Binding Recommendation}" Style="{StaticResource T.Caption}" Margin="14,10,14,0" TextWrapping="Wrap" />
+
+                    <Border Grid.Row="3" Style="{StaticResource Drv.CardFooter}">
+                        <StackPanel>
+                            <!-- Direct download: progress -->
+                            <Grid Margin="0,0,0,10" Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <DockPanel>
+                                        <TextBlock Text="{Binding DownloadStage}" Style="{StaticResource T.Label}" DockPanel.Dock="Left" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding DownloadDetail}" Style="{StaticResource T.Mono}" Margin="12,0,0,0"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                    <ProgressBar Margin="0,6,0,0" Height="4" Maximum="100" Value="{Binding DownloadPercent}"
+                                                 IsIndeterminate="{Binding DownloadIndeterminate}" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Style="{StaticResource Btn.Danger}" Command="{Binding CancelDownloadCommand}" MinWidth="88"
+                                        ToolTip="{loc:T Остановить загрузку — недокачанный файл будет удалён}">
+                                    <TextBlock Text="{loc:T ОТМЕНА}" />
+                                </Button>
+                            </Grid>
+
+                            <!-- Direct download: result -->
+                            <Grid Margin="0,0,0,10">
+                                <Grid.Visibility>
+                                    <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
+                                        <Binding Path="DownloadResult" Converter="{StaticResource Drv.HasText}" />
+                                        <Binding Path="IsDownloading" Converter="{StaticResource InverseBool}" />
+                                    </MultiBinding>
+                                </Grid.Visibility>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Top" Margin="0,2,8,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#xE7BA;" />
+                                            <Setter Property="Foreground" Value="{StaticResource B.WarningText}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DownloadResultOk}" Value="True">
+                                                    <Setter Property="Text" Value="&#xE73E;" />
+                                                    <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Column="1" Text="{Binding DownloadResult}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" />
+                            </Grid>
+
+                            <!-- Every button is labelled and outlined; read-only mode asks for rights when the button is pressed -->
+                            <WrapPanel Margin="0,0,0,-8">
+                                <Button Margin="0,0,8,8" Command="{Binding DataContext.CheckGpuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        ToolTip="{loc:T Сверить версию драйвера с сайтом производителя. Ничего не скачивается и не меняется.}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T ПРОВЕРИТЬ ВЕРСИЮ}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Margin="0,0,8,8"
+                                        Command="{Binding DataContext.DownloadDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" ToolTip="{Binding DownloadHint}">
+                                    <Button.Visibility>
+                                        <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
+                                            <Binding Path="HasDownload" />
+                                            <Binding Path="IsDownloading" Converter="{StaticResource InverseBool}" />
+                                        </MultiBinding>
+                                    </Button.Visibility>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding DownloadButtonText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Margin="0,0,8,8" Visibility="{Binding ShowToolPrimary, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.UseGpuToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" ToolTip="{Binding ToolHint}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding ToolButtonText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Margin="0,0,8,8" Visibility="{Binding ShowToolSecondary, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.UseGpuToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" ToolTip="{Binding ToolHint}" Content="{Binding ToolButtonText}" />
+                                <Button Margin="0,0,8,8" Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding SiteUrl}" ToolTip="{Binding SiteUrl}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{loc:T ОФИЦИАЛЬНЫЙ САЙТ}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════ Summary tiles: three of them are filters of the list below ═══════════ -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="1.5*" />
+            </Grid.ColumnDefinitions>
+            <RadioButton Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
+                         IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=all, Mode=TwoWay}"
+                         ToolTip="{loc:T 'Показать все компоненты: устройства, найденные на этом ПК, и библиотеки для игр'}">
+                <StackPanel>
+                    <TextBlock Text="{loc:T КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ}" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{Binding HwComponentsStat}" Style="{StaticResource Hw.StatValue}" />
+                    <TextBlock Text="{Binding HwComponentsCaption}" Style="{StaticResource Hw.StatCaption}" />
+                </StackPanel>
+            </RadioButton>
+            <RadioButton Grid.Column="1" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
+                         IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=recommend, Mode=TwoWay}"
+                         ToolTip="{loc:T 'Показать только компоненты, которым нужно обновление, установка или ручной шаг'}">
+                <StackPanel>
+                    <TextBlock Text="{loc:T РЕКОМЕНДАЦИЙ · ТОЛЬКО ИХ}" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{Binding HwRecommendationsStat}" Style="{StaticResource Hw.StatValue}" />
+                    <TextBlock Text="{Binding HwRecommendationsCaption}" Style="{StaticResource Hw.StatCaption}" />
+                </StackPanel>
+            </RadioButton>
+            <RadioButton Grid.Column="2" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
+                         IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=current, Mode=TwoWay}"
+                         ToolTip="{loc:T 'Показать только компоненты, у которых версия сверена с производителем или уже установлена'}">
+                <StackPanel>
+                    <TextBlock Text="{loc:T АКТУАЛЬНО · ТОЛЬКО ИХ}" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{Binding HwCurrentStat}" Style="{StaticResource Hw.StatValue}" />
+                    <TextBlock Text="{Binding HwCurrentCaption}" Style="{StaticResource Hw.StatCaption}" />
+                </StackPanel>
+            </RadioButton>
+            <!-- RoundClip: the scan progress bar runs along the bottom edge -->
+            <Border Grid.Column="3" Style="{StaticResource Card}" Padding="0" ui:RoundClip.Content="True">
+                <Grid Margin="16,12,16,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{loc:T АНАЛИЗ ЖЕЛЕЗА}" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{Binding HardwareScanTime}" Style="{StaticResource Hw.StatValue}" Foreground="{StaticResource B.Text2}" />
+                        <TextBlock Text="{Binding HardwareScanCaption}" Style="{StaticResource Hw.StatCaption}"
+                                   Visibility="{Binding IsHardwareScanning, Converter={StaticResource InverseBoolToVis}}" />
+                        <TextBlock Text="{Binding HardwareScanStage}" Style="{StaticResource Hw.StatCaption}" Foreground="{StaticResource B.Text}"
+                                   Visibility="{Binding IsHardwareScanning, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0" Command="{Binding RescanHardwareCommand}"
+                            ToolTip="{loc:T 'Заново прочитать железо, версии драйверов, библиотеки и программы (только чтение)'}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="{loc:T СКАНИРОВАТЬ}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <ProgressBar Grid.ColumnSpan="2" VerticalAlignment="Bottom" Margin="-16,0,-16,-12" IsIndeterminate="{Binding IsHardwareScanning}"
+                                 Visibility="{Binding IsHardwareScanning, Converter={StaticResource BoolToVis}}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══════════ The list: the only ScrollViewer ═══════════ -->
+        <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="0,0,12,8">
+
+                <!-- ═══════ The video card(s): pinned FIRST ═══════ -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:T Видеокарта}" Style="{StaticResource Drv.SectionTitle}" />
+                    <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0" />
+                    <TextBlock Grid.Column="2" Text="{loc:T ТОЛЬКО ОФИЦИАЛЬНЫЕ ИСТОЧНИКИ ПРОИЗВОДИТЕЛЕЙ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                </Grid>
+
+                <Border Style="{StaticResource Callout}" Margin="0,0,0,10" Visibility="{Binding GpusEmpty, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Style="{StaticResource T.Body}" Text="{loc:T 'Видеоадаптеры не найдены. Если сведения о системе ещё собираются, нажмите «ОБНОВИТЬ» через несколько секунд.'}" />
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Gpus}" ItemTemplate="{StaticResource Drv.GpuCard}" Margin="0,0,-10,0" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="{Binding GpuColumns}" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
+                <!-- First scan in progress -->
+                <Border Style="{StaticResource Card}" Padding="14,20" Margin="0,0,0,10"
+                        Visibility="{Binding HardwareScanned, Converter={StaticResource InverseBoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="{loc:T АНАЛИЗ ЖЕЛЕЗА}" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{Binding HardwareScanStage}" Style="{StaticResource T.H2}" Margin="0,8,0,0" />
+                        <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0"
+                                   Text="{loc:T 'Lycoris читает сведения о процессоре, плате, видеокартах, памяти, накопителях, сети, звуке, мониторах и периферии и подбирает для них официальные драйверы и программы. Только чтение — ничего не меняется и не устанавливается.'}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Result of the last installation -->
+                <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,10"
+                        Visibility="{Binding HasHardwareResults, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <Grid Margin="22,16,16,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{loc:T РЕЗУЛЬТАТ УСТАНОВКИ}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding HwResultsSummary}" Style="{StaticResource T.Caption}" VerticalAlignment="Center"
+                                       Margin="16,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Command="{Binding DismissHardwareResultsCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="{loc:T СКРЫТЬ РЕЗУЛЬТАТ}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding HardwareResults}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type hw:HwResultItem}">
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,9">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="26" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="&#xE7BA;" />
+                                                        <Setter Property="Foreground" Value="{StaticResource B.WarningText}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOk}" Value="True">
+                                                                <Setter Property="Text" Value="&#xE73E;" />
+                                                                <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                                                <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" />
+                                                <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}"
+                                                           Visibility="{Binding Detail, Converter={StaticResource NullToVis}}" />
+                                            </StackPanel>
+                                            <Grid Grid.Column="2" VerticalAlignment="Top">
+                                                <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding IsOk, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding ResultText}" />
+                                                </Border>
+                                                <Border Style="{StaticResource Tag.Hatch}" Visibility="{Binding IsOk, Converter={StaticResource InverseBoolToVis}}">
+                                                    <TextBlock Text="{Binding ResultText}" />
+                                                </Border>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- Component groups (the summary tiles filter them) -->
+                <ItemsControl ItemsSource="{Binding HardwareGroups}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type hw:HwGroupItem}">
+                            <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,10" Visibility="{Binding HasShown, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <Grid Margin="14,10,14,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                                        <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="14,0"
+                                                   SnapsToDevicePixels="True" />
+                                        <Grid Grid.Column="2">
+                                            <Border Style="{StaticResource Tag.Solid}" Visibility="{Binding SummaryKey, Converter={StaticResource EqualsToVis}, ConverterParameter=attention}">
+                                                <TextBlock Text="{Binding SummaryText}" />
+                                            </Border>
+                                            <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding SummaryKey, Converter={StaticResource EqualsToVis}, ConverterParameter=muted}">
+                                                <TextBlock Text="{Binding SummaryText}" />
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Components}" ItemTemplate="{StaticResource Hw.ComponentTemplate}" Focusable="False" />
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,10"
+                                            Visibility="{Binding WuExtraText, Converter={StaticResource NullToVis}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding WuExtraText}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Style="{StaticResource Btn.Link}" Margin="12,0,0,0"
+                                                    Command="{Binding DataContext.GoToTabCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="Updates">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{loc:T К ОБНОВЛЕНИЯМ WINDOWS}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,10"
+                                            Visibility="{Binding Footer, Converter={StaticResource NullToVis}}">
+                                        <TextBlock Text="{Binding Footer}" Style="{StaticResource T.Caption}" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- A filter is on and nothing matches -->
+                <Border Style="{StaticResource Callout}" Margin="0,0,0,10" Visibility="{Binding HwNothingShown, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Style="{StaticResource T.Body}" Text="{loc:T Под выбранный фильтр ничего не подходит. Нажмите плитку «КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ» сверху.}" />
+                </Border>
+
+                <!-- ═══════ Platform (chipset) ═══════ -->
+                <Grid Margin="0,10,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:T Платформа}" Style="{StaticResource Drv.SectionTitle}" />
+                    <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                </Grid>
+
+                <Border Style="{StaticResource Card}" Padding="0">
+                    <StackPanel>
+                        <StackPanel Margin="14,14,14,0">
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="{loc:T ДРАЙВЕР ЧИПСЕТА}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                                <Grid DockPanel.Dock="Right">
+                                    <Border Style="{StaticResource Tag.Solid}" Visibility="{Binding ChipsetState, Converter={StaticResource EqualsToVis}, ConverterParameter=ok}">
+                                        <TextBlock Text="{Binding ChipsetVerdict}" />
+                                    </Border>
+                                    <Border Style="{StaticResource Tag.Hatch}" Visibility="{Binding ChipsetState, Converter={StaticResource EqualsToVis}, ConverterParameter=bad}">
+                                        <TextBlock Text="{Binding ChipsetVerdict}" />
+                                    </Border>
+                                    <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding ChipsetState, Converter={StaticResource EqualsToVis}, ConverterParameter=unknown}">
+                                        <TextBlock Text="{Binding ChipsetVerdict}" />
+                                    </Border>
+                                </Grid>
+                            </DockPanel>
+                            <TextBlock Text="{Binding ChipsetCpu, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" FontSize="17"
+                                       Margin="0,9,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding ChipsetCpu}" />
+                            <TextBlock Text="{Binding ChipsetRecommendation}" Style="{StaticResource T.Body}" Margin="0,8,0,0" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding ChipsetComponents}" Margin="0,10,0,0" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:ChipsetComponentItem}">
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="14,9">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="26" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="170" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOk}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,9,0">
+                                                <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Description}"
+                                                           Visibility="{Binding Description, Converter={StaticResource NullToVis}}" />
+                                            </StackPanel>
+                                            <Grid Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,0">
+                                                <Border Style="{StaticResource Tag.Hatch}" Visibility="{Binding IsProblem, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding StateText}" />
+                                                </Border>
+                                                <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding IsProblem, Converter={StaticResource InverseBoolToVis}}">
+                                                    <TextBlock Text="{Binding StateText}" />
+                                                </Border>
+                                            </Grid>
+                                            <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding VersionText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding DetailText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding DetailText}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Style="{StaticResource Callout}" Padding="0" Margin="14,10,14,0" ui:RoundClip.Content="True"
+                                Visibility="{Binding ChipsetNote, Converter={StaticResource NullToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="{StaticResource B.HatchStrong}" />
+                                <StackPanel Grid.Column="1" Margin="10,10,10,11">
+                                    <TextBlock Text="AMD X3D" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                    <TextBlock Text="{Binding ChipsetNote}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <TextBlock Text="{Binding ChipsetPackage}" Style="{StaticResource T.Caption}" Margin="14,9,14,0"
+                                   Visibility="{Binding ChipsetPackage, Converter={StaticResource NullToVis}}" />
+
+                        <Border Style="{StaticResource Drv.CardFooter}">
+                            <WrapPanel>
+                                <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsAmd, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding OpenUrlCommand}" CommandParameter="{Binding AmdDriversUrl}" ToolTip="{Binding AmdDriversUrl}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{loc:T ДРАЙВЕРЫ ЧИПСЕТА НА AMD.COM}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding UseIntelDsaCommand}"
+                                        ToolTip="{loc:T 'Intel Driver &amp; Support Assistant — официальный помощник Intel (winget, издатель Intel)'}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding IntelDsaButtonText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding OpenUrlCommand}" CommandParameter="{Binding IntelSupportUrl}" ToolTip="{Binding IntelSupportUrl}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{loc:T ПОДДЕРЖКА INTEL}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource Btn.Ghost}" Command="{Binding GoToTabCommand}" CommandParameter="Updates">
+                                    <TextBlock Text="{loc:T ПРОВЕРИТЬ В WINDOWS UPDATE}" VerticalAlignment="Center" />
+                                </Button>
+                            </WrapPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Clean install (DDU) — information only, Lycoris never runs it -->
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" TextWrapping="Wrap"
+                               Text="{loc:T 'Повреждённый видеодрайвер переустанавливают начисто утилитой DDU — вручную, в безопасном режиме, после точки восстановления и с отключённым интернетом. Lycoris её не запускает. Порядок: точка восстановления → скачать новый драйвер → отключить интернет → безопасный режим и DDU → установить драйвер и подключить интернет.'}" />
+                    <Button Grid.Column="1" Style="{StaticResource Btn.Link}" Command="{Binding OpenUrlCommand}" CommandParameter="{Binding DduUrl}" ToolTip="{Binding DduUrl}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="DDU · WAGNARDSOFT" VerticalAlignment="Center" />
+                            <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <TextBlock Style="{StaticResource T.Caption}" Margin="2,10,0,0" Visibility="{Binding HardwareScanned, Converter={StaticResource BoolToVis}}"
+                           TextWrapping="Wrap"
+                           Text="{loc:T 'Источники: серверы NVIDIA и AMD (с проверкой цифровой подписи производителя), winget — только пакеты, проверенные у издателя, Windows Update и официальные сайты. Сторонние базы драйверов не используются; BIOS и профиль памяти меняются только вручную.'}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ═══════════ Sticky bar: outside the scroll; the count while rows are checked, the progress while installing ═══════════ -->
+        <Grid Grid.Row="2" Margin="0,10,0,0">
+            <c:StickyBar Count="{Binding HwSelectedCount}" Text="{Binding HwSelectionText}">
+                <c:StickyBar.Visibility>
+                    <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
+                        <Binding Path="IsHwInstalling" Converter="{StaticResource InverseBool}" />
+                        <Binding Path="HasPrimary" />
+                    </MultiBinding>
+                </c:StickyBar.Visibility>
+                <c:StickyBar.Actions>
+                    <Button Style="{StaticResource Btn.Ghost}" Command="{Binding ClearHardwareSelectionCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T СНЯТЬ ОТМЕТКИ}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </c:StickyBar.Actions>
+            </c:StickyBar>
+
+            <!-- Installing -->
+            <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}"
+                    Visibility="{Binding IsHwInstalling, Converter={StaticResource BoolToVis}}">
+                <Grid Margin="14,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
+                        <TextBlock Text="{Binding HwInstallStage}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding HwInstallDetail}" Style="{StaticResource T.Mono}" Margin="0,4,0,8"
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding HwInstallDetail}" />
+                        <ProgressBar Value="{Binding HwInstallPercent}" Maximum="100" IsIndeterminate="{Binding HwInstallIndeterminate}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Style="{StaticResource Btn.Danger}" VerticalAlignment="Center" Command="{Binding CancelHardwareInstallCommand}"
+                            ToolTip="{loc:T Остановить очередь. Уже открытый установщик драйвера не прерывается.}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T ОТМЕНИТЬ УСТАНОВКУ}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

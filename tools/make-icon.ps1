@@ -1,4 +1,4 @@
-﻿# LYCORIS icon generator (spider lily, Lycoris radiata).
+# Lycoris icon generator (spider lily, Lycoris radiata).
 # Usage:  tools\make-icon.ps1 -Variant A|B|All     (default All)
 #   A = white flower on near-black tile (monochrome, matches the app)
 #   B = deep-red flower on near-black tile
@@ -188,7 +188,7 @@ public static class Lycoris
         var sb = new StringBuilder();
         var ic = CultureInfo.InvariantCulture;
         sb.AppendFormat(ic, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {0} {0}\" width=\"{0}\" height=\"{0}\">\n", vb);
-        sb.AppendFormat(ic, "<title>LYCORIS</title>\n<g fill=\"{0}\">\n", fill);
+        sb.AppendFormat(ic, "<title>Lycoris</title>\n<g fill=\"{0}\">\n", fill);
         foreach (var p in s.Polys)
         {
             sb.Append("<path d=\"M");
@@ -259,7 +259,7 @@ if ($Variant -eq 'All') {
     $fS = New-Object System.Drawing.Font 'Segoe UI', 10
     $wb = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 235, 235, 235))
     $bb = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 20, 20, 20))
-    $g.DrawString('LYCORIS - icon preview', $fT, $wb, 24, 12)
+    $g.DrawString('Lycoris - icon preview', $fT, $wb, 24, 12)
     $rows = @(@('A  Монохром', $white, 70), @('B  Красный акцент', $red, 610))
     $bgs = @(@([System.Drawing.Color]::FromArgb(255, 22, 22, 22), $wb), @([System.Drawing.Color]::FromArgb(255, 236, 236, 236), $bb))
     foreach ($row in $rows) {

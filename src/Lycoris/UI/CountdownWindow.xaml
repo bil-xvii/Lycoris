@@ -1,0 +1,35 @@
+<Window x:Class="Lycoris.UI.CountdownWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Lycoris.UI"
+        Title="Lycoris" WindowStyle="None" ResizeMode="NoResize" SizeToContent="WidthAndHeight" Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="Manual" Left="-32000" Top="-32000"
+        Background="{StaticResource B.Surface2}" Foreground="{StaticResource B.Text}" FontFamily="{StaticResource F.Body}"
+        UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display"
+        Icon="pack://application:,,,/Assets/lycoris.ico">
+    <!-- Built like the in-app dialog: white band, sentence-case title, message, buttons right. The window corners are the
+         Windows 11 rounded frame (DWMWCP_ROUND, set in code-behind). -->
+    <Border Width="500" BorderBrush="{StaticResource B.Line3}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Rectangle Height="6" VerticalAlignment="Top" Fill="{StaticResource B.White}" />
+            <StackPanel Margin="28,30,28,0">
+                <TextBlock x:Name="TitleText" Style="{StaticResource T.H1}" TextWrapping="Wrap" />
+                <TextBlock x:Name="MessageText" Style="{StaticResource T.Body}" Margin="0,10,0,0" TextWrapping="Wrap" />
+                <TextBlock x:Name="CountdownText" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,14,0,0" />
+                <ProgressBar x:Name="Remaining" Margin="0,8,0,0" Minimum="0" Maximum="1" Value="1" />
+            </StackPanel>
+            <Grid Grid.Row="1" Margin="28,22,28,26">
+                <TextBlock Text="{loc:T Ничего не нажимать — тоже вернуть.}" Style="{StaticResource T.Caption}" VerticalAlignment="Center"
+                           HorizontalAlignment="Left" MaxWidth="190" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="KeepButton" MinWidth="110" Margin="0,0,10,0" Click="OnKeep" />
+                    <Button x:Name="RevertButton" Style="{StaticResource Btn.Primary}" MinWidth="140" IsDefault="True" IsCancel="True" Click="OnRevert" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

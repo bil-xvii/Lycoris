@@ -1,0 +1,81 @@
+<UserControl x:Class="Lycoris.Modules.Drivers.DriversView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Lycoris.UI.Controls"
+             xmlns:ui="clr-namespace:Lycoris.UI"
+             xmlns:local="clr-namespace:Lycoris.Modules.Drivers"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}"
+             xmlns:loc="clr-namespace:Lycoris.UI">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: проверено · ОБНОВИТЬ · the ONE main button (УСТАНОВИТЬ РЕКОМЕНДОВАННОЕ · N / ЗАГРУЗИТЬ И УСТАНОВИТЬ · N) -->
+        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}"
+                      RefreshCommand="{Binding RefreshCommand}">
+            <c:PageHeader.Primary>
+                <Button Style="{StaticResource Btn.Primary}" Command="{Binding RunPrimaryCommand}"
+                        Visibility="{Binding HasPrimary, Converter={StaticResource BoolToVis}}"
+                        ToolTip="{loc:T 'Сначала — список того, что будет установлено, и подтверждение. Без прав администратора Lycoris запросит их и продолжит.'}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
+                        <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </c:PageHeader.Primary>
+        </c:PageHeader>
+
+        <!-- ═══════════ Tabs: four, a framed segmented control ═══════════ -->
+        <Border Grid.Row="1" Margin="0,12,0,0" Style="{StaticResource SegmentBar}">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsHardware, Mode=TwoWay}"
+                             ToolTip="{loc:T 'Видеокарта, процессор, плата, память, сеть, звук, периферия — что установить и обновить'}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ПОДБОР ДЛЯ ВАШЕГО ПК}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource TabBadge.Alert}" Visibility="{Binding BadgeText, Converter={StaticResource NullToVis}}">
+                            <TextBlock Text="{Binding BadgeText}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsUpdates, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ОБНОВЛЕНИЯ WINDOWS}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource TabBadge}" Visibility="{Binding UpdatesBadge, Converter={StaticResource NullToVis}}">
+                            <TextBlock Text="{Binding UpdatesBadge}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsProblems, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ПРОБЛЕМНЫЕ УСТРОЙСТВА}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource TabBadge.Alert}" Visibility="{Binding ProblemsBadge, Converter={StaticResource NullToVis}}">
+                            <TextBlock Text="{Binding ProblemsBadge}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsInstalled, Mode=TwoWay}"
+                             ToolTip="{loc:T Список установленных драйверов и резервные копии драйверов}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T УСТАНОВЛЕННЫЕ И КОПИИ}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource TabBadge}" Visibility="{Binding InstalledBadge, Converter={StaticResource NullToVis}}">
+                            <TextBlock Text="{Binding InstalledBadge}" />
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+        </Border>
+
+        <!-- ═══════════ Tab content ═══════════ -->
+        <Grid Grid.Row="2" Margin="0,11,0,0">
+            <local:DriversHardwarePanel Visibility="{Binding TabIsHardware, Converter={StaticResource BoolToVis}}" />
+            <local:DriversUpdatesPanel Visibility="{Binding TabIsUpdates, Converter={StaticResource BoolToVis}}" />
+            <local:DriversProblemsPanel Visibility="{Binding TabIsProblems, Converter={StaticResource BoolToVis}}" />
+            <local:DriversInstalledPanel Visibility="{Binding TabIsInstalled, Converter={StaticResource BoolToVis}}" />
+        </Grid>
+    </Grid>
+</UserControl>

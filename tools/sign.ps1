@@ -1,9 +1,9 @@
-﻿# Signs Lycoris.exe with Authenticode (SHA-256 + RFC 3161 timestamp), so Windows shows a publisher name instead of
+# Signs Lycoris.exe with Authenticode (SHA-256 + RFC 3161 timestamp), so Windows shows a publisher name instead of
 # «Издатель: неизвестно». Certificate sources, first match wins:
 #   -PfxPath <file>      a purchased certificate in a .pfx file (asks for its password)
 #   -Thumbprint <hex>    a certificate in Cert:\CurrentUser\My or Cert:\LocalMachine\My (also hardware tokens / cloud HSM
 #                        certificates that are visible in the store)
-#   (default)            the personal "CN=MONOLITH" certificate made by tools\signing-cert.ps1
+#   (default)            the personal "CN=Lycoris" certificate made by tools\signing-cert.ps1
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\sign.ps1 [-File publish\Lycoris.exe] [-Thumbprint ...] [-NoTimestamp]
 # Exit code 0 = signed and the signature is valid on this PC; 2 = no certificate available (nothing changed); 1 = error.
@@ -11,7 +11,7 @@ param(
     [string]$File = (Join-Path (Split-Path -Parent $PSScriptRoot) 'publish\Lycoris.exe'),
     [string]$Thumbprint,
     [string]$PfxPath,
-    [string]$Subject = 'CN=MONOLITH',
+    [string]$Subject = 'CN=Lycoris',
     [string]$TimestampServer = 'http://timestamp.digicert.com',
     [switch]$NoTimestamp
 )

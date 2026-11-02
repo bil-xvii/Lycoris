@@ -1,0 +1,63 @@
+<UserControl x:Class="Lycoris.UI.Controls.PageHeader"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Lycoris.UI"
+             xmlns:c="clr-namespace:Lycoris.UI.Controls"
+             x:Name="Root">
+    <!--
+        One page anatomy (Obvious UI): the header is one band —
+            Оптимизация                                  проверено 15:40  [⟳ ОБНОВИТЬ]  [actions…]  [■ PRIMARY]
+            one muted line of subtitle
+        Checked = «проверено HH:MM» (T.Mono; hidden when empty) · RefreshCommand = the ONE word «ОБНОВИТЬ» everywhere
+        (hidden when no command) · Actions = secondary outlined buttons · Primary = the ONE main button of the page
+        (a Btn.Primary; hidden when empty). Embedded (PageHeader.IsEmbedded inherited from a host page): title and
+        subtitle are hidden, the right side stays.
+    -->
+    <UserControl.Resources>
+        <Style x:Key="HideWhenEmbedded" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding (c:PageHeader.IsEmbedded), ElementName=Root}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding (c:PageHeader.IsEmbedded), ElementName=Root}" Value="True">
+                        <!-- Leaves room for the host's tabs, which sit on the same line. -->
+                        <Setter Property="MinHeight" Value="32" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
+            <!-- «проверено 15:40» -->
+            <TextBlock Text="{Binding Checked, ElementName=Root}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                       VerticalAlignment="Center" Margin="0,0,10,0" Visibility="{Binding HasChecked, ElementName=Root, Converter={StaticResource BoolToVis}}" />
+            <!-- The one word «ОБНОВИТЬ» -->
+            <Button Style="{StaticResource Btn}" Command="{Binding RefreshCommand, ElementName=Root}" Margin="0,0,8,0"
+                    Visibility="{Binding HasRefresh, ElementName=Root, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                    <TextBlock Text="{Binding RefreshText, ElementName=Root}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <ContentPresenter Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Center" />
+            <!-- The ONE main button of the page -->
+            <ContentPresenter Content="{Binding Primary, ElementName=Root}" VerticalAlignment="Center" Margin="8,0,0,0"
+                              Visibility="{Binding HasPrimary, ElementName=Root, Converter={StaticResource BoolToVis}}" />
+        </StackPanel>
+    </Grid>
+</UserControl>
