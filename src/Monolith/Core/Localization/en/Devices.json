@@ -1,0 +1,10 @@
+{
+  "area": "Devices",
+  "translated": false,
+  "sources": [
+    "Modules/Devices/*.cs",
+    "Modules/Devices/*.xaml"
+  ],
+  "ignore": [],
+  "en": {}
+}

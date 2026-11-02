@@ -1,0 +1,9 @@
+{
+  "area": "Devices.Input",
+  "translated": false,
+  "sources": [
+    "Modules/Devices/Input/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

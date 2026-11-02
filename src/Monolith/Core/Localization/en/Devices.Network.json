@@ -1,0 +1,9 @@
+{
+  "area": "Devices.Network",
+  "translated": false,
+  "sources": [
+    "Modules/Devices/Network/**"
+  ],
+  "ignore": [],
+  "en": {}
+}
