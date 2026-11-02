@@ -85,7 +85,11 @@ public static class SpiCatalog
         new("swap-buttons", Loc.T("Поменять кнопки мыши местами"), 0, 0x21, SpiGet.SwapMetric, SpiSet.UiParam, 0, 1, 0, 1, false,
             new(Mouse, "SwapMouseButtons", RegistryValueKind.String), v => v == 1 ? Loc.T("вкл") : Loc.T("выкл")),
         new("mouse-trails", Loc.T("Шлейф указателя"), 0x5E, 0x5D, SpiGet.PvInt, SpiSet.UiParam, 0, 100, 0, 7, false,
-            new(Mouse, "MouseTrails", RegistryValueKind.String), v => v <= 1 ? Loc.T("выкл") : N(v)),
+            new(Mouse, "MouseTrails", RegistryValueKind.String), v => v <= 1 ? Loc.T("выкл") : N(v))
+        {
+            // Windows treats 1 as «off» and reads it back as 0 (hardware check 02.11.2026): a target of 1 could never verify.
+            AllowedTargets = new HashSet<int> { 0, 2, 3, 4, 5, 6, 7 },
+        },
         new("mouse-sonar", Loc.T("Показывать указатель по Ctrl"), 0x101C, 0x101D, SpiGet.PvBool, SpiSet.PvParam, 0, 1, 0, 1, false,
             null, v => v == 1 ? Loc.T("вкл") : Loc.T("выкл")),
         new("mouse-vanish", Loc.T("Скрывать указатель при вводе"), 0x1020, 0x1021, SpiGet.PvBool, SpiSet.PvParam, 0, 1, 0, 1, false,
