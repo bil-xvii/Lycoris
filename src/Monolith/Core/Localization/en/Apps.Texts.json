@@ -196,7 +196,6 @@
     "Установщик запустится от вашего имени, без прав MONOLITH; права администратора он попросит сам (запрос UAC)": "The installer will run as you, without MONOLITH's rights; it asks for administrator rights itself (UAC prompt)",
     "Перед запуском будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)": "A restore point will be created before the launch (if Windows fails to create it, MONOLITH asks whether to continue)",
     "Точка восстановления создана не будет (защита системы или эта настройка MONOLITH выключены)": "No restore point will be created (System Protection or this MONOLITH setting is off)",
-    "Лицензию производителя показывает сам установщик — MONOLITH ничего не принимает за вас": "The installer itself shows the vendor's license — MONOLITH accepts nothing on your behalf",
     "Нужно свободного места на системном диске: не меньше {0}": "Free space needed on the system drive: at least {0}",
     "Удалить программу потом можно в «Параметры → Приложения»": "You can remove the program later in “Settings → Apps”",
     "{0} программа": "{0} program|{0} programs",

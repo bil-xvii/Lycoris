@@ -25,7 +25,7 @@ internal sealed class VendorEnricher : IDeviceEnricher
             vid => history.TryGetValue(vid, out var h) ? h : history[vid] = DeviceInventory.ReadHistory(vid, InventoryKind.Mouse, present),
             VendorApps.LaunchAsync);
         Log.Info("Устройства: найдено физических устройств {0}; программы производителей: {1}.", groups.Count,
-            apps.Installed.Any() ? string.Join(", ", apps.Installed.Select(a => a.Name)) : Loc.T("нет"));
+            apps.Installed.Any() ? string.Join(", ", apps.Installed.Select(a => a.Name)) : Loc.T("отсутствует"));
         return Task.CompletedTask;
     }
 
