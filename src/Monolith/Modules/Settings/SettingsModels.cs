@@ -25,5 +25,10 @@ public sealed partial class RejectedRow(RejectedTweak tweak) : ObservableObject
 {
     public RejectedTweak Tweak { get; } = tweak;
     public string Id => Tweak.Id;
+    // Shown texts: translated when the Tweaks tables know the Russian original (otherwise as written).
+    public string Title => Monolith.UI.SentenceCaseConverter.Apply(Loc.Sink(Tweak.Title));
+    public string WhatOthersDo => Loc.Sink(Tweak.WhatOthersDo);
+    public string WhyNot => Loc.Sink(Tweak.WhyNot);
+    public string Alternative => Loc.Sink(Tweak.Alternative);
     [ObservableProperty] private bool _isHighlighted;
 }

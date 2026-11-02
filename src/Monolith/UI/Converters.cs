@@ -41,7 +41,7 @@ public sealed class InverseBoolConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not true;
 }
 
-/// <summary>Bytes (long/ulong/double) → "1.4 ГБ".</summary>
+/// <summary>Bytes (long/ulong/double) → "1.4 ГБ" / "1.4 GB" (units through <see cref="SystemProfile.FormatBytes"/>).</summary>
 public sealed class BytesConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
@@ -96,7 +96,7 @@ public sealed class SentenceCaseConverter : IValueConverter
 
     private static readonly HashSet<string> Acronyms = new(StringComparer.Ordinal)
     {
-        "ПК", "ЦП", "ОС", "ИИ", "ОЗУ", "ГБ", "МБ", "КБ", "ТБ", "ГЦ", "МГЦ", "ГГЦ", "СМИ", "ЕС",
+        "ПК", "ЦП", "ОС", "ИИ", "ОЗУ", "ГБ", "МБ", "КБ", "ТБ", "ГЦ", "МГЦ", "ГГЦ", "СМИ", "ЕС", // loc:ignore
         "GPU", "CPU", "RAM", "VRAM", "SSD", "HDD", "NVME", "SATA", "USB", "DNS", "IP", "TCP", "UDP", "VPN", "LAN", "WI-FI",
         "SFC", "DISM", "CBS", "TEMP", "ID", "PC", "OS", "AI", "UAC", "TPM", "VBS", "HVCI", "BIOS", "UEFI", "XMP", "EXPO",
         "FPS", "HDR", "VRR", "HAGS", "DLSS", "RTX", "GTX", "AMD", "NVIDIA", "DDU", "OEM", "MSI", "OBS", "MDM", "CCD", "X3D",
@@ -132,11 +132,27 @@ public sealed class SentenceCaseConverter : IValueConverter
         return sb.ToString();
     }
 
+    // English proper nouns that keep a capital inside a sentence-case title (English mode only).
+    private static readonly Dictionary<string, string> EnglishProper = new(StringComparer.Ordinal)
+    {
+        ["WINDOWS"] = "Windows", ["MICROSOFT"] = "Microsoft", ["STEAM"] = "Steam", ["DISCORD"] = "Discord", ["DEFENDER"] = "Defender",
+        ["EDGE"] = "Edge", ["CHROME"] = "Chrome", ["FIREFOX"] = "Firefox", ["BLUETOOTH"] = "Bluetooth", ["GITHUB"] = "GitHub",
+        ["EPIC"] = "Epic", ["INTEL"] = "Intel", ["STORE"] = "Store", ["OBS"] = "OBS", ["ONEDRIVE"] = "OneDrive", ["TEAMS"] = "Teams",
+        ["SPOTIFY"] = "Spotify", ["REALTEK"] = "Realtek", ["RAZER"] = "Razer", ["LOGITECH"] = "Logitech", ["EXPLORER"] = "Explorer",
+    };
+
     private static string Word(string w, bool first)
     {
         if (Acronyms.Contains(w)) return w;
         if (Brands.TryGetValue(w, out var brand)) return brand;
         if (w.Any(char.IsDigit)) return w;                      // X3D, 10/11, RTX40
+        if (Loc.IsEnglish)
+        {
+            // English sentence case: only the first word (and proper nouns) get a capital.
+            if (EnglishProper.TryGetValue(w, out var proper)) return proper;
+            var lowerEn = w.ToLowerInvariant();
+            return first ? char.ToUpperInvariant(lowerEn[0]) + lowerEn[1..] : lowerEn;
+        }
         var latin = w.All(c => c < 128);
         var lower = w.ToLower(Ru);
         if (latin || first) return char.ToUpper(lower[0], Ru) + lower[1..];

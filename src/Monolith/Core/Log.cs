@@ -1,14 +1,22 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using System.Globalization;
 using System.Windows;
 
 namespace Monolith.Core;
 
 public enum LogLevel { Info, Success, Warning, Error, Command }
 
+/// <summary>
+/// <see cref="Message"/> is the Russian text (what the log FILE gets: files stay Russian, language-neutral for support);
+/// <see cref="Display"/> is the same line in the interface language (what the in-app console shows).
+/// </summary>
 public sealed record LogEntry(DateTime Time, LogLevel Level, string Message)
 {
+    private readonly string? _display;
+    public string Display { get => _display ?? Message; init => _display = value; }
+
     public string TimeText => Time.ToString("HH:mm:ss");
 
     public string LevelTag => Level switch
@@ -34,16 +42,55 @@ public static class Log
 
     public static event Action<LogEntry>? Written;
 
+    // The message is the RUSSIAN text: the file keeps it, the console shows Loc.Sink(message) (English if the table knows it).
+    // With arguments the Russian text is a format ("Запущено: {0}") and the console shows Loc.Tf of it. See docs/localization.md.
     public static void Info(string message) => Write(LogLevel.Info, message);
     public static void Success(string message) => Write(LogLevel.Success, message);
     public static void Warn(string message) => Write(LogLevel.Warning, message);
     public static void Error(string message) => Write(LogLevel.Error, message);
-    public static void Error(string message, Exception ex) => Write(LogLevel.Error, $"{message}: {ex.Message}", ex);
+    public static void Error(string message, Exception ex) =>
+        Write(LogLevel.Error, $"{message}: {ex.Message}", ex, $"{Loc.Sink(message)}: {ex.Message}");
     public static void Command(string message) => Write(LogLevel.Command, message);
 
-    public static void Write(LogLevel level, string message, Exception? ex = null)
+    public static void Info(string ruFormat, params object?[] args) => WriteFormat(LogLevel.Info, ruFormat, args);
+    public static void Success(string ruFormat, params object?[] args) => WriteFormat(LogLevel.Success, ruFormat, args);
+    public static void Warn(string ruFormat, params object?[] args) => WriteFormat(LogLevel.Warning, ruFormat, args);
+    public static void Error(string ruFormat, params object?[] args) => WriteFormat(LogLevel.Error, ruFormat, args);
+
+    /// <summary>An error with a Russian format and an exception: the file gets the Russian text + the exception message.</summary>
+    public static void Error(string ruFormat, Exception ex, params object?[] args)
     {
-        var entry = new LogEntry(DateTime.Now, level, message);
+        string file, display;
+        try
+        {
+            file = string.Format(Loc.IsEnglish ? Loc.RuCulture : CultureInfo.CurrentCulture, ruFormat, args);
+            display = Loc.Tf(ruFormat, args);
+        }
+        catch (FormatException)
+        {
+            file = display = ruFormat;
+        }
+        Write(LogLevel.Error, $"{file}: {ex.Message}", ex, $"{display}: {ex.Message}");
+    }
+
+    private static void WriteFormat(LogLevel level, string ruFormat, object?[] args)
+    {
+        string file, display;
+        try
+        {
+            file = string.Format(Loc.IsEnglish ? Loc.RuCulture : CultureInfo.CurrentCulture, ruFormat, args);
+            display = Loc.Tf(ruFormat, args);
+        }
+        catch (FormatException)
+        {
+            file = display = ruFormat;
+        }
+        Write(level, file, null, display);
+    }
+
+    public static void Write(LogLevel level, string message, Exception? ex = null, string? display = null)
+    {
+        var entry = new LogEntry(DateTime.Now, level, message) { Display = display ?? Loc.Sink(message) };
         WriteToFile(entry, ex);
 
         var app = Application.Current;

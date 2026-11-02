@@ -16,10 +16,13 @@ public sealed class PaletteEntry
     private string? _nTitle, _nKeywords, _nDescription;
 
     public required PaletteKind Kind { get; init; }
-    public required string Title { get; init; }
+    /// <summary>The title in the interface language (a Russian original the tables know is translated; the original stays searchable).</summary>
+    public required string Title { get => _title; init { _ruTitle = value; _title = Loc.Sink(value); } }
+    private string _title = "", _ruTitle = "";
     /// <summary>Plain-language description, shown as one muted line for the selected result.</summary>
-    public string Description { get; init; } = "";
-    /// <summary>Extra searchable text that is not displayed (id, category, command, service name).</summary>
+    public string Description { get => _description; init => _description = Loc.Sink(value); }
+    private string _description = "";
+    /// <summary>Extra searchable text that is not displayed (id, category, command, service name). Russian aliases are kept in every language.</summary>
     public string Keywords { get; init; } = "";
     /// <summary>Set for tweaks (and curated services): drives the risk tag.</summary>
     public TweakRisk? Risk { get; init; }
@@ -32,15 +35,15 @@ public sealed class PaletteEntry
 
     public string KindText => Kind switch
     {
-        PaletteKind.Page => "РАЗДЕЛ",
-        PaletteKind.Tweak => "НАСТРОЙКА",
-        PaletteKind.Tool => "ИНСТРУМЕНТ",
-        PaletteKind.Myth => "НЕ ДЕЛАЕМ",
-        PaletteKind.App => "ПРОГРАММА",
-        PaletteKind.Clean => "ОЧИСТКА",
-        PaletteKind.Startup => "АВТОЗАПУСК",
-        PaletteKind.Setting => "ПАРАМЕТР",
-        _ => "СЛУЖБА",
+        PaletteKind.Page => Loc.T("РАЗДЕЛ"),
+        PaletteKind.Tweak => Loc.T("НАСТРОЙКА"),
+        PaletteKind.Tool => Loc.T("ИНСТРУМЕНТ"),
+        PaletteKind.Myth => Loc.T("НЕ ДЕЛАЕМ"),
+        PaletteKind.App => Loc.T("ПРОГРАММА"),
+        PaletteKind.Clean => Loc.T("ОЧИСТКА"),
+        PaletteKind.Startup => Loc.T("АВТОЗАПУСК"),
+        PaletteKind.Setting => Loc.T("ПАРАМЕТР"),
+        _ => Loc.T("СЛУЖБА"),
     };
 
     /// <summary>Risk tag text, only for tweaks (the owner's rule: no tags on other rows).</summary>
@@ -48,7 +51,8 @@ public sealed class PaletteEntry
     public bool HasRisk => RiskText is not null;
 
     internal string NTitle => _nTitle ??= CommandPaletteSearch.Normalize(Title);
-    internal string NKeywords => _nKeywords ??= CommandPaletteSearch.Normalize(Keywords);
+    // In English the Russian title and keywords stay searchable too (someone types «диск» into the English UI).
+    internal string NKeywords => _nKeywords ??= CommandPaletteSearch.Normalize(Keywords + " " + Loc.Sink(Keywords) + (_ruTitle != _title ? " " + _ruTitle : ""));
     internal string NDescription => _nDescription ??= CommandPaletteSearch.Normalize(Description);
 }
 
@@ -59,9 +63,9 @@ public static class CommandPaletteSearch
 
     public static string RiskText(TweakRisk risk) => risk switch
     {
-        TweakRisk.Safe => "БЕЗОПАСНО",
-        TweakRisk.Optional => "ПО ЖЕЛАНИЮ",
-        _ => "ЭКСПЕРТ",
+        TweakRisk.Safe => Loc.T("БЕЗОПАСНО"),
+        TweakRisk.Optional => Loc.T("ПО ЖЕЛАНИЮ"),
+        _ => Loc.T("ЭКСПЕРТ"),
     };
 
     /// <summary>Lower case, ё → е, every non-letter/digit becomes one space, trimmed.</summary>

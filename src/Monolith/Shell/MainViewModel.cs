@@ -43,9 +43,9 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     [ObservableProperty] private string? _lastBatchTitle;
 
     public bool HasLastBatch => LastBatchTitle is not null;
-    public string LastBatchMenuText => LastBatchTitle is { } t ? $"ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ «{t}»" : "ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ — ПАКЕТОВ НЕТ";
+    public string LastBatchMenuText => LastBatchTitle is { } t ? Loc.Tf("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ «{0}»", t) : Loc.T("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ — ПАКЕТОВ НЕТ");
     /// <summary>«ОТКАТ · 71» in the title bar.</summary>
-    public string UndoButtonText => ActiveChanges > 0 ? $"ОТКАТ · {ActiveChanges}" : "ОТКАТ";
+    public string UndoButtonText => ActiveChanges > 0 ? Loc.Tf("ОТКАТ · {0}", ActiveChanges) : Loc.T("ОТКАТ");
 
     partial void OnLastBatchTitleChanged(string? value)
     {
@@ -59,11 +59,14 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     public bool IsReadOnly => !Elevation.IsElevated;
     public string Version { get; } = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
 
-    /// <summary>Sidebar groups in order; the key → group map is the single place that decides where a page lives.</summary>
-    public const string GroupOverview = "ОБЗОР";
-    public const string GroupBoost = "УСКОРЕНИЕ";
-    public const string GroupMaintenance = "ОБСЛУЖИВАНИЕ";
-    public const string GroupProtection = "ЗАЩИТА";
+    /// <summary>
+    /// Sidebar groups in order; the key → group map is the single place that decides where a page lives. The values are
+    /// Russian IDS (grouping, tests); the sidebar header shows them through <c>LocConverter</c>.
+    /// </summary>
+    public const string GroupOverview = "ОБЗОР"; // loc:ignore
+    public const string GroupBoost = "УСКОРЕНИЕ"; // loc:ignore
+    public const string GroupMaintenance = "ОБСЛУЖИВАНИЕ"; // loc:ignore
+    public const string GroupProtection = "ЗАЩИТА"; // loc:ignore
 
     /// <summary>Sidebar group of a page key (pure; tested).</summary>
     public static string NavGroupOf(string pageKey) => pageKey switch
@@ -122,10 +125,10 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         {
             try
             {
-                await _coordinator.RunAsync(new OperationRequest(OperationClass.Disruptive, "Возврат незавершённых изменений экрана") { QueueIfBusy = true },
+                await _coordinator.RunAsync(new OperationRequest(OperationClass.Disruptive, Loc.T("Возврат незавершённых изменений экрана")) { QueueIfBusy = true },
                     _ => Task.Run(() => DisplaySafeApply.ReconcileAsync(journal)));
             }
-            catch (Exception ex) { Log.Warn($"Незавершённые изменения экрана не проверены: {ex.Message}"); }
+            catch (Exception ex) { Log.Warn("Незавершённые изменения экрана не проверены: {0}", ex.Message); }
         }
 
         // 1. Elevated with a different administrator account: HKCU settings would go to that account.
@@ -152,9 +155,9 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         if (ChangeJournal.Instance.UnavailableReason is { } unavailable && Elevation.IsElevated)
         {
             var start = await Ui.ConfirmAsync("ЖУРНАЛ НЕДОСТУПЕН",
-                $"{unavailable} Пока журнал недоступен, MONOLITH ничего не меняет в системе — иначе изменения нельзя было бы отменить. " +
+                Loc.Tf("{0} Пока журнал недоступен, MONOLITH ничего не меняет в системе — иначе изменения нельзя было бы отменить. " +
                 "Можно начать новый журнал: старые файлы не удаляются, а сохраняются рядом с отметкой времени. " +
-                "Изменения, записанные в старом журнале, из MONOLITH отменить будет нельзя — только точкой восстановления Windows.",
+                "Изменения, записанные в старом журнале, из MONOLITH отменить будет нельзя — только точкой восстановления Windows.", unavailable),
                 confirmText: "НАЧАТЬ НОВЫЙ ЖУРНАЛ", danger: true);
             if (start)
             {
@@ -175,14 +178,14 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             Func<ChangeRecord, ChangeRecord?> newer = r => ChangeJournal.Instance.NewerLayer(r);
             var lines = Monolith.Modules.Games.GameBoostService.StaleLines(stale, newer);
             var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ СЕАНС", Monolith.Modules.Games.GameBoostService.StalePrompt(stale, newer),
-                lines, confirmText: Monolith.Modules.Games.GameBoostService.AllKept(stale, newer) ? "ЗАКРЫТЬ ЗАПИСЬ" : "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
+                lines, confirmText: Monolith.Modules.Games.GameBoostService.AllKept(stale, newer) ? Loc.T("ЗАКРЫТЬ ЗАПИСЬ") : Loc.T("ВЕРНУТЬ"), cancelText: "ПОЗЖЕ");
             if (ok)
             {
                 RevertResult result;
                 try
                 {
                     result = await _coordinator.RunAsync(
-                        new OperationRequest(OperationClass.JournalChange, "Возврат изменений игрового сеанса") { Owner = "games", QueueIfBusy = true },
+                        new OperationRequest(OperationClass.JournalChange, Loc.T("Возврат изменений игрового сеанса")) { Owner = "games", QueueIfBusy = true },
                         _ => Task.Run(() => ChangeJournal.Instance.RevertAsync(stale)));
                 }
                 catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
@@ -216,12 +219,12 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             if (build.Length > 0 && build != previous) AppSettings.Current.LastWindowsBuild = build;
             if (drift.Count == 0) return;
 
-            Log.Warn($"Изменено вне MONOLITH: {drift.Count} (сборка Windows {previous} → {build}).");
+            Log.Warn("Изменено вне MONOLITH: {0} (сборка Windows {1} → {2}).", drift.Count, previous, build);
             Ui.Toast(DriftDetector.NoticeText(drift.Count, previous, build), ToastKind.Warning, "ИЗМЕНЕНО ВНЕ MONOLITH", navigateTo: "restore");
         }
         catch (Exception ex)
         {
-            Log.Warn($"Проверка изменений вне MONOLITH не выполнена: {ex.Message}");
+            Log.Warn("Проверка изменений вне MONOLITH не выполнена: {0}", ex.Message);
         }
     }
 
@@ -242,7 +245,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         if (intent is null) return false;
         if (!Elevation.IsElevated)
         {
-            Log.Warn($"Действие «{intent}» не повторено: нет прав администратора.");
+            Log.Warn("Действие «{0}» не повторено: нет прав администратора.", intent);
             return false;
         }
         try
@@ -250,7 +253,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             var page = Pages.FirstOrDefault(p => p.Key == ResolvePageKey(intent.PageKey));
             if (page is null)
             {
-                Log.Warn($"Действие «{intent}» не повторено: страница не найдена.");
+                Log.Warn("Действие «{0}» не повторено: страница не найдена.", intent);
                 return false;
             }
             NavigateTo(intent.PageKey);
@@ -262,7 +265,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             // The user may have pressed the same button by hand while the relaunch was settling: never run it a second time.
             if (UserOperationRunningFor(page.Key))
             {
-                Log.Info($"Действие «{intent}» не повторено: эта страница уже выполняет задачу.");
+                Log.Info("Действие «{0}» не повторено: эта страница уже выполняет задачу.", intent);
                 Ui.Toast("Эта страница уже выполняет задачу — повтор действия не нужен. Проверьте список «ЗАДАЧИ».", ToastKind.Info, "ПРОДОЛЖИТЬ");
                 return false;
             }
@@ -272,23 +275,23 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                 await Task.Delay(200);
                 if (UserOperationRunningFor(page.Key))
                 {
-                    Log.Info($"Действие «{intent}» не повторено: страница занялась задачей.");
+                    Log.Info("Действие «{0}» не повторено: страница занялась задачей.", intent);
                     return false;
                 }
                 executed = intent.TryExecuteOn(target);
             }
             if (executed)
             {
-                Log.Info($"Права получены — действие продолжено: {intent}.");
+                Log.Info("Права получены — действие продолжено: {0}.", intent);
                 return true;
             }
-            Log.Warn($"Действие «{intent}» не повторено: команда недоступна.");
+            Log.Warn("Действие «{0}» не повторено: команда недоступна.", intent);
             Ui.Toast("Права администратора получены. Повторите действие — оно не выполнилось само.", ToastKind.Info, "ПРОДОЛЖИТЬ ВРУЧНУЮ");
             return false;
         }
         catch (Exception ex)
         {
-            Log.Error($"Повтор действия после получения прав: {intent}", ex);
+            Log.Error("Повтор действия после получения прав: {0}", ex, intent);
             Ui.Toast("Права администратора получены. Повторите действие вручную.", ToastKind.Warning);
             return false;
         }
@@ -301,7 +304,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         ActiveChanges = active.Count;
         var revertible = active.Where(ChangeJournal.IsBulkRevertible).Select(r => r.BatchId).ToHashSet();
         var last = journal.Batches.Where(b => revertible.Contains(b.Id)).OrderByDescending(b => b.TimestampUtc).FirstOrDefault();
-        LastBatchTitle = last is null ? null : last.Title.Length > 0 ? last.Title : "Без названия";
+        LastBatchTitle = last is null ? null : last.Title.Length > 0 ? last.Title : Loc.T("Без названия");
         // The sidebar badge of «Восстановление»: the journal count is already known — no work just for the badge.
         Restore.BadgeText = ActiveChanges > 0 ? ActiveChanges.ToString() : null;
     }
@@ -380,7 +383,8 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     [RelayCommand]
     private void RestartAsAdmin() => RestartElevated();
 
-    public bool RestartElevated(AdminIntent? intent = null)
+    /// <summary>The page (and tab) the current page would reopen on after a relaunch.</summary>
+    private List<string> CurrentPageArgs()
     {
         var args = new List<string>();
         switch (CurrentPage)
@@ -388,6 +392,32 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             case DevicesViewModel d: args.AddRange(["--page", d.Key, "--tab", d.SelectedTab]); break;
             case { } p: args.AddRange(["--page", p.Key]); break;
         }
+        return args;
+    }
+
+    /// <summary>
+    /// Restart with the same rights on the same page (the language is read at startup). Refused while operations run:
+    /// closing would interrupt them (the exit dialog is for the user's own close).
+    /// </summary>
+    public bool RestartSameRights()
+    {
+        if (_coordinator.ListedCount > 0)
+        {
+            Ui.Toast("Сначала дождитесь окончания задач (список «ЗАДАЧИ»), затем перезапустите MONOLITH.", ToastKind.Warning, "ПЕРЕЗАПУСК");
+            return false;
+        }
+        if (!Elevation.TryRelaunchSameRights(CurrentPageArgs()))
+        {
+            Ui.Toast("Не удалось перезапустить MONOLITH. Закройте его и откройте снова вручную.", ToastKind.Error, "ПЕРЕЗАПУСК");
+            return false;
+        }
+        Application.Current.Shutdown();
+        return true;
+    }
+
+    public bool RestartElevated(AdminIntent? intent = null)
+    {
+        var args = CurrentPageArgs();
         if (intent is not null) args.AddRange(intent.ToArgs());
         if (!Elevation.TryRelaunchElevated(args)) return false;
         Application.Current.Shutdown();

@@ -88,6 +88,12 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>The last tab of «Устройства и сеть»: "auto" (АВТОНАСТРОЙКА, default) or "manual" (ВРУЧНУЮ).</summary>
     [ObservableProperty] private string _devicesTab = "auto";
 
+    /// <summary>
+    /// Interface language: "auto" (default: the Windows display language, Russian → ru, anything else → en), "ru" or "en".
+    /// Read once at startup (<c>Loc.Initialize</c>); a change takes effect after MONOLITH restarts.
+    /// </summary>
+    [ObservableProperty] private string _language = "auto";
+
     public static void Load()
     {
         try
@@ -99,7 +105,7 @@ public sealed partial class AppSettings : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Warn($"Настройки повреждены, используются значения по умолчанию: {ex.Message}");
+            Log.Warn("Настройки повреждены, используются значения по умолчанию: {0}", ex.Message);
             Current = new AppSettings();
         }
         Current.PropertyChanged += (_, _) => Current.Save();
@@ -116,7 +122,7 @@ public sealed partial class AppSettings : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось сохранить настройки: {ex.Message}");
+            Log.Warn("Не удалось сохранить настройки: {0}", ex.Message);
         }
     }
 }

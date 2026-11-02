@@ -20,6 +20,10 @@ public abstract partial class PageViewModel : ObservableObject
     /// <summary>Uppercase Russian title ("ПАНЕЛЬ").</summary>
     public abstract string Title { get; }
     public abstract string Subtitle { get; }
+
+    /// <summary>Title / subtitle as shown in the shell (sidebar, palette): translated when the tables know the Russian original.</summary>
+    public string DisplayTitle => Loc.Sink(Title);
+    public string DisplaySubtitle => Loc.Sink(Subtitle);
     /// <summary>Glyph from <see cref="Glyphs"/>.</summary>
     public abstract string Glyph { get; }
 
@@ -37,7 +41,7 @@ public abstract partial class PageViewModel : ObservableObject
     [ObservableProperty] private DateTime? _checkedAt;
 
     /// <summary>«проверено 15:40» for the page header, or null before the first read.</summary>
-    public string? CheckedText => CheckedAt is { } t ? $"проверено {t:HH:mm}" : null;
+    public string? CheckedText => CheckedAt is { } t ? Loc.Tf("проверено {0:HH:mm}", t) : null;
 
     partial void OnCheckedAtChanged(DateTime? value) => OnPropertyChanged(nameof(CheckedText));
 
@@ -64,7 +68,7 @@ public abstract partial class PageViewModel : ObservableObject
                 catch (Exception ex)
                 {
                     failed = true;
-                    Log.Error($"{Title}: ошибка загрузки", ex);
+                    Log.Error("{0}: ошибка загрузки", ex, Title);
                     Ui.Toast($"{Title}: {ex.Message}", ToastKind.Error);
                 }
                 if (failed)
@@ -78,7 +82,7 @@ public abstract partial class PageViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Error($"{Title}: ошибка загрузки", ex);
+            Log.Error("{0}: ошибка загрузки", ex, Title);
             Ui.Toast($"{Title}: {ex.Message}", ToastKind.Error);
         }
     }
@@ -127,8 +131,8 @@ public abstract partial class PageViewModel : ObservableObject
             var (verdict, _) = Coordinator.Check(request);
             if (verdict == OperationVerdict.Queue)
             {
-                BusyText = $"В очереди: {request.Name}";
-                OperationNote = $"В очереди: «{request.Name}» — начнётся, когда закончится предыдущая задача. Отменить можно в списке «ЗАДАЧИ».";
+                BusyText = Loc.Tf("В очереди: {0}", request.Name);
+                OperationNote = Loc.Tf("В очереди: «{0}» — начнётся, когда закончится предыдущая задача. Отменить можно в списке «ЗАДАЧИ».", request.Name);
             }
             OperationLease lease;
             try
@@ -138,7 +142,7 @@ public abstract partial class PageViewModel : ObservableObject
             catch (OperationRefusedException ex)
             {
                 OperationNote = ex.Message;
-                Log.Warn($"{request.Name}: не запущено — {ex.Message}");
+                Log.Warn("{0}: не запущено — {1}", request.Name, ex.Message);
                 if (kind is not (OperationClass.Measure or OperationClass.Background)) Ui.Toast(ex.Message, ToastKind.Warning, request.Name);
                 return;
             }
@@ -152,7 +156,7 @@ public abstract partial class PageViewModel : ObservableObject
             catch (OperationCanceledException)
             {
                 OperationNote = null;
-                Log.Info($"{request.Name}: убрано из очереди.");
+                Log.Info("{0}: убрано из очереди.", request.Name);
                 return;
             }
             using (lease)
@@ -190,7 +194,7 @@ public abstract partial class PageViewModel : ObservableObject
         var request = new OperationRequest(kind, OperationName(name)) { Owner = Key, Quiet = quiet };
         var (verdict, _) = Coordinator.Check(request);
         if (verdict == OperationVerdict.Queue)
-            OperationNote = $"В очереди: «{request.Name}» — начнётся, когда закончится предыдущая задача. Отменить можно в списке «ЗАДАЧИ».";
+            OperationNote = Loc.Tf("В очереди: «{0}» — начнётся, когда закончится предыдущая задача. Отменить можно в списке «ЗАДАЧИ».", request.Name);
         try
         {
             var lease = await Coordinator.AcquireAsync(request);
@@ -201,14 +205,14 @@ public abstract partial class PageViewModel : ObservableObject
         catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
         {
             OperationNote = ex.Message;
-            Log.Warn($"{request.Name}: не запущено — {ex.Message}");
+            Log.Warn("{0}: не запущено — {1}", request.Name, ex.Message);
             Ui.Toast(ex.Message, ToastKind.Warning, request.Name);
             return null;
         }
         catch (OperationCanceledException)
         {
             OperationNote = null;
-            Log.Info($"{request.Name}: убрано из очереди.");
+            Log.Info("{0}: убрано из очереди.", request.Name);
             return null;
         }
     }
@@ -287,12 +291,12 @@ public abstract partial class PageViewModel : ObservableObject
     }
 
     /// <summary>The checkbox of the «Нужны права» dialog (sets <see cref="AppSettings.ElevateAtStartup"/>).</summary>
-    public const string ElevationAlwaysOption = "Всегда запускать MONOLITH с правами администратора (без лишних перезапусков)";
+    public static string ElevationAlwaysOption => Loc.T("Всегда запускать MONOLITH с правами администратора (без лишних перезапусков)");
 
     /// <summary>Text of the «Нужны права администратора» dialog (pure; exposed for tests).</summary>
     public static string ElevationPromptText(string action, bool replays = false) =>
-        $"«{action}» меняет настройки Windows, поэтому нужны права администратора. MONOLITH перезапустится с ними " +
-        "и откроется на этой же странице — Windows покажет запрос контроля учётных записей (UAC). " +
-        (replays ? "Действие продолжится само: перед изменением MONOLITH покажет обычное подтверждение."
-                 : "После перезапуска повторите действие.");
+        Loc.Tf("«{0}» меняет настройки Windows, поэтому нужны права администратора. MONOLITH перезапустится с ними " +
+               "и откроется на этой же странице — Windows покажет запрос контроля учётных записей (UAC). ", Loc.Sink(action)) +
+        (replays ? Loc.T("Действие продолжится само: перед изменением MONOLITH покажет обычное подтверждение.")
+                 : Loc.T("После перезапуска повторите действие."));
 }

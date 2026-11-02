@@ -53,6 +53,16 @@
     <Content Include="Data\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- English translation tables: one JSON file per area (docs/localization.md). Embedded, so single-file publish works. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Core\Localization\en\*.json" LogicalName="Monolith.Loc.en.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Loc is available in every file without a using (docs/localization.md) -->
+  <ItemGroup>
+    <Using Include="Monolith.Core.Localization" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Monolith.Tests" />
   </ItemGroup>

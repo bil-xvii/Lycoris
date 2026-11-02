@@ -29,18 +29,18 @@ public sealed partial class OperationItemViewModel : ObservableObject
     public void Apply(OperationInfo i)
     {
         Id = i.Id;
-        Name = i.Name;
-        ClassText = i.ClassText;
+        Name = Loc.Sink(i.Name);
+        ClassText = Loc.Sink(i.ClassText);
         IsQueued = i.State == OperationState.Queued;
         StateText = i.State switch
         {
-            OperationState.Queued => "В ОЧЕРЕДИ",
-            OperationState.Cancelling => "ОСТАНАВЛИВАЕТСЯ",
-            _ => "ИДЁТ",
+            OperationState.Queued => Loc.T("В ОЧЕРЕДИ"),
+            OperationState.Cancelling => Loc.T("ОСТАНАВЛИВАЕТСЯ"),
+            _ => Loc.T("ИДЁТ"),
         };
-        Note = i.WaitingFor ?? i.Detail;
+        Note = Loc.Sink(i.WaitingFor ?? i.Detail);
         CanCancel = i.CanCancel && i.State != OperationState.Cancelling;
-        NoCancelText = !i.CanCancel && i.State == OperationState.Running ? "прервать нельзя — дождитесь окончания" : null;
+        NoCancelText = !i.CanCancel && i.State == OperationState.Running ? Loc.T("прервать нельзя — дождитесь окончания") : null;
     }
 }
 
@@ -56,11 +56,11 @@ public sealed partial class MainViewModel
     [ObservableProperty] private bool _tasksOpen;
 
     /// <summary>«ЗАДАЧИ · 2» on the status-bar button.</summary>
-    public string TasksButtonText => $"ЗАДАЧИ · {Operations.Count}";
+    public string TasksButtonText => Loc.Tf("ЗАДАЧИ · {0}", Operations.Count);
     public bool HasOperations => Operations.Count > 0;
     public string TasksSummary => Operations.Count == 0
-        ? "Сейчас ничего не выполняется и ничего не ждёт."
-        : $"Идёт: {Operations.Count(o => !o.IsQueued)} · в очереди: {Operations.Count(o => o.IsQueued)}. Задачи, которые мешают друг другу, идут по очереди.";
+        ? Loc.T("Сейчас ничего не выполняется и ничего не ждёт.")
+        : Loc.Tf("Идёт: {0} · в очереди: {1}. Задачи, которые мешают друг другу, идут по очереди.", Operations.Count(o => !o.IsQueued), Operations.Count(o => o.IsQueued));
 
     private void HookOperations()
     {
@@ -129,13 +129,13 @@ public sealed partial class MainViewModel
     /// </summary>
     internal async Task StartDemoTasksAsync()
     {
-        var install = await _coordinator.AcquireAsync(new OperationRequest(OperationClass.Install, "Установка Steam") { Owner = "apps" });
+        var install = await _coordinator.AcquireAsync(new OperationRequest(OperationClass.Install, Loc.T("Установка Steam")) { Owner = "apps" });
         _ = install; // held until the process ends
-        _ = Task.Run(() => _coordinator.AcquireAsync(new OperationRequest(OperationClass.JournalChange, "Применение изменений") { Owner = "optimize" }));
-        _ = Task.Run(() => _coordinator.AcquireAsync(new OperationRequest(OperationClass.Cleanup, "Очистка временных файлов") { Owner = "cleaner" }));
+        _ = Task.Run(() => _coordinator.AcquireAsync(new OperationRequest(OperationClass.JournalChange, Loc.T("Применение изменений")) { Owner = "optimize" }));
+        _ = Task.Run(() => _coordinator.AcquireAsync(new OperationRequest(OperationClass.Cleanup, Loc.T("Очистка временных файлов")) { Owner = "cleaner" }));
         await Task.Delay(400);
         RefreshOperations();
-        foreach (var page in Pages) page.OperationNote = "Сейчас идёт установка Steam — дождитесь окончания. Применение изменений и очистка ждут в очереди.";
+        foreach (var page in Pages) page.OperationNote = Loc.T("Сейчас идёт установка Steam — дождитесь окончания. Применение изменений и очистка ждут в очереди.");
         TasksOpen = true;
     }
 
@@ -170,7 +170,7 @@ public sealed partial class MainViewModel
         var plan = ExitPlan.From(_coordinator.Snapshot());
         if (!plan.NeedsDialog) return true;
         var choice = await Ui.ChooseAsync("Задачи ещё выполняются", plan.Message, plan.Lines,
-            confirmText: "ВЫЙТИ КАК ЕСТЬ", extraText: plan.SafeToCancel > 0 ? "ОТМЕНИТЬ БЕЗОПАСНЫЕ И ВЫЙТИ" : null, cancelText: "ЖДАТЬ", danger: plan.NotCancellable > 0);
+            confirmText: "ВЫЙТИ КАК ЕСТЬ", extraText: plan.SafeToCancel > 0 ? Loc.T("ОТМЕНИТЬ БЕЗОПАСНЫЕ И ВЫЙТИ") : null, cancelText: "ЖДАТЬ", danger: plan.NotCancellable > 0);
         switch (choice)
         {
             case Ui.Choice.Confirm:
