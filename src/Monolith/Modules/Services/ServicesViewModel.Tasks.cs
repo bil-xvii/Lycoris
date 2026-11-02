@@ -198,11 +198,11 @@ public sealed partial class ServicesViewModel
         }
 
         var current = info.Enabled ? Loc.T("Включена") : Loc.T("Отключена");
-        var drift = !string.Equals(current, record.NewValue, StringComparison.Ordinal);
+        var drift = Monolith.Modules.Restore.DriftDetector.TaskEnabledOf(record.NewValue) != info.Enabled;
         var message = drift
-            ? Loc.Tf("Состояние задачи уже изменено без Lycoris: сейчас «{0}». Всё равно вернуть исходное «{1}»?", current, original)
+            ? Loc.Tf("Состояние задачи уже изменено без Lycoris: сейчас «{0}». Всё равно вернуть исходное «{1}»?", current, Loc.T(original))
             : Loc.T("Задача вернётся в исходное состояние из журнала.");
-        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
+        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {Loc.T(original)}"], "ОТКАТИТЬ", danger: drift))
             return;
 
         await RunBusyAsync(OperationClass.JournalChange, Loc.T("Откат изменения задачи…"), async () =>

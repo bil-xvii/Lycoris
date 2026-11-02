@@ -13,7 +13,10 @@ namespace Monolith.Core;
 /// </summary>
 public sealed record ServiceStartSnapshot(string Name, ServiceStartMode StartMode, bool DelayedAutoStart, bool? RawDelayed = null)
 {
+    /// <summary>Interface-language text (what the user reads).</summary>
     public string Describe() => ServiceControl.DescribeStart(StartMode, DelayedAutoStart);
+    /// <summary>Language-neutral (Russian) text: what the journal stores and compares, whatever the interface language was.</summary>
+    public string DescribeNeutral() => ServiceControl.DescribeStartNeutral(StartMode, DelayedAutoStart);
 }
 
 /// <summary>Reads and changes Windows service start types. Refuses to touch critical services.</summary>
@@ -98,6 +101,48 @@ public static class ServiceControl
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// The start type as the journal stores it: always Russian, like every other journal value (on-disk texts are
+    /// language-neutral; a journal written in English must read the same after the language is switched).
+    /// </summary>
+    public static string DescribeStartNeutral(ServiceStartMode mode, bool delayed) => mode switch
+    {
+        ServiceStartMode.Automatic when delayed => Loc.Keep("Автоматически (отложенный запуск)"),
+        ServiceStartMode.Automatic => Loc.Keep("Автоматически"),
+        ServiceStartMode.Manual => Loc.Keep("Вручную"),
+        ServiceStartMode.Disabled => Loc.Keep("Отключена"),
+        ServiceStartMode.Boot => Loc.Keep("Загрузка"),
+        ServiceStartMode.System => Loc.Keep("Система"),
+        _ => mode.ToString(),
+    };
+
+    private static readonly Lazy<Dictionary<string, string>> StartTexts = new(() =>
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (m, d) in new[]
+                 {
+                     (ServiceStartMode.Automatic, true), (ServiceStartMode.Automatic, false), (ServiceStartMode.Manual, false),
+                     (ServiceStartMode.Disabled, false), (ServiceStartMode.Boot, false), (ServiceStartMode.System, false),
+                 })
+        {
+            var neutral = DescribeStartNeutral(m, d);
+            map[neutral] = neutral;
+            map.TryAdd(DescribeStart(m, d), neutral);
+            using (Loc.UseLanguage("en")) map.TryAdd(DescribeStart(m, d), neutral); // records written by an English interface
+        }
+        return map;
+    });
+
+    /// <summary>
+    /// A start type text from a journal record or the screen to the neutral Russian text (the Russian one, the English one
+    /// older builds wrote in an English interface, or the current language's). Unknown text comes back trimmed.
+    /// </summary>
+    public static string NormalizeStart(string? text)
+    {
+        var t = text?.Trim() ?? "";
+        return StartTexts.Value.TryGetValue(t, out var neutral) ? neutral : t;
     }
 
     public static string DescribeStart(ServiceStartMode mode, bool delayed) => mode switch

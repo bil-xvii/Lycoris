@@ -153,7 +153,7 @@ public sealed class ChangeSession
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Service, Target = $"svc:{service}",
-                OldValue = snapshot.Describe(), NewValue = ServiceControl.DescribeStart(mode, delayed), Service = snapshot,
+                OldValue = snapshot.DescribeNeutral(), NewValue = ServiceControl.DescribeStartNeutral(mode, delayed), Service = snapshot,
             };
             (rec, isNew) = _journal.Add(incoming);
             ServiceControl.SetStartMode(service, mode, delayed);

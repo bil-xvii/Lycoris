@@ -139,9 +139,10 @@ public static class DriftDetector
     /// <summary>Inverse of <see cref="ServiceControl.DescribeStart"/> for the modes Lycoris sets.</summary>
     public static bool TryParseServiceStart(string? text, out ServiceStartMode mode, out bool delayed)
     {
+        var normalized = ServiceControl.NormalizeStart(text);
         foreach (var (m, d) in new[] { (ServiceStartMode.Automatic, true), (ServiceStartMode.Automatic, false), (ServiceStartMode.Manual, false), (ServiceStartMode.Disabled, false) })
         {
-            if (string.Equals(text?.Trim(), ServiceControl.DescribeStart(m, d), StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(normalized, ServiceControl.DescribeStartNeutral(m, d), StringComparison.OrdinalIgnoreCase))
             {
                 (mode, delayed) = (m, d);
                 return true;
