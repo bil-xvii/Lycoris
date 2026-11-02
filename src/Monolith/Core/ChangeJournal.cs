@@ -151,9 +151,9 @@ public sealed record RevertResult(int Reverted, int Failed, IReadOnlyList<string
     public string? VerificationText => (Confirmed, Mismatches.Count) switch
     {
         (0, 0) => null,
-        (_, 0) => $"Откат подтверждён: {Confirmed}.",
-        (0, var m) => $"Не совпадает с исходным: {m}.",
-        var (c, m) => $"Откат подтверждён: {c}, не совпадает с исходным: {m}.",
+        (_, 0) => Loc.Tf("Откат подтверждён: {0}.", Confirmed),
+        (0, var m) => Loc.Tf("Не совпадает с исходным: {0}.", m),
+        var (c, m) => Loc.Tf("Откат подтверждён: {0}, не совпадает с исходным: {1}.", c, m),
     };
 }
 
@@ -161,7 +161,7 @@ public sealed record RevertResult(int Reverted, int Failed, IReadOnlyList<string
 public sealed record RevertCheck(bool? Matches, string? Live = null, string? Expected = null)
 {
     public static readonly RevertCheck NotChecked = new(Matches: null);
-    public string? MismatchText => Matches == false ? $"сейчас {Live ?? "—"}, ожидалось {Expected ?? "—"}" : null;
+    public string? MismatchText => Matches == false ? Loc.Tf("сейчас {0}, ожидалось {1}", Live ?? "—", Expected ?? "—") : null;
 }
 
 /// <summary>The Windows account per-user changes belong to. The journal is machine-wide, HKCU is not.</summary>
@@ -211,7 +211,7 @@ public static class UserScope
     public static string CachedAccountName(string sid) => AccountNames.TryGetValue(sid, out var name) ? name : sid;
 
     public static string OtherAccountMessage(string sid) =>
-        $"Изменение сделано для учётной записи {AccountName(sid)}; войдите под ней, чтобы отменить";
+        Loc.Tf("Изменение сделано для учётной записи {0}; войдите под ней, чтобы отменить", AccountName(sid));
 }
 
 /// <summary>What restoring one record did beyond the plain restore.</summary>
@@ -254,22 +254,6 @@ public sealed class ChangeJournal
     private static readonly Lazy<ChangeJournal> Default = new(() => new ChangeJournal(AppPaths.JournalFile));
     public static ChangeJournal Instance => Default.Value;
 
-    /// <summary>The journal's log lines. Logging never fails a journal operation: an undo that was done stays recorded as done.</summary>
-    private static class JournalLog
-    {
-        public static void Info(string message) => Try(() => Log.Info(message));
-        public static void Success(string message) => Try(() => Log.Success(message));
-        public static void Warn(string message) => Try(() => Log.Warn(message));
-        public static void Error(string message) => Try(() => Log.Error(message));
-        public static void Error(string message, Exception ex) => Try(() => Log.Error(message, ex));
-
-        private static void Try(Action write)
-        {
-            try { write(); }
-            catch { /* the console or log file is unavailable: the journal itself is what matters */ }
-        }
-    }
-
     private readonly object _lock = new();
 
     /// <summary>
@@ -309,8 +293,8 @@ public sealed class ChangeJournal
     public string? UnavailableReason { get; private set; }
     public bool IsUnavailable => UnavailableReason is not null;
 
-    private const string UnavailableMessage =
-        "Журнал изменений недоступен, поэтому MONOLITH не вносит новые изменения: без журнала их нельзя было бы отменить.";
+    private static readonly string UnavailableMessage =
+        Loc.T("Журнал изменений недоступен, поэтому MONOLITH не вносит новые изменения: без журнала их нельзя было бы отменить.");
 
     public ChangeJournal(string path) : this(path, AppPaths.IsUnderMachineDir(path)) { }
 
@@ -330,8 +314,8 @@ public sealed class ChangeJournal
     /// </summary>
     public bool CanWrite => !IsUnavailable && (!_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests);
 
-    private const string CannotWriteRevert =
-        "журнал изменений нельзя записать (нужны права администратора) — откат не выполнен, система не изменена";
+    private static readonly string CannotWriteRevert =
+        Loc.T("журнал изменений нельзя записать (нужны права администратора) — откат не выполнен, система не изменена");
 
     public IReadOnlyList<ChangeRecord> Records { get { lock (_lock) return _data.Records.ToList(); } }
     public IReadOnlyList<ChangeBatch> Batches { get { lock (_lock) return _data.Batches.ToList(); } }
@@ -348,7 +332,7 @@ public sealed class ChangeJournal
             if (!SaveLocked())
             {
                 _data.Batches.Remove(batch);
-                throw new InvalidOperationException("Не удалось записать журнал изменений на диск — изменение не выполнено.");
+                throw new InvalidOperationException(Loc.T("Не удалось записать журнал изменений на диск — изменение не выполнено."));
             }
         }
         return batch;
@@ -382,12 +366,12 @@ public sealed class ChangeJournal
             }
             catch (Exception ex)
             {
-                JournalLog.Error("Не удалось отложить старый журнал изменений", ex);
+                Log.Error("Не удалось отложить старый журнал изменений", ex);
                 return false;
             }
             _data = new JournalFile();
             UnavailableReason = null;
-            JournalLog.Warn($"Начат новый журнал изменений; старые файлы сохранены с отметкой {stamp}.");
+            Log.Warn("Начат новый журнал изменений; старые файлы сохранены с отметкой {0}.", stamp);
         }
         Changed?.Invoke();
         return true;
@@ -626,7 +610,7 @@ public sealed class ChangeJournal
                 if (!SaveLocked())
                 {
                     _data.Records.Remove(record);
-                    throw new InvalidOperationException("Не удалось записать журнал изменений на диск — изменение не выполнено.");
+                    throw new InvalidOperationException(Loc.T("Не удалось записать журнал изменений на диск — изменение не выполнено."));
                 }
                 result = record;
                 isNew = true;
@@ -706,7 +690,7 @@ public sealed class ChangeJournal
             r.RevertNote = note;
             saved = SaveLocked();
         }
-        JournalLog.Info($"«{r.Title}»: {note}");
+        Log.Info($"«{r.Title}»: {note}");
         Changed?.Invoke();
         return saved;
     }
@@ -785,7 +769,7 @@ public sealed class ChangeJournal
                 if (IsOtherUser(r, sid)) throw new InvalidOperationException(UserScope.OtherAccountMessage(r.UserSid!));
                 // The journal file is input, not authority: refuse anything MONOLITH's own code could not have recorded.
                 if (JournalTrust.Check(r) is { } refusal)
-                    throw new InvalidOperationException($"Отказано: {refusal}. Такую запись MONOLITH создать не мог.");
+                    throw new InvalidOperationException(Loc.Tf("Отказано: {0}. Такую запись MONOLITH создать не мог.", refusal));
 
                 ChangeRecord? newer, shadow;
                 lock (_lock)
@@ -797,12 +781,12 @@ public sealed class ChangeJournal
                 {
                     saved &= HandOver(r, newer);
                     handed++;
-                    JournalLog.Success($"Откат «{r.Title}»: значение сейчас задаёт более позднее изменение «{newer.Title}» — система не изменена, исходное значение передано ему.");
+                    Log.Success("Откат «{0}»: значение сейчас задаёт более позднее изменение «{1}» — система не изменена, исходное значение передано ему.", r.Title, newer.Title);
                     continue;
                 }
                 if (shadow is not null)
                     throw new InvalidOperationException(
-                        $"сейчас это значение в профиле текущей учётной записи задаёт более позднее изменение «{shadow.Title}» — сначала откатите его");
+                        Loc.Tf("сейчас это значение в профиле текущей учётной записи задаёт более позднее изменение «{0}» — сначала откатите его", shadow.Title));
 
                 var outcome = await RestoreCheckedAsync(r).ConfigureAwait(false);
                 lock (_lock)
@@ -819,7 +803,7 @@ public sealed class ChangeJournal
                 }
                 ok++;
                 if (outcome.Note is { } note) notes.Add($"{r.Title}: {note}");
-                JournalLog.Success($"Откат: {r.Title} → {r.OldValue}");
+                Log.Success("Откат: {0} → {1}", r.Title, r.OldValue);
                 if (outcome.DeletedSchemes is { Count: > 0 } deleted) saved &= CloseSettingsOfDeletedPlans(deleted);
 
                 if (verify is not null && !outcome.Skipped)
@@ -834,7 +818,7 @@ public sealed class ChangeJournal
                     else if (check.Matches == false)
                     {
                         mismatches.Add($"{r.Title}: {check.MismatchText}");
-                        JournalLog.Warn($"Откат «{r.Title}» не совпал с исходным значением: {check.MismatchText}");
+                        Log.Warn("Откат «{0}» не совпал с исходным значением: {1}", r.Title, check.MismatchText);
                     }
                 }
             }
@@ -843,12 +827,12 @@ public sealed class ChangeJournal
                 lock (_lock) r.RevertError = ex.Message;
                 failed++;
                 errors.Add($"{r.Title}: {ex.Message}");
-                JournalLog.Error($"Не удалось откатить «{r.Title}»", ex);
+                Log.Error("Не удалось откатить «{0}»", ex, r.Title);
             }
         }
         saved &= Save();
         if (!saved && list.Count > 0)
-            JournalLog.Error("Журнал изменений не удалось сохранить после отката — после перезапуска откаченные записи могут снова показаться активными.");
+            Log.Error("Журнал изменений не удалось сохранить после отката — после перезапуска откаченные записи могут снова показаться активными.");
         return new RevertResult(ok + handed, failed, errors, saved)
         {
             HandedOver = handed, Confirmed = confirmed, Mismatches = mismatches, Notes = notes,
@@ -871,8 +855,8 @@ public sealed class ChangeJournal
             lock (_lock) same = RestoreInputs.Of(r) == before;
             if (same) return outcome;
             if (attempt >= 3)
-                throw new InvalidOperationException("исходное значение менялось во время отката — запись оставлена активной, повторите откат");
-            JournalLog.Warn($"Откат «{r.Title}»: исходное значение изменилось во время отката — откат повторён.");
+                throw new InvalidOperationException(Loc.T("исходное значение менялось во время отката — запись оставлена активной, повторите откат"));
+            Log.Warn("Откат «{0}»: исходное значение изменилось во время отката — откат повторён.", r.Title);
         }
     }
 
@@ -881,7 +865,7 @@ public sealed class ChangeJournal
         try { return verify(r); }
         catch (Exception ex)
         {
-            JournalLog.Warn($"Не удалось проверить откат «{r.Title}»: {ex.Message}");
+            Log.Warn("Не удалось проверить откат «{0}»: {1}", r.Title, ex.Message);
             return RevertCheck.NotChecked;
         }
     }
@@ -904,7 +888,7 @@ public sealed class ChangeJournal
     /// </summary>
     private bool HandOver(ChangeRecord r, ChangeRecord newer)
     {
-        if (r.Kind != newer.Kind) throw new InvalidOperationException("Отказано: у изменений одной цели разный тип.");
+        if (r.Kind != newer.Kind) throw new InvalidOperationException(Loc.T("Отказано: у изменений одной цели разный тип."));
         var created = r.Kind == ChangeKind.PowerScheme ? CreatedSchemes(r) : [];
         var active = created.Count > 0 ? SystemAccess.ActivePowerScheme() : Guid.Empty;
         var keep = created.Count == 0 ? [] : StillNeededPlans(r, newer, created, active);
@@ -969,7 +953,7 @@ public sealed class ChangeJournal
                 newer.RevertFile = backup.RevertFile;
                 newer.RevertArgs = backup.RevertArgs;
                 (newer.Spi, newer.DisplayMode, newer.DisplayHdr, newer.Monitor, newer.Audio, newer.Nic) = deviceBackup;
-                throw new InvalidOperationException($"Отказано: {refusal}. Исходное значение нельзя передать более позднему изменению.");
+                throw new InvalidOperationException(Loc.Tf("Отказано: {0}. Исходное значение нельзя передать более позднему изменению.", refusal));
             }
             r.Reverted = true;
             r.RevertedUtc = DateTime.UtcNow;
@@ -979,11 +963,11 @@ public sealed class ChangeJournal
             r.RevertVerifiedUtc = null;
             r.RevertMismatch = null;
             r.RevertNote = !newerMayOwnPlans && keep.Count > 0
-                ? "Созданная MONOLITH схема питания ещё нужна (она включена или к ней вернёт откат более позднего изменения), поэтому не удалена: удалите её в «Электропитании», когда она станет не нужна."
+                ? Loc.T("Созданная MONOLITH схема питания ещё нужна (она включена или к ней вернёт откат более позднего изменения), поэтому не удалена: удалите её в «Электропитании», когда она станет не нужна.")
                 : null;
             saved = SaveLocked();
         }
-        if (!newerMayOwnPlans && keep.Count > 0) JournalLog.Warn($"«{r.Title}»: {r.RevertNote}");
+        if (!newerMayOwnPlans && keep.Count > 0) Log.Warn($"«{r.Title}»: {r.RevertNote}");
 
         var gone = new List<Guid>();
         foreach (var c in drop)
@@ -993,7 +977,7 @@ public sealed class ChangeJournal
                 if (SystemAccess.PowerSchemeExists(c) == true) SystemAccess.DeletePowerScheme(c);
                 if (SystemAccess.PowerSchemeExists(c) == false) gone.Add(c);
             }
-            catch (Exception ex) { JournalLog.Warn($"Не удалось удалить схему питания {c}: {ex.Message}"); }
+            catch (Exception ex) { Log.Warn("Не удалось удалить схему питания {0}: {1}", c, ex.Message); }
         }
         if (gone.Count > 0) saved &= CloseSettingsOfDeletedPlans(gone);
         return saved;
@@ -1037,12 +1021,12 @@ public sealed class ChangeJournal
                     r.Reverted = true;
                     r.RevertedUtc = DateTime.UtcNow;
                     r.RevertError = null;
-                    r.RevertNote = "Схема питания, в которой MONOLITH менял этот параметр, удалена вместе с ним — откатывать нечего.";
+                    r.RevertNote = Loc.T("Схема питания, в которой MONOLITH менял этот параметр, удалена вместе с ним — откатывать нечего.");
                     closed.Add(r);
                 }
             }
             if (closed.Count == 0) return true;
-            foreach (var r in closed) JournalLog.Info($"«{r.Title}»: схема питания удалена вместе с параметром — запись закрыта.");
+            foreach (var r in closed) Log.Info("«{0}»: схема питания удалена вместе с параметром — запись закрыта.", r.Title);
             return SaveLocked();
         }
     }
@@ -1123,8 +1107,8 @@ public sealed class ChangeJournal
             if (!AppPaths.MachineDirSecured)
             {
                 // Could not lock the folder down: anyone might still be able to edit the journal. Never replay it.
-                UnavailableReason = "Не удалось защитить папку данных MONOLITH от записи обычными пользователями.";
-                JournalLog.Error("Журнал изменений не загружен: папка данных не защищена.");
+                UnavailableReason = Loc.T("Не удалось защитить папку данных MONOLITH от записи обычными пользователями.");
+                Log.Error("Журнал изменений не загружен: папка данных не защищена.");
                 return;
             }
             if (AppPaths.MachineDirWasInsecure && (File.Exists(path) || File.Exists(path + ".bak")))
@@ -1139,12 +1123,12 @@ public sealed class ChangeJournal
                 }
                 catch (Exception ex)
                 {
-                    UnavailableReason = "Журнал хранился в незащищённой папке, и его не удалось отложить.";
-                    JournalLog.Error("Не удалось отложить недоверенный журнал изменений", ex);
+                    UnavailableReason = Loc.T("Журнал хранился в незащищённой папке, и его не удалось отложить.");
+                    Log.Error("Не удалось отложить недоверенный журнал изменений", ex);
                     return;
                 }
                 QuarantinedFile = quarantined;
-                JournalLog.Warn($"Журнал изменений хранился в незащищённой папке и отложен как недоверенный: {QuarantinedFile}");
+                Log.Warn("Журнал изменений хранился в незащищённой папке и отложен как недоверенный: {0}", QuarantinedFile);
                 return;
             }
         }
@@ -1161,7 +1145,7 @@ public sealed class ChangeJournal
             if (TryRead(backupPath, out var orphan, out _))
             {
                 _data = orphan;
-                JournalLog.Warn("Журнал изменений не найден — загружена резервная копия.");
+                Log.Warn("Журнал изменений не найден — загружена резервная копия.");
             }
             return;
         }
@@ -1171,7 +1155,7 @@ public sealed class ChangeJournal
         if (TryRead(backupPath, out var backup, out _))
         {
             _data = backup;
-            JournalLog.Warn("Журнал изменений был повреждён — восстановлен из резервной копии.");
+            Log.Warn("Журнал изменений был повреждён — восстановлен из резервной копии.");
             // Move the damaged file away so the next save does not rotate it into .bak over the good copy.
             if (CanWrite)
             {
@@ -1182,8 +1166,8 @@ public sealed class ChangeJournal
 
         // Both copies are unreadable: keep every file untouched and refuse new changes (their undo would be lost).
         _data = new JournalFile();
-        UnavailableReason = "Файл журнала и его резервная копия повреждены.";
-        JournalLog.Error("Журнал изменений и его резервная копия повреждены — новые изменения заблокированы", error);
+        UnavailableReason = Loc.T("Файл журнала и его резервная копия повреждены.");
+        Log.Error("Журнал изменений и его резервная копия повреждены — новые изменения заблокированы", error);
     }
 
     private static bool TryRead(string path, out JournalFile data, out Exception? error)
@@ -1219,7 +1203,7 @@ public sealed class ChangeJournal
             var dir = Path.GetDirectoryName(_path)!;
             if (!(_protected ? AppPaths.TryEnsureDir(dir) : TryCreateDir(dir)))
             {
-                JournalLog.Error($"Не удалось сохранить журнал изменений: папка {dir} недоступна.");
+                Log.Error("Не удалось сохранить журнал изменений: папка {0} недоступна.", dir);
                 return false;
             }
             var tmp = _path + ".tmp";
@@ -1238,7 +1222,7 @@ public sealed class ChangeJournal
         }
         catch (Exception ex)
         {
-            JournalLog.Error("Не удалось сохранить журнал изменений", ex);
+            Log.Error("Не удалось сохранить журнал изменений", ex);
             return false;
         }
     }
@@ -1284,14 +1268,14 @@ internal sealed class WindowsJournalSystem : IJournalSystem
         {
             case ChangeKind.Registry when r.Registry is not null:
                 if (ChangeJournal.IsForbiddenRestoreTarget(r.Registry))
-                    throw new InvalidOperationException($"Отказано: {r.Registry.FullName} — защищённое место реестра. Такую запись MONOLITH создать не мог.");
+                    throw new InvalidOperationException(Loc.Tf("Отказано: {0} — защищённое место реестра. Такую запись MONOLITH создать не мог.", r.Registry.FullName));
                 if (r.Source == "startup" && JournalTrust.IsPackagedStartupMark(r.Registry))
                 {
                     // Never recreate the key of an uninstalled app, and never override a state set by policy.
                     if (!RegistryHelper.KeyExists(r.Registry.Hive, r.Registry.Path))
-                        return new RevertOutcome("Приложения больше нет — откатывать нечего.", Skipped: true);
+                        return new RevertOutcome(Loc.T("Приложения больше нет — откатывать нечего."), Skipped: true);
                     if (RegistryHelper.Read(r.Registry.Hive, r.Registry.Path, "State") is int live && live is 3 or 4)
-                        return new RevertOutcome("Состояние задано политикой организации — MONOLITH его не меняет.", Skipped: true);
+                        return new RevertOutcome(Loc.T("Состояние задано политикой организации — MONOLITH его не меняет."), Skipped: true);
                 }
                 RegistryHelper.Restore(r.Registry);
                 return RevertOutcome.Done;
@@ -1299,8 +1283,8 @@ internal sealed class WindowsJournalSystem : IJournalSystem
             case ChangeKind.Service when r.Service is not null:
                 if (ServiceControl.Query(r.Service.Name) is null)
                 {
-                    Log.Info($"Откат пропущен: службы {r.Service.Name} больше нет в системе.");
-                    return new RevertOutcome("Службы больше нет в системе — откатывать нечего.", Skipped: true);
+                    Log.Info("Откат пропущен: службы {0} больше нет в системе.", r.Service.Name);
+                    return new RevertOutcome(Loc.T("Службы больше нет в системе — откатывать нечего."), Skipped: true);
                 }
                 // Never allowProtected: no legitimate record can target a protected service (JournalTrust refuses it too).
                 ServiceControl.Restore(r.Service);
@@ -1317,8 +1301,8 @@ internal sealed class WindowsJournalSystem : IJournalSystem
                 {
                     PowerSchemes.SetActive(PowerSchemes.Balanced);
                     note = r.PowerSchemeOriginal is { } o && o != Guid.Empty
-                        ? "Исходной схемы питания больше нет — включена «Сбалансированная»."
-                        : "Исходная схема питания не была записана — включена «Сбалансированная».";
+                        ? Loc.T("Исходной схемы питания больше нет — включена «Сбалансированная».")
+                        : Loc.T("Исходная схема питания не была записана — включена «Сбалансированная».");
                     Log.Warn($"«{r.Title}»: {note}");
                 }
                 var gone = new List<Guid>();
@@ -1327,7 +1311,7 @@ internal sealed class WindowsJournalSystem : IJournalSystem
                     if (created == r.PowerSchemeOriginal) continue;
                     if (PowerSchemes.TryExists(created) == true) PowerSchemes.Delete(created);
                     if (PowerSchemes.TryExists(created) == false) gone.Add(created);
-                    else Log.Warn($"«{r.Title}»: созданную MONOLITH схему питания {created} удалить не удалось.");
+                    else Log.Warn("«{0}»: созданную MONOLITH схему питания {1} удалить не удалось.", r.Title, created);
                 }
                 return new RevertOutcome(note, DeletedSchemes: gone);
             }
@@ -1335,61 +1319,61 @@ internal sealed class WindowsJournalSystem : IJournalSystem
             case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
                 if (!ScheduledTasks.Query(r.TaskPath).Exists)
                 {
-                    Log.Info($"Откат пропущен: задачи {r.TaskPath} больше нет в планировщике.");
-                    return new RevertOutcome("Задачи больше нет в планировщике — откатывать нечего.", Skipped: true);
+                    Log.Info("Откат пропущен: задачи {0} больше нет в планировщике.", r.TaskPath);
+                    return new RevertOutcome(Loc.T("Задачи больше нет в планировщике — откатывать нечего."), Skipped: true);
                 }
                 ScheduledTasks.SetEnabled(r.TaskPath, wasEnabled);
                 return RevertOutcome.Done;
 
             case ChangeKind.Command when !string.IsNullOrWhiteSpace(r.RevertFile):
-                SafetyLock.ThrowIfLocked("откат команды");
+                SafetyLock.ThrowIfLocked(Loc.T("откат команды"));
                 // A power setting of a plan that no longer exists went away with the plan: nothing is left to undo.
                 if (JournalTrust.PowercfgTarget(r.Target) is { } pc && PowerSchemes.TryExists(pc.Scheme) == false)
                 {
-                    Log.Info($"Откат пропущен: схемы питания {pc.Scheme} больше нет — изменённое значение удалено вместе с ней.");
-                    return new RevertOutcome("Схемы питания больше нет — параметр удалён вместе с ней, откатывать нечего.", Skipped: true);
+                    Log.Info("Откат пропущен: схемы питания {0} больше нет — изменённое значение удалено вместе с ней.", pc.Scheme);
+                    return new RevertOutcome(Loc.T("Схемы питания больше нет — параметр удалён вместе с ней, откатывать нечего."), Skipped: true);
                 }
                 // DNS records from older builds name the adapter by its (non-persistent) index: run the current
                 // GUID-based script with the same servers instead.
                 var (revertFile, revertArgs) = JournalTrust.UpgradeLegacyDns(r) ?? (r.RevertFile!, r.RevertArgs ?? "");
                 if (!AllowedRevertPrograms.Contains(revertFile, StringComparer.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"Отказано: команда отката «{revertFile}» не из списка системных утилит.");
+                    throw new InvalidOperationException(Loc.Tf("Отказано: команда отката «{0}» не из списка системных утилит.", revertFile));
                 var encoded = revertArgs.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);
-                if (encoded) Log.Command($"powershell: откат «{r.Title}»");
+                if (encoded) Log.Command(Loc.Tf("powershell: откат «{0}»", r.Title));
                 var result = await ProcessRunner.RunAsync(revertFile, revertArgs,
                     new ProcessRunOptions { Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
                 var rebootPending = result is { ExitCode: ProcessExit.RebootRequired, TimedOut: false, Cancelled: false }
                                     && string.Equals(r.RevertFile, ProcessRunner.Sys("pnputil.exe"), StringComparison.OrdinalIgnoreCase);
                 if (rebootPending)
                 {
-                    Log.Warn($"Откат «{r.Title}» вступит в силу после перезагрузки.");
-                    return new RevertOutcome("Вступит в силу после перезагрузки.", Skipped: true);
+                    Log.Warn("Откат «{0}» вступит в силу после перезагрузки.", r.Title);
+                    return new RevertOutcome(Loc.T("Вступит в силу после перезагрузки."), Skipped: true);
                 }
-                if (!result.Success) throw new InvalidOperationException($"Команда отката завершилась с кодом {result.ExitCode}");
+                if (!result.Success) throw new InvalidOperationException(Loc.Tf("Команда отката завершилась с кодом {0}", result.ExitCode));
                 return RevertOutcome.Done;
 
             // Device records: the writers re-validate against the live device (monitor present, mode offered, range…).
             case ChangeKind.UserParameter:
-                SafetyLock.ThrowIfLocked("откат параметра Windows");
+                SafetyLock.ThrowIfLocked(Loc.T("откат параметра Windows"));
                 return await Task.Run(() => DeviceRestore.RestoreUserParameter(r)).ConfigureAwait(false);
             case ChangeKind.DisplayMode:
-                SafetyLock.ThrowIfLocked("откат параметров экрана");
+                SafetyLock.ThrowIfLocked(Loc.T("откат параметров экрана"));
                 return await DisplaySafeApply.RestoreModeAsync(r).ConfigureAwait(false);
             case ChangeKind.DisplayHdr:
-                SafetyLock.ThrowIfLocked("откат HDR");
+                SafetyLock.ThrowIfLocked(Loc.T("откат HDR"));
                 return await DisplaySafeApply.RestoreHdrAsync(r).ConfigureAwait(false);
             case ChangeKind.MonitorSetting:
-                SafetyLock.ThrowIfLocked("откат настройки монитора");
+                SafetyLock.ThrowIfLocked(Loc.T("откат настройки монитора"));
                 return await Task.Run(() => DeviceRestore.RestoreMonitor(r)).ConfigureAwait(false);
             case ChangeKind.AudioLevel:
-                SafetyLock.ThrowIfLocked("откат уровня звука");
+                SafetyLock.ThrowIfLocked(Loc.T("откат уровня звука"));
                 return await Task.Run(() => DeviceRestore.RestoreAudio(r)).ConfigureAwait(false);
             case ChangeKind.NicProperty:
-                SafetyLock.ThrowIfLocked("откат свойства сетевого адаптера");
+                SafetyLock.ThrowIfLocked(Loc.T("откат свойства сетевого адаптера"));
                 return await Task.Run(() => DeviceRestore.RestoreNic(r)).ConfigureAwait(false);
 
             default:
-                throw new InvalidOperationException("Запись журнала не содержит данных для отката.");
+                throw new InvalidOperationException(Loc.T("Запись журнала не содержит данных для отката."));
         }
     }
 }
@@ -1429,9 +1413,9 @@ internal static class JournalTrust
     /// <summary>Null when the record may be reverted; otherwise a short Russian reason.</summary>
     internal static string? Check(ChangeRecord r)
     {
-        if (!IsKnownSource(r.Source)) return $"неизвестный источник записи «{r.Source}»";
+        if (!IsKnownSource(r.Source)) return Loc.Tf("неизвестный источник записи «{0}»", r.Source);
         foreach (var s in r.AlsoSources)
-            if (!IsKnownSource(s)) return $"неизвестный источник записи «{s}»";
+            if (!IsKnownSource(s)) return Loc.Tf("неизвестный источник записи «{0}»", s);
         var isTweak = r.Source.StartsWith("tweak:", StringComparison.Ordinal);
 
         // Each module writes exactly one kind of record; tweaks may write any kind.
@@ -1445,60 +1429,60 @@ internal static class JournalTrust
             "drivers" => ChangeKind.Command,
             _ => null,
         };
-        if (expected is { } kind && r.Kind != kind) return $"источник «{r.Source}» не создаёт записи типа {r.Kind}";
+        if (expected is { } kind && r.Kind != kind) return Loc.Tf("источник «{0}» не создаёт записи типа {1}", r.Source, r.Kind);
         var deviceKind = IsDeviceKind(r.Kind);
-        if (r.Source == DeviceTargets.Source && !deviceKind) return $"источник «{r.Source}» не создаёт записи типа {r.Kind}";
+        if (r.Source == DeviceTargets.Source && !deviceKind) return Loc.Tf("источник «{0}» не создаёт записи типа {1}", r.Source, r.Kind);
         if (deviceKind && (r.Source != DeviceTargets.Source || r.AlsoSources.Count > 0))
-            return $"записи типа {r.Kind} создаёт только раздел «Устройства и сеть»";
+            return Loc.Tf("записи типа {0} создаёт только раздел «Устройства и сеть»", r.Kind);
 
         // An account is recorded only for changes in one account's profile.
         if (r.UserSid is { } sid)
         {
-            if (!UserScope.SidPattern.IsMatch(sid)) return "некорректная учётная запись в записи";
-            if (!r.IsPerUser) return "учётная запись указана для изменения всей системы";
+            if (!UserScope.SidPattern.IsMatch(sid)) return Loc.T("некорректная учётная запись в записи");
+            if (!r.IsPerUser) return Loc.T("учётная запись указана для изменения всей системы");
         }
 
         switch (r.Kind)
         {
             case ChangeKind.Registry when r.Registry is { } reg:
                 if (!string.Equals(r.Target, $@"reg:{reg.Hive}\{reg.Path}\{reg.Name}", StringComparison.OrdinalIgnoreCase))
-                    return "цель записи не совпадает с параметром реестра";
-                if (reg.Hive == RegHive.HKCR) return $"раздел {reg.Hive} MONOLITH не меняет";
-                if (ChangeJournal.IsForbiddenRestoreTarget(reg)) return $"{reg.FullName} — защищённое место реестра";
+                    return Loc.T("цель записи не совпадает с параметром реестра");
+                if (reg.Hive == RegHive.HKCR) return Loc.Tf("раздел {0} MONOLITH не меняет", reg.Hive);
+                if (ChangeJournal.IsForbiddenRestoreTarget(reg)) return Loc.Tf("{0} — защищённое место реестра", reg.FullName);
                 if (reg.CreatedKeyRoot is { } root)
                 {
-                    if (!RegistryHelper.IsValidCreatedRoot(reg.Path, root)) return "некорректный раздел, созданный MONOLITH";
+                    if (!RegistryHelper.IsValidCreatedRoot(reg.Path, root)) return Loc.T("некорректный раздел, созданный MONOLITH");
                     if (ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = reg.Hive, Path = root, Name = "" }))
-                        return $"{reg.Hive}\\{root} — защищённое место реестра";
+                        return Loc.Tf("{0}\\{1} — защищённое место реестра", reg.Hive, root);
                 }
-                if (r.Source == "startup" && !IsStartupMark(reg)) return $"{reg.FullName} — не отметка автозагрузки";
-                if (r.Source == "games" && !IsGpuPreference(reg)) return $"{reg.FullName} — не выбор видеокарты для игры";
+                if (r.Source == "startup" && !IsStartupMark(reg)) return Loc.Tf("{0} — не отметка автозагрузки", reg.FullName);
+                if (r.Source == "games" && !IsGpuPreference(reg)) return Loc.Tf("{0} — не выбор видеокарты для игры", reg.FullName);
                 return null;
 
             case ChangeKind.Service when r.Service is { } svc:
-                if (!string.Equals(r.Target, "svc:" + svc.Name, StringComparison.OrdinalIgnoreCase)) return "цель записи не совпадает со службой";
-                if (ServiceControl.IsProtected(svc.Name)) return $"служба {svc.Name} защищена от изменений";
+                if (!string.Equals(r.Target, "svc:" + svc.Name, StringComparison.OrdinalIgnoreCase)) return Loc.T("цель записи не совпадает со службой");
+                if (ServiceControl.IsProtected(svc.Name)) return Loc.Tf("служба {0} защищена от изменений", svc.Name);
                 // Older builds could change these services (hard-blocked since): their records may still put back a
                 // start type that lets the service run. Every other hard-blocked service is never touched.
                 if (ServiceGuard.IsHardBlocked(svc.Name)
                     && !(LegacyRevertibleServices.Contains(svc.Name) && svc.StartMode != System.ServiceProcess.ServiceStartMode.Disabled))
-                    return $"службу {svc.Name} MONOLITH никогда не меняет";
+                    return Loc.Tf("службу {0} MONOLITH никогда не меняет", svc.Name);
                 return null;
 
             case ChangeKind.ScheduledTask when r.TaskPath is { } task:
-                if (!string.Equals(r.Target, "task:" + task, StringComparison.OrdinalIgnoreCase)) return "цель записи не совпадает с задачей";
-                if (!task.StartsWith('\\') || task.Any(char.IsControl)) return "некорректный путь задачи";
+                if (!string.Equals(r.Target, "task:" + task, StringComparison.OrdinalIgnoreCase)) return Loc.T("цель записи не совпадает с задачей");
+                if (!task.StartsWith('\\') || task.Any(char.IsControl)) return Loc.T("некорректный путь задачи");
                 return null;
 
             case ChangeKind.PowerScheme:
-                if (r.Target != "power:active") return "некорректная цель записи плана питания";
+                if (r.Target != "power:active") return Loc.T("некорректная цель записи плана питания");
                 var created = new List<Guid>();
                 if (r.PowerSchemeCreated is { } c) created.Add(c);
                 if (r.PowerSchemesCreatedMore is { } more) created.AddRange(more);
                 if (created.Count > 0)
                 {
-                    if (!IsTweakish(r)) return "план питания на удаление указан не твиком";
-                    if (created.Any(g => g == Guid.Empty || PowerSchemes.IsBuiltIn(g))) return "встроенный план питания указан на удаление";
+                    if (!IsTweakish(r)) return Loc.T("план питания на удаление указан не твиком");
+                    if (created.Any(g => g == Guid.Empty || PowerSchemes.IsBuiltIn(g))) return Loc.T("встроенный план питания указан на удаление");
                 }
                 return null;
 
@@ -1526,84 +1510,84 @@ internal static class JournalTrust
 
     private static string? CheckSpi(ChangeRecord r)
     {
-        if (r.Spi is not { } s) return "в записи параметра нет данных";
-        if (SpiCatalog.Find(s.Id) is not { } entry) return $"неизвестный параметр «{s.Id}»";
-        if (!string.Equals(r.Target, DeviceTargets.Spi(s.Id), StringComparison.Ordinal)) return "цель записи не совпадает с параметром";
-        if (!entry.IsValidOriginal(s.Value)) return "исходное значение параметра вне допустимого диапазона";
-        if (r.UserSid is null) return "для параметра пользователя не указана учётная запись";
-        if ((s.Persisted is null) != (entry.Persisted is null)) return "сохранённое значение параметра не совпадает с каталогом";
+        if (r.Spi is not { } s) return Loc.T("в записи параметра нет данных");
+        if (SpiCatalog.Find(s.Id) is not { } entry) return Loc.Tf("неизвестный параметр «{0}»", s.Id);
+        if (!string.Equals(r.Target, DeviceTargets.Spi(s.Id), StringComparison.Ordinal)) return Loc.T("цель записи не совпадает с параметром");
+        if (!entry.IsValidOriginal(s.Value)) return Loc.T("исходное значение параметра вне допустимого диапазона");
+        if (r.UserSid is null) return Loc.T("для параметра пользователя не указана учётная запись");
+        if ((s.Persisted is null) != (entry.Persisted is null)) return Loc.T("сохранённое значение параметра не совпадает с каталогом");
         if (s.Persisted is { } p && entry.Persisted is { } catalog)
         {
             if (p.Hive != RegHive.HKCU || !SameText(p.Path.TrimEnd('\\'), catalog.Path) || !SameText(p.Name, catalog.Name))
-                return "место сохранённого значения не совпадает с каталогом";
-            if (p.CreatedKeyRoot is not null) return "для параметра указан созданный раздел реестра";
+                return Loc.T("место сохранённого значения не совпадает с каталогом");
+            if (p.CreatedKeyRoot is not null) return Loc.T("для параметра указан созданный раздел реестра");
             // Windows writes REG_SZ; a third-party tool may have left a DWORD: both are put back exactly as they were.
             if (p.ValueExisted && (!DeviceRestore.IsPersistedKind(p.Kind) || (p.Data?.Length ?? 0) > 64))
-                return "тип или размер сохранённого значения не тот";
+                return Loc.T("тип или размер сохранённого значения не тот");
             // Windows keeps the same number there as the live value (decimal text or a DWORD): anything else is not a value
             // MONOLITH ever saw it write, so it is not put back.
             if (p.ValueExisted && (!int.TryParse(p.Data, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var stored)
                                    || !entry.IsValidOriginal(stored)))
-                return "сохранённое значение параметра вне допустимого диапазона";
+                return Loc.T("сохранённое значение параметра вне допустимого диапазона");
         }
         return null;
     }
 
     private static string? CheckDisplayMode(ChangeRecord r)
     {
-        if (r.DisplayMode is not { Original: not null, Target: not null } d) return "в записи режима экрана нет данных";
-        if (!DeviceTargets.IsMonitorPath(d.MonitorPath)) return "некорректный путь монитора";
-        if (!SameText(r.Target, DeviceTargets.DisplayMode(d.MonitorPath))) return "цель записи не совпадает с монитором";
-        if (!d.Original.IsSane || !d.Target.IsSane) return "недопустимый режим экрана";
-        if (!PlainName(d.MonitorName)) return "некорректное имя монитора";
-        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+        if (r.DisplayMode is not { Original: not null, Target: not null } d) return Loc.T("в записи режима экрана нет данных");
+        if (!DeviceTargets.IsMonitorPath(d.MonitorPath)) return Loc.T("некорректный путь монитора");
+        if (!SameText(r.Target, DeviceTargets.DisplayMode(d.MonitorPath))) return Loc.T("цель записи не совпадает с монитором");
+        if (!d.Original.IsSane || !d.Target.IsSane) return Loc.T("недопустимый режим экрана");
+        if (!PlainName(d.MonitorName)) return Loc.T("некорректное имя монитора");
+        return r.UserSid is null ? null : Loc.T("учётная запись указана для изменения всей системы");
     }
 
     private static string? CheckDisplayHdr(ChangeRecord r)
     {
-        if (r.DisplayHdr is not { } h) return "в записи HDR нет данных";
-        if (!DeviceTargets.IsMonitorPath(h.MonitorPath)) return "некорректный путь монитора";
-        if (!SameText(r.Target, DeviceTargets.DisplayHdr(h.MonitorPath))) return "цель записи не совпадает с монитором";
-        if (h.ModeBefore is { IsSane: false }) return "недопустимый режим экрана";
-        if (!PlainName(h.MonitorName)) return "некорректное имя монитора";
-        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+        if (r.DisplayHdr is not { } h) return Loc.T("в записи HDR нет данных");
+        if (!DeviceTargets.IsMonitorPath(h.MonitorPath)) return Loc.T("некорректный путь монитора");
+        if (!SameText(r.Target, DeviceTargets.DisplayHdr(h.MonitorPath))) return Loc.T("цель записи не совпадает с монитором");
+        if (h.ModeBefore is { IsSane: false }) return Loc.T("недопустимый режим экрана");
+        if (!PlainName(h.MonitorName)) return Loc.T("некорректное имя монитора");
+        return r.UserSid is null ? null : Loc.T("учётная запись указана для изменения всей системы");
     }
 
     private static string? CheckMonitor(ChangeRecord r)
     {
-        if (r.Monitor is not { } m) return "в записи монитора нет данных";
-        if (m.Code is not (MonitorVcp.Brightness or MonitorVcp.Contrast)) return "MONOLITH меняет по DDC/CI только яркость и контраст";
+        if (r.Monitor is not { } m) return Loc.T("в записи монитора нет данных");
+        if (m.Code is not (MonitorVcp.Brightness or MonitorVcp.Contrast)) return Loc.T("MONOLITH меняет по DDC/CI только яркость и контраст");
         // VCP values are 16-bit: the whole range a real monitor can report is accepted.
-        if (m.Max is < 1 or > 65535 || m.Value > m.Max || m.Min > m.Value) return "значение вне диапазона монитора";
-        if (!DeviceTargets.IsMonitorPath(m.MonitorPath)) return "некорректный путь монитора";
-        if (!SameText(r.Target, DeviceTargets.Monitor(m.MonitorPath, m.Code))) return "цель записи не совпадает с монитором";
-        if (!PlainName(m.MonitorName)) return "некорректное имя монитора";
-        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+        if (m.Max is < 1 or > 65535 || m.Value > m.Max || m.Min > m.Value) return Loc.T("значение вне диапазона монитора");
+        if (!DeviceTargets.IsMonitorPath(m.MonitorPath)) return Loc.T("некорректный путь монитора");
+        if (!SameText(r.Target, DeviceTargets.Monitor(m.MonitorPath, m.Code))) return Loc.T("цель записи не совпадает с монитором");
+        if (!PlainName(m.MonitorName)) return Loc.T("некорректное имя монитора");
+        return r.UserSid is null ? null : Loc.T("учётная запись указана для изменения всей системы");
     }
 
     private static string? CheckAudio(ChangeRecord r)
     {
-        if (r.Audio is not { } a) return "в записи звука нет данных";
-        if (!DeviceTargets.IsCaptureEndpointId(a.EndpointId)) return "MONOLITH меняет уровень только у устройств записи";
-        if (a.Component is not (AudioComponent.Level or AudioComponent.Mute)) return "неизвестная часть настройки звука";
+        if (r.Audio is not { } a) return Loc.T("в записи звука нет данных");
+        if (!DeviceTargets.IsCaptureEndpointId(a.EndpointId)) return Loc.T("MONOLITH меняет уровень только у устройств записи");
+        if (a.Component is not (AudioComponent.Level or AudioComponent.Mute)) return Loc.T("неизвестная часть настройки звука");
         var scalar = a.Scalar;
-        if (!float.IsFinite(scalar) || scalar < 0f || scalar > 1f) return "уровень вне диапазона 0–100 %";
-        if (!SameText(r.Target, DeviceTargets.Audio(a.EndpointId, a.Component))) return "цель записи не совпадает с устройством";
-        if (!PlainName(a.EndpointName)) return "некорректное имя устройства";
-        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+        if (!float.IsFinite(scalar) || scalar < 0f || scalar > 1f) return Loc.T("уровень вне диапазона 0–100 %");
+        if (!SameText(r.Target, DeviceTargets.Audio(a.EndpointId, a.Component))) return Loc.T("цель записи не совпадает с устройством");
+        if (!PlainName(a.EndpointName)) return Loc.T("некорректное имя устройства");
+        return r.UserSid is null ? null : Loc.T("учётная запись указана для изменения всей системы");
     }
 
     private static string? CheckNic(ChangeRecord r)
     {
-        if (r.Nic is not { } n) return "в записи сетевого адаптера нет данных";
-        if (n.InterfaceGuid == Guid.Empty) return "не указан сетевой адаптер";
-        if (!DeviceTargets.IsNicKeyword(n.Keyword)) return $"свойство «{n.Keyword}» MONOLITH не меняет";
+        if (r.Nic is not { } n) return Loc.T("в записи сетевого адаптера нет данных");
+        if (n.InterfaceGuid == Guid.Empty) return Loc.T("не указан сетевой адаптер");
+        if (!DeviceTargets.IsNicKeyword(n.Keyword)) return Loc.Tf("свойство «{0}» MONOLITH не меняет", n.Keyword);
         if ((n.Value is not null && !DeviceTargets.IsNicValue(n.Value)) || (n.DefaultValue is not null && !DeviceTargets.IsNicValue(n.DefaultValue)))
-            return "значение свойства не число";
-        if (n.RestoreValue is null) return "в записи нет прежнего значения";
-        if (!SameText(r.Target, DeviceTargets.NicProperty(n.InterfaceGuid, n.Keyword))) return "цель записи не совпадает с адаптером";
-        if (!PlainName(n.AdapterName)) return "некорректное имя адаптера";
-        return r.UserSid is null ? null : "учётная запись указана для изменения всей системы";
+            return Loc.T("значение свойства не число");
+        if (n.RestoreValue is null) return Loc.T("в записи нет прежнего значения");
+        if (!SameText(r.Target, DeviceTargets.NicProperty(n.InterfaceGuid, n.Keyword))) return Loc.T("цель записи не совпадает с адаптером");
+        if (!PlainName(n.AdapterName)) return Loc.T("некорректное имя адаптера");
+        return r.UserSid is null ? null : Loc.T("учётная запись указана для изменения всей системы");
     }
 
     private const string StartupApprovedRoot = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\";
@@ -1647,7 +1631,7 @@ internal static class JournalTrust
     private const string GuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
     private const string PsPrefix = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ";
     private const string CmdHead = "/d /s /c \"";
-    private const string Unknown = "команда отката не совпадает ни с одной командой MONOLITH";
+    private static readonly string Unknown = Loc.T("команда отката не совпадает ни с одной командой MONOLITH");
 
     /// <summary>Services that older builds could change in ВСЕ СЛУЖБЫ and that are hard-blocked now.</summary>
     private static readonly HashSet<string> LegacyRevertibleServices =
@@ -1660,7 +1644,7 @@ internal static class JournalTrust
     {
         var file = r.RevertFile ?? "";
         var args = r.RevertArgs ?? "";
-        if (!r.Target.StartsWith("cmd:", StringComparison.Ordinal)) return "некорректная цель команды";
+        if (!r.Target.StartsWith("cmd:", StringComparison.Ordinal)) return Loc.T("некорректная цель команды");
         var target = r.Target[4..];
 
         // Drivers → enable a device; its undo is pnputil /disable-device "<the same instance ID>".
@@ -1851,7 +1835,7 @@ internal static class JournalTrust
         if (servers.Count == 0) return $"{netsh} interface {family} set dnsservers name={index} source=dhcp";
         var addresses = servers.Select(s => System.Net.IPAddress.TryParse(s, out var ip)
             ? ip.ToString()
-            : throw new InvalidOperationException($"некорректный адрес DNS-сервера: {s}")).ToList();
+            : throw new InvalidOperationException(Loc.Tf("некорректный адрес DNS-сервера: {0}", s))).ToList();
         return string.Join(" && ", addresses.Select((s, i) => i == 0
             ? $"{netsh} interface {family} set dnsservers name={index} source=static address={s} register=primary validate=no"
             : $"{netsh} interface {family} add dnsservers name={index} address={s} index={i + 1} validate=no"));

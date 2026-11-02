@@ -50,16 +50,16 @@ public sealed class ChangeSession
     public static async Task<ChangeSession> BeginAsync(string title, bool createRestorePoint = true,
         IProgress<string>? progress = null, ChangeJournal? journal = null)
     {
-        if (Locked) throw new InvalidOperationException("Изменения системы заблокированы (режим самопроверки).");
+        if (Locked) throw new InvalidOperationException(Loc.T("Изменения системы заблокированы (режим самопроверки)."));
         if (!BypassElevationForTests) Elevation.Demand(title);
         journal ??= ChangeJournal.Instance;
         var batch = journal.BeginBatch(title);
         var session = new ChangeSession(journal, batch);
-        Log.Info($"Начало изменений: {title}");
+        Log.Info("Начало изменений: {0}", title);
 
         if (createRestorePoint && AppSettings.Current.CreateRestorePoints && !BypassElevationForTests)
         {
-            progress?.Report("Создание точки восстановления…");
+            progress?.Report(Loc.T("Создание точки восстановления…"));
             var rp = await RestorePointService.CreateAsync($"MONOLITH: {title}").ConfigureAwait(false);
             batch.RestorePoint = rp.Message;
             journal.UpdateBatch(batch);
@@ -102,7 +102,7 @@ public sealed class ChangeSession
             // so whichever of these records is reverted last removes the created keys.
             if (!snapshot.ValueExisted && _journal.InheritedKeyRoot(hive, path, userSid) is { } inherited)
                 snapshot = snapshot.WithCreatedKeyRoot(RegistryHelper.ShallowerRoot(snapshot.CreatedKeyRoot, inherited));
-            var newText = value is null ? "удалено" : $"{kind}: {FormatValue(kind, value)}";
+            var newText = value is null ? Loc.Keep("удалено") : $"{kind}: {FormatValue(kind, value)}";
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Registry, Target = target,
@@ -141,14 +141,14 @@ public sealed class ChangeSession
             snapshot = ServiceControl.Query(service);
             if (snapshot is null)
             {
-                Log.Info($"{title}: служба {service} не найдена — пропущено.");
+                Log.Info("{0}: служба {1} не найдена — пропущено.", title, service);
                 return false;
             }
             if (ServiceControl.IsProtected(service))
-                throw new InvalidOperationException($"служба {service} защищена от изменений");
+                throw new InvalidOperationException(Loc.Tf("служба {0} защищена от изменений", service));
             // The journal refuses to replay such records, so they are never created either.
             if (Monolith.Modules.Services.ServiceGuard.IsHardBlocked(service))
-                throw new InvalidOperationException($"служба {service} в списке служб, которые MONOLITH не меняет");
+                throw new InvalidOperationException(Loc.Tf("служба {0} в списке служб, которые MONOLITH не меняет", service));
 
             var incoming = new ChangeRecord
             {
@@ -168,7 +168,7 @@ public sealed class ChangeSession
             if (rec is not null && isNew)
             {
                 if (snapshot is null || ServiceUnchanged(service, snapshot)) _journal.Remove(rec);
-                else Log.Warn($"{title}: служба {service} изменена лишь частично — запись сохранена для отката.");
+                else Log.Warn("{0}: служба {1} изменена лишь частично — запись сохранена для отката.", title, service);
             }
             Fail(title, ex);
             return false;
@@ -204,7 +204,7 @@ public sealed class ChangeSession
             var original = PowerSchemes.GetActive();
             // Without the current plan there is nothing to go back to: change nothing.
             if (original == Guid.Empty)
-                throw new InvalidOperationException("не удалось определить текущую схему питания — схема не изменена");
+                throw new InvalidOperationException(Loc.T("не удалось определить текущую схему питания — схема не изменена"));
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.PowerScheme, Target = "power:active",
@@ -215,7 +215,7 @@ public sealed class ChangeSession
             PowerSchemes.SetActive(scheme);
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
-            Log.Info($"{title}: план питания → {PowerSchemes.GetName(scheme)}");
+            Log.Info("{0}: план питания → {1}", title, PowerSchemes.GetName(scheme));
             return true;
         }
         catch (Exception ex)
@@ -240,20 +240,20 @@ public sealed class ChangeSession
             var info = ScheduledTasks.Query(taskPath);
             if (!info.Exists)
             {
-                Log.Info($"{title}: задача {taskPath} не найдена — пропущено.");
+                Log.Info("{0}: задача {1} не найдена — пропущено.", title, taskPath);
                 return false;
             }
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.ScheduledTask, Target = $"task:{taskPath}",
-                OldValue = info.Enabled ? "Включена" : "Отключена", NewValue = enabled ? "Включена" : "Отключена",
+                OldValue = info.Enabled ? Loc.Keep("Включена") : Loc.Keep("Отключена"), NewValue = enabled ? Loc.Keep("Включена") : Loc.Keep("Отключена"),
                 TaskPath = taskPath, TaskWasEnabled = info.Enabled,
             };
             (rec, isNew) = _journal.Add(incoming);
             ScheduledTasks.SetEnabled(taskPath, enabled);
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
-            Log.Info($"{title}: {taskPath} → {(enabled ? "включена" : "отключена")}");
+            Log.Info("{0}: {1} → {2}", title, taskPath, enabled ? Loc.T("включена") : Loc.T("отключена"));
             return true;
         }
         catch (Exception ex)
@@ -300,13 +300,13 @@ public sealed class ChangeSession
             if (encoded) Log.Command($"powershell: {title} ({newValue})");
             r = await ProcessRunner.RunAsync(file, args, new ProcessRunOptions { Encoding = encoding, Timeout = TimeSpan.FromMinutes(2), LogCommand = !encoded }).ConfigureAwait(false);
             if (OutcomeUnknown(r))
-                throw new InvalidOperationException("результат неизвестен (команда прервана по тайм-ауту) — запись сохранена для отката");
+                throw new InvalidOperationException(Loc.T("результат неизвестен (команда прервана по тайм-ауту) — запись сохранена для отката"));
             var applied = r.Success || successCodes?.Contains(r.ExitCode) == true;
-            if (!applied) throw new InvalidOperationException($"код выхода {r.ExitCode}: {r.Combined.Trim()}");
+            if (!applied) throw new InvalidOperationException(Loc.Tf("код выхода {0}: {1}", r.ExitCode, r.Combined.Trim()));
             if (r.ExitCode == ProcessExit.RebootRequired)
             {
                 RebootRequired = true;
-                Log.Warn($"{title}: изменение вступит в силу после перезагрузки.");
+                Log.Warn("{0}: изменение вступит в силу после перезагрузки.", title);
             }
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
@@ -350,18 +350,18 @@ public sealed class ChangeSession
         try
         {
             SafetyLock.ThrowIfLocked(title);
-            entry = SpiCatalog.Find(spiId) ?? throw new InvalidOperationException($"неизвестный параметр «{spiId}»");
-            if (!entry.IsAllowedTarget(value)) throw new InvalidOperationException($"значение {value} вне допустимого диапазона");
+            entry = SpiCatalog.Find(spiId) ?? throw new InvalidOperationException(Loc.Tf("неизвестный параметр «{0}»", spiId));
+            if (!entry.IsAllowedTarget(value)) throw new InvalidOperationException(Loc.Tf("значение {0} вне допустимого диапазона", value));
             if (Elevation.InteractiveUserProblem is { } account) throw new InvalidOperationException(account);
             writer = DeviceWriters.Spi ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
-            original = writer.Get(entry) ?? throw new InvalidOperationException("не удалось прочитать текущее значение");
+            original = writer.Get(entry) ?? throw new InvalidOperationException(Loc.T("не удалось прочитать текущее значение"));
             if (original == value)
             {
-                Log.Info($"{title}: уже {entry.Describe(value)} — менять нечего.");
+                Log.Info("{0}: уже {1} — менять нечего.", title, entry.Describe(value));
                 return true;
             }
             if (!entry.IsValidOriginal(original.Value))
-                throw new InvalidOperationException($"текущее значение {original} вне известного диапазона — MONOLITH не смог бы его вернуть");
+                throw new InvalidOperationException(Loc.Tf("текущее значение {0} вне известного диапазона — MONOLITH не смог бы его вернуть", original));
 
             if (entry.Persisted is { } p)
             {
@@ -373,16 +373,16 @@ public sealed class ChangeSession
             var incoming = new ChangeRecord
             {
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.UserParameter, Target = DeviceTargets.Spi(entry.Id),
-                OldValue = entry.Describe(original.Value), NewValue = entry.Describe(value) + (pendingConfirm ? " (не подтверждено)" : ""),
+                OldValue = entry.Describe(original.Value), NewValue = entry.Describe(value) + (pendingConfirm ? Loc.Keep(" (не подтверждено)") : ""),
                 Spi = new SpiSnapshot { Id = entry.Id, Value = original.Value, Persisted = persisted, PendingConfirm = pendingConfirm },
                 UserSid = UserScope.CurrentSid,
             };
             RefuseUntrusted(incoming);
             (rec, isNew) = _journal.Add(incoming);
 
-            if (!writer.Set(entry, value)) throw new InvalidOperationException("Windows не приняла новое значение");
+            if (!writer.Set(entry, value)) throw new InvalidOperationException(Loc.T("Windows не приняла новое значение"));
             var back = writer.Get(entry);
-            if (back != value) throw new InvalidOperationException($"после записи прочитано {back?.ToString() ?? "—"}, ожидалось {value}");
+            if (back != value) throw new InvalidOperationException(Loc.Tf("после записи прочитано {0}, ожидалось {1}", back?.ToString() ?? "—", value));
 
             if (!isNew) _journal.MergeInto(rec, incoming);
             Applied++;
@@ -397,9 +397,9 @@ public sealed class ChangeSession
                 // Put the live and the persisted value back exactly; keep the record when that fails (it is the undo).
                 var restored = false;
                 try { restored = DeviceRestore.RestoreSpi(writer, entry, o, persisted, out _); }
-                catch (Exception restoreEx) { Log.Warn($"{title}: возврат не удался — {restoreEx.Message}"); }
+                catch (Exception restoreEx) { Log.Warn("{0}: возврат не удался — {1}", title, restoreEx.Message); }
                 if (restored) _journal.Remove(rec);
-                else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+                else Log.Warn("{0}: прежнее значение вернуть не удалось — запись сохранена для отката.", title);
             }
             Fail(title, ex);
             return false;
@@ -423,7 +423,7 @@ public sealed class ChangeSession
                 var done = SetUserParameterCore(spiId, value, source, title, out var r, pendingConfirm: true);
                 return (done, r);
             }, CancellationToken.None).ConfigureAwait(false);
-            if (!applied) return new DisplayApplyOutcome(DisplayApplyResult.Failed, Errors.Count > 0 ? Errors[^1] : "не применено");
+            if (!applied) return new DisplayApplyOutcome(DisplayApplyResult.Failed, Errors.Count > 0 ? Errors[^1] : Loc.T("не применено"));
             if (ok is null) return DisplayApplyOutcome.Unchanged;
 
             if (await DeviceConfirm.CountdownAsync(confirm, ct).ConfigureAwait(false))
@@ -436,12 +436,12 @@ public sealed class ChangeSession
             if (revert.Success && ok.Reverted)
             {
                 Applied--;
-                Log.Info($"{title}: не подтверждено — возвращено прежнее значение.");
-                return new DisplayApplyOutcome(DisplayApplyResult.Reverted, "не подтверждено — возвращено прежнее значение");
+                Log.Info("{0}: не подтверждено — возвращено прежнее значение.", title);
+                return new DisplayApplyOutcome(DisplayApplyResult.Reverted, Loc.T("не подтверждено — возвращено прежнее значение"));
             }
             if (ok.Spi is { } snap && await Task.Run(() => SetUserParameterCore(spiId, snap.Value, source, title, out _)).ConfigureAwait(false))
-                return new DisplayApplyOutcome(DisplayApplyResult.Reverted, "не подтверждено — прежнее значение записано заново");
-            var text = "Не удалось вернуть прежнее значение автоматически." + (manualHint is null ? "" : " " + manualHint);
+                return new DisplayApplyOutcome(DisplayApplyResult.Reverted, Loc.T("не подтверждено — прежнее значение записано заново"));
+            var text = Loc.T("Не удалось вернуть прежнее значение автоматически.") + (manualHint is null ? "" : " " + manualHint);
             Log.Warn($"{title}: {text}");
             return new DisplayApplyOutcome(DisplayApplyResult.Failed, text);
         });
@@ -484,13 +484,13 @@ public sealed class ChangeSession
                 break;
             case DisplayApplyResult.Failed:
                 Errors.Add($"{title}: {outcome.Message}");
-                Log.Warn($"{title} — не применено: {outcome.Message}");
+                Log.Warn("{0} — не применено: {1}", title, outcome.Message);
                 break;
             case DisplayApplyResult.Blocked:
                 Log.Info($"{title}: {outcome.Message}");
                 break;
             case DisplayApplyResult.Reverted:
-                Log.Info($"{title}: {outcome.Message ?? "не подтверждено — возвращено прежнее"}");
+                Log.Info("{0}: {1}", title, outcome.Message ?? Loc.Keep("не подтверждено — возвращено прежнее"));
                 break;
         }
     }
@@ -510,10 +510,10 @@ public sealed class ChangeSession
             {
                 SafetyLock.ThrowIfLocked(title);
                 writer = DeviceWriters.Monitor ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
-                if (!DeviceTargets.IsMonitorPath(monitorPath)) throw new InvalidOperationException("некорректный путь монитора");
+                if (!DeviceTargets.IsMonitorPath(monitorPath)) throw new InvalidOperationException(Loc.T("некорректный путь монитора"));
                 now = await Task.Run(() => writer.Get(monitorPath, code)).ConfigureAwait(false)
-                      ?? throw new InvalidOperationException("монитор не отвечает по DDC/CI");
-                if (value < now.Min || value > now.Max) throw new InvalidOperationException($"значение {value} вне диапазона монитора {now.Min}–{now.Max}");
+                      ?? throw new InvalidOperationException(Loc.T("монитор не отвечает по DDC/CI"));
+                if (value < now.Min || value > now.Max) throw new InvalidOperationException(Loc.Tf("значение {0} вне диапазона монитора {1}–{2}", value, now.Min, now.Max));
                 if (now.Value == value) return DisplayApplyOutcome.Unchanged;
 
                 var incoming = new ChangeRecord
@@ -527,11 +527,11 @@ public sealed class ChangeSession
                 rec = isNew ? existing : null; // merged into this batch's earlier record: that one keeps the first original
                 var w = writer;
                 var written = await Task.Run(() => w.Set(monitorPath, code, value) && w.Get(monitorPath, code)?.Value == value).ConfigureAwait(false);
-                if (!written) throw new InvalidOperationException("монитор не принял новое значение");
+                if (!written) throw new InvalidOperationException(Loc.T("монитор не принял новое значение"));
 
                 if (DeviceTargets.NeedsMonitorConfirm(code, value, now.Min, now.Max))
                 {
-                    var request = new CountdownRequest(code == MonitorVcp.Contrast ? "ОСТАВИТЬ ЭТОТ КОНТРАСТ?" : "ОСТАВИТЬ ЭТУ ЯРКОСТЬ?",
+                    var request = new CountdownRequest(code == MonitorVcp.Contrast ? Loc.T("ОСТАВИТЬ ЭТОТ КОНТРАСТ?") : Loc.T("ОСТАВИТЬ ЭТУ ЯРКОСТЬ?"),
                         $"{monitorName}: {DeviceTargets.DescribeVcp(code, value, now.Max)}", (int)Math.Ceiling(DisplaySafeApply.ConfirmWindow.TotalSeconds),
                         CountdownRequest.Keep, CountdownRequest.Revert, DeviceWriters.Display?.GdiName(monitorPath))
                     { Window = DisplaySafeApply.ConfirmWindow };
@@ -540,8 +540,8 @@ public sealed class ChangeSession
                         var back = await Task.Run(() => w.Set(monitorPath, code, now.Value) && w.Get(monitorPath, code)?.Value == now.Value).ConfigureAwait(false);
                         if (back && rec is not null) _journal.Remove(rec);
                         return back
-                            ? new DisplayApplyOutcome(DisplayApplyResult.Reverted, "не подтверждено — возвращено прежнее значение")
-                            : new DisplayApplyOutcome(DisplayApplyResult.Failed, "не удалось вернуть прежнее значение — откатите запись в «Восстановлении»");
+                            ? new DisplayApplyOutcome(DisplayApplyResult.Reverted, Loc.T("не подтверждено — возвращено прежнее значение"))
+                            : new DisplayApplyOutcome(DisplayApplyResult.Failed, Loc.T("не удалось вернуть прежнее значение — откатите запись в «Восстановлении»"));
                     }
                 }
                 if (!isNew) _journal.MergeInto(existing, incoming);
@@ -559,7 +559,7 @@ public sealed class ChangeSession
                     try { back = await Task.Run(() => w.Set(monitorPath, code, original) && w.Get(monitorPath, code)?.Value == original).ConfigureAwait(false); }
                     catch { }
                     if (back) _journal.Remove(rec);
-                    else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+                    else Log.Warn("{0}: прежнее значение вернуть не удалось — запись сохранена для отката.", title);
                 }
                 Fail(title, ex);
                 return new DisplayApplyOutcome(DisplayApplyResult.Failed, ex.Message);
@@ -577,13 +577,13 @@ public sealed class ChangeSession
             try
             {
                 SafetyLock.ThrowIfLocked(title);
-                if (scalar is not null && db is not null) throw new InvalidOperationException("укажите уровень либо в процентах, либо в децибелах");
-                if (scalar is { } s && (!float.IsFinite(s) || s < 0f || s > 1f)) throw new InvalidOperationException("уровень вне диапазона 0–100 %");
-                if (db is { } d && !float.IsFinite(d)) throw new InvalidOperationException("недопустимый уровень в децибелах");
-                if (!DeviceTargets.IsCaptureEndpointId(endpointId)) throw new InvalidOperationException("MONOLITH меняет уровень только у устройств записи");
+                if (scalar is not null && db is not null) throw new InvalidOperationException(Loc.T("укажите уровень либо в процентах, либо в децибелах"));
+                if (scalar is { } s && (!float.IsFinite(s) || s < 0f || s > 1f)) throw new InvalidOperationException(Loc.T("уровень вне диапазона 0–100 %"));
+                if (db is { } d && !float.IsFinite(d)) throw new InvalidOperationException(Loc.T("недопустимый уровень в децибелах"));
+                if (!DeviceTargets.IsCaptureEndpointId(endpointId)) throw new InvalidOperationException(Loc.T("MONOLITH меняет уровень только у устройств записи"));
                 if (Elevation.InteractiveUserProblem is { } account) throw new InvalidOperationException(account);
                 var writer = DeviceWriters.Audio ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
-                if (!writer.IsPresent(endpointId)) throw new InvalidOperationException("устройство не найдено");
+                if (!writer.IsPresent(endpointId)) throw new InvalidOperationException(Loc.T("устройство не найдено"));
             }
             catch (Exception ex)
             {
@@ -605,7 +605,7 @@ public sealed class ChangeSession
         (float Scalar, bool Mute) now = default;
         try
         {
-            now = writer.Read(endpointId) ?? throw new InvalidOperationException("не удалось прочитать уровень устройства");
+            now = writer.Read(endpointId) ?? throw new InvalidOperationException(Loc.T("не удалось прочитать уровень устройства"));
             if (part == AudioComponent.Level && scalar is { } target && Math.Abs(target - now.Scalar) < 0.0005f) return true;
             if (part == AudioComponent.Mute && mute == now.Mute) return true;
 
@@ -614,7 +614,7 @@ public sealed class ChangeSession
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.AudioLevel, Target = DeviceTargets.Audio(endpointId, part),
                 OldValue = part == AudioComponent.Mute ? DeviceTargets.DescribeMute(now.Mute) : DeviceTargets.DescribeLevel(now.Scalar),
                 NewValue = part == AudioComponent.Mute ? DeviceTargets.DescribeMute(mute == true)
-                    : scalar is { } sc ? DeviceTargets.DescribeLevel(sc) : $"{db:0.#} дБ",
+                    : scalar is { } sc ? DeviceTargets.DescribeLevel(sc) : Loc.Tf("{0:0.#} дБ", db),
                 Audio = new AudioLevelSnapshot
                 {
                     EndpointId = endpointId, EndpointName = endpointName, Component = part,
@@ -631,10 +631,10 @@ public sealed class ChangeSession
                 _ => writer.SetDb(endpointId, db!.Value),
             };
             var back = writer.Read(endpointId);
-            if (!written || back is null) throw new InvalidOperationException("устройство не приняло новое значение");
-            if (part == AudioComponent.Mute && back.Value.Mute != mute) throw new InvalidOperationException("состояние звука не изменилось");
+            if (!written || back is null) throw new InvalidOperationException(Loc.T("устройство не приняло новое значение"));
+            if (part == AudioComponent.Mute && back.Value.Mute != mute) throw new InvalidOperationException(Loc.T("состояние звука не изменилось"));
             if (part == AudioComponent.Level && scalar is { } want && Math.Abs(back.Value.Scalar - want) > 0.001f)
-                throw new InvalidOperationException("уровень не совпал после записи");
+                throw new InvalidOperationException(Loc.T("уровень не совпал после записи"));
             if (part == AudioComponent.Level && Math.Abs(back.Value.Scalar - now.Scalar) <= 0.0005f)
             {
                 if (isNew) _journal.Remove(rec); // the endpoint's range clamped it: nothing changed
@@ -661,7 +661,7 @@ public sealed class ChangeSession
                 }
                 catch { }
                 if (restored) _journal.Remove(rec);
-                else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+                else Log.Warn("{0}: прежнее значение вернуть не удалось — запись сохранена для отката.", title);
             }
             Fail(title, ex);
             return false;
@@ -683,19 +683,19 @@ public sealed class ChangeSession
             try
             {
                 SafetyLock.ThrowIfLocked(title);
-                if (GameBoostState.IsActive) throw new InvalidOperationException("во время игрового сеанса MONOLITH не перезапускает сетевой адаптер");
-                if (!DeviceTargets.IsNicKeyword(keyword)) throw new InvalidOperationException($"свойство «{keyword}» MONOLITH не меняет");
-                if (!DeviceTargets.IsNicValue(value)) throw new InvalidOperationException("значение свойства должно быть числом");
+                if (GameBoostState.IsActive) throw new InvalidOperationException(Loc.T("во время игрового сеанса MONOLITH не перезапускает сетевой адаптер"));
+                if (!DeviceTargets.IsNicKeyword(keyword)) throw new InvalidOperationException(Loc.Tf("свойство «{0}» MONOLITH не меняет", keyword));
+                if (!DeviceTargets.IsNicValue(value)) throw new InvalidOperationException(Loc.T("значение свойства должно быть числом"));
                 writer = DeviceWriters.Nic ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
-                if (writer.RunningGame() is { } game) throw new InvalidOperationException($"идёт игра ({game}) — MONOLITH не перезапускает сетевой адаптер");
-                var name = writer.AdapterName(interfaceGuid) ?? throw new InvalidOperationException("сетевой адаптер не найден");
-                var info = writer.Read(interfaceGuid, keyword) ?? throw new InvalidOperationException($"у адаптера нет свойства {keyword}");
+                if (writer.RunningGame() is { } game) throw new InvalidOperationException(Loc.Tf("идёт игра ({0}) — MONOLITH не перезапускает сетевой адаптер", game));
+                var name = writer.AdapterName(interfaceGuid) ?? throw new InvalidOperationException(Loc.T("сетевой адаптер не найден"));
+                var info = writer.Read(interfaceGuid, keyword) ?? throw new InvalidOperationException(Loc.Tf("у адаптера нет свойства {0}", keyword));
                 if (!info.ValidValues.Contains(value, StringComparer.Ordinal))
-                    throw new InvalidOperationException($"значение {value} не входит в допустимые для этого адаптера");
+                    throw new InvalidOperationException(Loc.Tf("значение {0} не входит в допустимые для этого адаптера", value));
                 if (string.Equals(info.Value ?? info.DefaultValue, value, StringComparison.Ordinal)) return true;
 
                 snap = new NicPropertySnapshot { InterfaceGuid = interfaceGuid, AdapterName = name, Keyword = info.Keyword, Value = info.Value, DefaultValue = info.DefaultValue };
-                if (snap.RestoreValue is null) throw new InvalidOperationException("у свойства нет ни значения, ни значения по умолчанию — вернуть его было бы нельзя");
+                if (snap.RestoreValue is null) throw new InvalidOperationException(Loc.T("у свойства нет ни значения, ни значения по умолчанию — вернуть его было бы нельзя"));
                 var incoming = new ChangeRecord
                 {
                     BatchId = Batch.Id, Source = source, Title = $"{title} ({DeviceTargets.NicRestartNote})", Kind = ChangeKind.NicProperty,
@@ -706,7 +706,7 @@ public sealed class ChangeSession
                 (rec, isNew) = _journal.Add(incoming);
                 Log.Info($"{title}: {name} — {DeviceTargets.NicRestartNote}.");
                 if (!writer.Set(interfaceGuid, info.Keyword, value) || writer.Read(interfaceGuid, info.Keyword)?.Value != value)
-                    throw new InvalidOperationException("адаптер не принял новое значение");
+                    throw new InvalidOperationException(Loc.T("адаптер не принял новое значение"));
                 if (!isNew) _journal.MergeInto(rec, incoming);
                 Applied++;
                 Log.Info($"{title}: {name} {info.Keyword} {DeviceTargets.DescribeNic(info.Value)} → {value}");
@@ -725,7 +725,7 @@ public sealed class ChangeSession
                     }
                     catch { }
                     if (restored) _journal.Remove(rec);
-                    else Log.Warn($"{title}: прежнее значение вернуть не удалось — запись сохранена для отката.");
+                    else Log.Warn("{0}: прежнее значение вернуть не удалось — запись сохранена для отката.", title);
                 }
                 Fail(title, ex);
                 return false;
@@ -736,7 +736,7 @@ public sealed class ChangeSession
     private static void RefuseUntrusted(ChangeRecord incoming)
     {
         if (JournalTrust.Check(incoming) is { } refusal)
-            throw new InvalidOperationException($"MONOLITH не смог бы откатить это изменение ({refusal}) — ничего не изменено");
+            throw new InvalidOperationException(Loc.Tf("MONOLITH не смог бы откатить это изменение ({0}) — ничего не изменено", refusal));
     }
 
     private void ExportOnce(RegHive hive, string path)
@@ -749,14 +749,14 @@ public sealed class ChangeSession
     public void Complete()
     {
         _journal.Save();
-        if (Errors.Count == 0) Log.Success($"Готово: {Batch.Title} — изменений: {Applied}");
-        else Log.Warn($"{Batch.Title}: применено {Applied}, ошибок {Errors.Count}");
+        if (Errors.Count == 0) Log.Success("Готово: {0} — изменений: {1}", Batch.Title, Applied);
+        else Log.Warn("{0}: применено {1}, ошибок {2}", Batch.Title, Applied, Errors.Count);
     }
 
     private void Fail(string title, Exception ex)
     {
         Errors.Add($"{title}: {ex.Message}");
-        Log.Error($"{title} — не применено", ex);
+        Log.Error("{0} — не применено", ex, title);
     }
 
     private static string FormatValue(RegistryValueKind kind, object value) => kind switch

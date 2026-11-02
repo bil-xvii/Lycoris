@@ -11,6 +11,6 @@ public static class SafetyLock
     public static void ThrowIfLocked(string action)
     {
         if (ChangeSession.Locked)
-            throw new InvalidOperationException($"«{action}» заблокировано: режим самопроверки.");
+            throw new InvalidOperationException(Loc.Tf("«{0}» заблокировано: режим самопроверки.", Loc.Sink(action)));
     }
 }
