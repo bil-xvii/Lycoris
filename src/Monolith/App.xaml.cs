@@ -277,6 +277,8 @@ public partial class App : Application
         window.ContentRendered += (_, _) => { StartupTiming.Mark("first frame rendered"); };
         window.Show();
         _ = vm.RunStartupChecksAsync();
+        if (StartupTiming.Enabled && int.TryParse(ArgValue(args, "--cycle-pages"), out var cycles) && cycles > 0)
+            window.Dispatcher.InvokeAsync(() => StartupTiming.CyclePagesAsync(vm, cycles), DispatcherPriority.ApplicationIdle);
         UpdateController.Instance.ScheduleStartupCheck();
         UpdateController.Instance.ScheduleCleanup();
     }
