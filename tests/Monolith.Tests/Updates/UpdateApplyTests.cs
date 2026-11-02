@@ -465,3 +465,25 @@ public sealed class UpdateOnDiskTests : IDisposable
         Assert.True(File.Exists(Path.Combine(updates, "notes.txt")));
     }
 }
+
+public sealed class UpdateProductNameTests
+{
+    [Theory]
+    [InlineData("Lycoris", true)]
+    [InlineData("MONOLITH", true)]
+    [InlineData("lycoris", false)]
+    [InlineData("Notepad", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void Only_our_product_names_are_accepted(string? name, bool expected) =>
+        Assert.Equal(expected, Monolith.Core.Updates.SystemUpdateEnvironment.IsProductName(name));
+
+    [Fact]
+    public void The_product_name_this_build_stamps_into_the_exe_is_accepted_by_the_updater()
+    {
+        // Regression: the rename to Lycoris left the updater refusing every Lycoris exe («не похож на MONOLITH»).
+        var path = typeof(Monolith.Core.Updates.SystemUpdateEnvironment).Assembly.Location;
+        var name = System.Diagnostics.FileVersionInfo.GetVersionInfo(path).ProductName;
+        Assert.True(Monolith.Core.Updates.SystemUpdateEnvironment.IsProductName(name), $"product name «{name}»");
+    }
+}

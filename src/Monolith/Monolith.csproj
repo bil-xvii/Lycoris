@@ -27,7 +27,7 @@
     <Trademark>Lycoris</Trademark>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Copyright>© 2026 Lycoris</Copyright>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <NeutralLanguage>ru-RU</NeutralLanguage>
     <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
     <!-- WPF + WMI COM interop: trimming is not supported -->
