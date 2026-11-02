@@ -15,6 +15,7 @@ public static partial class ProblemReport
     public const int MaxArchiveBytes = 5 * 1024 * 1024;
     private const int MaxLogBytes = 512 * 1024;
     private const int MaxLogFilesScanned = 50;
+    private const int MaxLogFilesEnumerated = 5000;
     private const long MaxLogReadBytes = 5L * 1024 * 1024;
     private static readonly HashSet<string> SafeSettings = new(StringComparer.Ordinal)
         { "Language", "ExpertMode", "MonitorIntervalMs", "ConfirmBeforeApply", "StartElevated", "Theme" };
@@ -52,15 +53,22 @@ public static partial class ProblemReport
         }
     }
 
-    /// <summary>Newest logs of a folder as anonymized bytes under FIXED names (logs/log-N.txt): the source file name is never used.</summary>
+    /// <summary>
+    /// Newest *.log files of a folder as anonymized bytes under FIXED names (logs/log-N.txt): the source file name is never used.
+    /// The folder and its parent (the Lycoris user folder) must not be links; the newest files are chosen by modification time
+    /// (at most <see cref="MaxLogFilesEnumerated"/> names are looked at); a file over the limit gives its LAST 512 KB.
+    /// </summary>
     internal static IReadOnlyList<(string Name, byte[] Data)> CollectLogs(string dir, int maxFiles = MaxLogFilesScanned, long maxReadBytes = MaxLogReadBytes)
     {
         var result = new List<(string, byte[])>();
         try
         {
-            if (!Directory.Exists(dir)) return result;
-            // At most maxFiles entries are looked at BEFORE sorting (a folder with millions of files must not stall the report).
-            var candidates = Directory.EnumerateFiles(dir).Take(maxFiles).Where(p => !IsLink(p)).OrderByDescending(SafeLastWrite).ToList();
+            if (!Directory.Exists(dir) || IsLink(dir)) return result;
+            var parent = Path.GetDirectoryName(Path.GetFullPath(dir).TrimEnd('\\', '/'));
+            if (parent is not null && IsLink(parent)) return result;
+            var candidates = Directory.EnumerateFiles(dir, "*.log").Take(MaxLogFilesEnumerated)
+                .Where(p => p.EndsWith(".log", StringComparison.OrdinalIgnoreCase) && !IsLink(p))   // «*.log» also matches «.log2» through 8.3 names
+                .OrderByDescending(SafeLastWrite).Take(maxFiles).ToList();
             long read = 0;
             foreach (var path in candidates)
             {
@@ -69,11 +77,34 @@ public static partial class ProblemReport
                 try { charge = Math.Min(new FileInfo(path).Length, MaxLogBytes); } catch { continue; }
                 if (read + charge > maxReadBytes) break;
                 read += charge;
-                try { result.Add(($"logs/log-{result.Count + 1}.txt", Utf8(Anonymize(SafeIo.ReadText(path, MaxLogBytes))))); } catch { }
+                try { result.Add(($"logs/log-{result.Count + 1}.txt", Utf8(Anonymize(ReadLogTail(path))))); } catch { }
             }
         }
         catch { }
         return result;
+    }
+
+    /// <summary>The whole file, or its last <see cref="MaxLogBytes"/> bytes (from the next full line) when it is larger.</summary>
+    internal static string ReadLogTail(string path)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
+        var length = fs.Length;
+        var take = (int)Math.Min(length, MaxLogBytes);
+        var cut = length > take;
+        if (cut) fs.Seek(length - take, SeekOrigin.Begin);
+        var buffer = new byte[take];
+        var got = 0;
+        while (got < take)
+        {
+            var n = fs.Read(buffer, got, take - got);
+            if (n == 0) break;
+            got += n;
+        }
+        var text = Encoding.UTF8.GetString(buffer, 0, got);
+        if (text.Length > 0 && text[0] == '﻿') text = text[1..];
+        if (!cut) return text;
+        var nl = text.IndexOf('\n');
+        return "<log start truncated>\n" + (nl >= 0 ? text[(nl + 1)..] : string.Empty);
     }
 
     private static byte[] Utf8(string text) => Encoding.UTF8.GetBytes(text);

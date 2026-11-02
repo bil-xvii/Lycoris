@@ -289,31 +289,102 @@ public sealed class ProblemReportTests
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
 
+    private static void Cleanup(string dir) { try { Directory.Delete(dir, true); } catch { } }
+
     [Fact]
-    public void LogScanLooksAtMostFiftyFilesAndHonoursReadBudget()
+    public void NewestLogsAreChosenByTimeNotByNameAndOnlyDotLog()
     {
         var dir = TempDir();
         try
         {
-            for (var i = 0; i < 80; i++) File.WriteAllText(Path.Combine(dir, $"f{i:000}.log"), "x");
-            // The newest file is far beyond the first 50 enumerated: it must not be reached when the scan is capped.
-            var newest = Path.Combine(dir, "zzz-newest.log");
+            for (var i = 0; i < 80; i++)
+            {
+                var p = Path.Combine(dir, $"f{i:000}.log");
+                File.WriteAllText(p, "OLD" + i);
+                File.SetLastWriteTimeUtc(p, DateTime.UtcNow.AddDays(-100 + i));
+            }
+            var newest = Path.Combine(dir, "aaa-newest.log");   // sorts FIRST by name, is the newest by time
             File.WriteAllText(newest, "NEWEST-MARKER");
             File.SetLastWriteTimeUtc(newest, DateTime.UtcNow.AddDays(1));
+            var other = Path.Combine(dir, "zzz-notes.txt");
+            File.WriteAllText(other, "NOT-A-LOG");
+            File.SetLastWriteTimeUtc(other, DateTime.UtcNow.AddDays(2));
             var logs = ProblemReport.CollectLogs(dir);
             Assert.Equal(3, logs.Count);
-            Assert.DoesNotContain(logs, l => System.Text.Encoding.UTF8.GetString(l.Data).Contains("NEWEST-MARKER"));
-
-            // Read budget: three 400 KB files with a 700 KB budget give only one log.
-            var big = TempDir();
-            try
-            {
-                for (var i = 0; i < 3; i++) File.WriteAllText(Path.Combine(big, $"b{i}.log"), new string('a', 400 * 1024));
-                Assert.Single(ProblemReport.CollectLogs(big, 50, 700 * 1024));
-            }
-            finally { try { Directory.Delete(big, true); } catch { } }
+            var texts = logs.Select(l => System.Text.Encoding.UTF8.GetString(l.Data)).ToList();
+            Assert.Contains("NEWEST-MARKER", texts[0]);
+            Assert.Contains("OLD79", texts[1]);
+            Assert.DoesNotContain(texts, t => t.Contains("NOT-A-LOG"));
         }
-        finally { try { Directory.Delete(dir, true); } catch { } }
+        finally { Cleanup(dir); }
+    }
+
+    [Fact]
+    public void ReadBudgetLimitsHowMuchIsRead()
+    {
+        var big = TempDir();
+        try
+        {
+            for (var i = 0; i < 3; i++) File.WriteAllText(Path.Combine(big, $"b{i}.log"), new string('a', 400 * 1024));
+            Assert.Single(ProblemReport.CollectLogs(big, 50, 700 * 1024));
+        }
+        finally { Cleanup(big); }
+    }
+
+    [Fact]
+    public void OversizedLogGivesItsTailNotNothing()
+    {
+        var dir = TempDir();
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("HEAD-MARKER\n");
+            for (var i = 0; i < 60_000; i++) sb.Append("filler line number ").Append(i).Append('\n');
+            sb.Append("TAIL-MARKER\n");
+            File.WriteAllText(Path.Combine(dir, "big.log"), sb.ToString());
+            Assert.True(new FileInfo(Path.Combine(dir, "big.log")).Length > 600 * 1024);
+            var logs = ProblemReport.CollectLogs(dir);
+            Assert.Single(logs);
+            var text = System.Text.Encoding.UTF8.GetString(logs[0].Data);
+            Assert.Contains("TAIL-MARKER", text);
+            Assert.DoesNotContain("HEAD-MARKER", text);
+            Assert.True(logs[0].Data.Length <= 520 * 1024);
+        }
+        finally { Cleanup(dir); }
+    }
+
+    private static bool TryJunction(string link, string target)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe") { UseShellExecute = false, CreateNoWindow = true };
+            psi.ArgumentList.Add("/c"); psi.ArgumentList.Add("mklink"); psi.ArgumentList.Add("/J"); psi.ArgumentList.Add(link); psi.ArgumentList.Add(target);
+            using var p = System.Diagnostics.Process.Start(psi)!;
+            p.WaitForExit(10000);
+            return Directory.Exists(link) && new DirectoryInfo(link).Attributes.HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch { return false; }
+    }
+
+    [Fact]
+    public void LogsFolderThatIsAJunctionOrWhoseParentIsOneIsRefused()
+    {
+        var real = TempDir();
+        var holder = TempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(real, "x.log"), "SECRET-OTHER-FOLDER");
+            var link = Path.Combine(holder, "Logs");
+            if (!TryJunction(link, real)) return;   // cannot create a junction here: nothing to prove
+            Assert.Empty(ProblemReport.CollectLogs(link));
+            // the parent (the Lycoris user folder) is a junction
+            var sub = Path.Combine(real, "Logs");
+            Directory.CreateDirectory(sub);
+            File.WriteAllText(Path.Combine(sub, "y.log"), "INSIDE");
+            var parentLink = Path.Combine(holder, "User");
+            if (TryJunction(parentLink, real)) Assert.Empty(ProblemReport.CollectLogs(Path.Combine(parentLink, "Logs")));
+        }
+        finally { Cleanup(holder); Cleanup(real); }
     }
 
     [Fact]
