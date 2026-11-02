@@ -49,7 +49,7 @@ public sealed class UpdateUiStateTests
         var (c, _, _) = Make();
         using var _ = Loc.UseLanguage("en");
         Assert.Equal("UPDATE 1.0.1", c.ButtonText);
-        Assert.StartsWith("INSTALLED 1.0.0", c.VersionLine);
+        Assert.StartsWith("INSTALLED " + AppVersion.CurrentText, c.VersionLine);
         Assert.DoesNotMatch("[а-яА-Я]", c.VersionLine + c.StatusText);
     }
 

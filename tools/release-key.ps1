@@ -47,7 +47,7 @@ if ($New) {
     New-Item -ItemType Directory -Force $dir | Out-Null
     $p = New-Object System.Security.Cryptography.CngKeyCreationParameters
     $p.ExportPolicy = [System.Security.Cryptography.CngExportPolicies]::AllowPlaintextExport
-    $key = [System.Security.Cryptography.CngKey]::Create([System.Security.Cryptography.CngAlgorithm]::ECDsaP256, $null, $p)
+    $key = [System.Security.Cryptography.CngKey]::Create([System.Security.Cryptography.CngAlgorithm]::ECDsaP256, [NullString]::Value, $p)
     $pk8 = $key.Export([System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob)
     [IO.File]::WriteAllText($KeyFile, [Convert]::ToBase64String($pk8))
     # Only the current account (and SYSTEM) may read it.

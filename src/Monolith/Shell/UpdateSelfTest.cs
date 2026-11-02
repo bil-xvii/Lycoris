@@ -79,7 +79,7 @@ internal static class UpdateSelfTest
         try
         {
             var policy = new UpdatePolicy { MinSize = 1024, MaxSize = 1 << 20 };
-            var downloader = new UpdateDownloader(http, policy, _ => Task.FromResult(new SignatureInfo("NotSigned", "", "")), AppPaths.ExecutablePath);
+            var downloader = new UpdateDownloader(http, policy, _ => Task.FromResult(new SignatureInfo("NotSigned", "", "")), AppPaths.ExecutablePath, pinnedKey: "");
             var staged = await downloader.DownloadAsync(check.Release!, folder, null, CancellationToken.None);
             if (staged.Sha256 != sha || !File.Exists(staged.Path)) errors.Add("fake download did not verify");
             exercised.Add($"fake download verified: {staged.Size} bytes, SHA-256 {staged.Sha256[..12]}…");
