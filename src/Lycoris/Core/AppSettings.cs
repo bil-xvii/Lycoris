@@ -28,6 +28,9 @@ public sealed partial class AppSettings : ObservableObject
     /// </summary>
     [ObservableProperty] private bool _servicesExpertMode;
 
+    /// <summary>Global detail mode; simple mode is the default for new installations.</summary>
+    [ObservableProperty] private bool _expertMode;
+
     /// <summary>Show the operations console at the bottom of the window (collapsed by default to leave room for content).</summary>
     [ObservableProperty] private bool _showConsole;
 
@@ -121,7 +124,10 @@ public sealed partial class AppSettings : ObservableObject
             if (File.Exists(AppPaths.SettingsReadFile))
             {
                 // The file is user-writable: bounded read (no links, no huge file), then every value is clamped to what the app could have written.
-                Current = JsonSerializer.Deserialize<AppSettings>(Security.SafeIo.ReadText(AppPaths.SettingsReadFile), JsonOptions) ?? new AppSettings();
+                var raw = Security.SafeIo.ReadText(AppPaths.SettingsReadFile);
+                Current = JsonSerializer.Deserialize<AppSettings>(raw, JsonOptions) ?? new AppSettings();
+                using var document = JsonDocument.Parse(raw);
+                MigrateLegacyPreferences(Current, document.RootElement.TryGetProperty(nameof(ExpertMode), out _));
                 var fixes = Security.SettingsValidator.Sanitize(Current);
                 if (fixes > 0) Log.Warn("В настройках исправлено значений: {0} (недопустимые значения заменены безопасными).", fixes);
             }
@@ -135,6 +141,12 @@ public sealed partial class AppSettings : ObservableObject
             Current = new AppSettings();
         }
         Current.PropertyChanged += (_, _) => Current.Save();
+    }
+
+    internal static void MigrateLegacyPreferences(AppSettings settings, bool hasExpertMode)
+    {
+        // Existing users who explicitly enabled the former expert-services option keep expert detail mode.
+        if (!hasExpertMode && settings.ServicesExpertMode) settings.ExpertMode = true;
     }
 
     /// <summary>Every property change saves, from the UI thread and from background tasks (update check): one writer at a time, they share one .tmp file.</summary>
