@@ -1,0 +1,9 @@
+{
+  "area": "Tweaks.Privacy",
+  "translated": false,
+  "sources": [
+    "Tweaks/TweakCatalog.Privacy.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

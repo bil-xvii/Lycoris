@@ -1,0 +1,9 @@
+{
+  "area": "Tweaks.Interface",
+  "translated": false,
+  "sources": [
+    "Tweaks/TweakCatalog.Interface.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

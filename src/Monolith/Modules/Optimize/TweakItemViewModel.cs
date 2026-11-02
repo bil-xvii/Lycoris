@@ -36,22 +36,22 @@ public sealed partial class TweakItemViewModel : ObservableObject
     public bool HasRestart => Tweak.Restart != RestartRequirement.None;
     public string RestartTag => Tweak.Restart switch
     {
-        RestartRequirement.Explorer => "ПЕРЕЗАПУСК ПРОВОДНИКА",
-        RestartRequirement.SignOut => "ВЫХОД ИЗ СИСТЕМЫ",
-        RestartRequirement.Reboot => "ПЕРЕЗАГРУЗКА",
+        RestartRequirement.Explorer => Loc.T("ПЕРЕЗАПУСК ПРОВОДНИКА"),
+        RestartRequirement.SignOut => Loc.T("ВЫХОД ИЗ СИСТЕМЫ"),
+        RestartRequirement.Reboot => Loc.T("ПЕРЕЗАГРУЗКА"),
         _ => "",
     };
     public string WarningText => string.IsNullOrWhiteSpace(Tweak.Warning)
-        ? "Это настройка с реальным компромиссом (безопасность или совместимость). Она не входит ни в один профиль."
+        ? Loc.T("Это настройка с реальным компромиссом (безопасность или совместимость). Она не входит ни в один профиль.")
         : Tweak.Warning!;
     /// <summary>Irreversible user-data loss caused by applying this tweak, or null.</summary>
     public string? DataLossNote => OptimizeLogic.DataLossNote(Tweak.Id);
     public bool HasDataLoss => DataLossNote != null;
     public string UndoText => DataLossNote is { } loss
-        ? $"Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление» вернут настройку. {loss}"
+        ? Loc.Tf("Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление» вернут настройку. {0}", loss)
         : Tweak.Restart == RestartRequirement.None
-        ? "Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Перед изменением MONOLITH сохраняет исходные значения и возвращает их точно такими, какими они были."
-        : $"Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Исходные значения сохраняются перед изменением. После отката тоже {Tweak.RestartText}.";
+        ? Loc.T("Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Перед изменением MONOLITH сохраняет исходные значения и возвращает их точно такими, какими они были.")
+        : Loc.Tf("Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Исходные значения сохраняются перед изменением. После отката тоже {0}.", Tweak.RestartText);
 
     /// <summary>Detected state; null while detection is running.</summary>
     [ObservableProperty]
@@ -79,11 +79,11 @@ public sealed partial class TweakItemViewModel : ObservableObject
     private IReadOnlyList<ChangeLineViewModel> _changes = [];
 
     /// <summary>The row would change something and the current value is known: the line «сейчас X → станет Y» is shown.</summary>
-    public bool HasPreview => WillChange && Changes.Count > 0 && Changes[0].Current != "чтение…";
+    public bool HasPreview => WillChange && Changes.Count > 0 && Changes[0].Current != Loc.T("чтение…");
     public string PreviewCurrent => Changes.Count > 0 ? Changes[0].Current : "";
     public string PreviewNew => Changes.Count > 0 ? Changes[0].New : "";
     public bool HasPreviewMore => Changes.Count > 1;
-    public string PreviewMore => Changes.Count > 1 ? $"  +{Changes.Count - 1} {OptimizeLogic.Plural(Changes.Count - 1, "параметр", "параметра", "параметров")}" : "";
+    public string PreviewMore => Changes.Count > 1 ? Loc.N(Changes.Count - 1, "  +{0} параметр", "  +{0} параметра", "  +{0} параметров") : "";
     [ObservableProperty] private bool _hasPlannedChanges = true;
 
     public string StateKey => State?.ToString() ?? "Checking";

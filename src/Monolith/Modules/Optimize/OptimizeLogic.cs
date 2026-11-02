@@ -55,60 +55,72 @@ internal static class OptimizeLogic
     /// <summary>Tile title (UPPER CASE; the tile shows it through the Sentence converter).</summary>
     public static string ScenarioTitle(OptimizeProfile profile, bool laptop) => profile switch
     {
-        OptimizeProfile.Normal => "РАБОТА И УЧЁБА",
-        OptimizeProfile.Gaming => "ИГРЫ",
-        OptimizeProfile.Recommended => "РЕКОМЕНДУЕМЫЙ",
-        OptimizeProfile.Streaming => "СТРИМИНГ И ЗАПИСЬ",
-        OptimizeProfile.Efficiency => laptop ? "НОУТБУК: АВТОНОМНОСТЬ" : "ТИХИЙ ПК",
-        _ => "СВОЙ НАБОР",
+        OptimizeProfile.Normal => Loc.T("РАБОТА И УЧЁБА"),
+        OptimizeProfile.Gaming => Loc.T("ИГРЫ"),
+        OptimizeProfile.Recommended => Loc.T("РЕКОМЕНДУЕМЫЙ"),
+        OptimizeProfile.Streaming => Loc.T("СТРИМИНГ И ЗАПИСЬ"),
+        OptimizeProfile.Efficiency => laptop ? Loc.T("НОУТБУК: АВТОНОМНОСТЬ") : Loc.T("ТИХИЙ ПК"),
+        _ => Loc.T("СВОЙ НАБОР"),
     };
 
     /// <summary>Name for running text and the batch title: «Игры», «Тихий ПК», «Ноутбук: автономность».</summary>
     public static string ScenarioName(OptimizeProfile profile, bool laptop) => profile switch
     {
-        OptimizeProfile.Normal => "Работа и учёба",
-        OptimizeProfile.Gaming => "Игры",
-        OptimizeProfile.Recommended => "Рекомендуемый",
-        OptimizeProfile.Streaming => "Стриминг и запись",
-        OptimizeProfile.Efficiency => laptop ? "Ноутбук: автономность" : "Тихий ПК",
-        _ => "Свой набор",
+        OptimizeProfile.Normal => Loc.T("Работа и учёба"),
+        OptimizeProfile.Gaming => Loc.T("Игры"),
+        OptimizeProfile.Recommended => Loc.T("Рекомендуемый"),
+        OptimizeProfile.Streaming => Loc.T("Стриминг и запись"),
+        OptimizeProfile.Efficiency => laptop ? Loc.T("Ноутбук: автономность") : Loc.T("Тихий ПК"),
+        _ => Loc.T("Свой набор"),
     };
 
     /// <summary>One short line under the tile title (trimmed to the tile width; the full story is the tooltip).</summary>
     public static string ScenarioDescription(OptimizeProfile profile, bool laptop) => profile switch
     {
-        OptimizeProfile.Normal => "Без рекламы, перезагрузки — ночью.",
-        OptimizeProfile.Gaming => "Приоритет игре, без фоновой записи.",
-        OptimizeProfile.Recommended => "Безопасный баланс для любого ПК.",
-        OptimizeProfile.Streaming => "Без второго кодировщика и утечек.",
-        OptimizeProfile.Efficiency => laptop ? "Дольше от батареи, тише." : "Тише и холоднее без нагрузки.",
-        _ => "Только то, что отметили сами.",
+        OptimizeProfile.Normal => Loc.T("Без рекламы, перезагрузки — ночью."),
+        OptimizeProfile.Gaming => Loc.T("Приоритет игре, без фоновой записи."),
+        OptimizeProfile.Recommended => Loc.T("Безопасный баланс для любого ПК."),
+        OptimizeProfile.Streaming => Loc.T("Без второго кодировщика и утечек."),
+        OptimizeProfile.Efficiency => laptop ? Loc.T("Дольше от батареи, тише.") : Loc.T("Тише и холоднее без нагрузки."),
+        _ => Loc.T("Только то, что отметили сами."),
     };
 
     /// <summary>The tile tooltip: what the scenario does and what it deliberately does NOT touch.</summary>
     public static string ScenarioHint(OptimizeProfile profile, bool laptop) => profile switch
     {
         OptimizeProfile.Normal =>
-            "Без рекламы и подсказок, без перезагрузок с 8:00 до 2:00, локальный поиск без Bing. " +
-            "Не трогает: телеметрию и удалённый помощник, игровые настройки.",
+            Loc.T("Без рекламы и подсказок, без перезагрузок с 8:00 до 2:00, локальный поиск без Bing. " +
+            "Не трогает: телеметрию и удалённый помощник, игровые настройки."),
         OptimizeProfile.Gaming =>
-            "Windows отдаёт приоритет игре и меньше отвлекает во время игры: игровой режим, HAGS для DLSS на RTX 40/50, без фоновой " +
-            "записи Game Bar. Только проверенные пункты без компромиссов в безопасности.",
+            Loc.T("Windows отдаёт приоритет игре и меньше отвлекает во время игры: игровой режим, HAGS для DLSS на RTX 40/50, без фоновой " +
+            "записи Game Bar. Только проверенные пункты без компромиссов в безопасности."),
         OptimizeProfile.Recommended =>
-            "Проверенные настройки без компромиссов: подходят и для работы, и для игр. Выбран по умолчанию.",
+            Loc.T("Проверенные настройки без компромиссов: подходят и для работы, и для игр. Выбран по умолчанию."),
         OptimizeProfile.Streaming =>
-            "Нет второго кодировщика Game Bar рядом с OBS, нет конфликтов Win+Alt+R, недавние файлы не попадают в эфир. " +
-            "Звук других программ не приглушается при звонках (нужен повторный вход в Windows). Не трогает HAGS; при проблемах с захватом есть пункт «Отключить HAGS». По желанию: «Без отключения USB-устройств».",
-        OptimizeProfile.Efficiency =>
-            "Ниже частоты и нагрев под лёгкой нагрузкой — тише" + (laptop ? "; на ноутбуке дольше от батареи" : "") +
-            ". Эффект зависит от производителя — измерьте. Кривые вентиляторов, лимиты мощности и предел заряда MONOLITH не " +
-            "трогает (утилита производителя). " + (laptop ? "Режим «Максимальная эффективность» от сети — по желанию, отдельным пунктом. " : "") + "По желанию: «Без турбобуста процессора от сети».",
-        _ => "Ваш собственный набор: отметьте нужные пункты в списке ниже. Выбор запоминается между запусками.",
+            Loc.T("Нет второго кодировщика Game Bar рядом с OBS, нет конфликтов Win+Alt+R, недавние файлы не попадают в эфир. " +
+            "Звук других программ не приглушается при звонках (нужен повторный вход в Windows). Не трогает HAGS; при проблемах с захватом есть пункт «Отключить HAGS». По желанию: «Без отключения USB-устройств»."),
+        OptimizeProfile.Efficiency => laptop
+            ? Loc.T("Ниже частоты и нагрев под лёгкой нагрузкой — тише; на ноутбуке дольше от батареи. Эффект зависит от производителя — измерьте. " +
+                    "Кривые вентиляторов, лимиты мощности и предел заряда MONOLITH не трогает (утилита производителя). " +
+                    "Режим «Максимальная эффективность» от сети — по желанию, отдельным пунктом. По желанию: «Без турбобуста процессора от сети».")
+            : Loc.T("Ниже частоты и нагрев под лёгкой нагрузкой — тише. Эффект зависит от производителя — измерьте. " +
+                    "Кривые вентиляторов, лимиты мощности и предел заряда MONOLITH не трогает (утилита производителя). " +
+                    "По желанию: «Без турбобуста процессора от сети»."),
+        _ => Loc.T("Ваш собственный набор: отметьте нужные пункты в списке ниже. Выбор запоминается между запусками."),
     };
 
     /// <summary>The journal batch title of an apply: «Оптимизация: сценарий «Игры»» or «Оптимизация: свой набор».</summary>
     public static string BatchTitle(OptimizeProfile profile, bool laptop) =>
-        profile == OptimizeProfile.Custom ? "Оптимизация: свой набор" : $"Оптимизация: сценарий «{ScenarioName(profile, laptop)}»";
+        BatchTitleFor(profile, laptop);
+
+    // The batch title goes into the journal (data on disk): always Russian, the Restore page translates it when shown.
+    private static string BatchTitleFor(OptimizeProfile profile, bool laptop)
+    {
+        using var _ = Loc.UseLanguage(Loc.Ru);
+        return profile == OptimizeProfile.Custom
+            ? Loc.T("Оптимизация: свой набор")
+            : Loc.Tf("Оптимизация: сценарий «{0}»", ScenarioName(profile, laptop));
+    }
 
     /// <summary>
     /// What the scenario cannot do safely and the user does by hand (read-only text for the apply-result dialog). Only for
@@ -118,21 +130,21 @@ internal static class OptimizeLogic
     {
         OptimizeProfile.Streaming =>
         [
-            "Не беспокоить → «Во время игры» — проверьте в Параметрах → Уведомления (MONOLITH не пишет эту настройку).",
+            Loc.T("Не беспокоить → «Во время игры» — проверьте в Параметрах → Уведомления (MONOLITH не пишет эту настройку)."),
         ],
         OptimizeProfile.Efficiency when laptop =>
         [
-            "Предел заряда батареи — в утилите производителя ноутбука; динамическую частоту обновления экрана оставьте включённой.",
+            Loc.T("Предел заряда батареи — в утилите производителя ноутбука; динамическую частоту обновления экрана оставьте включённой."),
         ],
         OptimizeProfile.Efficiency =>
         [
-            "Ограничение FPS — в панели NVIDIA/AMD; кривые вентиляторов — в BIOS или утилите производителя.",
+            Loc.T("Ограничение FPS — в панели NVIDIA/AMD; кривые вентиляторов — в BIOS или утилите производителя."),
         ],
         _ => [],
     };
 
     /// <summary>Header line of the manual-steps block in the apply-result dialog.</summary>
-    public const string ManualStepsHeader = "ВРУЧНУЮ";
+    public static readonly string ManualStepsHeader = Loc.T("ВРУЧНУЮ");
 
     /// <summary>
     /// Whether the efficiency tile («Тихий ПК» / «Ноутбук: автономность») is shown: only once the hardware facts are known, and
@@ -148,7 +160,7 @@ internal static class OptimizeLogic
     /// </summary>
     private static readonly Dictionary<string, string> DataLossNotes = new(StringComparer.Ordinal)
     {
-        ["recall-snapshots-off"] = "Уже сохранённые снимки Recall будут удалены — откат их не вернёт, он только снова разрешит сохранение.",
+        ["recall-snapshots-off"] = Loc.T("Уже сохранённые снимки Recall будут удалены — откат их не вернёт, он только снова разрешит сохранение."),
     };
 
     /// <summary>The irreversible data-loss note of a tweak, or null when everything it does can be undone.</summary>
@@ -174,12 +186,12 @@ internal static class OptimizeLogic
     /// <summary>Readable name of a non-tweak journal source (another MONOLITH page).</summary>
     public static string SourceLabel(string source) => source switch
     {
-        "services" or "services-tasks" => "Службы",
-        "startup" or "startup-tasks" => "Автозапуск",
-        "gameboost" => "Игровой сеанс",
-        "games" => "Игры",
-        "drivers" => "Драйверы",
-        "devices" => "Устройства и сеть",
+        "services" or "services-tasks" => Loc.T("Службы"),
+        "startup" or "startup-tasks" => Loc.T("Автозапуск"),
+        "gameboost" => Loc.T("Игровой сеанс"),
+        "games" => Loc.T("Игры"),
+        "drivers" => Loc.T("Драйверы"),
+        "devices" => Loc.T("Устройства и сеть"),
         _ => source,
     };
 
@@ -190,11 +202,11 @@ internal static class OptimizeLogic
 
     /// <summary>Why a not-applicable row cannot be applied: the tweak's own reason, or the generic one.</summary>
     public static string NotApplicableText(Tweak tweak) => string.IsNullOrWhiteSpace(tweak.NotApplicableReason)
-        ? "Не подходит для этого компьютера или этой версии Windows: нужного компонента нет в системе."
+        ? Loc.T("Не подходит для этого компьютера или этой версии Windows: нужного компонента нет в системе.")
         : tweak.NotApplicableReason!;
 
     /// <summary>The note of a dependent row whose dependency is checked and pending in the same apply.</summary>
-    public static string DependencyNote(string requiredTitle) => $"Применится после «{requiredTitle}».";
+    public static string DependencyNote(string requiredTitle) => Loc.Tf("Применится после «{0}».", requiredTitle);
 
     /// <summary>
     /// The caption under a row: null while applicable; otherwise «Применится после «…»» when a dependency is pending
@@ -262,41 +274,41 @@ internal static class OptimizeLogic
     public static string? ReplacesNote(IEnumerable<string> replacedTitles)
     {
         var titles = replacedTitles.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => $"«{t}»").ToList();
-        return titles.Count == 0 ? null : "заменит: " + string.Join(", ", titles);
+        return titles.Count == 0 ? null : Loc.T("заменит: ") + string.Join(", ", titles);
     }
 
     public static string StateText(TweakState? state) => state switch
     {
-        null => "ПРОВЕРКА…",
-        TweakState.Applied => "ПРИМЕНЕНО",
-        TweakState.NotApplied => "НЕ ПРИМЕНЕНО",
-        TweakState.Partial => "ЧАСТИЧНО",
-        TweakState.NotApplicable => "НЕПРИМЕНИМО",
-        _ => "НЕИЗВЕСТНО",
+        null => Loc.T("ПРОВЕРКА…"),
+        TweakState.Applied => Loc.T("ПРИМЕНЕНО"),
+        TweakState.NotApplied => Loc.T("НЕ ПРИМЕНЕНО"),
+        TweakState.Partial => Loc.T("ЧАСТИЧНО"),
+        TweakState.NotApplicable => Loc.T("НЕПРИМЕНИМО"),
+        _ => Loc.T("НЕИЗВЕСТНО"),
     };
 
     public static string CategoryTitle(TweakCategory category) => category switch
     {
-        TweakCategory.Gaming => "ИГРЫ",
-        TweakCategory.Performance => "ПРОИЗВОДИТЕЛЬНОСТЬ",
-        TweakCategory.Power => "ПИТАНИЕ",
-        TweakCategory.Network => "СЕТЬ",
-        TweakCategory.Privacy => "КОНФИДЕНЦИАЛЬНОСТЬ",
-        TweakCategory.Interface => "ИНТЕРФЕЙС",
-        TweakCategory.Input => "ВВОД",
-        _ => "СИСТЕМА",
+        TweakCategory.Gaming => Loc.T("ИГРЫ"),
+        TweakCategory.Performance => Loc.T("ПРОИЗВОДИТЕЛЬНОСТЬ"),
+        TweakCategory.Power => Loc.T("ПИТАНИЕ"),
+        TweakCategory.Network => Loc.T("СЕТЬ"),
+        TweakCategory.Privacy => Loc.T("КОНФИДЕНЦИАЛЬНОСТЬ"),
+        TweakCategory.Interface => Loc.T("ИНТЕРФЕЙС"),
+        TweakCategory.Input => Loc.T("ВВОД"),
+        _ => Loc.T("СИСТЕМА"),
     };
 
     public static string CategoryDescription(TweakCategory category) => category switch
     {
-        TweakCategory.Gaming => "Как Windows обращается с запущенными играми: приоритет, захват, вывод кадров.",
-        TweakCategory.Performance => "Фоновая нагрузка и отзывчивость системы.",
-        TweakCategory.Power => "Схемы и параметры электропитания.",
-        TweakCategory.Network => "Сетевые параметры и фоновая передача данных.",
-        TweakCategory.Privacy => "Реклама, рекомендации и сбор диагностических данных.",
-        TweakCategory.Interface => "Проводник, меню «Пуск», панель задач и визуальные эффекты.",
-        TweakCategory.Input => "Мышь, клавиатура и другие устройства ввода.",
-        _ => "Обслуживание, хранилище и служебные параметры Windows.",
+        TweakCategory.Gaming => Loc.T("Как Windows обращается с запущенными играми: приоритет, захват, вывод кадров."),
+        TweakCategory.Performance => Loc.T("Фоновая нагрузка и отзывчивость системы."),
+        TweakCategory.Power => Loc.T("Схемы и параметры электропитания."),
+        TweakCategory.Network => Loc.T("Сетевые параметры и фоновая передача данных."),
+        TweakCategory.Privacy => Loc.T("Реклама, рекомендации и сбор диагностических данных."),
+        TweakCategory.Interface => Loc.T("Проводник, меню «Пуск», панель задач и визуальные эффекты."),
+        TweakCategory.Input => Loc.T("Мышь, клавиатура и другие устройства ввода."),
+        _ => Loc.T("Обслуживание, хранилище и служебные параметры Windows."),
     };
 
     /// <summary>Lower case, trimmed, «ё» folded to «е» — so search ignores case and the ё/е difference.</summary>
@@ -317,18 +329,7 @@ internal static class OptimizeLogic
     }
 
     /// <summary>Russian plural: 1 пункт, 2 пункта, 5 пунктов, 21 пункт, 11 пунктов.</summary>
-    public static string Plural(int n, string one, string few, string many)
-    {
-        var a = Math.Abs(n);
-        var mod100 = a % 100;
-        if (mod100 is >= 11 and <= 14) return many;
-        return (a % 10) switch
-        {
-            1 => one,
-            2 or 3 or 4 => few,
-            _ => many,
-        };
-    }
+    public static string Plural(int n, string one, string few, string many) => Loc.Plural(n, one, few, many);
 
     /// <summary>
     /// Makes <paramref name="target"/> equal to <paramref name="desired"/> with the fewest collection operations,
@@ -370,21 +371,21 @@ internal static class OptimizeLogic
         return kind switch
         {
             "reg" => rest,
-            "svc" => $"Служба {rest}",
-            "task" => $"Задача {rest}",
-            "power" => "Активная схема питания",
-            "cmd" => $"Параметр {rest}",
+            "svc" => Loc.Tf("Служба {0}", rest),
+            "task" => Loc.Tf("Задача {0}", rest),
+            "power" => Loc.T("Активная схема питания"),
+            "cmd" => Loc.Tf("Параметр {0}", rest),
             _ => target,
         };
     }
 
     public static string RegistryTarget(RegHive hive, string path, string name) =>
-        $"{hive}\\{path}\\{(name.Length == 0 ? "(По умолчанию)" : name)}";
+        $"{hive}\\{path}\\{(name.Length == 0 ? Loc.T("(По умолчанию)") : name)}";
 
     /// <summary>Formats a value MONOLITH is going to write.</summary>
     public static string FormatNewValue(RegistryValueKind kind, object? value)
     {
-        if (value is null) return "удалить значение";
+        if (value is null) return Loc.T("удалить значение");
         return kind switch
         {
             RegistryValueKind.DWord => FormatNumber(Convert.ToInt64(value, CultureInfo.InvariantCulture) & 0xFFFFFFFFL) + " (DWORD)",
@@ -398,7 +399,7 @@ internal static class OptimizeLogic
     /// <summary>Formats a value as read back from the registry (runtime type decides).</summary>
     public static string FormatCurrentValue(object? value) => value switch
     {
-        null => "нет значения",
+        null => Loc.T("нет значения"),
         int i => FormatNumber(unchecked((uint)i)),
         long l => FormatNumber(l),
         byte[] b => FormatBytes(b),
@@ -411,7 +412,7 @@ internal static class OptimizeLogic
         : $"{v.ToString(CultureInfo.InvariantCulture)} (0x{v:X})";
 
     private static string FormatBytes(byte[] b) =>
-        b.Length == 0 ? "пусто" : BitConverter.ToString(b.Length > 24 ? b[..24] : b).Replace('-', ' ') + (b.Length > 24 ? " …" : "");
+        b.Length == 0 ? Loc.T("пусто") : BitConverter.ToString(b.Length > 24 ? b[..24] : b).Replace('-', ' ') + (b.Length > 24 ? " …" : "");
 
     /// <summary>
     /// What applying the tweak changes, line by line. Building the list is pure; reading the current value
@@ -427,15 +428,15 @@ internal static class OptimizeLogic
             .ToList(),
         ServiceTweak s => s.Services
             .Select(x => new PlannedChange(
-                $"Служба {x.Service} · тип запуска",
+                Loc.Tf("Служба {0} · тип запуска", x.Service),
                 ServiceControl.DescribeStart(x.Mode, false),
-                () => ServiceControl.Query(x.Service)?.Describe() ?? "служба не установлена"))
+                () => ServiceControl.Query(x.Service)?.Describe() ?? Loc.T("служба не установлена")))
             .ToList(),
         ScheduledTaskTweak t => t.Tasks
             .Select(path => new PlannedChange(
-                $"Задача {path}",
-                t.Enable ? "включена" : "отключена",
-                () => ScheduledTasks.Query(path) is { Exists: true } info ? (info.Enabled ? "включена" : "отключена") : "нет в системе"))
+                Loc.Tf("Задача {0}", path),
+                t.Enable ? Loc.T("включена") : Loc.T("отключена"),
+                () => ScheduledTasks.Query(path) is { Exists: true } info ? (info.Enabled ? Loc.T("включена") : Loc.T("отключена")) : Loc.T("нет в системе")))
             .ToList(),
         _ => [],
     };

@@ -1,0 +1,9 @@
+{
+  "area": "Tweaks.Network",
+  "translated": false,
+  "sources": [
+    "Tweaks/TweakCatalog.Network.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

@@ -34,29 +34,29 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "delivery-optimization-local",
-            Title = "Обновления без P2P-раздачи",
-            Description = "Windows скачивает обновления и приложения Store только с серверов Microsoft и не раздаёт их другим компьютерам.",
-            Details = "Соответствует выключенному переключателю Параметры → Центр обновления Windows → Дополнительные параметры → " +
+            Title = Loc.Key("Обновления без P2P-раздачи"),
+            Description = Loc.T("Windows скачивает обновления и приложения Store только с серверов Microsoft и не раздаёт их другим компьютерам."),
+            Details = Loc.T("Соответствует выключенному переключателю Параметры → Центр обновления Windows → Дополнительные параметры → " +
                       "Оптимизация доставки. Отключает раздачу обновлений другим ПК. По умолчанию Windows раздаёт их только в локальной сети, " +
                       "поэтому на пинг это влияет, лишь если раньше была включена раздача в интернет; сами загрузки работают как прежде. " +
                       "Политика не используется, поэтому переключатель в Параметрах остаётся доступным. Полностью вступает в силу после " +
-                      "перезагрузки.",
+                      "перезагрузки."),
             Category = TweakCategory.Network,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             Restart = RestartRequirement.Reboot,
             AppliesTo = _ => LmInt(DeliveryOptimizationPolicy, "DODownloadMode") is null,
-            NotApplicableReason = "Режим оптимизации доставки задан групповой политикой.",
+            NotApplicableReason = Loc.T("Режим оптимизации доставки задан групповой политикой."),
             Values = [RegSet.Dword(RegHive.HKU, DeliveryOptimizationSettings, "DownloadMode", 0)],
         };
 
         // SAFE-DEFAULT for AC (Recommended); the battery value is never touched.
         yield return PowerSettingTweak(
             id: "wifi-power-saving-off",
-            title: "Wi-Fi без энергосбережения",
-            description: "При питании от сети адаптер Wi-Fi работает в режиме максимальной производительности.",
-            details: "Убирает задержки и скачки пинга, когда адаптер «засыпает» между пакетами. Меняется только значение «от сети» текущей " +
-                     "схемы питания; работа от батареи на ноутбуке не меняется.",
+            title: Loc.Key("Wi-Fi без энергосбережения"),
+            description: Loc.T("При питании от сети адаптер Wi-Fi работает в режиме максимальной производительности."),
+            details: Loc.T("Убирает задержки и скачки пинга, когда адаптер «засыпает» между пакетами. Меняется только значение «от сети» текущей " +
+                     "схемы питания; работа от батареи на ноутбуке не меняется."),
             category: TweakCategory.Network,
             risk: TweakRisk.Safe,
             defaults: ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
@@ -65,22 +65,22 @@ public static partial class TweakCatalog
             target: 0,
             describe: v => v switch
             {
-                0 => "максимальная производительность",
-                1 => "низкое энергосбережение",
-                2 => "среднее энергосбережение",
-                3 => "максимальное энергосбережение",
+                0 => Loc.T("максимальная производительность"),
+                1 => Loc.T("низкое энергосбережение"),
+                2 => Loc.T("среднее энергосбережение"),
+                3 => Loc.T("максимальное энергосбережение"),
                 _ => v.ToString(),
             },
             appliesTo: _ => HasWifiAdapter(),
-            notApplicableReason: "Адаптер Wi-Fi не найден.");
+            notApplicableReason: Loc.T("Адаптер Wi-Fi не найден."));
 
         // SAFE-DEFAULT repair (Recommended): writes only when the level is not Windows' default "normal".
         yield return new CustomTweak
         {
             Id = "tcp-autotuning-normal",
-            Title = "Автонастройка окна TCP — стандартная",
-            Description = "Если «ускоритель интернета» отключил или ограничил автонастройку окна приёма TCP, возвращает стандартный уровень Windows (normal).",
-            Details = "Без автонастройки одно соединение упирается в окно 64 КБ: по расчёту Microsoft на канале 1 Гбит/с с задержкой 10 мс " +
+            Title = Loc.Key("Автонастройка окна TCP — стандартная"),
+            Description = Loc.T("Если «ускоритель интернета» отключил или ограничил автонастройку окна приёма TCP, возвращает стандартный уровень Windows (normal)."),
+            Details = Loc.T("Без автонастройки одно соединение упирается в окно 64 КБ: по расчёту Microsoft на канале 1 Гбит/с с задержкой 10 мс " +
                       "это всего около 51 Мбит/с, поэтому загрузки в Steam, браузере и лаунчерах идут заметно медленнее. Уровень normal — " +
                       "значение Windows по умолчанию во всех редакциях; на исправной системе пункт ничего не меняет. Иногда автонастройку " +
                       "выключают намеренно — из-за старого роутера или межсетевого экрана, который плохо работает с масштабированием окна " +
@@ -88,13 +88,13 @@ public static partial class TweakCatalog
                       "заданный групповой политикой, MONOLITH не меняет. На пинг в играх не влияет. Действует сразу для новых соединений. " +
                       "Если у линии есть bufferbloat (пинг растёт во время загрузок — «Устройства и сеть» → «Тест под нагрузкой»), быстрые " +
                       "загрузки сильнее заполняют очередь роутера и пинг во время скачивания может вырасти: это лечится SQM на роутере или " +
-                      "лимитом скорости в лаунчере, а не выключенной автонастройкой.",
+                      "лимитом скорости в лаунчере, а не выключенной автонастройкой."),
             Category = TweakCategory.Network,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             // Policy-managed or mixed templates are reported as "not applicable", so profiles skip them instead of failing.
-            NotApplicableReason = "Уровень автонастройки задан групповой политикой или шаблоны TCP настроены по-разному — " +
-                                  "MONOLITH их не меняет, потому что не сможет вернуть каждый точно.",
+            NotApplicableReason = Loc.T("Уровень автонастройки задан групповой политикой или шаблоны TCP настроены по-разному — " +
+                                  "MONOLITH их не меняет, потому что не сможет вернуть каждый точно."),
             DetectFunc = () => ReadTcpAutotuning() is { } s
                 ? PlanTcpAutotuning(s) switch
                 {
@@ -105,22 +105,22 @@ public static partial class TweakCatalog
                 : TweakState.Unknown,
             ApplyAction = ctx =>
             {
-                var s = ReadTcpAutotuning() ?? throw new InvalidOperationException("не удалось прочитать настройки TCP");
+                var s = ReadTcpAutotuning() ?? throw new InvalidOperationException(Loc.T("не удалось прочитать настройки TCP"));
                 switch (PlanTcpAutotuning(s))
                 {
                     case TcpAutotuningPlan.AlreadyNormal:
                         return;
                     case TcpAutotuningPlan.ByPolicy:
-                        throw new InvalidOperationException("уровень автонастройки TCP задан групповой политикой — MONOLITH его не меняет");
+                        throw new InvalidOperationException(Loc.T("уровень автонастройки TCP задан групповой политикой — MONOLITH его не меняет"));
                     case TcpAutotuningPlan.Mixed:
                         throw new InvalidOperationException(
-                            $"шаблоны TCP настроены по-разному ({string.Join(", ", s.Templates.Select(t => $"{t.Name}: {TcpAutotuningLevels[t.Level]}"))}); " +
-                            "одна команда не вернёт каждый из них точно, поэтому MONOLITH их не меняет");
+                            Loc.Tf("шаблоны TCP настроены по-разному ({0}); одна команда не вернёт каждый из них точно, поэтому MONOLITH их не меняет",
+                                string.Join(", ", s.Templates.Select(t => $"{t.Name}: {TcpAutotuningLevels[t.Level]}"))));
                 }
                 var original = TcpAutotuningLevels[s.Templates[0].Level];
                 var netsh = ProcessRunner.Sys("netsh.exe");
                 RunJournaled(ctx, "tcp-autotuning", netsh, TcpAutotuningArgs("normal"), netsh, TcpAutotuningArgs(original),
-                    $"автонастройка TCP: {original}", "автонастройка TCP: normal (по умолчанию)");
+                    Ru(() => Loc.Tf("автонастройка TCP: {0}", original)), "автонастройка TCP: normal (по умолчанию)"); // loc:ignore: journal text (Russian)
             },
         };
 
@@ -128,14 +128,14 @@ public static partial class TweakCatalog
         yield return DnsTweak(
             id: "dns-cloudflare",
             provider: "Cloudflare",
-            title: "DNS-серверы Cloudflare (1.1.1.1)",
+            title: Loc.Key("DNS-серверы Cloudflare (1.1.1.1)"),
             ipv4: ["1.1.1.1", "1.0.0.1"],
             ipv6: ["2606:4700:4700::1111", "2606:4700:4700::1001"]);
 
         yield return DnsTweak(
             id: "dns-google",
             provider: "Google",
-            title: "DNS-серверы Google (8.8.8.8)",
+            title: Loc.Key("DNS-серверы Google (8.8.8.8)"),
             ipv4: ["8.8.8.8", "8.8.4.4"],
             ipv6: ["2001:4860:4860::8888", "2001:4860:4860::8844"]);
 
@@ -143,15 +143,15 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "network-throttling-off",
-            Title = "Отключить NetworkThrottlingIndex",
-            Description = "Снимает ограничение обработки сетевых пакетов, которое Windows включает во время воспроизведения мультимедиа.",
-            Details = "Механизм времён Windows Vista влияет на пропускную способность сети только пока играет мультимедиа (MMCSS) и не меняет " +
-                      "задержку в играх: популярное «снижение пинга» здесь — миф. Нужна перезагрузка.",
+            Title = Loc.Key("Отключить NetworkThrottlingIndex"),
+            Description = Loc.T("Снимает ограничение обработки сетевых пакетов, которое Windows включает во время воспроизведения мультимедиа."),
+            Details = Loc.T("Механизм времён Windows Vista влияет на пропускную способность сети только пока играет мультимедиа (MMCSS) и не меняет " +
+                      "задержку в играх: популярное «снижение пинга» здесь — миф. Нужна перезагрузка."),
             Category = TweakCategory.Network,
             Risk = TweakRisk.Advanced,
             Restart = RestartRequirement.Reboot,
-            Warning = "Пинг в играх этот параметр не уменьшает. Изменение не опасно, но пользы для большинства систем тоже нет — " +
-                      "включайте только осознанно.",
+            Warning = Loc.T("Пинг в играх этот параметр не уменьшает. Изменение не опасно, но пользы для большинства систем тоже нет — " +
+                      "включайте только осознанно."),
             Values = [RegSet.Dword(RegHive.HKLM, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", "NetworkThrottlingIndex", 0xFFFFFFFFu)],
         };
 
@@ -159,18 +159,18 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "tcp-ack-frequency",
-            Title = "Мгновенные TCP-подтверждения",
-            Description = "Для активных сетевых адаптеров Windows подтверждает каждый TCP-пакет сразу, без задержки (TcpAckFrequency = 1).",
-            Details = "Может снизить задержку только в старых MMO, которые используют TCP и не отключают алгоритм Нейгла сами. Большинство игр " +
+            Title = Loc.Key("Мгновенные TCP-подтверждения"),
+            Description = Loc.T("Для активных сетевых адаптеров Windows подтверждает каждый TCP-пакет сразу, без задержки (TcpAckFrequency = 1)."),
+            Details = Loc.T("Может снизить задержку только в старых MMO, которые используют TCP и не отключают алгоритм Нейгла сами. Большинство игр " +
                       "работают по UDP или сами включают TCP_NODELAY — для них разницы нет, а служебных пакетов становится больше. Microsoft " +
-                      "(KB 328890) советует менять параметр только осознанно. Нужна перезагрузка или переподключение адаптера.",
+                      "(KB 328890) советует менять параметр только осознанно. Нужна перезагрузка или переподключение адаптера."),
             Category = TweakCategory.Network,
             Risk = TweakRisk.Advanced,
             Restart = RestartRequirement.Reboot,
-            Warning = "Помогает лишь отдельным старым онлайн-играм на TCP и увеличивает объём служебного трафика. Microsoft не рекомендует " +
-                      "менять параметр без необходимости.",
+            Warning = Loc.T("Помогает лишь отдельным старым онлайн-играм на TCP и увеличивает объём служебного трафика. Microsoft не рекомендует " +
+                      "менять параметр без необходимости."),
             AppliesTo = _ => PhysicalAdapters().Count > 0,
-            NotApplicableReason = "Не найдено активных физических сетевых адаптеров.",
+            NotApplicableReason = Loc.T("Не найдено активных физических сетевых адаптеров."),
             DetectFunc = () =>
             {
                 var adapters = PhysicalAdapters();
@@ -190,26 +190,26 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "ipv6-prefer-ipv4",
-            Title = "Предпочитать IPv4, если IPv6 хуже",
-            Description = "Для адресов, доступных по обоим протоколам, Windows выбирает IPv4. IPv6 остаётся включённым.",
-            Details = "Вариант, который Microsoft рекомендует вместо отключения IPv6: DisabledComponents = 0x20 меняет только таблицу " +
+            Title = Loc.Key("Предпочитать IPv4, если IPv6 хуже"),
+            Description = Loc.T("Для адресов, доступных по обоим протоколам, Windows выбирает IPv4. IPv6 остаётся включённым."),
+            Details = Loc.T("Вариант, который Microsoft рекомендует вместо отключения IPv6: DisabledComponents = 0x20 меняет только таблицу " +
                       "предпочтений адресов. Нужен, только если замер в «Устройства и сеть» показал, что IPv6 у вашего провайдера заметно " +
                       "хуже IPv4 (на 10 мс и больше или с потерями) — такое бывает при неисправном или туннельном IPv6. Большинство игровых " +
                       "серверов работает по IPv4, поэтому на пинг в играх это обычно не влияет; помогает лаунчерам и сайтам. Если параметр " +
                       "уже задан с другими битами (частичное отключение IPv6), MONOLITH его не меняет. Откат возвращает прежнее значение. " +
-                      "Нужна перезагрузка.",
+                      "Нужна перезагрузка."),
             Category = TweakCategory.Network,
             Risk = TweakRisk.Advanced,
             Restart = RestartRequirement.Reboot,
-            Warning = "Только если замер показал, что IPv6 хуже IPv4. В играх разницы обычно нет; нужна перезагрузка.",
+            Warning = Loc.T("Только если замер показал, что IPv6 хуже IPv4. В играх разницы обычно нет; нужна перезагрузка."),
             AppliesTo = _ => Ipv6PreferenceValue() switch
             {
                 0x20 => true,
                 null or 0 => NetworkEvidence.Ipv6Worse,
                 _ => false,
             },
-            NotApplicableReason = "Нужен, только если замер в «Устройства и сеть» → «Замер пинга» показал, что IPv6 заметно хуже IPv4, " +
-                                  "и параметр DisabledComponents ещё не задан.",
+            NotApplicableReason = Loc.T("Нужен, только если замер в «Устройства и сеть» → «Замер пинга» показал, что IPv6 заметно хуже IPv4, " +
+                                  "и параметр DisabledComponents ещё не задан."),
             DetectFunc = () => Ipv6PreferenceValue() switch
             {
                 0x20 => TweakState.Applied,
@@ -226,7 +226,7 @@ public static partial class TweakCatalog
                         SetDword(ctx, RegHive.HKLM, Tcpip6Parameters, "DisabledComponents", 0x20);
                         return;
                     default:
-                        throw new InvalidOperationException("DisabledComponents уже задан другими битами — MONOLITH его не меняет");
+                        throw new InvalidOperationException(Loc.T("DisabledComponents уже задан другими битами — MONOLITH его не меняет"));
                 }
             },
         };
@@ -246,21 +246,21 @@ public static partial class TweakCatalog
     {
         Id = id,
         Title = title,
-        Description = $"Активные сетевые адаптеры переключаются на DNS-серверы {provider} (IPv4 и IPv6).",
-        Details = "Помогает, только если DNS провайдера медленный или ненадёжный: сайты и лаунчеры начинают открываться быстрее. На пинг " +
+        Description = Loc.Tf("Активные сетевые адаптеры переключаются на DNS-серверы {0} (IPv4 и IPv6).", provider),
+        Details = Loc.T("Помогает, только если DNS провайдера медленный или ненадёжный: сайты и лаунчеры начинают открываться быстрее. На пинг " +
                   "в играх не влияет. Проверить, быстрее ли он у вас, можно в «Устройства и сеть» → «Скорость DNS»: часто DNS роутера " +
                   "быстрее публичных. Меняются все активные сетевые адаптеры. Прежние настройки каждого адаптера (автоматически от роутера " +
                   "или ручные адреса) запоминаются и возвращаются при откате; регистрация адреса компьютера в DNS (свойства адаптера) не " +
                   "меняется ни при применении, ни при откате. Не используйте, если у вас корпоративная сеть или VPN со своим DNS, " +
-                  "Pi-hole/AdGuard Home или родительский контроль на роутере." +
+                  "Pi-hole/AdGuard Home или родительский контроль на роутере.") +
                   (provider == "Cloudflare"
-                      ? " Cloudflare не передаёт подсеть клиента (ECS), поэтому сервисы с привязкой к региону иногда выбирают более дальний " +
-                        "сервер — даже если сам поиск имени стал быстрее."
+                      ? Loc.T(" Cloudflare не передаёт подсеть клиента (ECS), поэтому сервисы с привязкой к региону иногда выбирают более дальний " +
+                        "сервер — даже если сам поиск имени стал быстрее.")
                       : ""),
         Category = TweakCategory.Network,
         Risk = TweakRisk.Optional,
         AppliesTo = _ => PhysicalAdapters().Count > 0,
-        NotApplicableReason = "Не найдено активных физических сетевых адаптеров.",
+        NotApplicableReason = Loc.T("Не найдено активных физических сетевых адаптеров."),
         DetectFunc = () =>
         {
             var adapters = PhysicalAdapters();
@@ -270,7 +270,7 @@ public static partial class TweakCatalog
         ApplyAction = ctx =>
         {
             var adapters = PhysicalAdapters();
-            if (adapters.Count == 0) throw new InvalidOperationException("нет активных физических сетевых адаптеров");
+            if (adapters.Count == 0) throw new InvalidOperationException(Loc.T("нет активных физических сетевых адаптеров"));
             foreach (var a in adapters)
             {
                 ApplyDnsFamily(ctx, a, false, ipv4);
@@ -308,14 +308,14 @@ public static partial class TweakCatalog
     internal static string DnsScript(string family, string interfaceGuid, IReadOnlyList<string> servers,
         IReadOnlyList<string>? rollbackTo = null, bool keepRegistration = true)
     {
-        if (family is not ("ipv4" or "ipv6")) throw new ArgumentException("неизвестное семейство адресов: " + family, nameof(family));
+        if (family is not ("ipv4" or "ipv6")) throw new ArgumentException(Loc.T("неизвестное семейство адресов: ") + family, nameof(family));
         if (!Guid.TryParse(interfaceGuid, out var guid))
-            throw new InvalidOperationException($"некорректный идентификатор сетевого адаптера: {interfaceGuid}");
+            throw new InvalidOperationException(Loc.Tf("некорректный идентификатор сетевого адаптера: {0}", interfaceGuid));
         var set = DnsNetshCalls(family, servers);
         var keep = keepRegistration ? DnsRegistrationRestore : "";
         var sb = new StringBuilder();
         sb.Append($"$a=@(Get-NetAdapter -IncludeHidden | Where-Object {{ $_.InterfaceGuid -eq {Ps(guid.ToString("B"))} }});");
-        sb.Append("if($a.Count -eq 0){throw 'сетевой адаптер не найден (отключён или удалён)'};$i=$a[0].ifIndex;");
+        sb.Append("if($a.Count -eq 0){throw 'сетевой адаптер не найден (отключён или удалён)'};$i=$a[0].ifIndex;"); // loc:ignore: PowerShell error text (journal script)
         if (keepRegistration) sb.Append(DnsRegistrationCapture);
         sb.Append($"$n={Ps(ProcessRunner.Sys("netsh.exe"))};");
         sb.Append("function Invoke-Netsh([string[]]$x){$o=(& $n $x | Out-String);if($LASTEXITCODE -ne 0){throw ('netsh: '+$o.Trim())}};");
@@ -346,14 +346,14 @@ public static partial class TweakCatalog
         // Only real IP literals ever reach the command line (values come from the registry).
         var addresses = servers.Select(s => IPAddress.TryParse(s, out var ip)
             ? ip.ToString()
-            : throw new InvalidOperationException($"некорректный адрес DNS-сервера: {s}")).ToList();
+            : throw new InvalidOperationException(Loc.Tf("некорректный адрес DNS-сервера: {0}", s))).ToList();
         return string.Concat(addresses.Select((s, i) => i == 0
             ? $"Invoke-Netsh @('interface','{family}','set','dnsservers',\"name=$i\",'source=static','address={s}','register=primary','validate=no');"
             : $"Invoke-Netsh @('interface','{family}','add','dnsservers',\"name=$i\",'address={s}','index={i + 1}','validate=no');"));
     }
 
     private static string DescribeDns(IReadOnlyList<string> servers) =>
-        servers.Count == 0 ? "автоматически (DHCP)" : string.Join(", ", servers);
+        servers.Count == 0 ? Loc.T("автоматически (DHCP)") : string.Join(", ", servers);
 
     // ───────────────────────────── TCP receive window auto-tuning ─────────────────────────────
 
@@ -369,7 +369,7 @@ public static partial class TweakCatalog
     public static string TcpAutotuningArgs(string level) =>
         TcpAutotuningLevels.Contains(level)
             ? "interface tcp set global autotuninglevel=" + level
-            : throw new ArgumentException("неизвестный уровень автонастройки TCP: " + level, nameof(level));
+            : throw new ArgumentException(Loc.T("неизвестный уровень автонастройки TCP: ") + level, nameof(level));
 
     internal sealed record TcpAutotuningState(IReadOnlyList<(string Name, int Level)> Templates, bool ByPolicy);
 

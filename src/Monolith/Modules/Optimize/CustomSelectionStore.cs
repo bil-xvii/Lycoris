@@ -22,7 +22,7 @@ internal static class CustomSelectionStore
         }
         catch (Exception ex)
         {
-            Log.Warn($"Оптимизация: не удалось прочитать свой набор ({ex.Message}).");
+            Log.Warn("Оптимизация: не удалось прочитать свой набор ({0}).", ex.Message);
             return null;
         }
     }
@@ -59,7 +59,7 @@ internal static class CustomSelectionStore
             }
             catch (Exception ex)
             {
-                Log.Warn($"Оптимизация: не удалось сохранить свой набор ({ex.Message}).");
+                Log.Warn("Оптимизация: не удалось сохранить свой набор ({0}).", ex.Message);
             }
         }
     }

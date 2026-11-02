@@ -1,0 +1,13 @@
+{
+  "area": "Tweaks",
+  "translated": false,
+  "sources": [
+    "Tweaks/TweakCatalog.cs",
+    "Tweaks/TweakCatalog.Items.cs",
+    "Tweaks/TweakCatalog.Helpers.cs",
+    "Tweaks/TweakModel.cs",
+    "Tweaks/TweakEngine.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

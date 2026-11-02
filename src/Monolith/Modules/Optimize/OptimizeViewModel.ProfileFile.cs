@@ -12,7 +12,7 @@ namespace Monolith.Modules.Optimize;
 /// <summary>«ЭКСПОРТ» / «ИМПОРТ» of the selection as a .json profile. Import only changes the selection, never applies.</summary>
 public sealed partial class OptimizeViewModel
 {
-    private const string ProfileFilter = "Профиль MONOLITH (*.json)|*.json";
+    private static readonly string ProfileFilter = Loc.T("Профиль MONOLITH (*.json)|*.json");
     private const int MaxListedIds = 15;
 
     private bool CanExportProfile() => !IsBusy && _items.Any(i => i.IsChecked);
@@ -30,7 +30,7 @@ public sealed partial class OptimizeViewModel
 
         var dlg = new SaveFileDialog
         {
-            Title = "MONOLITH — сохранить профиль оптимизации",
+            Title = Loc.T("MONOLITH — сохранить профиль оптимизации"),
             Filter = ProfileFilter,
             DefaultExt = ".json",
             AddExtension = true,
@@ -47,14 +47,14 @@ public sealed partial class OptimizeViewModel
         {
             // The user picked the folder, so the file inherits that folder's permissions and stays readable for them.
             await Task.Run(() => File.WriteAllText(path, json, new UTF8Encoding(false)));
-            Log.Success($"Оптимизация: профиль сохранён ({ids.Count} пунктов) — {path}");
-            Ui.Toast($"{OptimizeLogic.Plural(ids.Count, "Сохранена", "Сохранены", "Сохранено")} {ids.Count} {OptimizeLogic.Plural(ids.Count, "настройка", "настройки", "настроек")}: {Path.GetFileName(path)}.",
+            Log.Success("Оптимизация: профиль сохранён ({0} пунктов) — {1}", ids.Count, path);
+            Ui.Toast(Loc.Tf("{0}: {1}.", Loc.N(ids.Count, "Сохранена {0} настройка", "Сохранены {0} настройки", "Сохранено {0} настроек"), Path.GetFileName(path)),
                 ToastKind.Success, "ЭКСПОРТ");
         }
         catch (Exception ex)
         {
-            Log.Error($"Оптимизация: не удалось сохранить профиль ({ex.Message}).");
-            Ui.Toast($"Не удалось сохранить файл: {ex.Message}", ToastKind.Error, "ЭКСПОРТ");
+            Log.Error("Оптимизация: не удалось сохранить профиль ({0}).", ex.Message);
+            Ui.Toast(Loc.Tf("Не удалось сохранить файл: {0}", ex.Message), ToastKind.Error, "ЭКСПОРТ");
         }
     }
 
@@ -63,7 +63,7 @@ public sealed partial class OptimizeViewModel
     {
         var dlg = new OpenFileDialog
         {
-            Title = "MONOLITH — открыть профиль оптимизации",
+            Title = Loc.T("MONOLITH — открыть профиль оптимизации"),
             Filter = ProfileFilter,
             CheckFileExists = true,
             Multiselect = false,
@@ -87,12 +87,12 @@ public sealed partial class OptimizeViewModel
         catch (Exception ex)
         {
             data = null;
-            error = $"Не удалось прочитать файл: {ex.Message}";
+            error = Loc.Tf("Не удалось прочитать файл: {0}", ex.Message);
         }
         if (data is null)
         {
-            Log.Warn($"Оптимизация: профиль не загружен — {error}");
-            await Ui.AlertAsync("ПРОФИЛЬ НЕ ЗАГРУЖЕН", (error ?? "Файл не распознан.") + " Выбор на странице не изменён.");
+            Log.Warn("Оптимизация: профиль не загружен — {0}", error);
+            await Ui.AlertAsync("ПРОФИЛЬ НЕ ЗАГРУЖЕН", (error ?? Loc.T("Файл не распознан.")) + Loc.T(" Выбор на странице не изменён."));
             return;
         }
 
@@ -125,34 +125,38 @@ public sealed partial class OptimizeViewModel
         UpdateTileSelection();
         RememberCustomSelection();
         UpdateCounts();
-        Log.Info($"Оптимизация: импортирован профиль «{data.Name ?? Path.GetFileName(path)}» — {OptimizeProfileFile.Summary(plan)}");
+        Log.Info("Оптимизация: импортирован профиль «{0}» — {1}", data.Name ?? Path.GetFileName(path), OptimizeProfileFile.Summary(plan));
 
         var details = new List<string>();
-        if (data.Name is not null) details.Add($"Профиль: «{data.Name}»" +
-            (data.Created is { } c ? $", создан {c.ToLocalTime():dd.MM.yyyy HH:mm}" : "") +
-            (data.AppVersion is not null ? $", MONOLITH {data.AppVersion}" : ""));
+        if (data.Name is not null)
+        {
+            var profileLine = Loc.Tf("Профиль: «{0}»", data.Name);
+            if (data.Created is { } c) profileLine += Loc.Tf(", создан {0}", Loc.DateTimeText(c.ToLocalTime().DateTime));
+            if (data.AppVersion is not null) profileLine += Loc.Tf(", MONOLITH {0}", data.AppVersion);
+            details.Add(profileLine);
+        }
         // The file remembers the tile it was exported from; the set still lands in «Свой набор» (it may differ from today's defaults).
         if (data.Scenario is { } scenario)
-            details.Add($"Сохранён из сценария «{OptimizeLogic.ScenarioName(scenario, _laptop)}» — здесь он открыт как «Свой набор».");
-        AddGroup(details, "НЕИЗВЕСТНЫЕ", plan.Unknown, id => id);
-        AddGroup(details, "НЕ ПОДХОДЯТ ЭТОМУ ПК", plan.NotApplicable, TitleOf);
-        AddGroup(details, "ТРЕБУЮТ РУЧНОГО ВЫБОРА", plan.Manual, TitleOf);
-        AddGroup(details, "ВЗАИМОИСКЛЮЧАЮЩИЕ — ОСТАВЛЕН ПЕРВЫЙ ПУНКТ ГРУППЫ", surplus, TitleOf);
+            details.Add(Loc.Tf("Сохранён из сценария «{0}» — здесь он открыт как «Свой набор».", OptimizeLogic.ScenarioName(scenario, _laptop)));
+        AddGroup(details, Loc.T("НЕИЗВЕСТНЫЕ"), plan.Unknown, id => id);
+        AddGroup(details, Loc.T("НЕ ПОДХОДЯТ ЭТОМУ ПК"), plan.NotApplicable, TitleOf);
+        AddGroup(details, Loc.T("ТРЕБУЮТ РУЧНОГО ВЫБОРА"), plan.Manual, TitleOf);
+        AddGroup(details, Loc.T("ВЗАИМОИСКЛЮЧАЮЩИЕ — ОСТАВЛЕН ПЕРВЫЙ ПУНКТ ГРУППЫ"), surplus, TitleOf);
 
         var message = OptimizeProfileFile.Summary(plan) +
-                      " Ничего не применено — проверьте список и нажмите «ПРИМЕНИТЬ»." +
-                      (plan.Manual.Count > 0 ? " Экспертные и необратимые пункты отметьте вручную: у каждого своё предупреждение." : "");
+                      Loc.T(" Ничего не применено — проверьте список и нажмите «ПРИМЕНИТЬ».") +
+                      (plan.Manual.Count > 0 ? Loc.T(" Экспертные и необратимые пункты отметьте вручную: у каждого своё предупреждение.") : "");
         await Ui.AlertAsync("ПРОФИЛЬ ЗАГРУЖЕН", message, details);
     }
 
-    private string TitleOf(string id) => _items.FirstOrDefault(i => i.Id == id)?.Title is { } t ? $"{t} ({id})" : id;
+    private string TitleOf(string id) => _items.FirstOrDefault(i => i.Id == id)?.Title is { } t ? $"{t} ({id})" : id; // loc:ignore: no Russian text, title is already localized
 
     private static void AddGroup(List<string> details, string label, IReadOnlyList<string> ids, Func<string, string> describe)
     {
         if (ids.Count == 0) return;
         var shown = ids.Take(MaxListedIds).Select(describe).ToList();
-        var more = ids.Count > shown.Count ? $" и ещё {ids.Count - shown.Count}" : "";
-        details.Add($"{label}: {string.Join(", ", shown)}{more}");
+        var more = ids.Count > shown.Count ? Loc.Tf(" и ещё {0}", ids.Count - shown.Count) : "";
+        details.Add($"{label}: {string.Join(", ", shown)}{more}"); // loc:ignore: no Russian text (label is already localized)
     }
 
     /// <summary>Reads at most <paramref name="limit"/> + 1 bytes, so an oversized file is rejected without loading it.</summary>

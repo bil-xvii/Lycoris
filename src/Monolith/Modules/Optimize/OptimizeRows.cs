@@ -64,7 +64,7 @@ public sealed partial class ProfileTileViewModel : ObservableObject
 
     public string ToChangeText => ToChange?.ToString() ?? "—";
     public string AppliedText => Applied?.ToString() ?? "—";
-    public string TotalText => $"{Total} {OptimizeLogic.Plural(Total, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")}";
+    public string TotalText => Loc.N(Total, "{0} ПУНКТ", "{0} ПУНКТА", "{0} ПУНКТОВ");
 
     partial void OnToChangeChanged(int? value) => OnPropertyChanged(nameof(ToChangeText));
     partial void OnAppliedChanged(int? value) => OnPropertyChanged(nameof(AppliedText));
@@ -77,10 +77,10 @@ public sealed partial class ProfileTileViewModel : ObservableObject
     public bool ActApplies => (Kind != OptimizeProfile.Custom || IsSelected) && PendingChanges > 0;
 
     /// <summary>The tile's one button: «ПРИМЕНИТЬ · N» (current tile: all pending), «ВЫБРАТЬ» (nothing to change / own set) or «ВСЁ ПРИМЕНЕНО».</summary>
-    public string ActText => ActApplies ? $"ПРИМЕНИТЬ · {PendingChanges}" : IsSelected ? "ВСЁ ПРИМЕНЕНО" : "ВЫБРАТЬ";
+    public string ActText => ActApplies ? Loc.Tf("ПРИМЕНИТЬ · {0}", PendingChanges) : IsSelected ? Loc.T("ВСЁ ПРИМЕНЕНО") : Loc.T("ВЫБРАТЬ");
 
     /// <summary>The line under the tile's button saying why it only selects.</summary>
-    public string ActNote => ActApplies ? "" : IsSelected ? "Менять нечего" : Kind == OptimizeProfile.Custom ? "Отметьте пункты ниже" : "Уже применён";
+    public string ActNote => ActApplies ? "" : IsSelected ? Loc.T("Менять нечего") : Kind == OptimizeProfile.Custom ? Loc.T("Отметьте пункты ниже") : Loc.T("Уже применён");
 
     partial void OnIsSelectedChanged(bool value) => RefreshAct();
 
@@ -160,7 +160,7 @@ public sealed partial class SectionRow : ObservableObject
     [ObservableProperty] private bool? _checkState = false;
     [ObservableProperty] private bool _hasSelectable;
     /// <summary>The visible caption of the section's select button («ОТМЕТИТЬ ВСЕ» / «СНЯТЬ ВСЕ»).</summary>
-    [ObservableProperty] private string _toggleAllText = "ОТМЕТИТЬ ВСЕ";
+    [ObservableProperty] private string _toggleAllText = Loc.T("ОТМЕТИТЬ ВСЕ");
 
     public IReadOnlyList<TweakItemViewModel> Items => _items;
 
@@ -173,12 +173,12 @@ public sealed partial class SectionRow : ObservableObject
     internal void Refresh()
     {
         var applied = _items.Count(i => i.IsApplied);
-        CountText = $"{_items.Count} {OptimizeLogic.Plural(_items.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")} · {applied} ПРИМЕНЕНО";
+        CountText = Loc.Tf("{0} · {1} ПРИМЕНЕНО", Loc.N(_items.Count, "{0} ПУНКТ", "{0} ПУНКТА", "{0} ПУНКТОВ"), applied);
         var selectable = _items.Where(IsSelectable).Select(i => (i.Tweak, i.IsChecked)).ToList();
         HasSelectable = selectable.Count > 0;
         var anyChecked = selectable.Any(r => r.IsChecked);
         CheckState = !anyChecked ? false : OptimizeLogic.AllSelected(selectable) ? true : null;
-        ToggleAllText = !HasSelectable ? "НЕТ ДОСТУПНЫХ" : CheckState == true ? "СНЯТЬ ВСЕ" : "ОТМЕТИТЬ ВСЕ";
+        ToggleAllText = !HasSelectable ? Loc.T("НЕТ ДОСТУПНЫХ") : CheckState == true ? Loc.T("СНЯТЬ ВСЕ") : Loc.T("ОТМЕТИТЬ ВСЕ");
     }
 
     /// <summary>
