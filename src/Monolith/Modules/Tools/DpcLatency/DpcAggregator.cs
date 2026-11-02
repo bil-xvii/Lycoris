@@ -16,7 +16,7 @@ public sealed record KernelModule(string Name, ulong Base, ulong Size);
 /// </summary>
 public sealed class ModuleMap
 {
-    public const string Unknown = "неизвестный модуль";
+    public static readonly string Unknown = Loc.Key("неизвестный модуль"); // a key: translated where shown (Loc.T)
 
     private readonly KernelModule[] _sorted;
 
@@ -171,51 +171,51 @@ public sealed class DpcAggregator
 
     public static string VerdictText(DpcVerdict verdict) => verdict switch
     {
-        DpcVerdict.Normal => "в норме",
-        DpcVerdict.Elevated => "повышенные",
-        _ => "высокие: возможны треск звука и рывки",
+        DpcVerdict.Normal => Loc.T("в норме"),
+        DpcVerdict.Elevated => Loc.T("повышенные"),
+        _ => Loc.T("высокие: возможны треск звука и рывки"),
     };
 
     public static string KindText(RoutineKind kind) => kind switch
     {
         RoutineKind.Isr => "ISR",
-        RoutineKind.ThreadedDpc => "DPC (поток)",
-        RoutineKind.TimerDpc => "DPC (таймер)",
+        RoutineKind.ThreadedDpc => Loc.T("DPC (поток)"),
+        RoutineKind.TimerDpc => Loc.T("DPC (таймер)"),
         _ => "DPC",
     };
 
     /// <summary>Known driver families: what the module is and where to look next. Keys are compared case-insensitively.</summary>
     private static readonly Dictionary<string, string> Families = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["ndis.sys"] = "сетевой стек: проверьте драйвер сетевой карты/Wi-Fi",
-        ["tcpip.sys"] = "стек TCP/IP: проверьте драйвер сетевой карты/Wi-Fi и сетевые фильтры (VPN, антивирус)",
-        ["nvlddmkm.sys"] = "драйвер NVIDIA",
-        ["amdkmdag.sys"] = "драйвер AMD Radeon",
-        ["igdkmd64.sys"] = "драйвер графики Intel",
-        ["dxgkrnl.sys"] = "графическая подсистема: обычно отражает работу драйвера видеокарты",
-        ["acpi.sys"] = "прошивка/BIOS: обновите BIOS и драйверы чипсета",
-        ["storport.sys"] = "накопители: драйвер контроллера/SSD",
-        ["stornvme.sys"] = "накопители: NVMe-контроллер",
-        ["storahci.sys"] = "накопители: SATA/AHCI-контроллер",
-        ["wdf01000.sys"] = "драйвер устройства на WDF (USB, звук, периферия) — виновник скрыт за платформой",
-        ["usbxhci.sys"] = "контроллер USB 3: проверьте драйвер чипсета и USB-устройства",
-        ["usbport.sys"] = "контроллер USB 2: проверьте драйвер чипсета и USB-устройства",
-        ["hdaudbus.sys"] = "шина HD Audio: драйвер звука",
-        ["portcls.sys"] = "звуковая подсистема: драйвер звуковой карты",
-        ["ntoskrnl.exe"] = "ядро Windows: таймеры и системные DPC — обычно следствие другого драйвера или энергосбережения",
-        ["hal.dll"] = "уровень аппаратных абстракций: прерывания платформы, прошивка",
-        ["wdfilter.sys"] = "Microsoft Defender: фильтр файловой системы",
+        ["ndis.sys"] = Loc.Key("сетевой стек: проверьте драйвер сетевой карты/Wi-Fi"),
+        ["tcpip.sys"] = Loc.Key("стек TCP/IP: проверьте драйвер сетевой карты/Wi-Fi и сетевые фильтры (VPN, антивирус)"),
+        ["nvlddmkm.sys"] = Loc.Key("драйвер NVIDIA"),
+        ["amdkmdag.sys"] = Loc.Key("драйвер AMD Radeon"),
+        ["igdkmd64.sys"] = Loc.Key("драйвер графики Intel"),
+        ["dxgkrnl.sys"] = Loc.Key("графическая подсистема: обычно отражает работу драйвера видеокарты"),
+        ["acpi.sys"] = Loc.Key("прошивка/BIOS: обновите BIOS и драйверы чипсета"),
+        ["storport.sys"] = Loc.Key("накопители: драйвер контроллера/SSD"),
+        ["stornvme.sys"] = Loc.Key("накопители: NVMe-контроллер"),
+        ["storahci.sys"] = Loc.Key("накопители: SATA/AHCI-контроллер"),
+        ["wdf01000.sys"] = Loc.Key("драйвер устройства на WDF (USB, звук, периферия) — виновник скрыт за платформой"),
+        ["usbxhci.sys"] = Loc.Key("контроллер USB 3: проверьте драйвер чипсета и USB-устройства"),
+        ["usbport.sys"] = Loc.Key("контроллер USB 2: проверьте драйвер чипсета и USB-устройства"),
+        ["hdaudbus.sys"] = Loc.Key("шина HD Audio: драйвер звука"),
+        ["portcls.sys"] = Loc.Key("звуковая подсистема: драйвер звуковой карты"),
+        ["ntoskrnl.exe"] = Loc.Key("ядро Windows: таймеры и системные DPC — обычно следствие другого драйвера или энергосбережения"),
+        ["hal.dll"] = Loc.Key("уровень аппаратных абстракций: прерывания платформы, прошивка"),
+        ["wdfilter.sys"] = Loc.Key("Microsoft Defender: фильтр файловой системы"),
         ["rtwlane.sys"] = "Wi-Fi Realtek",
         ["netwtw08.sys"] = "Wi-Fi Intel",
         ["netwtw10.sys"] = "Wi-Fi Intel",
-        ["rt640x64.sys"] = "сетевая карта Realtek",
-        ["e1d68x64.sys"] = "сетевая карта Intel",
+        ["rt640x64.sys"] = Loc.Key("сетевая карта Realtek"),
+        ["e1d68x64.sys"] = Loc.Key("сетевая карта Intel"),
         ["bthport.sys"] = "Bluetooth",
-        ["cldflt.sys"] = "OneDrive (файлы по запросу)",
+        ["cldflt.sys"] = Loc.Key("OneDrive (файлы по запросу)"),
     };
 
     public static string? Family(string moduleName) =>
-        Families.TryGetValue(moduleName, out var text) ? text : null;
+        Families.TryGetValue(moduleName, out var text) ? Loc.T(text) : null;
 
     /// <summary>Console lines of the result: a table of the top modules, a hint per flagged module and the next step.</summary>
     public IReadOnlyList<string> FormatReport(TimeSpan duration, int top = 10)
@@ -223,22 +223,24 @@ public sealed class DpcAggregator
         var inv = CultureInfo.InvariantCulture;
         var lines = new List<string>();
         var modules = Modules;
-        lines.Add($"Событий DPC/ISR за {duration.TotalSeconds:0} с: {EventCount.ToString("N0", inv)}" +
-                  (UnknownCount > 0 ? $", без модуля: {UnknownCount.ToString("N0", inv)}" : "") + ".");
+        lines.Add(UnknownCount > 0
+            ? Loc.Tf("Событий DPC/ISR за {0} с: {1}, без модуля: {2}.", duration.TotalSeconds.ToString("0", inv), EventCount.ToString("N0", inv), UnknownCount.ToString("N0", inv))
+            : Loc.Tf("Событий DPC/ISR за {0} с: {1}.", duration.TotalSeconds.ToString("0", inv), EventCount.ToString("N0", inv)));
         if (EventCount == 0)
         {
-            lines.Add("События не получены — трассировка не дала данных.");
+            lines.Add(Loc.T("События не получены — трассировка не дала данных."));
             return lines;
         }
-        lines.Add($"Самый долгий вызов: {MaxMicros.ToString("0", inv)} мкс ({KindText(MaxKind)}, {MaxModule}); DPC до {MaxDpcMicros.ToString("0", inv)} мкс, ISR до {MaxIsrMicros.ToString("0", inv)} мкс.");
+        lines.Add(Loc.Tf("Самый долгий вызов: {0} мкс ({1}, {2}); DPC до {3} мкс, ISR до {4} мкс.",
+            MaxMicros.ToString("0", inv), KindText(MaxKind), MaxModule is null ? "" : Loc.T(MaxModule), MaxDpcMicros.ToString("0", inv), MaxIsrMicros.ToString("0", inv)));
         lines.Add("");
-        lines.Add($"{"МОДУЛЬ",-22} {"ВЫЗОВОВ",10} {"МАКС МКС",10} {"P99 МКС",9} {"ВСЕГО МС",10}");
+        lines.Add(string.Format("{0,-22} {1,10} {2,10} {3,9} {4,10}", Loc.T("МОДУЛЬ"), Loc.T("ВЫЗОВОВ"), Loc.T("МАКС МКС"), Loc.T("P99 МКС"), Loc.T("ВСЕГО МС")));
         foreach (var m in modules.Take(top))
         {
             var p99 = m.P99 >= ModuleStats.BucketCount ? "≥10000" : m.P99.ToString(inv);
-            lines.Add($"{Trim(m.Name, 22),-22} {m.Count.ToString("N0", inv),10} {m.MaxMicros.ToString("0", inv),10} {p99,9} {m.TotalMillis.ToString("0.0", inv),10}");
+            lines.Add($"{Trim(Loc.T(m.Name), 22),-22} {m.Count.ToString("N0", inv),10} {m.MaxMicros.ToString("0", inv),10} {p99,9} {m.TotalMillis.ToString("0.0", inv),10}");
         }
-        if (modules.Count > top) lines.Add($"… ещё модулей: {modules.Count - top}.");
+        if (modules.Count > top) lines.Add(Loc.Tf("… ещё модулей: {0}.", modules.Count - top));
 
         var flagged = modules.Where(m => m.MaxMicros >= ElevatedMicros).ToList();
         if (flagged.Count > 0)
@@ -248,11 +250,11 @@ public sealed class DpcAggregator
             {
                 var family = Family(m.Name);
                 var what = family is null
-                    ? m.Name == ModuleMap.Unknown ? "адрес не удалось сопоставить с модулем" : "драйвер, см. его файл в Диспетчере устройств"
+                    ? m.Name == ModuleMap.Unknown ? Loc.T("адрес не удалось сопоставить с модулем") : Loc.T("драйвер, см. его файл в Диспетчере устройств")
                     : family;
-                lines.Add($"{m.Name} — {what}: до {m.MaxMicros.ToString("0", inv)} мкс ({KindText(m.MaxKind)}), p99 {m.P99} мкс.");
+                lines.Add(Loc.Tf("{0} — {1}: до {2} мкс ({3}), p99 {4} мкс.", Loc.T(m.Name), what, m.MaxMicros.ToString("0", inv), KindText(m.MaxKind), m.P99));
             }
-            lines.Add("Следующий шаг: раздел «Драйверы» — обновите драйвер отмеченного устройства; исправление не гарантируется.");
+            lines.Add(Loc.T("Следующий шаг: раздел «Драйверы» — обновите драйвер отмеченного устройства; исправление не гарантируется."));
         }
         return lines;
     }
@@ -263,14 +265,10 @@ public sealed class DpcAggregator
     public string Summary(TimeSpan duration)
     {
         var inv = CultureInfo.InvariantCulture;
-        if (EventCount == 0) return "Трассировка не дала событий DPC/ISR — измерение не удалось.";
+        if (EventCount == 0) return Loc.T("Трассировка не дала событий DPC/ISR — измерение не удалось.");
         var verdict = VerdictText(Verdict);
-        var sb = new StringBuilder();
-        sb.Append("Задержки драйверов ").Append(verdict).Append(": самый долгий вызов ")
-          .Append(MaxMicros.ToString("0", inv)).Append(" мкс");
-        if (MaxModule is not null && MaxModule != ModuleMap.Unknown) sb.Append(" (").Append(MaxModule).Append(')');
-        sb.Append(" за ").Append(duration.TotalSeconds.ToString("0", inv)).Append(" с.");
-        if (Verdict != DpcVerdict.Normal) sb.Append(" Следующий шаг — раздел «Драйверы».");
-        return sb.ToString();
+        var module = MaxModule is not null && MaxModule != ModuleMap.Unknown ? " (" + MaxModule + ")" : "";
+        var text = Loc.Tf("Задержки драйверов {0}: самый долгий вызов {1} мкс{2} за {3} с.", verdict, MaxMicros.ToString("0", inv), module, duration.TotalSeconds.ToString("0", inv));
+        return Verdict != DpcVerdict.Normal ? text + " " + Loc.T("Следующий шаг — раздел «Драйверы».") : text;
     }
 }

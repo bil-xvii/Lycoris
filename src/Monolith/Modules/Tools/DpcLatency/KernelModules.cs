@@ -21,7 +21,7 @@ public static class KernelModules
     public static LoadResult Load()
     {
         var (debug, why, wasEnabled) = EnableDebugPrivilege();
-        if (!debug) Log.Warn("DPC/ISR: привилегия SeDebugPrivilege не включена — " + why);
+        if (!debug) Log.Warn("DPC/ISR: привилегия SeDebugPrivilege не включена — {0}", why);
 
         List<KernelModule> modules;
         string? note = null;
@@ -33,7 +33,7 @@ public static class KernelModules
             }
             catch (Exception ex)
             {
-                Log.Warn("DPC/ISR: SystemModuleInformation недоступна — " + ex.Message);
+                Log.Warn("DPC/ISR: SystemModuleInformation недоступна — {0}", ex.Message);
                 modules = [];
             }
             if (modules.Count == 0 || modules.All(m => m.Base == 0))
@@ -41,11 +41,11 @@ public static class KernelModules
                 try
                 {
                     modules = FromEnumDeviceDrivers();
-                    if (modules.Count > 0) note = "Размеры модулей неизвестны — адреса сопоставляются по ближайшему модулю.";
+                    if (modules.Count > 0) note = Loc.T("Размеры модулей неизвестны — адреса сопоставляются по ближайшему модулю.");
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn("DPC/ISR: EnumDeviceDrivers недоступна — " + ex.Message);
+                    Log.Warn("DPC/ISR: EnumDeviceDrivers недоступна — {0}", ex.Message);
                     modules = [];
                 }
             }
@@ -57,14 +57,14 @@ public static class KernelModules
             if (debug && !wasEnabled)
             {
                 var (restored, restoreWhy) = DisableDebugPrivilege();
-                if (!restored) Log.Warn("DPC/ISR: не удалось снова отключить SeDebugPrivilege — " + restoreWhy);
+                if (!restored) Log.Warn("DPC/ISR: не удалось снова отключить SeDebugPrivilege — {0}", restoreWhy);
             }
         }
         modules = modules.Where(m => m.Base != 0).ToList();
         if (modules.Count == 0)
             note = debug
-                ? "Список модулей ядра пуст — драйверы будут показаны как «неизвестный модуль»."
-                : "Адреса модулей ядра скрыты (нужна привилегия SeDebugPrivilege) — драйверы будут показаны как «неизвестный модуль».";
+                ? Loc.T("Список модулей ядра пуст — драйверы будут показаны как «неизвестный модуль».")
+                : Loc.T("Адреса модулей ядра скрыты (нужна привилегия SeDebugPrivilege) — драйверы будут показаны как «неизвестный модуль».");
         return new LoadResult(modules, debug, note);
     }
 
@@ -113,17 +113,17 @@ public static class KernelModules
     {
         var previous = default(TOKEN_PRIVILEGES);
         if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
-            return (false, $"нет доступа к токену процесса (код {Marshal.GetLastWin32Error()})", previous);
+            return (false, Loc.Tf("нет доступа к токену процесса (код {0})", Marshal.GetLastWin32Error()), previous);
         using (token)
         {
             if (!LookupPrivilegeValueW(null, "SeDebugPrivilege", out var luid))
-                return (false, $"привилегия не найдена (код {Marshal.GetLastWin32Error()})", previous);
+                return (false, Loc.Tf("привилегия не найдена (код {0})", Marshal.GetLastWin32Error()), previous);
             var tp = new TOKEN_PRIVILEGES { PrivilegeCount = 1, Luid = luid, Attributes = attributes };
             var size = Marshal.SizeOf<TOKEN_PRIVILEGES>();
             if (!AdjustTokenPrivileges(token, false, ref tp, size, out previous, out _))
-                return (false, $"AdjustTokenPrivileges: код {Marshal.GetLastWin32Error()}", previous);
+                return (false, Loc.Tf("AdjustTokenPrivileges: код {0}", Marshal.GetLastWin32Error()), previous);
             if (Marshal.GetLastWin32Error() == ERROR_NOT_ALL_ASSIGNED)
-                return (false, "у процесса нет привилегии SeDebugPrivilege (нужны права администратора)", previous);
+                return (false, Loc.T("у процесса нет привилегии SeDebugPrivilege (нужны права администратора)"), previous);
         }
         return (true, "ok", previous);
     }
@@ -159,7 +159,7 @@ public static class KernelModules
                 Marshal.FreeHGlobal(buffer);
             }
         }
-        throw new InvalidOperationException("буфер списка модулей слишком мал");
+        throw new InvalidOperationException(Loc.T("буфер списка модулей слишком мал"));
     }
 
     private static unsafe List<KernelModule> ParseModules(IntPtr buffer, int size)
@@ -195,7 +195,7 @@ public static class KernelModules
         if (!EnumDeviceDrivers(null, 0, out var needed) || needed == 0) return [];
         var bases = new IntPtr[needed / IntPtr.Size + 16];
         if (!EnumDeviceDrivers(bases, (uint)(bases.Length * IntPtr.Size), out needed))
-            throw new InvalidOperationException($"код {Marshal.GetLastWin32Error()}");
+            throw new InvalidOperationException(Loc.Tf("код {0}", Marshal.GetLastWin32Error()));
         var count = (int)(needed / IntPtr.Size);
         var list = new List<KernelModule>(count);
         var name = new StringBuilder(260);

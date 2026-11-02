@@ -18,7 +18,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 {
     private const int MaxConsoleLines = 4000;
     private const string ChkdskOfflineCommand = "chkdsk {0} /f";
-    private const string IdleCommandText = "> выберите инструмент слева";
+    private static string IdleCommandText => Loc.T("> выберите инструмент слева");
 
     private readonly ConcurrentQueue<string> _pending = new();
     private readonly DispatcherTimer _flushTimer;
@@ -28,8 +28,8 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     public override string Key => "tools";
     public override string Index => "09";
-    public override string Title => "РЕМОНТ И ДИСКИ";
-    public override string Subtitle => "Проверка и восстановление Windows, диски, сеть и системные утилиты.";
+    public override string Title => Loc.T("РЕМОНТ И ДИСКИ");
+    public override string Subtitle => Loc.T("Проверка и восстановление Windows, диски, сеть и системные утилиты.");
     public override string Glyph => Glyphs.Repair;
 
     public string SystemDrive { get; } = (Environment.GetEnvironmentVariable("SystemDrive") ?? "C:").TrimEnd('\\').ToUpperInvariant();
@@ -50,13 +50,13 @@ public sealed partial class ToolsViewModel : PageViewModel
     /// <summary>The console takes the right column only while a tool runs (and until the user closes its result).</summary>
     public bool ShowConsole => IsRunning || HasConsoleLines || HasResult;
     [ObservableProperty] private bool _cancelRequested;
-    [ObservableProperty] private string _runTitle = "НЕТ АКТИВНОЙ ОПЕРАЦИИ";
+    [ObservableProperty] private string _runTitle = Loc.T("НЕТ АКТИВНОЙ ОПЕРАЦИИ");
     [ObservableProperty] private string _runCommandText = IdleCommandText;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(RunStateIsActive), nameof(RunStateIsProblem), nameof(RunStateIsPlain))]
-    private string _runState = "ОЖИДАНИЕ";
+    private string _runState = Loc.Key("ОЖИДАНИЕ");
     /// <summary>Which status tag the console header shows (filled / hatched / muted — never white).</summary>
-    public bool RunStateIsActive => RunState is "ВЫПОЛНЯЕТСЯ" or "ГОТОВО";
-    public bool RunStateIsProblem => RunState is "ОШИБКА" or "ВНИМАНИЕ";
+    public bool RunStateIsActive => RunState == Loc.Key("ВЫПОЛНЯЕТСЯ") || RunState == Loc.Key("ГОТОВО");
+    public bool RunStateIsProblem => RunState == Loc.Key("ОШИБКА") || RunState == Loc.Key("ВНИМАНИЕ");
     public bool RunStateIsPlain => !RunStateIsActive && !RunStateIsProblem;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowConsole))] private bool _hasResult;
     [ObservableProperty] private bool _resultIsProblem;
@@ -73,7 +73,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     private bool _hasBattery;
     /// <summary>Modern Standby (S0 low power idle): the only platform where powercfg /sleepstudy has data.</summary>
     private bool _modernStandby;
-    [ObservableProperty] private string _bootCheckText = "Чтение параметров загрузки…";
+    [ObservableProperty] private string _bootCheckText = Loc.T("Чтение параметров загрузки…");
     [ObservableProperty] private bool _bootCheckScheduled;
 
     public ToolsViewModel()
@@ -141,8 +141,8 @@ public sealed partial class ToolsViewModel : PageViewModel
         });
         BootCheckScheduled = ToolOutput.IsBootCheckScheduled(entries);
         BootCheckText = BootCheckScheduled
-            ? "Запланирована дополнительная проверка диска — она выполнится при следующей загрузке Windows."
-            : "Не запланирована. В стандартном режиме Windows проверяет диск при загрузке, только если он помечен как повреждённый.";
+            ? Loc.T("Запланирована дополнительная проверка диска — она выполнится при следующей загрузке Windows.")
+            : Loc.T("Не запланирована. В стандартном режиме Windows проверяет диск при загрузке, только если он помечен как повреждённый.");
     }
 
     // ═════════════════════════════ Commands ═════════════════════════════
@@ -168,22 +168,22 @@ public sealed partial class ToolsViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRunPlain))]
     private async Task RepairWindows()
     {
-        if (!RequireAdmin("Проверка и восстановление Windows", "RepairWindows")) return;
+        if (!RequireAdmin(Loc.T("Проверка и восстановление Windows"), "RepairWindows")) return;
         if (!await Ui.ConfirmAsync(
-                "Проверить и восстановить Windows?",
-                "MONOLITH выполнит два штатных шага Windows один за другим: DISM восстановит хранилище компонентов, затем SFC сверит и заменит повреждённые системные файлы.",
+                Loc.T("Проверить и восстановить Windows?"),
+                Loc.T("MONOLITH выполнит два штатных шага Windows один за другим: DISM восстановит хранилище компонентов, затем SFC сверит и заменит повреждённые системные файлы."),
                 [
-                    "Шаг 1: DISM /Online /Cleanup-Image /RestoreHealth — 10–30 минут, нужен интернет (Центр обновления Windows)",
-                    "Шаг 2: sfc /scannow — 5–20 минут, на HDD дольше",
-                    "Личные файлы, программы и настройки не затрагиваются; заменяются только оригинальные файлы Microsoft",
-                    "Прерывать нельзя: дождитесь окончания. Если шаг 1 завершится с ошибкой, шаг 2 не запустится",
+                    Loc.T("Шаг 1: DISM /Online /Cleanup-Image /RestoreHealth — 10–30 минут, нужен интернет (Центр обновления Windows)"),
+                    Loc.T("Шаг 2: sfc /scannow — 5–20 минут, на HDD дольше"),
+                    Loc.T("Личные файлы, программы и настройки не затрагиваются; заменяются только оригинальные файлы Microsoft"),
+                    Loc.T("Прерывать нельзя: дождитесь окончания. Если шаг 1 завершится с ошибкой, шаг 2 не запустится"),
                 ],
-                confirmText: "ЗАПУСТИТЬ", footnote: "Журнал SFC: %WINDIR%\\Logs\\CBS\\CBS.log"))
+                confirmText: Loc.T("ЗАПУСТИТЬ"), footnote: Loc.T("Журнал SFC: %WINDIR%\\Logs\\CBS\\CBS.log")))
             return;
         await RunDismAsync(ToolOutput.DismMode.RestoreHealth, confirmed: true);
         if (_lastStatus is not ToolStatus.Success)
         {
-            Ui.Toast("Шаг 1 не завершился успешно — проверка системных файлов не запущена.", ToastKind.Warning, "ПРОВЕРИТЬ И ВОССТАНОВИТЬ WINDOWS");
+            Ui.Toast(Loc.T("Шаг 1 не завершился успешно — проверка системных файлов не запущена."), ToastKind.Warning, Loc.T("ПРОВЕРИТЬ И ВОССТАНОВИТЬ WINDOWS"));
             return;
         }
         await RunSfcAsync(confirmed: true);
@@ -207,7 +207,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             case ToolOp.Sfc: await RunSfcAsync(); break;
             case ToolOp.ChkdskScan: await RunChkdskAsync(); break;
             case ToolOp.ChkntfsQuery: await RunChkntfsAsync(); break;
-            case ToolOp.CopyChkdskCommand: CopyToClipboard(ChkdskCommandText, "Команда скопирована"); break;
+            case ToolOp.CopyChkdskCommand: CopyToClipboard(ChkdskCommandText, Loc.T("Команда скопирована")); break;
             case ToolOp.DefragAll: await RunDefragAsync(_volumes); break;
             case ToolOp.DefragVolume when action.Volume is { } volume: await RunDefragAsync([volume]); break;
             case ToolOp.FlushDns: await RunFlushDnsAsync(); break;
@@ -232,7 +232,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         if (_cts is null) return;
         CancelRequested = true;
         CancelRunCommand.NotifyCanExecuteChanged();
-        Emit("Отмена… процесс будет остановлен.", ConsoleLineKind.Info);
+        Emit(Loc.T("Отмена… процесс будет остановлен."), ConsoleLineKind.Info);
         _cts.Cancel();
     }
 
@@ -241,13 +241,13 @@ public sealed partial class ToolsViewModel : PageViewModel
     {
         if (ConsoleLines.Count == 0)
         {
-            Ui.Toast("Консоль пуста — копировать нечего.", ToastKind.Info);
+            Ui.Toast(Loc.T("Консоль пуста — копировать нечего."), ToastKind.Info);
             return;
         }
         var sb = new StringBuilder();
         foreach (var l in ConsoleLines)
             sb.Append(l.Time).Append("  ").Append(l.Marker.Length > 0 ? l.Marker + " " : "").AppendLine(l.Text);
-        CopyToClipboard(sb.ToString(), "Вывод консоли скопирован");
+        CopyToClipboard(sb.ToString(), Loc.T("Вывод консоли скопирован"));
     }
 
     private bool CanClear() => !IsRunning;
@@ -262,8 +262,8 @@ public sealed partial class ToolsViewModel : PageViewModel
         Progress = 0;
         ProgressText = "—";
         ElapsedText = "0:00";
-        RunState = "ОЖИДАНИЕ";
-        RunTitle = "НЕТ АКТИВНОЙ ОПЕРАЦИИ";
+        RunState = Loc.Key("ОЖИДАНИЕ");
+        RunTitle = Loc.T("НЕТ АКТИВНОЙ ОПЕРАЦИИ");
         RunCommandText = IdleCommandText;
     }
 
@@ -278,29 +278,29 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunDismAsync(ToolOutput.DismMode mode, bool confirmed = false)
     {
-        if (!CanStartNow(OperationClass.SystemRepair, "Образ Windows (DISM)")) return;
+        if (!CanStartNow(OperationClass.SystemRepair, Loc.T("Образ Windows (DISM)"))) return;
         var (arg, title, cancellable) = mode switch
         {
-            ToolOutput.DismMode.CheckHealth => ("/CheckHealth", "ОБРАЗ WINDOWS · БЫСТРАЯ ПРОВЕРКА", true),
-            ToolOutput.DismMode.ScanHealth => ("/ScanHealth", "ОБРАЗ WINDOWS · СКАНИРОВАНИЕ", true),
-            _ => ("/RestoreHealth", "ОБРАЗ WINDOWS · ВОССТАНОВЛЕНИЕ", false),
+            ToolOutput.DismMode.CheckHealth => ("/CheckHealth", Loc.T("ОБРАЗ WINDOWS · БЫСТРАЯ ПРОВЕРКА"), true),
+            ToolOutput.DismMode.ScanHealth => ("/ScanHealth", Loc.T("ОБРАЗ WINDOWS · СКАНИРОВАНИЕ"), true),
+            _ => ("/RestoreHealth", Loc.T("ОБРАЗ WINDOWS · ВОССТАНОВЛЕНИЕ"), false),
         };
         var display = $"DISM /Online /Cleanup-Image {arg}";
 
         if (!confirmed && mode == ToolOutput.DismMode.RestoreHealth && !await Ui.ConfirmAsync(
-                "Восстановить образ Windows?",
-                "DISM сверит хранилище компонентов Windows с эталоном и заменит повреждённые компоненты исправными, скачав их через Центр обновления Windows.",
+                Loc.T("Восстановить образ Windows?"),
+                Loc.T("DISM сверит хранилище компонентов Windows с эталоном и заменит повреждённые компоненты исправными, скачав их через Центр обновления Windows."),
                 [
-                    $"Команда: {display}",
-                    "Длительность: обычно 10–30 минут, индикатор может подолгу стоять на 62% — это нормально",
-                    "Нужен интернет: источник исправных компонентов — Windows Update",
-                    "Личные файлы, программы и настройки не затрагиваются",
-                    "Прерывать нельзя: остановка посреди восстановления может оставить хранилище в незавершённом состоянии",
+                    Loc.Tf("Команда: {0}", display),
+                    Loc.T("Длительность: обычно 10–30 минут, индикатор может подолгу стоять на 62% — это нормально"),
+                    Loc.T("Нужен интернет: источник исправных компонентов — Windows Update"),
+                    Loc.T("Личные файлы, программы и настройки не затрагиваются"),
+                    Loc.T("Прерывать нельзя: остановка посреди восстановления может оставить хранилище в незавершённом состоянии"),
                 ],
-                confirmText: "ЗАПУСТИТЬ", footnote: "После завершения запустите «Проверку системных файлов»."))
+                confirmText: Loc.T("ЗАПУСТИТЬ"), footnote: Loc.T("После завершения запустите «Проверку системных файлов».")))
             return;
 
-        await ExecuteAsync(title, display, cancellable, "Восстановление образа Windows…", async ct =>
+        await ExecuteAsync(title, display, cancellable, Loc.T("Восстановление образа Windows…"), async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("dism.exe"), ["/Online", "/Cleanup-Image", arg], OutputEncoding.Oem,
                 cancellable ? TimeSpan.FromHours(2) : null, ct);
@@ -310,21 +310,21 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunSfcAsync(bool confirmed = false)
     {
-        if (!CanStartNow(OperationClass.SystemRepair, "Проверка системных файлов (SFC)")) return;
+        if (!CanStartNow(OperationClass.SystemRepair, Loc.T("Проверка системных файлов (SFC)"))) return;
         if (!confirmed && !await Ui.ConfirmAsync(
-                "Проверить системные файлы?",
-                "SFC сверит все защищённые системные файлы Windows с эталонными копиями и заменит повреждённые.",
+                Loc.T("Проверить системные файлы?"),
+                Loc.T("SFC сверит все защищённые системные файлы Windows с эталонными копиями и заменит повреждённые."),
                 [
-                    "Команда: sfc /scannow",
-                    "Длительность: 5–20 минут, на HDD дольше",
-                    "Заменяются только оригинальные файлы Microsoft — личные данные и программы не затрагиваются",
-                    "Прерывать нельзя: дождитесь 100%",
-                    "Если найдены неисправимые файлы — сначала «Восстановление образа» (DISM), затем повторите проверку",
+                    Loc.T("Команда: sfc /scannow"),
+                    Loc.T("Длительность: 5–20 минут, на HDD дольше"),
+                    Loc.T("Заменяются только оригинальные файлы Microsoft — личные данные и программы не затрагиваются"),
+                    Loc.T("Прерывать нельзя: дождитесь 100%"),
+                    Loc.T("Если найдены неисправимые файлы — сначала «Восстановление образа» (DISM), затем повторите проверку"),
                 ],
-                confirmText: "ЗАПУСТИТЬ", footnote: "Журнал проверки: %WINDIR%\\Logs\\CBS\\CBS.log"))
+                confirmText: Loc.T("ЗАПУСТИТЬ"), footnote: Loc.T("Журнал проверки: %WINDIR%\\Logs\\CBS\\CBS.log")))
             return;
 
-        await ExecuteAsync("ПРОВЕРКА СИСТЕМНЫХ ФАЙЛОВ", "sfc /scannow", cancellable: false, "Проверка системных файлов…", async ct =>
+        await ExecuteAsync(Loc.T("ПРОВЕРКА СИСТЕМНЫХ ФАЙЛОВ"), "sfc /scannow", cancellable: false, Loc.T("Проверка системных файлов…"), async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("sfc.exe"), ["/scannow"], OutputEncoding.Unicode, null, ct);
             return ToolOutput.ClassifySfc(r.ExitCode, r.Combined);
@@ -332,7 +332,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     }
 
     private Task RunChkdskAsync() =>
-        ExecuteAsync("ПРОВЕРКА ДИСКА " + SystemDrive, $"chkdsk {SystemDrive} /scan", cancellable: true, "Проверка диска…", async ct =>
+        ExecuteAsync(Loc.Tf("ПРОВЕРКА ДИСКА {0}", SystemDrive), $"chkdsk {SystemDrive} /scan", cancellable: true, Loc.T("Проверка диска…"), async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("chkdsk.exe"), [SystemDrive, "/scan"], OutputEncoding.Oem, TimeSpan.FromHours(3), ct);
             if (r.Cancelled) return null;
@@ -342,7 +342,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         });
 
     private Task RunChkntfsAsync() =>
-        ExecuteMeasureAsync("СОСТОЯНИЕ ДИСКА " + SystemDrive, $"chkntfs {SystemDrive}", cancellable: true, "Чтение состояния диска…", async ct =>
+        ExecuteMeasureAsync(Loc.Tf("СОСТОЯНИЕ ДИСКА {0}", SystemDrive), $"chkntfs {SystemDrive}", cancellable: true, Loc.T("Чтение состояния диска…"), async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("chkntfs.exe"), [SystemDrive], OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
             if (r.Cancelled) return null;
@@ -352,23 +352,23 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunDefragAsync(IReadOnlyList<VolumeInfo> volumes)
     {
-        if (!CanStartNow(OperationClass.SystemRepair, "Оптимизация дисков")) return;
+        if (!CanStartNow(OperationClass.SystemRepair, Loc.T("Оптимизация дисков"))) return;
         if (volumes.Count == 0)
         {
-            Ui.Toast("Не найдено дисков, которые можно оптимизировать.", ToastKind.Warning);
+            Ui.Toast(Loc.T("Не найдено дисков, которые можно оптимизировать."), ToastKind.Warning);
             return;
         }
-        var title = volumes.Count == 1 ? $"ОПТИМИЗАЦИЯ ДИСКА {volumes[0].Letter}" : $"ОПТИМИЗАЦИЯ ДИСКОВ · {volumes.Count}";
+        var title = volumes.Count == 1 ? Loc.Tf("ОПТИМИЗАЦИЯ ДИСКА {0}", volumes[0].Letter) : Loc.Tf("ОПТИМИЗАЦИЯ ДИСКОВ · {0}", volumes.Count);
         var display = volumes.Count == 1 ? $"defrag {volumes[0].Letter} /O /U /V" : $"defrag <{string.Join(" ", volumes.Select(v => v.Letter))}> /O /U /V";
 
-        await ExecuteAsync(title, display, cancellable: true, "Оптимизация дисков…", async ct =>
+        await ExecuteAsync(title, display, cancellable: true, Loc.T("Оптимизация дисков…"), async ct =>
         {
             int ok = 0, failed = 0;
             var errors = new List<string>();
             foreach (var v in volumes)
             {
                 ct.ThrowIfCancellationRequested();
-                Emit($"{v.Letter} {v.DisplayName} — {v.MediaText}: {(v.IsSsd ? "TRIM" : v.IsHdd ? "дефрагментация" : "Windows выберет операцию сама")}", ConsoleLineKind.Info);
+                Emit(Loc.Tf("{0} {1} — {2}: {3}", v.Letter, v.DisplayName, v.MediaText, v.IsSsd ? "TRIM" : v.IsHdd ? Loc.T("дефрагментация") : Loc.T("Windows выберет операцию сама")), ConsoleLineKind.Info);
                 ResetProgress();
                 var r = await RunProcessAsync(ProcessRunner.Sys("defrag.exe"), [v.Letter, "/O", "/U", "/V"], OutputEncoding.Oem, TimeSpan.FromHours(8), ct);
                 if (r.Cancelled) return null;
@@ -376,63 +376,63 @@ public sealed partial class ToolsViewModel : PageViewModel
                 else
                 {
                     failed++;
-                    errors.Add($"{v.Letter} (код {r.ExitCode})");
+                    errors.Add(Loc.Tf("{0} (код {1})", v.Letter, r.ExitCode));
                 }
             }
             return failed == 0
-                ? ToolOutcome.Ok(volumes.Count == 1 ? $"Диск {volumes[0].Letter} оптимизирован." : $"Оптимизировано дисков: {ok}.")
-                : ToolOutcome.Fail($"Оптимизировано: {ok}, с ошибкой: {string.Join(", ", errors)}.");
+                ? ToolOutcome.Ok(volumes.Count == 1 ? Loc.Tf("Диск {0} оптимизирован.", volumes[0].Letter) : Loc.Tf("Оптимизировано дисков: {0}.", ok))
+                : ToolOutcome.Fail(Loc.Tf("Оптимизировано: {0}, с ошибкой: {1}.", ok, string.Join(", ", errors)));
         });
     }
 
     private Task RunFlushDnsAsync() =>
-        ExecuteAsync("СБРОС DNS-КЭША", "ipconfig /flushdns", cancellable: false, "Сброс DNS-кэша…", async ct =>
+        ExecuteAsync(Loc.T("СБРОС DNS-КЭША"), "ipconfig /flushdns", cancellable: false, Loc.T("Сброс DNS-кэша…"), async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("ipconfig.exe"), ["/flushdns"], OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
-            return ToolOutput.ClassifyExit(r.ExitCode, "Кэш DNS очищен. Имена сайтов будут заново запрошены у DNS-сервера.", "Не удалось очистить кэш DNS");
+            return ToolOutput.ClassifyExit(r.ExitCode, Loc.T("Кэш DNS очищен. Имена сайтов будут заново запрошены у DNS-сервера."), Loc.T("Не удалось очистить кэш DNS"));
         });
 
     private async Task RunNetworkResetAsync()
     {
-        if (!CanStartNow(OperationClass.SystemRepair, "Сброс сетевых настроек")) return;
+        if (!CanStartNow(OperationClass.SystemRepair, Loc.T("Сброс сетевых настроек"))) return;
         var restoreNote = AppSettings.Current.CreateRestorePoints
-            ? "Перед сбросом будет создана точка восстановления Windows — только через неё можно вернуть прежние сетевые параметры"
-            : "Создание точек восстановления выключено в разделе «Восстановление» — вернуть прежние параметры будет нельзя";
+            ? Loc.T("Перед сбросом будет создана точка восстановления Windows — только через неё можно вернуть прежние сетевые параметры")
+            : Loc.T("Создание точек восстановления выключено в разделе «Восстановление» — вернуть прежние параметры будет нельзя");
         if (!await Ui.ConfirmAsync(
-                "Сбросить сетевые настройки?",
-                "Каталог Winsock и стек TCP/IP вернутся к состоянию чистой установки Windows. Это крайняя мера, когда сеть не работает и другие способы не помогли.",
+                Loc.T("Сбросить сетевые настройки?"),
+                Loc.T("Каталог Winsock и стек TCP/IP вернутся к состоянию чистой установки Windows. Это крайняя мера, когда сеть не работает и другие способы не помогли."),
                 [
-                    "netsh winsock reset — сброс каталога Winsock; сторонние сетевые модули (VPN, прокси, сетевые фильтры антивирусов) отключатся",
-                    "netsh int ip reset — сброс параметров TCP/IP; вручную заданные IP-адреса, шлюзы и DNS-серверы будут потеряны — запишите их заранее",
-                    "VPN-клиенты и сетевое ПО может понадобиться переустановить",
-                    "Потребуется перезагрузка компьютера",
+                    Loc.T("netsh winsock reset — сброс каталога Winsock; сторонние сетевые модули (VPN, прокси, сетевые фильтры антивирусов) отключатся"),
+                    Loc.T("netsh int ip reset — сброс параметров TCP/IP; вручную заданные IP-адреса, шлюзы и DNS-серверы будут потеряны — запишите их заранее"),
+                    Loc.T("VPN-клиенты и сетевое ПО может понадобиться переустановить"),
+                    Loc.T("Потребуется перезагрузка компьютера"),
                     restoreNote,
-                    "Копии разделов реестра Winsock и TCP/IP сохраняются в папку резервных копий MONOLITH",
+                    Loc.T("Копии разделов реестра Winsock и TCP/IP сохраняются в папку резервных копий MONOLITH"),
                 ],
-                confirmText: "СБРОСИТЬ", danger: true, footnote: "Кнопкой «Откатить» в журнале это действие не отменяется."))
+                confirmText: Loc.T("СБРОСИТЬ"), danger: true, footnote: Loc.T("Кнопкой «Откатить» в журнале это действие не отменяется.")))
             return;
 
-        await ExecuteAsync("СБРОС СЕТЕВЫХ НАСТРОЕК", "netsh winsock reset · netsh int ip reset", cancellable: false, "Сброс сетевых настроек…", async ct =>
+        await ExecuteAsync(Loc.T("СБРОС СЕТЕВЫХ НАСТРОЕК"), "netsh winsock reset · netsh int ip reset", cancellable: false, Loc.T("Сброс сетевых настроек…"), async ct =>
         {
             RestorePointResult? rp = null;
             if (AppSettings.Current.CreateRestorePoints)
             {
-                Emit("Создание точки восстановления…", ConsoleLineKind.Info);
-                rp = await RestorePointService.CreateAsync("MONOLITH: сброс сетевых настроек");
+                Emit(Loc.T("Создание точки восстановления…"), ConsoleLineKind.Info);
+                rp = await RestorePointService.CreateAsync("MONOLITH: сброс сетевых настроек"); // loc:ignore the restore point name is stored by Windows
                 Emit(rp.Message, rp.Created ? ConsoleLineKind.Success : ConsoleLineKind.Info);
                 if (rp.Outcome is RestorePointOutcome.Disabled or RestorePointOutcome.Failed &&
-                    !await AskWithoutLeaseAsync(() => Ui.ConfirmAsync("Продолжить без точки восстановления?", rp.Message,
-                        ["Без точки восстановления прежние сетевые параметры вернуть будет нельзя"],
-                        confirmText: "ПРОДОЛЖИТЬ", danger: true)))
-                    return ToolOutcome.Cancel("Сброс отменён: точка восстановления не создана.");
+                    !await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(Loc.T("Продолжить без точки восстановления?"), rp.Message,
+                        [Loc.T("Без точки восстановления прежние сетевые параметры вернуть будет нельзя")],
+                        confirmText: Loc.T("ПРОДОЛЖИТЬ"), danger: true)))
+                    return ToolOutcome.Cancel(Loc.T("Сброс отменён: точка восстановления не создана."));
             }
 
-            var session = await ChangeSession.BeginAsync("Сброс сетевых настроек", createRestorePoint: false);
-            session.Batch.RestorePoint = rp?.Message ?? "Создание точек восстановления выключено в разделе «Восстановление».";
+            var session = await ChangeSession.BeginAsync("Сброс сетевых настроек", createRestorePoint: false); // loc:ignore the journal title stays Russian (translated where shown)
+            session.Batch.RestorePoint = rp?.Message ?? "Создание точек восстановления выключено в разделе «Восстановление»."; // loc:ignore stored in the journal
             ChangeJournal.Instance.UpdateBatch(session.Batch);
 
             AppPaths.TryEnsureDir(session.BackupDir);
-            Emit("Резервные копии реестра → " + session.BackupDir, ConsoleLineKind.Info);
+            Emit(Loc.Tf("Резервные копии реестра → {0}", session.BackupDir), ConsoleLineKind.Info);
             await RegistryHelper.ExportKeyAsync(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Services\WinSock2\Parameters",
                 Path.Combine(session.BackupDir, "WinSock2_Parameters.reg"));
             await RegistryHelper.ExportKeyAsync(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters",
@@ -446,32 +446,31 @@ public sealed partial class ToolsViewModel : PageViewModel
             if (winsock.ExitCode == 0 && ip.ExitCode == 0)
             {
                 Log.Success("Сетевые настройки сброшены. Требуется перезагрузка.");
-                return ToolOutcome.Warn("Сетевые настройки сброшены. Перезагрузите компьютер, чтобы изменения вступили в силу.");
+                return ToolOutcome.Warn(Loc.T("Сетевые настройки сброшены. Перезагрузите компьютер, чтобы изменения вступили в силу."));
             }
-            return ToolOutcome.Fail($"Сброс выполнен не полностью: winsock — код {winsock.ExitCode}, TCP/IP — код {ip.ExitCode}. " +
-                                    "Если часть параметров сбросить не удалось, перезагрузитесь и повторите.");
+            return ToolOutcome.Fail(Loc.Tf("Сброс выполнен не полностью: winsock — код {0}, TCP/IP — код {1}. Если часть параметров сбросить не удалось, перезагрузитесь и повторите.", winsock.ExitCode, ip.ExitCode));
         });
     }
 
     private Task RunStoreResetAsync() =>
-        ExecuteAsync("СБРОС КЭША MICROSOFT STORE", "wsreset.exe", cancellable: true, "Сброс кэша Microsoft Store…", async ct =>
+        ExecuteAsync(Loc.T("СБРОС КЭША MICROSOFT STORE"), "wsreset.exe", cancellable: true, Loc.T("Сброс кэша Microsoft Store…"), async ct =>
         {
             var exe = ProcessRunner.Sys("WSReset.exe");
-            if (!File.Exists(exe)) return ToolOutcome.Fail("WSReset.exe не найден — Microsoft Store в этой системе отсутствует.");
+            if (!File.Exists(exe)) return ToolOutcome.Fail(Loc.T("WSReset.exe не найден — Microsoft Store в этой системе отсутствует."));
             var r = await RunProcessAsync(exe, [], OutputEncoding.Oem, TimeSpan.FromMinutes(3), ct);
             if (r.Cancelled) return null;
-            return ToolOutput.ClassifyExit(r.ExitCode, "Кэш Microsoft Store очищен. Store откроется автоматически.", "Не удалось сбросить кэш Store");
+            return ToolOutput.ClassifyExit(r.ExitCode, Loc.T("Кэш Microsoft Store очищен. Store откроется автоматически."), Loc.T("Не удалось сбросить кэш Store"));
         });
 
     private Task RunIconCacheAsync() =>
-        ExecuteAsync("ПЕРЕСОЗДАНИЕ КЭША ЗНАЧКОВ", "ie4uinit.exe -show", cancellable: true, "Обновление кэша значков…", async ct =>
+        ExecuteAsync(Loc.T("ПЕРЕСОЗДАНИЕ КЭША ЗНАЧКОВ"), "ie4uinit.exe -show", cancellable: true, Loc.T("Обновление кэша значков…"), async ct =>
         {
             var exe = ProcessRunner.Sys("ie4uinit.exe");
-            if (!File.Exists(exe)) return ToolOutcome.Fail("ie4uinit.exe не найден в System32.");
+            if (!File.Exists(exe)) return ToolOutcome.Fail(Loc.T("ie4uinit.exe не найден в System32."));
             var r = await RunProcessAsync(exe, ["-show"], OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
             if (r.Cancelled) return null;
             return ToolOutput.ClassifyExit(r.ExitCode,
-                "Кэш значков обновлён. Если значки не изменились — перезайдите в систему.", "Не удалось обновить кэш значков");
+                Loc.T("Кэш значков обновлён. Если значки не изменились — перезайдите в систему."), Loc.T("Не удалось обновить кэш значков"));
         });
 
     // ═════════════════════════════ Power & sleep (read-only) ═════════════════════════════
@@ -485,30 +484,30 @@ public sealed partial class ToolsViewModel : PageViewModel
     internal sealed record PowerReportSpec(string Title, string Display, string Busy, string Name, string FileName,
         Func<string, string[]> Arguments, TimeSpan Timeout, bool NonZeroExitMeansProblemsFound = false);
 
-    internal static readonly PowerReportSpec BatteryReport = new("ОТЧЁТ О БАТАРЕЕ", "powercfg /batteryreport",
-        "Создание отчёта о батарее…", "Отчёт о батарее", "battery-report.html",
+    internal static readonly PowerReportSpec BatteryReport = new(Loc.Key("ОТЧЁТ О БАТАРЕЕ"), "powercfg /batteryreport",
+        Loc.Key("Создание отчёта о батарее…"), Loc.Key("Отчёт о батарее"), "battery-report.html",
         file => ["/batteryreport", "/output", file], TimeSpan.FromMinutes(2));
 
-    internal static readonly PowerReportSpec EnergyReport = new("ОТЧЁТ ОБ ЭНЕРГОЭФФЕКТИВНОСТИ", "powercfg /energy /duration 60",
-        "Отчёт об энергоэффективности: 60 секунд наблюдения…", "Отчёт об энергоэффективности", "energy-report.html",
+    internal static readonly PowerReportSpec EnergyReport = new(Loc.Key("ОТЧЁТ ОБ ЭНЕРГОЭФФЕКТИВНОСТИ"), "powercfg /energy /duration 60",
+        Loc.Key("Отчёт об энергоэффективности: 60 секунд наблюдения…"), Loc.Key("Отчёт об энергоэффективности"), "energy-report.html",
         file => ["/energy", "/output", file, "/duration", "60"], TimeSpan.FromMinutes(3), NonZeroExitMeansProblemsFound: true);
 
-    internal static readonly PowerReportSpec SleepStudyReport = new("ОТЧЁТ SLEEPSTUDY", "powercfg /sleepstudy /duration 3",
-        "Создание отчёта SleepStudy…", "Отчёт SleepStudy", "sleepstudy-report.html",
+    internal static readonly PowerReportSpec SleepStudyReport = new(Loc.Key("ОТЧЁТ SLEEPSTUDY"), "powercfg /sleepstudy /duration 3",
+        Loc.Key("Создание отчёта SleepStudy…"), Loc.Key("Отчёт SleepStudy"), "sleepstudy-report.html",
         file => ["/sleepstudy", "/output", file, "/duration", "3"], TimeSpan.FromMinutes(2));
 
-    internal static readonly PowerReportSpec SleepDiagnosticsReport = new("ДИАГНОСТИКА ПЕРЕХОДОВ В СОН", "powercfg /systemsleepdiagnostics",
-        "Диагностика переходов в сон…", "Отчёт о переходах в сон", "sleep-diagnostics.html",
+    internal static readonly PowerReportSpec SleepDiagnosticsReport = new(Loc.Key("ДИАГНОСТИКА ПЕРЕХОДОВ В СОН"), "powercfg /systemsleepdiagnostics",
+        Loc.Key("Диагностика переходов в сон…"), Loc.Key("Отчёт о переходах в сон"), "sleep-diagnostics.html",
         file => ["/systemsleepdiagnostics", "/output", file], TimeSpan.FromMinutes(2));
 
     /// <summary>The five documented read-only powercfg queries of the «Сон и пробуждение» card, in run order.</summary>
     internal static readonly IReadOnlyList<PowercfgQuery> SleepWakeQueries =
     [
-        new("/lastwake", "Почему ПК проснулся в последний раз", RequiresAdmin: false),
-        new("/waketimers", "Активные таймеры пробуждения (программы и задачи)", RequiresAdmin: true),
-        new("/requests", "Запросы, которые не дают ПК уснуть", RequiresAdmin: true),
-        new("/devicequery wake_armed", "Устройства, которым разрешено будить ПК", RequiresAdmin: false),
-        new("/availablesleepstates", "Доступные состояния сна", RequiresAdmin: false),
+        new("/lastwake", Loc.Key("Почему ПК проснулся в последний раз"), RequiresAdmin: false),
+        new("/waketimers", Loc.Key("Активные таймеры пробуждения (программы и задачи)"), RequiresAdmin: true),
+        new("/requests", Loc.Key("Запросы, которые не дают ПК уснуть"), RequiresAdmin: true),
+        new("/devicequery wake_armed", Loc.Key("Устройства, которым разрешено будить ПК"), RequiresAdmin: false),
+        new("/availablesleepstates", Loc.Key("Доступные состояния сна"), RequiresAdmin: false),
     ];
 
     internal static string SleepWakeCommandText { get; } = "powercfg " + string.Join(" · ", SleepWakeQueries.Select(q => q.Arguments));
@@ -525,10 +524,9 @@ public sealed partial class ToolsViewModel : PageViewModel
         var tweakTitle = TweakCatalog.Find(WakeTimersTweakId)?.Title;
         var tweakHint = tweakTitle is null
             ? ""
-            : $" Чтобы ПК не просыпался по расписанию программ, есть пункт «{tweakTitle}» в разделе «Оптимизация».";
-        return "Ничего не меняет. Чтобы устройство не будило ПК: Диспетчер устройств → устройство → Управление электропитанием → " +
-               "снять «Разрешить этому устройству выводить компьютер из ждущего режима»." + tweakHint +
-               " Без прав администратора /requests и /waketimers пропускаются.";
+            : " " + Loc.Tf("Чтобы ПК не просыпался по расписанию программ, есть пункт «{0}» в разделе «Оптимизация».", tweakTitle);
+        return Loc.T("Ничего не меняет. Чтобы устройство не будило ПК: Диспетчер устройств → устройство → Управление электропитанием → снять «Разрешить этому устройству выводить компьютер из ждущего режима».") + tweakHint +
+               " " + Loc.T("Без прав администратора /requests и /waketimers пропускаются.");
     }
 
     private const string MaintenanceTaskPath = @"\Microsoft\Windows\TaskScheduler\Maintenance Configurator";
@@ -536,11 +534,11 @@ public sealed partial class ToolsViewModel : PageViewModel
     private const string MaintenanceSettingKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance";
 
     private Task RunSleepWakeDiagnosticsAsync() =>
-        ExecuteMeasureAsync("СОН И ПРОБУЖДЕНИЕ", SleepWakeCommandText, cancellable: true, "Проверка сна и пробуждения…", async ct =>
+        ExecuteMeasureAsync(Loc.T("СОН И ПРОБУЖДЕНИЕ"), SleepWakeCommandText, cancellable: true, Loc.T("Проверка сна и пробуждения…"), async ct =>
         {
             var elevated = Elevation.IsElevated;
             if (!elevated)
-                Emit("/requests и /waketimers требуют прав администратора — эти две проверки пропущены, остальные выполняются.", ConsoleLineKind.Info);
+                Emit(Loc.T("/requests и /waketimers требуют прав администратора — эти две проверки пропущены, остальные выполняются."), ConsoleLineKind.Info);
 
             var failed = 0;
             foreach (var q in SleepWakeQueries)
@@ -548,7 +546,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                 if (q.RequiresAdmin && !elevated) continue;
                 ct.ThrowIfCancellationRequested();
                 Emit("", ConsoleLineKind.Output);
-                Emit(q.Title, ConsoleLineKind.Info);
+                Emit(Loc.T(q.Title), ConsoleLineKind.Info);
                 Emit("powercfg " + q.Arguments, ConsoleLineKind.Command);
                 // Output is shown as is (OEM encoding); localized text is never parsed.
                 var r = await RunProcessAsync(ProcessRunner.Sys("powercfg.exe"), q.Arguments.Split(' '), OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
@@ -556,15 +554,15 @@ public sealed partial class ToolsViewModel : PageViewModel
                 if (r.ExitCode != 0)
                 {
                     failed++;
-                    Emit($"powercfg завершился с кодом {r.ExitCode}.", ConsoleLineKind.Info);
+                    Emit(Loc.Tf("powercfg завершился с кодом {0}.", r.ExitCode), ConsoleLineKind.Info);
                 }
             }
 
             Emit("", ConsoleLineKind.Output);
             Emit(await Task.Run(ReadMaintenanceWake), ConsoleLineKind.Info);
             return failed == 0
-                ? ToolOutcome.Ok("Проверка завершена — см. вывод выше.")
-                : ToolOutcome.Warn($"Проверка завершена, команд с ошибкой: {failed} — см. вывод выше.");
+                ? ToolOutcome.Ok(Loc.T("Проверка завершена — см. вывод выше."))
+                : ToolOutcome.Warn(Loc.Tf("Проверка завершена, команд с ошибкой: {0} — см. вывод выше.", failed));
         });
 
     /// <summary>Read-only: may Automatic Maintenance wake the PC? Group Policy wins over the Task Scheduler setting.</summary>
@@ -578,47 +576,47 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     internal static string DescribeMaintenanceWake(bool taskExists, bool taskEnabled, int? policy, int? setting)
     {
-        var (allowed, source) = policy is { } p ? (p != 0, "политика")
-            : setting is { } v ? (v != 0, "настройка")
-            : (true, "значение не задано — умолчание Windows");
-        var task = !taskExists ? "задача «Maintenance Configurator» не найдена"
-            : taskEnabled ? "задача «Maintenance Configurator» включена"
-            : "задача «Maintenance Configurator» отключена";
-        return $"Пробуждение для обслуживания: {(allowed ? "разрешено" : "запрещено")} ({source}); {task}.";
+        var (allowed, source) = policy is { } p ? (p != 0, Loc.T("политика"))
+            : setting is { } v ? (v != 0, Loc.T("настройка"))
+            : (true, Loc.T("значение не задано — умолчание Windows"));
+        var task = !taskExists ? Loc.T("задача «Maintenance Configurator» не найдена")
+            : taskEnabled ? Loc.T("задача «Maintenance Configurator» включена")
+            : Loc.T("задача «Maintenance Configurator» отключена");
+        return Loc.Tf("Пробуждение для обслуживания: {0} ({1}); {2}.", allowed ? Loc.T("разрешено") : Loc.T("запрещено"), source, task);
     }
 
     private async Task RunEnergyReportAsync()
     {
-        if (!CanStartNow(OperationClass.Measure, "Отчёт об энергоэффективности", quiet: true)) return;
+        if (!CanStartNow(OperationClass.Measure, Loc.T("Отчёт об энергоэффективности"), quiet: true)) return;
         if (GameBoostState.IsActive)
         {
-            Ui.Toast("Дождитесь окончания игрового сеанса — отчёт энергоэффективности снимается при простое ПК.", ToastKind.Warning);
+            Ui.Toast(Loc.T("Дождитесь окончания игрового сеанса — отчёт энергоэффективности снимается при простое ПК."), ToastKind.Warning);
             return;
         }
         if (!await Ui.ConfirmAsync(
-                "Снять отчёт об энергоэффективности?",
-                "powercfg /energy 60 секунд наблюдает за системой и составляет HTML-отчёт Windows: что мешает простою и USB-сну, кто запрашивает повышенное разрешение таймера, какова нагрузка в простое.",
+                Loc.T("Снять отчёт об энергоэффективности?"),
+                Loc.T("powercfg /energy 60 секунд наблюдает за системой и составляет HTML-отчёт Windows: что мешает простою и USB-сну, кто запрашивает повышенное разрешение таймера, какова нагрузка в простое."),
                 [
-                    "60 секунд ПК должен простаивать: закройте программы и не трогайте мышь и клавиатуру",
-                    "Команда: powercfg /energy /output … /duration 60",
-                    "Ничего не меняет в системе — только наблюдение",
-                    "Отчёт сохраняется в папку журналов MONOLITH и открывается в браузере без прав администратора",
+                    Loc.T("60 секунд ПК должен простаивать: закройте программы и не трогайте мышь и клавиатуру"),
+                    Loc.T("Команда: powercfg /energy /output … /duration 60"),
+                    Loc.T("Ничего не меняет в системе — только наблюдение"),
+                    Loc.T("Отчёт сохраняется в папку журналов MONOLITH и открывается в браузере без прав администратора"),
                 ],
-                confirmText: "ЗАПУСТИТЬ", footnote: "«Ошибки» в отчёте — это причины повышенного расхода энергии, а не поломки."))
+                confirmText: Loc.T("ЗАПУСТИТЬ"), footnote: Loc.T("«Ошибки» в отчёте — это причины повышенного расхода энергии, а не поломки.")))
             return;
         await RunPowerReportAsync(EnergyReport);
     }
 
     private Task RunPowerReportAsync(PowerReportSpec spec) =>
-        ExecuteQuietAsync(spec.Title, spec.Display, cancellable: true, spec.Busy, async ct =>
+        ExecuteQuietAsync(Loc.T(spec.Title), spec.Display, cancellable: true, Loc.T(spec.Busy), async ct =>
         {
-            if (!AppPaths.TryEnsureDir(AppPaths.LogsDir)) return ToolOutcome.Fail("Не удалось создать папку для отчёта: " + AppPaths.LogsDir);
+            if (!AppPaths.TryEnsureDir(AppPaths.LogsDir)) return ToolOutcome.Fail(Loc.Tf("Не удалось создать папку для отчёта: {0}", AppPaths.LogsDir));
             var file = Path.Combine(AppPaths.LogsDir, spec.FileName);
             TryDeleteStaleReport(file); // an older report must never pass for the new one
             var r = await RunProcessAsync(ProcessRunner.Sys("powercfg.exe"), spec.Arguments(file), OutputEncoding.Oem, spec.Timeout, ct);
             if (r.Cancelled) return null;
             var exists = File.Exists(file);
-            if (exists) Emit("Отчёт: " + file, ConsoleLineKind.Info);
+            if (exists) Emit(Loc.Tf("Отчёт: {0}", file), ConsoleLineKind.Info);
             // The browser must never inherit MONOLITH's administrator rights.
             var opened = exists && await UnelevatedShell.OpenFileAsync(file);
             return ClassifyPowerReport(spec, r.ExitCode, exists, opened, file, Elevation.IsElevated);
@@ -628,18 +626,19 @@ public sealed partial class ToolsViewModel : PageViewModel
     {
         if (!fileExists)
             return ToolOutcome.Fail(elevated || exitCode == 0
-                ? $"Отчёт не создан (код {exitCode})."
-                : $"Отчёт не создан (код {exitCode}) — скорее всего, нужны права администратора.");
+                ? Loc.Tf("Отчёт не создан (код {0}).", exitCode)
+                : Loc.Tf("Отчёт не создан (код {0}) — скорее всего, нужны права администратора.", exitCode));
         var openNote = opened
-            ? "открыт в браузере."
-            : "открыть его без прав администратора не удалось. Откройте файл вручную: " + file;
+            ? Loc.T("открыт в браузере.")
+            : Loc.Tf("открыть его без прав администратора не удалось. Откройте файл вручную: {0}", file);
+        var name = Loc.T(spec.Name);
         if (exitCode != 0 && spec.NonZeroExitMeansProblemsFound)
-            return ToolOutcome.Warn($"Найдены проблемы энергоэффективности — см. отчёт (powercfg вернул код {exitCode}). Отчёт создан, {openNote}");
+            return ToolOutcome.Warn(Loc.Tf("Найдены проблемы энергоэффективности — см. отчёт (powercfg вернул код {0}). Отчёт создан, {1}", exitCode, openNote));
         if (exitCode != 0)
-            return ToolOutcome.Warn($"{spec.Name} создан, но powercfg вернул код {exitCode} — отчёт может быть неполным; {openNote}");
+            return ToolOutcome.Warn(Loc.Tf("{0} создан, но powercfg вернул код {1} — отчёт может быть неполным; {2}", name, exitCode, openNote));
         return opened
-            ? ToolOutcome.Ok($"{spec.Name} создан и открыт в браузере.")
-            : ToolOutcome.Warn($"{spec.Name} создан, но {openNote}");
+            ? ToolOutcome.Ok(Loc.Tf("{0} создан и открыт в браузере.", name))
+            : ToolOutcome.Warn(Loc.Tf("{0} создан, но {1}", name, openNote));
     }
 
     private static void TryDeleteStaleReport(string file)
@@ -650,42 +649,42 @@ public sealed partial class ToolsViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"Старый отчёт не удалён ({file}): {ex.Message}");
+            Log.Warn("Старый отчёт не удалён ({0}): {1}", file, ex.Message);
         }
     }
 
     private async Task RunMemoryDiagnosticAsync()
     {
         if (!await Ui.ConfirmAsync(
-                "Запустить диагностику памяти?",
-                "Откроется средство проверки памяти Windows. Сам тест выполняется при перезагрузке, до входа в систему.",
+                Loc.T("Запустить диагностику памяти?"),
+                Loc.T("Откроется средство проверки памяти Windows. Сам тест выполняется при перезагрузке, до входа в систему."),
                 [
-                    "В окне Windows выберите: «Выполнить перезагрузку и проверку» или «Выполнить проверку при следующем включении»",
-                    "Перед перезагрузкой сохраните открытые документы",
-                    "Стандартный тест занимает 15–60 минут в зависимости от объёма ОЗУ",
-                    "Результат: «Просмотр событий» → журнал «Система» → источник MemoryDiagnostics-Results",
+                    Loc.T("В окне Windows выберите: «Выполнить перезагрузку и проверку» или «Выполнить проверку при следующем включении»"),
+                    Loc.T("Перед перезагрузкой сохраните открытые документы"),
+                    Loc.T("Стандартный тест занимает 15–60 минут в зависимости от объёма ОЗУ"),
+                    Loc.T("Результат: «Просмотр событий» → журнал «Система» → источник MemoryDiagnostics-Results"),
                 ],
-                confirmText: "ОТКРЫТЬ"))
+                confirmText: Loc.T("ОТКРЫТЬ")))
             return;
 
         var exe = ProcessRunner.Sys("MdSched.exe");
         if (!File.Exists(exe))
         {
-            Ui.Toast("Средство проверки памяти Windows (MdSched.exe) не найдено.", ToastKind.Error);
+            Ui.Toast(Loc.T("Средство проверки памяти Windows (MdSched.exe) не найдено."), ToastKind.Error);
             return;
         }
-        if (ShellLauncher.Open(exe, displayName: "Диагностика памяти Windows"))
+        if (ShellLauncher.Open(exe, displayName: Loc.T("Диагностика памяти Windows")))
         {
-            Emit("Открыто средство проверки памяти Windows — выберите вариант перезагрузки в его окне.", ConsoleLineKind.Info);
-            Ui.Toast("Выберите вариант перезагрузки в окне «Средство проверки памяти Windows».", ToastKind.Info);
+            Emit(Loc.T("Открыто средство проверки памяти Windows — выберите вариант перезагрузки в его окне."), ConsoleLineKind.Info);
+            Ui.Toast(Loc.T("Выберите вариант перезагрузки в окне «Средство проверки памяти Windows»."), ToastKind.Info);
         }
     }
 
     // ═════════════════════════════ DPC/ISR latency (read-only) ═════════════════════════════
 
     internal static readonly TimeSpan DpcDuration = TimeSpan.FromSeconds(60);
-    internal const string DpcCommandText = "ETW PerfInfo: DPC + ISR · 60 с";
-    internal const string DpcCardTitle = "ЗАДЕРЖКИ ДРАЙВЕРОВ (DPC/ISR)";
+    internal static string DpcCommandText => Loc.T("ETW PerfInfo: DPC + ISR · 60 с");
+    internal static string DpcCardTitle => Loc.T("ЗАДЕРЖКИ ДРАЙВЕРОВ (DPC/ISR)");
 
     /// <summary>
     /// 60-second private ETW kernel session (EtwSession): DPC/ISR durations per driver module. Read-only, admin only,
@@ -693,30 +692,30 @@ public sealed partial class ToolsViewModel : PageViewModel
     /// </summary>
     private async Task RunDpcLatencyAsync()
     {
-        if (!CanStartNow(OperationClass.Measure, "Измерение задержек драйверов", quiet: true)) return;
+        if (!CanStartNow(OperationClass.Measure, Loc.T("Измерение задержек драйверов"), quiet: true)) return;
         if (GameBoostState.IsActive)
         {
-            Ui.Toast("Дождитесь окончания игрового сеанса — измерение задержек драйверов во время игры не запускается.", ToastKind.Warning);
+            Ui.Toast(Loc.T("Дождитесь окончания игрового сеанса — измерение задержек драйверов во время игры не запускается."), ToastKind.Warning);
             return;
         }
         if (!EtwSession.IsSupported)
         {
-            Ui.Toast("Измерение доступно начиная с Windows 8.", ToastKind.Warning);
+            Ui.Toast(Loc.T("Измерение доступно начиная с Windows 8."), ToastKind.Warning);
             return;
         }
         if (!await Ui.ConfirmAsync(
-                "Измерить задержки драйверов?",
-                "60 секунд обычной работы: можно открыть браузер или видео, но не игру. MONOLITH откроет собственный сеанс трассировки ядра и посчитает, сколько времени каждый драйвер проводит в прерываниях (ISR) и отложенных вызовах (DPC).",
+                Loc.T("Измерить задержки драйверов?"),
+                Loc.T("60 секунд обычной работы: можно открыть браузер или видео, но не игру. MONOLITH откроет собственный сеанс трассировки ядра и посчитает, сколько времени каждый драйвер проводит в прерываниях (ISR) и отложенных вызовах (DPC)."),
                 [
-                    "Длительность: ровно 60 секунд, можно прервать",
-                    "Ничего не меняет: трассировка только читает события ядра, файл не записывается",
-                    "Нагрузка небольшая, но не нулевая — не запускайте игры и тесты производительности во время измерения",
-                    "Результат: таблица драйверов с самыми долгими вызовами и подсказка, куда смотреть дальше",
+                    Loc.T("Длительность: ровно 60 секунд, можно прервать"),
+                    Loc.T("Ничего не меняет: трассировка только читает события ядра, файл не записывается"),
+                    Loc.T("Нагрузка небольшая, но не нулевая — не запускайте игры и тесты производительности во время измерения"),
+                    Loc.T("Результат: таблица драйверов с самыми долгими вызовами и подсказка, куда смотреть дальше"),
                 ],
-                confirmText: "ИЗМЕРИТЬ", footnote: "Пороги (500 и 1000 мкс) — практика сообщества LatencyMon, не стандарт Microsoft."))
+                confirmText: Loc.T("ИЗМЕРИТЬ"), footnote: Loc.T("Пороги (500 и 1000 мкс) — практика сообщества LatencyMon, не стандарт Microsoft.")))
             return;
 
-        await ExecuteQuietAsync(DpcCardTitle, DpcCommandText, cancellable: true, "Измерение задержек драйверов…", async ct =>
+        await ExecuteQuietAsync(DpcCardTitle, DpcCommandText, cancellable: true, Loc.T("Измерение задержек драйверов…"), async ct =>
         {
             try
             {
@@ -729,30 +728,30 @@ public sealed partial class ToolsViewModel : PageViewModel
         });
     }
 
-    internal const string DpcCancelledText = "Измерение отменено — ничего не изменено, сеанс трассировки остановлен.";
-    internal const string DpcGameStoppedText =
-        "Измерение остановлено: начался игровой сеанс. Ничего не изменено; неполные данные не оцениваются — повторите после игры.";
+    internal static string DpcCancelledText => Loc.T("Измерение отменено — ничего не изменено, сеанс трассировки остановлен.");
+    internal static string DpcGameStoppedText =>
+        Loc.T("Измерение остановлено: начался игровой сеанс. Ничего не изменено; неполные данные не оцениваются — повторите после игры.");
 
     private async Task<ToolOutcome> MeasureDpcAsync(CancellationToken ct)
     {
         var modules = await Task.Run(KernelModules.Load, ct);
-        Emit($"Модулей ядра: {modules.Modules.Count}{(modules.DebugPrivilege ? "" : " (без SeDebugPrivilege)")}.", ConsoleLineKind.Info);
+        Emit(modules.DebugPrivilege ? Loc.Tf("Модулей ядра: {0}.", modules.Modules.Count) : Loc.Tf("Модулей ядра: {0} (без SeDebugPrivilege).", modules.Modules.Count), ConsoleLineKind.Info);
         if (modules.Note is not null) Emit(modules.Note, ConsoleLineKind.Info);
 
         var aggregator = new DpcAggregator(new ModuleMap(modules.Modules));
         var result = await Task.Run(() =>
         {
             var stale = EtwSession.StopStaleSessions();
-            if (stale > 0) _pending.Enqueue($"Остановлено незавершённых сеансов MONOLITH: {stale}.");
+            if (stale > 0) _pending.Enqueue(Loc.Tf("Остановлено незавершённых сеансов MONOLITH: {0}.", stale));
             return EtwSession.Run(DpcDuration, aggregator.Add,
-                percent => _pending.Enqueue($"Измерение {percent}% завершено."), ct);
+                percent => _pending.Enqueue(Loc.Tf("Измерение {0}% завершено.", percent)), ct);
         }, ct);
 
-        if (!result.Started) return ToolOutcome.Fail("Измерение не запущено: " + result.Error);
+        if (!result.Started) return ToolOutcome.Fail(Loc.Tf("Измерение не запущено: {0}", result.Error));
         if (result.StoppedForGame) return ToolOutcome.Cancel(DpcGameStoppedText);
         if (result.Cancelled) return ToolOutcome.Cancel(DpcCancelledText);
         if (result.EventsLost > 0 || result.BuffersLost > 0)
-            Emit($"Потеряно событий: {result.EventsLost}, буферов: {result.BuffersLost} — результат может быть неполным.", ConsoleLineKind.Info);
+            Emit(Loc.Tf("Потеряно событий: {0}, буферов: {1} — результат может быть неполным.", result.EventsLost, result.BuffersLost), ConsoleLineKind.Info);
         if (result.Error is not null) Emit(result.Error, ConsoleLineKind.Info);
 
         Emit("", ConsoleLineKind.Output);
@@ -793,7 +792,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         if (IsRunning) return;
         if (kind == OperationClass.SystemRepair && GameBoostState.IsActive)
         {
-            OperationNote = "Идёт игровой сеанс — инструменты ремонта и дисков запустятся после его остановки, чтобы не мешать игре.";
+            OperationNote = Loc.T("Идёт игровой сеанс — инструменты ремонта и дисков запустятся после его остановки, чтобы не мешать игре.");
             Ui.Toast(OperationNote, ToastKind.Warning, title);
             return;
         }
@@ -803,7 +802,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         CancelRequested = false;
         RunTitle = title;
         RunCommandText = command;
-        RunState = "ВЫПОЛНЯЕТСЯ";
+        RunState = Loc.Key("ВЫПОЛНЯЕТСЯ");
         HasResult = false;
         ResultText = null;
         ResetProgress();
@@ -842,7 +841,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             if (!started)
             {
                 // Refused or taken out of the queue: RunBusyAsync already told the user why (OperationNote + toast).
-                outcome = ToolOutcome.Cancel(OperationNote ?? "Не запущено: другая задача ещё выполняется.");
+                outcome = ToolOutcome.Cancel(OperationNote ?? Loc.T("Не запущено: другая задача ещё выполняется."));
             }
             else if (error is not null)
             {
@@ -851,13 +850,13 @@ public sealed partial class ToolsViewModel : PageViewModel
             }
             else if (outcome is null && !token.IsCancellationRequested)
             {
-                outcome = ToolOutcome.Fail("Операция не выполнена — подробности в журнале.");
+                outcome = ToolOutcome.Fail(Loc.T("Операция не выполнена — подробности в журнале."));
             }
         }
         finally
         {
             FlushPending();
-            outcome ??= ToolOutcome.Cancel("Операция отменена. Изменения, которые инструмент успел сделать, сохраняются — это безопасно.");
+            outcome ??= ToolOutcome.Cancel(Loc.T("Операция отменена. Изменения, которые инструмент успел сделать, сохраняются — это безопасно."));
             Finish(outcome);
             _clockTimer.Stop();
             _flushTimer.Stop();
@@ -917,7 +916,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             Timeout = timeout,
             OnOutput = line => _pending.Enqueue(line),
         }, ct);
-        if (r.TimedOut) _pending.Enqueue("Превышено время ожидания — процесс остановлен.");
+        if (r.TimedOut) _pending.Enqueue(Loc.T("Превышено время ожидания — процесс остановлен."));
         if (r.ExitCode == -1 && !r.Cancelled && !r.TimedOut && r.StdOut.Length == 0 && r.StdErr.Length > 0)
             _pending.Enqueue(r.StdErr.Trim());
         return r;
@@ -976,8 +975,8 @@ public sealed partial class ToolsViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"Буфер обмена недоступен: {ex.Message}");
-            Ui.Toast("Буфер обмена занят другой программой — попробуйте ещё раз.", ToastKind.Warning);
+            Log.Warn("Буфер обмена недоступен: {0}", ex.Message);
+            Ui.Toast(Loc.T("Буфер обмена занят другой программой — попробуйте ещё раз."), ToastKind.Warning);
         }
     }
 
@@ -991,16 +990,16 @@ public sealed partial class ToolsViewModel : PageViewModel
         var chkdskCommandText = string.Format(ChkdskOfflineCommand, systemDrive);
         var defragActions = new List<ToolCardAction>
         {
-            new() { Op = ToolOp.DefragAll, Label = "ВСЕ ДИСКИ", IsPrimary = true, RequiresAdmin = true },
+            new() { Op = ToolOp.DefragAll, Label = Loc.T("ВСЕ ДИСКИ"), IsPrimary = true, RequiresAdmin = true },
         };
         defragActions.AddRange(volumes.Select(DefragAction));
 
         // Power reports: battery only with a battery, SleepStudy only on Modern Standby (elsewhere the report is empty).
         var reports = new List<ToolCardAction>();
-        if (hasBattery) reports.Add(new ToolCardAction { Op = ToolOp.BatteryReport, Label = "БАТАРЕЯ" });
-        reports.Add(new ToolCardAction { Op = ToolOp.EnergyReport, Label = "ЭНЕРГИЯ, 60 С", IsPrimary = true, RequiresAdmin = true });
+        if (hasBattery) reports.Add(new ToolCardAction { Op = ToolOp.BatteryReport, Label = Loc.T("БАТАРЕЯ") });
+        reports.Add(new ToolCardAction { Op = ToolOp.EnergyReport, Label = Loc.T("ЭНЕРГИЯ, 60 С"), IsPrimary = true, RequiresAdmin = true });
         if (modernStandby) reports.Add(new ToolCardAction { Op = ToolOp.SleepStudyReport, Label = "SLEEPSTUDY", RequiresAdmin = true });
-        reports.Add(new ToolCardAction { Op = ToolOp.SystemSleepDiagnostics, Label = "ДИАГНОСТИКА СНА", RequiresAdmin = true });
+        reports.Add(new ToolCardAction { Op = ToolOp.SystemSleepDiagnostics, Label = Loc.T("ДИАГНОСТИКА СНА"), RequiresAdmin = true });
         var reportCommands = new List<string>();
         if (hasBattery) reportCommands.Add("/batteryreport");
         reportCommands.Add("/energy");
@@ -1012,21 +1011,21 @@ public sealed partial class ToolsViewModel : PageViewModel
             new ToolCard
             {
                 Glyph = Glyphs.Power,
-                Title = "СОН И ПРОБУЖДЕНИЕ",
+                Title = Loc.T("СОН И ПРОБУЖДЕНИЕ"),
                 Command = SleepWakeCommandText,
-                Description = "Отвечает на три вопроса средствами самой Windows: почему ПК проснулся последним (lastwake), какие таймеры и программы будят его или не дают уснуть (waketimers, requests), каким устройствам разрешено будить ПК (devicequery wake_armed) и какие состояния сна доступны.",
+                Description = Loc.T("Отвечает на три вопроса средствами самой Windows: почему ПК проснулся последним (lastwake), какие таймеры и программы будят его или не дают уснуть (waketimers, requests), каким устройствам разрешено будить ПК (devicequery wake_armed) и какие состояния сна доступны."),
                 Note = SleepWakeNote(),
-                Duration = "~3 С",
-                Actions = [new ToolCardAction { Op = ToolOp.SleepWakeDiagnostics, Label = "ПРОВЕРИТЬ", IsPrimary = true }],
+                Duration = Loc.T("~3 С"),
+                Actions = [new ToolCardAction { Op = ToolOp.SleepWakeDiagnostics, Label = Loc.T("ПРОВЕРИТЬ"), IsPrimary = true }],
             },
             new ToolCard
             {
                 Glyph = ToolGlyphs.Battery,
-                Title = "ОТЧЁТЫ О ПИТАНИИ И СНЕ",
+                Title = Loc.T("ОТЧЁТЫ О ПИТАНИИ И СНЕ"),
                 Command = "powercfg " + string.Join(" · ", reportCommands),
-                Description = "HTML-отчёты Windows: батарея (износ, циклы, прогноз), энергоэффективность (/energy — 60 секунд наблюдения: кто мешает простою и USB-сну, кто запрашивает повышенное разрешение таймера, нагрузка в простое), для Modern Standby — расход в режиме ожидания за 3 дня (/sleepstudy), а также диагностика переходов в сон (/systemsleepdiagnostics).",
-                Note = "Отчёт энергоэффективности снимается при простое: закройте программы и не трогайте ПК 60 секунд; во время игрового сеанса он не запускается. Отчёты сохраняются в папку журналов MONOLITH и открываются в браузере без прав администратора. Ничего не меняет.",
-                Duration = "5 С – 1 МИН",
+                Description = Loc.T("HTML-отчёты Windows: батарея (износ, циклы, прогноз), энергоэффективность (/energy — 60 секунд наблюдения: кто мешает простою и USB-сну, кто запрашивает повышенное разрешение таймера, нагрузка в простое), для Modern Standby — расход в режиме ожидания за 3 дня (/sleepstudy), а также диагностика переходов в сон (/systemsleepdiagnostics)."),
+                Note = Loc.T("Отчёт энергоэффективности снимается при простое: закройте программы и не трогайте ПК 60 секунд; во время игрового сеанса он не запускается. Отчёты сохраняются в папку журналов MONOLITH и открываются в браузере без прав администратора. Ничего не меняет."),
+                Duration = Loc.T("5 С – 1 МИН"),
                 RequiresAdmin = true,
                 Actions = reports,
             },
@@ -1034,95 +1033,95 @@ public sealed partial class ToolsViewModel : PageViewModel
         diagnostics.Add(new ToolCard
         {
             Glyph = Glyphs.Memory,
-            Title = "ДИАГНОСТИКА ПАМЯТИ",
+            Title = Loc.T("ДИАГНОСТИКА ПАМЯТИ"),
             Command = "mdsched.exe",
-            Description = "Средство проверки памяти Windows тестирует ОЗУ при перезагрузке, до запуска системы. Нужно при синих экранах, случайных вылетах игр и после включения XMP/EXPO или разгона памяти.",
-            Note = "Откроется окно Windows с выбором: перезагрузить сейчас или проверить при следующем включении. Результат — в «Просмотре событий» (журнал «Система», источник MemoryDiagnostics-Results).",
-            Duration = "15–60 МИН",
+            Description = Loc.T("Средство проверки памяти Windows тестирует ОЗУ при перезагрузке, до запуска системы. Нужно при синих экранах, случайных вылетах игр и после включения XMP/EXPO или разгона памяти."),
+            Note = Loc.T("Откроется окно Windows с выбором: перезагрузить сейчас или проверить при следующем включении. Результат — в «Просмотре событий» (журнал «Система», источник MemoryDiagnostics-Results)."),
+            Duration = Loc.T("15–60 МИН"),
             RequiresAdmin = true,
             NeedsReboot = true,
-            Actions = [new ToolCardAction { Op = ToolOp.MemoryDiagnostic, Label = "ОТКРЫТЬ", IsPrimary = true, RequiresAdmin = true }],
+            Actions = [new ToolCardAction { Op = ToolOp.MemoryDiagnostic, Label = Loc.T("ОТКРЫТЬ"), IsPrimary = true, RequiresAdmin = true }],
         });
         diagnostics.Add(new ToolCard
         {
             Glyph = Glyphs.Diagnostic,
             Title = DpcCardTitle,
             Command = DpcCommandText,
-            Description = "60 секунд измеряет, сколько времени драйверы проводят в прерываниях (ISR) и отложенных вызовах (DPC). Один драйвер с долгими DPC — частая причина треска звука, рывков ввода и периодических микрофризов. Это измерение вместо гаданий и «твиков».",
-            Note = "Измерение почти не нагружает систему, но не бесплатно: во время теста не играйте. Следующий шаг при высоких значениях — обновить этот драйвер в разделе «Драйверы»; исправление не гарантируется. Ничего не меняет.",
-            Duration = "60 С",
+            Description = Loc.T("60 секунд измеряет, сколько времени драйверы проводят в прерываниях (ISR) и отложенных вызовах (DPC). Один драйвер с долгими DPC — частая причина треска звука, рывков ввода и периодических микрофризов. Это измерение вместо гаданий и «твиков»."),
+            Note = Loc.T("Измерение почти не нагружает систему, но не бесплатно: во время теста не играйте. Следующий шаг при высоких значениях — обновить этот драйвер в разделе «Драйверы»; исправление не гарантируется. Ничего не меняет."),
+            Duration = Loc.T("60 С"),
             RequiresAdmin = true,
-            Actions = [new ToolCardAction { Op = ToolOp.DpcLatencyTest, Label = "ИЗМЕРИТЬ", IsPrimary = true, RequiresAdmin = true }],
+            Actions = [new ToolCardAction { Op = ToolOp.DpcLatencyTest, Label = Loc.T("ИЗМЕРИТЬ"), IsPrimary = true, RequiresAdmin = true }],
         });
 
         return
         [
             new ToolSection
             {
-                Title = "ЦЕЛОСТНОСТЬ WINDOWS",
-                Caption = "Порядок важен: сначала DISM восстанавливает хранилище компонентов, затем SFC берёт из него исправные копии системных файлов.",
+                Title = Loc.T("ЦЕЛОСТНОСТЬ WINDOWS"),
+                Caption = Loc.T("Порядок важен: сначала DISM восстанавливает хранилище компонентов, затем SFC берёт из него исправные копии системных файлов."),
                 Cards =
                 [
                     new ToolCard
                     {
                         Glyph = Glyphs.Repair,
-                        Title = "ВОССТАНОВЛЕНИЕ ОБРАЗА WINDOWS",
+                        Title = Loc.T("ВОССТАНОВЛЕНИЕ ОБРАЗА WINDOWS"),
                         Command = "DISM /Online /Cleanup-Image",
-                        Description = "Проверяет хранилище компонентов — эталон, из которого Windows восстанавливает свои файлы. «Проверить» читает флаг повреждения за секунды, «Сканировать» проверяет хранилище целиком, «Восстановить» заменяет повреждённые компоненты исправными из Центра обновления Windows.",
-                        Note = "Шаг 1 из 2. Если проверка нашла повреждения — «Восстановить», затем «Проверка системных файлов». Личные файлы и программы не затрагиваются. Восстановление нельзя прерывать.",
-                        Duration = "1–30 МИН",
+                        Description = Loc.T("Проверяет хранилище компонентов — эталон, из которого Windows восстанавливает свои файлы. «Проверить» читает флаг повреждения за секунды, «Сканировать» проверяет хранилище целиком, «Восстановить» заменяет повреждённые компоненты исправными из Центра обновления Windows."),
+                        Note = Loc.T("Шаг 1 из 2. Если проверка нашла повреждения — «Восстановить», затем «Проверка системных файлов». Личные файлы и программы не затрагиваются. Восстановление нельзя прерывать."),
+                        Duration = Loc.T("1–30 МИН"),
                         RequiresAdmin = true,
                         Actions =
                         [
-                            new ToolCardAction { Op = ToolOp.DismCheck, Label = "ПРОВЕРИТЬ", RequiresAdmin = true },
-                            new ToolCardAction { Op = ToolOp.DismScan, Label = "СКАНИРОВАТЬ", RequiresAdmin = true },
-                            new ToolCardAction { Op = ToolOp.DismRestore, Label = "ВОССТАНОВИТЬ", IsPrimary = true, RequiresAdmin = true },
+                            new ToolCardAction { Op = ToolOp.DismCheck, Label = Loc.T("ПРОВЕРИТЬ"), RequiresAdmin = true },
+                            new ToolCardAction { Op = ToolOp.DismScan, Label = Loc.T("СКАНИРОВАТЬ"), RequiresAdmin = true },
+                            new ToolCardAction { Op = ToolOp.DismRestore, Label = Loc.T("ВОССТАНОВИТЬ"), IsPrimary = true, RequiresAdmin = true },
                         ],
                     },
                     new ToolCard
                     {
                         Glyph = Glyphs.Shield,
-                        Title = "ПРОВЕРКА СИСТЕМНЫХ ФАЙЛОВ",
+                        Title = Loc.T("ПРОВЕРКА СИСТЕМНЫХ ФАЙЛОВ"),
                         Command = "sfc /scannow",
-                        Description = "Сверяет все защищённые системные файлы Windows с эталонными копиями и заменяет повреждённые. Помогает при сбоях встроенных программ, ошибках «файл повреждён» и после неудачных обновлений.",
-                        Note = "Шаг 2 из 2 — запускайте после «Восстановления образа». Прерывать нельзя. Откатывать нечего: возвращаются только оригинальные файлы Microsoft. Журнал: %WINDIR%\\Logs\\CBS\\CBS.log.",
-                        Duration = "5–20 МИН",
+                        Description = Loc.T("Сверяет все защищённые системные файлы Windows с эталонными копиями и заменяет повреждённые. Помогает при сбоях встроенных программ, ошибках «файл повреждён» и после неудачных обновлений."),
+                        Note = Loc.T("Шаг 2 из 2 — запускайте после «Восстановления образа». Прерывать нельзя. Откатывать нечего: возвращаются только оригинальные файлы Microsoft. Журнал: %WINDIR%\\Logs\\CBS\\CBS.log."),
+                        Duration = Loc.T("5–20 МИН"),
                         RequiresAdmin = true,
-                        Actions = [new ToolCardAction { Op = ToolOp.Sfc, Label = "ЗАПУСТИТЬ", IsPrimary = true, RequiresAdmin = true }],
+                        Actions = [new ToolCardAction { Op = ToolOp.Sfc, Label = Loc.T("ЗАПУСТИТЬ"), IsPrimary = true, RequiresAdmin = true }],
                     },
                 ],
             },
             new ToolSection
             {
-                Title = "ДИСКИ",
-                Caption = "Проверка файловой системы и оптимизация накопителей — теми же средствами, что использует сама Windows.",
+                Title = Loc.T("ДИСКИ"),
+                Caption = Loc.T("Проверка файловой системы и оптимизация накопителей — теми же средствами, что использует сама Windows."),
                 Cards =
                 [
                     new ToolCard
                     {
                         Glyph = ToolGlyphs.HardDrive,
-                        Title = "ПРОВЕРКА ДИСКА",
+                        Title = Loc.T("ПРОВЕРКА ДИСКА"),
                         Command = $"chkdsk {systemDrive} /scan",
-                        Description = $"Онлайн-проверка файловой системы диска {systemDrive} без перезагрузки — диск остаётся доступным. Покажет, есть ли ошибки, которые требуют полной проверки при загрузке.",
-                        Note = $"Полную проверку с исправлением MONOLITH не планирует. Если она нужна: откройте «Терминал (администратор)», выполните «{chkdskCommandText}», ответьте Y и перезагрузитесь — Windows проверит диск до входа в систему.",
-                        Duration = "1–10 МИН",
+                        Description = Loc.Tf("Онлайн-проверка файловой системы диска {0} без перезагрузки — диск остаётся доступным. Покажет, есть ли ошибки, которые требуют полной проверки при загрузке.", systemDrive),
+                        Note = Loc.Tf("Полную проверку с исправлением MONOLITH не планирует. Если она нужна: откройте «Терминал (администратор)», выполните «{0}», ответьте Y и перезагрузитесь — Windows проверит диск до входа в систему.", chkdskCommandText),
+                        Duration = Loc.T("1–10 МИН"),
                         RequiresAdmin = true,
                         Actions =
                         [
-                            new ToolCardAction { Op = ToolOp.ChkdskScan, Label = "ПРОВЕРИТЬ", IsPrimary = true, RequiresAdmin = true },
-                            new ToolCardAction { Op = ToolOp.ChkntfsQuery, Label = "СОСТОЯНИЕ", RequiresAdmin = true },
-                            new ToolCardAction { Op = ToolOp.CopyChkdskCommand, Label = "КОПИРОВАТЬ КОМАНДУ" },
+                            new ToolCardAction { Op = ToolOp.ChkdskScan, Label = Loc.T("ПРОВЕРИТЬ"), IsPrimary = true, RequiresAdmin = true },
+                            new ToolCardAction { Op = ToolOp.ChkntfsQuery, Label = Loc.T("СОСТОЯНИЕ"), RequiresAdmin = true },
+                            new ToolCardAction { Op = ToolOp.CopyChkdskCommand, Label = Loc.T("КОПИРОВАТЬ КОМАНДУ") },
                         ],
                         Extra = ToolExtra.BootCheck,
                     },
                     new ToolCard
                     {
                         Glyph = ToolGlyphs.Speed,
-                        Title = "ОПТИМИЗАЦИЯ ДИСКОВ",
-                        Command = "defrag <диск>: /O /U /V",
-                        Description = "Windows сама выбирает правильную операцию: для SSD — TRIM (сообщает накопителю, какие блоки свободны), для HDD — дефрагментацию. То же самое раз в неделю делает плановая задача «Оптимизация дисков».",
-                        Note = "SSD не дефрагментируется — ключ /O это исключает. Операцию можно прервать в любой момент без вреда для данных.",
-                        Duration = "SSD < 1 МИН · HDD ДО 1 Ч",
+                        Title = Loc.T("ОПТИМИЗАЦИЯ ДИСКОВ"),
+                        Command = Loc.T("defrag <диск>: /O /U /V"),
+                        Description = Loc.T("Windows сама выбирает правильную операцию: для SSD — TRIM (сообщает накопителю, какие блоки свободны), для HDD — дефрагментацию. То же самое раз в неделю делает плановая задача «Оптимизация дисков»."),
+                        Note = Loc.T("SSD не дефрагментируется — ключ /O это исключает. Операцию можно прервать в любой момент без вреда для данных."),
+                        Duration = Loc.T("SSD < 1 МИН · HDD ДО 1 Ч"),
                         RequiresAdmin = true,
                         Actions = defragActions,
                     },
@@ -1130,67 +1129,67 @@ public sealed partial class ToolsViewModel : PageViewModel
             },
             new ToolSection
             {
-                Title = "СЕТЬ",
-                Caption = "От безопасного к радикальному: начните со сброса DNS-кэша, полный сброс — только если сеть не работает.",
+                Title = Loc.T("СЕТЬ"),
+                Caption = Loc.T("От безопасного к радикальному: начните со сброса DNS-кэша, полный сброс — только если сеть не работает."),
                 Cards =
                 [
                     new ToolCard
                     {
                         Glyph = Glyphs.Globe,
-                        Title = "СБРОС DNS-КЭША",
+                        Title = Loc.T("СБРОС DNS-КЭША"),
                         Command = "ipconfig /flushdns",
-                        Description = "Очищает локальный кэш DNS-имён. Помогает, когда сайт сменил адрес, а компьютер продолжает обращаться к старому, или после смены DNS-сервера.",
-                        Note = "Безопасно: кэш заполняется заново при следующих обращениях к сайтам.",
-                        Duration = "МГНОВЕННО",
-                        Actions = [new ToolCardAction { Op = ToolOp.FlushDns, Label = "ОЧИСТИТЬ", IsPrimary = true }],
+                        Description = Loc.T("Очищает локальный кэш DNS-имён. Помогает, когда сайт сменил адрес, а компьютер продолжает обращаться к старому, или после смены DNS-сервера."),
+                        Note = Loc.T("Безопасно: кэш заполняется заново при следующих обращениях к сайтам."),
+                        Duration = Loc.T("МГНОВЕННО"),
+                        Actions = [new ToolCardAction { Op = ToolOp.FlushDns, Label = Loc.T("ОЧИСТИТЬ"), IsPrimary = true }],
                     },
                     new ToolCard
                     {
                         Glyph = Glyphs.Network,
-                        Title = "СБРОС СЕТЕВЫХ НАСТРОЕК",
+                        Title = Loc.T("СБРОС СЕТЕВЫХ НАСТРОЕК"),
                         Command = "netsh winsock reset · netsh int ip reset",
-                        Description = "Возвращает каталог Winsock и стек TCP/IP к состоянию чистой установки. Крайняя мера при «подключено, без доступа к интернету», ошибках сокетов и после удаления VPN или антивирусов, сломавших сеть.",
-                        Note = "Сбрасывает вручную заданные IP-адреса, шлюзы и DNS; VPN и сетевые фильтры может понадобиться переустановить. Перед сбросом создаётся точка восстановления — вернуть прежнее состояние можно только через неё.",
-                        Duration = "< 1 МИН",
+                        Description = Loc.T("Возвращает каталог Winsock и стек TCP/IP к состоянию чистой установки. Крайняя мера при «подключено, без доступа к интернету», ошибках сокетов и после удаления VPN или антивирусов, сломавших сеть."),
+                        Note = Loc.T("Сбрасывает вручную заданные IP-адреса, шлюзы и DNS; VPN и сетевые фильтры может понадобиться переустановить. Перед сбросом создаётся точка восстановления — вернуть прежнее состояние можно только через неё."),
+                        Duration = Loc.T("< 1 МИН"),
                         RequiresAdmin = true,
                         NeedsReboot = true,
                         IsDanger = true,
-                        Actions = [new ToolCardAction { Op = ToolOp.NetworkReset, Label = "СБРОСИТЬ", RequiresAdmin = true, IsDanger = true }],
+                        Actions = [new ToolCardAction { Op = ToolOp.NetworkReset, Label = Loc.T("СБРОСИТЬ"), RequiresAdmin = true, IsDanger = true }],
                     },
                 ],
             },
             new ToolSection
             {
-                Title = "КЭШИ",
-                Caption = "Точечное лечение частых неполадок интерфейса без удаления данных.",
+                Title = Loc.T("КЭШИ"),
+                Caption = Loc.T("Точечное лечение частых неполадок интерфейса без удаления данных."),
                 Cards =
                 [
                     new ToolCard
                     {
                         Glyph = ToolGlyphs.Store,
-                        Title = "СБРОС КЭША MICROSOFT STORE",
+                        Title = Loc.T("СБРОС КЭША MICROSOFT STORE"),
                         Command = "wsreset.exe",
-                        Description = "Очищает кэш Microsoft Store. Приложения, покупки и вход в учётную запись сохраняются. Помогает, когда Store не открывается, не скачивает или зависает на загрузке.",
-                        Note = "После сброса Store откроется сам.",
-                        Duration = "~10 С",
-                        Actions = [new ToolCardAction { Op = ToolOp.StoreReset, Label = "СБРОСИТЬ", IsPrimary = true }],
+                        Description = Loc.T("Очищает кэш Microsoft Store. Приложения, покупки и вход в учётную запись сохраняются. Помогает, когда Store не открывается, не скачивает или зависает на загрузке."),
+                        Note = Loc.T("После сброса Store откроется сам."),
+                        Duration = Loc.T("~10 С"),
+                        Actions = [new ToolCardAction { Op = ToolOp.StoreReset, Label = Loc.T("СБРОСИТЬ"), IsPrimary = true }],
                     },
                     new ToolCard
                     {
                         Glyph = ToolGlyphs.Picture,
-                        Title = "ПЕРЕСОЗДАНИЕ КЭША ЗНАЧКОВ",
+                        Title = Loc.T("ПЕРЕСОЗДАНИЕ КЭША ЗНАЧКОВ"),
                         Command = "ie4uinit.exe -show",
-                        Description = "Заставляет Проводник обновить кэш значков. Помогает, когда у файлов и ярлыков пустые, белые или чужие значки.",
-                        Note = "Безопасный способ: файлы кэша не удаляются, Проводник не перезапускается.",
-                        Duration = "МГНОВЕННО",
-                        Actions = [new ToolCardAction { Op = ToolOp.IconCache, Label = "ОБНОВИТЬ", IsPrimary = true }],
+                        Description = Loc.T("Заставляет Проводник обновить кэш значков. Помогает, когда у файлов и ярлыков пустые, белые или чужие значки."),
+                        Note = Loc.T("Безопасный способ: файлы кэша не удаляются, Проводник не перезапускается."),
+                        Duration = Loc.T("МГНОВЕННО"),
+                        Actions = [new ToolCardAction { Op = ToolOp.IconCache, Label = Loc.T("ОБНОВИТЬ"), IsPrimary = true }],
                     },
                 ],
             },
             new ToolSection
             {
-                Title = "ДИАГНОСТИКА",
-                Caption = "Встроенные средства Windows для поиска проблем со сном, питанием и оборудованием.",
+                Title = Loc.T("ДИАГНОСТИКА"),
+                Caption = Loc.T("Встроенные средства Windows для поиска проблем со сном, питанием и оборудованием."),
                 Cards = diagnostics,
             },
         ];
@@ -1212,10 +1211,10 @@ public sealed partial class ToolsViewModel : PageViewModel
     /// </summary>
     internal static IReadOnlyList<QuickLink> BuildQuickLinks() =>
         [
-            new QuickLink { Glyph = ToolGlyphs.HardDrive, Title = "УПРАВЛЕНИЕ ДИСКАМИ", Command = "diskmgmt.msc", Target = ProcessRunner.Sys("diskmgmt.msc") },
-            new QuickLink { Glyph = ToolGlyphs.List, Title = "ПРОСМОТР СОБЫТИЙ", Command = "eventvwr.msc", Target = ProcessRunner.Sys("eventvwr.msc") },
-            new QuickLink { Glyph = Glyphs.Chart, Title = "МОНИТОР РЕСУРСОВ", Command = "resmon.exe", Target = ProcessRunner.Sys("resmon.exe") },
-            new QuickLink { Glyph = Glyphs.Processing, Title = "ДИСПЕТЧЕР ЗАДАЧ", Command = "taskmgr.exe", Target = ProcessRunner.Sys("taskmgr.exe") },
-            new QuickLink { Glyph = Glyphs.Info, Title = "СВЕДЕНИЯ О СИСТЕМЕ", Command = "msinfo32.exe", Target = ProcessRunner.Sys("msinfo32.exe") },
+            new QuickLink { Glyph = ToolGlyphs.HardDrive, Title = Loc.T("УПРАВЛЕНИЕ ДИСКАМИ"), Command = "diskmgmt.msc", Target = ProcessRunner.Sys("diskmgmt.msc") },
+            new QuickLink { Glyph = ToolGlyphs.List, Title = Loc.T("ПРОСМОТР СОБЫТИЙ"), Command = "eventvwr.msc", Target = ProcessRunner.Sys("eventvwr.msc") },
+            new QuickLink { Glyph = Glyphs.Chart, Title = Loc.T("МОНИТОР РЕСУРСОВ"), Command = "resmon.exe", Target = ProcessRunner.Sys("resmon.exe") },
+            new QuickLink { Glyph = Glyphs.Processing, Title = Loc.T("ДИСПЕТЧЕР ЗАДАЧ"), Command = "taskmgr.exe", Target = ProcessRunner.Sys("taskmgr.exe") },
+            new QuickLink { Glyph = Glyphs.Info, Title = Loc.T("СВЕДЕНИЯ О СИСТЕМЕ"), Command = "msinfo32.exe", Target = ProcessRunner.Sys("msinfo32.exe") },
         ];
 }
