@@ -101,7 +101,7 @@
                                    MaxHeight="36" TextTrimming="CharacterEllipsis" ToolTip="{Binding Description}" />
                         <!-- install advice: why (every level except ПО ЖЕЛАНИЮ), one line, full text in the tooltip -->
                         <TextBlock Text="{Binding AdviceReason}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
-                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding AdviceReason}"
+                                   TextWrapping="Wrap" ToolTip="{Binding AdviceReason}"
                                    ToolTipService.ShowDuration="30000"
                                    Visibility="{Binding HasAdviceCaption, Converter={StaticResource BoolToVis}}" />
                         <ItemsControl ItemsSource="{Binding DisplayTags}" ItemTemplate="{StaticResource TagTemplate}" Margin="0,9,0,0" Focusable="False">
