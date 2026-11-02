@@ -75,7 +75,8 @@ public static partial class UnelevatedWinget
             return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, ex.Message);
         }
 
-        Log.Command("winget (без прав администратора) " + string.Join(' ', wingetArgs));
+        var argsText = string.Join(' ', wingetArgs);
+        Log.Write(LogLevel.Command, "winget (без прав администратора) " + argsText, null, Loc.Tf("winget (без прав администратора) {0}", argsText)); // loc:ignore Russian text for the log file, translated for the console
         var started = DateTime.UtcNow;
         if (!await UnelevatedShell.ShellExecuteAsync(ProcessRunner.Sys("cmd.exe"), cmdLine, ProcessRunner.System32, UnelevatedShell.SwHide).ConfigureAwait(false))
             return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, "");

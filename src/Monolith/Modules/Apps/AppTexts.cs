@@ -6,9 +6,9 @@ namespace Monolith.Modules.Apps;
 /// <summary>Plain-language texts of the page (tags, tooltips, confirmation lines) and small pure helpers.</summary>
 public static class AppTexts
 {
-    public const string RemoteAccessWarning =
-        "Программа даёт другому человеку полный доступ к вашему компьютеру. Мошенники часто просят установить её " +
-        "под видом «службы поддержки» или «банка». Ставьте её, только если сами знаете зачем, и никогда — по просьбе незнакомцев.";
+    public static string RemoteAccessWarning =>
+        Loc.T("Программа даёт другому человеку полный доступ к вашему компьютеру. Мошенники часто просят установить её " +
+        "под видом «службы поддержки» или «банка». Ставьте её, только если сами знаете зачем, и никогда — по просьбе незнакомцев.");
 
     /// <summary>Static tags of a card: category, store, then flags from the research (risky ones hatched).</summary>
     public static IReadOnlyList<AppTagInfo> BuildTags(CatalogEntry e)
@@ -65,9 +65,9 @@ public static class AppTexts
         e.WebsiteReason ?? Loc.T("Через winget эта программа сейчас не устанавливается. Надёжнее скачать её с официального сайта.");
 
     /// <summary>Card tag / tooltip for a component that is installed but not as a winget package.</summary>
-    public const string UnmanagedExplanation =
-        "Найдено в системе, но установлено не через winget (например, вместе с .NET SDK, Visual Studio или игрой). " +
-        "winget не может это обновить — обновляется тем, чем было установлено.";
+    public static string UnmanagedExplanation =>
+        Loc.T("Найдено в системе, но установлено не через winget (например, вместе с .NET SDK, Visual Studio или игрой). " +
+        "winget не может это обновить — обновляется тем, чем было установлено.");
 
     public static string ActionToolTip(AppItemViewModel item)
     {
@@ -114,8 +114,8 @@ public static class AppTexts
         return hint;
     }
 
-    public const string WingetVerification = "Установщики скачиваются с серверов разработчиков и проверяются по SHA256 из манифеста winget.";
-    public const string StoreVerification = "Пакеты Microsoft Store скачиваются из Store и проверяются его подписью.";
+    public static string WingetVerification => Loc.T("Установщики скачиваются с серверов разработчиков и проверяются по SHA256 из манифеста winget.");
+    public static string StoreVerification => Loc.T("Пакеты Microsoft Store скачиваются из Store и проверяются его подписью.");
 
     /// <summary>How the packages are verified: the SHA256 claim only for winget-source entries.</summary>
     public static string VerificationText(IEnumerable<CatalogEntry> entries)
@@ -182,11 +182,11 @@ public static class AppTexts
 
     // ─────────────────────────── install advice ───────────────────────────
 
-    public const string OptionalToolTip = "По желанию: этому ПК программа не обязательна — ставьте, если она вам нужна.";
+    public static string OptionalToolTip => Loc.T("По желанию: этому ПК программа не обязательна — ставьте, если она вам нужна.");
 
-    public const string RecommendedTabToolTip =
-        "Что стоит поставить на этот ПК: ещё не установленные программы с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. " +
-        "Совет учитывает видеокарту, версию Windows, подключённую периферию и уже установленные программы.";
+    public static string RecommendedTabToolTip =>
+        Loc.T("Что стоит поставить на этот ПК: ещё не установленные программы с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. " +
+        "Совет учитывает видеокарту, версию Windows, подключённую периферию и уже установленные программы.");
 
     /// <summary>The advice badge: НУЖНО = solid, РЕКОМЕНДУЕТСЯ = outline, the rest muted; tooltip = the reason.</summary>
     public static AppTagInfo AdviceTag(AppAdvice advice)
@@ -222,8 +222,8 @@ public static class AppTexts
         _ => Loc.Tf("{0} из списка MONOLITH сейчас ставить не советует — причины в начале списка. Установить их всё равно можно. ", Packages(discouraged)),
     };
 
-    public const string KitCaption =
-        "Библиотеки, которые нужны этому ПК: Visual C++, DirectX June 2010, .NET и другие с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. Установленное пропускается.";
+    public static string KitCaption =>
+        Loc.T("Библиотеки, которые нужны этому ПК: Visual C++, DirectX June 2010, .NET и другие с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. Установленное пропускается.");
 
     /// <summary>Tooltip of the gamer kit row: what is in it on this PC and which runtimes are deliberately left out.</summary>
     public static string KitToolTip(IEnumerable<CatalogEntry> kit, IEnumerable<CatalogEntry> leftOut)
@@ -253,11 +253,11 @@ public static class AppTexts
     }
 
     public static string Normalize(string? s) =>
-        string.IsNullOrWhiteSpace(s) ? "" : s.Trim().ToLower(CultureInfo.GetCultureInfo("ru-RU")).Replace('ё', 'е');
+        string.IsNullOrWhiteSpace(s) ? "" : s.Trim().ToLowerInvariant().Replace('ё', 'е');
 
     /// <summary>The queue status after winget refused an installer whose hash no longer matches its manifest.</summary>
-    public const string HashMismatchStatus =
-        "ОШИБКА: производитель обновил установщик, а каталог winget ещё нет — установка заблокирована ради безопасности";
+    public static string HashMismatchStatus =>
+        Loc.T("ОШИБКА: производитель обновил установщик, а каталог winget ещё нет — установка заблокирована ради безопасности");
 
     /// <summary>How a finished winget run is shown in the queue.</summary>
     public static (QueueState State, string Text, bool Reboot) DescribeResult(int code, QueueOperation op)
@@ -405,20 +405,8 @@ public static class AppTexts
     ];
 
     /// <summary>"1 программа / 3 программы / 5 программ".</summary>
-    public static string Programs(int n)
-    {
-        var mod100 = n % 100;
-        var mod10 = n % 10;
-        var word = mod100 is >= 11 and <= 14 ? Loc.T("программ") : mod10 switch { 1 => Loc.T("программа"), >= 2 and <= 4 => Loc.T("программы"), _ => Loc.T("программ") };
-        return $"{n} {word}";
-    }
+    public static string Programs(int n) => Loc.N(n, "{0} программа", "{0} программы", "{0} программ");
 
     /// <summary>"1 пакет / 3 пакета / 5 пакетов".</summary>
-    public static string Packages(int n)
-    {
-        var mod100 = n % 100;
-        var mod10 = n % 10;
-        var word = mod100 is >= 11 and <= 14 ? Loc.T("пакетов") : mod10 switch { 1 => Loc.T("пакет"), >= 2 and <= 4 => Loc.T("пакета"), _ => Loc.T("пакетов") };
-        return $"{n} {word}";
-    }
+    public static string Packages(int n) => Loc.N(n, "{0} пакет", "{0} пакета", "{0} пакетов");
 }

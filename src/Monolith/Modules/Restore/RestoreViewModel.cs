@@ -767,7 +767,7 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     private static string KeptSentence(int kept) => kept == 0
         ? ""
-        : Loc.Tf(" {0} {1} позже изменил другой пакет — {2} как есть, а исходное значение перейдёт к тому изменению.", kept, Loc.Plural(kept, "параметр", "параметра", "параметров"), (kept == 1 ? Loc.T("он останется") : Loc.T("они останутся")));
+        : Loc.Tf(" {0} позже изменил другой пакет — {1} как есть, а исходное значение перейдёт к тому изменению.", Loc.N(kept, "{0} параметр", "{0} параметра", "{0} параметров"), (kept == 1 ? Loc.T("он останется") : Loc.T("они останутся")));
 
     /// <summary>
     /// The outcome of a revert. <paramref name="success"/> is shown only when everything in scope was reverted;

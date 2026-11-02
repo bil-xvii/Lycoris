@@ -735,7 +735,7 @@ public sealed partial class AppsViewModel : PageViewModel
         if (lease is null)
         {
             CancelRemaining();
-            AppendLog(Loc.T("Очередь не запущена: ") + (OperationNote ?? Loc.T("задача снята из очереди.")));
+            AppendLog(Loc.Tf("Очередь не запущена: {0}", OperationNote ?? Loc.T("задача снята из очереди.")));
             return;
         }
         using (lease)
@@ -829,9 +829,9 @@ public sealed partial class AppsViewModel : PageViewModel
         else footnote = Loc.T("Перед началом будет создана точка восстановления.");
 
         var danger = plan.Any(p => AppTexts.IsRisky(p.Item.Entry));
-        var confirm = upgradeOnly ? Loc.T("ОБНОВИТЬ") : Loc.T("УСТАНОВИТЬ");
+        var confirm = upgradeOnly ? Loc.Tf("ОБНОВИТЬ{0}", "") : Loc.T("УСТАНОВИТЬ");
         // winget gets --accept-package-agreements / --accept-source-agreements: say so before the user agrees.
-        var license = " " + AppTexts.LicenseText(plan.Select(p => p.Item.Entry), upgradeOnly ? Loc.T("Обновить") : Loc.T("Установить"));
+        var license = " " + AppTexts.LicenseText(plan.Select(p => p.Item.Entry), upgradeOnly ? Loc.Tf("Обновить{0}", "") : Loc.T("Установить"));
         return await Ui.ConfirmAsync(title, AppTexts.AdviceLead(notes.Count) + lead + how + elevation + undo + license, details, confirm, Loc.T("ОТМЕНА"),
             danger, footnote);
     }
@@ -889,7 +889,7 @@ public sealed partial class AppsViewModel : PageViewModel
         catch (Exception ex)
         {
             Log.Error("Приложения: очередь установки", ex);
-            AppendLog(Loc.T("Ошибка очереди: ") + ex.Message);
+            AppendLog(Loc.Tf("Ошибка очереди: {0}", ex.Message));
             Ui.Toast(ex.Message, ToastKind.Error, Loc.T("Очередь установки"));
             CancelRemaining();
         }
@@ -1111,7 +1111,7 @@ public sealed partial class AppsViewModel : PageViewModel
         if (skipped > 0) parts.Add(Loc.Tf("пропущено: {0}", skipped));
         if (cancelled > 0) parts.Add(Loc.Tf("отменено: {0}", cancelled));
         if (unknown > 0) parts.Add(Loc.Tf("без отчёта: {0}", unknown));
-        var message = string.Join(" · ", parts) + (reboot ? Loc.T(". Для завершения нужна перезагрузка.") : ".");
+        var message = reboot ? Loc.Tf("{0}. Для завершения нужна перезагрузка.", string.Join(" · ", parts)) : string.Join(" · ", parts) + ".";
         AppendLog(message);
         Ui.Toast(message, failed > 0 ? ToastKind.Warning : ToastKind.Success, Loc.Tf("{0}: ОЧЕРЕДЬ ЗАВЕРШЕНА", QueueTitle));
     }
