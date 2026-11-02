@@ -77,6 +77,32 @@ public sealed class ProblemReportTests
         Assert.DoesNotContain(leak, ProblemReport.Anonymize(input, "zzq", "qqpc"));
     }
 
+    [Theory]
+    [InlineData("ApiKey=LEAK1234")]
+    [InlineData("accessToken: LEAK1234")]
+    [InlineData("refreshToken=LEAK1234")]
+    [InlineData("privateKey=LEAK1234")]
+    [InlineData("clientSecret=LEAK1234")]
+    [InlineData("authToken=LEAK1234")]
+    [InlineData("licenseKey=LEAK1234")]
+    [InlineData("Cookie: LEAK1234")]
+    [InlineData("sessionId=LEAK1234")]
+    [InlineData("UserSid=LEAK1234")]
+    [InlineData("ConnectionString=LEAK1234")]
+    [InlineData("Authorization: Basic dXNlcjpwYXNzd29yZA==")]
+    public void CamelCaseAndExtraSecretWordsAreRedacted(string input)
+    {
+        var r = ProblemReport.Anonymize(input, "zzq", "qqpc");
+        Assert.DoesNotContain("LEAK1234", r);
+        Assert.DoesNotContain("dXNlcjpw", r);
+    }
+
+    [Fact]
+    public void OrdinaryWordsContainingKeyAreKept()
+    {
+        Assert.Contains("monkey business", ProblemReport.Anonymize("monkey business", "zzq", "qqpc"));
+    }
+
     [Fact]
     public void UncleanableLinesAreDroppedAndOtherLinesKept()
     {
