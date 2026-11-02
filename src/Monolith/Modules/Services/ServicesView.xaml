@@ -476,11 +476,12 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <ContentPresenter ContentTemplate="{StaticResource ProfileChips}" Content="{Binding}" VerticalAlignment="Center" />
+                        <ContentPresenter ContentTemplate="{StaticResource ProfileChips}" Content="{Binding}" VerticalAlignment="Center" ToolTip="{Binding ProfileTooltip}" Visibility="{Binding ShowProfilePicker, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="16,0,0,0" TextWrapping="Wrap">
                             <Run Text="К изменению" /> <Run Text="{Binding ToChangeCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=" · применено" />
                             <Run Text="{Binding OptimalCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=" · изменено MONOLITH" />
-                            <Run Text="{Binding ChangedCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=". Отключение служб не прибавляет FPS: выигрыш — память и меньше фоновой активности. Работающие службы не останавливаются." />
+                            <Run Text="{Binding ChangedCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=". " /><Run
+                                 Text="{Binding ProfileCaption, Mode=OneWay}" /><Run Text=" Отключение служб не прибавляет FPS: выигрыш — память и меньше фоновой активности. Работающие службы не останавливаются." />
                         </TextBlock>
                     </Grid>
 
@@ -845,7 +846,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <ContentPresenter ContentTemplate="{StaticResource ProfileChips}" Content="{Binding}" VerticalAlignment="Center" />
+                        <ContentPresenter ContentTemplate="{StaticResource ProfileChips}" Content="{Binding}" VerticalAlignment="Center" ToolTip="{Binding ProfileTooltip}" Visibility="{Binding ShowProfilePicker, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="16,0,0,0" TextWrapping="Wrap">
                             <Run Text="{Binding TaskEnabledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=" включено · " /><Run Text="{Binding TaskDisabledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=" отключено. Собирают данные для Microsoft: программа улучшения качества (CEIP), опросы «Центра отзывов», диагностика дисков. Задачи только отключаются, не удаляются." />
                         </TextBlock>

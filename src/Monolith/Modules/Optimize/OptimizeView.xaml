@@ -388,32 +388,33 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border x:Name="Card" Margin="4,0" Padding="13,11" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}"
-                            BorderThickness="1" CornerRadius="{StaticResource R.Lg}" SnapsToDevicePixels="True">
+                    <Border x:Name="Card" Margin="3,0" Padding="11,10" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}"
+                            BorderThickness="1" CornerRadius="{StaticResource R.Lg}" SnapsToDevicePixels="True" ToolTip="{Binding Hint}"
+                            ToolTipService.ShowDuration="30000">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal">
+                            <!-- Up to six scenario tiles share one row: the title wraps between words, the badge drops under it. -->
+                            <WrapPanel>
                                 <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}" FontWeight="Bold"
-                                           FontSize="14.5" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                <Border Style="{StaticResource Tag.Muted}" Margin="8,0,0,0" Visibility="{Binding Badge, Converter={StaticResource NullToVis}}">
+                                           FontSize="13" Foreground="{StaticResource B.Text}" TextWrapping="WrapWithOverflow" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                <Border Style="{StaticResource Tag.Muted}" Margin="0,1,0,1" VerticalAlignment="Center" Visibility="{Binding Badge, Converter={StaticResource NullToVis}}">
                                     <TextBlock Text="{Binding Badge}" />
                                 </Border>
-                            </StackPanel>
+                            </WrapPanel>
                             <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
-                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Hint}" />
-                            <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}">
-                                <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run
-                                     Text=" к изменению · " /><Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run
-                                     Text=" применено" />
+                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                            <!-- Counters on two fixed lines: six tiles never wrap them at different places. -->
+                            <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
+                                <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run Text=" к изменению" />
                             </TextBlock>
-                            <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+                            <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
+                                <Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text=" применено" />
+                            </TextBlock>
+                            <StackPanel Margin="0,8,0,0">
                                 <!-- Outlined on every tile: the one white button is the sticky bar; the selected tile is shown by its frame and «ВЫБРАН» -->
-                                <Button Command="{Binding ActCommand}" Content="{Binding ActText}" MinWidth="120"
-                                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
-                                <Button Command="{Binding ActCommand}" Content="{Binding ActText}" MinWidth="120"
-                                        Visibility="{Binding IsSelected, Converter={StaticResource InverseBoolToVis}}" />
-                                <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}"
+                                <Button Command="{Binding ActCommand}" Content="{Binding ActText}" HorizontalAlignment="Stretch" />
+                                <TextBlock Margin="0,5,0,0" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" HorizontalAlignment="Center"
                                            Text="ВЫБРАН" Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
-                                <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Caption}" Text="{Binding ActNote}"
+                                <TextBlock Margin="0,5,0,0" Style="{StaticResource T.Caption}" Text="{Binding ActNote}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
                                            Visibility="{Binding IsSelected, Converter={StaticResource InverseBoolToVis}}" />
                             </StackPanel>
                         </StackPanel>

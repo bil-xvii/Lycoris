@@ -6,8 +6,13 @@ using Monolith.Tweaks;
 
 namespace Monolith.Modules.Optimize;
 
-/// <summary>Profile choice on the Optimize page. Persisted by name in <see cref="AppSettings.LastProfile"/>.</summary>
-public enum OptimizeProfile { Normal, Gaming, Recommended, Custom }
+/// <summary>
+/// Scenario choice on the Optimize page (the profile tiles). Persisted by NAME in <see cref="AppSettings.LastProfile"/>, so the
+/// order here is free; <see cref="OptimizeLogic.ParseProfile"/> keeps older names («Normal», «Gaming», «Recommended», «Custom»)
+/// and maps anything unknown to Recommended. Normal = «Работа и учёба» (the former «Обычный»), Streaming = «Стриминг и запись»,
+/// Efficiency = «Тихий ПК» on a desktop / «Ноутбук: автономность» on a laptop.
+/// </summary>
+public enum OptimizeProfile { Normal, Gaming, Recommended, Streaming, Efficiency, Custom }
 
 /// <summary>One line of the "what will change" preview: target, current value (read lazily) and new value.</summary>
 public sealed record PlannedChange(string Target, string NewValue, Func<string>? ReadCurrent);
@@ -25,8 +30,117 @@ internal static class OptimizeLogic
         OptimizeProfile.Normal => ProfileKind.Normal,
         OptimizeProfile.Gaming => ProfileKind.Gaming,
         OptimizeProfile.Recommended => ProfileKind.Recommended,
+        OptimizeProfile.Streaming => ProfileKind.Streaming,
+        OptimizeProfile.Efficiency => ProfileKind.Efficiency,
         _ => null,
     };
+
+    /// <summary>The scenarios that have a catalog set (everything but «Свой набор»).</summary>
+    public static readonly IReadOnlyList<OptimizeProfile> CatalogProfiles =
+        [OptimizeProfile.Normal, OptimizeProfile.Gaming, OptimizeProfile.Recommended, OptimizeProfile.Streaming, OptimizeProfile.Efficiency];
+
+    /// <summary>
+    /// The Services recommendations profile that follows an Optimize scenario (ServiceCatalog knows only the three original
+    /// sets): streaming needs the gaming services set, the efficiency scenario and a custom set get the balanced one.
+    /// </summary>
+    public static ProfileSet ServicesProfileFor(OptimizeProfile profile) => profile switch
+    {
+        OptimizeProfile.Normal => ProfileSet.Normal,
+        OptimizeProfile.Gaming or OptimizeProfile.Streaming => ProfileSet.Gaming,
+        _ => ProfileSet.Recommended,
+    };
+
+    // ───────────────────────────── Scenario tiles (static texts; the efficiency tile adapts to laptop/desktop) ─────────────────────────────
+
+    /// <summary>Tile title (UPPER CASE; the tile shows it through the Sentence converter).</summary>
+    public static string ScenarioTitle(OptimizeProfile profile, bool laptop) => profile switch
+    {
+        OptimizeProfile.Normal => "РАБОТА И УЧЁБА",
+        OptimizeProfile.Gaming => "ИГРЫ",
+        OptimizeProfile.Recommended => "РЕКОМЕНДУЕМЫЙ",
+        OptimizeProfile.Streaming => "СТРИМИНГ И ЗАПИСЬ",
+        OptimizeProfile.Efficiency => laptop ? "НОУТБУК: АВТОНОМНОСТЬ" : "ТИХИЙ ПК",
+        _ => "СВОЙ НАБОР",
+    };
+
+    /// <summary>Name for running text and the batch title: «Игры», «Тихий ПК», «Ноутбук: автономность».</summary>
+    public static string ScenarioName(OptimizeProfile profile, bool laptop) => profile switch
+    {
+        OptimizeProfile.Normal => "Работа и учёба",
+        OptimizeProfile.Gaming => "Игры",
+        OptimizeProfile.Recommended => "Рекомендуемый",
+        OptimizeProfile.Streaming => "Стриминг и запись",
+        OptimizeProfile.Efficiency => laptop ? "Ноутбук: автономность" : "Тихий ПК",
+        _ => "Свой набор",
+    };
+
+    /// <summary>One short line under the tile title (trimmed to the tile width; the full story is the tooltip).</summary>
+    public static string ScenarioDescription(OptimizeProfile profile, bool laptop) => profile switch
+    {
+        OptimizeProfile.Normal => "Без рекламы, перезагрузки — ночью.",
+        OptimizeProfile.Gaming => "Приоритет игре, без фоновой записи.",
+        OptimizeProfile.Recommended => "Безопасный баланс для любого ПК.",
+        OptimizeProfile.Streaming => "Без второго кодировщика и утечек.",
+        OptimizeProfile.Efficiency => laptop ? "Дольше от батареи, тише." : "Тише и холоднее без нагрузки.",
+        _ => "Только то, что отметили сами.",
+    };
+
+    /// <summary>The tile tooltip: what the scenario does and what it deliberately does NOT touch.</summary>
+    public static string ScenarioHint(OptimizeProfile profile, bool laptop) => profile switch
+    {
+        OptimizeProfile.Normal =>
+            "Без рекламы и подсказок, без перезагрузок с 8:00 до 2:00, локальный поиск без Bing. " +
+            "Не трогает: телеметрию и удалённый помощник, игровые настройки.",
+        OptimizeProfile.Gaming =>
+            "Windows отдаёт приоритет игре и меньше отвлекает во время игры: игровой режим, HAGS для DLSS на RTX 40/50, без фоновой " +
+            "записи Game Bar. Только проверенные пункты без компромиссов в безопасности.",
+        OptimizeProfile.Recommended =>
+            "Проверенные настройки без компромиссов: подходят и для работы, и для игр. Выбран по умолчанию.",
+        OptimizeProfile.Streaming =>
+            "Нет второго кодировщика Game Bar рядом с OBS, нет конфликтов Win+Alt+R, недавние файлы не попадают в эфир. " +
+            "Звук других программ не приглушается при звонках (нужен повторный вход в Windows). Не трогает HAGS; при проблемах с захватом есть пункт «Отключить HAGS». По желанию: «Без отключения USB-устройств».",
+        OptimizeProfile.Efficiency =>
+            "Ниже частоты и нагрев под лёгкой нагрузкой — тише" + (laptop ? "; на ноутбуке дольше от батареи" : "") +
+            ". Эффект зависит от производителя — измерьте. Кривые вентиляторов, лимиты мощности и предел заряда MONOLITH не " +
+            "трогает (утилита производителя). " + (laptop ? "Режим «Максимальная эффективность» от сети — по желанию, отдельным пунктом. " : "") + "По желанию: «Без турбобуста процессора от сети».",
+        _ => "Ваш собственный набор: отметьте нужные пункты в списке ниже. Выбор запоминается между запусками.",
+    };
+
+    /// <summary>The journal batch title of an apply: «Оптимизация: сценарий «Игры»» or «Оптимизация: свой набор».</summary>
+    public static string BatchTitle(OptimizeProfile profile, bool laptop) =>
+        profile == OptimizeProfile.Custom ? "Оптимизация: свой набор" : $"Оптимизация: сценарий «{ScenarioName(profile, laptop)}»";
+
+    /// <summary>
+    /// What the scenario cannot do safely and the user does by hand (read-only text for the apply-result dialog). Only for
+    /// the scenario just applied; empty for the rest («Игры»: the X3D row's Details already name Win+G).
+    /// </summary>
+    public static IReadOnlyList<string> ManualSteps(OptimizeProfile profile, bool laptop) => profile switch
+    {
+        OptimizeProfile.Streaming =>
+        [
+            "Не беспокоить → «Во время игры» — проверьте в Параметрах → Уведомления (MONOLITH не пишет эту настройку).",
+        ],
+        OptimizeProfile.Efficiency when laptop =>
+        [
+            "Предел заряда батареи — в утилите производителя ноутбука; динамическую частоту обновления экрана оставьте включённой.",
+        ],
+        OptimizeProfile.Efficiency =>
+        [
+            "Ограничение FPS — в панели NVIDIA/AMD; кривые вентиляторов — в BIOS или утилите производителя.",
+        ],
+        _ => [],
+    };
+
+    /// <summary>Header line of the manual-steps block in the apply-result dialog.</summary>
+    public const string ManualStepsHeader = "ВРУЧНУЮ";
+
+    /// <summary>
+    /// Whether the efficiency tile («Тихий ПК» / «Ноутбук: автономность») is shown: only once the hardware facts are known, and
+    /// only when at least one of its members on this PC is more than a plan switch (a tile that could only switch to Balanced —
+    /// Windows 10, dual-CCD X3D — would make nothing quieter).
+    /// </summary>
+    public static bool EfficiencyTileVisible(bool hardwareFactsKnown, IEnumerable<Tweak> members) =>
+        hardwareFactsKnown && members.Any(m => m.ExclusiveGroup != TweakGroups.PowerPlan);
 
     /// <summary>
     /// Tweaks whose apply deletes user data that undo cannot bring back (local list: Tweak has no such property yet).

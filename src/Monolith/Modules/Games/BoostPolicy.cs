@@ -169,6 +169,15 @@ public static class BoostPolicy
         string.IsNullOrWhiteSpace(cpu) ? "процессор" : cpu.Replace("AMD ", "", StringComparison.OrdinalIgnoreCase).Replace(" Processor", "", StringComparison.OrdinalIgnoreCase).Trim();
 }
 
+/// <summary>What a session does with the apps of the close list.</summary>
+public enum BoostCloseMode
+{
+    /// <summary>Close them (window close first, kill only after a question).</summary>
+    Close,
+    /// <summary>Windows 11: keep them running in efficiency mode (EcoQoS) for the session, exact per-process restore afterwards.</summary>
+    EcoQos,
+}
+
 /// <summary>Everything a Game Boost session would do right now. Built off the UI thread.</summary>
 public sealed record BoostPlan(
     PowerPlanAction PowerAction,
@@ -176,19 +185,32 @@ public sealed record BoostPlan(
     IReadOnlyList<RunningApp> AppsToClose,
     IReadOnlyList<string> CloseListNotRunning,
     bool RaisePriority,
-    bool PurgeStandby)
+    bool PurgeStandby,
+    BoostCloseMode CloseMode = BoostCloseMode.Close)
 {
+    /// <summary>The close-list line of the confirmation: closing or efficiency mode, running or not, empty list.</summary>
+    public string DescribeCloseList()
+    {
+        var names = string.Join(", ", AppsToClose.Select(a => a.Count > 1 ? $"{a.Name} ({a.Count})" : a.Name));
+        if (CloseMode == BoostCloseMode.EcoQos)
+            return AppsToClose.Count > 0
+                ? $"Режим эффективности для: {names}. Программы не закрываются; Windows ограничит им частоты процессора на время игры, " +
+                  "звук и голосовые программы исключены. После игры режим возвращается. Эффект небольшой, честно: без измерения на вашем ПК не обещаем."
+                : CloseListNotRunning.Count > 0
+                    ? "Приложения из списка сейчас не запущены — режим эффективности никому не назначается."
+                    : "Режим эффективности никому не назначается (список приложений пуст).";
+        if (AppsToClose.Count > 0)
+            return "Закрыть приложения: " + names +
+                   ". Сначала им отправляется обычная команда «закрыть окно»; принудительное завершение — только после отдельного вопроса. Сами они после игры не откроются.";
+        return CloseListNotRunning.Count > 0
+            ? "Приложения из списка закрытия сейчас не запущены — ничего не закрывается."
+            : "Приложения не закрываются (список закрытия пуст).";
+    }
+
     /// <summary>The exact list shown in the confirmation dialog.</summary>
     public IReadOnlyList<string> Describe(GameEntry? game)
     {
-        var lines = new List<string> { PowerText };
-        if (AppsToClose.Count > 0)
-            lines.Add("Закрыть приложения: " + string.Join(", ", AppsToClose.Select(a => a.Count > 1 ? $"{a.Name} ({a.Count})" : a.Name)) +
-                      ". Сначала им отправляется обычная команда «закрыть окно»; принудительное завершение — только после отдельного вопроса. Сами они после игры не откроются.");
-        else if (CloseListNotRunning.Count > 0)
-            lines.Add("Приложения из списка закрытия сейчас не запущены — ничего не закрывается.");
-        else
-            lines.Add("Приложения не закрываются (список закрытия пуст).");
+        var lines = new List<string> { PowerText, DescribeCloseList() };
 
         if (game is not null)
             lines.Add(RaisePriority

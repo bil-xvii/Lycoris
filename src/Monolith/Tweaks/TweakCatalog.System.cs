@@ -190,6 +190,7 @@ public static partial class TweakCatalog
                       "Центр обновления Windows → Дополнительные параметры. Игровой режим и так не даёт перезагружаться во время игры.",
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Normal, // SAFE-OPTIONAL pre-check of «Работа и учёба»: no restarts during the working day
             Values =
             [
                 Lm(@"SOFTWARE\Microsoft\WindowsUpdate\UX\Settings", "SmartActiveHoursState", 0),
@@ -276,7 +277,7 @@ public static partial class TweakCatalog
                       "вернётся. Если TRIM задан групповой политикой, пункт не предлагается. Перезагрузка не нужна.",
             Category = TweakCategory.System,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             AppliesTo = sp => sp.Disks.Any(d => d.IsSsd) && LmInt(FileSystemPolicy, "DisableDeleteNotification") is null,
             NotApplicableReason = "SSD не найден, либо TRIM задан групповой политикой.",
             DetectFunc = () => NtfsTrimDisabled() ? TweakState.NotApplied : TweakState.Applied,
@@ -355,6 +356,7 @@ public static partial class TweakCatalog
                       "политика Windows Search.",
             Category = TweakCategory.Power,
             Risk = TweakRisk.Optional,
+            DefaultIn = ProfileSet.Efficiency, // «Ноутбук: автономность» (laptop-only by AppliesTo)
             Restart = RestartRequirement.Reboot,
             AppliesTo = sp => sp.IsLaptop,
             NotApplicableReason = "Только для ноутбуков.",

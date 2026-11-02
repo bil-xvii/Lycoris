@@ -39,9 +39,8 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     public ServicesViewModel()
     {
-        _selectedProfile = Enum.TryParse<ProfileSet>(AppSettings.Current.LastProfile, out var p) && p is ProfileSet.Normal or ProfileSet.Recommended or ProfileSet.Gaming
-            ? p
-            : ProfileSet.Recommended;
+        // The services profile follows the Optimize scenario (LastProfile holds an OptimizeProfile name; unknown → Recommended).
+        _selectedProfile = ProfileFromScenario(AppSettings.Current.LastProfile);
         _servicesView = CreateServicesView(_allServices);
 
         Startup = new StartupViewModel { IsHostBusy = () => IsBusy && !_mirroringStartup };

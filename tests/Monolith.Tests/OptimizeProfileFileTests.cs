@@ -145,4 +145,32 @@ public sealed class OptimizeProfileFileTests
         var plan = new ProfileImportPlan(["a", "b", "c", "d", "e"], [], [], []);
         Assert.StartsWith("Выбрано 5 настроек.", OptimizeProfileFile.Summary(plan));
     }
+
+    [Theory]
+    [InlineData("Streaming")]
+    [InlineData("Efficiency")]
+    [InlineData("Gaming")]
+    public void Scenario_name_round_trips(string scenario)
+    {
+        var json = OptimizeProfileFile.Serialize(["a"], "Набор", "1.0.0", DateTimeOffset.UtcNow, Enum.Parse<OptimizeProfile>(scenario));
+        using (var doc = JsonDocument.Parse(json))
+            Assert.Equal(scenario, doc.RootElement.GetProperty("scenario").GetString());
+        Assert.Equal(Enum.Parse<OptimizeProfile>(scenario), Ok(json).Scenario);
+    }
+
+    [Fact]
+    public void Custom_set_and_no_scenario_write_no_field_and_parse_as_null()
+    {
+        using (var doc = JsonDocument.Parse(OptimizeProfileFile.Serialize(["a"], null, null, DateTimeOffset.UtcNow, OptimizeProfile.Custom)))
+            Assert.False(doc.RootElement.TryGetProperty("scenario", out _));
+        using (var doc = JsonDocument.Parse(OptimizeProfileFile.Serialize(["a"], null, null, DateTimeOffset.UtcNow)))
+            Assert.False(doc.RootElement.TryGetProperty("scenario", out _));
+        // Files of older builds have no field; a hand-edited one may hold anything — never a crash, never a selection.
+        Assert.Null(Ok("""{"format":"monolith-optimize-profile","version":1,"tweaks":[]}""").Scenario);
+        Assert.Null(Ok("""{"format":"monolith-optimize-profile","version":1,"tweaks":[],"scenario":"Turbo"}""").Scenario);
+        Assert.Null(Ok("""{"format":"monolith-optimize-profile","version":1,"tweaks":[],"scenario":"16"}""").Scenario);
+        Assert.Null(Ok("""{"format":"monolith-optimize-profile","version":1,"tweaks":[],"scenario":"Custom"}""").Scenario);
+        Assert.Null(Ok("""{"format":"monolith-optimize-profile","version":1,"tweaks":[],"scenario":7}""").Scenario);
+        Assert.Equal(OptimizeProfile.Efficiency, Ok("""{"format":"monolith-optimize-profile","version":1,"tweaks":[],"scenario":" efficiency "}""").Scenario);
+    }
 }

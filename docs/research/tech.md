@@ -495,6 +495,86 @@ For dashboard sparklines, a **custom control** (ring buffer of 60–120 points, 
 
 ---
 
+## 10. DPC/ISR measurement (private ETW system logger, read-only)
+
+What the «Задержки драйверов (DPC/ISR)» card on Maintenance → Ремонт и диски → Диагностика does, and the rules its code
+(`Modules/Tools/DpcLatency/*`) follows. Classification: **READ-ONLY** — nothing is written or changed; admin only; a fixed
+60 s; never while a game session is active (`GameBoostState.IsActive`).
+
+### 10.1 Session: a private system logger, never the NT Kernel Logger
+- `StartTraceW` with `EVENT_TRACE_PROPERTIES`: `LogFileMode = EVENT_TRACE_REAL_TIME_MODE (0x100) | EVENT_TRACE_SYSTEM_LOGGER_MODE (0x02000000)`,
+  `EnableFlags = EVENT_TRACE_FLAG_INTERRUPT (0x40) | EVENT_TRACE_FLAG_DPC (0x20)`, `Wnode.ClientContext = 1` (QPC),
+  `Wnode.Flags = WNODE_FLAG_TRACED_GUID`, `Wnode.Guid` = a fresh GUID of our own (never `SystemTraceControlGuid`), 64 KB buffers,
+  64–256 buffers, `FlushTimer = 1`. No log file: real-time delivery only.
+- `EVENT_TRACE_SYSTEM_LOGGER_MODE` exists since Windows 8 (6.2, WDK 8 header; Geoff Chappell's `LogFileMode` notes). It lets any
+  uniquely named session receive SystemTraceProvider (kernel) events. Windows allows at most **8 system loggers**; the first two
+  slots are the «NT Kernel Logger» and the «Circular Kernel Context Logger». A full table returns `ERROR_NO_SYSTEM_RESOURCES` (1450) —
+  MONOLITH reports it («закройте LatencyMon, xperf/WPR…») and does nothing else.
+- The global **«NT Kernel Logger» is never started, stopped or queried** (another tool — LatencyMon, xperf, WPR, Process Lasso —
+  may own it). On start `QueryAllTracesW` lists the sessions and only names beginning with `MONOLITH-DpcLatency-` (a leftover of a
+  crashed MONOLITH) are stopped with `ControlTraceW(EVENT_TRACE_CONTROL_STOP)`. Session name: `MONOLITH-DpcLatency-{GuidN}`.
+- Consumer: `OpenTraceW` with a real-time `EVENT_TRACE_LOGFILEW` (`ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME 0x100 |
+  PROCESS_TRACE_MODE_EVENT_RECORD 0x10000000 | PROCESS_TRACE_MODE_RAW_TIMESTAMP 0x1000`; values from `evntcons.h`), `ProcessTrace`
+  on a dedicated thread. After 60 s (or cancel, or any exception) `finally` calls `ControlTraceW(STOP)` — which ends
+  `ProcessTrace` once the remaining buffers are delivered — then `CloseTrace`. `EventsLost` / `RealTimeBuffersLost` from the stop
+  statistics are shown when non-zero.
+- Game sessions: the card refuses to start while `GameBoostState.IsActive`, and a game session that begins during the 60 s
+  stops the trace at once (outcome «Измерение остановлено: начался игровой сеанс», no verdict for the partial data).
+- Permissions: only administrators, «Performance Log Users» and LocalSystem services may control trace sessions;
+  `ERROR_ACCESS_DENIED` (5) → «нужны права администратора». MONOLITH refuses the card without elevation (`RequireAdmin`).
+
+### 10.2 Events: PerfInfo DPC/ISR (verified)
+- Class GUID (EVENT_RECORD `ProviderId` for classic kernel events): **PerfInfo `{ce1dbfb4-137e-4da6-87b0-3f59aa102cbc}`**;
+  `EventDescriptor.Opcode` = MOF event type: **66 ThreadedDPC, 67 ISR, 68 DPC, 69 TimerDPC** (Microsoft Learn «PerfInfo class»,
+  «DPC class», «ISR class»; PerfView `KernelTraceEventParser` registers the same opcodes against `PerfInfoTaskGuid`).
+- Payload (`DPC`, `ISR : PerfInfo`): `InitialTime` (int64, the routine's entry time in the session clock, i.e. QPC ticks) at
+  offset 0, `Routine` (pointer-sized address of the DPC/ISR routine) at offset 8; ISR adds `ReturnValue` (uint8), `Vector`
+  (uint8), `Reserved` (uint16). PerfView: `InitialTimeQPC = GetInt64At(0)`, `Routine = GetAddressAt(8)`,
+  `ElapsedTimeMSec = TimeStamp − QPCTimeToRelMSec(InitialTime)`. The event's own `TimeStamp` is the routine's **exit**, so
+  **duration = EventHeader.TimeStamp − InitialTime** in QPC ticks → µs via `QueryPerformanceFrequency` (`Stopwatch.Frequency`).
+  `PROCESS_TRACE_MODE_RAW_TIMESTAMP` keeps the timestamp in QPC units instead of converting it to FILETIME. Pointer size comes
+  from `EVENT_HEADER_FLAG_32_BIT_HEADER`; negative or > 10 s values are clock artefacts and are dropped.
+- Byte offsets in the x64 `EVENT_RECORD` (evntcons.h / evntprov.h; same as .NET's `EventDescriptor`: `m_level` @4, `m_opcode` @5):
+  `EVENT_HEADER.Flags` @4, `TimeStamp` @16, `ProviderId` @24, `EVENT_DESCRIPTOR` @40 = { Id @40, Version @42, Channel @43,
+  **Level @44, Opcode @45**, Task @46, Keyword @48 }; `UserDataLength` @86, `UserData` @96; sizeof 112. Parsed by
+  `EtwSession.TryParseRecord`, unit-tested with a synthetic record (a decoy opcode value in Level must not be read).
+
+### 10.3 Module attribution and SeDebugPrivilege
+- Routine address → driver: `NtQuerySystemInformation(SystemModuleInformation = 11)` gives `RTL_PROCESS_MODULES` (ImageBase, ImageSize,
+  file name — 296 bytes per entry on x64); fallback `EnumDeviceDrivers` + `GetDeviceDriverBaseNameW` (bases and names, no sizes →
+  the nearest module below the address). Lookup is a binary search over bases (`ModuleMap`).
+- **Windows 11 24H2+**: both APIs return **zeroed kernel addresses unless `SeDebugPrivilege` is enabled** in the caller's token
+  (Microsoft Learn `EnumDeviceDrivers` remarks: «Starting with Windows 11 24H2 … requires SeDebugPrivilege … otherwise every
+  address is NULL»; windows-internals.com «KASLR leaks restriction»: `SystemModuleInformation` keeps `DllBase = 0`). The privilege
+  belongs to administrators only and is disabled by default, so `KernelModules.EnableDebugPrivilege` turns it on for MONOLITH's own
+  token (`AdjustTokenPrivileges`), logs a refusal and falls back to «неизвестный модуль». Least privilege: the previous state is
+  captured (`PreviousState`) and the privilege is disabled again right after the module list is read (unless it was already
+  enabled), so later `OpenProcess` calls and child processes never inherit it; a failed restore is logged. Nothing about the
+  system changes.
+
+### 10.4 Thresholds (provenance: community practice, not a Microsoft standard)
+- LatencyMon (Resplendence) is the de-facto community tool; its reports flag DPC/ISR routines whose execution time exceeds roughly
+  1 ms as «likely to interrupt the audio stream resulting in dropouts, clicks and pops», and bucket counts at < 250 µs / 250–500 /
+  500–1000 / 1000–2000 / 2000–4000 / ≥ 4000 µs. MONOLITH states the verdict as practice, not fact:
+  **max < 500 µs — «в норме»; 500–1000 — «повышенные»; > 1000 — «высокие: возможны треск звука и рывки»**. Per module the report
+  shows count, max µs, p99 µs (1 µs histogram buckets up to 10 ms, overflow bucket above) and total ms; flagged modules get a
+  family hint (ndis.sys → network stack, nvlddmkm.sys → NVIDIA, dxgkrnl.sys → graphics subsystem, ACPI.sys → firmware/BIOS,
+  storport/stornvme → storage, Wdf01000.sys → a WDF device driver, tcpip.sys, USBXHCI.SYS …) and the next step is the Drivers page.
+  A fix is never promised.
+- Competitors: Process Lasso 19 (Oct 2026 changelog) added a «LatencyTest» tool; the Apps catalog lists LatencyMon. Measuring
+  replaces placebo tweaks — this is the honest alternative to «DPC tweaks».
+
+### 10.5 Verified against (sources)
+- Microsoft Learn: PerfInfo / DPC / ISR classes; EVENT_TRACE_PROPERTIES; StartTraceW; ControlTraceW; EVENT_TRACE_LOGFILEW;
+  EnumDeviceDrivers (24H2 note); «Configuring and starting a SystemTraceProvider session» (8 system loggers, slots 1–2 reserved).
+- Geoff Chappell: `WMI_LOGGER_INFORMATION.LogFileMode` (EVENT_TRACE_SYSTEM_LOGGER_MODE = 0x02000000, 6.2+).
+- PerfView `src/TraceEvent/Parsers/KernelTraceEventParser.cs`: `DPCTraceData` / `ISRTraceData` offsets, opcodes, `PerfInfoTaskGuid`.
+- mingw-w64 `evntcons.h`: PROCESS_TRACE_MODE_* values.
+- windows-internals.com «KASLR leaks restriction» (24H2 SeDebugPrivilege for kernel addresses).
+- Resplendence LatencyMon documentation and community reports (thresholds); Bitsum Process Lasso 19 changelog.
+
+---
+
 ## Sources
 - https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
 - https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/d3dkmthk/ns-d3dkmthk-_d3dkmt_adapter_perfdata
@@ -518,3 +598,17 @@ For dashboard sparklines, a **custom control** (ring buffer of 60–120 points, 
 - https://github.com/LibreHardwareMonitor/LibreHardwareMonitor (PawnIO switch, PRs #1857/#1908)
 - https://github.com/microsoft/winget-cli/blob/master/doc/windows/package-manager/winget/returnCodes.md
 - https://learn.microsoft.com/en-us/answers/questions/3919778/changing-overlay-power-mode-with-script
+- https://learn.microsoft.com/en-us/windows/win32/etw/perfinfo
+- https://learn.microsoft.com/en-us/windows/win32/etw/dpc
+- https://learn.microsoft.com/en-us/windows/win32/etw/isr
+- https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties
+- https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-starttracew
+- https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-controltracew
+- https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilew
+- https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-a-systemtraceprovider-session
+- https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-enumdevicedrivers
+- https://geoffchappell.com/studies/windows/km/ntoskrnl/api/etw/traceapi/wmi_logger_information/logfilemode.htm
+- https://github.com/microsoft/perfview/blob/main/src/TraceEvent/Parsers/KernelTraceEventParser.cs
+- https://windows-internals.com/kaslr-leaks-restriction/
+- https://www.resplendence.com/latencymon
+- https://bitsum.com/current_version_processlasso.txt

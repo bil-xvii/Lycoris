@@ -55,7 +55,7 @@ public sealed class DuckingJournalTests : IDisposable
         Assert.Equal((RegHive.HKCU, DeviceTargets.DuckingPath, DeviceTargets.DuckingName, RegistryValueKind.DWord, (object?)3),
             (value.Hive, value.Path, value.Name, value.Kind, value.Value));
         Assert.Equal(TweakRisk.Optional, t.Risk);
-        Assert.Equal(ProfileSet.Gaming, t.DefaultIn);
+        Assert.Equal(ProfileSet.Gaming | ProfileSet.Streaming, t.DefaultIn); // wave 3: the streaming scenario also keeps game sound audible
         Assert.Equal(RestartRequirement.SignOut, t.Restart);
         Assert.Contains(TweakCatalog.DefaultsFor(ProfileKind.Gaming), x => x.Id == t.Id);
         Assert.DoesNotContain(TweakCatalog.DefaultsFor(ProfileKind.Normal), x => x.Id == t.Id);

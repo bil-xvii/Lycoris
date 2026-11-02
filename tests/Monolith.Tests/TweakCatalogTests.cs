@@ -96,20 +96,128 @@ public sealed class TweakCatalogTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ProfileKind.Normal)]
-    [InlineData(ProfileKind.Gaming)]
-    [InlineData(ProfileKind.Recommended)]
-    public void Each_profile_has_a_reasonable_set(ProfileKind kind)
+    [InlineData("Normal", 8)]
+    [InlineData("Gaming", 8)]
+    [InlineData("Recommended", 8)]
+    [InlineData("Streaming", 8)]
+    [InlineData("Efficiency", 2)] // a few power items: plan + power mode on a desktop, plus the battery items on a laptop
+    public void Each_profile_has_a_reasonable_set(string kindName, int min)
     {
+        var kind = Enum.Parse<ProfileKind>(kindName);
         var count = TweakCatalog.DefaultsFor(kind).Count();
-        Assert.InRange(count, 8, 40);
+        Assert.InRange(count, min, 40);
     }
 
     [Fact]
-    public void Recommended_is_a_superset_of_normal()
+    public void Every_scenario_kind_maps_to_its_own_flag()
     {
+        foreach (var kind in Enum.GetValues<ProfileKind>())
+        {
+            var set = TweakCatalog.ToSet(kind);
+            Assert.NotEqual(ProfileSet.None, set);
+            Assert.Single(Enum.GetValues<ProfileKind>(), k => TweakCatalog.ToSet(k) == set);
+        }
+        // ServiceCatalog pre-selects by the three original sets; the scenarios map onto them (OptimizeLogic.ServicesProfileFor).
+        Assert.Equal(ProfileSet.Normal | ProfileSet.Gaming | ProfileSet.Recommended, ProfileSet.All);
+        Assert.False(ProfileSet.All.HasFlag(ProfileSet.Streaming));
+        Assert.False(ProfileSet.All.HasFlag(ProfileSet.Efficiency));
+    }
+
+    [Fact]
+    public void Work_scenario_is_within_recommended_except_the_active_hours()
+    {
+        // Deliberate change of wave 3 (was «Normal ⊆ Recommended»): «Работа и учёба» pre-checks the SAFE-OPTIONAL wu-active-hours
+        // (no automatic restart 08:00–02:00), which the all-purpose Recommended set leaves to the user. Nothing else may differ.
         var recommended = TweakCatalog.DefaultsFor(ProfileKind.Recommended).Select(t => t.Id).ToHashSet();
+        recommended.Add("wu-active-hours");
         Assert.All(TweakCatalog.DefaultsFor(ProfileKind.Normal), t => Assert.Contains(t.Id, recommended));
+    }
+
+    [Fact]
+    public void Work_scenario_pre_checks_the_office_items_and_no_gaming_or_privacy_preferences()
+    {
+        var work = TweakCatalog.DefaultsFor(ProfileKind.Normal).Select(t => t.Id).ToHashSet();
+        foreach (var id in new[] { "ads-suggestions-off", "advertising-id-off", "file-extensions-show", "storage-sense-on", "bing-start-search-off",
+                     "search-highlights-off", "widgets-off", "news-interests-off", "feedback-requests-off", "delivery-optimization-local",
+                     "tcp-autotuning-normal", "trim-on", "power-plan-balanced", "power-plan-balanced-x3d", "fast-startup-off", "wu-active-hours" })
+            Assert.Contains(id, work);
+        // Not a gaming set, not a privacy preference (Find My Device / time zone), not the screen-sharing item (a productivity feature stays).
+        foreach (var id in new[] { "game-mode", "hags", "hags-off", "gamedvr-off", "gamedvr-capture-off", "windowed-games-optimization",
+                     "power-plan-performance", "power-plan-ultimate", "mouse-acceleration-off", "accessibility-hotkeys-off",
+                     "explorer-home-private", "location-off", "telemetry-required" })
+            Assert.DoesNotContain(id, work);
+    }
+
+    [Fact]
+    public void Streaming_scenario_leaves_hags_and_delivery_optimization_alone()
+    {
+        var streaming = TweakCatalog.DefaultsFor(ProfileKind.Streaming).Select(t => t.Id).ToHashSet();
+        // OBS KB: Game DVR off next to OBS (no second encoder, no Win+Alt+R conflicts); recent files never go on air.
+        foreach (var id in new[] { "game-mode", "gamedvr-off", "gamedvr-capture-off", "windowed-games-optimization", "wifi-power-saving-off",
+                     "power-plan-balanced-x3d", "mouse-acceleration-off", "accessibility-hotkeys-off", "explorer-home-private" })
+            Assert.Contains(id, streaming);
+        // OBS KB /kb/hags: HAGS may break capture — the driver default stays; hags-off is a troubleshooting row. No uplink promise
+        // from delivery-optimization-local (review #41), no plan switch except the X3D steering.
+        foreach (var id in new[] { "hags", "hags-off", "delivery-optimization-local", "power-plan-performance", "power-plan-ultimate",
+                     "power-plan-balanced", "power-mode-best-performance", "usb-selective-suspend-off" })
+            Assert.DoesNotContain(id, streaming);
+    }
+
+    [Fact]
+    public void Efficiency_scenario_only_saves_and_never_removes_a_safety_net()
+    {
+        var efficiency = TweakCatalog.DefaultsFor(ProfileKind.Efficiency).Select(t => t.Id).ToHashSet();
+        foreach (var id in new[] { "power-plan-balanced", "power-plan-balanced-x3d", "power-mode-best-efficiency-ac", "power-mode-best-efficiency-dc",
+                     "battery-screen-off-3min", "battery-sleep-10min", "search-index-on-battery-off" })
+            Assert.Contains(id, efficiency);
+        // general_tweaks.md §11: hibernation, DC Wi-Fi/USB/ASPM, background apps and location stay; the turbo-boost item is tooltip-only.
+        foreach (var id in new[] { "hibernation-off", "cpu-boost-off-ac", "location-off", "usb-selective-suspend-off", "pcie-aspm-off",
+                     "power-plan-performance", "power-plan-ultimate", "power-mode-best-performance", "screen-off-ac-10m", "sleep-ac-30m" })
+            Assert.DoesNotContain(id, efficiency);
+        Assert.DoesNotContain(efficiency, id => id.StartsWith("background-apps", StringComparison.Ordinal));
+        // Every member is a power item: the scenario never touches anything else.
+        Assert.All(TweakCatalog.DefaultsFor(ProfileKind.Efficiency), t => Assert.Equal(TweakCategory.Power, t.Category));
+    }
+
+    [Fact]
+    public void Efficiency_scenario_has_a_desktop_half_and_a_laptop_half()
+    {
+        // «Тихий ПК» on a desktop: the Balanced plan and the efficient AC mode (Windows 11); «Ноутбук: автономность» adds the DC items.
+        var desktop = Profile(26100, cpu: "13th Gen Intel(R) Core(TM) i7-13700K", cores: 16);
+        var members = TweakCatalog.DefaultsFor(ProfileKind.Efficiency).Where(t => t.IsApplicable(desktop)).Select(t => t.Id).ToList();
+        Assert.Equal(["power-plan-balanced", "power-mode-best-efficiency-ac"], members);
+        // Windows 10 desktop: only the plan switch is left — the Optimize page hides the tile then (OptimizeLogic.EfficiencyTileVisible).
+        var win10 = Profile(19045, cpu: "13th Gen Intel(R) Core(TM) i7-13700K", cores: 16);
+        Assert.Equal(["power-plan-balanced"], TweakCatalog.DefaultsFor(ProfileKind.Efficiency).Where(t => t.IsApplicable(win10)).Select(t => t.Id).ToList());
+    }
+
+    [Fact]
+    public void Power_items_carry_their_exclusive_groups_and_dependencies()
+    {
+        foreach (var id in new[] { "power-plan-performance", "power-plan-ultimate", "power-plan-balanced", "power-plan-balanced-x3d" })
+            Assert.Equal(TweakGroups.PowerPlan, TweakCatalog.Find(id)!.ExclusiveGroup);
+        foreach (var id in new[] { "power-mode-best-performance", "power-mode-best-efficiency-ac" })
+            Assert.Equal(TweakGroups.PowerModeAc, TweakCatalog.Find(id)!.ExclusiveGroup);
+        Assert.Equal(TweakGroups.PowerModeDc, TweakCatalog.Find("power-mode-best-efficiency-dc")!.ExclusiveGroup);
+        foreach (var id in new[] { "power-mode-best-performance", "power-mode-best-efficiency-ac", "power-mode-best-efficiency-dc" })
+            Assert.Equal(["power-plan-balanced", "power-plan-balanced-x3d"], TweakCatalog.Find(id)!.Requires);
+    }
+
+    [Fact]
+    public void Balanced_plan_counts_a_vendor_balanced_plan_as_applied()
+    {
+        var oem = Guid.NewGuid();
+        var high = PowerSchemes.HighPerformance;
+        bool Personality(Guid g) => g == oem || g == PowerSchemes.Balanced;
+        // A plan derived from Balanced («AMD Ryzen Balanced», OEM Recommended) is never replaced: the row shows «применено».
+        Assert.Equal(TweakState.Applied, TweakCatalog.BalancedSchemeState(oem, Personality, sessionPlan: false, _ => true));
+        Assert.Equal(TweakState.Applied, TweakCatalog.BalancedSchemeState(PowerSchemes.Balanced, Personality, sessionPlan: false, _ => true));
+        // …unless the live plan is only a game session's temporary one.
+        Assert.Equal(TweakState.NotApplied, TweakCatalog.BalancedSchemeState(oem, Personality, sessionPlan: true, _ => true));
+        Assert.Equal(TweakState.NotApplied, TweakCatalog.BalancedSchemeState(high, Personality, sessionPlan: false, _ => true));
+        Assert.Equal(TweakState.NotApplicable, TweakCatalog.BalancedSchemeState(high, Personality, sessionPlan: false, _ => false));
+        Assert.Equal(TweakState.Unknown, TweakCatalog.BalancedSchemeState(Guid.Empty, Personality, sessionPlan: false, _ => true));
+        Assert.Contains("вариант производителя", TweakCatalog.Find("power-plan-balanced")!.Details);
     }
 
     [Fact]
@@ -537,22 +645,22 @@ public sealed class TweakCatalogTests : IDisposable
 
     public static readonly TheoryData<string, TweakRisk, ProfileSet, TweakCategory> NewTweaks = new()
     {
-        { "accessibility-hotkeys-off", TweakRisk.Optional, ProfileSet.Gaming, TweakCategory.Input },
+        { "accessibility-hotkeys-off", TweakRisk.Optional, ProfileSet.Gaming | ProfileSet.Streaming, TweakCategory.Input },
         { "edge-background-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Performance },
-        { "trim-on", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.System },
+        { "trim-on", TweakRisk.Safe, ProfileSet.Normal | ProfileSet.Recommended, TweakCategory.System },
         { "drive-optimize-schedule-on", TweakRisk.Optional, ProfileSet.None, TweakCategory.System },
         { "paint-ai-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Privacy },
         { "notepad-ai-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Privacy },
         { "start-web-recommendations-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
         { "start-phone-panel-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
         { "spotlight-third-party-off", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
-        { "explorer-home-private", TweakRisk.Optional, ProfileSet.None, TweakCategory.Interface },
-        { "news-interests-off", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.Interface },
+        { "explorer-home-private", TweakRisk.Optional, ProfileSet.Streaming, TweakCategory.Interface }, // screen-sharing privacy: streaming only, never «Работа и учёба»
+        { "news-interests-off", TweakRisk.Safe, ProfileSet.Normal | ProfileSet.Recommended, TweakCategory.Interface },
         { "power-mode-best-performance", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
-        { "power-mode-best-efficiency-ac", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
+        { "power-mode-best-efficiency-ac", TweakRisk.Optional, ProfileSet.Efficiency, TweakCategory.Power }, // «Тихий ПК» / «Ноутбук: автономность» only
         { "wake-timers-important-only", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
         { "cpu-boost-off-ac", TweakRisk.Optional, ProfileSet.None, TweakCategory.Power },
-        { "tcp-autotuning-normal", TweakRisk.Safe, ProfileSet.Recommended, TweakCategory.Network },
+        { "tcp-autotuning-normal", TweakRisk.Safe, ProfileSet.Normal | ProfileSet.Recommended, TweakCategory.Network },
     };
 
     [Theory]
@@ -694,9 +802,12 @@ public sealed class TweakCatalogTests : IDisposable
         {
             var t = TweakCatalog.Find(id);
             Assert.NotNull(t);
-            Assert.Equal(ProfileSet.None, t!.DefaultIn);
+            // Wave 3: the efficient AC mode is the core of «Тихий ПК» / «Ноутбук: автономность» and pre-checked there only.
+            var expected = id == "power-mode-best-efficiency-ac" ? ProfileSet.Efficiency : ProfileSet.None;
+            Assert.Equal(expected, t!.DefaultIn);
             foreach (var kind in Enum.GetValues<ProfileKind>())
-                Assert.DoesNotContain(TweakCatalog.DefaultsFor(kind), x => x.Id == id);
+                Assert.Equal(expected.HasFlag(TweakCatalog.ToSet(kind)) && expected != ProfileSet.None,
+                    TweakCatalog.DefaultsFor(kind).Any(x => x.Id == id));
             Assert.Equal(TweakRisk.Optional, t.Risk);
         }
         // Details are honest about the trade-offs the research insists on.

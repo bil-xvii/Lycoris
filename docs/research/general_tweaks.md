@@ -376,6 +376,44 @@ Optional extra: transparency off, `HKCU\…\Themes\Personalize\EnableTransparenc
 - `sys.trim` (repair, writes only when broken and an SSD is present)
 - `sys.faststartup` off, **desktops only**
 
+**Scenario matrix (01.11, wave 3 — binding for `Tweak.DefaultIn`).** The Optimize tiles are persistent pre-selections on the same
+catalog; apply is one `TweakEngine.ApplyAsync` batch (one restore point, batch undo in «Восстановление»). Advanced items are never
+members. `ProfileSet.Normal` *is* «Работа и учёба» (the former «Обычный»); `Streaming` and `Efficiency` are new flags; `All` keeps
+the three original sets because `ServiceCatalog` pre-selects by them (Services follows the scenario: Streaming → Gaming,
+Efficiency / Custom → Recommended).
+
+| Catalog id | Work («Работа и учёба») | Streaming («Стриминг и запись») | Efficiency («Тихий ПК» / «Ноутбук: автономность») |
+|---|---|---|---|
+| `ads-*`, `advertising-id-off`, `file-extensions-show`, `storage-sense-on` | ✓ (the old Normal set) | — | — |
+| `bing-start-search-off`, `search-highlights-off`, `widgets-off` / `news-interests-off`, `feedback-requests-off` | ✓ | — | — |
+| `delivery-optimization-local`, `tcp-autotuning-normal`, `trim-on` (repairs) | ✓ | — (review #41: no uplink gain by default) | — |
+| `power-plan-balanced` / `power-plan-balanced-x3d` | ✓ | X3D only (steering) | ✓ (vendor Balanced-derived plan counts as applied, see below) |
+| `fast-startup-off` (desktop) | ✓ | — | — |
+| `wu-active-hours` (SAFE-OPTIONAL pre-check: no restart 08:00–02:00) | ✓ | — | — |
+| `game-mode`, `gamedvr-off`, `windowed-games-optimization`, `wifi-power-saving-off` (AC) | — | ✓ | — |
+| `gamedvr-capture-off` (SAFE-OPTIONAL pre-check: no second encoder, no Win+Alt+R conflicts — OBS KB) | — | ✓ | — |
+| `mouse-acceleration-off`, `accessibility-hotkeys-off`, `audio-ducking` («ничего не делать») | — | ✓ | — |
+| `explorer-home-private` (SAFE-OPTIONAL pre-check: recent files never go on air) | **—** (productivity feature) | ✓ | — |
+| `hags` | — | **—** (OBS KB /kb/hags: capture problems; `hags-off` is a troubleshooting row, named in the tooltip) | — |
+| `power-mode-best-efficiency-ac` (Windows 11, Balanced personality) | — | — | ✓ desktop only (laptop: by choice, named in the tooltip) |
+| `power-mode-best-efficiency-dc`, `battery-screen-off-3min`, `battery-sleep-10min`, `search-index-on-battery-off` (DC items, SAFE-OPTIONAL pre-checks) | — | — | ✓ laptops only (AppliesTo) |
+
+Rules:
+- **Work ⊆ Recommended ∪ {`wu-active-hours`}** (the former «Normal ⊆ Recommended» invariant, changed on purpose). Work never
+  pre-checks gaming items, `location-off` or `explorer-home-private`.
+- **Streaming never pre-checks `hags` or `delivery-optimization-local`** and switches no plan except the X3D steering.
+  `usb-selective-suspend-off` and `hags-off` are named in the tooltip only (no new UI).
+- **Efficiency never pre-checks `cpu-boost-off-ac`** (tooltip suggestion only), `hibernation-off`, any DC Wi-Fi / USB / ASPM
+  change, `background-apps-*` or `location-off`; every member is a power item. On a laptop or desktop whose active plan is
+  Balanced-derived («AMD Ryzen Balanced», OEM Recommended) `power-plan-balanced` detects as **applied** — the OEM plan is never
+  replaced (Microsoft: the power-mode slider exists on «Balanced or any plan derived from it»; replacing an OEM plan can cost
+  battery life). The tile is hidden while the hardware facts are unknown or when its only applicable member is a plan switch
+  (Windows 10, dual-CCD X3D): a «Тихий ПК» that makes nothing quieter is not offered. The desktop effect («тише») is unmeasured
+  by MONOLITH — the tooltip says «эффект зависит от производителя, измерьте».
+- **Manual follow-ups** (text only, in the apply-result dialog, only for the scenario applied): Streaming → Do not disturb «во время
+  игры» (CloudStore blobs are never written); Quiet PC → FPS cap in the GPU panel, fan curves in BIOS / vendor utility; Laptop →
+  vendor charge limit, keep dynamic refresh rate on. No vendor names, no page references.
+
 Everything else is opt-in. Create one restore point per batch: `Checkpoint-Computer`, after setting `SystemRestorePointCreationFrequency`=0 under `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore`; that frequency value is itself saved and reverted. Restore points are throttled to one per 24 hours otherwise.
 
 **Detecting a laptop**

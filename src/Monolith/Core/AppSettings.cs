@@ -40,6 +40,21 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>Processes that Game Boost may pause/close (user-chosen, by process name).</summary>
     [ObservableProperty] private List<string> _gameBoostCloseList = [];
 
+    /// <summary>
+    /// What Game Boost does with the apps of <see cref="GameBoostCloseList"/>: "Close" (default) closes them; "EcoQos"
+    /// (Windows 11 only) puts them into efficiency mode (EcoQoS, like Task Manager's «Режим эффективности» without the priority
+    /// drop) for the session and restores each process's original state afterwards. Stored as a string so an unknown value
+    /// from a newer build falls back to closing instead of discarding the whole settings file.
+    /// </summary>
+    [ObservableProperty] private string _gameBoostCloseMode = CloseModeClose;
+
+    public const string CloseModeClose = "Close";
+    public const string CloseModeEcoQos = "EcoQos";
+
+    /// <summary>True when the close list is handled with efficiency mode instead of closing (the caller still checks Windows 11).</summary>
+    [JsonIgnore]
+    public bool GameBoostUsesEcoQos => string.Equals(GameBoostCloseMode, CloseModeEcoQos, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Game Boost: switch to the high-performance power plan while a game runs.</summary>
     [ObservableProperty] private bool _gameBoostPowerPlan = true;
 

@@ -24,6 +24,11 @@ public enum ProfileSet
     Normal = 1,
     Gaming = 2,
     Recommended = 4,
+    /// <summary>Scenario «Стриминг и запись»: no second encoder next to OBS, no capture conflicts, no recent files on air.</summary>
+    Streaming = 8,
+    /// <summary>Scenario «Тихий ПК» / «Ноутбук: автономность»: efficient power mode and shorter timeouts, never a performance item.</summary>
+    Efficiency = 16,
+    /// <summary>The three original profiles (ServiceCatalog pre-selects by these; the scenarios map onto them).</summary>
     All = Normal | Gaming | Recommended,
 }
 

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Monolith.Core;
+using Monolith.Modules.Optimize;
 
 namespace Monolith.Modules.Dashboard.Checks;
 
@@ -419,7 +420,9 @@ public static partial class HealthRules
 
         // Windows 11 power mode «Максимальная эффективность» on the balanced plan while on mains (not on battery, where
         // it is the point). Not on dual-CCD X3D: the catalog does not offer the mode there (AMD driver interplay unverified).
-        if (balanced && s.AcPowerMode == Tweaks.TweakCatalog.PowerModeBestEfficiency && s.EnergySaverOn != true
+        // The «Тихий ПК» scenario chooses this mode on purpose: no nudge back.
+        if (balanced && s.AcPowerMode == Tweaks.TweakCatalog.PowerModeBestEfficiency
+            && OptimizeLogic.ParseProfile(AppSettings.Current.LastProfile) != OptimizeProfile.Efficiency && s.EnergySaverOn != true
             && s.OnAcPower != false && !(isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores)))
             return new("power-plan", "РЕЖИМ ПИТАНИЯ ОТ СЕТИ — «МАКСИМАЛЬНАЯ ЭФФЕКТИВНОСТЬ»",
                 "На сбалансированной схеме выбран режим питания «Максимальная эффективность»: ниже частоты и фоновая активность — " +

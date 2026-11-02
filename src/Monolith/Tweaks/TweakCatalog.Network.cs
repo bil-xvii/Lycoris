@@ -43,7 +43,7 @@ public static partial class TweakCatalog
                       "перезагрузки.",
             Category = TweakCategory.Network,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             Restart = RestartRequirement.Reboot,
             AppliesTo = _ => LmInt(DeliveryOptimizationPolicy, "DODownloadMode") is null,
             NotApplicableReason = "Режим оптимизации доставки задан групповой политикой.",
@@ -59,7 +59,7 @@ public static partial class TweakCatalog
                      "схемы питания; работа от батареи на ноутбуке не меняется.",
             category: TweakCategory.Network,
             risk: TweakRisk.Safe,
-            defaults: ProfileSet.Gaming | ProfileSet.Recommended,
+            defaults: ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
             subgroup: SubWireless,
             setting: WirelessPowerMode,
             target: 0,
@@ -91,7 +91,7 @@ public static partial class TweakCatalog
                       "лимитом скорости в лаунчере, а не выключенной автонастройкой.",
             Category = TweakCategory.Network,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             // Policy-managed or mixed templates are reported as "not applicable", so profiles skip them instead of failing.
             NotApplicableReason = "Уровень автонастройки задан групповой политикой или шаблоны TCP настроены по-разному — " +
                                   "MONOLITH их не меняет, потому что не сможет вернуть каждый точно.",

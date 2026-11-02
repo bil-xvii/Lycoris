@@ -189,7 +189,7 @@ public sealed class ToolsTests
     public void Diagnostics_section_has_sleep_wake_and_power_report_cards()
     {
         var cards = Diagnostics(hasBattery: false, modernStandby: false);
-        Assert.Equal(["СОН И ПРОБУЖДЕНИЕ", "ОТЧЁТЫ О ПИТАНИИ И СНЕ", "ДИАГНОСТИКА ПАМЯТИ"], cards.Select(c => c.Title));
+        Assert.Equal(["СОН И ПРОБУЖДЕНИЕ", "ОТЧЁТЫ О ПИТАНИИ И СНЕ", "ДИАГНОСТИКА ПАМЯТИ", "ЗАДЕРЖКИ ДРАЙВЕРОВ (DPC/ISR)"], cards.Select(c => c.Title));
 
         var sleepWake = cards[0];
         var check = Assert.Single(sleepWake.Actions);
@@ -335,6 +335,8 @@ public sealed class ToolsTests
         Assert.DoesNotContain(tools, e => e.Title == "ОТЧЁТ О БАТАРЕЕ");
         Assert.Equal("СОН И ПРОБУЖДЕНИЕ", CommandPaletteSearch.Search(index, "lastwake")[0].Title);
         Assert.Equal("ОТЧЁТЫ О ПИТАНИИ И СНЕ", CommandPaletteSearch.Search(index, "sleepstudy")[0].Title);
+        Assert.Contains(tools, e => e.Title == "ЗАДЕРЖКИ ДРАЙВЕРОВ (DPC/ISR)" && e.Keywords.Contains("DPC") && e.Keywords.Contains("ДИАГНОСТИКА"));
+        Assert.Equal("ЗАДЕРЖКИ ДРАЙВЕРОВ (DPC/ISR)", CommandPaletteSearch.Search(index, "dpc")[0].Title);
     }
 
     // ─────────────────────────── undo center ───────────────────────────

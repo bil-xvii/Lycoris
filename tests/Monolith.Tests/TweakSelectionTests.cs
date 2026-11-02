@@ -356,6 +356,95 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void Efficiency_tile_is_marked_selected_when_it_joins_the_row_after_detection()
+    {
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "mode"]);
+        vm.Profile = OptimizeProfile.Efficiency;
+        Row(vm, "plan").State = TweakState.NotApplied;
+        Row(vm, "mode").State = TweakState.NotApplied;
+        vm.MarkDetected();
+        Assert.True(vm.Profiles.Single(t => t.Kind == OptimizeProfile.Efficiency).IsSelected);
+        Assert.Single(vm.Profiles, t => t.IsSelected);
+    }
+
+    [Fact]
+    public void Laptop_efficiency_scenario_leaves_the_ac_mode_unchecked()
+    {
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("power-mode-best-efficiency-ac", TweakGroups.PowerModeAc, ["plan"]), Tweak("dc"));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "power-mode-best-efficiency-ac", "dc"]);
+        foreach (var id in new[] { "plan", "power-mode-best-efficiency-ac", "dc" }) Row(vm, id).State = TweakState.NotApplied;
+        vm.MarkDetected(laptop: true);
+        vm.SelectProfile(OptimizeProfile.Efficiency);
+        Assert.False(Row(vm, "power-mode-best-efficiency-ac").IsChecked);
+        Assert.True(Row(vm, "dc").IsChecked);
+    }
+
+    [Fact]
+    public void Efficiency_tile_joins_the_row_only_with_a_member_beyond_a_plan_switch_and_takes_the_laptop_title()
+    {
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]), Tweak("n"));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "mode"]);
+        Assert.False(vm.IsEfficiencyTileVisible, "before detection the hardware facts are unknown");
+        Assert.Equal(5, vm.Profiles.Count);
+
+        // Windows 10 shape: the plan is already Balanced, the power mode does not exist → nothing would get quieter.
+        Row(vm, "plan").State = TweakState.Applied;
+        Row(vm, "mode").State = TweakState.NotApplicable;
+        Row(vm, "n").State = TweakState.NotApplied;
+        vm.MarkDetected();
+        Assert.False(vm.IsEfficiencyTileVisible);
+
+        // The mode is applicable (Windows 11 on Balanced): the tile appears in catalog order, between «Стриминг» and «Свой набор».
+        Row(vm, "mode").State = TweakState.NotApplied;
+        vm.MarkDetected();
+        Assert.True(vm.IsEfficiencyTileVisible);
+        Assert.Equal([OptimizeProfile.Recommended, OptimizeProfile.Gaming, OptimizeProfile.Normal, OptimizeProfile.Streaming, OptimizeProfile.Efficiency, OptimizeProfile.Custom],
+            vm.Profiles.Select(t => t.Kind).ToArray());
+        var tile = vm.Profiles.Single(t => t.Kind == OptimizeProfile.Efficiency);
+        Assert.Equal("ТИХИЙ ПК", tile.Title);
+        Assert.Equal(2, tile.Total);
+        Assert.Equal(1, tile.ToChange);
+
+        // The mode on High performance (not applicable on its own) still counts through its pending dependency.
+        Row(vm, "plan").State = TweakState.NotApplied;
+        Row(vm, "mode").State = TweakState.NotApplicable;
+        vm.MarkDetected(laptop: true);
+        Assert.True(vm.IsEfficiencyTileVisible);
+        Assert.Equal("НОУТБУК: АВТОНОМНОСТЬ", tile.Title);
+        Assert.Equal("Ноутбук: автономность", tile.SentenceName);
+        Assert.Equal(2, tile.ToChange);
+
+        // Unknown hardware facts (a WMI failure) hide it again, and a selected efficiency scenario falls back to the default one.
+        vm.SelectProfile(OptimizeProfile.Efficiency);
+        Assert.Equal(OptimizeProfile.Efficiency, vm.Profile);
+        vm.MarkDetected(hardwareFactsKnown: false);
+        Assert.False(vm.IsEfficiencyTileVisible);
+        Assert.Equal(OptimizeProfile.Recommended, vm.Profile);
+    }
+
+    [Fact]
+    public void A_row_the_hardware_rules_out_is_never_made_applicable_by_a_pending_dependency()
+    {
+        // Windows 10 desktop on High performance: the Balanced plan is pending, but the Windows 11 power mode stays out —
+        // not checked, not counted on the tile, and the efficiency tile (only a plan switch left) is hidden.
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "mode"]);
+        vm.SetHardwareExcluded("mode");
+        Row(vm, "plan").State = TweakState.NotApplied;
+        Row(vm, "mode").State = TweakState.NotApplicable;
+        vm.MarkDetected();
+        Assert.False(vm.IsEfficiencyTileVisible);
+
+        Row(vm, "plan").IsChecked = true;
+        Row(vm, "mode").IsChecked = true;
+        Assert.False(Row(vm, "mode").IsApplicableNow);
+        Assert.False(Row(vm, "mode").DependencySatisfiedByPending);
+        vm.SyncDependents();
+        Assert.False(Row(vm, "mode").IsChecked);
+    }
+
+    [Fact]
     public void A_requires_cycle_does_not_overflow_the_view_model()
     {
         var vm = Page(Tweak("a", requires: ["b"]), Tweak("b", requires: ["a"]));

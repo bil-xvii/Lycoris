@@ -23,7 +23,10 @@ public sealed record BoostChange(string Title, string Detail, BoostChangeKind Ki
 ///  • power plan → High performance on desktops; where the plan cannot be switched (laptop, Modern Standby, no such plan)
 ///    the Windows 11 AC power mode → «Максимальная производительность» instead (both journaled under source "gameboost"
 ///    so the Restore page can undo them after a crash);
-///  • close the user's chosen background apps (window close first, kill only after explicit confirmation);
+///  • close the user's chosen background apps (window close first, kill only after explicit confirmation) — or, on
+///    Windows 11 when the user chose so, keep them running in efficiency mode (EcoQoS, <see cref="EcoQos"/>): the original
+///    PROCESS_POWER_THROTTLING_STATE of every tagged process is written back when the session ends, a marker in the
+///    admin-only machine folder lets the next start reset leftovers after a crash;
 ///  • game process priority → High (never Realtime), restored when the session ends;
 ///  • optional one-time standby-list purge (opt-in, honest explanation).
 /// Stops manually or automatically when the game process exits; everything journaled is reverted.
@@ -40,7 +43,13 @@ public sealed partial class GameBoostService : ObservableObject
     /// <summary>Raised game processes. Guarded by <see cref="_raisedLock"/>: filled on a pool thread, emptied by every stop path.</summary>
     private readonly Dictionary<int, (SafeProcessHandle Handle, uint Original)> _raised = new();
     private readonly object _raisedLock = new();
+    /// <summary>
+    /// Close-list processes put into efficiency mode, with the exact state read before the change. Guarded by
+    /// <see cref="_raisedLock"/> like <see cref="_raised"/>: filled on a pool thread, emptied by every stop path.
+    /// </summary>
+    private readonly Dictionary<int, (SafeProcessHandle Handle, PowerThrottlingState Original, DateTime StartUtc, string Name)> _throttled = new();
     private readonly List<string> _closedApps = [];
+    private readonly List<string> _throttledApps = [];
     private CancellationTokenSource? _watchCts;
     /// <summary>
     /// True from the first change of a session until it was reverted — also during the start phase, before
@@ -209,6 +218,8 @@ public sealed partial class GameBoostService : ObservableObject
         var powerEnabled = s.GameBoostPowerPlan;
         var priority = s.GameBoostPriority;
         var purge = s.GameBoostPurgeStandby;
+        // EcoQoS exists since Windows 11 only (before it the same call meant LowQoS): Windows 10 always closes.
+        var closeMode = s.GameBoostUsesEcoQos && sp.IsWindows11 ? BoostCloseMode.EcoQos : BoostCloseMode.Close;
         return await Task.Run(() =>
         {
             var (action, text) = DecidePower(sp, powerEnabled);
@@ -225,7 +236,7 @@ public sealed partial class GameBoostService : ObservableObject
             }
             var running = new HashSet<string>(apps.Select(a => a.Name), StringComparer.OrdinalIgnoreCase);
             var notRunning = closeList.Select(UserProcesses.NormalizeName).Where(n => n.Length > 0 && !running.Contains(n)).ToList();
-            return new BoostPlan(action, text, apps, notRunning, priority && game is not null, purge);
+            return new BoostPlan(action, text, apps, notRunning, priority && game is not null, purge, closeMode);
         });
     }
 
@@ -239,6 +250,7 @@ public sealed partial class GameBoostService : ObservableObject
         _sessionOpen = true;
         Changes.Clear();
         _closedApps.Clear();
+        _throttledApps.Clear();
         _powerTarget = null;
         HasGame = game is not null;
         GameName = game?.Name ?? "Без привязки к игре";
@@ -250,7 +262,11 @@ public sealed partial class GameBoostService : ObservableObject
             else if (plan.PowerAction == PowerPlanAction.SwitchPowerMode) await SwitchPowerModeAsync();
             else Changes.Add(new BoostChange("План питания не изменён", plan.PowerText.Replace(BoostPolicy.SkipPrefix, ""), BoostChangeKind.Skipped));
 
-            if (plan.AppsToClose.Count > 0) await CloseAppsAsync(plan, game);
+            if (plan.AppsToClose.Count > 0)
+            {
+                if (plan.CloseMode == BoostCloseMode.EcoQos) await ThrottleAppsAsync(plan, game);
+                else await CloseAppsAsync(plan, game);
+            }
 
             if (plan.PurgeStandby) await PurgeStandbyAsync();
 
@@ -286,7 +302,7 @@ public sealed partial class GameBoostService : ObservableObject
         {
             Log.Error("Игровой сеанс: ошибка запуска", ex);
             Ui.Toast(ex.Message, ToastKind.Error, "ИГРОВОЙ СЕАНС");
-            if (IsActive || ChangeJournal.Instance.HasActiveSource(Source))
+            if (IsActive || ChangeJournal.Instance.HasActiveSource(Source) || HasThrottled())
                 await StopCoreAsync("Запуск игрового сеанса прерван — изменения отменены.", ToastKind.Warning);
             return false;
         }
@@ -420,6 +436,170 @@ public sealed partial class GameBoostService : ObservableObject
             foreach (var (p, _) in targets) p.Dispose();
         }
     }
+
+    /// <summary>
+    /// Efficiency mode instead of closing (Windows 11): for every close-list process that is not excluded, reads its
+    /// PROCESS_POWER_THROTTLING_STATE, skips the ones that already control EXECUTION_SPEED themselves (Edge, Chrome), adds
+    /// EXECUTION_SPEED to that state (other bits kept) and keeps handle + original state for the exact restore. Priority is never touched. The crash marker is written
+    /// as soon as the first process is tagged and updated with every further one.
+    /// </summary>
+    private async Task ThrottleAppsAsync(BoostPlan plan, GameEntry? game)
+    {
+        var names = plan.AppsToClose.Select(a => a.Name).ToList();
+        string? recovered = null;
+        var work = Task.Run(() =>
+        {
+            // Leftovers of a crashed session first: the new marker would replace the old one and the old processes would look self-managed.
+            if (!HasThrottled())
+            {
+                try { recovered = RecoverStaleEcoQos(); }
+                catch (Exception ex) { Log.Warn($"Игровой сеанс: не удалось снять режим эффективности прошлого сеанса — {ex.Message}"); }
+            }
+            return ThrottleProcesses(names, game?.InstallDir);
+        });
+        _pendingChange = work;
+        var (tagged, skipped) = await work;
+        if (recovered is not null)
+            Changes.Add(new BoostChange("Режим эффективности прошлого сеанса", recovered, BoostChangeKind.Info));
+
+        if (tagged.Count == 0 && skipped.Count == 0)
+        {
+            Changes.Add(new BoostChange("Режим эффективности", "Приложения из списка уже закрыты — назначать режим некому.", BoostChangeKind.Info));
+            return;
+        }
+        foreach (var g in tagged.GroupBy(n => n, StringComparer.OrdinalIgnoreCase))
+        {
+            _throttledApps.Add(g.Key);
+            Changes.Add(new BoostChange($"{g.Key}: режим эффективности",
+                (g.Count() > 1 ? $"Процессов: {g.Count()}. " : "") + "Программа работает дальше на экономных частотах; после игры вернётся прежнее состояние.",
+                BoostChangeKind.Changed));
+        }
+        foreach (var (name, reason) in skipped.Distinct())
+            Changes.Add(new BoostChange($"{name}: пропущено — {reason}", "Программа работает как обычно.", BoostChangeKind.Skipped));
+        if (tagged.Count > 0)
+            Log.Info("Игровой сеанс: режим эффективности для " + string.Join(", ", tagged.Distinct(StringComparer.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>Blocking part of <see cref="ThrottleAppsAsync"/>. Returns the tagged names (one per process) and the skipped (name, reason) pairs.</summary>
+    private (List<string> Tagged, List<(string Name, string Reason)> Skipped) ThrottleProcesses(List<string> names, string? gameDir)
+    {
+        var tagged = new List<string>();
+        var skipped = new List<(string, string)>();
+        var targets = UserProcesses.FindClosable(names, gameDir);
+        try
+        {
+            if (targets.Count == 0) return (tagged, skipped);
+            var audio = EcoQos.ActiveAudioPids();
+            int self;
+            using (var me = Process.GetCurrentProcess()) self = me.Id;
+            foreach (var p in targets)
+            {
+                var name = SafeName(p);
+                int pid;
+                try { pid = p.Id; } catch { continue; }
+                if (EcoQos.ExclusionReason(name, pid, self, audio) is { } reason)
+                {
+                    skipped.Add((name, reason));
+                    continue;
+                }
+                var h = GamesNative.Open(pid, GamesNative.PROCESS_SET_INFORMATION | GamesNative.PROCESS_QUERY_LIMITED_INFORMATION);
+                if (h.IsInvalid)
+                {
+                    var err = Marshal.GetLastWin32Error();
+                    h.Dispose();
+                    skipped.Add((name, err == 5 ? "процесс защищён от изменений" : $"процесс недоступен (код {err})"));
+                    continue;
+                }
+                var original = EcoQos.ReadState(h);
+                var start = EcoQos.StartTimeUtc(h);
+                if (original is not { } orig || start is not { } startUtc)
+                {
+                    h.Dispose();
+                    skipped.Add((name, "Windows не сообщила текущее состояние — без него нет точного возврата"));
+                    continue;
+                }
+                if (EcoQos.IsSelfManaged(orig))
+                {
+                    h.Dispose();
+                    skipped.Add((name, EcoQos.IsEco(orig) ? "уже управляет режимом сам (режим эффективности включён)" : "уже управляет режимом сам"));
+                    continue;
+                }
+                if (!EcoQos.WriteState(h, EcoQos.PlanApply(orig)))
+                {
+                    var err = Marshal.GetLastWin32Error();
+                    h.Dispose();
+                    skipped.Add((name, err == 5 ? "процесс защищён от изменений" : $"Windows отклонила изменение (код {err})"));
+                    continue;
+                }
+                List<EcoQosMarkerEntry> marker;
+                lock (_raisedLock)
+                {
+                    _throttled[pid] = (h, orig, startUtc, name);
+                    marker = _throttled.Select(kv => new EcoQosMarkerEntry(kv.Key, kv.Value.StartUtc)).ToList();
+                }
+                EcoQos.WriteMarker(marker);
+                tagged.Add(name);
+            }
+        }
+        finally
+        {
+            foreach (var p in targets) p.Dispose();
+        }
+        return (tagged, skipped);
+    }
+
+    private bool HasThrottled()
+    {
+        lock (_raisedLock) return _throttled.Count > 0;
+    }
+
+    /// <summary>Takes every throttled process out of the session at once, so two stop paths never restore the same handle.</summary>
+    private List<(SafeProcessHandle Handle, PowerThrottlingState Original, DateTime StartUtc, string Name)> TakeThrottled()
+    {
+        lock (_raisedLock)
+        {
+            var list = _throttled.Values.ToList();
+            _throttled.Clear();
+            return list;
+        }
+    }
+
+    /// <summary>
+    /// Writes the ORIGINAL throttling state back to every tagged process that is still running (the handle keeps the PID from
+    /// being reused, so the start time is already proven) and whose state is still the one MONOLITH wrote: if the app changed
+    /// it itself meanwhile, its newer choice stays. The marker is deleted unless a write failed.
+    /// </summary>
+    private static EcoRestoreResult RestoreThrottled(List<(SafeProcessHandle Handle, PowerThrottlingState Original, DateTime StartUtc, string Name)> throttled)
+    {
+        int restored = 0, exited = 0, failed = 0, changed = 0;
+        foreach (var (handle, original, _, name) in throttled)
+        {
+            try
+            {
+                using (handle)
+                {
+                    if (!EcoQos.IsRunning(handle)) { exited++; continue; }
+                    if (EcoQos.ReadState(handle) is { } now && now != EcoQos.PlanApply(original))
+                    {
+                        changed++;
+                        Log.Info($"Игровой сеанс: {name} сама сменила режим — не трогаем.");
+                        continue;
+                    }
+                    if (EcoQos.WriteState(handle, EcoQos.PlanRestore(original))) restored++;
+                    else
+                    {
+                        failed++;
+                        Log.Warn($"Игровой сеанс: не удалось вернуть режим {name} (код {Marshal.GetLastWin32Error()}).");
+                    }
+                }
+            }
+            catch { failed++; }
+        }
+        if (throttled.Count > 0 && failed == 0) EcoQos.DeleteMarker();
+        return new EcoRestoreResult(restored, exited, failed, changed);
+    }
+
+    private readonly record struct EcoRestoreResult(int Restored, int Exited, int Failed, int Changed);
 
     private async Task PurgeStandbyAsync()
     {
@@ -595,7 +775,8 @@ public sealed partial class GameBoostService : ObservableObject
         PhaseText = "ОСТАНОВКА";
 
         var raised = TakeRaised();
-        var restoredPriority = await Task.Run(() => RestorePriorities(raised));
+        var throttled = TakeThrottled();
+        var (restoredPriority, restoredEco) = await Task.Run(() => (RestorePriorities(raised), RestoreThrottled(throttled)));
         RevertResult result;
         ChangeRecord? planNow = null;
         try
@@ -618,6 +799,20 @@ public sealed partial class GameBoostService : ObservableObject
         var msg = reason;
         if (KeptPlanNote(result, planNow) is { } kept) msg += " " + kept;
         if (restoredPriority > 0) msg += " Приоритет игры возвращён.";
+        if (throttled.Count > 0)
+        {
+            if (restoredEco.Restored == throttled.Count)
+                msg += $" Режим эффективности снят ({string.Join(", ", _throttledApps)}).";
+            else
+            {
+                msg += $" Режим эффективности снят с работающих программ: {restoredEco.Restored} из {throttled.Count}";
+                var rest = new List<string>();
+                if (restoredEco.Exited > 0) rest.Add($"уже закрыты: {restoredEco.Exited}");
+                if (restoredEco.Changed > 0) rest.Add($"программа сама сменила режим: {restoredEco.Changed}");
+                if (restoredEco.Failed > 0) rest.Add($"не удалось вернуть: {restoredEco.Failed} — перезапустите программу");
+                msg += rest.Count > 0 ? $" ({string.Join("; ", rest)})." : ".";
+            }
+        }
         if (result.Failed > 0) msg += $" Не удалось отменить изменений: {result.Failed} — откройте раздел «Восстановление».";
         if (_closedApps.Count > 0)
             msg += $" Закрытые приложения ({string.Join(", ", _closedApps)}) MONOLITH не перезапускает — откройте их сами, если нужны.";
@@ -682,6 +877,7 @@ public sealed partial class GameBoostService : ObservableObject
             try { _pendingChange?.Wait(TimeSpan.FromSeconds(5)); }
             catch { /* its own error handling reports it */ }
             RestorePriorities(TakeRaised());
+            RestoreThrottled(TakeThrottled());
             if (!Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source)).Wait(TimeSpan.FromSeconds(5)))
                 Log.Warn("Игровой сеанс: откат при выходе не успел за 5 с (журнал был занят) — при следующем запуске MONOLITH предложит вернуть настройки.");
             Log.Info("Игровой сеанс: MONOLITH закрыт во время сеанса — изменения отменены.");
@@ -695,6 +891,80 @@ public sealed partial class GameBoostService : ObservableObject
     }
 
     // ───────────────────────────── Leftovers of a crashed session ─────────────────────────────
+
+    /// <summary>
+    /// A crash marker exists (MONOLITH died during a session with efficiency mode on): every listed process that is still
+    /// running with the same PID and start time gets EXECUTION_SPEED taken out of its masks (system-managed speed, other bits
+    /// untouched). The exact original is lost with the crash — the log says so. Blocking; elevated
+    /// only (the marker lives in the admin-only folder). Returns the line to show, or null when there was nothing to do.
+    /// Only processes of this session and user are touched (same checks as the close list), so a forged marker can at most
+    /// put a process of the user back to the default state.
+    /// </summary>
+    public static string? RecoverStaleEcoQos()
+    {
+        if (!Elevation.IsElevated) return null;
+        var entries = EcoQos.ReadMarker();
+        if (entries.Count == 0)
+        {
+            EcoQos.DeleteMarker(); // an empty or unreadable marker is just removed
+            return null;
+        }
+        var alive = UserProcesses.FindClosable(entries.Select(e => ProcessNameOf(e.Pid)).OfType<string>(), excludeDir: null);
+        var reset = new List<string>();
+        var gone = 0;
+        try
+        {
+            foreach (var e in entries)
+            {
+                var p = alive.FirstOrDefault(x => { try { return x.Id == e.Pid; } catch { return false; } });
+                if (p is null)
+                {
+                    gone++;
+                    continue;
+                }
+                var h = GamesNative.Open(e.Pid, GamesNative.PROCESS_SET_INFORMATION | GamesNative.PROCESS_QUERY_LIMITED_INFORMATION);
+                using (h)
+                {
+                    if (h.IsInvalid) continue;
+                    if (EcoQos.StartTimeUtc(h) is not { } start || !EcoQos.Matches(e, e.Pid, start))
+                    {
+                        gone++; // the PID was reused by another process: not ours
+                        continue;
+                    }
+                    if (EcoQos.ReadState(h) is not { } now) continue;
+                    if (!EcoQos.IsEco(now)) continue; // already back (the app reset it itself)
+                    if (EcoQos.WriteState(h, EcoQos.PlanRecover(now))) reset.Add(SafeName(p));
+                }
+            }
+        }
+        finally
+        {
+            foreach (var p in alive) p.Dispose();
+        }
+        EcoQos.DeleteMarker();
+        if (reset.Count == 0)
+        {
+            Log.Info("Игровой сеанс: отметка режима эффективности прошлого сеанса закрыта — программы уже перезапущены или сами вернули режим.");
+            return null;
+        }
+        var text = $"Прошлый игровой сеанс не завершился: режим эффективности снят с {string.Join(", ", reset.Distinct(StringComparer.OrdinalIgnoreCase))} " +
+                   "(частотами снова управляет Windows: точное исходное состояние после аварийного закрытия неизвестно).";
+        Log.Warn("Игровой сеанс: " + text + (gone > 0 ? $" Уже закрыты или перезапущены: {gone}." : ""));
+        return text;
+    }
+
+    private static string? ProcessNameOf(int pid)
+    {
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+            return p.ProcessName;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// The later change that keeps <paramref name="r"/>'s target when the <paramref name="undone"/> records are reverted
