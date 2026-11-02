@@ -42,15 +42,17 @@ jobs:
         shell: pwsh
         run: |
           $report = Join-Path $env:RUNNER_TEMP 'lycoris-selftest-ru'
-          & 'src/Lycoris/bin/Release/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe' --selftest $report --no-elevate
-          if ($LASTEXITCODE -ne 0) { throw "Russian self-test failed with exit code $LASTEXITCODE" }
+          $exe = (Resolve-Path 'src/Lycoris/bin/Release/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe').Path
+          $process = Start-Process -FilePath $exe -ArgumentList @('--selftest', $report, '--no-elevate') -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw "Russian self-test failed with exit code $($process.ExitCode)" }
 
       - name: Self-test (English)
         shell: pwsh
         run: |
           $report = Join-Path $env:RUNNER_TEMP 'lycoris-selftest-en'
-          & 'src/Lycoris/bin/Release/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe' --selftest $report --lang en --no-elevate
-          if ($LASTEXITCODE -ne 0) { throw "English self-test failed with exit code $LASTEXITCODE" }
+          $exe = (Resolve-Path 'src/Lycoris/bin/Release/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe').Path
+          $process = Start-Process -FilePath $exe -ArgumentList @('--selftest', $report, '--lang', 'en', '--no-elevate') -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw "English self-test failed with exit code $($process.ExitCode)" }
 
       - name: Upload self-test reports on failure
         if: failure()
