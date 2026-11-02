@@ -71,6 +71,7 @@ public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEn
             Ui.Navigate("home");
             return;
         }
+        if (e.FocusId == "wizard:open") { (Ui.Host as MainViewModel)?.OpenWizard(); return; }
         if (e.FocusId is { } id) Ui.RequestFocus(e.PageKey, id);
         Ui.Navigate(e.PageKey);
     }

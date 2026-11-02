@@ -6,6 +6,7 @@
   ],
   "ignore": [],
   "en": {
+    "ЗАПУСТИТЬ МАСТЕР ЗАНОВО": "RUN THE WIZARD AGAIN",
     "Точка восстановления перед изменениями — {0}": "Restore point before changes — {0}",
     "Подтверждение перед применением — {0}": "Confirmation before applying — {0}",
     "Экспертный режим служб — {0}": "Services expert mode — {0}",

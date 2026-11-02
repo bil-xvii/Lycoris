@@ -4,6 +4,7 @@
   "sources": ["Modules/Home/**"],
   "ignore": [],
   "en": {
+    "Хотите пройти мастер?": "Would you like to take the wizard?",
     "Главная": "Home",
     "Выберите, что хотите сделать.": "Choose what you want to do.",
     "Доктор собирает сведения при первом открытии Панели.": "Doctor is collecting information when Dashboard opens for the first time.",

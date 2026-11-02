@@ -203,7 +203,8 @@ public static class CommandPaletteIndex
             $"{i.Publisher} {i.Command} " + Loc.Keep("автозапуск startup"), "services", StartupFocusPrefix + i.Key));
 
     /// <summary>Everything static (no live scans): catalogs, Settings rows, Drivers tabs, Restore sections.</summary>
-    public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries).Concat(ModeEntries);
+    public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries).Concat(ModeEntries).Append(
+        new Entry(PaletteKind.Setting, Loc.Key("Запустить мастер заново"), Loc.Key("Настроить цель компьютера и режим интерфейса."), Loc.Keep("мастер первого запуска настройка"), "settings", "wizard:open"));
 
     private static readonly Entry[] ModeEntries =
     [
