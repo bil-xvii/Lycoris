@@ -356,6 +356,31 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void Efficiency_tile_is_marked_selected_when_it_joins_the_row_after_detection()
+    {
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "mode"]);
+        vm.Profile = OptimizeProfile.Efficiency;
+        Row(vm, "plan").State = TweakState.NotApplied;
+        Row(vm, "mode").State = TweakState.NotApplied;
+        vm.MarkDetected();
+        Assert.True(vm.Profiles.Single(t => t.Kind == OptimizeProfile.Efficiency).IsSelected);
+        Assert.Single(vm.Profiles, t => t.IsSelected);
+    }
+
+    [Fact]
+    public void Laptop_efficiency_scenario_leaves_the_ac_mode_unchecked()
+    {
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("power-mode-best-efficiency-ac", TweakGroups.PowerModeAc, ["plan"]), Tweak("dc"));
+        vm.SetProfileDefaults(OptimizeProfile.Efficiency, ["plan", "power-mode-best-efficiency-ac", "dc"]);
+        foreach (var id in new[] { "plan", "power-mode-best-efficiency-ac", "dc" }) Row(vm, id).State = TweakState.NotApplied;
+        vm.MarkDetected(laptop: true);
+        vm.SelectProfile(OptimizeProfile.Efficiency);
+        Assert.False(Row(vm, "power-mode-best-efficiency-ac").IsChecked);
+        Assert.True(Row(vm, "dc").IsChecked);
+    }
+
+    [Fact]
     public void Efficiency_tile_joins_the_row_only_with_a_member_beyond_a_plan_switch_and_takes_the_laptop_title()
     {
         var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("mode", TweakGroups.PowerModeAc, ["plan"]), Tweak("n"));

@@ -95,7 +95,7 @@ public sealed partial class ServicesViewModel
     internal static string ProfileCaptionFor(ProfileSet selected, string? lastProfile, bool laptop)
     {
         var scenario = OptimizeLogic.ParseProfile(lastProfile);
-        if (scenario == OptimizeProfile.Custom) return "Сценарий в разделе «Оптимизация» — «Свой набор», поэтому профиль служб выбирается здесь.";
+        if (scenario == OptimizeProfile.Custom) return "Свой набор — профиль выбирается здесь.";
         var name = OptimizeLogic.ScenarioName(scenario, laptop);
         var mapped = OptimizeLogic.ServicesProfileFor(scenario);
         return mapped == selected
