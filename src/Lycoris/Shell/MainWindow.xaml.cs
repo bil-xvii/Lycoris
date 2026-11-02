@@ -22,6 +22,7 @@ public partial class MainWindow : Window
 
     public async Task WizardDemoShotsAsync(string directory)
     {
+        Directory.CreateDirectory(directory);
         Wizard.OpenDemo();
         for (var i = 1; i <= 3; i++)
         {

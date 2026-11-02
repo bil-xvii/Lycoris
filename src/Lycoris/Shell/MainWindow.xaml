@@ -310,7 +310,7 @@
                             <TextBlock Text="{Binding StepTitle}" FontSize="26" FontWeight="SemiBold" Margin="0,8,0,18" TextWrapping="Wrap"/>
                         </StackPanel>
                         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,18">
-                            <TextBlock Text="1/3" Margin="0,0,24,0"/><TextBlock Text="2/3" Margin="0,0,24,0"/><TextBlock Text="3/3"/>
+                            <TextBlock Text="{Binding Step, StringFormat={}{0}/3}" Style="{StaticResource T.BodyStrong}"/>
                         </StackPanel>
                         <Grid Grid.Row="2">
                             <StackPanel>
@@ -334,7 +334,7 @@
                         </Grid>
                         <DockPanel Grid.Row="3" Margin="0,22,0,0">
                             <Button Content="{loc:T НАЗАД}" Command="{Binding BackCommand}" Style="{StaticResource Btn}" DockPanel.Dock="Left"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="{loc:T ПРОПУСТИТЬ}" Command="{Binding SkipCommand}" Style="{StaticResource Btn}" Margin="0,0,8,0"/><Button Content="{loc:T ДАЛЕЕ}" Command="{Binding NextCommand}" Style="{StaticResource Btn.Primary}"/><Button Content="{loc:T 'ПОКАЗАТЬ, ЧТО УЛУЧШИТЬ'}" Command="{Binding FinishCommand}" Style="{StaticResource Btn.Primary}" Visibility="{Binding Step, Converter={StaticResource EqualsToVis}, ConverterParameter=3}"/></StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="{loc:T ИГРЫ И ПРОФИЛИ}" Command="{Binding OpenGamesCommand}" Style="{StaticResource Btn}" Margin="0,0,8,0" Visibility="{Binding ShowGamesLink, Converter={StaticResource BoolToVis}}"/><Button Content="{loc:T ПРОПУСТИТЬ}" Command="{Binding SkipCommand}" Style="{StaticResource Btn}" Margin="0,0,8,0"/><Button Content="{loc:T ДАЛЕЕ}" Command="{Binding NextCommand}" Style="{StaticResource Btn.Primary}" Visibility="{Binding Step, Converter={StaticResource EqualsToVis}, ConverterParameter=1|2}"/><Button Content="{loc:T 'ПОКАЗАТЬ, ЧТО УЛУЧШИТЬ'}" Command="{Binding FinishCommand}" Style="{StaticResource Btn.Primary}" Visibility="{Binding Step, Converter={StaticResource EqualsToVis}, ConverterParameter=3}"/></StackPanel>
                         </DockPanel>
                     </Grid>
                 </Border>

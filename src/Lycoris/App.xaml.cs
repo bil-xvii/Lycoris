@@ -279,7 +279,7 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    File.WriteAllText(Path.Combine(Path.GetFullPath(snapshotDir!), "snapshot-error.txt"), ex.ToString());
+                    Directory.CreateDirectory(Path.GetFullPath(snapshotDir!)); File.WriteAllText(Path.Combine(Path.GetFullPath(snapshotDir!), "snapshot-error.txt"), ex.ToString());
                 }
                 finally
                 {
