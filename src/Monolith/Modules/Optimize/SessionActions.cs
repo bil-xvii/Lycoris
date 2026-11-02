@@ -216,6 +216,19 @@ internal static class SessionActions
 
     public const int RebootDelaySeconds = 10;
 
+    /// <summary>
+    /// Why a reboot must not be offered now: a listed task (an installer, DISM/SFC, a cleaning…) is running or a game session
+    /// is active — Windows would close it mid-way. Null = free. Pure.
+    /// </summary>
+    public static string? RebootBlockerText(IEnumerable<OperationInfo> operations, bool gameSessionActive)
+    {
+        if (operations.FirstOrDefault(o => o.IsListed) is { } blocker)
+            return Loc.Tf("Сейчас выполняется задача «{0}»: перезагрузка прервала бы её на середине. Дождитесь окончания (список «ЗАДАЧИ» внизу окна) и перезагрузите компьютер позже.", blocker.Name);
+        return gameSessionActive
+            ? Loc.T("Идёт игровой сеанс Lycoris: остановите его на странице «Игры» и перезагрузите компьютер после этого.")
+            : null;
+    }
+
     /// <summary>Schedules a normal reboot (shutdown /r /t 10). Windows shows its own notice; "shutdown /a" cancels it.</summary>
     public static async Task<SessionActionResult> ScheduleRebootAsync()
     {

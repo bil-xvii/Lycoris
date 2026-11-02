@@ -118,6 +118,7 @@
     "Проверка цифровой подписи…": "Verifying the digital signature…",
     "{0:0}% · {1} из {2}": "{0:0}% · {1} of {2}",
     "Сервер сообщает слишком большой размер файла — загрузка отменена.": "The server reports an unreasonably large file size — download cancelled.",
-    "Файл больше допустимого размера — загрузка прервана.": "The file is larger than allowed — download stopped."
+    "Файл больше допустимого размера — загрузка прервана.": "The file is larger than allowed — download stopped.",
+    "Вывод процесса: обработчик строки завершился ошибкой — {0}": "Process output: the line handler failed — {0}"
   }
 }

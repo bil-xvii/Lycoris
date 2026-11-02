@@ -2,7 +2,8 @@ using System.Runtime.InteropServices;
 
 namespace Monolith.Core;
 
-public sealed record ScheduledTaskInfo(string Path, string Name, bool Exists, bool Enabled);
+/// <summary>Unreadable: the scheduler did not answer (error other than «no such task») — Exists = false then says nothing about the task.</summary>
+public sealed record ScheduledTaskInfo(string Path, string Name, bool Exists, bool Enabled, bool Unreadable = false);
 
 /// <summary>Windows Task Scheduler through its COM API (locale-independent, unlike schtasks output).</summary>
 public static class ScheduledTasks
@@ -20,15 +21,19 @@ public static class ScheduledTasks
             bool enabled = task.Enabled;
             return new ScheduledTaskInfo(taskPath, name, true, enabled);
         }
-        catch
+        catch (Exception ex)
         {
-            return new ScheduledTaskInfo(taskPath, name, false, false);
+            return new ScheduledTaskInfo(taskPath, name, false, false, Unreadable: !IsNotFound(ex));
         }
         finally
         {
             if (service is not null) Marshal.FinalReleaseComObject(service);
         }
     }
+
+    /// <summary>ERROR_FILE_NOT_FOUND / ERROR_PATH_NOT_FOUND from the Task Scheduler: the task (or its folder) really is not there.</summary>
+    internal static bool IsNotFound(Exception ex) =>
+        ex is COMException { HResult: unchecked((int)0x80070002) or unchecked((int)0x80070003) };
 
     public static void SetEnabled(string taskPath, bool enabled)
     {

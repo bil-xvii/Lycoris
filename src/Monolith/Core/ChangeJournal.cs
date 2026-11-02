@@ -1218,18 +1218,30 @@ public sealed class ChangeJournal
                 return false;
             }
             var tmp = _path + ".tmp";
-            try { File.Delete(tmp); } catch { }
             var bytes = JsonSerializer.SerializeToUtf8Bytes(_data, JsonOptions);
-            using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            for (var attempt = 0; ; attempt++)
             {
-                fs.Write(bytes);
-                fs.Flush(flushToDisk: true);
+                try
+                {
+                    try { File.Delete(tmp); } catch { }
+                    using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+                    {
+                        fs.Write(bytes);
+                        fs.Flush(flushToDisk: true);
+                    }
+                    if (File.Exists(_path))
+                        File.Replace(tmp, _path, _path + ".bak", ignoreMetadataErrors: true);
+                    else
+                        File.Move(tmp, _path);
+                    return true;
+                }
+                // An antivirus scan or the search indexer often holds a file in %ProgramData% for a moment; a refused save
+                // would refuse the whole change, so wait a little and try again before giving up.
+                catch (Exception ex) when (attempt < 3 && ex is IOException or UnauthorizedAccessException)
+                {
+                    Thread.Sleep(100 * (attempt + 1));
+                }
             }
-            if (File.Exists(_path))
-                File.Replace(tmp, _path, _path + ".bak", ignoreMetadataErrors: true);
-            else
-                File.Move(tmp, _path);
-            return true;
         }
         catch (Exception ex)
         {
@@ -1328,7 +1340,11 @@ internal sealed class WindowsJournalSystem : IJournalSystem
             }
 
             case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
-                if (!ScheduledTasks.Query(r.TaskPath).Exists)
+                var taskNow = ScheduledTasks.Query(r.TaskPath);
+                // The scheduler not answering is not «the task is gone»: closing the record would leave the task changed for good.
+                if (taskNow.Unreadable)
+                    throw new InvalidOperationException(Loc.T("Планировщик заданий не ответил — откат не выполнен, повторите позже."));
+                if (!taskNow.Exists)
                 {
                     Log.Info("Откат пропущен: задачи {0} больше нет в планировщике.", r.TaskPath);
                     return new RevertOutcome(Loc.T("Задачи больше нет в планировщике — откатывать нечего."), Skipped: true);
