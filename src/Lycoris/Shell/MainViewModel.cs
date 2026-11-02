@@ -58,6 +58,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         AppSettings.Current.ExpertMode = value;
         OnPropertyChanged(nameof(ExpertMode));
         OnPropertyChanged(nameof(ExpertModeText));
+        foreach (var page in Pages) page.RefreshExpertMode();
         PageViewModel.NotifyExpertModeChanged();
     }
 
@@ -127,7 +128,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             if (e.PropertyName == nameof(AppSettings.ShowConsole))
                 Ui.Post(() => ConsoleExpanded = AppSettings.Current.ShowConsole);
             if (e.PropertyName == nameof(AppSettings.ExpertMode))
-                Ui.Post(() => { OnPropertyChanged(nameof(ExpertMode)); OnPropertyChanged(nameof(ExpertModeText)); PageViewModel.NotifyExpertModeChanged(); });
+                Ui.Post(() => { OnPropertyChanged(nameof(ExpertMode)); OnPropertyChanged(nameof(ExpertModeText)); foreach (var page in Pages) page.RefreshExpertMode(); PageViewModel.NotifyExpertModeChanged(); });
         };
 
         ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournalCount);

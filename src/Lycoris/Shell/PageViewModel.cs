@@ -13,6 +13,7 @@ public abstract partial class PageViewModel : ObservableObject
 {
     public static event Action<bool>? ExpertModeChanged;
     public bool ExpertMode => AppSettings.Current.ExpertMode;
+    internal void RefreshExpertMode() => OnPropertyChanged(nameof(ExpertMode));
 
     internal static void NotifyExpertModeChanged() => ExpertModeChanged?.Invoke(AppSettings.Current.ExpertMode);
 
