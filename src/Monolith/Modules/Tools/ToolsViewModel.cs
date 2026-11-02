@@ -171,7 +171,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         if (!RequireAdmin(Loc.T("Проверка и восстановление Windows"), "RepairWindows")) return;
         if (!await Ui.ConfirmAsync(
                 Loc.T("Проверить и восстановить Windows?"),
-                Loc.T("MONOLITH выполнит два штатных шага Windows один за другим: DISM восстановит хранилище компонентов, затем SFC сверит и заменит повреждённые системные файлы."),
+                Loc.T("Lycoris выполнит два штатных шага Windows один за другим: DISM восстановит хранилище компонентов, затем SFC сверит и заменит повреждённые системные файлы."),
                 [
                     Loc.T("Шаг 1: DISM /Online /Cleanup-Image /RestoreHealth — 10–30 минут, нужен интернет (Центр обновления Windows)"),
                     Loc.T("Шаг 2: sfc /scannow — 5–20 минут, на HDD дольше"),
@@ -407,7 +407,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                     Loc.T("VPN-клиенты и сетевое ПО может понадобиться переустановить"),
                     Loc.T("Потребуется перезагрузка компьютера"),
                     restoreNote,
-                    Loc.T("Копии разделов реестра Winsock и TCP/IP сохраняются в папку резервных копий MONOLITH"),
+                    Loc.T("Копии разделов реестра Winsock и TCP/IP сохраняются в папку резервных копий Lycoris"),
                 ],
                 confirmText: Loc.T("СБРОСИТЬ"), danger: true, footnote: Loc.T("Кнопкой «Откатить» в журнале это действие не отменяется.")))
             return;
@@ -418,7 +418,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             if (AppSettings.Current.CreateRestorePoints)
             {
                 Emit(Loc.T("Создание точки восстановления…"), ConsoleLineKind.Info);
-                rp = await RestorePointService.CreateAsync("MONOLITH: сброс сетевых настроек"); // loc:ignore the restore point name is stored by Windows
+                rp = await RestorePointService.CreateAsync("Lycoris: сброс сетевых настроек"); // loc:ignore the restore point name is stored by Windows
                 Emit(rp.Message, rp.Created ? ConsoleLineKind.Success : ConsoleLineKind.Info);
                 if (rp.Outcome is RestorePointOutcome.Disabled or RestorePointOutcome.Failed &&
                     !await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(Loc.T("Продолжить без точки восстановления?"), rp.Message,
@@ -476,7 +476,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     // ═════════════════════════════ Power & sleep (read-only) ═════════════════════════════
 
     /// <summary>
-    /// A powercfg HTML report: written to the MONOLITH logs folder and opened without administrator rights,
+    /// A powercfg HTML report: written to the Lycoris logs folder and opened without administrator rights,
     /// exactly like the battery report. <see cref="NonZeroExitMeansProblemsFound"/>: powercfg /energy exits non-zero when
     /// the report lists problems (the code's exact meaning is undocumented, so it is shown as is and never as a count) —
     /// with a created report that is a warning, not a failure.
@@ -600,7 +600,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                     Loc.T("60 секунд ПК должен простаивать: закройте программы и не трогайте мышь и клавиатуру"),
                     Loc.T("Команда: powercfg /energy /output … /duration 60"),
                     Loc.T("Ничего не меняет в системе — только наблюдение"),
-                    Loc.T("Отчёт сохраняется в папку журналов MONOLITH и открывается в браузере без прав администратора"),
+                    Loc.T("Отчёт сохраняется в папку журналов Lycoris и открывается в браузере без прав администратора"),
                 ],
                 confirmText: Loc.T("ЗАПУСТИТЬ"), footnote: Loc.T("«Ошибки» в отчёте — это причины повышенного расхода энергии, а не поломки.")))
             return;
@@ -617,7 +617,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             if (r.Cancelled) return null;
             var exists = File.Exists(file);
             if (exists) Emit(Loc.Tf("Отчёт: {0}", file), ConsoleLineKind.Info);
-            // The browser must never inherit MONOLITH's administrator rights.
+            // The browser must never inherit Lycoris's administrator rights.
             var opened = exists && await UnelevatedShell.OpenFileAsync(file);
             return ClassifyPowerReport(spec, r.ExitCode, exists, opened, file, Elevation.IsElevated);
         });
@@ -705,7 +705,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         }
         if (!await Ui.ConfirmAsync(
                 Loc.T("Измерить задержки драйверов?"),
-                Loc.T("60 секунд обычной работы: можно открыть браузер или видео, но не игру. MONOLITH откроет собственный сеанс трассировки ядра и посчитает, сколько времени каждый драйвер проводит в прерываниях (ISR) и отложенных вызовах (DPC)."),
+                Loc.T("60 секунд обычной работы: можно открыть браузер или видео, но не игру. Lycoris откроет собственный сеанс трассировки ядра и посчитает, сколько времени каждый драйвер проводит в прерываниях (ISR) и отложенных вызовах (DPC)."),
                 [
                     Loc.T("Длительность: ровно 60 секунд, можно прервать"),
                     Loc.T("Ничего не меняет: трассировка только читает события ядра, файл не записывается"),
@@ -742,7 +742,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         var result = await Task.Run(() =>
         {
             var stale = EtwSession.StopStaleSessions();
-            if (stale > 0) _pending.Enqueue(Loc.Tf("Остановлено незавершённых сеансов MONOLITH: {0}.", stale));
+            if (stale > 0) _pending.Enqueue(Loc.Tf("Остановлено незавершённых сеансов Lycoris: {0}.", stale));
             return EtwSession.Run(DpcDuration, aggregator.Add,
                 percent => _pending.Enqueue(Loc.Tf("Измерение {0}% завершено.", percent)), ct);
         }, ct);
@@ -932,7 +932,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         });
     }
 
-    /// <summary>Adds a line written by MONOLITH itself (not by the tool). Safe from any thread.</summary>
+    /// <summary>Adds a line written by Lycoris itself (not by the tool). Safe from any thread.</summary>
     private void Emit(string text, ConsoleLineKind kind) => Ui.Post(() =>
     {
         FlushPending();
@@ -1024,7 +1024,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                 Title = Loc.T("ОТЧЁТЫ О ПИТАНИИ И СНЕ"),
                 Command = "powercfg " + string.Join(" · ", reportCommands),
                 Description = Loc.T("HTML-отчёты Windows: батарея (износ, циклы, прогноз), энергоэффективность (/energy — 60 секунд наблюдения: кто мешает простою и USB-сну, кто запрашивает повышенное разрешение таймера, нагрузка в простое), для Modern Standby — расход в режиме ожидания за 3 дня (/sleepstudy), а также диагностика переходов в сон (/systemsleepdiagnostics)."),
-                Note = Loc.T("Отчёт энергоэффективности снимается при простое: закройте программы и не трогайте ПК 60 секунд; во время игрового сеанса он не запускается. Отчёты сохраняются в папку журналов MONOLITH и открываются в браузере без прав администратора. Ничего не меняет."),
+                Note = Loc.T("Отчёт энергоэффективности снимается при простое: закройте программы и не трогайте ПК 60 секунд; во время игрового сеанса он не запускается. Отчёты сохраняются в папку журналов Lycoris и открываются в браузере без прав администратора. Ничего не меняет."),
                 Duration = Loc.T("5 С – 1 МИН"),
                 RequiresAdmin = true,
                 Actions = reports,
@@ -1103,7 +1103,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                         Title = Loc.T("ПРОВЕРКА ДИСКА"),
                         Command = $"chkdsk {systemDrive} /scan",
                         Description = Loc.Tf("Онлайн-проверка файловой системы диска {0} без перезагрузки — диск остаётся доступным. Покажет, есть ли ошибки, которые требуют полной проверки при загрузке.", systemDrive),
-                        Note = Loc.Tf("Полную проверку с исправлением MONOLITH не планирует. Если она нужна: откройте «Терминал (администратор)», выполните «{0}», ответьте Y и перезагрузитесь — Windows проверит диск до входа в систему.", chkdskCommandText),
+                        Note = Loc.Tf("Полную проверку с исправлением Lycoris не планирует. Если она нужна: откройте «Терминал (администратор)», выполните «{0}», ответьте Y и перезагрузитесь — Windows проверит диск до входа в систему.", chkdskCommandText),
                         Duration = Loc.T("1–10 МИН"),
                         RequiresAdmin = true,
                         Actions =
@@ -1206,7 +1206,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     };
 
     /// <summary>
-    /// Only Windows tools that no MONOLITH page covers: services, updates, devices, storage, power, game settings,
+    /// Only Windows tools that no Lycoris page covers: services, updates, devices, storage, power, game settings,
     /// programs and restore points have their own pages.
     /// </summary>
     internal static IReadOnlyList<QuickLink> BuildQuickLinks() =>

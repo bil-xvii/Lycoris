@@ -23,7 +23,7 @@ public sealed class UpdateSecurityTests : IDisposable
     private static SignatureInfo Unsigned => new("NotSigned", "", "");
 
     private UpdateDownloader Make(FakeHandler h, string? pinned = null, Func<string, SemVer?>? versionOf = null, SemVer? current = null) =>
-        new(new HttpClient(h), Kit.SmallPolicy, p => Task.FromResult(Unsigned), @"C:\Apps\MONOLITH.exe", versionOf, pinned,
+        new(new HttpClient(h), Kit.SmallPolicy, p => Task.FromResult(Unsigned), @"C:\Apps\Lycoris.exe", versionOf, pinned,
             current is { } c ? () => c : () => new SemVer(1, 0, 0, 0, ""));
 
     private FakeHandler Serve(string? signature)
@@ -31,9 +31,9 @@ public sealed class UpdateSecurityTests : IDisposable
         return new FakeHandler(req =>
         {
             var url = req.RequestUri!;
-            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/MONOLITH.exe.sha256")) return FakeHandler.Json(Kit.Sha(_exe) + "  MONOLITH.exe\n");
-            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/MONOLITH.exe.sig")) return signature is null ? FakeHandler.Status(HttpStatusCode.NotFound) : FakeHandler.Json(signature);
-            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/MONOLITH.exe")) return FakeHandler.Bytes(_exe);
+            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/Lycoris.exe.sha256")) return FakeHandler.Json(Kit.Sha(_exe) + "  Lycoris.exe\n");
+            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/Lycoris.exe.sig")) return signature is null ? FakeHandler.Status(HttpStatusCode.NotFound) : FakeHandler.Json(signature);
+            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/Lycoris.exe")) return FakeHandler.Bytes(_exe);
             return FakeHandler.Status(HttpStatusCode.NotFound);
         });
     }
@@ -42,11 +42,11 @@ public sealed class UpdateSecurityTests : IDisposable
     {
         var json = Kit.ReleaseJson(tag, _exe.Length);
         if (withSig)
-            json = json.Replace("]}", $",{{\"name\":\"MONOLITH.exe.sig\",\"state\":\"uploaded\",\"size\":88,\"browser_download_url\":\"{Kit.BaseUrl}{tag}/MONOLITH.exe.sig\"}}]}}");
+            json = json.Replace("]}", $",{{\"name\":\"Lycoris.exe.sig\",\"state\":\"uploaded\",\"size\":88,\"browser_download_url\":\"{Kit.BaseUrl}{tag}/Lycoris.exe.sig\"}}]}}");
         return ReleaseParser.TryParse(json, out _)!;
     }
 
-    private string Sign(string version, string file = "MONOLITH.exe", string? hash = null, string? key = null) =>
+    private string Sign(string version, string file = "Lycoris.exe", string? hash = null, string? key = null) =>
         ReleaseSignature.Sign(ReleaseSignature.SignedStatement(version, file, hash ?? Kit.Sha(_exe)), key ?? _keys.Private);
 
     private Task<StagedUpdate> Download(UpdateDownloader d, ReleaseInfo r) => d.DownloadAsync(r, _dir, null, CancellationToken.None);
@@ -78,7 +78,7 @@ public sealed class UpdateSecurityTests : IDisposable
     }
 
     [Theory]
-    [InlineData("1.0.0", "MONOLITH.exe")]   // an old signed release re-used for a newer tag
+    [InlineData("1.0.0", "Lycoris.exe")]   // an old signed release re-used for a newer tag
     [InlineData("1.0.1", "OTHER.exe")]      // a signature made for another file
     public async Task A_valid_signature_of_another_version_or_file_is_refused(string version, string file)
     {
@@ -96,7 +96,7 @@ public sealed class UpdateSecurityTests : IDisposable
     [Fact]
     public async Task A_signature_asset_outside_the_releases_repository_is_refused()
     {
-        var json = Kit.ReleaseJson("v1.0.1", _exe.Length).Replace("]}", ",{\"name\":\"MONOLITH.exe.sig\",\"state\":\"uploaded\",\"size\":88,\"browser_download_url\":\"https://evil.example/MONOLITH.exe.sig\"}]}");
+        var json = Kit.ReleaseJson("v1.0.1", _exe.Length).Replace("]}", ",{\"name\":\"Lycoris.exe.sig\",\"state\":\"uploaded\",\"size\":88,\"browser_download_url\":\"https://evil.example/Lycoris.exe.sig\"}]}");
         var release = ReleaseParser.TryParse(json, out _)!;
         await Assert.ThrowsAsync<UpdateRefusedException>(() => Download(Make(Serve(Sign("1.0.1")), _keys.Public), release));
     }
@@ -144,14 +144,14 @@ public sealed class UpdateSecurityTests : IDisposable
     [Fact]
     public void The_release_parser_reads_the_signature_asset()
     {
-        Assert.EndsWith("/MONOLITH.exe.sig", ReleaseWithSig().SigUrl);
+        Assert.EndsWith("/Lycoris.exe.sig", ReleaseWithSig().SigUrl);
         Assert.Equal("", ReleaseWithSig(withSig: false).SigUrl);
     }
 
     // ───────────────────────────── The headless updater (--apply-update) ─────────────────────────────
 
-    private const string Old = @"C:\Apps\MONOLITH\MONOLITH.exe";
-    private const string Self = @"C:\Apps\MONOLITH\MONOLITH.exe.new";
+    private const string Old = @"C:\Apps\MONOLITH\Lycoris.exe";
+    private const string Self = @"C:\Apps\MONOLITH\Lycoris.exe.new";
 
     /// <summary>The fake file system with the real updater's security answers made configurable.</summary>
     private sealed class GuardEnv : FakeEnv, IUpdateEnvironment

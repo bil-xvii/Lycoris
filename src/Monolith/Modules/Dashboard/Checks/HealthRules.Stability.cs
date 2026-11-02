@@ -264,7 +264,7 @@ public static partial class HealthRules
                        "дампа памяти)"));
         var detail = Loc.Tf("{0}: {1}.", period, string.Join("; ", findings)) + (advice.Count > 0 ? " " + string.Join(". ", advice) + "." : "");
         if (a.Truncated) detail += " " + Loc.T("Записей очень много — подсчитаны только самые свежие.");
-        if (causes.Contains(CrashCause.Processor) || causes.Contains(CrashCause.Memory)) detail += " " + Loc.T("MONOLITH настройки BIOS не меняет.");
+        if (causes.Contains(CrashCause.Processor) || causes.Contains(CrashCause.Memory)) detail += " " + Loc.T("Lycoris настройки BIOS не меняет.");
 
         var action = causes.Contains(CrashCause.Memory)
             ? new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ПАМЯТЬ"), "tools")

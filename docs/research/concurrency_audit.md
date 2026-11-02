@@ -3,7 +3,7 @@
 Owner request: «Надо сделать так, чтобы при выполнении той или иной задачи, если, к примеру, выполняется много задач одновременно
 и сразу, чтобы это не рушило систему и продолжала работать.»
 
-Scope: every long-running or system-changing operation of MONOLITH at commit `9fc8042` (before this work), what it locks, what
+Scope: every long-running or system-changing operation of Lycoris at commit `9fc8042` (before this work), what it locks, what
 happened when it met another one, and what was changed. Everything below was verified by reading the code at that commit; "today"
 means before the change, "now" means after it.
 
@@ -14,11 +14,11 @@ means before the change, "now" means after it.
 | `IsBusy` + `RunBusyAsync` | `Shell/PageViewModel` | one operation per page (a second click is ignored silently) | anything across pages; the ignored click gave no reason |
 | Journal gate (`SemaphoreSlim(1)` + `AsyncLocal`) | `Core/ChangeJournal.Exclusive/ExclusiveAsync`, `RevertAsync` | each journaled change / revert is atomic against the others (verified by the stress tests below) | batches of two pages interleave change by change; installers, repairs and file deletes are not journaled and not covered |
 | `RestorePointService.Gate` + `_inFlight` | `Core/RestorePointService` | two WMI `CreateRestorePoint` calls never overlap; a timed-out call is not re-entered | the second caller still creates a *second* restore point right after the first (24 h limit is lifted again) |
-| `WingetClient.Gate` | `Core/WingetClient` | winget processes of MONOLITH are serialized | driver installers, vendor installers, Windows Update, DISM/SFC |
+| `WingetClient.Gate` | `Core/WingetClient` | winget processes of Lycoris are serialized | driver installers, vendor installers, Windows Update, DISM/SFC |
 | `Ui.DialogGate` | `UI/Ui` | one dialog at a time | a dialog opened *inside* an operation keeps that operation alive (and its lock) until the user answers |
 | `GameBoostState` | Cleaner, Tools (energy/DPC), NIC writer | Cleaner, DPC/energy report and NIC changes refuse during a game session | SFC/DISM/chkdsk/defrag, installs |
 | Exit watchdog (20 s) + `App.OnExit` (journal save, restore-point limit put back) + `GameBoostService.StopOnExit` | `App.xaml.cs`, `GamesViewModel` | a half-shut-down process cannot hold the instance lock | **no** check that something is still running: the window just closed |
-| Display guard child process | `Core/Devices/DisplaySafeApply` | display mode/HDR comes back if MONOLITH dies | — |
+| Display guard child process | `Core/Devices/DisplaySafeApply` | display mode/HDR comes back if Lycoris dies | — |
 
 ## 2. Inventory of long-running / system-changing operations
 
@@ -122,12 +122,12 @@ recovery in `MainViewModel`.
 
 ## 6. Not covered / residual risks
 
-* A vendor installer that MONOLITH has **started for the user** (`UnelevatedShell.StartAsUserAsync`) runs outside MONOLITH: its
+* A vendor installer that Lycoris has **started for the user** (`UnelevatedShell.StartAsUserAsync`) runs outside Lycoris: its
   lease ends when it is launched. Windows Installer (msiexec) still protects itself with error 1618.
 * Windows Update, other programs and the user's own actions are outside any in-process coordinator.
 * WMI queries are not individually capped (only the Measure/Background parallelism and the short-process cap bound them).
 * Page first loads and Dashboard warm-ups are `Measure`, not `Background`; they never block, and the cap of 3 applies.
-* Exiting with «ВЫЙТИ КАК ЕСТЬ» leaves running children (winget, DISM) alone by design; their result no longer shows in MONOLITH.
+* Exiting with «ВЫЙТИ КАК ЕСТЬ» leaves running children (winget, DISM) alone by design; their result no longer shows in Lycoris.
 * A queued operation that waits behind a very long install can reach its queue timeout (4 h for installs, 30 min for changes);
   the message names the blocker and nothing is half-done.
 * The display-change countdown (≤ 15 s, auto-revert) holds its Disruptive lease across the modal countdown window by design.

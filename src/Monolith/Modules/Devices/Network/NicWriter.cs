@@ -60,7 +60,7 @@ internal sealed class NicWriter : INicWriter
     {
         if (interfaceGuid == Guid.Empty) throw new ArgumentException(Loc.T("не указан сетевой адаптер"),nameof(interfaceGuid));
         var kw = DeviceTargets.NicKeywords.FirstOrDefault(k => string.Equals(k, keyword, StringComparison.OrdinalIgnoreCase))
-                 ?? throw new ArgumentException(Loc.Tf("свойство «{0}» MONOLITH не меняет", keyword),nameof(keyword));
+                 ?? throw new ArgumentException(Loc.Tf("свойство «{0}» Lycoris не меняет", keyword),nameof(keyword));
         if (!DeviceTargets.IsNicValue(value)) throw new ArgumentException(Loc.T("значение свойства должно быть числом"),nameof(value));
         var guid = interfaceGuid.ToString("B").ToUpperInvariant();
         return $"$a=@(Get-NetAdapter -IncludeHidden | Where-Object {{ $_.InterfaceGuid -eq '{guid}' }});" +

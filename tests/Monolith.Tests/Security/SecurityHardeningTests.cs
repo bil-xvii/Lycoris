@@ -137,7 +137,7 @@ public sealed class SecurityHardeningTests
     }
 
     [Theory]
-    [InlineData(@"\\server\share\MONOLITH.exe", true)]
+    [InlineData(@"\\server\share\Lycoris.exe", true)]
     [InlineData(@"C:\Windows\System32\cmd.exe", false)]
     public void Hostile_locations(string path, bool hostile) => Assert.Equal(hostile, PathTrust.IsHostileLocation(path));
 
@@ -485,14 +485,14 @@ public sealed class SecurityHardeningTests
     public void Release_signature_round_trip_and_tamper()
     {
         var (priv, pub) = ReleaseSignature.GenerateKeyPair();
-        var statement = ReleaseSignature.SignedStatement("1.2.3", "MONOLITH.exe", new string('A', 64));
+        var statement = ReleaseSignature.SignedStatement("1.2.3", "Lycoris.exe", new string('A', 64));
         var sig = ReleaseSignature.Sign(statement, priv);
         Assert.True(ReleaseSignature.Verify(statement, sig, pub));
 
         // Another version, file name or hash invalidates the signature.
-        Assert.False(ReleaseSignature.Verify(ReleaseSignature.SignedStatement("1.2.4", "MONOLITH.exe", new string('A', 64)), sig, pub));
+        Assert.False(ReleaseSignature.Verify(ReleaseSignature.SignedStatement("1.2.4", "Lycoris.exe", new string('A', 64)), sig, pub));
         Assert.False(ReleaseSignature.Verify(ReleaseSignature.SignedStatement("1.2.3", "OTHER.exe", new string('A', 64)), sig, pub));
-        Assert.False(ReleaseSignature.Verify(ReleaseSignature.SignedStatement("1.2.3", "MONOLITH.exe", new string('B', 64)), sig, pub));
+        Assert.False(ReleaseSignature.Verify(ReleaseSignature.SignedStatement("1.2.3", "Lycoris.exe", new string('B', 64)), sig, pub));
 
         // Someone else's key does not verify.
         var (_, otherPub) = ReleaseSignature.GenerateKeyPair();

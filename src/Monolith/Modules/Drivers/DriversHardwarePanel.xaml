@@ -443,7 +443,7 @@
                         <TextBlock Text="{loc:T АНАЛИЗ ЖЕЛЕЗА}" Style="{StaticResource T.Label}" />
                         <TextBlock Text="{Binding HardwareScanStage}" Style="{StaticResource T.H2}" Margin="0,8,0,0" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0"
-                                   Text="{loc:T 'MONOLITH читает сведения о процессоре, плате, видеокартах, памяти, накопителях, сети, звуке, мониторах и периферии и подбирает для них официальные драйверы и программы. Только чтение — ничего не меняется и не устанавливается.'}" />
+                                   Text="{loc:T 'Lycoris читает сведения о процессоре, плате, видеокартах, памяти, накопителях, сети, звуке, мониторах и периферии и подбирает для них официальные драйверы и программы. Только чтение — ничего не меняется и не устанавливается.'}" />
                     </StackPanel>
                 </Border>
 
@@ -699,14 +699,14 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Clean install (DDU) — information only, MONOLITH never runs it -->
+                <!-- Clean install (DDU) — information only, Lycoris never runs it -->
                 <Grid Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" TextWrapping="Wrap"
-                               Text="{loc:T 'Повреждённый видеодрайвер переустанавливают начисто утилитой DDU — вручную, в безопасном режиме, после точки восстановления и с отключённым интернетом. MONOLITH её не запускает. Порядок: точка восстановления → скачать новый драйвер → отключить интернет → безопасный режим и DDU → установить драйвер и подключить интернет.'}" />
+                               Text="{loc:T 'Повреждённый видеодрайвер переустанавливают начисто утилитой DDU — вручную, в безопасном режиме, после точки восстановления и с отключённым интернетом. Lycoris её не запускает. Порядок: точка восстановления → скачать новый драйвер → отключить интернет → безопасный режим и DDU → установить драйвер и подключить интернет.'}" />
                     <Button Grid.Column="1" Style="{StaticResource Btn.Link}" Command="{Binding OpenUrlCommand}" CommandParameter="{Binding DduUrl}" ToolTip="{Binding DduUrl}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="DDU · WAGNARDSOFT" VerticalAlignment="Center" />

@@ -170,7 +170,7 @@ public static class CleanRunner
     {
         if (def.RequiresAdmin && !env.IsElevated) return Loc.T("Нужны права администратора.");
         if (def.IsUserScope && env.UserScopeBlocked)
-            return Loc.Tf("MONOLITH запущен от имени другой учётной записи ({0}) — пользовательские данные не трогаются.", env.ForeignSessionUser);
+            return Loc.Tf("Lycoris запущен от имени другой учётной записи ({0}) — пользовательские данные не трогаются.", env.ForeignSessionUser);
         return def.Blocker?.Invoke(env);
     }
 
@@ -396,7 +396,7 @@ public static class SystemCleanup
         {
             try { result = func(); }
             catch (Exception ex) { error = ex; }
-        }) { IsBackground = true, Name = "MONOLITH cleaner shell" };
+        }) { IsBackground = true, Name = "Lycoris cleaner shell" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         thread.Join();
@@ -481,7 +481,7 @@ public static class SystemCleanup
         var drive = SystemProfile.SystemDrive;
         var before = FreeSpace(drive);
         progress(Loc.T("DISM очищает хранилище компонентов — не выключайте ПК…"), null);
-        // Servicing is never killed: after the wait limit MONOLITH stops waiting and leaves DISM to finish.
+        // Servicing is never killed: after the wait limit Lycoris stops waiting and leaves DISM to finish.
         var run = await ProcessRunner.RunAsync(dism, "/Online /English /Cleanup-Image /StartComponentCleanup",
             new ProcessRunOptions
             {
@@ -490,7 +490,7 @@ public static class SystemCleanup
             }, CancellationToken.None).ConfigureAwait(false);
         var after = FreeSpace(drive);
         if (run.StillRunning)
-            return new(0, Loc.T("DISM работает дольше 3 часов. MONOLITH перестал ждать, но не прерывал очистку — не выключайте и не перезагружайте ПК, пока процесс Dism.exe не завершится (видно в диспетчере задач)."), null);
+            return new(0, Loc.T("DISM работает дольше 3 часов. Lycoris перестал ждать, но не прерывал очистку — не выключайте и не перезагружайте ПК, пока процесс Dism.exe не завершится (видно в диспетчере задач)."), null);
         if (!run.Success)
             return new(0, null, run.TimedOut ? Loc.T("DISM: превышено время очистки.") : Loc.Tf("DISM /StartComponentCleanup завершился с кодом {0}.", run.ExitCode));
         return new(Math.Max(0, after - before), Loc.T("Хранилище компонентов очищено."), null);

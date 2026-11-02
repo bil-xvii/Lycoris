@@ -42,7 +42,7 @@ public static class Hardening
 
             // 1. DLL search order: System32 + explicitly added folders only. The application folder and the current directory
             //    (Desktop\…, Downloads) are no longer searched for plain-name LoadLibrary calls, so a planted «version.dll»
-            //    next to MONOLITH.exe is never loaded. The folders the .NET host itself resolved for native libraries
+            //    next to Lycoris.exe is never loaded. The folders the .NET host itself resolved for native libraries
             //    (framework folder, or the single-file extraction folder) are added back — they are loaded by full path.
             var restricted = false;
             var trusted = 0;

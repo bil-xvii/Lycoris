@@ -364,7 +364,7 @@ public sealed partial class GameBoostService : ObservableObject
             // The plan was decided from a snapshot: re-check everything the record depends on right before writing.
             var current = TweakCatalog.ReadAcPowerMode();
             if (current is not { } from || !TweakCatalog.IsDocumentedPowerMode(from))
-                return (false, "", Loc.T("Windows сообщила неизвестный режим питания — MONOLITH его не меняет."));
+                return (false, "", Loc.T("Windows сообщила неизвестный режим питания — Lycoris его не меняет."));
             if (from == TweakCatalog.PowerModeBestPerformance)
                 return (false, TweakCatalog.DescribePowerMode(from), Loc.T("режим питания от сети уже «Максимальная производительность» — ничего не изменено."));
             if (PowerModeUntrusted(from) is { } refusal)
@@ -445,7 +445,7 @@ public sealed partial class GameBoostService : ObservableObject
             _closedApps.AddRange(closed);
             if (closed.Count > 0)
             {
-                Changes.Add(new BoostChange(Loc.Tf("Закрыто приложений: {0}", closed.Count), Loc.Tf("{0}. После игры MONOLITH их не открывает.", string.Join(", ", closed)), BoostChangeKind.Changed));
+                Changes.Add(new BoostChange(Loc.Tf("Закрыто приложений: {0}", closed.Count), Loc.Tf("{0}. После игры Lycoris их не открывает.", string.Join(", ", closed)), BoostChangeKind.Changed));
                 Log.Info("Игровой сеанс: закрыты {0}", string.Join(", ", closed));
             }
             if (open.Count > 0)
@@ -586,7 +586,7 @@ public sealed partial class GameBoostService : ObservableObject
 
     /// <summary>
     /// Writes the ORIGINAL throttling state back to every tagged process that is still running (the handle keeps the PID from
-    /// being reused, so the start time is already proven) and whose state is still the one MONOLITH wrote: if the app changed
+    /// being reused, so the start time is already proven) and whose state is still the one Lycoris wrote: if the app changed
     /// it itself meanwhile, its newer choice stays. The marker is deleted unless a write failed.
     /// </summary>
     private static EcoRestoreResult RestoreThrottled(List<(SafeProcessHandle Handle, PowerThrottlingState Original, DateTime StartUtc, string Name)> throttled)
@@ -856,7 +856,7 @@ public sealed partial class GameBoostService : ObservableObject
         }
         if (result.Failed > 0) msg += " " + Loc.Tf("Не удалось отменить изменений: {0} — откройте раздел «Восстановление».", result.Failed);
         if (_closedApps.Count > 0)
-            msg += " " + Loc.Tf("Закрытые приложения ({0}) MONOLITH не перезапускает — откройте их сами, если нужны.", string.Join(", ", _closedApps));
+            msg += " " + Loc.Tf("Закрытые приложения ({0}) Lycoris не перезапускает — откройте их сами, если нужны.", string.Join(", ", _closedApps));
         Log.Info("Игровой сеанс завершён. {0}", msg);
         Ui.Toast(msg, result.Failed > 0 ? ToastKind.Warning : kind, "ИГРОВОЙ СЕАНС ЗАВЕРШЁН");
         Ended?.Invoke();
@@ -904,7 +904,7 @@ public sealed partial class GameBoostService : ObservableObject
     }
 
     /// <summary>
-    /// MONOLITH is closing during a session — also during the start phase (power plan already switched, apps still
+    /// Lycoris is closing during a session — also during the start phase (power plan already switched, apps still
     /// being closed): nobody would watch the game any more, so undo everything now.
     /// </summary>
     public void StopOnExit()
@@ -920,8 +920,8 @@ public sealed partial class GameBoostService : ObservableObject
             RestorePriorities(TakeRaised());
             RestoreThrottled(TakeThrottled());
             if (!Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(Source)).Wait(TimeSpan.FromSeconds(5)))
-                Log.Warn("Игровой сеанс: откат при выходе не успел за 5 с (журнал был занят) — при следующем запуске MONOLITH предложит вернуть настройки.");
-            Log.Info("Игровой сеанс: MONOLITH закрыт во время сеанса — изменения отменены.");
+                Log.Warn("Игровой сеанс: откат при выходе не успел за 5 с (журнал был занят) — при следующем запуске Lycoris предложит вернуть настройки.");
+            Log.Info("Игровой сеанс: Lycoris закрыт во время сеанса — изменения отменены.");
         }
         catch (Exception ex)
         {
@@ -934,7 +934,7 @@ public sealed partial class GameBoostService : ObservableObject
     // ───────────────────────────── Leftovers of a crashed session ─────────────────────────────
 
     /// <summary>
-    /// A crash marker exists (MONOLITH died during a session with efficiency mode on): every listed process that is still
+    /// A crash marker exists (Lycoris died during a session with efficiency mode on): every listed process that is still
     /// running with the same PID and start time gets EXECUTION_SPEED taken out of its masks (system-managed speed, other bits
     /// untouched). The exact original is lost with the crash — the log says so. Blocking; elevated
     /// only (the marker lives in the admin-only folder). Returns the line to show, or null when there was nothing to do.
@@ -1037,7 +1037,7 @@ public sealed partial class GameBoostService : ObservableObject
     public static string StaleBanner(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer)
     {
         if (records.Count == 0) return "";
-        var text = Loc.T("Прошлый игровой сеанс не завершился (MONOLITH был закрыт аварийно).");
+        var text = Loc.T("Прошлый игровой сеанс не завершился (Lycoris был закрыт аварийно).");
         var live = records.Where(r => Keeper(r, records, newerLayer) is null).ToList();
         if (live.Count > 0)
             text += " " + Loc.Tf("Всё ещё действует: {0}.", string.Join("; ", live.Select(r => Loc.Tf("{0} — «{1}» вместо «{2}»", ShortTitle(r.Title), r.NewValue, r.OldValue))));
@@ -1055,7 +1055,7 @@ public sealed partial class GameBoostService : ObservableObject
     /// <summary>The question of the stale-session dialog.</summary>
     public static string StalePrompt(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer)
     {
-        var head = Loc.T("Прошлый игровой сеанс не завершился — MONOLITH был закрыт аварийно.") + " ";
+        var head = Loc.T("Прошлый игровой сеанс не завершился — Lycoris был закрыт аварийно.") + " ";
         var kept = records.Count(r => Keeper(r, records, newerLayer) is not null);
         return kept == 0 ? head + Loc.T("Эти временные изменения всё ещё действуют. Вернуть исходные значения?")
             : kept == records.Count ? head + Loc.T("Его изменения уже заменены более поздними, они останутся. Закрыть запись сеанса?")

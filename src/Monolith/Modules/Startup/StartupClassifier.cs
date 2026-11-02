@@ -11,9 +11,9 @@ public enum StartupRisk
     Microsoft,
     /// <summary>Audio / touchpad / GPU-panel helper of a hardware vendor: disabling may lose functionality.</summary>
     Driver,
-    /// <summary>Security agent (Windows Security, antivirus). MONOLITH never disables these.</summary>
+    /// <summary>Security agent (Windows Security, antivirus). Lycoris never disables these.</summary>
     Security,
-    /// <summary>Program updater task. MONOLITH never disables these (security updates).</summary>
+    /// <summary>Program updater task. Lycoris never disables these (security updates).</summary>
     Updater,
 }
 

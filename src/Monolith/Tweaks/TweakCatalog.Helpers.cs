@@ -414,7 +414,7 @@ public static partial class TweakCatalog
     /// Each DirectX tweak owns exactly one token, so undoing one never disturbs another.
     /// </summary>
     /// <remarks>
-    /// Undo scripts get <paramref name="createdKey"/> when the key did not exist before MONOLITH's first DirectX token
+    /// Undo scripts get <paramref name="createdKey"/> when the key did not exist before Lycoris's first DirectX token
     /// (and <paramref name="createdParent"/> when Software\Microsoft\DirectX did not exist either): once the last token is
     /// gone, the script removes the key (and that parent) again, but only while they hold no values and no subkeys — per-app
     /// GPU preferences live in the same key and are never touched. Without either flag the text is exactly what older
@@ -449,7 +449,7 @@ public static partial class TweakCatalog
     /// Whether the undo of a new DirectX token must also remove the key / its DirectX parent: true when the key (parent) is
     /// absent now, or when an active change of this account already claims to have created it — a DirectX token whose undo
     /// removes it, or a registry change (the Games page's per-game GPU choice) whose created key covers it. Then the key
-    /// only exists because MONOLITH created it, and whichever change is reverted last must clean it up, in any revert
+    /// only exists because Lycoris created it, and whichever change is reverted last must clean it up, in any revert
     /// order. Other accounts' records never count: their claims are about another profile's HKCU.
     /// </summary>
     internal static (bool CreatedKey, bool CreatedParent) DxUndoOwnership(bool keyExists, bool parentExists,

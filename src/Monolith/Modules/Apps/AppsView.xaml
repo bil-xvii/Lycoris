@@ -420,7 +420,7 @@
                                 <TextBlock Text="{loc:T WINGET · УСТАНОВЩИК ПРИЛОЖЕНИЙ}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{loc:T winget не найден}" Style="{StaticResource T.H1}" FontSize="22" Margin="0,6,0,0" />
                                 <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="620" HorizontalAlignment="Left"
-                                           Text="{loc:T 'MONOLITH ставит программы через winget — официальный менеджер пакетов Windows из «Установщика приложений» (App Installer). Установите или обновите его в Microsoft Store, затем нажмите «Обновить». Каталог ниже остаётся доступен: у каждой программы есть ссылка на официальный сайт.'}" />
+                                           Text="{loc:T 'Lycoris ставит программы через winget — официальный менеджер пакетов Windows из «Установщика приложений» (App Installer). Установите или обновите его в Microsoft Store, затем нажмите «Обновить». Каталог ниже остаётся доступен: у каждой программы есть ссылка на официальный сайт.'}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Margin="0,0,15,0" VerticalAlignment="Center">
                                 <Button Style="{StaticResource Btn.Primary}" Command="{Binding OpenAppInstallerStoreCommand}">
@@ -525,8 +525,8 @@
 
                     <!-- ═══════════════ Trust: one muted line (full text in the tooltip) ═══════════════ -->
                     <TextBlock Style="{StaticResource T.Caption}" Margin="0,20,0,0" TextWrapping="Wrap" ToolTipService.ShowDuration="30000"
-                               Text="{loc:T 'Только проверенные пакеты winget и Microsoft Store. MONOLITH никогда не передаёт winget --force, --ignore-security-hash и --allow-reboot. Установка работает и без прав администратора: установщики сами запросят UAC.'}"
-                               ToolTip="{loc:T 'Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком, установщик скачивается с его сервера, а SHA256 сверяется с манифестом. Пакеты Microsoft Store скачиваются из Store и проверяются его подписью. При установке winget принимает за вас лицензии издателей и условия Microsoft Store — MONOLITH предупреждает об этом перед каждой установкой. Удалить программу можно в «Параметры → Приложения».'}" />
+                               Text="{loc:T 'Только проверенные пакеты winget и Microsoft Store. Lycoris никогда не передаёт winget --force, --ignore-security-hash и --allow-reboot. Установка работает и без прав администратора: установщики сами запросят UAC.'}"
+                               ToolTip="{loc:T 'Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком, установщик скачивается с его сервера, а SHA256 сверяется с манифестом. Пакеты Microsoft Store скачиваются из Store и проверяются его подписью. При установке winget принимает за вас лицензии издателей и условия Microsoft Store — Lycoris предупреждает об этом перед каждой установкой. Удалить программу можно в «Параметры → Приложения».'}" />
                 </StackPanel>
             </ScrollViewer>
 

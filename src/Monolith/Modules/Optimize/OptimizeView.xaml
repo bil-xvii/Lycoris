@@ -180,7 +180,7 @@
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Page.TotalCount}" Value="0">
                     <Setter TargetName="Head" Property="Text" Value="{loc:T 'КАТАЛОГ ПУСТ'}" />
-                    <Setter TargetName="Body" Property="Text" Value="{loc:T 'В этой сборке MONOLITH нет ни одной оптимизации. Обновите приложение.'}" />
+                    <Setter TargetName="Body" Property="Text" Value="{loc:T 'В этой сборке Lycoris нет ни одной оптимизации. Обновите приложение.'}" />
                     <Setter TargetName="Reset" Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </DataTemplate.Triggers>

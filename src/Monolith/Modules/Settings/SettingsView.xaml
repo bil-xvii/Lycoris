@@ -59,7 +59,7 @@
                                     <StackPanel Margin="0,0,17,0">
                                         <TextBlock Text="{loc:T Язык / Language}" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="{loc:T 'АВТО — язык Windows. Выбранный язык применяется после перезапуска MONOLITH.'}" />
+                                                   Text="{loc:T 'АВТО — язык Windows. Выбранный язык применяется после перезапуска Lycoris.'}" />
                                         <TextBlock Style="{StaticResource T.BodyStrong}" Margin="0,6,0,0" Text="{Binding LanguageNote}"
                                                    Visibility="{Binding LanguageNote, Converter={StaticResource NullToVis}}" />
                                     </StackPanel>
@@ -93,7 +93,7 @@
                                     <StackPanel Margin="0,0,17,0">
                                         <TextBlock Text="{loc:T Запускать сразу с правами администратора}" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="{loc:T 'Включено: запрос UAC при каждом запуске, и все кнопки работают сразу. Выключено: MONOLITH открывается без UAC в режиме просмотра, а права запросит при первом изменении и продолжит действие сам. Действует со следующего запуска.'}" />
+                                                   Text="{loc:T 'Включено: запрос UAC при каждом запуске, и все кнопки работают сразу. Выключено: Lycoris открывается без UAC в режиме просмотра, а права запросит при первом изменении и продолжит действие сам. Действует со следующего запуска.'}" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ElevateAtStartup}" />
                                 </Grid>
@@ -121,7 +121,7 @@
                                     <StackPanel Margin="0,0,17,0">
                                         <TextBlock Text="{loc:T Проверять обновления автоматически}" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="{loc:T 'Раз в 12 часов MONOLITH сам смотрит на странице релизов, вышла ли новая версия, и показывает кнопку «ОБНОВЛЕНИЕ» в заголовке окна. Ничего не скачивается и не устанавливается без вашего подтверждения.'}" />
+                                                   Text="{loc:T 'Раз в 12 часов Lycoris сам смотрит на странице релизов, вышла ли новая версия, и показывает кнопку «ОБНОВЛЕНИЕ» в заголовке окна. Ничего не скачивается и не устанавливается без вашего подтверждения.'}" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.AutoCheckUpdates}" />
                                 </Grid>
@@ -135,7 +135,7 @@
                                     <StackPanel Margin="0,0,17,0">
                                         <TextBlock Text="{loc:T Интервал обновления мониторинга}" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="{loc:T 'Как часто «Панель» опрашивает загрузку процессора, видеокарты, памяти и дисков. Реже — меньше нагрузка от самого MONOLITH.'}" />
+                                                   Text="{loc:T 'Как часто «Панель» опрашивает загрузку процессора, видеокарты, памяти и дисков. Реже — меньше нагрузка от самого Lycoris.'}" />
                                     </StackPanel>
                                     <ComboBox Grid.Column="1" Width="200" VerticalAlignment="Center" ItemsSource="{Binding IntervalOptions}"
                                               SelectedItem="{Binding SelectedInterval}">
@@ -211,7 +211,7 @@
                                 <StackPanel Grid.Column="1" Margin="10,11,15,11">
                                     <TextBlock Text="{loc:T Сброс настроек}" Style="{StaticResource RowTitle}" />
                                     <TextBlock Style="{StaticResource RowText}"
-                                               Text="{loc:T 'Возвращает параметры MONOLITH к значениям по умолчанию. Изменения системы, журнал отката и папки с играми не затрагиваются.'}" />
+                                               Text="{loc:T 'Возвращает параметры Lycoris к значениям по умолчанию. Изменения системы, журнал отката и папки с играми не затрагиваются.'}" />
                                 </StackPanel>
                                 <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Content="{loc:T СБРОСИТЬ НАСТРОЙКИ}" Margin="0,0,14,0" VerticalAlignment="Center"
                                         Command="{Binding ResetSettingsCommand}" />
@@ -276,7 +276,7 @@
                         <!-- Principles (collapsed) -->
                         <Expander Margin="0,14,0,0">
                             <Expander.Header>
-                                <TextBlock Text="{loc:T КАК MONOLITH ЗАЩИЩАЕТ СИСТЕМУ}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T КАК LYCORIS ЗАЩИЩАЕТ СИСТЕМУ}" Style="{StaticResource T.Label}" />
                             </Expander.Header>
                             <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0" ui:RoundClip.Content="True">
                                 <ItemsControl ItemsSource="{Binding Principles}" Focusable="False" Margin="0,0,0,-1">
@@ -294,10 +294,10 @@
                             </Border>
                         </Expander>
 
-                        <!-- Rejected tweaks (collapsed): what MONOLITH does not do and why; rows come from Tweaks/RejectedTweaks.cs -->
+                        <!-- Rejected tweaks (collapsed): what Lycoris does not do and why; rows come from Tweaks/RejectedTweaks.cs -->
                         <Expander Margin="0,10,0,0" IsExpanded="{Binding ExpandRejected}">
                             <Expander.Header>
-                                <TextBlock Text="{loc:T ЧТО MONOLITH НЕ ДЕЛАЕТ И ПОЧЕМУ}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T ЧТО LYCORIS НЕ ДЕЛАЕТ И ПОЧЕМУ}" Style="{StaticResource T.Label}" />
                             </Expander.Header>
                             <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0" ui:RoundClip.Content="True">
                                 <ItemsControl x:Name="RejectedList" ItemsSource="{Binding Rejected}" Focusable="False" Margin="0,0,0,-1">
@@ -374,7 +374,7 @@
                                     <StackPanel Margin="0,0,10,0">
                                         <TextBlock Text="{loc:T Шрифты}" Style="{StaticResource T.BodyStrong}" />
                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,2,0,0"
-                                                   Text="{loc:T 'Bahnschrift, Segoe UI Variable, Cascadia Mono / Consolas, Segoe Fluent Icons — системные шрифты Windows. В составе MONOLITH не распространяются.'}" />
+                                                   Text="{loc:T 'Bahnschrift, Segoe UI Variable, Cascadia Mono / Consolas, Segoe Fluent Icons — системные шрифты Windows. В составе Lycoris не распространяются.'}" />
                                     </StackPanel>
                                     <Border Grid.Column="1" Style="{StaticResource Tag.Muted}" VerticalAlignment="Center">
                                         <TextBlock Text="WINDOWS" />

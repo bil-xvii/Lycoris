@@ -10,5 +10,5 @@ using System.Windows;
 )]
 
 // Every [DllImport] of MONOLITH names a Windows system library: look for it in System32 only, never next to the exe or in the
-// current directory (a planted "version.dll" beside MONOLITH.exe must never be loaded by an elevated process).
+// current directory (a planted "version.dll" beside Lycoris.exe must never be loaded by an elevated process).
 [assembly: System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]

@@ -107,7 +107,7 @@ internal static class HardwareCatalog
 
     public static readonly VendorSoftware ArmouryCrate = new("ASUS Armoury Crate", "ASUS", null, null,
         "https://www.asus.com/supportonly/armoury%20crate/helpdesk_download/",
-        Loc.T("Ставится собственным загрузчиком ASUS и добавляет несколько служб — MONOLITH не устанавливает его сам."),
+        Loc.T("Ставится собственным загрузчиком ASUS и добавляет несколько служб — Lycoris не устанавливает его сам."),
         ["Armoury Crate", "ArmouryCrate"]);
 
     public static readonly VendorSoftware Wootility = new("Wootility", "Wooting", null, null,

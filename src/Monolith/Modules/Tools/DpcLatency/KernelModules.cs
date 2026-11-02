@@ -11,7 +11,7 @@ namespace Monolith.Modules.Tools.DpcLatency;
 /// Fallback: EnumDeviceDrivers + GetDeviceDriverBaseNameW (bases and names, no sizes).
 /// Since Windows 11 24H2 both return zeroed addresses unless SeDebugPrivilege is enabled in the caller's token
 /// (Microsoft Learn, EnumDeviceDrivers remarks; windows-internals.com «KASLR leaks restriction»), so the privilege is
-/// enabled on MONOLITH's own token just for the module query (only available to an elevated process) and disabled again
+/// enabled on Lycoris's own token just for the module query (only available to an elevated process) and disabled again
 /// right after it unless it was already enabled. Nothing here changes the system.
 /// </summary>
 public static class KernelModules

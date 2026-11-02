@@ -45,7 +45,7 @@ public partial class SettingsView : UserControl
     });
 
     /// <summary>
-    /// Brings the requested «Что MONOLITH не делает» row into view once the expander has opened and laid out its rows
+    /// Brings the requested «Что Lycoris не делает» row into view once the expander has opened and laid out its rows
     /// (deferred at Background priority; never inside a CollectionChanged handler).
     /// </summary>
     private void ScrollToFocusedRejected() => Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>

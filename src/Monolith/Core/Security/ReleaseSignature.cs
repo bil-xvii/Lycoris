@@ -56,7 +56,7 @@ public static class ReleaseSignature
 
     /// <summary>
     /// The text an update signature covers: it binds the file hash to the version AND the file name, so a valid old signature cannot be
-    /// re-used for another file or version. Format: <c>monolith-release\nversion=1.2.3\nfile=MONOLITH.exe\nsha256=&lt;hex&gt;\n</c>.
+    /// re-used for another file or version. Format: <c>monolith-release\nversion=1.2.3\nfile=Lycoris.exe\nsha256=&lt;hex&gt;\n</c>.
     /// </summary>
     public static byte[] SignedStatement(string version, string fileName, string sha256Hex) =>
         Encoding.UTF8.GetBytes($"monolith-release\nversion={version}\nfile={fileName}\nsha256={sha256Hex.ToLowerInvariant()}\n");

@@ -12,7 +12,7 @@ public enum GuardVerdict
     DriveRoot,
     /// <summary>The path is (or contains) a protected folder: Windows, System32, Program Files, the profile root, Documents…</summary>
     ProtectedFolder,
-    /// <summary>The path lies inside an area MONOLITH never touches (WinSxS, Installer, Prefetch, Documents, Content.Outlook…).</summary>
+    /// <summary>The path lies inside an area Lycoris never touches (WinSxS, Installer, Prefetch, Documents, Content.Outlook…).</summary>
     NoTouchArea,
     Missing,
     NotDirectory,

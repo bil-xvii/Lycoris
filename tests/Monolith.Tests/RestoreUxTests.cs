@@ -33,7 +33,7 @@ public class RestoreUxTests
     public void Active_record_uses_the_shared_state_vocabulary()
     {
         var item = new RecordItem(new ChangeRecord { Title = "A" });
-        Assert.Equal("ИЗМЕНЕНО MONOLITH", item.StatusText);
+        Assert.Equal("ИЗМЕНЕНО LYCORIS", item.StatusText);
         Assert.True(item.CanRevert);
     }
 }

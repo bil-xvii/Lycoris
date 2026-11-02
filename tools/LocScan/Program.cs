@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Monolith.LocScan;
 
-// MONOLITH localization tool. Wrapper: tools/loc-scan.ps1.  Run `LocScan help` for the commands.
+// Lycoris localization tool. Wrapper: tools/loc-scan.ps1.  Run `LocScan help` for the commands.
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 var repo = FindRepo();
 var src = Path.Combine(repo, "src", "Monolith");
@@ -39,7 +39,7 @@ static string FindRepo()
 int Help()
 {
     Console.WriteLine("""
-        LocScan — MONOLITH localization progress and helper (docs/localization.md)
+        LocScan — Lycoris localization progress and helper (docs/localization.md)
 
           report                    per module: Cyrillic string literals that still need Loc (and how many are already keyed)
           check [Area|--all]        violations of a translated area (or of every area with "translated": true); exit code = count

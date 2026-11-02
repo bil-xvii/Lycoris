@@ -10,7 +10,7 @@ internal sealed record MicMeasurement(float MeasuredAtScalar, double? MeasuredAt
     /// <summary>The tool that measured it (its result line is reset when the level changes).</summary>
     public DeviceTool? Tool { get; init; }
 
-    /// <summary>The level moved since the test (in Windows, a hardware key, or MONOLITH): the suggestion no longer applies.</summary>
+    /// <summary>The level moved since the test (in Windows, a hardware key, or Lycoris): the suggestion no longer applies.</summary>
     public bool IsStale(EndpointLevel live) =>
         MeasuredAtDb is { } at && live.Db is { } db ? Math.Abs(db - at) > 0.5 : Math.Abs(live.Scalar - MeasuredAtScalar) > 0.01f;
 }
@@ -97,7 +97,7 @@ public sealed class AudioProvider : IDeviceProvider
     internal static string CardKey(string endpointId) => "audio:" + endpointId;
 
     private static string PrivacyDenyText => Loc.T("Доступ к микрофону запрещён в параметрах конфиденциальности Windows — проверка недоступна.");
-    private static string AccountText => Loc.T("Недоступно: MONOLITH запущен не от вашей учётной записи (или её не удалось определить).");
+    private static string AccountText => Loc.T("Недоступно: Lycoris запущен не от вашей учётной записи (или её не удалось определить).");
     private static string TestStatus => Loc.T("Говорите обычным голосом 5 секунд… (Windows покажет значок микрофона)");
     private static string LevelChangedText => Loc.T("Уровень изменён — проверьте ещё раз.");
 

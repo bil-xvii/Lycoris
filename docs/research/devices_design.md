@@ -1,4 +1,4 @@
-# MONOLITH: «Устройства» — feature design (architecture, journal integration, work packages)
+# Lycoris: «Устройства» — feature design (architecture, journal integration, work packages)
 
 Owner request (27.10.2026): «сделай так, чтобы через это приложение можно было настраивать свои девайсы, и чтобы само
 приложение предлагало наилучшие варианты настройки, а также вариант ручной настройки».
@@ -26,8 +26,8 @@ QD-OLED, HDR capable/off), Odyssey G5 1440×2560 portrait 179.95 Hz (DP, HDR-400
 | Two modes | Page-header segment **РЕКОМЕНДУЕМОЕ \| ВРУЧНУЮ**. Recommended = a diff plan (сейчас → станет, one-line reason, tag) with checkboxes and one «ПРИМЕНИТЬ ВЫБРАННОЕ». Manual = every setting with its control, current value, «рек.» / «по умолч.» hints, per-row ПРИМЕНИТЬ / ОТКАТИТЬ. |
 | Writes | Every write goes through `ChangeSession` (new typed primitives, §4). New `ChangeKind`s: `UserParameter`, `DisplayMode`, `DisplayHdr`, `MonitorSetting`, `AudioLevel`; plus allow-listed HKCU `SetRegistry` for ducking. Source of all Devices records: `"devices"`. |
 | Admin rights | Consistent with the codebase: **all writes need elevation** (the journal lives in the admin-only `%ProgramData%\MONOLITH`). Without admin the page is fully readable; measurements, deep links and vendor-app launch work (no system change). Apply/undo buttons go through `PageViewModel.RequireAdmin`. |
-| Per-user | SPI settings and HKCU ducking are per user (`UserSid` recorded). They are written **only when MONOLITH runs as the interactive user** (`Elevation.IsInteractiveUser`): SPI changes the live session but `SPIF_UPDATEINIFILE` persists into the *calling* account, so over-the-shoulder UAC would split live and persisted state. Otherwise those rows are read-only with one muted line. |
-| Display safety | Windows' pattern rebuilt (Windows gives no safety net to API callers): journal-first record `PendingConfirm` → out-of-process guard armed → temporary mode (`ChangeDisplaySettingsEx` flags 0, not persisted) → topmost countdown «СОХРАНИТЬ ЭТИ ПАРАМЕТРЫ ЭКРАНА?» 15 s, default ВЕРНУТЬ, `System.Threading.Timer` deadline → keep = `CDS_UPDATEREGISTRY` / anything else = revert. Guard process `MONOLITH.exe --display-guard` reverts if MONOLITH dies or the deadline passes; startup reconciles leftover `PendingConfirm`. Only modes the driver lists for that monitor and that pass `CDS_TEST` are ever applied (also on undo). |
+| Per-user | SPI settings and HKCU ducking are per user (`UserSid` recorded). They are written **only when Lycoris runs as the interactive user** (`Elevation.IsInteractiveUser`): SPI changes the live session but `SPIF_UPDATEINIFILE` persists into the *calling* account, so over-the-shoulder UAC would split live and persisted state. Otherwise those rows are read-only with one muted line. |
+| Display safety | Windows' pattern rebuilt (Windows gives no safety net to API callers): journal-first record `PendingConfirm` → out-of-process guard armed → temporary mode (`ChangeDisplaySettingsEx` flags 0, not persisted) → topmost countdown «СОХРАНИТЬ ЭТИ ПАРАМЕТРЫ ЭКРАНА?» 15 s, default ВЕРНУТЬ, `System.Threading.Timer` deadline → keep = `CDS_UPDATEREGISTRY` / anything else = revert. Guard process `Lycoris.exe --display-guard` reverts if Lycoris dies or the deadline passes; startup reconciles leftover `PendingConfirm`. Only modes the driver lists for that monitor and that pass `CDS_TEST` are ever applied (also on undo). |
 | Vendor-only settings | DPI, polling rate, RGB, EQ/spatial are never written (DO-NOT-INCLUDE `vendor-protocol-writes`). Shown as measured values + recommendation + «ОТКРЫТЬ G HUB» (signed exe, started unelevated) or «УСТАНОВИТЬ В «ДРАЙВЕРАХ»». |
 | Parallel build | 5 packages with disjoint files: **core** (journal, session, trust, page shell, generic UI) first; then **input**, **displays**, **audio**, **vendors** in parallel. Feature code plugs in through `partial` hook methods (`DeviceProviders.*`, `DeviceWriters.*`), so core compiles and tests alone and no two packages touch one file. |
 
@@ -35,7 +35,7 @@ QD-OLED, HDR capable/off), Odyssey G5 1440×2560 portrait 179.95 Hz (DP, HDR-400
 
 ## 2. Placement under the Minimal UI rule — justification
 
-1. *Every function in exactly one place.* Today none of the parametric device settings exist anywhere in MONOLITH, so the
+1. *Every function in exactly one place.* Today none of the parametric device settings exist anywhere in Lycoris, so the
    Devices page is their only home. Display-mode changes also exist nowhere (Dashboard/Drivers only open ms-settings) —
    once Devices can change refresh rate safely, the two ms-settings buttons become shortcuts into Devices, exactly like
    «Dashboard fix buttons are shortcuts into the same tweaks».
@@ -140,7 +140,7 @@ default output card «Выходы мониторов X27U W3, Odyssey G5 не �
 
 | Setting | Control | Recommended | Write |
 |---|---|---|---|
-| Уровень микрофона | slider 0–100 % (the endpoint's own dB range in the hint), the level test inline in the row | only after the **Проверка уровня** tool: p95 speech peaks at −9 dBFS but no sample above −1 dBFS, only lower when samples clipped (Suggest, absolute dB target compared within 0,5 dB); the main microphone shows «НУЖНО ИЗМЕРЕНИЕ» until measured; the result is dropped (re-measure) when the level moves > 0,5 dB or MONOLITH changes it | `SetAudioLevel` (target `audio:level:<id>`), per-user |
+| Уровень микрофона | slider 0–100 % (the endpoint's own dB range in the hint), the level test inline in the row | only after the **Проверка уровня** tool: p95 speech peaks at −9 dBFS but no sample above −1 dBFS, only lower when samples clipped (Suggest, absolute dB target compared within 0,5 dB); the main microphone shows «НУЖНО ИЗМЕРЕНИЕ» until measured; the result is dropped (re-measure) when the level moves > 0,5 dB or Lycoris changes it | `SetAudioLevel` (target `audio:level:<id>`), per-user |
 | Без звука | toggle | — | `SetAudioLevel(mute)` (separate target `audio:mute:<id>`: undo restores only its own part), per-user |
 | Доступ приложений к микрофону | note (only when Deny) | link `ms-settings:privacy-microphone` | — |
 | Усиление / АРУ | v1: not implemented (driver exposes none on this PC; deferred to v2, see §9) | | |
@@ -230,7 +230,7 @@ references. `UserScope.IsPerUser`: `UserParameter` → true.
 ## 5. Display safe-apply protocol (core `DisplaySafeApply`, native side in *displays*)
 
 ```
-Preconditions  GameBoostState.IsActive → Blocked «Во время игрового сеанса MONOLITH не меняет параметры экрана».
+Preconditions  GameBoostState.IsActive → Blocked «Во время игрового сеанса Lycoris не меняет параметры экрана».
                writer.BlockReason(): RDP session (SM_REMOTESESSION), fullscreen D3D app/presentation mode
                (SHQueryUserNotificationState ∈ {QUNS_BUSY, QUNS_RUNNING_D3D_FULL_SCREEN, QUNS_PRESENTATION_MODE}).
                original = writer.ReadCurrentMode(path) ?? Failed «монитор не найден».
@@ -239,7 +239,7 @@ Preconditions  GameBoostState.IsActive → Blocked «Во время игров�
                writer.TestMode(path, target) != OK → Failed.
 Journal first  record { Kind DisplayMode, PendingConfirm = true } → Add (saved, or throws → nothing changed).
 Guard          guard = writer.StartGuard(record.Id, deadline = now + 35 s, action) — spawns
-               MONOLITH.exe --display-guard …, waits ≤ 5 s for its «armed» event. null → Remove record, Failed
+               Lycoris.exe --display-guard …, waits ≤ 5 s for its «armed» event. null → Remove record, Failed
                «не удалось запустить защитный процесс — параметры не изменены».
 Temporary      writer.ApplyTemporary(path, target) (ChangeDisplaySettingsEx flags 0; waits ≤ 5 s until CCD shows it).
                failure → writer.RevertTemporary(path, original); guard.Resolve(); Remove; Failed.
@@ -271,7 +271,7 @@ Batching       One monitor per countdown. Plan applies display items last, one a
 
 Pre-ship manual verification (test machine, or the owner's PC only with his explicit consent; never in unit tests or
 `--selftest`): (a) flag-0 change is not in `ENUM_REGISTRY_SETTINGS` and a reboot restores the old mode; (b) CDS(NULL)
-restores; (c) `SDC_USE_DATABASE_CURRENT` restores; (d) killing MONOLITH during the countdown → guard reverts; (e) a mode
+restores; (c) `SDC_USE_DATABASE_CURRENT` restores; (d) killing Lycoris during the countdown → guard reverts; (e) a mode
 the cable cannot carry reverts by itself; (f) HDR keep/revert/guard; (g) swap-buttons countdown with a real mouse.
 
 ---
@@ -397,11 +397,11 @@ Tags: БЕЗОПАСНО (`Tag`, Include), ПО ЖЕЛАНИЮ (`Tag.Muted`, Sug
 
 The partial hooks (`DeviceProviders.AddInput` …, `DeviceWriters.InitInput` …) are declared once in core and implemented
 once in each feature package's own file (same namespace as the core declaration). Missing implementation = that section
-or writer is absent: the page shows less, and undo of that kind fails with «эта версия MONOLITH не умеет откатывать такое
+or writer is absent: the page shows less, and undo of that kind fails with «эта версия Lycoris не умеет откатывать такое
 изменение» (record stays active) — never a silent no-op.
 
 Merge order: core → input, displays, audio, vendors (any order; no shared files). After the merge: build (0 warnings),
-`dotnet test`, `MONOLITH.exe --selftest snapshots/selftest` (Devices page must be OK), then the §5 manual verification.
+`dotnet test`, `Lycoris.exe --selftest snapshots/selftest` (Devices page must be OK), then the §5 manual verification.
 
 Suggested CLAUDE.md delta (to be applied by the orchestrator/owner, not by a package): Pages list gains `devices`
 («УСТРОЙСТВА») after games; rule 1 lists the new ChangeSession primitives; Minimal UI gains «device settings,

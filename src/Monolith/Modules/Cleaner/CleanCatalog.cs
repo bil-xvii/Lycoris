@@ -135,7 +135,7 @@ _ => Loc.T("Корзина, журналы, дампы сбоев и обслу�
     private static string? WindowsUpdateBlocker(CleanEnvironment env)
     {
         if (env.WindowsUpdateRunning)
-            return Loc.T("Центр обновления сейчас активен — повторите позже. MONOLITH не останавливает его службы.");
+            return Loc.T("Центр обновления сейчас активен — повторите позже. Lycoris не останавливает его службы.");
         return ServicingBlocker(env);
     }
 
@@ -169,7 +169,7 @@ _ => Loc.T("Корзина, журналы, дампы сбоев и обслу�
                 Id = "temp.systemtemp", Name = Loc.Key("Временная папка системы (SystemTemp)"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true, RequiresAdmin = true,
                 Description = Loc.Key("Временные файлы служб, работающих от имени SYSTEM (Windows 11 и обновлённая Windows 10). Удаляются файлы старше 7 дней."),
-                Effect = Loc.Key("Без побочных эффектов. Защищённые файлы, к которым нет доступа, пропускаются — права на них MONOLITH не меняет."),
+                Effect = Loc.Key("Без побочных эффектов. Защищённые файлы, к которым нет доступа, пропускаются — права на них Lycoris не меняет."),
                 Blocker = ServicingBlocker,
                 Targets = env => [new CleanTarget { Base = Path.Combine(env.Windows, "SystemTemp"), Label = "Windows\\SystemTemp", MinAge = 7 * Day, RequiresAdmin = true }],
             },
@@ -218,7 +218,7 @@ _ => Loc.T("Корзина, журналы, дампы сбоев и обслу�
                 Id = "wu.download", Name = Loc.Key("Загрузки Центра обновления"), Category = CleanCategory.System, Tier = CleanTier.Optional,
                 RequiresAdmin = true, AlwaysShow = true,
                 Description = Loc.Key("Пакеты, которые скачал Центр обновления Windows. Удаляются файлы старше 10 дней и только пока служба обновления остановлена."),
-                Effect = Loc.Key("Если обновление ещё не установлено, Windows скачает его заново. Службы обновления MONOLITH не останавливает."),
+                Effect = Loc.Key("Если обновление ещё не установлено, Windows скачает его заново. Службы обновления Lycoris не останавливает."),
                 Blocker = WindowsUpdateBlocker,
                 Targets = env => [new CleanTarget { Base = Path.Combine(env.Windows, @"SoftwareDistribution\Download"), Label = "SoftwareDistribution\\Download", MinAge = 10 * Day, RequiresAdmin = true }],
             },
@@ -636,7 +636,7 @@ _ => Loc.T("Корзина, журналы, дампы сбоев и обслу�
             Id = "recyclebin", Name = Loc.Key("Корзина"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, AlwaysShow = true,
             Method = CleanMethod.RecycleBin,
             Description = Loc.Key("Файлы, которые вы удалили в корзину, на всех дисках."),
-            Effect = Loc.Key("После очистки вернуть эти файлы будет нельзя. Перед удалением MONOLITH покажет число объектов и их размер."),
+            Effect = Loc.Key("После очистки вернуть эти файлы будет нельзя. Перед удалением Lycoris покажет число объектов и их размер."),
         });
         list.Add(new CleanDefinition
         {

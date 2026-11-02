@@ -7,7 +7,7 @@ namespace Monolith.Modules.Restore;
 
 /// <summary>
 /// What a journaled target looks like right now. <see cref="Drifted"/>: true when the live value differs from the
-/// value MONOLITH applied (changed later by Windows Update, a policy or the user — research services.md §3.5),
+/// value Lycoris applied (changed later by Windows Update, a policy or the user — research services.md §3.5),
 /// false when it matches, null when it cannot be compared (commands, a vanished service or task, read errors).
 /// </summary>
 public sealed record LiveValue(string Text, bool? Drifted)
@@ -191,7 +191,7 @@ public static class LiveState
         if (active != expected) return new RevertCheck(false, PowerSchemes.GetName(active), PowerSchemes.GetName(expected));
         var leftover = ChangeJournal.CreatedSchemes(r).FirstOrDefault(c => c != active && PowerSchemes.TryExists(c) == true);
         if (leftover != Guid.Empty)
-            return new RevertCheck(false, Loc.Tf("осталась созданная MONOLITH схема «{0}»", PowerSchemes.GetName(leftover)), Loc.T("созданная схема удалена"));
+            return new RevertCheck(false, Loc.Tf("осталась созданная Lycoris схема «{0}»", PowerSchemes.GetName(leftover)), Loc.T("созданная схема удалена"));
         return new RevertCheck(true, PowerSchemes.GetName(active), PowerSchemes.GetName(expected));
     }
 

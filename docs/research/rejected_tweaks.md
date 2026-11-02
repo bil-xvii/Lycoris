@@ -1,4 +1,4 @@
-# MONOLITH: rejected tweaks («Что MONOLITH не делает и почему»)
+# Lycoris: rejected tweaks («Что Lycoris не делает и почему»)
 
 Single source for the list in `src/Monolith/Tweaks/RejectedTweaks.cs`: every entry there must have a section here, and every
 section here names the registry values the catalog must never write (enforced by `RejectedTweaksTests` and
@@ -23,7 +23,7 @@ finding nothing.
   be downloaded and installed». The space is therefore already given back when needed; disabling only raises the chance that a
   feature or monthly update fails for lack of space. (Verifier: no «2 % / 3 GB» figure — it is in none of the sources.)
 - **Registry values:** `ShippedWithReserves` (`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager`).
-- **MONOLITH instead:** the disk-space facts on «Панель» and the cleaner («Обслуживание → Очистка»).
+- **Lycoris instead:** the disk-space facts on «Панель» and the cleaner («Обслуживание → Очистка»).
 - **Sources:** https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/dism-storage-reserve?view=windows-11 ;
   https://techcommunity.microsoft.com/blog/windows-itpro-blog/managing-reserved-storage-in-windows-10-environments/1297070 ;
   https://support.microsoft.com/en-us/windows/experience/storage-filemanagement/storage-settings-in-windows ;
@@ -35,7 +35,7 @@ finding nothing.
   file about half as often, with better responsiveness. A large «Сжатая память» / «System» working set is memory being kept
   available for other apps, not waste. Turning it off means more hard faults and disk I/O under memory pressure.
 - **Registry values:** none (cmdlet / service). SysMain is not in the services catalog and `ServiceGuard` blocks it on «ВСЕ СЛУЖБЫ» («Спорная настройка»).
-- **MONOLITH instead:** the memory facts on «Панель» (used / available, the live meter).
+- **Lycoris instead:** the memory facts on «Панель» (used / available, the live meter).
 - **Sources:** https://blogs.windows.com/windows-insider/2015/08/18/announcing-windows-10-insider-preview-build-10525/ ;
   https://riverar.github.io/insiderhubcontent/memory_compression.html ;
   https://learn.microsoft.com/en-us/powershell/module/mmagent/disable-mmagent ; services.md §1A (SysMain)
@@ -50,7 +50,7 @@ finding nothing.
   HotHardware measured «basically no change» on a consumer SSD. Undocumented and unsupported on clients, so it violates «only
   documented, reversible». (Verifier: INACCESSIBLE_BOOT_DEVICE is not in the sources — not claimed.)
 - **Registry values:** `735209102`, `1853569164`, `156965516`.
-- **MONOLITH instead:** the disk facts on «Панель» (bus, health) and vendor tools via «Драйверы».
+- **Lycoris instead:** the disk facts on «Панель» (bus, health) and vendor tools via «Драйверы».
 - **Sources:** https://www.tomshardware.com/software/windows/microsoft-blocks-the-registry-hack-trick-that-unlocked-native-nvme-performance-on-windows-11 ;
   https://windowsforum.com/windows-news.4/windows-native-nvme-path-big-server-gains-with-cautious-client-hack.394885/ ;
   https://www.neowin.net/news/report-microsoft-quietly-blocks-windows-11-25h2-24h2-performance-boost-hack-for-ssds/
@@ -63,7 +63,7 @@ finding nothing.
   frequency on Ryzen 7000 with Global C-state Control disabled and recommends keeping C-states on; Level1Techs and Tom's forum
   reports show lower single-core boost on Ryzen and Intel. Result: more heat and idle power, equal or lower performance.
 - **Registry values:** none (power setting / BIOS).
-- **MONOLITH instead:** the honest ADVANCED `cpu-min-state-100` text and the power-mode items on «Оптимизация».
+- **Lycoris instead:** the honest ADVANCED `cpu-min-state-100` text and the power-mode items on «Оптимизация».
 - **Sources:** https://www.amd.com/en/resources/support-articles/faqs/cpu-pb2.html ; https://skatterbencher.com/2022/10/26/update-on-ryzen-7000-c-state-boost-limit/ ;
   https://forum.level1techs.com/t/ryzen-and-disabling-c6-c-state-the-curse-of-c6/153167 ;
   https://forums.tomshardware.com/threads/i5-6600-disabling-c-states-in-bios-lowers-boost-clock-but-improves-performance.3501006/ ;
@@ -75,7 +75,7 @@ finding nothing.
   requests from minimized or occluded windows; games call `timeBeginPeriod(1)` themselves. Microsoft's timeBeginPeriod docs advise
   against system-wide high resolution: it raises power use.
 - **Registry values:** `GlobalTimerResolutionRequests`.
-- **MONOLITH instead:** «Обслуживание → Ремонт и диски → Отчёт об энергоэффективности» (`powercfg /energy`) shows which process holds
+- **Lycoris instead:** «Обслуживание → Ремонт и диски → Отчёт об энергоэффективности» (`powercfg /energy`) shows which process holds
   the timer.
 - **Sources:** https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod ;
   https://randomascii.wordpress.com/2020/10/04/windows-timer-resolution-the-great-rule-change/ ;
@@ -86,7 +86,7 @@ finding nothing.
 - **Evidence:** on the dev machine Balanced AC is already 100 % — but that is the AMD PPM provisioning, not a universal default.
   Forcing all cores awake breaks dual-CCD X3D cache steering (Bitsum's own X3D article) and Intel Thread Director scheduling.
 - **Registry values:** none (power setting).
-- **MONOLITH instead:** the Dashboard game-mode check (explains why a dual-CCD X3D needs Game Mode), `power-plan-balanced-x3d` and the honest power items.
+- **Lycoris instead:** the Dashboard game-mode check (explains why a dual-CCD X3D needs Game Mode), `power-plan-balanced-x3d` and the honest power items.
 - **Sources:** https://bitsum.com/amd-x3d-ccd-affinity/ ; https://hone.gg/research/how-game-mode-improves-performance ; gaming_tweaks.md §1, §2 C
 
 ## `power-throttling-off` — Turn off Power Throttling → DO-NOT-INCLUDE (gaming_tweaks.md §2 C `power-throttling-off`, §3)
@@ -96,7 +96,7 @@ finding nothing.
   «always selects the most efficient CPU frequency»; a focused game window is High QoS. So the key gives the game nothing: on a desktop
   it only lets Eco-tagged background apps (browser background tabs, messengers) spend more, on a laptop it costs battery.
 - **Registry values:** `PowerThrottlingOff`, `DisableUserPresenceQos`.
-- **MONOLITH instead:** Game Boost (session-scoped: the High performance scheme on desktops, the «Максимальная производительность» power mode on laptops / Modern Standby) and the power-mode items.
+- **Lycoris instead:** Game Boost (session-scoped: the High performance scheme on desktops, the «Максимальная производительность» power mode on laptops / Modern Standby) and the power-mode items.
 - **Sources:** https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service ; gaming_tweaks.md §2 C, §3
 
 ## `mpo-disableoverlays` — Disable MPO via `DisableOverlays` (24H2+) → REJECTED (gaming_tweaks.md §2 A `mpo-disable`)
@@ -104,7 +104,7 @@ finding nothing.
   `OverlayTestMode=5`.
 - **Evidence:** backed by a single Guru3D report; undocumented by Microsoft and NVIDIA; reported to break VRR (G-SYNC / FreeSync).
 - **Registry values:** `DisableOverlays`.
-- **MONOLITH instead:** the existing ADVANCED `mpo-disable` keeps NVIDIA's documented key and says honestly that 24H2+ may ignore it.
+- **Lycoris instead:** the existing ADVANCED `mpo-disable` keeps NVIDIA's documented key and says honestly that 24H2+ may ignore it.
 - **Sources:** https://forums.guru3d.com/goto/post?id=6305178 ;
   https://learn.microsoft.com/en-us/answers/questions/3881462/how-can-i-disable-windows-mpo-in-2025-(24h2-window ; gaming_tweaks.md §2 A
 
@@ -114,7 +114,7 @@ finding nothing.
   standby systems». Adaptive hibernate already hibernates by drain budget (defaults 5 % per 12 h, 4 refreshes); a fixed timer «can
   result in the system fully draining the battery … or cut short a low-drain Modern Standby experience».
 - **Registry values:** none (power setting).
-- **MONOLITH instead:** «Обслуживание → Ремонт и диски → Отчёты о питании и сне» (SleepStudy / battery report) shows the real drain.
+- **Lycoris instead:** «Обслуживание → Ремонт и диски → Отчёты о питании и сне» (SleepStudy / battery report) shows the real drain.
 - **Sources:** https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/display--sleep--and-hibernate-idle-timers ;
   https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/adaptive-hibernate
 
@@ -124,7 +124,7 @@ finding nothing.
   (DO-NOT-INCLUDE on laptops). Desktops lose hybrid sleep: Microsoft KB 920730 «You may lose data if you make hibernation unavailable
   and a power loss occurs while the hybrid sleep setting is turned on.»
 - **Registry values:** none (`powercfg /h`).
-- **MONOLITH instead:** `hibernation-off` stays ADVANCED on desktops only, with the hybrid-sleep warning and the disk-space facts.
+- **Lycoris instead:** `hibernation-off` stays ADVANCED on desktops only, with the hybrid-sleep warning and the disk-space facts.
 - **Sources:** https://raw.githubusercontent.com/ChrisTitusTech/winutil/main/config/tweaks.json ;
   https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/disable-and-re-enable-hibernation ; general_tweaks.md §6
 
@@ -133,7 +133,7 @@ finding nothing.
 - **Evidence:** disables Modern Standby; firmware on Modern Standby devices often does not implement S3 properly, so sleep or resume
   fails and work is lost.
 - **Registry values:** `PlatformAoAcOverride`.
-- **MONOLITH instead:** the «Сон и пробуждение» card (what keeps the PC awake) and «Отчёты о питании и сне» (drain per session).
+- **Lycoris instead:** the «Сон и пробуждение» card (what keeps the PC awake) and «Отчёты о питании и сне» (drain per session).
 - **Sources:** https://raw.githubusercontent.com/ChrisTitusTech/winutil/main/config/tweaks.json ; gaming_tweaks.md §2 C, §3
 
 ## `svchost-split` — disable svchost splitting → DO-NOT-INCLUDE (gaming_tweaks.md §3)
@@ -141,7 +141,7 @@ finding nothing.
 - **Evidence:** Microsoft splits services for reliability, security and diagnosability (one crash no longer takes down several
   services). Saves a few tens of MB of RAM; no measurable gaming effect. WinUtil itself warns it «can interfere with Xbox services».
 - **Registry values:** `SvcHostSplitThresholdInKB`.
-- **MONOLITH instead:** nothing is needed; the services page explains what each service does and why some are never offered.
+- **Lycoris instead:** nothing is needed; the services page explains what each service does and why some are never offered.
 - **Sources:** https://learn.microsoft.com/en-us/windows/application-management/svchost-service-refactoring ;
   https://raw.githubusercontent.com/ChrisTitusTech/winutil/main/config/tweaks.json ; gaming_tweaks.md §3
 
@@ -151,7 +151,7 @@ finding nothing.
   from disk again, so loads slow down and can hitch. `EmptyWorkingSet` moves pages out of working sets and causes immediate page
   faults and stutter («COUNTERPRODUCTIVE», tech.md §5).
 - **Registry values:** none.
-- **MONOLITH instead:** the one-shot, opt-in purge in a Game Boost session, with its honest text.
+- **Lycoris instead:** the one-shot, opt-in purge in a Game Boost session, with its honest text.
 - **Sources:** https://learn.microsoft.com/en-us/sysinternals/downloads/rammap ; tech.md §5 ; gaming_tweaks.md §3
 
 ## `bg-apps-global-win11` — global background-app ban on Windows 11 → DO-NOT-INCLUDE (gaming_tweaks.md §2 H; general_tweaks.md §2)
@@ -160,7 +160,7 @@ finding nothing.
   notifications, alarms, Phone Link and the Xbox app. Store apps are already suspended and power-optimized. general_tweaks.md
   rates the policy ADVANCED, gaming_tweaks.md rates the global switch DO-NOT-INCLUDE — the stricter rating wins.
 - **Registry values:** `LetAppsRunInBackground`. (`GlobalUserDisabled` stays in the catalog as the Windows 10-only toggle.)
-- **MONOLITH instead:** the per-app item `background-apps-consumer-off` and the Windows 10 toggle.
+- **Lycoris instead:** the per-app item `background-apps-consumer-off` and the Windows 10 toggle.
 - **Sources:** gaming_tweaks.md §2 H ; general_tweaks.md §2 ; https://raw.githubusercontent.com/ChrisTitusTech/winutil/main/config/tweaks.json
 
 ## `mitigations-off` — disable Spectre/Meltdown mitigations → DO-NOT-INCLUDE (gaming_tweaks.md §3)
@@ -168,7 +168,7 @@ finding nothing.
 - **Evidence:** removes CPU vulnerability mitigations — a security weakening for a few percent in some CPU-bound cases. Forbidden by
   CLAUDE.md rule 3.
 - **Registry values:** `FeatureSettingsOverride`, `FeatureSettingsOverrideMask`.
-- **MONOLITH instead:** nothing; `hvci-off` is the only security trade-off, ADVANCED with a red warning.
+- **Lycoris instead:** nothing; `hvci-off` is the only security trade-off, ADVANCED with a red warning.
 - **Sources:** https://support.hone.gg/hc/en-gb/articles/4758238924959-Recommended-Optimizations-to-Use ; gaming_tweaks.md §3
 
 ## `auto-scenario-switching` — auto-switching persistent settings by foreground app → REJECTED
@@ -177,7 +177,7 @@ finding nothing.
 - **Evidence:** persistent changes flipping in the background create endless journal layers and drift, and break «undo one =
   exactly one». Notebookcheck documents Armoury Crate modes silently rewriting the Windows power plan.
 - **Registry values:** none.
-- **MONOLITH instead:** Game Boost: starts on game launch, reverts on exit, one journaled power change.
+- **Lycoris instead:** Game Boost: starts on game launch, reverts on exit, one journaled power change.
 - **Sources:** https://rog.asus.com/articles/guides/guide-scenario-profiles-make-games-and-apps-run-with-your-preferred-system-settings-every-time/ ;
   https://www.notebookcheck.net/These-Asus-Armoury-Crate-power-profiles-don-t-make-much-sense.427047.0.html
 
@@ -188,7 +188,7 @@ finding nothing.
   drops («not the recommended setting»); users report Cortex overwriting their CPU min/max. Core parking is DO-NOT-INCLUDE (breaks
   X3D CCD steering and Thread Director). (Verifier: High performance stays SAFE-OPTIONAL inside the «Игры» tile on desktops.)
 - **Registry values:** none (power settings).
-- **MONOLITH instead:** Game Boost with one journaled plan change; `power-plan-performance` only in «Игры» on desktops.
+- **Lycoris instead:** Game Boost with one journaled plan change; `power-plan-performance` only in «Игры» on desktops.
 - **Sources:** https://insider.razer.com/razer-cortex-39/razer-cortex-boost-tanks-frame-rate-52359 ;
   https://insider.razer.com/razer-cortex-39/razer-cortex-power-plan-boost-default-settings-50206 ; https://bitsum.com/amd-x3d-ccd-affinity/ ;
   gaming_tweaks.md §1, §2 C, §3
@@ -200,7 +200,7 @@ finding nothing.
   modified ISOs can carry malware (Chris Titus' AtlasOS review, Gridinsoft, Tom's Guide). VBS/HVCI costs 0–10 % and is offered only
   as ADVANCED `hvci-off`, never in a scenario.
 - **Registry values:** `DisableAntiSpyware`, `DisableRealtimeMonitoring`, `EnableSmartScreen`.
-- **MONOLITH instead:** everything else in the catalog, with undo.
+- **Lycoris instead:** everything else in the catalog, with undo.
 - **Sources:** https://christitus.com/atlasos-review ; https://blog.gridinsoft.com/atlasos-safety/ ;
   https://www.tomsguide.fr/windows-10-11-pourquoi-vous-devriez-absolument-eviter-linstallation-diso-personnalises/ ; gaming_tweaks.md §2 G
 
@@ -209,7 +209,7 @@ finding nothing.
 - **Evidence:** Microsoft's Battery Saver / Energy Saver design doc: it pauses Mail/Calendar sync, blocks background apps and dims the
   screen. Most of the saving comes from blocking background activity, not from lower clocks — a functional loss, not quiet.
 - **Registry values:** none.
-- **MONOLITH instead:** `power-mode-best-efficiency-ac` (+ optional `cpu-boost-off-ac`): the documented power-mode overlay.
+- **Lycoris instead:** `power-mode-best-efficiency-ac` (+ optional `cpu-boost-off-ac`): the documented power-mode overlay.
 - **Sources:** https://learn.microsoft.com/en-us/windows-hardware/design/component-guidelines/battery-saver ;
   https://www.windowslatest.com/2024/08/02/microsoft-details-windows-11-24h2s-new-energy-saver-which-replaces-battery-saver/amp/
 
@@ -220,7 +220,7 @@ finding nothing.
   notifications, alarms, Phone Link and Xbox; `EmptyWorkingSet` causes stutter; the laptop table in general_tweaks.md §11 says
   «Background apps: keep Power optimized»; `PowerThrottlingOff` only costs battery.
 - **Registry values:** covered by `bg-apps-global-win11` and `power-throttling-off`.
-- **MONOLITH instead:** the battery report («Обслуживание → Ремонт и диски → Отчёты о питании и сне») and the per-app background item.
+- **Lycoris instead:** the battery report («Обслуживание → Ремонт и диски → Отчёты о питании и сне») and the per-app background item.
 - **Sources:** general_tweaks.md §2, §11 ; gaming_tweaks.md §2 C, §3 ; tech.md §5
 
 ## `streaming-network-priority` — DSCP priority and «network boosters» for streaming → REJECTED (network_stack.md #4, #6, #7, #9–12)
@@ -228,7 +228,7 @@ finding nothing.
 - **Evidence:** home ISPs ignore or bleach DSCP marks; the «20 % reservation» is a placebo (Raymond Chen); offloads only raise CPU
   load; NIC changes can drop the link mid-stream. The real upload problem is bufferbloat (Gettys & Nichols, ACM Queue).
 - **Registry values:** `NonBestEffortLimit`. (`NetworkThrottlingIndex` is ADVANCED in the catalog, never in a profile.)
-- **MONOLITH instead:** the load test on «Устройства и сеть» (`NetProbes`: latency under load) and its bufferbloat finding with the SQM-on-the-router hint (`NetFindings` F10).
+- **Lycoris instead:** the load test on «Устройства и сеть» (`NetProbes`: latency under load) and its bufferbloat finding with the SQM-on-the-router hint (`NetFindings` F10).
 - **Sources:** network_stack.md #4, #6, #7 ; network_measure.md ; https://queue.acm.org/detail.cfm?id=2071893 ;
   https://devblogs.microsoft.com/oldnewthing/20061123-14/?p=28923
 
@@ -237,7 +237,7 @@ finding nothing.
 - **Evidence:** turbo dropping at 99 % is an undocumented side effect on many Intel CPUs; on CPPC/AMD the result is unpredictable
   and may cap frequency in ways the user does not see. Microsoft documents PERFBOOSTMODE 0 = Disabled for every P-state model.
 - **Registry values:** none (power setting).
-- **MONOLITH instead:** `cpu-boost-off-ac` (documented PERFBOOSTMODE).
+- **Lycoris instead:** `cpu-boost-off-ac` (documented PERFBOOSTMODE).
 - **Sources:** https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-perfboostmode ;
   https://www.elevenforum.com/t/add-or-remove-processor-performance-boost-mode-in-power-options-on-windows-11.47581/
 
@@ -247,7 +247,7 @@ finding nothing.
 - **Evidence:** vendor-specific, undocumented interfaces; no exact undo; possible thermal or firmware issues. devices_design.md
   classifies vendor-protocol writes as DO-NOT-INCLUDE.
 - **Registry values:** none.
-- **MONOLITH instead:** links to the signed vendor app («Устройства»; install via «Драйверы»).
+- **Lycoris instead:** links to the signed vendor app («Устройства»; install via «Драйверы»).
 - **Sources:** devices_design.md §1 ; devices_vendors.md ;
   https://rog.asus.com/us/articles/guides/armoury-crate-performance-modes-explained-silent-vs-performance-vs-turbo-vs-windows/
 
@@ -255,7 +255,7 @@ finding nothing.
 - **Who:** «battery» presets that switch the Windows/app theme to dark (it is on Microsoft's energy-recommendation list).
 - **Evidence:** measurable only on OLED / emissive panels, none on LCD. A visual preference changed as a side effect surprises users.
 - **Registry values:** `AppsUseLightTheme`, `SystemUsesLightTheme`.
-- **MONOLITH instead:** nothing; MONOLITH never changes the theme. Monitor brightness / HDR live on «Устройства и сеть».
+- **Lycoris instead:** nothing; Lycoris never changes the theme. Monitor brightness / HDR live on «Устройства и сеть».
 - **Sources:** https://elevenforum.com/t/review-and-apply-energy-recommendations-in-windows-11.10598/ ;
   https://pureinfotech.com/enable-new-energy-recommendations-settings-windows-11/
 
@@ -265,7 +265,7 @@ finding nothing.
 - **Evidence:** Windows already turns on Do Not Disturb «when playing a game» and in full screen (on by default). The global switch is
   too broad (ADVANCED, only for a boost session with restore); the CloudStore blobs are undocumented and must never be written.
 - **Registry values:** `ToastEnabled`.
-- **MONOLITH instead:** nothing: Windows' own «Do not disturb when playing a game» rule is on by default (Параметры → Система → Уведомления); Game Boost does not touch notifications. (No `dnd-in-games` check exists.)
+- **Lycoris instead:** nothing: Windows' own «Do not disturb when playing a game» rule is on by default (Параметры → Система → Уведомления); Game Boost does not touch notifications. (No `dnd-in-games` check exists.)
 - **Sources:** gaming_tweaks.md §2 H
 
 ## `perf-plans-in-work-scenarios` — High performance / memory purge in work, streaming and battery scenarios → REJECTED
@@ -273,7 +273,7 @@ finding nothing.
 - **Evidence:** 0–2 % on desktops, nothing for office work or GPU encoders; higher idle power and heat; the purge is mostly placebo
   and can slow loads. Ultimate and cpu-min-state are ADVANCED (never in profiles); laptop plans stay Balanced (general_tweaks.md §11).
 - **Registry values:** none.
-- **MONOLITH instead:** the power-mode items; the purge stays an opt-in Game Boost action.
+- **Lycoris instead:** the power-mode items; the purge stays an opt-in Game Boost action.
 - **Sources:** gaming_tweaks.md §2 C ; tech.md §5 ; general_tweaks.md §11
 
 ## `do-background-bandwidth` — Delivery Optimization bandwidth policies as a «speed-up» → REJECTED (gaming_tweaks.md §2 F; network_stack.md #21)
@@ -284,7 +284,7 @@ finding nothing.
   default 0 «dynamically adjusts». Since Windows 11 22H2 DO supports receiver-side LEDBAT (rLEDBAT), which yields to interactive
   traffic. The policies lock the Settings UI (ADVANCED per gaming_tweaks.md §2 F).
 - **Registry values:** `DOPercentageMaxBackgroundBandwidth`, `DOMaxBackgroundDownloadBandwidth`.
-- **MONOLITH instead:** `delivery-optimization-local` («Обновления без P2P-раздачи», SAFE-DEFAULT, `DownloadMode=0` — no peer upload, no bandwidth limit; the limit stays in Windows Settings → Delivery Optimization → Advanced) and the bufferbloat measurement.
+- **Lycoris instead:** `delivery-optimization-local` («Обновления без P2P-раздачи», SAFE-DEFAULT, `DownloadMode=0` — no peer upload, no bandwidth limit; the limit stays in Windows Settings → Delivery Optimization → Advanced) and the bufferbloat measurement.
 - **Sources:** https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization-faq ;
   https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization-reference ;
   https://learn.microsoft.com/en-us/windows/deployment/do/whats-new-do ; gaming_tweaks.md §2 F ; network_stack.md #21
@@ -295,7 +295,7 @@ finding nothing.
   when CPU use is above 80 % or disk use above 70 % (Insider blog, Thurrott, TechSpot). Excluding libraries saves nothing during
   play and only makes the files unsearchable; stopping WSearch breaks Start and Explorer search.
 - **Registry values:** none (crawl-scope API / service).
-- **MONOLITH instead:** the services page explains WSearch; Game Boost does not touch it.
+- **Lycoris instead:** the services page explains WSearch; Game Boost does not touch it.
 - **Sources:** https://blogs.windows.com/windows-insider/2019/11/15/announcing-windows-10-insider-preview-build-19025/ ;
   https://www.thurrott.com/?p=222164 ; https://www.techspot.com/news/83454-windows-10-next-major-update-could-improve-system.html ; services.md §1A
 
@@ -307,7 +307,7 @@ finding nothing.
   more overhead, no gain; `disabledynamictick` raises idle power. Forum «results» (Guru3D, Blur Busters) are subjective and
   contradictory. bcdedit changes are forbidden by CLAUDE.md rule 3.
 - **Registry values:** none (BCD store).
-- **MONOLITH instead:** nothing is needed; the «Отчёт об энергоэффективности» shows real timer holders.
+- **Lycoris instead:** nothing is needed; the «Отчёт об энергоэффективности» shows real timer holders.
 - **Sources:** https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps ;
   https://forums.guru3d.com/goto/post?id=6015918 ; https://forums.blurbusters.com/viewtopic.php?p=109996 ; gaming_tweaks.md §3
 
@@ -317,7 +317,7 @@ finding nothing.
   modify the registry incorrectly using these types of utilities. These issues might require users to reinstall the operating
   system». No measurable benefit; registry hives are memory-mapped and a few orphaned keys cost nothing.
 - **Registry values:** none (the whole class of action).
-- **MONOLITH instead:** SFC / DISM repair in «Обслуживание → Ремонт и диски».
+- **Lycoris instead:** SFC / DISM repair in «Обслуживание → Ремонт и диски».
 - **Sources:** https://support.microsoft.com/en-us/topic/2563254 ; general_tweaks.md §10 ; competitors.md §2.1
 
 ## `pagefile-off` — disabling or shrinking the page file → DO-NOT-INCLUDE (gaming_tweaks.md §3; general_tweaks.md §10 `mem.pagefile`)
@@ -327,7 +327,7 @@ finding nothing.
   `LargeSystemCache` are server-era knobs with no gaming effect; `ClearPageFileAtShutdown` only slows shutdown.
 - **Registry values:** `ClearPageFileAtShutdown`, `DisablePagingExecutive`, `LargeSystemCache`. (`PagingFiles` is written only by the
   «back to system-managed» repair.)
-- **MONOLITH instead:** `pagefile-system-managed` («Файл подкачки: автоматический размер», «Оптимизация») and the memory facts on «Панель».
+- **Lycoris instead:** `pagefile-system-managed` («Файл подкачки: автоматический размер», «Оптимизация») and the memory facts on «Панель».
 - **Sources:** https://learn.microsoft.com/en-us/archive/blogs/markrussinovich/pushing-the-limits-of-windows-virtual-memory ;
   https://www.windowslatest.com/2026/10/23/should-you-turn-off-the-page-file-on-a-32gb-pc-heres-what-microsoft-actually-recommends-k4l9/ ;
   gaming_tweaks.md §3 ; general_tweaks.md §10
@@ -338,7 +338,7 @@ finding nothing.
   interrupts system threads that manage mouse input, keyboard input, and background disk flushing»; it «may cause disk caches to not
   flush, cause the mouse to stop responding». Anti-cheat may also flag it.
 - **Registry values:** none (`PerfOptions\CpuPriorityClass` is not written).
-- **MONOLITH instead:** Game Boost raises the game to High only (never Realtime), for the session.
+- **Lycoris instead:** Game Boost raises the game to High only (never Realtime), for the session.
 - **Sources:** https://learn.microsoft.com/en-us/windows/win32/procthread/scheduling-priorities ;
   https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority ; gaming_tweaks.md §3 ; tech.md §6
 
@@ -348,6 +348,6 @@ finding nothing.
   checksum offload also disables RSS, RSC and LSO. The result is higher CPU load on the game's cores, not lower ping; changing
   adapter keywords resets the link (drops the connection mid-game).
 - **Registry values:** `*LsoV2IPv4`, `*LsoV2IPv6`, `*TCPChecksumOffloadIPv4`, `*TCPChecksumOffloadIPv6`, `*RSS`, `*InterruptModeration`.
-- **MONOLITH instead:** the adapter facts and measurements on «Устройства и сеть».
+- **Lycoris instead:** the adapter facts and measurements on «Устройства и сеть».
 - **Sources:** https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics ;
   network_adapter.md ; network_stack.md #9–12 ; gaming_tweaks.md §3

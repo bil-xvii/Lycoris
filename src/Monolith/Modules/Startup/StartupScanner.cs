@@ -115,7 +115,7 @@ public sealed record StartupEntry
     public string Key => PackageFamilyName is { } family ? $"{Source}|{family}\\{Name}" : $"{Source}|{Name}";
 
     /// <summary>
-    /// Whether MONOLITH may switch this entry at all: Run / Startup-folder marks always; packaged tasks only in a user
+    /// Whether Lycoris may switch this entry at all: Run / Startup-folder marks always; packaged tasks only in a user
     /// state (0/1/2) and with names the undo journal accepts. Policy-managed tasks (3/4) are never written.
     /// </summary>
     public bool CanChange => !StartupLocations.IsPackaged(Source)

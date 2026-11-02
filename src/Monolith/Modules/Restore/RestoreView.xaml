@@ -54,7 +54,7 @@
                             </Border>
                             <Border Style="{StaticResource Tag.Hatch}" Margin="0,0,6,0"
                                     Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{loc:T ИЗМЕНЕНО ВНЕ MONOLITH}" />
+                                <TextBlock Text="{loc:T ИЗМЕНЕНО ВНЕ LYCORIS}" />
                             </Border>
                             <Border Style="{StaticResource Tag.Hatch}"
                                     Visibility="{Binding IsMismatch, Converter={StaticResource BoolToVis}}">
@@ -85,7 +85,7 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" VerticalAlignment="Top" HorizontalAlignment="Right">
-                        <!-- Status = one vocabulary: ИЗМЕНЕНО MONOLITH · ОТКАЧЕНО · ОШИБКА ОТКАТА (a filled block, never a button) -->
+                        <!-- Status = one vocabulary: ИЗМЕНЕНО LYCORIS · ОТКАЧЕНО · ОШИБКА ОТКАТА (a filled block, never a button) -->
                         <Border HorizontalAlignment="Right">
                             <Border.Style>
                                 <Style TargetType="Border" BasedOn="{StaticResource Tag.Solid}">
@@ -161,7 +161,7 @@
                     <WrapPanel Margin="0,6,0,0">
                         <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0"
                                 Visibility="{Binding IsMonolith, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="MONOLITH" />
+                            <TextBlock Text="Lycoris" />
                         </Border>
                         <Border Style="{StaticResource Tag.Muted}">
                             <TextBlock Text="{Binding TypeLabel}" />
@@ -259,7 +259,7 @@
                 </Grid.ColumnDefinitions>
                 <Rectangle Fill="{StaticResource B.HatchStrong}" />
                 <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="11,9,10,9"
-                           Text="{Binding DriftCount, StringFormat={loc:T 'ИЗМЕНЕНО ВНЕ MONOLITH · {0}'}}" />
+                           Text="{Binding DriftCount, StringFormat={loc:T 'ИЗМЕНЕНО ВНЕ LYCORIS · {0}'}}" />
                 <TextBlock Grid.Column="2" Text="{Binding DriftLine}" Style="{StaticResource T.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
                            Margin="0,9,10,9" />
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,10,8">
@@ -446,7 +446,7 @@
                                 <StackPanel Margin="0,0,10,0">
                                     <TextBlock Text="{loc:T Точка перед изменениями}" Style="{StaticResource T.H3}" />
                                     <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17"
-                                               Text="{loc:T MONOLITH создаёт точку восстановления перед каждым пакетом изменений (если защита включена). Рекомендуется держать включённым.}" />
+                                               Text="{loc:T Lycoris создаёт точку восстановления перед каждым пакетом изменений (если защита включена). Рекомендуется держать включённым.}" />
                                 </StackPanel>
                                 <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding CreateRestorePoints}" />
                             </Grid>

@@ -287,7 +287,7 @@ public sealed partial class ServicesViewModel : PageViewModel
             if (!value)
             {
                 AppSettings.Current.ServicesExpertMode = false;
-                Log.Info("Экспертный режим служб выключен: службы вне списка MONOLITH снова только для просмотра.");
+                Log.Info("Экспертный режим служб выключен: службы вне списка Lycoris снова только для просмотра.");
                 return;
             }
             // Keep the toggle off until the user confirms (re-raised after the binding finishes its update).
@@ -307,9 +307,9 @@ public sealed partial class ServicesViewModel : PageViewModel
         {
             var ok = await Ui.ConfirmAsync(
                 "Включить экспертный режим служб?",
-                "На вкладке «Все службы» станет можно менять тип запуска, запускать и останавливать службы, которых нет в проверенном списке MONOLITH.",
+                "На вкладке «Все службы» станет можно менять тип запуска, запускать и останавливать службы, которых нет в проверенном списке Lycoris.",
                 [
-                    Loc.T("Эти службы MONOLITH не проверял: отключение может сломать Wi-Fi с корпоративным входом (802.1X), режим «в самолёте», синхронизацию времени, VPN, резервное копирование и программы сторонних производителей"),
+                    Loc.T("Эти службы Lycoris не проверял: отключение может сломать Wi-Fi с корпоративным входом (802.1X), режим «в самолёте», синхронизацию времени, VPN, резервное копирование и программы сторонних производителей"),
                     Loc.T("Критичные службы Windows, драйверы, защищённые и пользовательские службы остаются заблокированными и в этом режиме"),
                     Loc.T("Каждое изменение типа запуска по-прежнему записывается в журнал и откатывается из «Восстановления»"),
                     Loc.T("Выключить режим можно здесь же в любой момент — уже сделанные изменения при этом не откатываются"),
@@ -318,7 +318,7 @@ public sealed partial class ServicesViewModel : PageViewModel
             if (ok)
             {
                 AppSettings.Current.ServicesExpertMode = true;
-                Log.Warn("Экспертный режим служб включён: службы вне списка MONOLITH можно менять на свой риск.");
+                Log.Warn("Экспертный режим служб включён: службы вне списка Lycoris можно менять на свой риск.");
             }
         }
         finally
@@ -450,11 +450,11 @@ public sealed partial class ServicesViewModel : PageViewModel
             return await ChangeSession.BeginAsync(title, createRestorePoint: false);
 
         BusyText = Loc.T("Создание точки восстановления…");
-        var rp = await RestorePointService.CreateAsync($"MONOLITH: {title}");
+        var rp = await RestorePointService.CreateAsync($"Lycoris: {title}");
         if (!rp.Created)
         {
             var go = await Ui.ConfirmAsync("ПРОДОЛЖИТЬ БЕЗ ТОЧКИ ВОССТАНОВЛЕНИЯ?",
-                Loc.Tf("{0} Исходные значения всё равно сохраняются в журнале MONOLITH, и каждое изменение можно откатить из приложения.", rp.Message),
+                Loc.Tf("{0} Исходные значения всё равно сохраняются в журнале Lycoris, и каждое изменение можно откатить из приложения.", rp.Message),
                 confirmText: "ПРОДОЛЖИТЬ", danger: true);
             if (!go)
             {

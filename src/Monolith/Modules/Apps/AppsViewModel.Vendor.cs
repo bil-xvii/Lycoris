@@ -7,7 +7,7 @@ using Monolith.UI;
 namespace Monolith.Modules.Apps;
 
 /// <summary>
-/// The safe way forward when winget cannot install a package (CLAUDE.md rules 3, 8, 9): MONOLITH never bypasses the
+/// The safe way forward when winget cannot install a package (CLAUDE.md rules 3, 8, 9): Lycoris never bypasses the
 /// winget hash. Instead it downloads the vendor's own installer through <see cref="VendorDownloads"/> (HTTPS host
 /// allow-list, valid signature of the expected vendor, admin-only folder), shows exactly what will happen first,
 /// and starts the installer as the signed-in user — the installer asks for administrator rights itself.
@@ -64,7 +64,7 @@ public sealed partial class AppsViewModel
         if (!Elevation.IsElevated)
         {
             // Without admin rights the file cannot be kept where nobody can swap it between the check and the start.
-            Ui.Toast("Без прав администратора MONOLITH не может сохранить установщик в защищённую папку и проверить его до запуска — " +
+            Ui.Toast("Без прав администратора Lycoris не может сохранить установщик в защищённую папку и проверить его до запуска — " +
                      "открывается официальный сайт.", ToastKind.Warning, entry.Name.ToUpperInvariant());
             await OpenLinkAsync(entry.Website);
             return;
@@ -138,7 +138,7 @@ public sealed partial class AppsViewModel
             {
                 job.State = QueueState.Cancelled;
                 job.StatusText = Loc.T("ОТМЕНЕНО: нет точки восстановления");
-                job.Detail = Loc.T("Установщик скачан и проверен, но не запущен: вы не стали продолжать без точки восстановления. При повторе MONOLITH скачает свежую копию.");
+                job.Detail = Loc.T("Установщик скачан и проверен, но не запущен: вы не стали продолжать без точки восстановления. При повторе Lycoris скачает свежую копию.");
                 job.Fallback = QueueFallback.VendorDownload;
                 return;
             }
@@ -156,11 +156,11 @@ public sealed partial class AppsViewModel
 
             ct.ThrowIfCancellationRequested();
             job.IsDownloading = false; // from here on nothing can be cancelled any more
-            // Never with MONOLITH's admin token: the vendor installer asks for the rights it needs itself.
+            // Never with Lycoris's admin token: the vendor installer asks for the rights it needs itself.
             if (await UnelevatedShell.StartAsUserAsync(path, "", Path.GetDirectoryName(path)))
             {
                 job.Detail = Loc.Tf("Официальный установщик проверен ({0}) и запущен от вашего имени — права администратора он попросит сам. " +
-                             "Пройдите его шаги, затем нажмите «ПРОВЕРИТЬ» вверху страницы, чтобы MONOLITH увидел программу.", signer);
+                             "Пройдите его шаги, затем нажмите «ПРОВЕРИТЬ» вверху страницы, чтобы Lycoris увидел программу.", signer);
                 job.Fallback = QueueFallback.None;
                 job.State = QueueState.Unknown;
                 job.StatusText = Loc.T("ЗАПУЩЕН УСТАНОВЩИК ПРОИЗВОДИТЕЛЯ");
@@ -212,7 +212,7 @@ public sealed partial class AppsViewModel
     {
         AppendLog(Loc.T("Создание точки восстановления…"));
         SetBusyText(Loc.T("Создание точки восстановления…"));
-        var rp = await RestorePointService.CreateAsync(Loc.Tf("MONOLITH: установка {0}", entry.Name));
+        var rp = await RestorePointService.CreateAsync(Loc.Tf("Lycoris: установка {0}", entry.Name));
         AppendLog(rp.Message);
         return rp.Outcome != RestorePointOutcome.Failed || await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
             "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",

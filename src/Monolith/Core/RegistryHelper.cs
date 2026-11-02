@@ -7,7 +7,7 @@ namespace Monolith.Core;
 public enum RegHive { HKLM, HKCU, HKCR, HKU }
 
 /// <summary>
-/// The exact state of one registry value before MONOLITH touched it.
+/// The exact state of one registry value before Lycoris touched it.
 /// Restoring the snapshot puts the value back byte-for-byte (or deletes it if it did not exist).
 /// </summary>
 public sealed class RegistryValueSnapshot
@@ -23,9 +23,9 @@ public sealed class RegistryValueSnapshot
     public string? Data { get; init; }
 
     /// <summary>
-    /// The shallowest key of <see cref="Path"/> that MONOLITH created (it did not exist before the first write, or an
+    /// The shallowest key of <see cref="Path"/> that Lycoris created (it did not exist before the first write, or an
     /// active journal record created it). On restore the empty keys from <see cref="Path"/> up to and including this
-    /// one are removed, never anything above it. Null: MONOLITH created no key (or the record is from an older build).
+    /// one are removed, never anything above it. Null: Lycoris created no key (or the record is from an older build).
     /// </summary>
     public string? CreatedKeyRoot { get; init; }
 
@@ -151,7 +151,7 @@ public static class RegistryHelper
     }
 
     /// <summary>
-    /// Puts the value back exactly as captured. When the value did not exist, removes it and then the keys MONOLITH
+    /// Puts the value back exactly as captured. When the value did not exist, removes it and then the keys Lycoris
     /// created, while they are empty: from <see cref="RegistryValueSnapshot.Path"/> up to and including
     /// <see cref="RegistryValueSnapshot.CreatedKeyRoot"/>, never above it. Records from older builds (no root) only
     /// lose their own key, and only when it is empty.

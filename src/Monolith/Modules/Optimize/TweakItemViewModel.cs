@@ -50,7 +50,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
     public string UndoText => DataLossNote is { } loss
         ? Loc.Tf("Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление» вернут настройку. {0}", loss)
         : Tweak.Restart == RestartRequirement.None
-        ? Loc.T("Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Перед изменением MONOLITH сохраняет исходные значения и возвращает их точно такими, какими они были.")
+        ? Loc.T("Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Перед изменением Lycoris сохраняет исходные значения и возвращает их точно такими, какими они были.")
         : Loc.Tf("Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление». Исходные значения сохраняются перед изменением. После отката тоже {0}.", Tweak.RestartText);
 
     /// <summary>Detected state; null while detection is running.</summary>
@@ -60,7 +60,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
         nameof(HasPreview))]
     private TweakState? _state;
 
-    /// <summary>MONOLITH has an active journal entry for this tweak, so it can be undone.</summary>
+    /// <summary>Lycoris has an active journal entry for this tweak, so it can be undone.</summary>
     [ObservableProperty] private bool _canRevert;
 
     [ObservableProperty] private bool _isExpanded;

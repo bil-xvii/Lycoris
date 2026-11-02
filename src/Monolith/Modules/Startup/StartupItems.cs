@@ -80,7 +80,7 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     [NotifyPropertyChangedFor(nameof(StatusDetail))]
     private bool _isJournaled;
 
-    /// <summary>Packaged tasks: the State from before MONOLITH changed it (this account's journal), or null.</summary>
+    /// <summary>Packaged tasks: the State from before Lycoris changed it (this account's journal), or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToggleTooltip))]
     private int? _packageStateBefore;
@@ -95,7 +95,7 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
             if (IsPackaged) parts.Add(PackagedStartup.StateText(Entry.PackageState));
             else if (!IsEnabled && DisabledAtUtc is { } at) parts.Add(Loc.Tf("с {0:dd.MM.yyyy HH:mm}", at.ToLocalTime()));
             else parts.Add(IsEnabled ? Loc.T("при входе в Windows") : Loc.T("не запускается"));
-            if (IsJournaled) parts.Add("MONOLITH");
+            if (IsJournaled) parts.Add("Lycoris");
             return string.Join(" · ", parts);
         }
     }
@@ -114,10 +114,10 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
 
     public string ToggleTooltip =>
         IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState)
-            ? Loc.T("Состоянием этой задачи управляет администратор или групповая политика — MONOLITH его не меняет.")
-        : !CanChange ? Loc.T("Состояние задачи не распознано или имя пакета нестандартное — MONOLITH её не меняет.")
-        : IsEnabled && !CanDisable ? Loc.T("Значок защиты Windows или антивируса — MONOLITH его не отключает.")
-        : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие.")
+            ? Loc.T("Состоянием этой задачи управляет администратор или групповая политика — Lycoris его не меняет.")
+        : !CanChange ? Loc.T("Состояние задачи не распознано или имя пакета нестандартное — Lycoris её не меняет.")
+        : IsEnabled && !CanDisable ? Loc.T("Значок защиты Windows или антивируса — Lycoris его не отключает.")
+        : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — Lycoris запросит права, перезапустится и продолжит это действие.")
         : IsPackaged ? PackagedToggleTooltip(!IsEnabled, PackagedStartup.StateAfterSwitch(!IsEnabled, PackageStateBefore))
         : IsEnabled ? Loc.T("Отключить: программа не будет запускаться при входе. Ничего не удаляется.")
         : Loc.T("Включить: программа снова будет запускаться при входе в Windows.");
@@ -126,8 +126,8 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     internal static string PackagedToggleTooltip(bool enable, int state) =>
         state != PackagedStartup.TargetState(enable)
             ? (enable
-                ? Loc.Tf("Включить: MONOLITH вернёт State = {0} ({1}), как было до него.", state, PackagedStartup.StateText(state))
-                : Loc.Tf("Отключить: MONOLITH вернёт State = {0} ({1}), как было до него.", state, PackagedStartup.StateText(state)))
+                ? Loc.Tf("Включить: Lycoris вернёт State = {0} ({1}), как было до него.", state, PackagedStartup.StateText(state))
+                : Loc.Tf("Отключить: Lycoris вернёт State = {0} ({1}), как было до него.", state, PackagedStartup.StateText(state)))
               + (PackagedStartup.StateNote(state) is { } note ? " " + note : "")
         : enable ? Loc.T("Включить (State = 2). Windows запускает такое приложение при входе, если его хотя бы раз открывали.")
         : Loc.T("Отключить, как в Диспетчере задач (State = 1): приложение не будет запускаться при входе. Ничего не удаляется.");
@@ -218,7 +218,7 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
         get
         {
             var text = Info.LastRun is { } lr ? Loc.Tf("запуск {0:dd.MM HH:mm}", lr) : Loc.T("не запускалась");
-            return IsJournaled ? text + " · MONOLITH" : text;
+            return IsJournaled ? text + " · Lycoris" : text;
         }
     }
 
@@ -231,9 +231,9 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
     public string ToggleTooltip =>
         IsEnabled && !CanDisable
             ? Info.Risk == StartupRisk.Updater
-                ? Loc.T("Задача обновляет программу и закрывает уязвимости — MONOLITH её не отключает.")
-                : Loc.T("Задача защитного ПО — MONOLITH её не отключает.")
-        : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие.")
+                ? Loc.T("Задача обновляет программу и закрывает уязвимости — Lycoris её не отключает.")
+                : Loc.T("Задача защитного ПО — Lycoris её не отключает.")
+        : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — Lycoris запросит права, перезапустится и продолжит это действие.")
         : IsEnabled ? Loc.T("Отключить задачу в планировщике. Задача не удаляется.")
         : Loc.T("Включить задачу снова.");
 

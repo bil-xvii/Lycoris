@@ -1,11 +1,11 @@
 # The owner's RELEASE SIGNING KEY for the update channel (docs/security-audit.md, "Update channel requirements").
 #
-# Why: the SHA-256 published next to MONOLITH.exe comes from the same server as the file. Whoever takes over the GitHub account can
+# Why: the SHA-256 published next to Lycoris.exe comes from the same server as the file. Whoever takes over the GitHub account can
 # replace both. A signature made with a key that is NOT on GitHub fixes that: installed copies carry the PUBLIC half
 # (Core/Security/ReleaseSignature.cs, PinnedPublicKey) and install an update only when its signature verifies.
 #
 #   powershell -ExecutionPolicy Bypass -File tools\release-key.ps1 -New        # once: makes the key pair, prints the public key
-#   powershell -ExecutionPolicy Bypass -File tools\release-key.ps1 -Sign -File publish\MONOLITH.exe -Version 1.2.3
+#   powershell -ExecutionPolicy Bypass -File tools\release-key.ps1 -Sign -File publish\Lycoris.exe -Version 1.2.3
 #                                                                              # (tools\release.ps1 calls this) writes <file>.sig
 #   powershell -ExecutionPolicy Bypass -File tools\release-key.ps1 -Show       # prints the public key again
 #
@@ -59,7 +59,7 @@ if ($New) {
     Write-Host 'Public key - put it into src\Monolith\Core\Security\ReleaseSignature.cs:'
     Write-Host "    public const string PinnedPublicKey = `"$pub`";"
     Write-Host ''
-    Write-Host 'From the first release built with that line, every release MUST carry MONOLITH.exe.sig (tools\release.ps1 adds it).'
+    Write-Host 'From the first release built with that line, every release MUST carry Lycoris.exe.sig (tools\release.ps1 adds it).'
     exit 0
 }
 
@@ -69,11 +69,11 @@ if ($Show) {
 }
 
 if ($Sign) {
-    if (-not $File -or -not (Test-Path $File)) { throw '-File <path to MONOLITH.exe> is required' }
+    if (-not $File -or -not (Test-Path $File)) { throw '-File <path to Lycoris.exe> is required' }
     if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw '-Version x.y.z is required' }
     $hash = (Get-FileHash $File -Algorithm SHA256).Hash.ToLowerInvariant()
     # Exactly the text ReleaseSignature.SignedStatement builds: it binds the hash to the version AND the file name.
-    $statement = "monolith-release`nversion=$Version`nfile=MONOLITH.exe`nsha256=$hash`n"
+    $statement = "monolith-release`nversion=$Version`nfile=Lycoris.exe`nsha256=$hash`n"
     $key = Import-Key
     $ecdsa = New-Object System.Security.Cryptography.ECDsaCng($key)
     $ecdsa.HashAlgorithm = [System.Security.Cryptography.CngAlgorithm]::Sha256

@@ -12,7 +12,7 @@ namespace Monolith.Modules.Optimize;
 /// <summary>«ЭКСПОРТ» / «ИМПОРТ» of the selection as a .json profile. Import only changes the selection, never applies.</summary>
 public sealed partial class OptimizeViewModel
 {
-    private static readonly string ProfileFilter = Loc.T("Профиль MONOLITH (*.json)|*.json");
+    private static readonly string ProfileFilter = Loc.T("Профиль Lycoris (*.json)|*.json");
     private const int MaxListedIds = 15;
 
     private bool CanExportProfile() => !IsBusy && _items.Any(i => i.IsChecked);
@@ -30,7 +30,7 @@ public sealed partial class OptimizeViewModel
 
         var dlg = new SaveFileDialog
         {
-            Title = Loc.T("MONOLITH — сохранить профиль оптимизации"),
+            Title = Loc.T("Lycoris — сохранить профиль оптимизации"),
             Filter = ProfileFilter,
             DefaultExt = ".json",
             AddExtension = true,
@@ -63,7 +63,7 @@ public sealed partial class OptimizeViewModel
     {
         var dlg = new OpenFileDialog
         {
-            Title = Loc.T("MONOLITH — открыть профиль оптимизации"),
+            Title = Loc.T("Lycoris — открыть профиль оптимизации"),
             Filter = ProfileFilter,
             CheckFileExists = true,
             Multiselect = false,
@@ -132,7 +132,7 @@ public sealed partial class OptimizeViewModel
         {
             var profileLine = Loc.Tf("Профиль: «{0}»", data.Name);
             if (data.Created is { } c) profileLine += Loc.Tf(", создан {0}", Loc.DateTimeText(c.ToLocalTime().DateTime));
-            if (data.AppVersion is not null) profileLine += Loc.Tf(", MONOLITH {0}", data.AppVersion);
+            if (data.AppVersion is not null) profileLine += Loc.Tf(", Lycoris {0}", data.AppVersion);
             details.Add(profileLine);
         }
         // The file remembers the tile it was exported from; the set still lands in «Свой набор» (it may differ from today's defaults).

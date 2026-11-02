@@ -1,4 +1,4 @@
-# MONOLITH
+# Lycoris
 
 **Безопасная оптимизация Windows для работы и игр.**
 Чёрно-белый, строгий интерфейс. Каждое изменение записывается в журнал и откатывается в один клик.
@@ -19,7 +19,7 @@
 | **10 Восстановление** | Журнал всех изменений, откат по одному / пакетом / всего сразу, точки восстановления Windows. |
 | **11 Настройки** | Поведение программы, папки с данными, сведения. |
 
-## Как MONOLITH защищает систему
+## Как Lycoris защищает систему
 
 1. Перед каждым изменением исходное значение сохраняется в журнал (`%ProgramData%\MONOLITH\journal.json`), а затрагиваемые ключи реестра — в `.reg`-копии.
 2. Перед пакетом изменений создаётся точка восстановления Windows.
@@ -29,12 +29,12 @@
 
 ## Скачать
 
-**[Последняя версия → Releases](../../releases/latest)** — скачайте `MONOLITH.exe` и запустите. Один файл, ничего устанавливать не нужно (.NET внутри).
+**[Последняя версия → Releases](../../releases/latest)** — скачайте `Lycoris.exe` и запустите. Один файл, ничего устанавливать не нужно (.NET внутри).
 
 - Windows 10 (2004+) / Windows 11, 64-bit.
-- Программа открывается **без запроса прав администратора** в режиме просмотра: смотреть и проверять можно сразу. Когда вы нажимаете кнопку, которая что-то меняет, MONOLITH сам перезапускается с правами администратора и продолжает то же действие.
+- Программа открывается **без запроса прав администратора** в режиме просмотра: смотреть и проверять можно сразу. Когда вы нажимаете кнопку, которая что-то меняет, Lycoris сам перезапускается с правами администратора и продолжает то же действие.
 - Язык интерфейса: русский / English (Настройки → «Язык / Language»; по умолчанию — язык Windows).
-- Рядом с файлом в релизе лежит `MONOLITH.exe.sha256` — сверьте контрольную сумму: `Get-FileHash MONOLITH.exe -Algorithm SHA256`.
+- Рядом с файлом в релизе лежит `Lycoris.exe.sha256` — сверьте контрольную сумму: `Get-FileHash Lycoris.exe -Algorithm SHA256`.
 - Файл пока **не подписан** цифровой подписью, поэтому Windows SmartScreen / окно UAC может писать «Издатель: неизвестно» (см. `docs/signing.md`). Это не означает, что файл опасен; исходный код открыт в этом репозитории.
 
 ## Сборка из исходников (нужен .NET 10 SDK)
@@ -42,13 +42,13 @@
 ```
 dotnet build src/Monolith/Monolith.csproj -c Debug
 dotnet test tests/Monolith.Tests/Monolith.Tests.csproj
-powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сборка в publish\MONOLITH.exe
+powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сборка в publish\Lycoris.exe
 ```
 
 ---
 
-# MONOLITH (English)
+# Lycoris (English)
 
 **Safe Windows optimization for work and gaming.** Strict black-and-white interface. Every change is written to a journal and can be undone in one click; a Windows restore point is created before each batch; only documented, evidence-backed settings; critical services are protected.
 
-**Download:** grab `MONOLITH.exe` from the [latest release](../../releases/latest) — a single self-contained file, no installer, no .NET needed (Windows 10 2004+/11, 64-bit). It opens read-only without a UAC prompt and asks for administrator rights only when you press a button that changes something, then continues the same action. Interface language: Russian / English (Settings → Language; default follows Windows). Verify the download with `MONOLITH.exe.sha256`. The file is not code-signed yet, so Windows may show "Unknown publisher" (see `docs/signing.md`).
+**Download:** grab `Lycoris.exe` from the [latest release](../../releases/latest) — a single self-contained file, no installer, no .NET needed (Windows 10 2004+/11, 64-bit). It opens read-only without a UAC prompt and asks for administrator rights only when you press a button that changes something, then continues the same action. Interface language: Russian / English (Settings → Language; default follows Windows). Verify the download with `Lycoris.exe.sha256`. The file is not code-signed yet, so Windows may show "Unknown publisher" (see `docs/signing.md`).

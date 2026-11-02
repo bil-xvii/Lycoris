@@ -304,7 +304,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     // ───────────────────────────── Detection ─────────────────────────────
 
-    /// <summary>Reads the current state of every tweak off the UI thread, plus which ones MONOLITH can undo.</summary>
+    /// <summary>Reads the current state of every tweak off the UI thread, plus which ones Lycoris can undo.</summary>
     private async Task RefreshStatesAsync()
     {
         if (_items.Count == 0 || _refreshing || IsBusy) return;
@@ -819,8 +819,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
         {
             var footnote = await RestorePointFootnoteAsync();
             var message = (lossy.Count > 0
-                              ? Loc.T("MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому настройки можно откатить. Исключение: удалённые данные не восстанавливаются.")
-                              : Loc.T("MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому любой пункт можно откатить."))
+                              ? Loc.T("Lycoris изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому настройки можно откатить. Исключение: удалённые данные не восстанавливаются.")
+                              : Loc.T("Lycoris изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому любой пункт можно откатить."))
                           + (alreadyApplied > 0 ? Loc.Tf(" Уже применённые пункты ({0}) не трогаются.", alreadyApplied) : "");
             var ok = await Ui.ConfirmAsync(
                 Loc.Tf("ПРИМЕНИТЬ {0}?", Loc.N(targets.Count, "{0} ИЗМЕНЕНИЕ", "{0} ИЗМЕНЕНИЯ", "{0} ИЗМЕНЕНИЙ")),
@@ -853,7 +853,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         parts.Add(t.RiskText.ToLowerInvariant());
         if (t.HasRestart) parts.Add(t.Tweak.RestartText);
         if (t.DataLossNote is { } loss) parts.Add(loss);
-        // Another member of the same group is applied by MONOLITH: this change gets its own journal layer on top of it,
+        // Another member of the same group is applied by Lycoris: this change gets its own journal layer on top of it,
         // so undoing it brings that member's value back exactly.
         // The Windows Update group is one-of-two by refusal (the second item refuses while the first is active), not by
         // layering, so there is nothing to «replace».
@@ -867,11 +867,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private static async Task<string> RestorePointFootnoteAsync()
     {
         if (!AppSettings.Current.CreateRestorePoints)
-            return Loc.T("Точка восстановления отключена в разделе «Восстановление». Откат — через журнал MONOLITH.");
+            return Loc.T("Точка восстановления отключена в разделе «Восстановление». Откат — через журнал Lycoris.");
         var enabled = await Task.Run(RestorePointService.IsEnabled);
         return enabled
             ? Loc.T("Перед изменениями будет создана точка восстановления Windows.")
-            : Loc.T("Защита системы выключена — точки восстановления не будет. Откат — через журнал MONOLITH.");
+            : Loc.T("Защита системы выключена — точки восстановления не будет. Откат — через журнал Lycoris.");
     }
 
     private async Task ShowApplyResultAsync(TweakRunResult result, IReadOnlyList<TweakItemViewModel> targets, OptimizeProfile scenario)
@@ -879,7 +879,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var lines = new List<string>
         {
             string.IsNullOrWhiteSpace(result.RestorePoint)
-                ? Loc.T("Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал MONOLITH.")
+                ? Loc.T("Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал Lycoris.")
                 : result.RestorePoint!,
         };
         foreach (var t in targets)
@@ -895,7 +895,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         }
         lines.AddRange(result.SkippedReasons.Select(r => Loc.Tf("ПРОПУЩЕНО — {0}", r)));
         lines.AddRange(result.Errors.Select(e => Loc.Tf("ОШИБКА — {0}", e)));
-        // What the scenario leaves to the user because MONOLITH must not write it (vendor fan curves, charge limits, DND blobs).
+        // What the scenario leaves to the user because Lycoris must not write it (vendor fan curves, charge limits, DND blobs).
         // Each line carries the «ВРУЧНУЮ —» label, like the «ПРИМЕНЕНО —» lines above it (the dialog lists bullets, not headers).
         var manual = OptimizeLogic.ManualSteps(scenario, _laptop);
         if (manual.Count > 0)
@@ -929,7 +929,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (records.Count == 0)
         {
             var why = left.Count > 0 ? await Task.Run(() => RestoreFormat.LeftText(left, UserScope.CurrentSid, UserScope.AccountName)) : "";
-            Ui.Toast(why.Length > 0 ? why : Loc.T("Для этого пункта нет изменений MONOLITH, которые можно откатить."), ToastKind.Info);
+            Ui.Toast(why.Length > 0 ? why : Loc.T("Для этого пункта нет изменений Lycoris, которые можно откатить."), ToastKind.Info);
             await RefreshStatesAsync();
             return;
         }
@@ -946,10 +946,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
             : DescribeRecord(r)).ToList();
         if (AlsoRevertsLine(records.Where(r => r.IsLegacyMerged), [item.Id]) is { } also) details.Add(also);
         if (account is not null)
-            details.Add(Loc.Tf("Часть записей сделана старой версией MONOLITH без учётной записи: исходные значения запишутся в профиль {0}. Если изменения делали под другой учётной записью, у неё они останутся.", account));
+            details.Add(Loc.Tf("Часть записей сделана старой версией Lycoris без учётной записи: исходные значения запишутся в профиль {0}. Если изменения делали под другой учётной записью, у неё они останутся.", account));
         if (leftText.Length > 0) details.Add(Loc.T("Не войдут в откат: ") + leftText);
         var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?",
-            Loc.Tf("«{0}»: MONOLITH вернёт значения, которые были до применения этого пункта.", item.Title),
+            Loc.Tf("«{0}»: Lycoris вернёт значения, которые были до применения этого пункта.", item.Title),
             details, confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
             footnote: item.HasRestart ? Loc.Tf("После отката {0}.", item.Tweak.RestartText) : null);
         if (!ok) return;
@@ -998,7 +998,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         else if (result.Success)
         {
             await Ui.AlertAsync("ОТКАТ НЕ СОВПАЛ С ИСХОДНЫМ",
-                counts + check + Loc.T(" После отката MONOLITH прочитал значения заново: эти отличаются от исходных " +
+                counts + check + Loc.T(" После отката Lycoris прочитал значения заново: эти отличаются от исходных " +
                 "(их могла сразу изменить Windows, политика или другая программа). Подробности — в разделе «Восстановление».") + tail,
                 result.Mismatches);
         }

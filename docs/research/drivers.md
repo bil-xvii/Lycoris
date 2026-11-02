@@ -1,4 +1,4 @@
-# MONOLITH: Drivers module design
+# Lycoris: Drivers module design
 
 The design uses three update sources: Windows Update (WUA COM), vendor tools from the vendors themselves, and a few NVIDIA endpoints that are hosted by NVIDIA but not documented. It does not use third-party driver databases. Every claim marked ✔ was checked read-only on the dev machine (build 26300, winget v1.11.510) on 2026-10-26.
 
@@ -108,7 +108,7 @@ public static class Wua {
     }
 
     public static Task<List<WuDriver>> FindAsync(CancellationToken ct) => Mta(() => {
-        dynamic session = New("Microsoft.Update.Session"); session.ClientApplicationID = "MONOLITH";
+        dynamic session = New("Microsoft.Update.Session"); session.ClientApplicationID = "Lycoris";
         dynamic ups = Search(session); var list = new List<WuDriver>();
         for (int i = 0; i < (int)ups.Count; i++) {
             dynamic u = ups[i]; string title = u.Title; var v = Ver.Match(title).Value.Trim();
@@ -123,7 +123,7 @@ public static class Wua {
 
     // Caller has already: confirmed with the user, created a restore point, exported the current oemNN.inf.
     public static Task<(bool reboot, int[] codes)> InstallAsync(ISet<string> ids, IProgress<int> p, CancellationToken ct) => Mta(() => {
-        dynamic session = New("Microsoft.Update.Session"); session.ClientApplicationID = "MONOLITH";
+        dynamic session = New("Microsoft.Update.Session"); session.ClientApplicationID = "Lycoris";
         dynamic ups = Search(session); dynamic coll = New("Microsoft.Update.UpdateColl");
         for (int i = 0; i < (int)ups.Count; i++) { dynamic u = ups[i];
             if (ids.Contains((string)u.Identity.UpdateID) && (bool)u.EulaAccepted) coll.Add(u); }
@@ -279,10 +279,10 @@ SELECT Name, DeviceID, PNPClass, HardwareID, ConfigManagerErrorCode, Present, St
 
 - **Recommendation:** use pnputil, and write a JSON manifest from `pnputil /enum-drivers /format xml` (fallback: parse the text). Create the target folder first. Warn the user about size: an NVIDIA package alone is about 1–2 GB.
 - One article claims DISM is safer because pnputil doesn't copy `.pnf` files. That claim is **debated or weak**: `.pnf` files are a precompiled cache that Windows regenerates.
-- **Restore:** per package, `pnputil /add-driver "<dir>\<package>\<name>.inf" /install`, only for the INFs listed in `monolith-backup.json`. MONOLITH refuses a backup that has unlisted INFs, missing files or links (reparse points) anywhere in its tree. Exit code 0 means success; 3010 means a reboot is required. `/install` installs only if the package outranks the current driver, so it **does not downgrade**.
+- **Restore:** per package, `pnputil /add-driver "<dir>\<package>\<name>.inf" /install`, only for the INFs listed in `monolith-backup.json`. Lycoris refuses a backup that has unlisted INFs, missing files or links (reparse points) anywhere in its tree. Exit code 0 means success; 3010 means a reboot is required. `/install` installs only if the package outranks the current driver, so it **does not downgrade**.
 - **Rollback after a bad update:**
   - Use the documented `DiRollbackDriver` (newdev.dll, `ROLLBACK_FLAG_NO_UI`, out `NeedReboot`), or Device Manager → Roll Back.
-  - Before every install, MONOLITH exports the device's current `oemNN.inf` and records {instanceId, old INF and version, new version, restore point} in the Undo Center.
+  - Before every install, Lycoris exports the device's current `oemNN.inf` and records {instanceId, old INF and version, new version, restore point} in the Undo Center.
   - The previous package must still be in the DriverStore. So **the Junk Cleaner must never purge `DriverStore\FileRepository`** (Disk Cleanup's "Device driver packages", `pnputil /delete-driver`).
 - **Restore points:** create one before driver batches. Windows throttles them to one per 24 h by default (`HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore\SystemRestorePointCreationFrequency`, default 1440 min). If creation is skipped, tell the user rather than failing silently.
 

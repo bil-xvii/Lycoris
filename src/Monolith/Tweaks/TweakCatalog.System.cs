@@ -32,9 +32,9 @@ public static partial class TweakCatalog
             Id = "storage-sense-on",
             Title = Loc.Key("Контроль памяти"),
             Description = Loc.T("Windows сама удаляет временные файлы и старое содержимое корзины, когда на системном диске заканчивается место."),
-            Details = Loc.T("Предустановка MONOLITH: запуск при нехватке места, удаление временных файлов приложений, очистка корзины от файлов " +
+            Details = Loc.T("Предустановка Lycoris: запуск при нехватке места, удаление временных файлов приложений, очистка корзины от файлов " +
                       "старше 30 дней. Папка «Загрузки» автоматически не очищается никогда. Если вы уже настраивали Контроль памяти, ваши " +
-                      "значения сохраняются — MONOLITH только включает его и заполняет пустые параметры. Отмена — откатом или в Параметрах → " +
+                      "значения сохраняются — Lycoris только включает его и заполняет пустые параметры. Отмена — откатом или в Параметрах → " +
                       "Система → Память."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Safe,
@@ -76,7 +76,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Приоритет активных программ"),
             Description = Loc.T("Если Windows переключена в режим «Оптимизировать работу служб в фоновом режиме», возвращает приоритет программам на переднем плане."),
             Details = Loc.T("Параметр из Свойств системы → Быстродействие → Дополнительно. На обычной системе он уже правильный, и пункт ничего " +
-                      "не меняет. «Игровые» значения Win32PrioritySeparation из интернета (0x28, 0x2A, 0x16) MONOLITH не ставит: их польза " +
+                      "не меняет. «Игровые» значения Win32PrioritySeparation из интернета (0x28, 0x2A, 0x16) Lycoris не ставит: их польза " +
                       "не подтверждена. Действует сразу."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Optional,
@@ -251,7 +251,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Не ставить драйверы через Центр обновления"),
             Description = Loc.T("Центр обновления перестаёт устанавливать драйверы вместе с ежемесячными обновлениями."),
             Details = Loc.T("Полезно, если Windows Update заменяет установленный вами драйвер видеокарты старым. Обновления самой Windows " +
-                      "продолжают приходить. Драйверы обновляйте вручную — в разделе «Драйверы» MONOLITH или на сайте производителя."),
+                      "продолжают приходить. Драйверы обновляйте вручную — в разделе «Драйверы» Lycoris или на сайте производителя."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Advanced,
             Warning = Loc.T("Windows перестанет сама ставить любые драйверы, включая полезные (чипсет, Wi-Fi, принтеры, исправления безопасности). " +
@@ -273,7 +273,7 @@ public static partial class TweakCatalog
             Details = Loc.T("TRIM в Windows включён по умолчанию; его часто выключают сторонние «оптимизаторы». Без него SSD со временем " +
                       "медленнее записывает данные. На исправной системе пункт ничего не меняет. Меняется только параметр NTFS " +
                       "(DisableDeleteNotification = 0, то же, что «fsutil behavior set DisableDeleteNotify 0»); параметр ReFS, в том числе " +
-                      "для Dev Drive, MONOLITH не трогает — там TRIM выключен Microsoft намеренно. Microsoft отмечает, что на отдельных " +
+                      "для Dev Drive, Lycoris не трогает — там TRIM выключен Microsoft намеренно. Microsoft отмечает, что на отдельных " +
                       "накопителях с TRIM производительность падает: если вы выключали его из-за этого, откатите пункт — прежнее значение " +
                       "вернётся. Если TRIM задан групповой политикой, пункт не предлагается. Перезагрузка не нужна."),
             Category = TweakCategory.System,
@@ -510,7 +510,7 @@ public static partial class TweakCatalog
         Lm(WindowsUpdatePolicy, "DeferFeatureUpdatesPeriodInDays", 90),
     ];
 
-    /// <summary>Writes the deferral like a RegistryTweak would, but refuses while MONOLITH's version pin is active (one of two).</summary>
+    /// <summary>Writes the deferral like a RegistryTweak would, but refuses while Lycoris's version pin is active (one of two).</summary>
     internal static void ApplyDeferFeatureUpdates(TweakContext ctx)
     {
         if (ctx.Session.Journal.HasActiveSource("tweak:" + UpdatePinId))
@@ -537,12 +537,12 @@ public static partial class TweakCatalog
         return KnownRelease(v) is { } eos
             ? Loc.Tf("Политика TargetReleaseVersion. Текущая версия {0} получает обновления до {1}; " +
                      "по данным Microsoft закреплённое устройство автоматически обновится лишь через {2} дней после этой даты — " +
-                     "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. MONOLITH предупредит об этом на Дашборде за 90 дней. " +
+                     "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. Lycoris предупредит об этом на Дашборде за 90 дней. " +
                      "В Параметрах появится «Некоторыми параметрами управляет ваша организация». Работает в Pro и старших редакциях; " +
                      "выбирается вместо «Отложить крупные обновления на 90 дней».", v, DateText(eos), UpdatePinGraceDays)
             : Loc.Tf("Политика TargetReleaseVersion. Текущая версия получает обновления до своей даты окончания поддержки (24 месяца с выхода для Home и Pro); " +
                      "по данным Microsoft закреплённое устройство автоматически обновится лишь через {0} дней после этой даты — " +
-                     "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. MONOLITH предупредит об этом на Дашборде за 90 дней. " +
+                     "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. Lycoris предупредит об этом на Дашборде за 90 дней. " +
                      "В Параметрах появится «Некоторыми параметрами управляет ваша организация». Работает в Pro и старших редакциях; " +
                      "выбирается вместо «Отложить крупные обновления на 90 дней».", UpdatePinGraceDays);
     }
@@ -572,7 +572,7 @@ public static partial class TweakCatalog
 
     /// <summary>
     /// Writes the three policy values through the session (absent → the journal deletes them on undo, and the policy key
-    /// MONOLITH created goes with them). Refuses while the 90-day deferral is active: the two are one choice.
+    /// Lycoris created goes with them). Refuses while the 90-day deferral is active: the two are one choice.
     /// </summary>
     internal static void ApplyUpdatePin(TweakContext ctx)
     {

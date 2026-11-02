@@ -25,7 +25,7 @@ public sealed record UnelevatedResult(UnelevatedOutcome Outcome, int ExitCode, s
 }
 
 /// <summary>
-/// Runs one winget command with the desktop user's normal token while MONOLITH is elevated.
+/// Runs one winget command with the desktop user's normal token while Lycoris is elevated.
 /// Explorer starts "cmd /c winget … &gt; %TEMP%\MONOLITH-winget-&lt;token&gt;.log" hidden; the token makes the process
 /// findable (WMI command line) for cancelling, the .log file is tailed for live output and a second file
 /// receives winget's exit code. Holds the winget gate, so it never overlaps other winget calls.
@@ -39,7 +39,7 @@ public static partial class UnelevatedWinget
     public static Task<UnelevatedResult> RunAsync(IReadOnlyList<string> wingetArgs, Action<string>? output, CancellationToken ct) =>
         WingetClient.RunExclusiveAsync(token => RunCoreAsync(wingetArgs, output, token), ct);
 
-    /// <summary>Deletes log/exit files left by runs that were still going when MONOLITH stopped waiting (older than a day).</summary>
+    /// <summary>Deletes log/exit files left by runs that were still going when Lycoris stopped waiting (older than a day).</summary>
     private static void SweepStale(string temp)
     {
         try
@@ -121,7 +121,7 @@ public static partial class UnelevatedWinget
                 {
                     // Never kill on timeout: that would also kill the installer and can leave a half-installed program.
                     tail.Pump(final: true);
-                    Log.Warn("winget без прав администратора: идёт дольше 30 минут — MONOLITH перестал ждать, процесс не прерывался.");
+                    Log.Warn("winget без прав администратора: идёт дольше 30 минут — Lycoris перестал ждать, процесс не прерывался.");
                     stillRunning = true;
                     return new UnelevatedResult(UnelevatedOutcome.Untracked, -1, all.ToString()) { StillRunning = true };
                 }

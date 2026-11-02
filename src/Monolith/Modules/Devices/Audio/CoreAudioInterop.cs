@@ -53,7 +53,7 @@ internal interface IMMDeviceEnumerator
     [PreserveSig] int EnumAudioEndpoints(EDataFlow dataFlow, uint stateMask, out IMMDeviceCollection devices);
     [PreserveSig] int GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, out IMMDevice endpoint);
     [PreserveSig] int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
-    /// <summary>Declared for the vtable; MONOLITH registers no notification client.</summary>
+    /// <summary>Declared for the vtable; Lycoris registers no notification client.</summary>
     [PreserveSig] int RegisterEndpointNotificationCallback(IntPtr client);
     [PreserveSig] int UnregisterEndpointNotificationCallback(IntPtr client);
 }
@@ -80,7 +80,7 @@ internal interface IPropertyStore
     [PreserveSig] int GetCount(out uint count);
     [PreserveSig] int GetAt(uint index, out PropertyKey key);
     [PreserveSig] int GetValue(ref PropertyKey key, out PropVariant value);
-    /// <summary>Declared for the vtable only: MONOLITH opens the store with STGM_READ and never writes it.</summary>
+    /// <summary>Declared for the vtable only: Lycoris opens the store with STGM_READ and never writes it.</summary>
     [PreserveSig] int SetValue(ref PropertyKey key, ref PropVariant value);
     [PreserveSig] int Commit();
 }
@@ -154,7 +154,7 @@ internal static class CoreAudio
     public const uint HardwareMute = 0x2;
 
     /// <summary>
-    /// Passed to every Set* call, so a volume-change callback (or a later drift check) can tell MONOLITH's own changes
+    /// Passed to every Set* call, so a volume-change callback (or a later drift check) can tell Lycoris's own changes
     /// from the user's.
     /// </summary>
     public static readonly Guid MonolithEventContext = new("4d4f4e4f-4c49-5448-8a75-64696f000001");

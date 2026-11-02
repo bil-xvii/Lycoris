@@ -60,7 +60,7 @@ public static class RestoreFormat
     {
         RecordState.Reverted => r.RevertedUtc is { } t ? Loc.Tf("ОТКАЧЕНО {0}", Loc.IsEnglish ? t.ToLocalTime().ToString("MMM d HH:mm", Loc.Culture) : t.ToLocalTime().ToString("dd.MM HH:mm", Loc.Culture)) : Loc.T("ОТКАЧЕНО"),
         RecordState.Failed => Loc.T("ОШИБКА ОТКАТА"),
-        _ => Loc.T("ИЗМЕНЕНО MONOLITH"),
+        _ => Loc.T("ИЗМЕНЕНО LYCORIS"),
     };
 
     /// <summary>Core writes exactly "Точка восстановления создана (…)." on success and other wording otherwise.</summary>
@@ -84,7 +84,7 @@ public static class RestoreFormat
     };
 
     public static bool IsMonolithPoint(string? description) =>
-        description?.StartsWith("MONOLITH", StringComparison.OrdinalIgnoreCase) == true;
+        description is { } d && (d.StartsWith("Lycoris", StringComparison.OrdinalIgnoreCase) || d.StartsWith("MONOLITH", StringComparison.OrdinalIgnoreCase)); // restore points made before the rename keep the old prefix
 
     /// <summary>
     /// Groups journal records by batch, newest batch first, records inside a batch in the order they were made.
@@ -165,7 +165,7 @@ public static class RestoreFormat
         var others = list.Where(r => ChangeJournal.IsOtherUser(r, currentSid)).ToList();
         var legacy = list.Count(r => !ChangeJournal.IsOtherUser(r, currentSid) && r.IsLegacyPerUser);
         if (legacy > 0)
-            parts.Add(Loc.Tf("{0} {1} старой версией MONOLITH " +
+            parts.Add(Loc.Tf("{0} {1} старой версией Lycoris " +
                       "для неизвестной учётной записи — откатите {2} по одной в журнале, войдя под той учётной записью.", legacy, Loc.Plural(legacy, "изменение сделано", "изменения сделаны", "изменений сделано"), (legacy == 1 ? Loc.T("его") : Loc.T("их"))));
         if (others.Count > 0)
         {
@@ -200,7 +200,7 @@ public static class RestoreFormat
             if (ChangeJournal.IsOtherUser(r, currentSid))
                 parts.Add(Loc.Tf("Изменение сделано для учётной записи {0}; войдите под ней, чтобы отменить.", accountName(r.UserSid!)));
             else if (r.IsLegacyPerUser)
-                parts.Add(Loc.T("Записано старой версией MONOLITH без учётной записи: откат запишет исходное значение в профиль текущей " +
+                parts.Add(Loc.T("Записано старой версией Lycoris без учётной записи: откат запишет исходное значение в профиль текущей " +
                           "учётной записи, поэтому откатывайте под той, где применяли. «ОТКАТИТЬ ВСЁ» и откат пакета эту запись пропускают."));
             if (coveredBy is not null)
                 parts.Add(r.IsLegacyPerUser && coveredBy.UserSid is not null // the account's own change, not a newer old-build layer
@@ -208,7 +208,7 @@ public static class RestoreFormat
                     : Loc.Tf("Сейчас значение задаёт более позднее изменение «{0}»: откат этой записи систему не изменит, " +
                       "а исходное значение перейдёт к нему.", Loc.Sink(coveredBy.Title)));
             if (r.IsLegacyMerged)
-                parts.Add(Loc.Tf("Запись старой версии: откат вернёт значение до MONOLITH и отменит также {0}.", string.Join(", ", r.AlsoSources.Distinct().Select(SourceTitle))));
+                parts.Add(Loc.Tf("Запись старой версии: откат вернёт значение до Lycoris и отменит также {0}.", string.Join(", ", r.AlsoSources.Distinct().Select(SourceTitle))));
             return string.Join(" ", parts);
         }
 

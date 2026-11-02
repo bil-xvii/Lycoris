@@ -1,4 +1,4 @@
-# MONOLITH: verified winget catalog for the Apps & Launchers page
+# Lycoris: verified winget catalog for the Apps & Launchers page
 
 **How this was checked (2026-10-26):** every ID below was run through `winget show --id <ID> -e --source <src> --accept-source-agreements --disable-interactivity` on the dev machine. That machine runs winget **v1.11.510** (App Installer 1.26.509.0, which shows an upgrade to 1.29.380 as available), with sources `winget` and `msstore`. I also probed which install scopes each package offers with `--scope user` and `--scope machine`. Nothing was installed or changed.
 
@@ -97,7 +97,7 @@
 | GPU-Z | `TechPowerUp.GPU-Z` | TechPowerUp | yes, official | 2.71.0 |
 | CrystalDiskInfo / CrystalDiskMark | `CrystalDewWorld.CrystalDiskInfo` / `.CrystalDiskMark` | Crystal Dew World | yes | SourceForge, which is the vendor's channel |
 | OCCT | `OCBase.OCCT.Personal` | OCCT | yes, official | Portable; stress test; personal-use licence |
-| Process Lasso | `BitSum.ProcessLasso` | Bitsum | yes, official | **Clashes with MONOLITH's own priority and affinity logic**; flag it |
+| Process Lasso | `BitSum.ProcessLasso` | Bitsum | yes, official | **Clashes with Lycoris's own priority and affinity logic**; flag it |
 | NVIDIA Profile Inspector | `Orbmu2k.nvidiaProfileInspector` | Orbmu2k | yes | Portable; expert only |
 | DDU | `Wagnardsoft.DisplayDriverUninstaller` | Wagnardsoft | yes, official | Expert only: removes drivers, Safe Mode recommended |
 | Special K | `SpecialK.SpecialK` | The Special K Group | yes | Injects into games; anti-cheat risk |
@@ -150,7 +150,7 @@
 | WizTree / TreeSize Free | `AntibodySoftware.WizTree` / `JAMSoftware.TreeSize.Free` | vendors | yes, official | |
 | PotPlayer / AIMP / Yandex Music | `Daum.PotPlayer` / `AIMP.AIMP` / `Yandex.Music` | Kakao / A. Izmaylov / Yandex | yes | |
 | Rainmeter / LocalSend / Greenshot | `Rainmeter.Rainmeter` / `LocalSend.LocalSend` / `Greenshot.Greenshot` | vendors | yes | |
-| BleachBit | `BleachBit.BleachBit` | BleachBit | yes, **exclude by default** | Overlaps MONOLITH's own cleaner and can delete user data |
+| BleachBit | `BleachBit.BleachBit` | BleachBit | yes, **exclude by default** | Overlaps Lycoris's own cleaner and can delete user data |
 | Microsoft PC Manager | msstore `9PM860492SZD` | Microsoft | yes, excluded | Competing optimizer. Not in the winget source |
 
 ## 8. JSON catalog (verified entries only)
@@ -352,7 +352,7 @@ For a fast UI, cross-check against the Uninstall registry keys (HKLM, WOW6432Nod
 
 ## 11. Exit codes (HRESULT, then decimal)
 
-| Code | Decimal | Meaning | What MONOLITH should do |
+| Code | Decimal | Meaning | What Lycoris should do |
 |---|---|---|---|
 | 0x0 | 0 | OK | success |
 | 0x8A15002B | -1978335189 | UPDATE_NOT_APPLICABLE: no newer version. Also what `install` returns for an already-installed, current package | treat as "up to date" |
@@ -383,7 +383,7 @@ For a fast UI, cross-check against the Uninstall registry keys (HKLM, WOW6432Nod
 
 - It skips packages marked as needing explicit upgrade (Discord), pinned packages, and packages whose version is unknown unless you pass `-u/--include-unknown`.
 - **`Microsoft.AppInstaller` appears in the upgrade list** (1.26.509.0 → 1.29.380 on this machine). Updating it replaces winget while it's running.
-- Recommended "Update all" flow for MONOLITH:
+- Recommended "Update all" flow for Lycoris:
   1. Create a restore point.
   2. Get the list of pending upgrades from COM or from export plus per-ID checks.
   3. Upgrade one ID at a time.
@@ -402,7 +402,7 @@ For a fast UI, cross-check against the Uninstall registry keys (HKLM, WOW6432Nod
 - **Recommended architecture:** the UI runs `asInvoker` (non-elevated) and handles `user`, `any` and msstore packages. One elevated broker handles `machine` packages, so the user sees a single UAC prompt. If the app has to run elevated, start user-scope winget jobs de-elevated, for example through a scheduled task with `RunLevel Limited` and an interactive logon, or through the shell's `IShellDispatch2.ShellExecute`.
 - **Don't pass `--scope` by default.** About 15 manifests in this catalog declare no scope and fail with a scope filter. Telegram with `--scope machine` turns into a portable zip.
 
-## 14. Install advice (MONOLITH)
+## 14. Install advice (Lycoris)
 
 Owner request (27.10.2026): show what to install on this PC, what is recommended, what is not needed yet and what is not
 needed at all. Code: `Modules/Apps/AppAdvisor.cs` (pure rules), `Modules/Apps/PeripheralScan.cs` (read-only device scan),
@@ -498,7 +498,7 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
 | Elgato Stream Deck | scan known, no Stream Deck — the app is also needed for Stream Deck Mobile on a phone (fact 7) | ПОКА НЕ НУЖНО |
 | 7-Zip | Windows 10, Windows 11 21H2, 22H2 before 22621.2361 / 22H2 ≥ 2715, 23H2 ≥ 2506, 24H2+ / 22H2 2361–2714 (toggle-gated), 23H2 before 2506 (pre-release), Insider 2262x, UBR unknown | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ «Windows уже открывает RAR и 7z» / ПО ЖЕЛАНИЮ (neutral) |
 | WinRAR | no other archiver (paid after the trial; 7-Zip is free) | ПОКА НЕ НУЖНО |
-| Process Lasso | always (both it and MONOLITH's game mode change process priorities, §5) | НЕ НУЖНО |
+| Process Lasso | always (both it and Lycoris's game mode change process priorities, §5) | НЕ НУЖНО |
 | Autoruns | expert; the basics are on «Автозапуск и службы» | ПОКА НЕ НУЖНО |
 | OCCT, FurMark 2 | stress tests: only to check stability after overclocking or a suspected fault | ПОКА НЕ НУЖНО |
 | LatencyMon | only for audio/video stutters | ПОКА НЕ НУЖНО |
@@ -542,7 +542,7 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
    (22621.2428), both only with "Get the latest updates as soon as they're available" switched on (Impress Forest: the team
    confirmed it works with KB5030310). Then the preview KB5031455 (31 Oct 2023, 22621.2506 / 22631.2506 — the first 23H2 release
    build); for everyone with the November 2023 security update KB5032190 (22621.2715 / 22631.2715, "Moment 4 features enabled by
-   default"). 24H2 (26100) and 25H2 (26200) include it. So MONOLITH claims "no native support" only below 22621.2361, "supported"
+   default"). 24H2 (26100) and 25H2 (26200) include it. So Lycoris claims "no native support" only below 22621.2361, "supported"
    from 22621.2715 / 22631.2506 / any later build, and says nothing confident in between (or for pre-release 22631 builds).
    **Correction to the task text:** "22621 UBR ≥ 2506" is not enough to claim support on 22H2, and below 2506 the feature may
    already be on. https://forest.watch.impress.co.jp/docs/news/1534610.html,
@@ -590,7 +590,7 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
     needs through the hard safety rule, while .NET 6 (Eol) has a supported successor programs can move to.
     https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist, https://learn.microsoft.com/lifecycle/faq/visual-c-faq,
     https://www.neowin.net/news/microsoft-reminds-us-that-visual-studio-2013-support-ends-on-april-9-2024/
-11. Gaming Services for Xbox / Game Pass (§4), Process Lasso vs MONOLITH's priorities (§5), DirectX June 2010 contents (§4),
+11. Gaming Services for Xbox / Game Pass (§4), Process Lasso vs Lycoris's priorities (§5), DirectX June 2010 contents (§4),
     remote-access scams (§7), Sunshine service and ports (§6) — from this report.
 
 ### Known limits

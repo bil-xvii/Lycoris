@@ -24,7 +24,7 @@ public sealed record NetAdapterInfo
     public string? DriverDate { get; init; }
     public string? ComponentId { get; init; }
     public int? InterfaceIndex { get; init; }
-    /// <summary>Only the keywords MONOLITH reads: *SpeedDuplex, *EEE, EEE, AdvancedEEE, *ReceiveBuffers.</summary>
+    /// <summary>Only the keywords Lycoris reads: *SpeedDuplex, *EEE, EEE, AdvancedEEE, *ReceiveBuffers.</summary>
     public IReadOnlyList<NicPropertyInfo> Properties { get; init; } = [];
     /// <summary>Disconnects in the last 7 days that were not a shutdown or sleep (Windows event log); null = unknown.</summary>
     public int? LinkDrops { get; init; }
@@ -56,7 +56,7 @@ public sealed record NetSnapshot
     public string? RunningGame { get; init; }
     /// <summary>Steam is installed (the Valve region check is offered).</summary>
     public bool SteamInstalled { get; init; }
-    /// <summary>MONOLITH's own active network changes (journal record ids): a change after a measurement asks for a re-check.</summary>
+    /// <summary>Lycoris's own active network changes (journal record ids): a change after a measurement asks for a re-check.</summary>
     public string Fingerprint { get; init; } = "";
 
     public NetAdapterInfo? Best => BestInterface is { } g ? Adapters.FirstOrDefault(a => a.InterfaceGuid == g) : null;

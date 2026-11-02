@@ -18,7 +18,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Только обязательная диагностика"),
             Description = Loc.T("Windows отправляет в Microsoft только обязательные диагностические данные, без необязательных."),
             Details = Loc.T("Тот же переключатель, что в Параметрах → Конфиденциальность → Диагностика и отзывы. В Home и Pro это минимальный " +
-                      "уровень: полностью отключить диагностику можно только в Enterprise и Education. Если уровень уже ниже, MONOLITH его " +
+                      "уровень: полностью отключить диагностику можно только в Enterprise и Education. Если уровень уже ниже, Lycoris его " +
                       "не повышает. Участникам программы Windows Insider пункт не предлагается — ей нужны необязательные данные."),
             Category = TweakCategory.Privacy,
             Risk = TweakRisk.Safe,
@@ -195,7 +195,7 @@ public static partial class TweakCatalog
         };
 
         // Research marks it SAFE-DEFAULT, but the policy deletes existing Recall snapshots (user data):
-        // MONOLITH never deletes user data by default, so it is offered unchecked.
+        // Lycoris never deletes user data by default, so it is offered unchecked.
         yield return new RegistryTweak
         {
             Id = "recall-snapshots-off",

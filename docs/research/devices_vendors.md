@@ -1,9 +1,9 @@
-# MONOLITH: device identification and vendor software for peripherals
+# Lycoris: device identification and vendor software for peripherals
 
-Scope: how MONOLITH can **identify** the user's gaming peripherals read-only (vendor, product name, one row per physical
+Scope: how Lycoris can **identify** the user's gaming peripherals read-only (vendor, product name, one row per physical
 device), which **vendor app** configures each one, how to detect that app and open it as the signed-in user, and what
-MONOLITH must **not** do. DPI, polling rate, RGB, button maps, EQ and firmware live in each device's own firmware and are
-written only by the vendor's protocol. Windows has no documented API for them, so MONOLITH's role is to identify the
+Lycoris must **not** do. DPI, polling rate, RGB, button maps, EQ and firmware live in each device's own firmware and are
+written only by the vendor's protocol. Windows has no documented API for them, so Lycoris's role is to identify the
 device, explain the options and open the right vendor tool.
 
 Every ✔ was checked **read-only** on the dev machine on 2026-10-27 (Win11 Pro 26H2, build 26300). Nothing was changed. No
@@ -87,7 +87,7 @@ Drivers that came with this software ✔:
 | `vendor-app-detect` | Установлена ли программа производителя | INFO-ONLY | no | Uninstall keys (HKLM, HKLM\WOW6432Node, HKCU) + Start-menu .lnk + AppX packages |
 | `vendor-app-launch` | Открыть программу производителя | SAFE-OPTIONAL | no | `UnelevatedShell.StartAsUserAsync(target)`. Target from a fixed table + signature check |
 | `vendor-app-install` | Установить программу производителя | SAFE-OPTIONAL | yes (machine scope) | Existing Apps/winget path. New ids in §4 |
-| `onboard-memory-advice` | Сохранить профиль в память мыши | INFO-ONLY | no | Text + "open vendor app". MONOLITH never writes the profile |
+| `onboard-memory-advice` | Сохранить профиль в память мыши | INFO-ONLY | no | Text + "open vendor app". Lycoris never writes the profile |
 | `vendor-autostart-advice` | Что будет без автозапуска программы | INFO-ONLY | no | Startup page note for G HUB / Synapse / INZONE Hub / iCUE / GG entries |
 | `dynamic-lighting-detect` | Подсветка через Windows (Dynamic Lighting) | INFO-ONLY | no | LampArray devnodes / `Windows.Devices.Lights.LampArray.GetDeviceSelector()`. Opens `ms-settings:personalization-lighting` |
 | `rgb-unifier-apps` | OpenRGB / SignalRGB | ADVANCED | yes | Apps catalog only, flagged expert + conflicts. Never auto-suggested |
@@ -251,7 +251,7 @@ This fixes the current `HardwareRules.UsbId` false positive on `HID\VID_046D&PID
 **Receivers.** A wireless receiver reports itself ("USB Receiver"), not the paired device. Windows has no documented way
 to name the paired mouse. Logitech's HID++ can, but that needs output reports (§8).
 
-What MONOLITH can do honestly:
+What Lycoris can do honestly:
 - Show «Приёмник LIGHTSPEED (Logitech)» from the PID table.
 - **History hint:** list non-present devnodes with the same VID, a mouse/keyboard kind and a bus-reported name, whose
   `DEVPKEY_Device_LastArrivalDate` falls within the last 180 days. Here ✔: `046D:C0A8` "PRO X2 SUPERSTRIKE", last
@@ -397,7 +397,7 @@ The button is «ОТКРЫТЬ <APP>», shown on the device row when the app is 
 
 **Mechanism:**
 - `UnelevatedShell.StartAsUserAsync(exePath, fixedArgs, Path.GetDirectoryName(exePath))`. The vendor app must never
-  inherit MONOLITH's admin token (CLAUDE.md rule 8).
+  inherit Lycoris's admin token (CLAUDE.md rule 8).
 - Store apps: `UnelevatedShell.StartAsUserAsync("shell:AppsFolder\\" + aumid)`.
 - Web configurators: `UnelevatedShell.OpenAsync(url)`.
 
@@ -410,7 +410,7 @@ The button is «ОТКРЫТЬ <APP>», shown on the device row when the app is 
   "Logitech Inc", "Razer USA Ltd.", "Sony Corporation" ✔; others to verify.
   - Reuse the signer check of `Core/VendorDownloads`, or call WinVerifyTrust directly.
   - HKCU Uninstall keys and HKCU\Software\Classes are user-writable. The signature check stops a planted entry from
-    being started by a click in MONOLITH.
+    being started by a click in Lycoris.
   - Unsigned exes (OpenRGB here ✔) get no launch button.
 - **Do not** use the vendor URI handlers (`lghubapp:`, `RazerAppEngine.synapse:`) as the primary target. They resolve
   through HKCR, which includes user-writable HKCU\Software\Classes. They are acceptable only after the same
@@ -436,7 +436,7 @@ The button is «ОТКРЫТЬ <APP>», shown on the device row when the app is 
   here ✔.
 - Each install shows the existing confirmation dialog.
 
-**Revert:** uninstall via the vendor's own uninstaller (Apps page), with a confirmation. MONOLITH never removes vendor
+**Revert:** uninstall via the vendor's own uninstaller (Apps page), with a confirmation. Lycoris never removes vendor
 drivers/services by itself.
 
 ---
@@ -457,7 +457,7 @@ What depends on the vendor app running:
 - Headset EQ / virtual surround in INZONE Hub (applies over the INZONE USB audio path).
 
 Recommended text on a Logitech mouse row: «Если хотите, чтобы настройки работали без G HUB, включите в G HUB режим
-встроенной памяти и сохраните профиль в мышь». MONOLITH only explains and opens the app.
+встроенной памяти и сохраните профиль в мышь». Lycoris only explains and opens the app.
 
 **`vendor-autostart-advice` (INFO-ONLY).** The Startup page lets the user turn off:
 - `LGHUB` (HKCU Run ✔).
@@ -478,7 +478,7 @@ This is a description, not a new switch. The undo is the existing Startup undo.
 - Conflicts: they fight with the vendor apps for the same vendor HID channel, e.g. G HUB / MSI Center vs OpenRGB on
   this PC.
 
-What MONOLITH may do:
+What Lycoris may do:
 - List them in the Apps catalog with `Expert | KernelDriver`.
 - Show an info line when both a unifier and a vendor app are installed.
 - Never auto-suggest them.
@@ -500,7 +500,7 @@ On this PC:
 - The Logitech keyboard and receiver are exposed through G HUB's VHF driver `logi_lamparray` (`&LAMPARRAY` children ✔).
 - Without G HUB those children disappear.
 
-What MONOLITH does:
+What Lycoris does:
 - Show the tag «DYNAMIC LIGHTING» on a device row when the group has a LampArray child or a 0x59 TLC.
   - Alternative read: `Windows.Devices.Lights.LampArray.GetDeviceSelector()` with
     `DeviceInformation.FindAllAsync(selector)`. Read-only, no NuGet.
@@ -520,14 +520,14 @@ Evidence:
 
 | id | "Tweak" seen online / idea | Why not |
 |---|---|---|
-| `vendor-protocol-writes` | Set DPI / polling / RGB / button maps by sending HID feature or output reports (Logitech HID++, Razer, SteelSeries, MSI Mystic Light protocols, as OpenRGB/libratbag/Solaar do) | Undocumented, reverse-engineered, and changes per firmware. A wrong report can corrupt onboard profiles or leave the device in a bad state. It races with the running vendor app (G HUB/Synapse own those vendor TLCs: UsagePage 0xFF00/0xFF43 ✔). There is no documented "read original value" for an exact undo. Some anti-cheats flag unknown processes that talk to input devices. MONOLITH's rule: documented, reversible changes only |
+| `vendor-protocol-writes` | Set DPI / polling / RGB / button maps by sending HID feature or output reports (Logitech HID++, Razer, SteelSeries, MSI Mystic Light protocols, as OpenRGB/libratbag/Solaar do) | Undocumented, reverse-engineered, and changes per firmware. A wrong report can corrupt onboard profiles or leave the device in a bad state. It races with the running vendor app (G HUB/Synapse own those vendor TLCs: UsagePage 0xFF00/0xFF43 ✔). There is no documented "read original value" for an exact undo. Some anti-cheats flag unknown processes that talk to input devices. Lycoris's rule: documented, reversible changes only |
 | `vendor-protocol-reads` | Ask the LIGHTSPEED receiver which mouse is paired (HID++ "get device name") | Even a "read" requires **writing** an output report into a device another app is using. Use the read-only history hint (§2.5) instead |
-| `firmware-updates` | Flash device/receiver firmware from MONOLITH | Bricking risk, vendor-specific bootloaders (`046D:AB39` ✔), no undo. Link to the vendor app instead |
+| `firmware-updates` | Flash device/receiver firmware from Lycoris | Bricking risk, vendor-specific bootloaders (`046D:AB39` ✔), no undo. Link to the vendor app instead |
 | `usb-polling-overclock` | "1000→8000 Hz USB polling hack" (hidusbf / patched usbport) | Replaces or patches signed system drivers. Needs test-signing or Secure Boot off. Kernel anti-cheats refuse to run. Modern 4K/8K mice set their rate in firmware through the vendor app |
 | `lowlevel-rgb-drivers` | Install WinRing0 / inpout32 / PawnIO to "control RGB without bloat" | Generic kernel drivers with physical-memory/port access. Defender flags WinRing0 as "HackTool:Win32/Winring0". This contradicts CLAUDE.md (no risky driver installs) |
 | `vendor-debloat` | Delete or disable G HUB / Synapse / iCUE services, LGHUB virtual devices, `logi_lamparray` drivers | Breaks macros, Dynamic Lighting, firmware updates and the vendor uninstaller. The supported route is the vendor's uninstaller or autostart-off with an explanation (§6) |
-| `ghost-device-removal` | "Clean up hidden/ghost devices" (`pnputil /remove-device`, DevManView) | Irreversible. Removes driver bindings Windows reuses on replug, and the history MONOLITH uses for names. No user benefit |
-| — | Rename devices by writing `FriendlyName` in `Enum\…` | Writing under `HKLM\SYSTEM\CurrentControlSet\Enum` is protected and unsupported. Show MONOLITH's own label instead |
+| `ghost-device-removal` | "Clean up hidden/ghost devices" (`pnputil /remove-device`, DevManView) | Irreversible. Removes driver bindings Windows reuses on replug, and the history Lycoris uses for names. No user benefit |
+| — | Rename devices by writing `FriendlyName` in `Enum\…` | Writing under `HKLM\SYSTEM\CurrentControlSet\Enum` is protected and unsupported. Show Lycoris's own label instead |
 
 ---
 
@@ -591,7 +591,7 @@ static string? HidProduct(string interfacePath)
     return HidD_GetProductString(h, buf, buf.Length)     // error 1784 = no string (virtual devices)
         ? Encoding.Unicode.GetString(buf).Split('\0')[0] : null;
 }
-// Never call ReadFile/WriteFile/HidD_SetFeature/HidD_SetOutputReport: MONOLITH only reads descriptors.
+// Never call ReadFile/WriteFile/HidD_SetFeature/HidD_SetOutputReport: Lycoris only reads descriptors.
 ```
 
 Grouping key for a devnode:

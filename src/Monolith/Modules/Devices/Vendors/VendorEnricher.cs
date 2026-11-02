@@ -337,7 +337,7 @@ internal sealed class VendorEnricher : IDeviceEnricher
     /// <summary>
     /// A monitor note that sends the user to «Приложения» for Microsoft's HDR calibration app while the Apps catalog has no such
     /// entry would end nowhere: the note keeps its text and the card gets a button that opens the app's Microsoft Store page
-    /// (install or open it there), started without MONOLITH's admin token.
+    /// (install or open it there), started without Lycoris's admin token.
     /// </summary>
     internal static void FixHdrCalibrationLinks(List<DeviceCard> cards, bool? inAppsCatalog = null)
     {

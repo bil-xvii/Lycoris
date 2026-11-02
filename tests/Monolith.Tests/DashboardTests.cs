@@ -852,7 +852,7 @@ public sealed class DashboardRulesTests
 
         var pending = HealthRules.CheckPendingReboot(new SystemSnapshot { PendingReboot = ["Центр обновления Windows"] })!;
         Assert.Equal(CheckSeverity.Warning, pending.Severity);
-        Assert.Null(pending.Action); // MONOLITH never reboots by itself
+        Assert.Null(pending.Action); // Lycoris never reboots by itself
     }
 
     [Fact]
@@ -907,7 +907,7 @@ public sealed class DashboardRulesTests
     [InlineData("КЭШ ИНТЕРНЕТА WINDOWS (WININET)", "Кэш интернета Windows (WinINet)")]
     [InlineData("X3D С ДВУМЯ CCD", "X3D с двумя CCD")]
     [InlineData("НАСТРОЙКИ DIRECTX ДЛЯ ПК", "Настройки DirectX для ПК")]
-    [InlineData("MONOLITH ЖДЁТ", "MONOLITH ждёт")]
+    [InlineData("LYCORIS ЖДЁТ", "Lycoris ждёт")]
     [InlineData("Уже Нормальный текст", "Уже Нормальный текст")]
     [InlineData("", "")]
     public void Capital_headings_become_sentence_case(string input, string expected) =>
@@ -945,7 +945,7 @@ public sealed class DashboardBootSecurityTests
         Assert.Equal("SECURE BOOT ВЫКЛЮЧЕН", r.Title);
         Assert.Contains("Install default keys", r.Detail);
         Assert.Contains("aka.ms/myrecoverykey", r.Detail);   // BitLocker recovery warning before any BIOS step
-        Assert.Contains("MONOLITH прошивку", r.Detail);
+        Assert.Contains("Lycoris прошивку", r.Detail);
         Assert.Null(r.Action);                               // firmware is changed by the user only
     }
 
@@ -1083,7 +1083,7 @@ public sealed class DashboardKernelProtectionTests
         Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
         Assert.Equal("ms-settings:windowsdefender", r.Action.Target);
         Assert.False(r.Action.RequiresAdmin);
-        Assert.Contains("MONOLITH эту защиту не меняет", r.Detail);
+        Assert.Contains("Lycoris эту защиту не меняет", r.Detail);
 
         var vbsOnly = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.VbsOnly, DriverBlocklistEnforced = false })!;
         Assert.Equal(CheckSeverity.Warning, vbsOnly.Severity);
@@ -1444,7 +1444,7 @@ public sealed class DashboardStabilityTests
         var r = HealthRules.CheckStability(Log(null, Whea(19, 3)))!;
         Assert.Equal(CheckSeverity.Info, r.Severity);
         Assert.Contains("Диагностика памяти такие ошибки не находит", r.Detail);
-        Assert.Contains("MONOLITH настройки BIOS не меняет", r.Detail);
+        Assert.Contains("Lycoris настройки BIOS не меняет", r.Detail);
         Assert.Null(r.Action);
 
         var fatal = HealthRules.CheckStability(Log(null, Whea(18, 2)))!;
@@ -1815,7 +1815,7 @@ public sealed class DashboardUpdatePinTests
         Assert.Equal("ЗАКРЕПЛЕНИЕ ВЕРСИИ WINDOWS УСТАРЕЛО", r.Title);
         Assert.Contains(pinnedTo, r.Detail);
         Assert.Contains(installed, r.Detail);
-        Assert.Contains("удаление политики", r.Detail); // a pin set by an administrator has no MONOLITH undo
+        Assert.Contains("удаление политики", r.Detail); // a pin set by an administrator has no Lycoris undo
         Assert.Equal(CheckActionKind.FocusTweak, r.Action!.Kind);
         Assert.Equal(HealthRules.TweakUpdatePin, r.Action.Target);
     }

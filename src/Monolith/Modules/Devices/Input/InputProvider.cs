@@ -31,7 +31,7 @@ internal sealed record PollingMeasurement(int? Hz, double RawHz, double Stabilit
 /// The mouse and keyboard cards (research devices_mouse-keyboard.md, design §3.1–§3.2): every per-user SystemParametersInfo
 /// parameter of <see cref="SpiCatalog"/> with its control and recommendation, the two Optimize tweaks as read-only rows
 /// (applied from the plan through TweakEngine), and the DPI / polling-rate measurements inline in their own rows.
-/// DPI and polling rate live in the mouse's firmware: MONOLITH measures and advises, it never writes them.
+/// DPI and polling rate live in the mouse's firmware: Lycoris measures and advises, it never writes them.
 /// Runs on a worker thread; reads only.
 /// </summary>
 internal sealed class InputProvider : IDeviceProvider
@@ -338,7 +338,7 @@ internal sealed class InputProvider : IDeviceProvider
 
     /// <summary>Per-user rows for another account (or an unknown one): one short reason; the page shows the full text once.</summary>
     internal static string AccountReason(DeviceScanContext ctx) => ctx.InteractiveUser == false
-        ? Loc.T("Недоступно: MONOLITH запущен от другой учётной записи.")
+        ? Loc.T("Недоступно: Lycoris запущен от другой учётной записи.")
         : Loc.T("Недоступно: не удалось определить пользователя рабочего стола.");
 
     /// <summary>

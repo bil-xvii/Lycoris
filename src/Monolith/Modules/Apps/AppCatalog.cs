@@ -119,7 +119,7 @@ public sealed record CatalogEntry(
     public bool Has(AppFlags flag) => (Flags & flag) == flag;
 
     /// <summary>
-    /// When MONOLITH itself runs elevated, these packages are started de-elevated through the desktop shell:
+    /// When Lycoris itself runs elevated, these packages are started de-elevated through the desktop shell:
     /// elevation-prohibited installers, Store apps, user-scope installers and winget portables (research §13: they would
     /// otherwise land in the elevating account's profile or fail with 0x8A150056; winget installs portables per user).
     /// </summary>
@@ -189,7 +189,7 @@ public static class AppCatalog
 
     // "НАБОР ГЕЙМЕРА" is computed from the install advice for this PC: AppAdvisor.Kit.
 
-    /// <summary>App Installer (winget itself) is never upgraded by MONOLITH: updating it replaces winget while it runs.</summary>
+    /// <summary>App Installer (winget itself) is never upgraded by Lycoris: updating it replaces winget while it runs.</summary>
     public const string AppInstallerId = "Microsoft.AppInstaller";
 
     /// <summary>Microsoft Store page of App Installer (winget).</summary>
@@ -377,7 +377,7 @@ public static class AppCatalog
         W("Elgato.StreamDeck", "Elgato Stream Deck", S, Loc.T("ПО для пультов Stream Deck"), "https://www.elgato.com/s/downloads", Machine),
         W("LizardByte.Sunshine", "Sunshine", S, Loc.T("Сервер стриминга игр с ПК (для Moonlight)"), "https://github.com/LizardByte/Sunshine", Machine, AppFlags.Expert),
         // The manifest says Scope: user, but the Burn bundle installs per machine into %ProgramFiles% (and would ask for
-        // UAC itself when de-elevated): run it like a machine installer. MONOLITH never passes --scope, so this does not
+        // UAC itself when de-elevated): run it like a machine installer. Lycoris never passes --scope, so this does not
         // change which installer winget picks.
         W("MoonlightGameStreamingProject.Moonlight", "Moonlight", S, Loc.T("Клиент стриминга игр"), "https://moonlight-stream.org/", Machine),
 

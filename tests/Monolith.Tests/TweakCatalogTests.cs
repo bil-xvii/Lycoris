@@ -1173,7 +1173,7 @@ public sealed class TweakCatalogTests : IDisposable
         Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(null, keyExisted: false)])); // own key only
         Assert.Equal((true, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(DxKey, keyExisted: true)])); // inherited root
         Assert.Equal((true, true), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(DxParent, keyExisted: true)]));
-        // The key was there before MONOLITH, the record is closed, or it is not the current account's HKCU: no claim.
+        // The key was there before Lycoris, the record is closed, or it is not the current account's HKCU: no claim.
         Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [GpuChoice(null, keyExisted: true)]));
         var closed = GpuChoice(DxKey, keyExisted: false);
         closed.Reverted = true;
@@ -1474,7 +1474,7 @@ public sealed class CustomTweakApplyRevertTests : IDisposable
 
         await RevertAll();
         Assert.Equal(before, Capture());
-        Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, Toggle)); // the key MONOLITH created is gone again
+        Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, Toggle)); // the key Lycoris created is gone again
     }
 
     [Fact]
@@ -1533,7 +1533,7 @@ public sealed class DirectXOwnershipAccountTests : IDisposable
     [Fact]
     public void Only_this_accounts_records_claim_the_directx_key()
     {
-        // Another account created ITS key: this account's key existed before MONOLITH and is never removed.
+        // Another account created ITS key: this account's key existed before Lycoris and is never removed.
         Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true, [TweakCatalogTests.DxToken(true, true, sid: Other)]));
         Assert.Equal((false, false), TweakCatalog.DxUndoOwnership(true, true,
             [TweakCatalogTests.GpuChoice(@"Software\Microsoft\DirectX", keyExisted: false, sid: Other)]));

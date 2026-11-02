@@ -129,7 +129,7 @@ public static class LaunchpadLogic
     public static TileState Undo(int activeChanges, string? lastBatchTitle, DateTime? lastBatchAt)
     {
         if (activeChanges <= 0 || lastBatchTitle is null)
-            return new(Loc.T("Нечего откатывать"), Loc.T("Изменений MONOLITH пока нет"), Loc.T("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ"), Glyphs.History);
+            return new(Loc.T("Нечего откатывать"), Loc.T("Изменений Lycoris пока нет"), Loc.T("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ"), Glyphs.History);
         var when = lastBatchAt is { } t ? t.ToString(Loc.IsEnglish ? "MMM d, HH:mm" : "dd.MM HH:mm", Ru) : Loc.T("Последний пакет");
         return new(when, Loc.Tf("{0} · всего {1}", lastBatchTitle, Loc.N(activeChanges, "{0} изм.", "{0} изм.", "{0} изм.")), Loc.T("ОТКАТИТЬ ПОСЛЕДНЕЕ"), Glyphs.Undo);
     }

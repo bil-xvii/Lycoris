@@ -34,7 +34,7 @@ internal static partial class BackupFolders
         throw new IOException(Loc.T("Слишком много резервных копий за одну минуту."));
     }
 
-    /// <summary>Parses a backup folder name. Returns false for folders MONOLITH did not create.</summary>
+    /// <summary>Parses a backup folder name. Returns false for folders Lycoris did not create.</summary>
     public static bool TryParse(string? name, out DateTime created, out BackupKind kind)
     {
         created = default;

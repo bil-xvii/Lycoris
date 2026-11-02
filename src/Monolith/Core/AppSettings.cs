@@ -23,7 +23,7 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] private bool _confirmBeforeApply = true;
 
     /// <summary>
-    /// Expert mode of the ВСЕ СЛУЖБЫ tab: allows changing services outside MONOLITH's curated allowlist
+    /// Expert mode of the ВСЕ СЛУЖБЫ tab: allows changing services outside Lycoris's curated allowlist
     /// (non-curated Microsoft and third-party services). Off by default — research services.md §0.4/§2B.
     /// </summary>
     [ObservableProperty] private bool _servicesExpertMode;
@@ -71,7 +71,7 @@ public sealed partial class AppSettings : ObservableObject
 
     /// <summary>
     /// Ask for admin rights (UAC) right at startup, as before. Off by default (owner: «чтобы приложение открывалось
-    /// сразу»): MONOLITH opens instantly in read-only mode and asks for rights the first time a change needs them,
+    /// сразу»): Lycoris opens instantly in read-only mode and asks for rights the first time a change needs them,
     /// then reopens on the same page.
     /// </summary>
     [ObservableProperty] private bool _elevateAtStartup;
@@ -90,13 +90,13 @@ public sealed partial class AppSettings : ObservableObject
 
     /// <summary>
     /// Interface language: "auto" (default: the Windows display language, Russian → ru, anything else → en), "ru" or "en".
-    /// Read once at startup (<c>Loc.Initialize</c>); a change takes effect after MONOLITH restarts.
+    /// Read once at startup (<c>Loc.Initialize</c>); a change takes effect after Lycoris restarts.
     /// </summary>
     [ObservableProperty] private string _language = "auto";
 
     // ───────── Updates (Core/Updates) ─────────
 
-    /// <summary>Look for a new MONOLITH version in the background (at most every 12 hours). Default on.</summary>
+    /// <summary>Look for a new Lycoris version in the background (at most every 12 hours). Default on.</summary>
     [ObservableProperty] private bool _autoCheckUpdates = true;
 
     /// <summary>UTC time (ISO 8601) of the last successful check against the public releases page; "" = never.</summary>
