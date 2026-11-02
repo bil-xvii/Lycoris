@@ -1,0 +1,9 @@
+{
+  "area": "Tweaks.Power",
+  "translated": false,
+  "sources": [
+    "Tweaks/TweakCatalog.Power.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

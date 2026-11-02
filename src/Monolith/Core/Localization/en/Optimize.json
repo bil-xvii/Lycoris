@@ -1,0 +1,9 @@
+{
+  "area": "Optimize",
+  "translated": false,
+  "sources": [
+    "Modules/Optimize/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

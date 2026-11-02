@@ -73,8 +73,8 @@ internal static partial class OptimizeProfileFile
     public static ProfileFileData? Parse(byte[]? bytes, out string? error)
     {
         error = null;
-        if (bytes is null || bytes.Length == 0) { error = "Файл пуст."; return null; }
-        if (bytes.Length > MaxBytes) { error = $"Файл больше {MaxBytes / 1024} КБ — это не профиль MONOLITH."; return null; }
+        if (bytes is null || bytes.Length == 0) { error = Loc.T("Файл пуст."); return null; }
+        if (bytes.Length > MaxBytes) { error = Loc.Tf("Файл больше {0} КБ — это не профиль MONOLITH.", MaxBytes / 1024); return null; }
 
         string text;
         try
@@ -83,7 +83,7 @@ internal static partial class OptimizeProfileFile
         }
         catch (DecoderFallbackException)
         {
-            error = "Файл не в кодировке UTF-8.";
+            error = Loc.T("Файл не в кодировке UTF-8.");
             return null;
         }
         if (text.Length > 0 && text[0] == '﻿') text = text[1..];
@@ -92,19 +92,19 @@ internal static partial class OptimizeProfileFile
         {
             using var doc = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = 4, CommentHandling = JsonCommentHandling.Disallow, AllowTrailingCommas = false });
             var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return Fail("Ожидался объект JSON.", out error);
+            if (root.ValueKind != JsonValueKind.Object) return Fail(Loc.T("Ожидался объект JSON."), out error);
 
             if (!root.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.String || format.GetString() != FormatTag)
-                return Fail("Это не файл профиля MONOLITH.", out error);
+                return Fail(Loc.T("Это не файл профиля MONOLITH."), out error);
             if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var v) || v < 1)
-                return Fail("Не указана версия формата профиля.", out error);
+                return Fail(Loc.T("Не указана версия формата профиля."), out error);
             if (v > FormatVersion)
-                return Fail("Профиль создан более новой версией MONOLITH. Обновите программу.", out error);
+                return Fail(Loc.T("Профиль создан более новой версией MONOLITH. Обновите программу."), out error);
 
             if (!root.TryGetProperty("tweaks", out var tweaks) || tweaks.ValueKind != JsonValueKind.Array)
-                return Fail("В профиле нет списка настроек.", out error);
+                return Fail(Loc.T("В профиле нет списка настроек."), out error);
             if (tweaks.GetArrayLength() > MaxIds)
-                return Fail("В профиле слишком много пунктов.", out error);
+                return Fail(Loc.T("В профиле слишком много пунктов."), out error);
 
             var ids = new List<string>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -129,7 +129,7 @@ internal static partial class OptimizeProfileFile
         }
         catch (JsonException)
         {
-            return Fail("Файл повреждён или это не JSON.", out error);
+            return Fail(Loc.T("Файл повреждён или это не JSON."), out error);
         }
     }
 
@@ -153,14 +153,14 @@ internal static partial class OptimizeProfileFile
             else if (entry.NeedsManualPick) manual.Add(id);
             else selected.Add(id);
         }
-        for (var i = 0; i < invalidIds; i++) unknown.Add("(некорректная запись)");
+        for (var i = 0; i < invalidIds; i++) unknown.Add(Loc.T("(некорректная запись)"));
         return new ProfileImportPlan(selected, unknown, notApplicable, manual);
     }
 
     public static string Summary(ProfileImportPlan plan) =>
-        $"{OptimizeLogic.Plural(plan.Selected.Count, "Выбрана", "Выбраны", "Выбрано")} {plan.Selected.Count} {OptimizeLogic.Plural(plan.Selected.Count, "настройка", "настройки", "настроек")}. " +
-        $"Пропущено: неизвестные — {plan.Unknown.Count}, не подходят этому ПК — {plan.NotApplicable.Count}, " +
-        $"требуют ручного выбора — {plan.Manual.Count}.";
+        Loc.N(plan.Selected.Count, "Выбрана {0} настройка", "Выбраны {0} настройки", "Выбрано {0} настроек") + ". " +
+        Loc.Tf("Пропущено: неизвестные — {0}, не подходят этому ПК — {1}, требуют ручного выбора — {2}.",
+            plan.Unknown.Count, plan.NotApplicable.Count, plan.Manual.Count);
 
     private static ProfileFileData? Fail(string message, out string? error)
     {

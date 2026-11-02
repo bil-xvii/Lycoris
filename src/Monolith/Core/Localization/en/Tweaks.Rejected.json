@@ -1,0 +1,9 @@
+{
+  "area": "Tweaks.Rejected",
+  "translated": false,
+  "sources": [
+    "Tweaks/RejectedTweaks.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}
