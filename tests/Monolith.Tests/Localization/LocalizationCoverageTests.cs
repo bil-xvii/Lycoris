@@ -54,6 +54,13 @@ public sealed class LocalizationCoverageTests
     }
 
     [Fact]
+    public void English_uses_straight_apostrophes()
+    {
+        var bad = EmbeddedAreas().SelectMany(a => a.Entries.Where(e => e.Value.Contains('’')).Select(e => $"{a.Name}: «{Short(e.Key)}»")).ToList();
+        Assert.True(bad.Count == 0, "Use ' (not ’) in English texts:\n" + string.Join("\n", bad));
+    }
+
+    [Fact]
     public void Every_entry_has_text_and_the_same_placeholders_as_the_russian_original()
     {
         var bad = new List<string>();
