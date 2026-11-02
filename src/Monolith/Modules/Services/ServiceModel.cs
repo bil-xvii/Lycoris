@@ -8,10 +8,10 @@ public sealed record StartOption(string Label, ServiceStartMode Mode, bool Delay
 {
     public static IReadOnlyList<StartOption> All { get; } =
     [
-        new("Автоматически", ServiceStartMode.Automatic, false),
-        new("Автоматически (отложенно)", ServiceStartMode.Automatic, true),
-        new("Вручную", ServiceStartMode.Manual, false),
-        new("Отключена", ServiceStartMode.Disabled, false),
+        new(Loc.T("Автоматически"), ServiceStartMode.Automatic, false),
+        new(Loc.T("Автоматически (отложенно)"), ServiceStartMode.Automatic, true),
+        new(Loc.T("Вручную"), ServiceStartMode.Manual, false),
+        new(Loc.T("Отключена"), ServiceStartMode.Disabled, false),
     ];
 
     /// <summary>The option matching a start configuration; null for Boot/System (drivers).</summary>
@@ -26,26 +26,26 @@ public static class ServiceText
 {
     public static string Start(ServiceStartMode? mode, bool delayed, bool triggers = false) => mode switch
     {
-        null => "Нет данных",
-        ServiceStartMode.Automatic when delayed => triggers ? "Автоматически (отложенно, триггер)" : "Автоматически (отложенно)",
-        ServiceStartMode.Automatic => triggers ? "Автоматически (триггер)" : "Автоматически",
-        ServiceStartMode.Manual => triggers ? "Вручную (триггер)" : "Вручную",
-        ServiceStartMode.Disabled => "Отключена",
-        ServiceStartMode.Boot => "Загрузка",
-        ServiceStartMode.System => "Система",
+        null => Loc.T("Нет данных"),
+        ServiceStartMode.Automatic when delayed => triggers ? Loc.T("Автоматически (отложенно, триггер)") : Loc.T("Автоматически (отложенно)"),
+        ServiceStartMode.Automatic => triggers ? Loc.T("Автоматически (триггер)") : Loc.T("Автоматически"),
+        ServiceStartMode.Manual => triggers ? Loc.T("Вручную (триггер)") : Loc.T("Вручную"),
+        ServiceStartMode.Disabled => Loc.T("Отключена"),
+        ServiceStartMode.Boot => Loc.T("Загрузка"),
+        ServiceStartMode.System => Loc.T("Система"),
         _ => mode.ToString()!,
     };
 
     public static string Status(ServiceControllerStatus? status) => status switch
     {
-        ServiceControllerStatus.Running => "Работает",
-        ServiceControllerStatus.Stopped => "Остановлена",
-        ServiceControllerStatus.StartPending => "Запускается",
-        ServiceControllerStatus.StopPending => "Останавливается",
-        ServiceControllerStatus.Paused => "Приостановлена",
-        ServiceControllerStatus.PausePending => "Приостанавливается",
-        ServiceControllerStatus.ContinuePending => "Возобновляется",
-        _ => "Нет данных",
+        ServiceControllerStatus.Running => Loc.T("Работает"),
+        ServiceControllerStatus.Stopped => Loc.T("Остановлена"),
+        ServiceControllerStatus.StartPending => Loc.T("Запускается"),
+        ServiceControllerStatus.StopPending => Loc.T("Останавливается"),
+        ServiceControllerStatus.Paused => Loc.T("Приостановлена"),
+        ServiceControllerStatus.PausePending => Loc.T("Приостанавливается"),
+        ServiceControllerStatus.ContinuePending => Loc.T("Возобновляется"),
+        _ => Loc.T("Нет данных"),
     };
 
     public static bool IsRunning(ServiceControllerStatus? status) =>
@@ -133,7 +133,7 @@ public static class ServiceClassifier
 {
     public static bool IsMicrosoftCompany(string? company) =>
         !string.IsNullOrWhiteSpace(company) &&
-        (company.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) || company.Contains("Майкрософт", StringComparison.OrdinalIgnoreCase));
+        (company.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) || company.Contains(Loc.Keep("Майкрософт"), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Third-party = the binary's publisher is not Microsoft. With no publisher info, files inside the Windows folder

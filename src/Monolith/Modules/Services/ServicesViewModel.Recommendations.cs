@@ -73,7 +73,7 @@ public sealed partial class ServicesViewModel
 
         MissingServicesText = missing.Count == 0
             ? ""
-            : $"Не установлены на этом ПК и скрыты: {string.Join(", ", missing)}.";
+            : Loc.Tf("Не установлены на этом ПК и скрыты: {0}.", string.Join(", ", missing));
 
         if (firstBuild) FollowScenario();
         if (firstBuild) ApplyProfileToRecommendations();
@@ -96,12 +96,12 @@ public sealed partial class ServicesViewModel
     internal static string ProfileCaptionFor(ProfileSet selected, string? lastProfile, bool laptop)
     {
         var scenario = OptimizeLogic.ParseProfile(lastProfile);
-        if (scenario == OptimizeProfile.Custom) return "Свой набор — профиль выбирается здесь.";
+        if (scenario == OptimizeProfile.Custom) return Loc.T("Свой набор — профиль выбирается здесь.");
         var name = OptimizeLogic.ScenarioName(scenario, laptop);
         var mapped = OptimizeLogic.ServicesProfileFor(scenario);
         return mapped == selected
-            ? $"Следует сценарию «{name}» из раздела «Оптимизация»."
-            : $"Выбран вручную; сценарию «{name}» из раздела «Оптимизация» соответствует профиль «{Sentence(ServiceCatalog.ProfileTitle(mapped))}».";
+            ? Loc.Tf("Следует сценарию «{0}» из раздела «Оптимизация».", name)
+            : Loc.Tf("Выбран вручную; сценарию «{0}» из раздела «Оптимизация» соответствует профиль «{1}».", name, Sentence(ServiceCatalog.ProfileTitle(mapped)));
     }
 
     private static string Sentence(string upper) => upper.Length == 0 ? upper : upper[0] + upper[1..].ToLowerInvariant();
@@ -144,13 +144,13 @@ public sealed partial class ServicesViewModel
     private string? BlockReasonFor(CuratedService entry)
     {
         if (ServiceControl.IsProtected(entry.Name) || ServiceGuard.IsHardBlocked(entry.Name))
-            return "Служба защищена MONOLITH и не изменяется.";
+            return Loc.T("Служба защищена MONOLITH и не изменяется.");
         return entry.Gate switch
         {
             ServiceGate.NotInsider when Machine?.IsInsider == true =>
-                "ПК участвует в программе Windows Insider — ей нужны эта служба и необязательные диагностические данные.",
+                Loc.T("ПК участвует в программе Windows Insider — ей нужны эта служба и необязательные диагностические данные."),
             ServiceGate.NoBluetoothAdapter when Machine is null || Machine.HasBluetoothAdapter =>
-                "На этом ПК есть Bluetooth-адаптер — без службы перестанут работать наушники, геймпады и мыши.",
+                Loc.T("На этом ПК есть Bluetooth-адаптер — без службы перестанут работать наушники, геймпады и мыши."),
             _ => null,
         };
     }
@@ -215,7 +215,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanApplyRecommendations))]
     private async Task ApplyRecommendationsAsync(string? names)
     {
-        if (!RequireAdmin("изменение служб", "ApplyRecommendations", SelectedRecommendationNames())) return;
+        if (!RequireAdmin(Loc.T("изменение служб"), "ApplyRecommendations", SelectedRecommendationNames())) return;
         if (IntentList.Unpack(names) is { Count: > 0 } replayed)
         {
             var set = replayed.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -251,26 +251,27 @@ public sealed partial class ServicesViewModel
         var details = plan.Select(p =>
             $"{p.Item.Title} ({p.Item.Name}): {ServiceText.Start(p.State.StartMode, p.State.Delayed, p.State.HasTriggers)} → {p.Item.TargetText}").ToList();
         var disabling = plan.Count(p => p.Item.Entry.Target == ServiceStartMode.Disabled);
-        var message = "Изменится только тип запуска. Работающие службы не останавливаются — изменения вступят в силу после перезагрузки. " +
-                      "Перед изменением создаётся точка восстановления, исходные значения сохраняются в журнале.";
+        var message = Loc.T("Изменится только тип запуска. Работающие службы не останавливаются — изменения вступят в силу после перезагрузки. " +
+                      "Перед изменением создаётся точка восстановления, исходные значения сохраняются в журнале.");
         if (disabling > 0)
-            message += " Отключённую службу Windows не запустит даже по требованию — убедитесь, что условия отмеченных пунктов выполняются.";
+            message += Loc.T(" Отключённую службу Windows не запустит даже по требованию — убедитесь, что условия отмеченных пунктов выполняются.");
 
         if (!await Ui.ConfirmAsync("ИЗМЕНИТЬ ТИП ЗАПУСКА?", message, details, "ПРИМЕНИТЬ", danger: disabling > 0,
                 footnote: "Откат: кнопка ОТКАТИТЬ в строке или раздел «Восстановление»."))
             return;
 
-        await RunBusyAsync(OperationClass.JournalChange, "Изменение служб…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Изменение служб…"), async () =>
         {
-            var session = await BeginSessionAsync(BatchTitle("Службы", plan.Select(p => p.Item.Title).ToList()));
+            var session = await BeginSessionAsync(BatchTitle(Loc.Keep("Службы"), plan.Select(p => p.Item.RuTitle).ToList()),
+                BatchTitle(Loc.T("Службы"), plan.Select(p => p.Item.Title).ToList(), localized: true));
             if (session is null) return;
             await Task.Run(() =>
             {
                 foreach (var (item, _) in plan)
-                    session.SetServiceStart(item.Name, item.Entry.Target, ServiceSource, $"Служба «{item.Title}»");
+                    session.SetServiceStart(item.Name, item.Entry.Target, ServiceSource, string.Format(Loc.Keep("Служба «{0}»"), item.RuTitle));
                 session.Complete();
             });
-            await ReportSessionAsync(session, $"Изменено служб: {session.Applied}. Новый тип запуска сработает после перезагрузки.");
+            await ReportSessionAsync(session, Loc.Tf("Изменено служб: {0}. Новый тип запуска сработает после перезагрузки.", session.Applied));
             await RefreshStatesAsync();
         });
     }
@@ -296,7 +297,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanRowAction))]
     private async Task RevertServiceAsync(string? name)
     {
-        if (string.IsNullOrEmpty(name) || !RequireAdmin("откат изменения службы", "RevertService", name)) return;
+        if (string.IsNullOrEmpty(name) || !RequireAdmin(Loc.T("откат изменения службы"), "RevertService", name)) return;
         // The row means «back to how it was before MONOLITH»: every active change of this service, newest first.
         var layers = ChangeJournal.Instance.ActiveLayers("svc:" + name);
         var record = layers.LastOrDefault();
@@ -311,19 +312,19 @@ public sealed partial class ServicesViewModel
         if (live is null)
         {
             await Ui.AlertAsync("СЛУЖБА НЕ НАЙДЕНА",
-                $"Службы {name} больше нет в системе — возвращать нечего. При откате такая запись будет пропущена.");
+                Loc.Tf("Службы {0} больше нет в системе — возвращать нечего. При откате такая запись будет пропущена.", name));
             return;
         }
 
         var current = live.Describe();
         var drift = !string.Equals(current, record.NewValue, StringComparison.Ordinal);
         var message = drift
-            ? $"Тип запуска уже изменён без MONOLITH (обновлением Windows, политикой или вручную): сейчас «{current}», MONOLITH ставил «{record.NewValue}». Всё равно вернуть исходное значение?"
-            : "Служба вернётся к исходному типу запуска из журнала. Работающая служба не останавливается.";
+            ? Loc.Tf("Тип запуска уже изменён без MONOLITH (обновлением Windows, политикой или вручную): сейчас «{0}», MONOLITH ставил «{1}». Всё равно вернуть исходное значение?", current, record.NewValue)
+            : Loc.T("Служба вернётся к исходному типу запуска из журнала. Работающая служба не останавливается.");
         if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;
 
-        await RunBusyAsync(OperationClass.JournalChange, "Откат изменения службы…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Откат изменения службы…"), async () =>
         {
             var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(layers));
             await ReportRevertAsync(result);

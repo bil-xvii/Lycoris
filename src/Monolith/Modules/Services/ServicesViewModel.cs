@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -26,8 +26,8 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     public override string Key => "services";
     public override string Index => "06";
-    public override string Title => "АВТОЗАПУСК И СЛУЖБЫ";
-    public override string Subtitle => "Что запускается вместе с Windows: программы, службы и задачи.";
+    public override string Title => Loc.T("АВТОЗАПУСК И СЛУЖБЫ");
+    public override string Subtitle => Loc.T("Что запускается вместе с Windows: программы, службы и задачи.");
     public override string Glyph => Glyphs.Services;
 
     public const int TabStartup = 0;
@@ -84,8 +84,8 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     public string ManagedText => Machine switch
     {
-        { IsDomainJoined: true } => "Компьютер входит в домен: групповые политики организации вернут изменения служб. Чтобы не спорить с администратором, службы и задачи Microsoft здесь только для просмотра; автозапуск программ менять можно.",
-        { IsMdmEnrolled: true } => "Компьютер управляется организацией через MDM (Intune): политики вернут изменения служб. Службы и задачи Microsoft здесь только для просмотра; автозапуск программ менять можно.",
+        { IsDomainJoined: true } => Loc.T("Компьютер входит в домен: групповые политики организации вернут изменения служб. Чтобы не спорить с администратором, службы и задачи Microsoft здесь только для просмотра; автозапуск программ менять можно."),
+        { IsMdmEnrolled: true } => Loc.T("Компьютер управляется организацией через MDM (Intune): политики вернут изменения служб. Службы и задачи Microsoft здесь только для просмотра; автозапуск программ менять можно."),
         _ => "",
     };
 
@@ -182,7 +182,7 @@ public sealed partial class ServicesViewModel : PageViewModel
     // ───────────────────────────── Header primary (changes with the tab) ─────────────────────────────
 
     /// <summary>The header's one main button: on АВТОЗАПУСК «ОТКЛЮЧИТЬ ЛИШНЕЕ · N» (hidden when there is nothing extra).</summary>
-    public string PrimaryText => $"ОТКЛЮЧИТЬ ЛИШНЕЕ · {Startup.ExtraCount}";
+    public string PrimaryText => Loc.Tf("ОТКЛЮЧИТЬ ЛИШНЕЕ · {0}", Startup.ExtraCount);
     public bool HasPrimary => SelectedTab == TabStartup && Startup.ExtraCount > 0;
 
     private void RaisePrimary()
@@ -309,10 +309,10 @@ public sealed partial class ServicesViewModel : PageViewModel
                 "Включить экспертный режим служб?",
                 "На вкладке «Все службы» станет можно менять тип запуска, запускать и останавливать службы, которых нет в проверенном списке MONOLITH.",
                 [
-                    "Эти службы MONOLITH не проверял: отключение может сломать Wi-Fi с корпоративным входом (802.1X), режим «в самолёте», синхронизацию времени, VPN, резервное копирование и программы сторонних производителей",
-                    "Критичные службы Windows, драйверы, защищённые и пользовательские службы остаются заблокированными и в этом режиме",
-                    "Каждое изменение типа запуска по-прежнему записывается в журнал и откатывается из «Восстановления»",
-                    "Выключить режим можно здесь же в любой момент — уже сделанные изменения при этом не откатываются",
+                    Loc.T("Эти службы MONOLITH не проверял: отключение может сломать Wi-Fi с корпоративным входом (802.1X), режим «в самолёте», синхронизацию времени, VPN, резервное копирование и программы сторонних производителей"),
+                    Loc.T("Критичные службы Windows, драйверы, защищённые и пользовательские службы остаются заблокированными и в этом режиме"),
+                    Loc.T("Каждое изменение типа запуска по-прежнему записывается в журнал и откатывается из «Восстановления»"),
+                    Loc.T("Выключить режим можно здесь же в любой момент — уже сделанные изменения при этом не откатываются"),
                 ],
                 confirmText: "ВКЛЮЧИТЬ", danger: true);
             if (ok)
@@ -350,7 +350,7 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     // ───────────────────────────── Loading ─────────────────────────────
 
-    private Task ReloadAsync() => RunBusyAsync(OperationClass.Measure, "Чтение служб и задач…", async () =>
+    private Task ReloadAsync() => RunBusyAsync(OperationClass.Measure, Loc.T("Чтение служб и задач…"), async () =>
     {
         var elevated = Elevation.IsElevated;
         var machineTask = Task.Run(ServiceScanner.ReadEnvironment);
@@ -374,7 +374,7 @@ public sealed partial class ServicesViewModel : PageViewModel
 
         RefreshJournal();
         MarkChecked();
-        Log.Info($"Службы: найдено {AllServices.Count} служб, рекомендаций {RecommendationCount}, задач {TaskItems.Count}.");
+        Log.Info("Службы: найдено {0} служб, рекомендаций {1}, задач {2}.", AllServices.Count, RecommendationCount, TaskItems.Count);
         if (Machine?.IsManaged == true) Log.Warn("Службы: ПК управляется организацией — раздел только для просмотра.");
     });
 
@@ -444,21 +444,21 @@ public sealed partial class ServicesViewModel : PageViewModel
     /// Starts a journaled batch. Research §3.2: when the restore point could not be created the user must
     /// explicitly agree to continue without it.
     /// </summary>
-    private async Task<ChangeSession?> BeginSessionAsync(string title)
+    private async Task<ChangeSession?> BeginSessionAsync(string title, string? shownTitle = null)
     {
         if (!AppSettings.Current.CreateRestorePoints)
             return await ChangeSession.BeginAsync(title, createRestorePoint: false);
 
-        BusyText = "Создание точки восстановления…";
+        BusyText = Loc.T("Создание точки восстановления…");
         var rp = await RestorePointService.CreateAsync($"MONOLITH: {title}");
         if (!rp.Created)
         {
             var go = await Ui.ConfirmAsync("ПРОДОЛЖИТЬ БЕЗ ТОЧКИ ВОССТАНОВЛЕНИЯ?",
-                $"{rp.Message} Исходные значения всё равно сохраняются в журнале MONOLITH, и каждое изменение можно откатить из приложения.",
+                Loc.Tf("{0} Исходные значения всё равно сохраняются в журнале MONOLITH, и каждое изменение можно откатить из приложения.", rp.Message),
                 confirmText: "ПРОДОЛЖИТЬ", danger: true);
             if (!go)
             {
-                Log.Info($"{title}: отменено — точка восстановления не создана.");
+                Log.Info("{0}: отменено — точка восстановления не создана.", shownTitle ?? title);
                 return null;
             }
         }
@@ -466,16 +466,18 @@ public sealed partial class ServicesViewModel : PageViewModel
         var session = await ChangeSession.BeginAsync(title, createRestorePoint: false);
         session.Batch.RestorePoint = rp.Message;
         ChangeJournal.Instance.UpdateBatch(session.Batch);
-        BusyText = title;
+        BusyText = shownTitle ?? title;
         return session;
     }
 
-    private static string BatchTitle(string prefix, IReadOnlyList<string> names) => names.Count switch
+    private static string BatchTitle(string prefix, IReadOnlyList<string> names, bool localized = false) => names.Count switch
     {
         0 => prefix,
         1 => $"{prefix}: {names[0]}",
         2 => $"{prefix}: {names[0]}, {names[1]}",
-        _ => $"{prefix}: {names[0]}, {names[1]} и ещё {names.Count - 2}",
+        _ => localized
+            ? Loc.Tf("{0}: {1}, {2} и ещё {3}", prefix, names[0], names[1], names.Count - 2)
+            : string.Format(Loc.Keep("{0}: {1}, {2} и ещё {3}"), prefix, names[0], names[1], names.Count - 2),
     };
 
     private static async Task ReportSessionAsync(ChangeSession session, string successText)
@@ -485,8 +487,8 @@ public sealed partial class ServicesViewModel : PageViewModel
             Ui.Toast(successText, ToastKind.Success, "ГОТОВО");
             return;
         }
-        var title = session.Applied > 0 ? "ПРИМЕНЕНО ЧАСТИЧНО" : "НЕ ПРИМЕНЕНО";
-        await Ui.AlertAsync(title, $"Изменено: {session.Applied}, ошибок: {session.Errors.Count}. Подробности — в консоли и журнале.", session.Errors);
+        var title = session.Applied > 0 ? Loc.T("ПРИМЕНЕНО ЧАСТИЧНО") : Loc.T("НЕ ПРИМЕНЕНО");
+        await Ui.AlertAsync(title, Loc.Tf("Изменено: {0}, ошибок: {1}. Подробности — в консоли и журнале.", session.Applied, session.Errors.Count), session.Errors);
     }
 
     private static async Task ReportRevertAsync(RevertResult result)
@@ -501,7 +503,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         }
         var lines = result.Errors.ToList();
         if (!string.IsNullOrEmpty(left)) lines.Insert(0, left);
-        await Ui.AlertAsync("ОТКАТ ВЫПОЛНЕН НЕ ПОЛНОСТЬЮ", $"{counts} Ошибок: {result.Failed}. Записи, которые не откатились, остались в «Восстановлении».", lines);
+        await Ui.AlertAsync("ОТКАТ ВЫПОЛНЕН НЕ ПОЛНОСТЬЮ", Loc.Tf("{0} Ошибок: {1}. Записи, которые не откатились, остались в «Восстановлении».", counts, result.Failed), lines);
     }
 
     // ───────────────────────────── Refresh ─────────────────────────────
