@@ -20,13 +20,15 @@ public static partial class ProblemReport
 
     private static Regex R(string pattern, RegexOptions options = Rx) => new(pattern, options, RxTimeout);
 
-    private const string SecretWords = @"(?:token|secret|passw(?:or)?d|pwd|bearer|парол\w*|ключ\w*|токен\w*|(?<![A-Za-z])key|(?-i:(?<=[a-z])Key))";
+    // No left boundary for the long words (camelCase: accessToken, clientSecret); «key» and «sid» need one or a lower→Upper hump (monkey is not a key).
+    private const string SecretWords = @"(?:token|secret|passw(?:or)?d|pwd|bearer|authorization|cookie|credential|session|signature|connectionstring|парол\w*|ключ\w*|токен\w*|куки|(?<![A-Za-z])key|(?-i:(?<=[a-z])Key)|(?<![A-Za-z])sid|(?-i:(?<=[a-z])Sid))";
 
     private static readonly Regex ProfilePathRx = R(@"(?:[A-Z]:)?[\\/]+(?:Users|home)[\\/]+[^\\/\s""'<>|:*?]+");
     private static readonly Regex MacRx = R(@"(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])|(?<![0-9a-f])(?:[0-9a-f]{4}\.){2}[0-9a-f]{4}(?![0-9a-f])");
     private static readonly Regex Ipv6Rx = R(@"(?<![0-9a-f:.])(?:[0-9a-f]{0,4}:){2,}[0-9a-f.:]*(?:%\w+)?");
     private static readonly Regex Ipv4Rx = R(@"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d])");
     private static readonly Regex EmailRx = R(@"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}");
+    private static readonly Regex BasicAuthRx = R(@"\bbasic\s+[A-Za-z0-9+/]{8,}={0,2}");
     private static readonly Regex SecretWordRx = R(SecretWords);
     private static readonly Regex LongTokenRx = R(@"(?<![A-Za-z0-9+/_=-])[A-Za-z0-9+/_-]{24,}={0,2}(?![A-Za-z0-9+/_=-])", RegexOptions.CultureInvariant);
     private static readonly Regex SecretValueRx = R(@"(" + SecretWords + @"\w*(?:\s*[:=]\s*|\s+(?=bearer\s|\S{24,})))(?:""[^""]*""|'[^']*'|\S+)");
@@ -97,6 +99,7 @@ public static partial class ProblemReport
         line = Ipv6Rx.Replace(line, m => ReplaceIpv6(m.Value));
         line = Ipv4Rx.Replace(line, m => System.Net.IPAddress.TryParse(m.Value, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "<ip>" : m.Value);
         line = EmailRx.Replace(line, "<email>");
+        line = BasicAuthRx.Replace(line, "Basic <redacted>");
         if (SecretWordRx.IsMatch(line))
         {
             line = LongTokenRx.Replace(line, "<secret>");
