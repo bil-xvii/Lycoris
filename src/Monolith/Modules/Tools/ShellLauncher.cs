@@ -24,19 +24,19 @@ public static class ShellLauncher
             var psi = new ProcessStartInfo(target) { UseShellExecute = true };
             if (!string.IsNullOrEmpty(arguments)) psi.Arguments = arguments;
             using var _ = Process.Start(psi);
-            Log.Info($"Открыто: {displayName ?? target}{(string.IsNullOrEmpty(arguments) ? "" : " " + arguments)}");
+            Log.Info("Открыто: {0}{1}", displayName ?? target, string.IsNullOrEmpty(arguments) ? "" : " " + arguments);
             return true;
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
             // The user declined a UAC prompt of the opened tool — not an error.
-            Log.Info($"Запуск отменён пользователем: {displayName ?? target}");
+            Log.Info("Запуск отменён пользователем: {0}", displayName ?? target);
             return false;
         }
         catch (Exception ex)
         {
-            Log.Error($"Не удалось открыть «{displayName ?? target}»", ex);
-            Ui.Toast($"Не удалось открыть «{displayName ?? target}»: {ex.Message}", ToastKind.Error);
+            Log.Error("Не удалось открыть «{0}»", ex, displayName ?? target);
+            Ui.Toast(Loc.Tf("Не удалось открыть «{0}»: {1}", displayName ?? target, ex.Message), ToastKind.Error);
             return false;
         }
     }
@@ -46,7 +46,7 @@ public static class ShellLauncher
     {
         if (!Directory.Exists(folder) && !AppPaths.TryEnsureDir(folder))
         {
-            Ui.Toast($"Папка «{displayName ?? folder}» ещё не создана.", ToastKind.Warning);
+            Ui.Toast(Loc.Tf("Папка «{0}» ещё не создана.", displayName ?? folder), ToastKind.Warning);
             return false;
         }
         return Open(Explorer, Quote(folder), displayName ?? folder);
@@ -58,7 +58,7 @@ public static class ShellLauncher
         if (File.Exists(file)) return Open(Explorer, "/select," + Quote(file), displayName ?? file);
         var dir = Path.GetDirectoryName(file);
         if (dir is not null && Directory.Exists(dir)) return Open(Explorer, Quote(dir), displayName ?? dir);
-        Ui.Toast($"Файл «{displayName ?? Path.GetFileName(file)}» ещё не создан.", ToastKind.Warning);
+        Ui.Toast(Loc.Tf("Файл «{0}» ещё не создан.", displayName ?? Path.GetFileName(file)), ToastKind.Warning);
         return false;
     }
 

@@ -12,15 +12,15 @@ public sealed record VolumeInfo(
     public bool IsSsd => MediaType is "SSD" or "SCM";
     public bool IsHdd => MediaType == "HDD";
 
-    public string OperationText => IsSsd ? "TRIM" : IsHdd ? "ДЕФРАГМЕНТАЦИЯ" : "АВТОВЫБОР";
+    public string OperationText => IsSsd ? "TRIM" : IsHdd ? Loc.T("ДЕФРАГМЕНТАЦИЯ") : Loc.T("АВТОВЫБОР");
 
-    public string MediaText => MediaType == "—" ? "ТИП НЕ ОПРЕДЕЛЁН" : BusType is "—" or "" ? MediaType : $"{MediaType} · {BusType}";
+    public string MediaText => MediaType == "—" ? Loc.T("ТИП НЕ ОПРЕДЕЛЁН") : BusType is "—" or "" ? MediaType : $"{MediaType} · {BusType}";
 
     public string SpaceText => SizeBytes == 0
         ? FileSystem
-        : $"{FileSystem} · {SystemProfile.FormatBytes(FreeBytes)} свободно из {SystemProfile.FormatBytes(SizeBytes)}";
+        : Loc.Tf("{0} · {1} свободно из {2}", FileSystem, SystemProfile.FormatBytes(FreeBytes), SystemProfile.FormatBytes(SizeBytes));
 
-    public string DisplayName => string.IsNullOrWhiteSpace(Label) ? (IsSystem ? "Системный диск" : "Локальный диск") : Label;
+    public string DisplayName => string.IsNullOrWhiteSpace(Label) ? (IsSystem ? Loc.T("Системный диск") : Loc.T("Локальный диск")) : Label;
 }
 
 /// <summary>Enumerates fixed NTFS/ReFS/FAT volumes with their media type (read-only: DriveInfo + Storage WMI).</summary>
@@ -48,7 +48,7 @@ public static class VolumeScanner
             }
             catch (Exception ex)
             {
-                Log.Warn($"Диск {d.Name}: {ex.Message}");
+                Log.Warn("Диск {0}: {1}", d.Name, ex.Message);
             }
         }
         return list.OrderByDescending(v => v.IsSystem).ThenBy(v => v.Letter, StringComparer.Ordinal).ToList();
@@ -97,7 +97,7 @@ public static class VolumeScanner
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось определить тип дисков: {ex.Message}");
+            Log.Warn("Не удалось определить тип дисков: {0}", ex.Message);
         }
         return result;
     }
