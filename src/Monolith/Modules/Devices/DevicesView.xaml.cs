@@ -47,17 +47,27 @@ public partial class DevicesView : UserControl
     public DevicesView()
     {
         InitializeComponent();
-        DataContextChanged += (_, _) =>
+        DataContextChanged += (_, _) => { if (IsLoaded) Sync(); };
+        Loaded += (_, _) => Sync();
+        Unloaded += (_, _) => { Release(); ReleaseClip(); };
+    }
+
+    /// <summary>The view subscribes to its page view-model only while it is on screen (see OptimizeView): a subscription left behind would keep every closed copy of this view alive.</summary>
+    private void Sync()
+    {
+        if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm = DataContext as DevicesViewModel;
+        if (_vm is not null)
         {
-            if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
-            _vm = DataContext as DevicesViewModel;
-            if (_vm is not null)
-            {
-                _vm.PropertyChanged += OnVmPropertyChanged;
-                if (_vm.FocusTarget is not null) ScrollToFocus();
-            }
-        };
-        Unloaded += (_, _) => ReleaseClip();
+            _vm.PropertyChanged += OnVmPropertyChanged;
+            if (_vm.FocusTarget is not null) ScrollToFocus();
+        }
+    }
+
+    private void Release()
+    {
+        if (_vm is not null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm = null;
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)

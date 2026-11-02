@@ -112,6 +112,12 @@ public abstract partial class PageViewModel : ObservableObject
     /// <summary>Called when the user leaves the page (stop timers here).</summary>
     public virtual void Deactivate() { }
 
+    /// <summary>The window was minimized: pause live polling (the page stays the current one). <see cref="ResumeFromMinimize"/> undoes it.</summary>
+    public virtual void SuspendForMinimize() { }
+
+    /// <summary>The window is shown again: restart what <see cref="SuspendForMinimize"/> paused.</summary>
+    public virtual void ResumeFromMinimize() { }
+
     protected virtual Task LoadAsync() => Task.CompletedTask;
     protected virtual Task OnReturnAsync() => Task.CompletedTask;
 

@@ -32,6 +32,8 @@
     <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
     <!-- WPF + WMI COM interop: trimming is not supported -->
     <PublishTrimmed>false</PublishTrimmed>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
     <NoWarn>$(NoWarn);CA1416;NU1510</NoWarn>
   </PropertyGroup>
 

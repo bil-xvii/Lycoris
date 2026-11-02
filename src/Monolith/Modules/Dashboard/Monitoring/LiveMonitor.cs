@@ -108,7 +108,9 @@ public sealed class LiveMonitor : IDisposable
                 lock (_gate)
                 {
                     if (_disposed) return;
+                    var sw = StartupTiming.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
                     sample = Sample();
+                    if (sw is not null) StartupTiming.Sampled(sw.Elapsed.TotalMilliseconds);
                 }
                 if (ct.IsCancellationRequested) return;
                 try { Sampled?.Invoke(sample); } catch (Exception ex) { Log.Warn("Мониторинг: {0}", ex.Message); }
