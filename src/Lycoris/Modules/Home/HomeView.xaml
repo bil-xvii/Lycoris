@@ -3,6 +3,8 @@
         <StackPanel Margin="0,0,0,20">
             <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource B.Text}" />
             <TextBlock Text="{Binding Subtitle}" Margin="0,4,0,14" Foreground="{StaticResource B.Text2}" />
+            <Button Style="{StaticResource Btn}" Content="{loc:T Хотите пройти мастер?}" Command="{Binding OpenWizardCommand}" HorizontalAlignment="Left" Margin="0,0,0,12"
+                    Visibility="{Binding ShowWizardPrompt, Converter={StaticResource BoolToVis}}" />
             <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="12" Margin="0,0,0,12">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

@@ -75,6 +75,7 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] private List<string> _customGameFolders = [];
 
     [ObservableProperty] private bool _firstRunCompleted;
+    [ObservableProperty] private bool _firstRunWizardInProgress;
 
     /// <summary>
     /// Ask for admin rights (UAC) right at startup, as before. Off by default (owner: «чтобы приложение открывалось

@@ -1,0 +1,20 @@
+{
+    "area":  "Wizard",
+    "translated":  true,
+    "sources":  [
+                    "Shell/WizardViewModel.cs"
+                ],
+    "ignore":  [
+
+               ],
+    "en":  {
+               "Работа":  "Work",
+               "Игры":  "Games",
+               "Тихо и прохладно":  "Quiet and cool",
+               "Готово":  "Ready",
+               "Как показывать?":  "How should things be shown?",
+               "Ноутбук от батареи":  "Laptop on battery",
+               "Не выбрано":  "Not selected",
+               "Для чего этот ПК?":  "What is this PC for?"
+           }
+}

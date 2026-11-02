@@ -299,6 +299,47 @@
                 </ContentControl>
             </Grid>
 
+            <Grid x:Name="WizardLayer" Grid.RowSpan="4" Grid.ColumnSpan="2" Panel.ZIndex="40" Background="#B8000000"
+                  Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}">
+                <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Outline}" BorderThickness="1" CornerRadius="12"
+                        Width="760" MaxHeight="680" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Step, StringFormat={loc:T 'ШАГ {0} ИЗ 3'}}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text3}"/>
+                            <TextBlock Text="{Binding StepTitle}" FontSize="26" FontWeight="SemiBold" Margin="0,8,0,18" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,18">
+                            <TextBlock Text="1/3" Margin="0,0,24,0"/><TextBlock Text="2/3" Margin="0,0,24,0"/><TextBlock Text="3/3"/>
+                        </StackPanel>
+                        <Grid Grid.Row="2">
+                            <StackPanel>
+                                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Step}" Value="1"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                                <TextBlock Text="{loc:T Выберите основную цель. Мастер ничего не применяет.}" Style="{StaticResource T.Body}" TextWrapping="Wrap" Margin="0,0,0,18"/>
+                                <UniformGrid Columns="2">
+                                    <RadioButton Content="{loc:T Игры}" Style="{StaticResource Chip}" IsChecked="{Binding Goal, Converter={StaticResource Equals}, ConverterParameter=Games}"/>
+                                    <RadioButton Content="{loc:T Работа}" Style="{StaticResource Chip}" IsChecked="{Binding Goal, Converter={StaticResource Equals}, ConverterParameter=Work}"/>
+                                    <RadioButton Content="{loc:T Ноутбук от батареи}" Style="{StaticResource Chip}" Visibility="{Binding IsLaptop, Converter={StaticResource BoolToVis}}" IsChecked="{Binding Goal, Converter={StaticResource Equals}, ConverterParameter=LaptopBattery}"/>
+                                    <RadioButton Content="{loc:T Тихо и прохладно}" Style="{StaticResource Chip}" IsChecked="{Binding Goal, Converter={StaticResource Equals}, ConverterParameter=Quiet}"/>
+                                </UniformGrid>
+                            </StackPanel>
+                            <StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Step}" Value="2"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                                <TextBlock Text="{loc:T Простой показывает понятные названия и короткие пояснения. Эксперт добавляет технические детали.}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                                <CheckBox Content="{loc:T Экспертный режим}" IsChecked="{Binding Expert}" Style="{StaticResource Toggle}"/>
+                                <Border Background="{StaticResource B.Surface2}" Padding="16" Margin="0,18,0,0"><StackPanel><TextBlock Text="{loc:T Как мы гарантируем безопасность}" FontWeight="SemiBold"/><TextBlock Text="{loc:T Каждое изменение попадает в журнал. Откат всегда на виду. Точка восстановления Windows создаётся перед пакетом. Без прав администратора программа только смотрит.}" TextWrapping="Wrap" Margin="0,8,0,0"/></StackPanel></Border>
+                            </StackPanel>
+                            <StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Step}" Value="3"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                                <TextBlock Text="{loc:T Ваша цель}" Style="{StaticResource T.Label}"/><TextBlock Text="{Binding GoalName}" FontSize="22" Margin="0,8,0,14"/><TextBlock Text="{loc:T Настройки можно изменить позже. Ничего не будет применено автоматически.}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Grid>
+                        <DockPanel Grid.Row="3" Margin="0,22,0,0">
+                            <Button Content="{loc:T НАЗАД}" Command="{Binding BackCommand}" Style="{StaticResource Btn}" DockPanel.Dock="Left"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="{loc:T ПРОПУСТИТЬ}" Command="{Binding SkipCommand}" Style="{StaticResource Btn}" Margin="0,0,8,0"/><Button Content="{loc:T ДАЛЕЕ}" Command="{Binding NextCommand}" Style="{StaticResource Btn.Primary}"/><Button Content="{loc:T 'ПОКАЗАТЬ, ЧТО УЛУЧШИТЬ'}" Command="{Binding FinishCommand}" Style="{StaticResource Btn.Primary}" Visibility="{Binding Step, Converter={StaticResource EqualsToVis}, ConverterParameter=3}"/></StackPanel>
+                        </DockPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
             <!-- ═══════════════ Console ═══════════════ -->
             <!-- Shown only when expanded; the toggle lives in the status bar. An R.Lg panel aligned with the page content. -->
             <Border Grid.Row="3" Grid.Column="1" Margin="24,0,24,10" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line}"

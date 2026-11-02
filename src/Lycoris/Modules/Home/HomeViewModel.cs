@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
@@ -15,6 +16,9 @@ namespace Lycoris.Modules.Home;
 
 public sealed partial class HomeViewModel : PageViewModel
 {
+    public bool ShowWizardPrompt => !AppSettings.Current.FirstRunCompleted && WizardStartupPolicy.IsConfiguredUser(
+        File.Exists(AppPaths.SettingsReadFile), ChangeJournal.Instance.Records.Count > 0, AppSettings.Current.ExpertMode, AppSettings.Current.LastProfile);
+    [RelayCommand] private void OpenWizard() => (Ui.Host as MainViewModel)?.OpenWizard();
     private readonly DashboardViewModel _dashboard;
     public override string Key => "home";
     public override string Index => "00";
@@ -42,7 +46,11 @@ public sealed partial class HomeViewModel : PageViewModel
     {
         _dashboard.PropertyChanged += (_, _) => Ui.Post(RefreshDoctor);
         ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournal);
-        AppSettings.Current.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(AppSettings.ExpertMode)) Ui.Post(() => ExpertMode = AppSettings.Current.ExpertMode); };
+        AppSettings.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AppSettings.ExpertMode)) Ui.Post(() => ExpertMode = AppSettings.Current.ExpertMode);
+            if (e.PropertyName == nameof(AppSettings.FirstRunCompleted)) Ui.Post(() => OnPropertyChanged(nameof(ShowWizardPrompt)));
+        };
         try
         {
             var profile = await SystemProfile.LoadAsync();
