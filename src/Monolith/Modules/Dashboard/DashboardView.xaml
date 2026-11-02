@@ -164,7 +164,7 @@
         </Border>
 
         <!-- ═══════════════ Six tiles: live value + ONE labelled button ═══════════════ -->
-        <ItemsControl Grid.Row="2" ItemsSource="{Binding Tiles}" Margin="0,10,0,0" Focusable="False">
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding Tiles}" Margin="0,10,-10,0" Focusable="False">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <UniformGrid Rows="1" />
@@ -205,7 +205,7 @@
         </ItemsControl>
 
         <!-- ═══════════════ List (the only ScrollViewer): problems | monitor + system ═══════════════ -->
-        <ScrollViewer Grid.Row="3" Margin="0,2,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <ScrollViewer Grid.Row="3" Margin="0,2,-10,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <Grid Margin="0,8,10,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.6*" />

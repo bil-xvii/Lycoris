@@ -130,8 +130,8 @@ public static class LaunchpadLogic
     {
         if (activeChanges <= 0 || lastBatchTitle is null)
             return new("Нечего откатывать", "Изменений MONOLITH пока нет", "ОТКРЫТЬ ВОССТАНОВЛЕНИЕ", Glyphs.History);
-        var when = lastBatchAt is { } t ? $"{t:dd.MM HH:mm} · " : "";
-        return new(lastBatchTitle, $"{when}всего {activeChanges} изм.", "ОТКАТИТЬ ПОСЛЕДНЕЕ", Glyphs.Undo);
+        var when = lastBatchAt is { } t ? t.ToString("dd.MM HH:mm", Ru) : "Последний пакет";
+        return new(when, $"{lastBatchTitle} · всего {activeChanges} изм.", "ОТКАТИТЬ ПОСЛЕДНЕЕ", Glyphs.Undo);
     }
 
     // ───────────── ПИНГ ─────────────
