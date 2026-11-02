@@ -302,6 +302,39 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   location or a multi-file dev build is told plainly (`UpdateApplier.Plan`). Tests: `tests/Monolith.Tests/Updates/*` (fake
   HTTP, fake file system, tiny real exes in a temp folder; no network, MONOLITH.exe is never touched).
 
+## Security (owner, 02.11.2026: «добавь защиту от взлома»)
+
+Full audit, threat model, findings table and the owner's to-do list: `docs/security-audit.md`. Code: `Core/Security/*`; tests:
+`tests/Monolith.Tests/Security/*`; self-test stage «БЕЗОПАСНОСТЬ» runs `SecurityCorpus` (hostile inputs against every parser).
+Attacker model: any program running as the same user (it writes Desktop, Downloads, `%LocalAppData%`, `%TEMP%`, HKCU, the user's Documents and
+environment, and can start MONOLITH.exe with any arguments). The elevated MONOLITH must never trust anything such a program can write.
+
+1. **No user-writable input is trusted by an elevated process without validation.** Settings, caches, markers, manifests, imported files: read with
+   `SafeIo.ReadText/ReadBytes` (size limit, no links, `FileShare.Read`), parse with `System.Text.Json` into fixed types (never type names), XML only through
+   `SafeXml` (no DTD), then clamp/validate (`SettingsValidator`, id regexes). A new parser gets a hostile case in `SecurityCorpus`.
+2. **Never run, load or open a file from a user-writable place with the admin token.** Ask `PathTrust.WhyUserWritable(path)` (ACL walk: only SYSTEM/Administrators/
+   TrustedInstaller may write) before an elevated process executes a tool found on PATH or in a user folder; `WingetClient` accepts only the app-execution alias;
+   browsers/games/launchers stay de-elevated (rule 8). Temp files that an elevated process reads go to `SafeIo.NewPrivateTempFile` (admin-only folder when elevated), not `%TEMP%`.
+3. **Child processes**: always through `ProcessRunner` (it removes DOTNET_STARTUP_HOOKS/COR_PROFILER/… and gives PowerShell a system-only `PSModulePath`; output is capped).
+   Full System32 paths only. PowerShell scripts are constants or built from whitelisted GUIDs/numbers; a dynamic value goes through `PsText.Literal` (handles the
+   typographic quotes U+2018/2019/201A/201B) or is refused. Never `cmd /c` with a user string.
+4. **Starting MONOLITH.exe again with rights** (`Elevation.TryRelaunchElevated/SameRights`, display guard, updater) must pass `SelfIntegrity.CheckBeforeElevation()`
+   (hash re-check, hostile location, signature, unpacked natives). UAC binds to the exe path, not to its bytes. New self-starts: same gate.
+5. **Launch arguments are attacker input.** `--replay-*` only for allow-listed commands (`AdminIntent.Replayable`) with a plain page key and a ≤ 200-char printable
+   parameter; a new replayable command must have its own confirmation dialog. `--e2e` only in Debug or with `MONOLITH_E2E=1`. `--apply-update` validates its
+   target/pid/hash (exit 13). Add no argument that changes the system without a confirmation.
+6. **Process hardening** is applied by `Hardening` (module initializer, before any other code): DLL search = System32 + the runtime's native folders, image-load policy.
+   Every `[DllImport]` names a System32 library (`DefaultDllImportSearchPaths(System32)` is assembly-wide); load anything else by full path after `PathTrust`/signature checks.
+   Do not enable dynamic-code prohibition or signature-only policies (JIT, WPF, GPU drivers).
+7. **Update channel** (`Core/Updates`): hash = integrity only; authenticity = the owner's ECDSA signature (`ReleaseSignature`, `tools/release-key.ps1`, key pinned in
+   `PinnedPublicKey`); version inside the file must equal the release and be newer; the updater never touches a file that is not a MONOLITH program outside `%WINDIR%`.
+8. **Never add**: packers/obfuscators/anti-debug (antivirus false positives, no protection), network listeners/pipes without an ACL and a design review, credentials or
+   keys in the repo (the release private key lives only in `%USERPROFILE%\.monolith-release`), `HttpClient` certificate-validation callbacks, `http://` URLs.
+
+Checklist for new code that reads a file/registry value/command line/network answer, starts a process or loads a library: (1) who can write this input? (2) size and
+shape limit? (3) is the result used as a path, command, URL or registry key — validated against an allow-list? (4) does an elevated process use it without the user seeing it?
+(5) hostile test in `SecurityCorpus` + a unit test; (6) `--selftest` stage «БЕЗОПАСНОСТЬ» still all OK.
+
 ## Build, run, verify
 
 ```

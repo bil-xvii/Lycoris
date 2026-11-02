@@ -408,6 +408,31 @@ public sealed class SecurityHardeningTests
     [InlineData("", false)]
     public void Custom_game_folders(string path, bool ok) => Assert.Equal(ok, SettingsValidator.IsLocalAbsoluteFolder(path));
 
+    [Theory]
+    [InlineData("MBAMService.exe")]
+    [InlineData("avgui")]
+    [InlineData("bdagent.exe")]
+    [InlineData("ekrn")]
+    [InlineData("MsMpEng.exe")]
+    [InlineData("csfalconservice")]
+    public void Security_software_can_never_be_put_on_the_game_close_list(string process) =>
+        Assert.True(Monolith.Modules.Games.UserProcesses.IsProtectedName(process));
+
+    [Fact]
+    public void Xml_from_outside_refuses_a_dtd()
+    {
+        Assert.Throws<System.Xml.XmlException>(() => SafeXml.Parse("<?xml version=\"1.0\"?><!DOCTYPE l [<!ENTITY a \"aaaa\"><!ENTITY b \"&a;&a;&a;&a;\">]><r>&b;</r>"));
+        Assert.Equal("1", SafeXml.Parse("<r><a>1</a></r>").Root!.Element("a")!.Value);
+    }
+
+    [Fact]
+    public void The_VDF_parser_survives_a_nesting_bomb()
+    {
+        var tree = Monolith.Modules.Games.VdfParser.Parse("\"a\" " + new string('{', 300_000));
+        Assert.NotNull(tree);
+        Assert.NotNull(Monolith.Modules.Games.VdfParser.Parse("\"AppState\" { \"appid\" \"10\" \"name\" \"X\" }")["AppState"]);
+    }
+
     // ───────────────────────────── winget, cleaner, journal ─────────────────────────────
 
     [Fact]

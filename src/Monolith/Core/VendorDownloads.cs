@@ -80,7 +80,7 @@ public static partial class VendorDownloads
             AutomaticDecompression = DecompressionMethods.None,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
         };
-        var c = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        var c = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan, MaxResponseContentBufferSize = 8 * 1024 * 1024 };
         c.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent);
         return c;
     });
