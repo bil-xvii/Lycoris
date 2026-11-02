@@ -8,4 +8,4 @@ Installers:
     InstallerUrl: https://github.com/bil-xvii/Lycoris-releases/releases/download/v__VERSION__/Lycoris.exe
     InstallerSha256: __SHA256__
 ManifestType: installer
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
