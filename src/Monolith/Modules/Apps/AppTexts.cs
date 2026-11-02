@@ -17,52 +17,52 @@ public static class AppTexts
 
         if (e.Source == PackageSource.MsStore)
             tags.Add(new("MS STORE", TagKind.Normal,
-                "Пакет из Microsoft Store (источник msstore). Ставится для текущего пользователя, дальше его обновляет сам Store."));
+                Loc.T("Пакет из Microsoft Store (источник msstore). Ставится для текущего пользователя, дальше его обновляет сам Store.")));
         if (e.Has(AppFlags.RemoteAccess))
-            tags.Add(new("УДАЛЁННЫЙ ДОСТУП", TagKind.Hatch, RemoteAccessWarning));
+            tags.Add(new(Loc.T("УДАЛЁННЫЙ ДОСТУП"), TagKind.Hatch, RemoteAccessWarning));
         if (e.Has(AppFlags.KernelDriver))
-            tags.Add(new("ДРАЙВЕР ЯДРА", TagKind.Hatch,
-                "Устанавливает драйвер режима ядра: он работает с максимальными правами и может конфликтовать с античитами. " +
-                "Удаляется вместе с программой через «Параметры → Приложения»."));
+            tags.Add(new(Loc.T("ДРАЙВЕР ЯДРА"), TagKind.Hatch,
+                Loc.T("Устанавливает драйвер режима ядра: он работает с максимальными правами и может конфликтовать с античитами. " +
+                "Удаляется вместе с программой через «Параметры → Приложения».")));
         if (e.Has(AppFlags.Anticheat))
-            tags.Add(new("АНТИЧИТ", TagKind.Hatch, e.Has(AppFlags.Region)
-                ? "Вместе с игрой ставится античит Riot Vanguard (драйвер ядра). Он работает постоянно и требует перезагрузки."
-                : "Может вызвать срабатывание античита: оверлеи, внедрение в игры и низкоуровневый доступ к железу иногда блокируются онлайн-играми."));
+            tags.Add(new(Loc.T("АНТИЧИТ"), TagKind.Hatch, e.Has(AppFlags.Region)
+                ? Loc.T("Вместе с игрой ставится античит Riot Vanguard (драйвер ядра). Он работает постоянно и требует перезагрузки.")
+                : Loc.T("Может вызвать срабатывание античита: оверлеи, внедрение в игры и низкоуровневый доступ к железу иногда блокируются онлайн-играми.")));
         if (e.Has(AppFlags.Expert))
-            tags.Add(new("ЭКСПЕРТ", TagKind.Hatch,
-                "Для опытных пользователей. Неправильное использование может привести к сбоям, перегреву или потере данных."));
+            tags.Add(new(Loc.T("ЭКСПЕРТ"), TagKind.Hatch,
+                Loc.T("Для опытных пользователей. Неправильное использование может привести к сбоям, перегреву или потере данных.")));
         if (e.Has(AppFlags.Reboot))
-            tags.Add(new("ПЕРЕЗАГРУЗКА", TagKind.Muted, "После установки нужна перезагрузка. MONOLITH никогда не перезагружает компьютер сам."));
+            tags.Add(new(Loc.T("ПЕРЕЗАГРУЗКА"), TagKind.Muted, Loc.T("После установки нужна перезагрузка. MONOLITH никогда не перезагружает компьютер сам.")));
         if (e.Has(AppFlags.Eol))
-            tags.Add(new("УСТАРЕВАЕТ", TagKind.Muted,
-                "Microsoft прекращает выпуск исправлений безопасности для этой версии (.NET 6 — уже без поддержки, .NET 8 и 9 — до 10.11.2026). " +
-                "Ставьте, только если её требует конкретная игра или программа."));
+            tags.Add(new(Loc.T("УСТАРЕВАЕТ"), TagKind.Muted,
+                Loc.T("Microsoft прекращает выпуск исправлений безопасности для этой версии (.NET 6 — уже без поддержки, .NET 8 и 9 — до 10.11.2026). " +
+                "Ставьте, только если её требует конкретная игра или программа.")));
         if (e.Has(AppFlags.Paid))
-            tags.Add(new("ПЛАТНАЯ", TagKind.Muted, "Платная программа: после пробного периода нужна лицензия."));
+            tags.Add(new(Loc.T("ПЛАТНАЯ"), TagKind.Muted, Loc.T("Платная программа: после пробного периода нужна лицензия.")));
         if (e.Has(AppFlags.Trialware))
-            tags.Add(new("ПРОБНЫЙ ПЕРИОД", TagKind.Muted, "Бесплатно на время пробного периода, дальше программа просит купить лицензию."));
+            tags.Add(new(Loc.T("ПРОБНЫЙ ПЕРИОД"), TagKind.Muted, Loc.T("Бесплатно на время пробного периода, дальше программа просит купить лицензию.")));
         if (e.Has(AppFlags.Preinstalled))
-            tags.Add(new("ВСТРОЕНО В WINDOWS", TagKind.Muted, e.SystemComponent
-                ? "Системный компонент Windows: обновляется через Microsoft Edge Update. MONOLITH его не устанавливает и не удаляет."
-                : "Обычно уже есть в Windows и обновляется сам через Microsoft Edge Update. Если его нет (бывает на Windows 10) — можно установить отсюда."));
+            tags.Add(new(Loc.T("ВСТРОЕНО В WINDOWS"), TagKind.Muted, e.SystemComponent
+                ? Loc.T("Системный компонент Windows: обновляется через Microsoft Edge Update. MONOLITH его не устанавливает и не удаляет.")
+                : Loc.T("Обычно уже есть в Windows и обновляется сам через Microsoft Edge Update. Если его нет (бывает на Windows 10) — можно установить отсюда.")));
         if (e.Has(AppFlags.Win10Only))
-            tags.Add(new("ДЛЯ WINDOWS 10", TagKind.Muted, "В Windows 11 22H2 и новее уже встроено — там этот пакет не нужен."));
+            tags.Add(new(Loc.T("ДЛЯ WINDOWS 10"), TagKind.Muted, Loc.T("В Windows 11 22H2 и новее уже встроено — там этот пакет не нужен.")));
         if (e.Has(AppFlags.ExplicitUpgrade))
-            tags.Add(new("ОБНОВЛЯЕТСЯ САМА", TagKind.Muted, "Программа обновляет себя сама, поэтому «Обновить всё» её пропускает."));
+            tags.Add(new(Loc.T("ОБНОВЛЯЕТСЯ САМА"), TagKind.Muted, Loc.T("Программа обновляет себя сама, поэтому «Обновить всё» её пропускает.")));
         if (e.WebsiteOnly)
-            tags.Add(new("НЕ ЧЕРЕЗ WINGET", TagKind.Muted, WebsiteOnlyReason(e)));
+            tags.Add(new(Loc.T("НЕ ЧЕРЕЗ WINGET"), TagKind.Muted, WebsiteOnlyReason(e)));
         else if (e.Has(AppFlags.Portable))
-            tags.Add(new("ПОРТАТИВНАЯ", TagKind.Muted,
-                "Без классического установщика: winget распакует программу в профиль текущего пользователя (папка WinGet\\Packages) " +
-                "и добавит команду запуска. Ярлыка в меню «Пуск» может не быть."));
+            tags.Add(new(Loc.T("ПОРТАТИВНАЯ"), TagKind.Muted,
+                Loc.T("Без классического установщика: winget распакует программу в профиль текущего пользователя (папка WinGet\\Packages) " +
+                "и добавит команду запуска. Ярлыка в меню «Пуск» может не быть.")));
         if (e.Has(AppFlags.NvidiaOnly))
-            tags.Add(new("NVIDIA", TagKind.Muted, "Только для видеокарт NVIDIA."));
+            tags.Add(new("NVIDIA", TagKind.Muted, Loc.T("Только для видеокарт NVIDIA.")));
         return tags;
     }
 
     /// <summary>Why the card sends the user to the vendor instead of winget.</summary>
     public static string WebsiteOnlyReason(CatalogEntry e) =>
-        e.WebsiteReason ?? "Через winget эта программа сейчас не устанавливается. Надёжнее скачать её с официального сайта.";
+        e.WebsiteReason ?? Loc.T("Через winget эта программа сейчас не устанавливается. Надёжнее скачать её с официального сайта.");
 
     /// <summary>Card tag / tooltip for a component that is installed but not as a winget package.</summary>
     public const string UnmanagedExplanation =
@@ -74,43 +74,43 @@ public static class AppTexts
         var e = item.Entry;
         return item.Action switch
         {
-            AppAction.SystemComponent => "Системный компонент Windows: MONOLITH его не устанавливает, не обновляет и не удаляет.",
-            AppAction.Website => WebsiteOnlyReason(e) + " Откроется официальная страница загрузки.",
+            AppAction.SystemComponent => Loc.T("Системный компонент Windows: MONOLITH его не устанавливает, не обновляет и не удаляет."),
+            AppAction.Website => WebsiteOnlyReason(e) + Loc.T(" Откроется официальная страница загрузки."),
             AppAction.VendorDownload => WebsiteOnlyReason(e) + " " + VendorDownloadToolTip(e),
             AppAction.Installed => e.Has(AppFlags.ForceExe)
-                ? "Классические библиотеки DirectX (June 2010) уже установлены — обновлять нечего."
+                ? Loc.T("Классические библиотеки DirectX (June 2010) уже установлены — обновлять нечего.")
                 : item.IsUnmanaged
                     ? UnmanagedExplanation
-                    : "Программа обновляется сама — отдельное обновление не нужно.",
-            AppAction.Upgrade => "Проверить и установить новую версию через winget. Если обновлений нет, ничего не изменится.",
+                    : Loc.T("Программа обновляется сама — отдельное обновление не нужно."),
+            AppAction.Upgrade => Loc.T("Проверить и установить новую версию через winget. Если обновлений нет, ничего не изменится."),
             _ => InstallHint(e),
         };
     }
 
     /// <summary>What the direct download does — named host and signer, no promises beyond that.</summary>
     public static string VendorDownloadToolTip(CatalogEntry e) => e.VendorInstaller is { } v
-        ? $"MONOLITH скачает официальный установщик с сервера {v.Host} (HTTPS), проверит цифровую подпись ({SignerList(v.Signers)}) " +
-          "и запустит его от вашего имени — права администратора установщик попросит сам. Без прав администратора у MONOLITH откроется сайт."
-        : $"Откроется официальная страница загрузки: {e.Website}";
+        ? Loc.Tf("MONOLITH скачает официальный установщик с сервера {0} (HTTPS), проверит цифровую подпись ({1}) " +
+          "и запустит его от вашего имени — права администратора установщик попросит сам. Без прав администратора у MONOLITH откроется сайт.", v.Host, SignerList(v.Signers))
+        : Loc.Tf("Откроется официальная страница загрузки: {0}", e.Website);
 
-    private static string SignerList(IEnumerable<string> signers) => string.Join(" или ", signers);
+    private static string SignerList(IEnumerable<string> signers) => string.Join(Loc.T(" или "), signers);
 
     private static string InstallHint(CatalogEntry e)
     {
         string hint;
         if (Elevation.IsElevated && e.RunsUnelevated)
-            hint = "Установка через winget без прав администратора — в профиль текущего пользователя.";
+            hint = Loc.T("Установка через winget без прав администратора — в профиль текущего пользователя.");
         else if (!Elevation.IsElevated && e.Scope is InstallScope.Machine)
-            hint = "Установка через winget. Установщик для всех пользователей сам покажет запрос UAC.";
+            hint = Loc.T("Установка через winget. Установщик для всех пользователей сам покажет запрос UAC.");
         else if (e.Source == PackageSource.MsStore)
-            hint = "Установка через winget из Microsoft Store. " + StoreVerification;
+            hint = Loc.T("Установка через winget из Microsoft Store. ") + StoreVerification;
         else
-            hint = "Установка через winget. Установщик скачивается с сервера разработчика и проверяется по SHA256.";
+            hint = Loc.T("Установка через winget. Установщик скачивается с сервера разработчика и проверяется по SHA256.");
         if (WingetClient.ExpandLocation(e.InstallLocation) is { } folder)
-            hint += $" Папка установки: {folder} (без неё установщик не запускается).";
+            hint += Loc.Tf(" Папка установки: {0} (без неё установщик не запускается).", folder);
         if (e.VendorInstaller is not null)
-            hint += " Производитель обновляет файл по той же ссылке: если winget откажется из-за контрольной суммы, " +
-                    "MONOLITH предложит скачать установщик напрямую у производителя с проверкой цифровой подписи.";
+            hint += Loc.T(" Производитель обновляет файл по той же ссылке: если winget откажется из-за контрольной суммы, " +
+                    "MONOLITH предложит скачать установщик напрямую у производителя с проверкой цифровой подписи.");
         return hint;
     }
 
@@ -134,15 +134,15 @@ public static class AppTexts
     /// </summary>
     public static string LicenseText(IEnumerable<CatalogEntry> entries, string confirmText) =>
         entries.Any(e => e.Source == PackageSource.MsStore)
-            ? $"Нажимая «{confirmText}», вы принимаете лицензии издателей программ и условия Microsoft Store."
-            : $"Нажимая «{confirmText}», вы принимаете лицензии издателей программ.";
+            ? Loc.Tf("Нажимая «{0}», вы принимаете лицензии издателей программ и условия Microsoft Store.", confirmText)
+            : Loc.Tf("Нажимая «{0}», вы принимаете лицензии издателей программ.", confirmText);
 
     /// <summary>"Steam — Valve.Steam · winget · установка".</summary>
     public static string QueueLine(CatalogEntry e, string packageId, QueueOperation op, string? installedVersion = null)
     {
-        var verb = op == QueueOperation.Install ? "установка" : "обновление";
+        var verb = op == QueueOperation.Install ? Loc.T("установка") : Loc.T("обновление");
         var line = $"{e.Name} — {packageId} · {e.SourceName} · {verb}";
-        if (op == QueueOperation.Upgrade && !string.IsNullOrEmpty(installedVersion)) line += $" (сейчас {installedVersion})";
+        if (op == QueueOperation.Upgrade && !string.IsNullOrEmpty(installedVersion)) line += Loc.Tf(" (сейчас {0})", installedVersion);
         return line;
     }
 
@@ -159,23 +159,23 @@ public static class AppTexts
             var e = item.Entry;
             var repeats = noted?.Contains(e) == true;
             if (e.Has(AppFlags.RemoteAccess))
-                list.Add($"ВНИМАНИЕ — {e.Name}: программа удалённого доступа. Не устанавливайте её по просьбе незнакомцев, «службы поддержки» или «банка».");
+                list.Add(Loc.Tf("ВНИМАНИЕ — {0}: программа удалённого доступа. Не устанавливайте её по просьбе незнакомцев, «службы поддержки» или «банка».", e.Name));
             if (e.Has(AppFlags.Anticheat) && e.Has(AppFlags.KernelDriver) && e.Has(AppFlags.Region))
-                list.Add($"ВНИМАНИЕ — {e.Name}: вместе с игрой ставится античит Riot Vanguard (драйвер ядра).");
+                list.Add(Loc.Tf("ВНИМАНИЕ — {0}: вместе с игрой ставится античит Riot Vanguard (драйвер ядра).", e.Name));
             else if (e.Has(AppFlags.KernelDriver))
-                list.Add($"ВНИМАНИЕ — {e.Name}: устанавливает драйвер ядра.");
+                list.Add(Loc.Tf("ВНИМАНИЕ — {0}: устанавливает драйвер ядра.", e.Name));
             else if (e.Has(AppFlags.Anticheat))
-                list.Add($"ВНИМАНИЕ — {e.Name}: может вызвать срабатывание античита в онлайн-играх.");
+                list.Add(Loc.Tf("ВНИМАНИЕ — {0}: может вызвать срабатывание античита в онлайн-играх.", e.Name));
             if (e.Has(AppFlags.Expert) && !repeats)
-                list.Add($"{e.Name}: инструмент для опытных пользователей.");
+                list.Add(Loc.Tf("{0}: инструмент для опытных пользователей.", e.Name));
             if (e.Has(AppFlags.Reboot))
-                list.Add($"{e.Name}: после установки понадобится перезагрузка (MONOLITH сам не перезагружает).");
+                list.Add(Loc.Tf("{0}: после установки понадобится перезагрузка (MONOLITH сам не перезагружает).", e.Name));
             if (e.Has(AppFlags.Eol) && !repeats)
-                list.Add($"{e.Name}: версия без поддержки или с заканчивающейся поддержкой Microsoft.");
+                list.Add(Loc.Tf("{0}: версия без поддержки или с заканчивающейся поддержкой Microsoft.", e.Name));
             if ((e.Has(AppFlags.Trialware) || e.Has(AppFlags.Paid)) && !repeats)
-                list.Add($"{e.Name}: платная программа или пробная версия.");
+                list.Add(Loc.Tf("{0}: платная программа или пробная версия.", e.Name));
             if (e.Has(AppFlags.Portable))
-                list.Add($"{e.Name}: портативная программа — ярлыка в меню «Пуск» может не быть.");
+                list.Add(Loc.Tf("{0}: портативная программа — ярлыка в меню «Пуск» может не быть.", e.Name));
         }
         return list;
     }
@@ -218,8 +218,8 @@ public static class AppTexts
     public static string AdviceLead(int discouraged) => discouraged switch
     {
         0 => "",
-        1 => "1 пакет из списка MONOLITH сейчас ставить не советует — причина в начале списка. Установить его всё равно можно. ",
-        _ => $"{Packages(discouraged)} из списка MONOLITH сейчас ставить не советует — причины в начале списка. Установить их всё равно можно. ",
+        1 => Loc.T("1 пакет из списка MONOLITH сейчас ставить не советует — причина в начале списка. Установить его всё равно можно. "),
+        _ => Loc.Tf("{0} из списка MONOLITH сейчас ставить не советует — причины в начале списка. Установить их всё равно можно. ", Packages(discouraged)),
     };
 
     public const string KitCaption =
@@ -230,11 +230,11 @@ public static class AppTexts
     {
         var names = string.Join(", ", kit.Select(e => e.Name));
         var left = string.Join(", ", leftOut.Select(e => e.Name));
-        return "Библиотеки, без которых игры не запускаются или падают с ошибками вроде «MSVCP140.dll не найден» и «d3dx9_43.dll отсутствует». " +
+        return Loc.T("Библиотеки, без которых игры не запускаются или падают с ошибками вроде «MSVCP140.dll не найден» и «d3dx9_43.dll отсутствует». ") +
                (names.Length > 0
-                   ? $"В набор входит то, что этому ПК НУЖНО или РЕКОМЕНДУЕТСЯ: {names}. "
-                   : "Состав набора появится после проверки установленных программ. ") +
-               (left.Length > 0 ? $"Не входят — этому ПК они не обязательны: {left}. Их ставят по одной, если игра или программа попросит." : "");
+                   ? Loc.Tf("В набор входит то, что этому ПК НУЖНО или РЕКОМЕНДУЕТСЯ: {0}. ", names)
+                   : Loc.T("Состав набора появится после проверки установленных программ. ")) +
+               (left.Length > 0 ? Loc.Tf("Не входят — этому ПК они не обязательны: {0}. Их ставят по одной, если игра или программа попросит.", left) : "");
     }
 
     /// <summary>True when the entry should be dangerous-styled in the confirmation (hatched header).</summary>
@@ -262,19 +262,19 @@ public static class AppTexts
     /// <summary>How a finished winget run is shown in the queue.</summary>
     public static (QueueState State, string Text, bool Reboot) DescribeResult(int code, QueueOperation op)
     {
-        if (code == 0) return (QueueState.Done, "ГОТОВО", false);
+        if (code == 0) return (QueueState.Done, Loc.T("ГОТОВО"), false);
         if (code == WingetClient.UpdateNotApplicable)
-            return (QueueState.Done, op == QueueOperation.Upgrade ? "ГОТОВО: уже последняя версия" : "ГОТОВО: уже установлено, обновлений нет", false);
-        if (code == WingetClient.AlreadyInstalled) return (QueueState.Done, "ГОТОВО: уже установлено", false);
-        if (code == WingetClient.RebootRequiredToFinish) return (QueueState.Done, "ГОТОВО: нужна перезагрузка", true);
-        if (code == WingetClient.RebootInitiated) return (QueueState.Done, "ГОТОВО: установщик перезагружает ПК", true);
-        if (code == WingetClient.RebootRequiredToInstall) return (QueueState.Failed, "ОШИБКА: нужна перезагрузка перед установкой", true);
+            return (QueueState.Done, op == QueueOperation.Upgrade ? Loc.T("ГОТОВО: уже последняя версия") : Loc.T("ГОТОВО: уже установлено, обновлений нет"), false);
+        if (code == WingetClient.AlreadyInstalled) return (QueueState.Done, Loc.T("ГОТОВО: уже установлено"), false);
+        if (code == WingetClient.RebootRequiredToFinish) return (QueueState.Done, Loc.T("ГОТОВО: нужна перезагрузка"), true);
+        if (code == WingetClient.RebootInitiated) return (QueueState.Done, Loc.T("ГОТОВО: установщик перезагружает ПК"), true);
+        if (code == WingetClient.RebootRequiredToInstall) return (QueueState.Failed, Loc.T("ОШИБКА: нужна перезагрузка перед установкой"), true);
         // Installed some other way (the SDK's Desktop Runtime): nothing failed, winget just has nothing to upgrade.
         if (code == WingetClient.NoApplicationsFound && op == QueueOperation.Upgrade)
-            return (QueueState.Skipped, "ПРОПУЩЕНО: установлено не через winget", false);
-        if (WingetClient.IsSkipped(code) || WingetClient.IsBenign(code)) return (QueueState.Skipped, $"ПРОПУЩЕНО: {WingetClient.Describe(code)}", false);
+            return (QueueState.Skipped, Loc.T("ПРОПУЩЕНО: установлено не через winget"), false);
+        if (WingetClient.IsSkipped(code) || WingetClient.IsBenign(code)) return (QueueState.Skipped, Loc.Tf("ПРОПУЩЕНО: {0}", WingetClient.Describe(code)), false);
         if (code == WingetClient.InstallerHashMismatch) return (QueueState.Failed, HashMismatchStatus, false);
-        return (QueueState.Failed, $"ОШИБКА: {WingetClient.Describe(code)}", false);
+        return (QueueState.Failed, Loc.Tf("ОШИБКА: {0}", WingetClient.Describe(code)), false);
     }
 
     /// <summary>
@@ -284,86 +284,86 @@ public static class AppTexts
     /// <param name="elevated">Defaults to the current process: the vendor download needs administrator rights.</param>
     public static string ResultDetail(int code, QueueOperation op, CatalogEntry e, bool? elevated = null)
     {
-        var site = $"Можно установить программу с официального сайта ({e.Website}).";
+        var site = Loc.Tf("Можно установить программу с официального сайта ({0}).", e.Website);
         var install = op == QueueOperation.Install;
         if (code == WingetClient.UpgradeVersionNotNewer)
-            return "В каталоге winget нет версии новее установленной — обновлять нечего.";
+            return Loc.T("В каталоге winget нет версии новее установленной — обновлять нечего.");
         if (code == WingetClient.UpgradeVersionUnknown)
-            return "winget не знает, какая версия установлена, и не обновляет вслепую. Если нужна новая версия — обновите программу " +
-                   "её встроенным средством обновления или с официального сайта.";
+            return Loc.T("winget не знает, какая версия установлена, и не обновляет вслепую. Если нужна новая версия — обновите программу " +
+                   "её встроенным средством обновления или с официального сайта.");
         if (code == WingetClient.PackageIsPinned)
-            return $"Пакет закреплён в winget — MONOLITH уважает закрепление и не обновляет его. Снять закрепление: «winget pin remove --id {e.Id}».";
+            return Loc.Tf("Пакет закреплён в winget — MONOLITH уважает закрепление и не обновляет его. Снять закрепление: «winget pin remove --id {0}».", e.Id);
         if (code == unchecked((int)0x8A15010D))
-            return "Установлена другая версия программы — winget не ставит поверх неё.";
+            return Loc.T("Установлена другая версия программы — winget не ставит поверх неё.");
         if (code == unchecked((int)0x8A15010E))
-            return "Установлена более новая версия — winget не понижает версию.";
+            return Loc.T("Установлена более новая версия — winget не понижает версию.");
         if (code == WingetClient.InstallerHashMismatch)
-            return "Контрольная сумма скачанного установщика не совпала с каталогом winget. Чаще всего это значит, что производитель " +
+            return Loc.T("Контрольная сумма скачанного установщика не совпала с каталогом winget. Чаще всего это значит, что производитель " +
                    "выложил новую версию по той же ссылке, а каталог winget ещё не обновлён; реже — файл повреждён или подменён по пути. " +
-                   "Поэтому winget его не запустил, и обходить эту проверку MONOLITH не будет. " +
+                   "Поэтому winget его не запустил, и обходить эту проверку MONOLITH не будет. ") +
                    (e.VendorInstaller is { } v && (elevated ?? Elevation.IsElevated)
-                       ? $"Нажмите «СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ»: MONOLITH скачает официальный установщик с {v.Host} и проверит его цифровую подпись " +
-                         $"({SignerList(v.Signers)}). Или повторите через несколько дней, когда каталог winget обновится."
-                       : "Скачайте программу с официального сайта (кнопка «ОТКРЫТЬ САЙТ») или повторите через несколько дней, когда каталог winget обновится.");
+                       ? Loc.Tf("Нажмите «СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ»: MONOLITH скачает официальный установщик с {0} и проверит его цифровую подпись " +
+                         "({1}). Или повторите через несколько дней, когда каталог winget обновится.", v.Host, SignerList(v.Signers))
+                       : Loc.T("Скачайте программу с официального сайта (кнопка «ОТКРЫТЬ САЙТ») или повторите через несколько дней, когда каталог winget обновится."));
         if (code == WingetClient.InstallLocationRequired)
             return install
-                ? "Установщик требует указать папку установки, а спросить её у вас в тихом режиме winget не может; со стандартной папкой установка тоже не прошла. " + site
-                : "Для обновления winget требует папку, где стоит программа, а MONOLITH её не знает. Обновите программу её встроенным " +
-                  "средством обновления (обычно при запуске) или установщиком с официального сайта.";
+                ? Loc.T("Установщик требует указать папку установки, а спросить её у вас в тихом режиме winget не может; со стандартной папкой установка тоже не прошла. ") + site
+                : Loc.T("Для обновления winget требует папку, где стоит программа, а MONOLITH её не знает. Обновите программу её встроенным " +
+                  "средством обновления (обычно при запуске) или установщиком с официального сайта.");
         if (code == WingetClient.NoApplicationsFound)
             return install
-                ? $"Пакета {e.Id} сейчас нет в каталоге winget (его могли переименовать или убрать). {site}"
-                : UnmanagedExplanation + " MONOLITH её не трогает.";
+                ? Loc.Tf("Пакета {0} сейчас нет в каталоге winget (его могли переименовать или убрать). {1}", e.Id, site)
+                : UnmanagedExplanation + Loc.T(" MONOLITH её не трогает.");
         if (code == WingetClient.NoApplicableInstaller)
-            return "В каталоге winget нет установщика для этой системы (архитектура или версия Windows). " + site;
+            return Loc.T("В каталоге winget нет установщика для этой системы (архитектура или версия Windows). ") + site;
         if (code == WingetClient.HttpNotFound)
-            return "Сервер производителя ответил «файл не найден» (404): ссылка в каталоге winget устарела. " + site;
+            return Loc.T("Сервер производителя ответил «файл не найден» (404): ссылка в каталоге winget устарела. ") + site;
         if (WingetClient.IsDownloadProblem(code))
-            return "Не удалось скачать установщик: нет интернета или сервер производителя не ответил. Проверьте подключение и повторите; " +
-                   "если ошибка повторяется, ссылка в каталоге winget, скорее всего, устарела. " + site;
+            return Loc.T("Не удалось скачать установщик: нет интернета или сервер производителя не ответил. Проверьте подключение и повторите; " +
+                   "если ошибка повторяется, ссылка в каталоге winget, скорее всего, устарела. ") + site;
         if (code == WingetClient.ElevationProhibited)
-            return "Установщик запрещает запуск с правами администратора, а запустить его от вашего имени не удалось. " +
-                   "Запустите MONOLITH без прав администратора и повторите. " + site;
+            return Loc.T("Установщик запрещает запуск с правами администратора, а запустить его от вашего имени не удалось. " +
+                   "Запустите MONOLITH без прав администратора и повторите. ") + site;
         if (code == WingetClient.RebootRequiredToInstall)
-            return "Windows ждёт перезагрузки после прошлой установки или обновления. Перезагрузите компьютер и повторите — MONOLITH сам не перезагружает.";
+            return Loc.T("Windows ждёт перезагрузки после прошлой установки или обновления. Перезагрузите компьютер и повторите — MONOLITH сам не перезагружает.");
         if (code == unchecked((int)0x8A150019))
-            return "Для этого пакета нужны права администратора. Перезапустите MONOLITH с правами администратора и повторите.";
+            return Loc.T("Для этого пакета нужны права администратора. Перезапустите MONOLITH с правами администратора и повторите.");
         if (code is unchecked((int)0x8A150101) or unchecked((int)0x8A150103) or unchecked((int)0x8A150111))
-            return "Программа сейчас запущена. Закройте её (и значок в трее рядом с часами) и повторите.";
+            return Loc.T("Программа сейчас запущена. Закройте её (и значок в трее рядом с часами) и повторите.");
         if (code == unchecked((int)0x8A150102))
-            return "Сейчас идёт другая установка (Windows Update или другой установщик). Дождитесь её окончания и повторите.";
+            return Loc.T("Сейчас идёт другая установка (Windows Update или другой установщик). Дождитесь её окончания и повторите.");
         if (code == unchecked((int)0x8A15010C))
-            return "Установка отменена в окне установщика или в запросе UAC. Если это случайно — повторите и подтвердите запрос.";
+            return Loc.T("Установка отменена в окне установщика или в запросе UAC. Если это случайно — повторите и подтвердите запрос.");
         if (code is unchecked((int)0x8A15010F) or unchecked((int)0x8A15003A) or unchecked((int)0x8A15001B) or unchecked((int)0x8A15001C))
-            return "Установку запрещает политика этого компьютера (настройки организации или администратора). Обратитесь к тому, кто управляет ПК.";
+            return Loc.T("Установку запрещает политика этого компьютера (настройки организации или администратора). Обратитесь к тому, кто управляет ПК.");
         if (code == unchecked((int)0x8A150083))
-            return "Microsoft Store не выдал лицензию. Откройте Microsoft Store, войдите в свою учётную запись и повторите.";
+            return Loc.T("Microsoft Store не выдал лицензию. Откройте Microsoft Store, войдите в свою учётную запись и повторите.");
         if (code == unchecked((int)0x8A150105))
-            return "На системном диске не хватает места. Освободите место (раздел «Обслуживание → Очистка») и повторите.";
+            return Loc.T("На системном диске не хватает места. Освободите место (раздел «Обслуживание → Очистка») и повторите.");
         if (code == unchecked((int)0x8A150106))
-            return "Не хватает оперативной памяти. Закройте лишние программы и повторите.";
+            return Loc.T("Не хватает оперативной памяти. Закройте лишние программы и повторите.");
         if (code == unchecked((int)0x8A150113))
-            return "Программа не поддерживает эту версию Windows. Проверьте системные требования на официальном сайте.";
+            return Loc.T("Программа не поддерживает эту версию Windows. Проверьте системные требования на официальном сайте.");
         if (code is unchecked((int)0x8A150104) or unchecked((int)0x8A150110))
-            return "Не удалось поставить то, что нужно пакету для работы (например, .NET или Visual C++). Установите «Набор геймера» на этой странице и повторите.";
+            return Loc.T("Не удалось поставить то, что нужно пакету для работы (например, .NET или Visual C++). Установите «Набор геймера» на этой странице и повторите.");
         if (code == unchecked((int)0x8A150114))
-            return "Установщик не умеет обновлять поверх установленной версии. Обновите программу её встроенным средством обновления " +
-                   "или удалите её в «Параметры → Приложения» и установите заново.";
+            return Loc.T("Установщик не умеет обновлять поверх установленной версии. Обновите программу её встроенным средством обновления " +
+                   "или удалите её в «Параметры → Приложения» и установите заново.");
         if (code is unchecked((int)0x8A150041) or unchecked((int)0x8A150046) or unchecked((int)0x8A150045) or unchecked((int)0x8A15004B)
             or unchecked((int)0x8A150007) or WingetClient.InternalError or unchecked((int)0x8A150002))
-            return "Сбой самого winget. Обновите «Установщик приложений» в Microsoft Store (кнопка вверху страницы, если winget устарел) и повторите.";
+            return Loc.T("Сбой самого winget. Обновите «Установщик приложений» в Microsoft Store (кнопка вверху страницы, если winget устарел) и повторите.");
         if (code == unchecked((int)0x8A15005E))
-            return "Сертификат сервера не совпал: соединение, похоже, перехватывает прокси или антивирус с проверкой HTTPS. " +
-                   "winget отказался ради безопасности. Отключите перехват HTTPS или установите программу с сайта.";
+            return Loc.T("Сертификат сервера не совпал: соединение, похоже, перехватывает прокси или антивирус с проверкой HTTPS. " +
+                   "winget отказался ради безопасности. Отключите перехват HTTPS или установите программу с сайта.");
         if (code is unchecked((int)0x8A150005) or unchecked((int)0x8A15006A))
-            return "winget был прерван (закрыт или остановлен системой). Повторите установку.";
+            return Loc.T("winget был прерван (закрыт или остановлен системой). Повторите установку.");
         if (code == -1)
-            return "winget недоступен. Установите или обновите «Установщик приложений» из Microsoft Store и повторите.";
+            return Loc.T("winget недоступен. Установите или обновите «Установщик приложений» из Microsoft Store и повторите.");
         if (code is unchecked((int)0x8A150006) or unchecked((int)0x8A150049) or unchecked((int)0x8A150108) or unchecked((int)0x8A150115)
             or unchecked((int)0x8A150112) or unchecked((int)0x8A150052) or unchecked((int)0x8A150060))
-            return "Установщик программы завершился с ошибкой — его код есть в журнале ниже. Закройте программу, если она запущена, " +
-                   "перезагрузите компьютер и повторите. " + site;
-        return $"winget завершился с ошибкой ({WingetClient.Describe(code)}) — подробности в журнале ниже. Повторите позже. " + site;
+            return Loc.T("Установщик программы завершился с ошибкой — его код есть в журнале ниже. Закройте программу, если она запущена, " +
+                   "перезагрузите компьютер и повторите. ") + site;
+        return Loc.Tf("winget завершился с ошибкой ({0}) — подробности в журнале ниже. Повторите позже. ", WingetClient.Describe(code)) + site;
     }
 
     /// <summary>The button a failed (or skipped) queue row offers, if any.</summary>
@@ -384,24 +384,24 @@ public static class AppTexts
     /// <summary>Lead of the confirmation before the vendor installer is downloaded.</summary>
     public static string VendorLead(CatalogEntry e, bool afterHashMismatch) =>
         (afterHashMismatch
-            ? $"winget отказался ставить {e.Name}: установщик не совпал с каталогом winget (обычно производитель обновил файл, а каталог ещё нет). "
+            ? Loc.Tf("winget отказался ставить {0}: установщик не совпал с каталогом winget (обычно производитель обновил файл, а каталог ещё нет). ", e.Name)
             : WebsiteOnlyReason(e) + " ") +
-        "MONOLITH может скачать официальный установщик прямо с сервера производителя — без браузера и сторонних сайтов — " +
-        "и проверить его цифровую подпись вместо контрольной суммы winget. Саму установку вы проводите в окне установщика.";
+        Loc.T("MONOLITH может скачать официальный установщик прямо с сервера производителя — без браузера и сторонних сайтов — " +
+        "и проверить его цифровую подпись вместо контрольной суммы winget. Саму установку вы проводите в окне установщика.");
 
     /// <summary>Exactly what the direct download will do — host, file, folder, signer, how it is started.</summary>
     public static List<string> VendorPlan(VendorDownloadRequest r, bool restorePoint) =>
     [
-        $"Источник: официальный сервер {r.Url.Host} (HTTPS), ссылка {r.Url.AbsoluteUri}",
-        $"Файл: {r.FileName} → {r.Folder} (запись туда разрешена только администраторам)",
-        $"Проверка: действительная цифровая подпись {SignerList(r.Signers)}; без неё файл удаляется и не запускается",
-        "Установщик запустится от вашего имени, без прав MONOLITH; права администратора он попросит сам (запрос UAC)",
+        Loc.Tf("Источник: официальный сервер {0} (HTTPS), ссылка {1}", r.Url.Host, r.Url.AbsoluteUri),
+        Loc.Tf("Файл: {0} → {1} (запись туда разрешена только администраторам)", r.FileName, r.Folder),
+        Loc.Tf("Проверка: действительная цифровая подпись {0}; без неё файл удаляется и не запускается", SignerList(r.Signers)),
+        Loc.T("Установщик запустится от вашего имени, без прав MONOLITH; права администратора он попросит сам (запрос UAC)"),
         restorePoint
-            ? "Перед запуском будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)"
-            : "Точка восстановления создана не будет (защита системы или эта настройка MONOLITH выключены)",
-        "Лицензию производителя показывает сам установщик — MONOLITH ничего не принимает за вас",
-        $"Нужно свободного места на системном диске: не меньше {SystemProfile.FormatBytes(r.RequiredFreeSpace)}",
-        "Удалить программу потом можно в «Параметры → Приложения»",
+            ? Loc.T("Перед запуском будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)")
+            : Loc.T("Точка восстановления создана не будет (защита системы или эта настройка MONOLITH выключены)"),
+        Loc.T("Лицензию производителя показывает сам установщик — MONOLITH ничего не принимает за вас"),
+        Loc.Tf("Нужно свободного места на системном диске: не меньше {0}", SystemProfile.FormatBytes(r.RequiredFreeSpace)),
+        Loc.T("Удалить программу потом можно в «Параметры → Приложения»"),
     ];
 
     /// <summary>"1 программа / 3 программы / 5 программ".</summary>
@@ -409,7 +409,7 @@ public static class AppTexts
     {
         var mod100 = n % 100;
         var mod10 = n % 10;
-        var word = mod100 is >= 11 and <= 14 ? "программ" : mod10 switch { 1 => "программа", >= 2 and <= 4 => "программы", _ => "программ" };
+        var word = mod100 is >= 11 and <= 14 ? Loc.T("программ") : mod10 switch { 1 => Loc.T("программа"), >= 2 and <= 4 => Loc.T("программы"), _ => Loc.T("программ") };
         return $"{n} {word}";
     }
 
@@ -418,7 +418,7 @@ public static class AppTexts
     {
         var mod100 = n % 100;
         var mod10 = n % 10;
-        var word = mod100 is >= 11 and <= 14 ? "пакетов" : mod10 switch { 1 => "пакет", >= 2 and <= 4 => "пакета", _ => "пакетов" };
+        var word = mod100 is >= 11 and <= 14 ? Loc.T("пакетов") : mod10 switch { 1 => Loc.T("пакет"), >= 2 and <= 4 => Loc.T("пакета"), _ => Loc.T("пакетов") };
         return $"{n} {word}";
     }
 }

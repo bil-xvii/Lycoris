@@ -1,0 +1,18 @@
+{
+  "area": "Apps",
+  "translated": false,
+  "sources": [
+    "Modules/Apps/AppItemViewModel.cs",
+    "Modules/Apps/AppsView.xaml",
+    "Modules/Apps/AppsView.xaml.cs",
+    "Modules/Apps/AppsViewModel.cs",
+    "Modules/Apps/AppsViewModel.Vendor.cs",
+    "Modules/Apps/CardGrid.cs",
+    "Modules/Apps/InstalledDetector.cs",
+    "Modules/Apps/PeripheralScan.cs",
+    "Modules/Apps/UnelevatedWinget.cs",
+    "Core/WingetClient.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

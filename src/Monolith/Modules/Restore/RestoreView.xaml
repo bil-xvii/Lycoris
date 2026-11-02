@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:ui="clr-namespace:Monolith.UI"
+             xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Restore"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:RestoreViewModel}">
     <!--
@@ -53,11 +54,11 @@
                             </Border>
                             <Border Style="{StaticResource Tag.Hatch}" Margin="0,0,6,0"
                                     Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="ИЗМЕНЕНО ВНЕ MONOLITH" />
+                                <TextBlock Text="{loc:T ИЗМЕНЕНО ВНЕ MONOLITH}" />
                             </Border>
                             <Border Style="{StaticResource Tag.Hatch}"
                                     Visibility="{Binding IsMismatch, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="НЕ СОВПАДАЕТ" />
+                                <TextBlock Text="{loc:T НЕ СОВПАДАЕТ}" />
                             </Border>
                         </WrapPanel>
                         <TextBlock Text="{Binding Target}" ToolTip="{Binding RawTarget}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
@@ -78,7 +79,7 @@
                                    Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text}" Margin="0,6,0,0"
                                    Visibility="{Binding IsFailed, Converter={StaticResource BoolToVis}}">
-                            <Run Text="Ошибка отката:" FontWeight="SemiBold" />
+                            <Run Text="{loc:T Ошибка отката:}" FontWeight="SemiBold" />
                             <Run Text="{Binding RevertError, Mode=OneWay}" />
                         </TextBlock>
                     </StackPanel>
@@ -108,7 +109,7 @@
                                 CommandParameter="{Binding}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                <TextBlock Text="ОТКАТИТЬ" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ОТКАТИТЬ}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource Btn.Primary}" MinWidth="130" Margin="0,8,0,0" HorizontalAlignment="Right"
@@ -117,7 +118,7 @@
                                 CommandParameter="{Binding}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                <TextBlock Text="ПРИМЕНИТЬ СНОВА" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ПРИМЕНИТЬ СНОВА}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Button MinWidth="130" Margin="0,8,0,0" HorizontalAlignment="Right"
@@ -126,7 +127,7 @@
                                 CommandParameter="{Binding}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                <TextBlock Text="ПОКАЗАТЬ" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ПОКАЗАТЬ}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Button MinWidth="130" Margin="0,8,0,0" HorizontalAlignment="Right"
@@ -135,11 +136,11 @@
                                 CommandParameter="{Binding}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE711;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                <TextBlock Text="ЗАБЫТЬ" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ЗАБЫТЬ}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <TextBlock Style="{StaticResource T.Caption}" TextAlignment="Right" Margin="0,4,0,0" MaxWidth="150" TextWrapping="Wrap"
-                                   Text="Оставить новое значение и не напоминать"
+                                   Text="{loc:T Оставить новое значение и не напоминать}"
                                    Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                 </Grid>
@@ -187,7 +188,7 @@
                 <Button Command="{Binding CreateRestorePointCommand}" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="СОЗДАТЬ ТОЧКУ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T СОЗДАТЬ ТОЧКУ}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </c:PageHeader.Actions>
@@ -195,7 +196,7 @@
                 <Button Style="{StaticResource Btn.Primary}" Command="{Binding RevertLastBatchCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </c:PageHeader.Primary>
@@ -209,25 +210,25 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="ЖУРНАЛ" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <TextBlock Text="{loc:T ЖУРНАЛ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,12,0" />
                 <RadioButton Style="{StaticResource Chip}" GroupName="JournalFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=All}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ВСЕ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ВСЕ}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding TotalCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Chip}" GroupName="JournalFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=Active}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="АКТИВНЫЕ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T АКТИВНЫЕ}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding ActiveCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Chip}" GroupName="JournalFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=Reverted}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ОТКАЧЕННЫЕ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ОТКАЧЕННЫЕ}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding RevertedCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
@@ -238,7 +239,7 @@
             <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Command="{Binding RevertAllCommand}" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBlock Text="ОТКАТИТЬ ВСЁ" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:T ОТКАТИТЬ ВСЁ}" VerticalAlignment="Center" />
                     <Border Style="{StaticResource TabBadge}">
                         <TextBlock Text="{Binding RevertAllCount}" />
                     </Border>
@@ -258,21 +259,21 @@
                 </Grid.ColumnDefinitions>
                 <Rectangle Fill="{StaticResource B.HatchStrong}" />
                 <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="11,9,10,9"
-                           Text="{Binding DriftCount, StringFormat=ИЗМЕНЕНО ВНЕ MONOLITH · {0}}" />
+                           Text="{Binding DriftCount, StringFormat={loc:T 'ИЗМЕНЕНО ВНЕ MONOLITH · {0}'}}" />
                 <TextBlock Grid.Column="2" Text="{Binding DriftLine}" Style="{StaticResource T.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
                            Margin="0,9,10,9" />
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,10,8">
                     <Button Margin="0,0,8,0" Command="{Binding ShowDriftedCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="ПОКАЗАТЬ" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T ПОКАЗАТЬ}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource Btn.Primary}" Visibility="{Binding HasReapplicableDrift, Converter={StaticResource BoolToVis}}"
                             Command="{Binding ReapplyAllDriftCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="ПРИМЕНИТЬ СНОВА ВСЁ" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T ПРИМЕНИТЬ СНОВА ВСЁ}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -354,7 +355,7 @@
                                                         CommandParameter="{Binding}">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                        <TextBlock Text="ОТКАТИТЬ ПАКЕТ" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{loc:T ОТКАТИТЬ ПАКЕТ}" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Button>
                                             </StackPanel>
@@ -362,7 +363,7 @@
                                         <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="12,9"
                                                 Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
                                             <TextBlock Style="{StaticResource T.Caption}"
-                                                       Text="В пакете нет записей для отката: действие выполнено напрямую (например, сброс сети), настройки уже были такими или изменение не удалось. Вернуть прежнее состояние можно точкой восстановления, если она создана." />
+                                                       Text="{loc:T 'В пакете нет записей для отката: действие выполнено напрямую (например, сброс сети), настройки уже были такими или изменение не удалось. Вернуть прежнее состояние можно точкой восстановления, если она создана.'}" />
                                         </Border>
                                         <Expander Header="{Binding ExpandText}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Margin="12,0,12,12"
                                                   Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVis}}">
@@ -381,7 +382,7 @@
                 <StackPanel x:Name="Sec_restore_points" Grid.Column="2">
                     <Border Style="{StaticResource Card}" Padding="14,12">
                         <StackPanel>
-                            <TextBlock Text="ЗАЩИТА СИСТЕМЫ WINDOWS" Style="{StaticResource T.Label}" />
+                            <TextBlock Text="{loc:T ЗАЩИТА СИСТЕМЫ WINDOWS}" Style="{StaticResource T.Label}" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <Rectangle Width="14" Height="14" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Center" Margin="0,2,9,0">
                                     <Rectangle.Style>
@@ -406,7 +407,7 @@
                                         Visibility="{Binding CanOfferEnable, Converter={StaticResource BoolToVis}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="&#xE73E;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="ВКЛЮЧИТЬ ЗАЩИТУ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ВКЛЮЧИТЬ ЗАЩИТУ}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Grid>
@@ -416,24 +417,24 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Button Command="{Binding ConfigureProtectionCommand}"
-                                            ToolTip="SystemPropertiesProtection.exe — «Свойства системы» → «Защита системы»">
+                                            ToolTip="{loc:T SystemPropertiesProtection.exe — «Свойства системы» → «Защита системы»}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE713;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="НАСТРОИТЬ" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:T НАСТРОИТЬ}" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Column="2" Command="{Binding OpenBackupsCommand}" ToolTip="{Binding BackupsPath}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="КОПИИ" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:T КОПИИ}" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
                                 <Button Command="{Binding OpenSystemRestoreCommand}" Margin="0,8,0,0"
-                                        ToolTip="rstrui.exe — мастер «Восстановление системы»">
+                                        ToolTip="{loc:T rstrui.exe — мастер «Восстановление системы»}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="&#xE81C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="ВОССТАНОВЛЕНИЕ СИСТЕМЫ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ВОССТАНОВЛЕНИЕ СИСТЕМЫ}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </StackPanel>
@@ -443,19 +444,19 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Margin="0,0,10,0">
-                                    <TextBlock Text="Точка перед изменениями" Style="{StaticResource T.H3}" />
+                                    <TextBlock Text="{loc:T Точка перед изменениями}" Style="{StaticResource T.H3}" />
                                     <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17"
-                                               Text="MONOLITH создаёт точку восстановления перед каждым пакетом изменений (если защита включена). Рекомендуется держать включённым." />
+                                               Text="{loc:T MONOLITH создаёт точку восстановления перед каждым пакетом изменений (если защита включена). Рекомендуется держать включённым.}" />
                                 </StackPanel>
                                 <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding CreateRestorePoints}" />
                             </Grid>
 
                             <Grid Margin="0,14,0,8">
                                 <TextBlock Style="{StaticResource T.Label}" VerticalAlignment="Center">
-                                    <Run Text="ТОЧКИ ВОССТАНОВЛЕНИЯ" /><Run Text="  " /><Run Text="{Binding PointsCountText, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
+                                    <Run Text="{loc:T ТОЧКИ ВОССТАНОВЛЕНИЯ}" /><Run Text="  " /><Run Text="{Binding PointsCountText, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
                                 </TextBlock>
                             </Grid>
-                            <TextBlock Text="Загрузка списка…" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
+                            <TextBlock Text="{loc:T Загрузка списка…}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
                                        Visibility="{Binding PointsLoading, Converter={StaticResource BoolToVis}}" />
                             <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,9,0,0"
                                     Visibility="{Binding PointsMessage, Converter={StaticResource NullToVis}}">
@@ -466,7 +467,7 @@
                                             Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="&#xE7EF;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="ПОКАЗАТЬ ТОЧКИ" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:T ПОКАЗАТЬ ТОЧКИ}" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>

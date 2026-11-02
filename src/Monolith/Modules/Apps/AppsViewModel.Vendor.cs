@@ -82,16 +82,16 @@ public sealed partial class AppsViewModel
         var plan = notes.ToList();
         plan.AddRange(AppTexts.VendorPlan(request, restore));
         var confirmed = await Ui.ConfirmAsync(
-            $"СКАЧАТЬ {entry.Name.ToUpperInvariant()} У ПРОИЗВОДИТЕЛЯ?",
+            Loc.Tf("СКАЧАТЬ {0} У ПРОИЗВОДИТЕЛЯ?", entry.Name.ToUpperInvariant()),
             AppTexts.AdviceLead(notes.Count) + AppTexts.VendorLead(entry, afterHashMismatch),
             plan,
-            confirmText: "СКАЧАТЬ И ЗАПУСТИТЬ", cancelText: "ОТМЕНА",
-            footnote: "Если подпись не подтвердится, файл будет удалён и не запустится.");
+            confirmText: Loc.T("СКАЧАТЬ И ЗАПУСТИТЬ"), cancelText: Loc.T("ОТМЕНА"),
+            footnote: Loc.T("Если подпись не подтвердится, файл будет удалён и не запустится."));
         if (!confirmed || IsQueueRunning || IsVendorDownloadRunning || _installWaiting) return;
 
         // One installer at a time across the whole app: waits in the visible queue behind a running winget queue or driver install.
         // The lease is released in the finally below; the signed installer, once started for the user, runs on its own.
-        var lease = await AcquireInstallAsync($"Загрузка установщика {entry.Name}", () => Ui.Post(() => _vendorCts?.Cancel()));
+        var lease = await AcquireInstallAsync(Loc.Tf("Загрузка установщика {0}", entry.Name), () => Ui.Post(() => _vendorCts?.Cancel()));
         if (lease is null) return;
         var scope = lease.Scope();
         CurrentLease = lease;
@@ -104,41 +104,41 @@ public sealed partial class AppsViewModel
             job = new QueueItemViewModel(item, QueueOperation.Install);
             Queue.Add(job);
             HasQueue = true;
-            QueueTitle = "ЗАГРУЗКА У ПРОИЗВОДИТЕЛЯ";
+            QueueTitle = Loc.T("ЗАГРУЗКА У ПРОИЗВОДИТЕЛЯ");
             QueueCounter = "1 / 1";
         }
         item.Job = job;
 
         _vendorCts = new CancellationTokenSource();
         var ct = _vendorCts.Token;
-        job.Detail = $"Официальный установщик с {request.Url.Host}; подпись должна быть от {string.Join(" или ", request.Signers)}.";
+        job.Detail = Loc.Tf("Официальный установщик с {0}; подпись должна быть от {1}.", request.Url.Host, string.Join(Loc.T(" или "), request.Signers));
         job.IsDownloading = true;
         job.State = QueueState.Running;
-        job.StatusText = "ЗАГРУЗКА…";
+        job.StatusText = Loc.T("ЗАГРУЗКА…");
         IsVendorDownloadRunning = true;
         QueueProgress = 0;
         AppendLog("");
-        AppendLog($"▌ {entry.Name} · установщик производителя · {request.Url.Host}");
-        Log.Info($"{entry.Name}: загрузка официального установщика с {request.Url.Host}…");
-        BeginBusy($"{entry.Name}: загрузка установщика…");
+        AppendLog(Loc.Tf("▌ {0} · установщик производителя · {1}", entry.Name, request.Url.Host));
+        Log.Info("{0}: загрузка официального установщика с {1}…", entry.Name, request.Url.Host);
+        BeginBusy(Loc.Tf("{0}: загрузка установщика…", entry.Name));
         try
         {
             var progress = new Progress<DownloadProgress>(p =>
             {
-                job.StatusText = p.Verifying ? "ПРОВЕРКА ПОДПИСИ…" : $"ЗАГРУЗКА {VendorDownloads.FormatProgress(p)}";
+                job.StatusText = p.Verifying ? Loc.T("ПРОВЕРКА ПОДПИСИ…") : Loc.Tf("ЗАГРУЗКА {0}", VendorDownloads.FormatProgress(p));
                 QueueProgress = p.Verifying ? 100 : p.Percent;
                 SetBusyText($"{entry.Name}: {VendorDownloads.FormatProgress(p)}");
             });
             var path = await Task.Run(() => VendorDownloads.DownloadAsync(request, progress, ct), CancellationToken.None);
             // ОТМЕНА must still stop everything after the transfer: signature check, restore point and the launch.
             ct.ThrowIfCancellationRequested();
-            AppendLog($"Скачано и проверено: {path}");
+            AppendLog(Loc.Tf("Скачано и проверено: {0}", path));
 
             if (restore && !await CreateRestorePointAsync(entry))
             {
                 job.State = QueueState.Cancelled;
-                job.StatusText = "ОТМЕНЕНО: нет точки восстановления";
-                job.Detail = "Установщик скачан и проверен, но не запущен: вы не стали продолжать без точки восстановления. При повторе MONOLITH скачает свежую копию.";
+                job.StatusText = Loc.T("ОТМЕНЕНО: нет точки восстановления");
+                job.Detail = Loc.T("Установщик скачан и проверен, но не запущен: вы не стали продолжать без точки восстановления. При повторе MONOLITH скачает свежую копию.");
                 job.Fallback = QueueFallback.VendorDownload;
                 return;
             }
@@ -146,12 +146,12 @@ public sealed partial class AppsViewModel
             ct.ThrowIfCancellationRequested();
 
             // The file sat in the admin-only folder; check it once more right before it is started.
-            job.StatusText = "ПРОВЕРКА ПОДПИСИ…";
+            job.StatusText = Loc.T("ПРОВЕРКА ПОДПИСИ…");
             var (valid, signer) = await VendorDownloads.VerifySignatureAsync(path, request.Signers);
             if (!valid || !VendorDownloads.IsDirectlyInFolder(path, request.Folder))
             {
                 VendorDownloads.TryDelete(path);
-                throw new InvalidOperationException($"Подпись установщика не подтверждена перед запуском ({signer}) — файл удалён, запуск отменён.");
+                throw new InvalidOperationException(Loc.Tf("Подпись установщика не подтверждена перед запуском ({0}) — файл удалён, запуск отменён.", signer));
             }
 
             ct.ThrowIfCancellationRequested();
@@ -159,38 +159,38 @@ public sealed partial class AppsViewModel
             // Never with MONOLITH's admin token: the vendor installer asks for the rights it needs itself.
             if (await UnelevatedShell.StartAsUserAsync(path, "", Path.GetDirectoryName(path)))
             {
-                job.Detail = $"Официальный установщик проверен ({signer}) и запущен от вашего имени — права администратора он попросит сам. " +
-                             "Пройдите его шаги, затем нажмите «ПРОВЕРИТЬ» вверху страницы, чтобы MONOLITH увидел программу.";
+                job.Detail = Loc.Tf("Официальный установщик проверен ({0}) и запущен от вашего имени — права администратора он попросит сам. " +
+                             "Пройдите его шаги, затем нажмите «ПРОВЕРИТЬ» вверху страницы, чтобы MONOLITH увидел программу.", signer);
                 job.Fallback = QueueFallback.None;
                 job.State = QueueState.Unknown;
-                job.StatusText = "ЗАПУЩЕН УСТАНОВЩИК ПРОИЗВОДИТЕЛЯ";
-                Log.Success($"{entry.Name}: официальный установщик запущен от имени пользователя ({signer}).");
-                Ui.Toast($"Установщик {entry.Name} проверен и запущен. Пройдите его шаги.", ToastKind.Success, entry.Name.ToUpperInvariant());
+                job.StatusText = Loc.T("ЗАПУЩЕН УСТАНОВЩИК ПРОИЗВОДИТЕЛЯ");
+                Log.Success("{0}: официальный установщик запущен от имени пользователя ({1}).", entry.Name, signer);
+                Ui.Toast(Loc.Tf("Установщик {0} проверен и запущен. Пройдите его шаги.", entry.Name), ToastKind.Success, entry.Name.ToUpperInvariant());
             }
             else
             {
-                job.Detail = $"Установщик скачан и проверен ({signer}), но запустить его от вашего имени не удалось (рабочий стол Windows недоступен). " +
-                             $"Запустите вручную файл {path} или скачайте программу с официального сайта.";
+                job.Detail = Loc.Tf("Установщик скачан и проверен ({0}), но запустить его от вашего имени не удалось (рабочий стол Windows недоступен). " +
+                             "Запустите вручную файл {1} или скачайте программу с официального сайта.", signer, path);
                 job.Fallback = QueueFallback.Website;
                 job.State = QueueState.Failed;
-                job.StatusText = "ОШИБКА: установщик не запущен";
+                job.StatusText = Loc.T("ОШИБКА: установщик не запущен");
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            job.Detail = "Загрузка прервана, установщик не запущен (недокачанный файл удалён). Её можно повторить.";
+            job.Detail = Loc.T("Загрузка прервана, установщик не запущен (недокачанный файл удалён). Её можно повторить.");
             job.Fallback = QueueFallback.VendorDownload;
             job.State = QueueState.Cancelled;
-            job.StatusText = "ЗАГРУЗКА ОТМЕНЕНА";
-            Log.Info($"{entry.Name}: загрузка установщика отменена.");
+            job.StatusText = Loc.T("ЗАГРУЗКА ОТМЕНЕНА");
+            Log.Info("{0}: загрузка установщика отменена.", entry.Name);
         }
         catch (Exception ex)
         {
-            job.Detail = $"{ex.Message} Можно скачать программу с официального сайта.";
+            job.Detail = Loc.Tf("{0} Можно скачать программу с официального сайта.", ex.Message);
             job.Fallback = QueueFallback.Website;
             job.State = QueueState.Failed;
-            job.StatusText = "ОШИБКА: установщик производителя не скачан";
-            Log.Error($"{entry.Name}: загрузка установщика у производителя", ex);
+            job.StatusText = Loc.T("ОШИБКА: установщик производителя не скачан");
+            Log.Error("{0}: загрузка установщика у производителя", ex, entry.Name);
         }
         finally
         {
@@ -210,13 +210,13 @@ public sealed partial class AppsViewModel
     /// <summary>Restore point before an installer runs; false when it failed and the user chose not to continue.</summary>
     private async Task<bool> CreateRestorePointAsync(CatalogEntry entry)
     {
-        AppendLog("Создание точки восстановления…");
-        SetBusyText("Создание точки восстановления…");
-        var rp = await RestorePointService.CreateAsync($"MONOLITH: установка {entry.Name}");
+        AppendLog(Loc.T("Создание точки восстановления…"));
+        SetBusyText(Loc.T("Создание точки восстановления…"));
+        var rp = await RestorePointService.CreateAsync(Loc.Tf("MONOLITH: установка {0}", entry.Name));
         AppendLog(rp.Message);
         return rp.Outcome != RestorePointOutcome.Failed || await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
             "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
-            $"{rp.Message} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?",
-            confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true));
+            Loc.Tf("{0} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?", rp.Message),
+            confirmText: Loc.T("ПРОДОЛЖИТЬ"), cancelText: Loc.T("ОТМЕНИТЬ"), danger: true));
     }
 }

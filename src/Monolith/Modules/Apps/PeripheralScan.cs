@@ -107,7 +107,7 @@ public static class PeripheralScan
         }
         catch (Exception ex)
         {
-            Log.Warn($"Приложения: не удалось проверить подключённые устройства ({ex.Message})");
+            Log.Warn("Приложения: не удалось проверить подключённые устройства ({0})", ex.Message);
             return PeripheralScanResult.Unknown;
         }
     }
