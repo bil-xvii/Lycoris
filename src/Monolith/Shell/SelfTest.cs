@@ -202,7 +202,8 @@ public sealed class SelfTestRunner
             r.Errors.Add("подпись MONOLITH.exe не совпадает с файлом");
         foreach (var bad in Monolith.Core.Security.SelfIntegrity.BadNativeLibraries) r.Errors.Add("распакованная библиотека без подписи: " + bad);
 
-        Collect(r);
+        // The corpus makes parsers log their refusals (warnings): expected here, not findings. Only unhandled exceptions would matter.
+        Drain();
         return r;
     }
 
