@@ -208,7 +208,7 @@ public static partial class HealthRules
                 "блокировки уязвимых драйверов» в «Безопасность Windows → Безопасность устройства → Изоляция ядра» и " +
                 "перезагрузите ПК — на FPS это не влияет. Если после этого перестанет запускаться старая утилита (разгон, " +
                 "подсветка), её драйвер как раз из этого списка." + sac + " MONOLITH эту защиту не меняет.",
-                CheckSeverity.Warning, 8, new CheckAction(CheckActionKind.OpenUri, "БЕЗОПАСНОСТЬ WINDOWS", WindowsSecurityUri));
+                CheckSeverity.Warning, 8, new CheckAction(CheckActionKind.OpenUri, "ОТКРЫТЬ БЕЗОПАСНОСТЬ WINDOWS", WindowsSecurityUri));
 
         switch (s.Vbs)
         {

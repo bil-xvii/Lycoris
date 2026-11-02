@@ -28,7 +28,8 @@ public enum CheckActionKind
 }
 
 /// <summary>What the button next to a check does. Nothing here touches the system by itself.</summary>
-public sealed record CheckAction(CheckActionKind Kind, string Label, string? Target = null)
+/// <param name="Focus">For Navigate: the focus id handed to the page ("tab:problems") so it opens on the exact place.</param>
+public sealed record CheckAction(CheckActionKind Kind, string Label, string? Target = null, string? Focus = null)
 {
     /// <summary>Actions that change the system need administrator rights (they go through ChangeSession).</summary>
     public bool RequiresAdmin => Kind is CheckActionKind.ApplyTweak;
