@@ -227,22 +227,31 @@ public sealed partial class DashboardViewModel
     [RelayCommand]
     private async Task ApplyRecommendedAsync()
     {
-        if (_optimize is not { } optimize)
+        var optimize = _optimize ?? PageOf<OptimizeViewModel>();
+        if (optimize is null)
         {
             Ui.Navigate("optimize");
             return;
         }
+        // After a relaunch with admin rights the warm-up may still be running: wait for the page before reading the count.
+        await optimize.EnsureLoadedAsync();
         var recommended = optimize.Profiles.FirstOrDefault(p => p.Kind == OptimizeProfile.Recommended);
         if (recommended?.ToChange is null or 0)
         {
             Ui.Navigate("optimize"); // nothing to apply (or not read yet): show the list
+            Ui.Toast("Рекомендуемому профилю нечего менять или список ещё не прочитан. Проверьте страницу «Оптимизация».", ToastKind.Info, "ОПТИМИЗАЦИЯ");
             return;
         }
         if (!RequireAdmin("Применение оптимизаций", "ApplyRecommended")) return;
-        await optimize.EnsureLoadedAsync();
-        optimize.SelectProfile(OptimizeProfile.Recommended);
-        if (optimize.ApplyCommand.CanExecute(null)) await optimize.ApplyCommand.ExecuteAsync(null);
-        else Ui.Toast("Применять сейчас нечего или страница «Оптимизация» занята. Откройте её и проверьте список.", ToastKind.Info, "ОПТИМИЗАЦИЯ");
+        if (!optimize.ApplyRecommendedCommand.CanExecute(null))
+        {
+            Ui.Toast("Страница «Оптимизация» сейчас занята. Откройте её и проверьте список.", ToastKind.Info, "ОПТИМИЗАЦИЯ");
+            return;
+        }
+        // The page's own command selects the recommended profile: the user's selection there is put back afterwards.
+        var before = optimize.CaptureSelection();
+        try { await optimize.ApplyRecommendedCommand.ExecuteAsync(null); }
+        finally { optimize.RestoreSelection(before); }
     }
 
     /// <summary>ОЧИСТКА: the analysis (read-only) when nothing is known yet, otherwise the Cleaner's own «ОЧИСТИТЬ» with its confirmation.</summary>
@@ -286,8 +295,7 @@ public sealed partial class DashboardViewModel
             Ui.Navigate("devices");
             return;
         }
-        Ui.RequestFocus("devices", "tool:net-ping");
-        Ui.Navigate("devices");
+        await devices.EnsureLoadedAsync(); // the measurement runs in place: the number lands on the tile, the user stays here
         DeviceTool? tool = null;
         var wait = Stopwatch.StartNew();
         while (tool is null && wait.Elapsed < TimeSpan.FromSeconds(15))
@@ -295,7 +303,11 @@ public sealed partial class DashboardViewModel
             tool = devices.Cards.SelectMany(c => c.Tools).FirstOrDefault(t => t.Id == "net-ping");
             if (tool is null) await Task.Delay(300);
         }
-        if (tool is null) return; // the page is open on the right place anyway
+        if (tool is null)
+        {
+            Ui.Toast("Проверка пинга недоступна — откройте «Устройства и сеть».", ToastKind.Info, "ПИНГ");
+            return;
+        }
         tool.PropertyChanged -= OnPingChanged;
         tool.PropertyChanged += OnPingChanged;
         if (!tool.IsRunning && devices.RunToolCommand.CanExecute(tool)) await devices.RunToolCommand.ExecuteAsync(tool);

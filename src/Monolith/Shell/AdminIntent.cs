@@ -39,7 +39,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
             else if (args[i].Equals(CommandArg, StringComparison.OrdinalIgnoreCase)) command = args[++i];
             else if (args[i].Equals(ParameterArg, StringComparison.OrdinalIgnoreCase)) parameter = args[++i];
         }
-        if (string.IsNullOrWhiteSpace(page) || string.IsNullOrWhiteSpace(command) || !IsCommandName(command)) return null;
+        if (string.IsNullOrWhiteSpace(page) || string.IsNullOrWhiteSpace(command) || !IsCommandName(command) || !IsReplayable(command)) return null;
         return new AdminIntent(page.Trim(), command.Trim(), string.IsNullOrEmpty(parameter) ? null : parameter);
     }
 
@@ -48,6 +48,23 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     /// <see cref="Monolith.Core.Elevation.PerRunArgs"/>, which the relaunch strips.
     /// </summary>
     public static IReadOnlySet<string> VolatileArgs => Monolith.Core.Elevation.PerRunArgs;
+
+    /// <summary>
+    /// The commands that may be replayed after a relaunch — exactly the names passed to <c>RequireAdmin(action, command, …)</c>.
+    /// Each shows its own confirmation. A launch argument naming anything else is refused, so a new command without a dialog
+    /// is never reachable through <c>--replay-command</c> until it is listed here on purpose.
+    /// </summary>
+    public static readonly IReadOnlySet<string> Replayable = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "Apply", "ApplyPlan", "ApplyProfile", "ApplyRecommendations", "ApplyRecommended", "ApplySetting", "ApplyStartType", "ApplyTasks",
+        "Clean", "CreateRestorePoint", "DeleteBackup", "DisableExtraStartup", "DisableSelectedStartup", "DownloadDriver", "EnableDevice",
+        "EnableProtection", "EnableSelectedStartup", "ExportBackup", "FixSafe", "GpuDownload", "InstallHardware", "InstallUpdates",
+        "PlayBoostedGame", "ReapplyAllDrift", "ReapplyDrift", "RepairWindows", "RestoreBackup", "RestoreStale", "RevertAll", "RevertBatch",
+        "RevertItem", "RevertLastBatch", "RevertRecord", "RevertService", "RevertSetting", "RevertTask", "RunCheck", "RunTool", "ShowPoints",
+        "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
+    };
+
+    public static bool IsReplayable(string name) => Replayable.Contains(name.Trim());
 
     /// <summary>Command names are identifiers: letters and digits only (an argument can never name a member path).</summary>
     public static bool IsCommandName(string name) => name.Length is > 0 and <= 64 && name.All(char.IsAsciiLetterOrDigit);
@@ -58,7 +75,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     /// </summary>
     public bool TryExecuteOn(object target)
     {
-        if (FindCommand(target) is not { } command) return false;
+        if (!IsReplayable(Command) || FindCommand(target) is not { } command) return false;
         if (!command.CanExecute(Parameter)) return false;
         command.Execute(Parameter);
         return true;
