@@ -129,19 +129,28 @@ public sealed partial class AppSettings : ObservableObject
         catch (Exception ex)
         {
             Log.Warn("Настройки повреждены, используются значения по умолчанию: {0}", ex.Message);
+            // The next change saves over the file: keep what was there (language, accepted drift, first-run flag) for the user.
+            try { if (File.Exists(AppPaths.SettingsFile)) File.Copy(AppPaths.SettingsFile, AppPaths.SettingsFile + ".bad", overwrite: true); }
+            catch { /* best effort */ }
             Current = new AppSettings();
         }
         Current.PropertyChanged += (_, _) => Current.Save();
     }
 
+    /// <summary>Every property change saves, from the UI thread and from background tasks (update check): one writer at a time, they share one .tmp file.</summary>
+    private static readonly object SaveLock = new();
+
     public void Save()
     {
         try
         {
-            if (!AppPaths.TryEnsureDir(AppPaths.UserDir)) return;
-            var tmp = AppPaths.SettingsFile + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(this, JsonOptions));
-            File.Move(tmp, AppPaths.SettingsFile, overwrite: true);
+            lock (SaveLock)
+            {
+                if (!AppPaths.TryEnsureDir(AppPaths.UserDir)) return;
+                var tmp = AppPaths.SettingsFile + ".tmp";
+                File.WriteAllText(tmp, JsonSerializer.Serialize(this, JsonOptions));
+                File.Move(tmp, AppPaths.SettingsFile, overwrite: true);
+            }
         }
         catch (Exception ex)
         {

@@ -201,7 +201,16 @@ public static class TweakEngine
     {
         if (t.AppliesTo is null) return true;
         if (!sp.HardwareFactsKnown) return null;
-        return t.IsApplicable(sp);
+        try
+        {
+            return t.IsApplicable(sp);
+        }
+        catch (Exception ex)
+        {
+            // A rule that throws must not abort the whole batch half-way (restore point made, some tweaks applied): cannot tell = skip.
+            Log.Warn("{0} — пропущено: правило применимости не отработало ({1}).", t.Title, ex.Message);
+            return null;
+        }
     }
 
     /// <summary>

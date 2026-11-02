@@ -120,6 +120,16 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     /// <summary>Startup safety checks, run once after the window is shown (skipped in QA modes).</summary>
     public async Task RunStartupChecksAsync()
     {
+        // Called fire-and-forget: one failing check must not stop the others, and the action the user clicked before the
+        // relaunch with admin rights must still be repeated (it used to be lost when a check above it threw).
+        try { await RunStartupChecksCoreAsync(); }
+        catch (Exception ex) { Log.Error("Проверки при запуске прерваны", ex); }
+        try { await ReplayIntentAsync(); }
+        catch (Exception ex) { Log.Error("Повтор действия после перезапуска не выполнен", ex); }
+    }
+
+    private async Task RunStartupChecksCoreAsync()
+    {
         await Task.Delay(1200);
 
         // 0. Display and input changes left unconfirmed by a crash (Lycoris or the PC died during the countdown): an
@@ -215,8 +225,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         // 4. Drift: settings Lycoris applied were changed afterwards (Windows feature update, another program).
         await CheckDriftAsync();
 
-        // 5. The action the user clicked before the relaunch with admin rights: repeated once, through its own command.
-        await ReplayIntentAsync();
+        // 5. (the action the user clicked before the relaunch with admin rights is repeated by RunStartupChecksAsync)
     }
 
     /// <summary>One non-blocking toast when active records no longer match the live system; details on the Restore page.</summary>

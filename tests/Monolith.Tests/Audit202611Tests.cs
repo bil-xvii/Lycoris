@@ -31,6 +31,26 @@ public sealed class Audit202611Tests
     }
 
     [Fact]
+    public void A_packed_list_of_many_checked_items_survives_the_relaunch_with_admin_rights()
+    {
+        // «Отключить» 15 autostart entries without admin rights: the list (base64) is far longer than the old 200-char limit.
+        var keys = Enumerable.Range(1, 15).Select(i => $@"HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Entry{i}");
+        var packed = Monolith.Modules.Startup.IntentList.Pack(keys)!;
+        Assert.True(packed.Length > 200);
+        var intent = new Monolith.Shell.AdminIntent("services", "DisableSelectedStartup", packed);
+        var parsed = Monolith.Shell.AdminIntent.Parse(intent.ToArgs());
+        Assert.NotNull(parsed);
+        Assert.Equal(15, Monolith.Modules.Startup.IntentList.Unpack(parsed!.Parameter).Count);
+    }
+
+    [Theory]
+    [InlineData("UnityCrashHandler64", true)]
+    [InlineData("Crashlands", false)]
+    [InlineData("Crash Bandicoot", false)]
+    public void Only_real_crash_reporters_are_helpers(string name, bool helper) =>
+        Assert.Equal(helper, Monolith.Modules.Games.GameProcessFinder.IsHelper(name));
+
+    [Fact]
     public void A_record_written_in_English_is_not_drift_and_can_be_reapplied()
     {
         // An English-interface session wrote "Manual"; the live read is the neutral Russian text.
