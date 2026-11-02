@@ -87,6 +87,15 @@ public sealed class ProblemReportTests
     }
 
     [Fact]
+    public void AnonymizeHasADeadlineAndTruncatesTheRest()
+    {
+        var text = string.Join("\n", Enumerable.Range(0, 50).Select(i => "line " + i));
+        var r = ProblemReport.Anonymize(text, new[] { ("zzq", "<user>") }, TimeSpan.Zero);
+        Assert.Contains("<truncated>", r);
+        Assert.DoesNotContain("line 40", r);
+    }
+
+    [Fact]
     public void PathologicalInputFinishesQuickly()
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
