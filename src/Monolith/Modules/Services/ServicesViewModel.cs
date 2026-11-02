@@ -117,7 +117,7 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     public override void Deactivate()
     {
-        Startup.Deactivate();
+        Startup.Leave();
         _startupStale = true;
     }
 

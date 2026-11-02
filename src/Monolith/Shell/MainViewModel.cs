@@ -346,7 +346,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     partial void OnCurrentPageChanged(PageViewModel? oldValue, PageViewModel? newValue)
     {
-        oldValue?.Deactivate();
+        oldValue?.Leave();
         if (newValue is not null) _ = newValue.ActivateAsync();
         OnPropertyChanged(nameof(NavSelection));
         OnPropertyChanged(nameof(IsSettingsOpen));

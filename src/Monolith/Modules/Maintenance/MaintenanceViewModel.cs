@@ -59,7 +59,7 @@ public sealed partial class MaintenanceViewModel : PageViewModel
 
     partial void OnTabKeyChanging(string? oldValue, string newValue)
     {
-        if (_active && oldValue is not null && oldValue != newValue) TabFor(oldValue).Deactivate();
+        if (_active && oldValue is not null && oldValue != newValue) TabFor(oldValue).Leave();
     }
 
     partial void OnTabKeyChanged(string value)
@@ -81,7 +81,7 @@ public sealed partial class MaintenanceViewModel : PageViewModel
     public override void Deactivate()
     {
         _active = false;
-        ActiveTab.Deactivate();
+        ActiveTab.Leave();
     }
 
     // ───────────── Shortcut targets (Dashboard tiles, admin-intent replay) ─────────────
