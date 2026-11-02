@@ -446,9 +446,21 @@ public sealed partial class GameBoostService : ObservableObject
     private async Task ThrottleAppsAsync(BoostPlan plan, GameEntry? game)
     {
         var names = plan.AppsToClose.Select(a => a.Name).ToList();
-        var work = Task.Run(() => ThrottleProcesses(names, game?.InstallDir));
+        string? recovered = null;
+        var work = Task.Run(() =>
+        {
+            // Leftovers of a crashed session first: the new marker would replace the old one and the old processes would look self-managed.
+            if (!HasThrottled())
+            {
+                try { recovered = RecoverStaleEcoQos(); }
+                catch (Exception ex) { Log.Warn($"Игровой сеанс: не удалось снять режим эффективности прошлого сеанса — {ex.Message}"); }
+            }
+            return ThrottleProcesses(names, game?.InstallDir);
+        });
         _pendingChange = work;
         var (tagged, skipped) = await work;
+        if (recovered is not null)
+            Changes.Add(new BoostChange("Режим эффективности прошлого сеанса", recovered, BoostChangeKind.Info));
 
         if (tagged.Count == 0 && skipped.Count == 0)
         {
@@ -554,27 +566,40 @@ public sealed partial class GameBoostService : ObservableObject
 
     /// <summary>
     /// Writes the ORIGINAL throttling state back to every tagged process that is still running (the handle keeps the PID from
-    /// being reused, so the start time is already proven). Returns how many were restored; the marker is deleted afterwards.
+    /// being reused, so the start time is already proven) and whose state is still the one MONOLITH wrote: if the app changed
+    /// it itself meanwhile, its newer choice stays. The marker is deleted unless a write failed.
     /// </summary>
-    private static int RestoreThrottled(List<(SafeProcessHandle Handle, PowerThrottlingState Original, DateTime StartUtc, string Name)> throttled)
+    private static EcoRestoreResult RestoreThrottled(List<(SafeProcessHandle Handle, PowerThrottlingState Original, DateTime StartUtc, string Name)> throttled)
     {
-        var restored = 0;
+        int restored = 0, exited = 0, failed = 0, changed = 0;
         foreach (var (handle, original, _, name) in throttled)
         {
             try
             {
                 using (handle)
                 {
-                    if (!EcoQos.IsRunning(handle)) continue;
+                    if (!EcoQos.IsRunning(handle)) { exited++; continue; }
+                    if (EcoQos.ReadState(handle) is { } now && now != EcoQos.PlanApply(original))
+                    {
+                        changed++;
+                        Log.Info($"Игровой сеанс: {name} сама сменила режим — не трогаем.");
+                        continue;
+                    }
                     if (EcoQos.WriteState(handle, EcoQos.PlanRestore(original))) restored++;
-                    else Log.Warn($"Игровой сеанс: не удалось вернуть режим {name} (код {Marshal.GetLastWin32Error()}).");
+                    else
+                    {
+                        failed++;
+                        Log.Warn($"Игровой сеанс: не удалось вернуть режим {name} (код {Marshal.GetLastWin32Error()}).");
+                    }
                 }
             }
-            catch { }
+            catch { failed++; }
         }
-        if (throttled.Count > 0) EcoQos.DeleteMarker();
-        return restored;
+        if (throttled.Count > 0 && failed == 0) EcoQos.DeleteMarker();
+        return new EcoRestoreResult(restored, exited, failed, changed);
     }
+
+    private readonly record struct EcoRestoreResult(int Restored, int Exited, int Failed, int Changed);
 
     private async Task PurgeStandbyAsync()
     {
@@ -775,9 +800,19 @@ public sealed partial class GameBoostService : ObservableObject
         if (KeptPlanNote(result, planNow) is { } kept) msg += " " + kept;
         if (restoredPriority > 0) msg += " Приоритет игры возвращён.";
         if (throttled.Count > 0)
-            msg += restoredEco == throttled.Count
-                ? $" Режим эффективности снят ({string.Join(", ", _throttledApps)})."
-                : $" Режим эффективности снят с работающих программ ({restoredEco} из {throttled.Count}; остальные уже закрыты).";
+        {
+            if (restoredEco.Restored == throttled.Count)
+                msg += $" Режим эффективности снят ({string.Join(", ", _throttledApps)}).";
+            else
+            {
+                msg += $" Режим эффективности снят с работающих программ: {restoredEco.Restored} из {throttled.Count}";
+                var rest = new List<string>();
+                if (restoredEco.Exited > 0) rest.Add($"уже закрыты: {restoredEco.Exited}");
+                if (restoredEco.Changed > 0) rest.Add($"программа сама сменила режим: {restoredEco.Changed}");
+                if (restoredEco.Failed > 0) rest.Add($"не удалось вернуть: {restoredEco.Failed} — перезапустите программу");
+                msg += rest.Count > 0 ? $" ({string.Join("; ", rest)})." : ".";
+            }
+        }
         if (result.Failed > 0) msg += $" Не удалось отменить изменений: {result.Failed} — откройте раздел «Восстановление».";
         if (_closedApps.Count > 0)
             msg += $" Закрытые приложения ({string.Join(", ", _closedApps)}) MONOLITH не перезапускает — откройте их сами, если нужны.";

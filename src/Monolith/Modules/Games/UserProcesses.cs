@@ -59,7 +59,7 @@ public static class UserProcesses
         "audiodg", "discord", "teamspeak3", "ts3client_win64", "ts3client_win32", "teamspeak", "slack", "zoom", "teams", "ms-teams",
         "obs64", "obs32", "streamlabs obs", "streamlabs", "nvcontainer", "nvidia share", "nvidia broadcast", "nvidia broadcast ui",
         "wavelink", "sonar", "steelseriesgg", "steelseriesengine", "rtss", "rtsshooks", "msiafterburner", "encoderserver",
-        "xsplit.core", "elgato 4k capture utility", "mumble", "skype",
+        "xsplit.core", "elgato 4k capture utility", "mumble", "skype", "amdrsserv", "amdrssrcext", "amdow",
     };
 
     private static readonly string[] NeverThrottlePrefixes =

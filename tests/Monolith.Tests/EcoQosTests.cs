@@ -12,6 +12,14 @@ public sealed class EcoQosTests
 {
     private static readonly IReadOnlySet<int> NoAudio = new HashSet<int>();
 
+    [Fact]
+    public void PowerThrottlingState_matches_native_layout()
+    {
+        Assert.Equal(12, System.Runtime.InteropServices.Marshal.SizeOf<PowerThrottlingState>());
+        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(new[] { new PowerThrottlingState(1, 2, 3) }.AsSpan()).ToArray();
+        Assert.Equal(new byte[] { 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0 }, bytes);
+    }
+
     // ───────────────────────────── Exclusions ─────────────────────────────
 
     [Theory]
@@ -27,6 +35,9 @@ public sealed class EcoQosTests
     [InlineData("NVIDIA Share")]
     [InlineData("NVIDIA Broadcast")]
     [InlineData("nvcontainer")]
+    [InlineData("AMDRSServ")]
+    [InlineData("amdrssrcext")]
+    [InlineData("AMDOW")]
     [InlineData("voicemeeter8x64")]
     [InlineData("VoiceMeeterPro")]
     [InlineData("WaveLink")]
