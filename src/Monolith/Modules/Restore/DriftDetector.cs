@@ -153,8 +153,8 @@ public static class DriftDetector
 
     public static bool? TaskEnabledOf(string? text) => text?.Trim() switch
     {
-        "Включена" => true,
-        "Отключена" => false,
+        "Включена" => true, // loc:ignore journal-compared state text (Russian on disk)
+        "Отключена" => false, // loc:ignore journal-compared state text (Russian on disk)
         _ => null,
     };
 
@@ -167,7 +167,7 @@ public static class DriftDetector
     {
         var t = text?.Trim();
         if (string.IsNullOrEmpty(t) || t == LiveState.Unknown) return null;
-        if (t is "удалено" or "отсутствовало") return true;
+        if (t is "удалено" or "отсутствовало") return true; // loc:ignore journal-compared state text (Russian on disk)
         if (PackagedStateOf(t) is { } state) return PackagedStartup.IsEnabled(state);
         const string prefix = "Binary:";
         if (!t.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
@@ -201,22 +201,22 @@ public static class DriftDetector
         if (IsPackagedMark(r))
         {
             if (PackagedStateOf(value) is { } state)
-                return (PackagedStartup.IsEnabled(state) ? "автозапуск включён" : "автозапуск отключён") + (PackagedStartup.IsPolicy(state) ? " политикой" : "");
+                return (PackagedStartup.IsEnabled(state) ? "автозапуск включён" : "автозапуск отключён") + (PackagedStartup.IsPolicy(state) ? " политикой" : ""); // loc:ignore journal-compared state text (Russian on disk)
         }
-        else if (IsStartupEntry(r) && StartupEnabledOf(value) is { } enabled) return enabled ? "автозапуск включён" : "автозапуск отключён";
+        else if (IsStartupEntry(r) && StartupEnabledOf(value) is { } enabled) return enabled ? "автозапуск включён" : "автозапуск отключён"; // loc:ignore journal-compared state text (Russian on disk)
         return string.IsNullOrWhiteSpace(value) ? LiveState.Unknown : value.Trim();
     }
 
-    public static string RowText(DriftItem d) => $"MONOLITH установил: {d.Applied} · сейчас: {d.Live}";
+    public static string RowText(DriftItem d) => Loc.Tf("MONOLITH установил: {0} · сейчас: {1}", Loc.Sink(d.Applied), Loc.Sink(d.Live));
 
     /// <summary>Startup notice: names the Windows build change when there was one.</summary>
     public static string NoticeText(int count, string? previousBuild, string? currentBuild)
     {
-        var what = $"{count} {RestoreFormat.Plural(count, "настройку", "настройки", "настроек")} MONOLITH";
-        var tail = " Раздел «Восстановление» → «ИЗМЕНЕНО ВНЕ MONOLITH»: можно применить снова или оставить как есть.";
+        var what = Loc.N(count, "{0} настройку MONOLITH", "{0} настройки MONOLITH", "{0} настроек MONOLITH");
+        var tail = Loc.T(" Раздел «Восстановление» → «ИЗМЕНЕНО ВНЕ MONOLITH»: можно применить снова или оставить как есть.");
         return BuildChanged(previousBuild, currentBuild)
-            ? $"После обновления Windows (сборка {previousBuild} → {currentBuild}) система изменила {what}.{tail}"
-            : $"Windows или другая программа изменила {what}.{tail}";
+            ? Loc.Tf("После обновления Windows (сборка {0} → {1}) система изменила {2}.{3}", previousBuild, currentBuild, what, tail)
+            : Loc.Tf("Windows или другая программа изменила {0}.{1}", what, tail);
     }
 
     public static bool BuildChanged(string? previous, string? current) =>

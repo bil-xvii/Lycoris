@@ -25,8 +25,8 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     public override string Key => "restore";
     public override string Index => "10";
-    public override string Title => "ВОССТАНОВЛЕНИЕ";
-    public override string Subtitle => "Журнал изменений MONOLITH, откат и точки восстановления Windows.";
+    public override string Title => Loc.T("ВОССТАНОВЛЕНИЕ");
+    public override string Subtitle => Loc.T("Журнал изменений MONOLITH, откат и точки восстановления Windows.");
     public override string Glyph => Glyphs.History;
 
     public ObservableCollection<BatchItem> Batches { get; } = new();
@@ -60,7 +60,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private bool _protectionEnabled;
     [ObservableProperty] private bool _protectionBlocked;
     [ObservableProperty] private string _protectionTitle = "—";
-    [ObservableProperty] private string _protectionText = "Чтение состояния защиты системы…";
+    [ObservableProperty] private string _protectionText = Loc.T("Чтение состояния защиты системы…");
     [ObservableProperty] private bool _canOfferEnable;
     [ObservableProperty] private bool _pointsLoading;
     [ObservableProperty] private string _pointsMessage = "";
@@ -103,7 +103,7 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     /// <summary>«ОБНОВИТЬ» in the header: re-reads the journal, the drift check and the System Restore state.</summary>
     [RelayCommand]
-    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Обновление…", async () =>
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, Loc.T("Обновление…"), async () =>
     {
         Rebuild();
         _ = RefreshDriftAsync();
@@ -192,12 +192,12 @@ public sealed partial class RestoreViewModel : PageViewModel
         TotalCount = records.Count;
         // Account names come from the cache (filled off the UI thread in RefreshDriftAsync): a SID lookup can block for seconds.
         var left = RestoreFormat.LeftText(records.Where(ChangeJournal.IsLeftByBulk), sid, UserScope.CachedAccountName);
-        RevertAllHint = left.Length == 0 ? null : "Не входят в общий откат. " + left;
+        RevertAllHint = left.Length == 0 ? null : Loc.Tf("Не входят в общий откат. {0}", left);
 
         BadgeText = ActiveCount > 0 ? ActiveCount.ToString() : null; // sidebar badge: the active changes the journal already holds
         RevertAllReason = RevertAllCount > 0 ? null
-            : ActiveCount > 0 ? "Нечего откатывать общим откатом: оставшиеся записи откатываются по одной в списке."
-            : "Нечего откатывать: активных изменений нет.";
+            : ActiveCount > 0 ? Loc.T("Нечего откатывать общим откатом: оставшиеся записи откатываются по одной в списке.")
+            : Loc.T("Нечего откатывать: активных изменений нет.");
 
         var covered = RestoreFormat.CoveredBy(records, sid);
         var titles = new Dictionary<Guid, string>();
@@ -224,15 +224,15 @@ public sealed partial class RestoreViewModel : PageViewModel
         }
         var hidden = Math.Max(0, groups.Count - _shownBatches);
         HasMoreBatches = hidden > 0;
-        ShowMoreText = $"ПОКАЗАТЬ ЕЩЁ ({Math.Min(hidden, BatchPage)} ИЗ {hidden})";
+        ShowMoreText = Loc.Tf("ПОКАЗАТЬ ЕЩЁ ({0} ИЗ {1})", Math.Min(hidden, BatchPage), hidden);
 
         var journalEmpty = batches.Count == 0 && records.Count == 0;
         IsFilterEmpty = Batches.Count == 0;
-        FilterEmptyText = journalEmpty ? "Журнал пуст — MONOLITH ещё ничего не менял в системе." : Filter switch
+        FilterEmptyText = journalEmpty ? Loc.T("Журнал пуст — MONOLITH ещё ничего не менял в системе.") : Filter switch
         {
-            JournalFilter.Active => "Активных изменений нет — система в исходном состоянии относительно MONOLITH.",
-            JournalFilter.Drifted => "Все настройки MONOLITH на месте — вне MONOLITH ничего не изменено.",
-            _ => "Откаченных изменений пока нет.",
+            JournalFilter.Active => Loc.T("Активных изменений нет — система в исходном состоянии относительно MONOLITH."),
+            JournalFilter.Drifted => Loc.T("Все настройки MONOLITH на месте — вне MONOLITH ничего не изменено."),
+            _ => Loc.T("Откаченных изменений пока нет."),
         };
         NotifyCommands();
     }
@@ -277,14 +277,14 @@ public sealed partial class RestoreViewModel : PageViewModel
                 HasDrift = list.Count > 0;
                 HasReapplicableDrift = list.Any(DriftReapply.CanReapply);
                 DriftLine = list.Count == 0 ? "" :
-                    "Windows или другая программа изменила эти настройки после MONOLITH.";
+                    Loc.T("Windows или другая программа изменила эти настройки после MONOLITH.");
                 if (!HasDrift && Filter == JournalFilter.Drifted) Filter = JournalFilter.All; // rebuilds
                 else Rebuild();
             } while (_driftPending);
         }
         catch (Exception ex)
         {
-            Log.Warn($"Проверка изменений вне MONOLITH не выполнена: {ex.Message}");
+            Log.Warn("Проверка изменений вне MONOLITH не выполнена: {0}", ex.Message);
         }
         finally
         {
@@ -351,7 +351,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanReapplyDrift))]
     private async Task ReapplyDriftAsync(object? parameter)
     {
-        if (!RequireAdmin("Повторное применение настроек", "ReapplyDrift", (parameter as RecordItem)?.Record.Id.ToString() ?? parameter as string)) return;
+        if (!RequireAdmin(Loc.T("Повторное применение настроек"), "ReapplyDrift", (parameter as RecordItem)?.Record.Id.ToString() ?? parameter as string)) return;
         if (parameter is string) await EnsureDriftAsync(); // a replay right after the start: the live read may not be finished yet
         if (ResolveRecord(parameter)?.Drift is { } d) await ReapplyAsync([d]);
     }
@@ -361,7 +361,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanReapplyAllDrift))]
     private async Task ReapplyAllDriftAsync()
     {
-        if (!RequireAdmin("Повторное применение настроек", "ReapplyAllDrift")) return;
+        if (!RequireAdmin(Loc.T("Повторное применение настроек"), "ReapplyAllDrift")) return;
         await EnsureDriftAsync();
         await ReapplyAsync(_drift.Values.Where(DriftReapply.CanReapply).ToList());
     }
@@ -373,21 +373,21 @@ public sealed partial class RestoreViewModel : PageViewModel
         for (var i = 0; i < 100 && _driftRunning; i++) await Task.Delay(100);
     }
 
-    private Task ReapplyAsync(IReadOnlyList<DriftItem> items) => RunBusyAsync(OperationClass.JournalChange, "Повторное применение…", async () =>
+    private Task ReapplyAsync(IReadOnlyList<DriftItem> items) => RunBusyAsync(OperationClass.JournalChange, Loc.T("Повторное применение…"), async () =>
     {
         if (items.Count == 0) return;
         var lines = DriftReapply.DescribeForConfirm(items, id => Monolith.Tweaks.TweakCatalog.Find(id)?.Title);
         if (!await Ui.ConfirmAsync("ПРИМЕНИТЬ СНОВА?",
-                "MONOLITH снова запишет значения, которые он ставил раньше, отдельным пакетом. Откат этого пакета вернёт нынешние значения, а «ОТКАТИТЬ ВСЁ» — исходные (до MONOLITH).",
-                lines, confirmText: "ПРИМЕНИТЬ СНОВА",
-                footnote: "Если Windows снова сбросит настройку после обновления, MONOLITH покажет это при следующем запуске."))
+                Loc.T("MONOLITH снова запишет значения, которые он ставил раньше, отдельным пакетом. Откат этого пакета вернёт нынешние значения, а «ОТКАТИТЬ ВСЁ» — исходные (до MONOLITH)."),
+                lines, confirmText: Loc.T("ПРИМЕНИТЬ СНОВА"),
+                footnote: Loc.T("Если Windows снова сбросит настройку после обновления, MONOLITH покажет это при следующем запуске.")))
             return;
 
         var result = await Task.Run(() => DriftReapply.ApplyAsync(items));
         if (result.Errors.Count == 0)
-            Ui.Toast($"Применено снова: {result.Applied}.", ToastKind.Success);
+            Ui.Toast(Loc.Tf("Применено снова: {0}.", result.Applied), ToastKind.Success);
         else
-            await Ui.AlertAsync("Часть настроек не применена", "Остальные записаны; ошибки — ниже и в консоли.", result.Errors);
+            await Ui.AlertAsync("Часть настроек не применена", Loc.T("Остальные записаны; ошибки — ниже и в консоли."), result.Errors);
         await RefreshDriftAsync();
     });
 
@@ -400,7 +400,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         var kept = await Task.Run(() => DriftDetector.PruneIgnored(AppSettings.Current.DriftAccepted, journal.ActiveRecords));
         kept.Add(d.IgnoreKey);
         AppSettings.Current.DriftAccepted = kept; // new list → PropertyChanged → saved
-        Ui.Toast($"«{item.Title}»: новое значение принято. Откат по-прежнему вернёт исходное значение (до MONOLITH).", ToastKind.Info);
+        Ui.Toast(Loc.Tf("«{0}»: новое значение принято. Откат по-прежнему вернёт исходное значение (до MONOLITH).", Loc.Sink(item.Title)), ToastKind.Info);
         await RefreshDriftAsync();
     }
 
@@ -415,9 +415,9 @@ public sealed partial class RestoreViewModel : PageViewModel
         var drive = SystemProfile.SystemDrive.TrimEnd('\\');
         (ProtectionTitle, ProtectionText) = (enabled, blocked) switch
         {
-            (_, true) => ("ЗАПРЕЩЕНА", "Защита системы отключена групповой политикой. Включить её может только администратор организации; до этого откат возможен только через журнал MONOLITH."),
-            (true, _) => ("ВКЛЮЧЕНА", $"Windows хранит точки восстановления для диска {drive} — через них можно вернуть системные файлы, реестр и драйверы к прежнему состоянию."),
-            _ => ("ВЫКЛЮЧЕНА", $"Точки восстановления для диска {drive} не создаются. Изменения MONOLITH всё равно откатываются через журнал, но страховки на уровне Windows нет."),
+            (_, true) => (Loc.T("ЗАПРЕЩЕНА"), Loc.T("Защита системы отключена групповой политикой. Включить её может только администратор организации; до этого откат возможен только через журнал MONOLITH.")),
+            (true, _) => (Loc.T("ВКЛЮЧЕНА"), Loc.Tf("Windows хранит точки восстановления для диска {0} — через них можно вернуть системные файлы, реестр и драйверы к прежнему состоянию.", drive)),
+            _ => (Loc.T("ВЫКЛЮЧЕНА"), Loc.Tf("Точки восстановления для диска {0} не создаются. Изменения MONOLITH всё равно откатываются через журнал, но страховки на уровне Windows нет.", drive)),
         };
         NotifyCommands();
         await LoadPointsAsync();
@@ -429,7 +429,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         {
             RestorePoints.Clear();
             PointsCountText = "";
-            PointsMessage = "Windows показывает список точек только администратору. Кнопка ниже перезапустит MONOLITH с правами и откроет список здесь; можно и открыть «Восстановление системы».";
+            PointsMessage = Loc.T("Windows показывает список точек только администратору. Кнопка ниже перезапустит MONOLITH с правами и откроет список здесь; можно и открыть «Восстановление системы».");
             return;
         }
 
@@ -441,8 +441,8 @@ public sealed partial class RestoreViewModel : PageViewModel
             foreach (var p in list) RestorePoints.Add(new RestorePointItem(p));
             PointsCountText = list.Count.ToString();
             PointsMessage = list.Count > 0 ? "" : ProtectionEnabled
-                ? "Точек восстановления пока нет. Создайте первую кнопкой «СОЗДАТЬ ТОЧКУ» вверху страницы."
-                : "Точек восстановления нет — защита системы выключена.";
+                ? Loc.T("Точек восстановления пока нет. Создайте первую кнопкой «СОЗДАТЬ ТОЧКУ» вверху страницы.")
+                : Loc.T("Точек восстановления нет — защита системы выключена.");
         }
         finally
         {
@@ -454,19 +454,19 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanAdmin() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanAdmin))]
-    private Task CreateRestorePointAsync() => RunBusyAsync(OperationClass.Disruptive, "Создание точки восстановления…", async () =>
+    private Task CreateRestorePointAsync() => RunBusyAsync(OperationClass.Disruptive, Loc.T("Создание точки восстановления…"), async () =>
     {
-        if (!RequireAdmin("Создание точки восстановления", "CreateRestorePoint")) return;
+        if (!RequireAdmin(Loc.T("Создание точки восстановления"), "CreateRestorePoint")) return;
         if (ProtectionBlocked)
         {
-            await Ui.AlertAsync("Защита системы запрещена", "Групповая политика запрещает точки восстановления на этом компьютере.");
+            await Ui.AlertAsync("Защита системы запрещена", Loc.T("Групповая политика запрещает точки восстановления на этом компьютере."));
             return;
         }
         if (!ProtectionEnabled)
         {
-            if (!await Ui.ConfirmAsync("Защита системы выключена", "Чтобы создать точку восстановления, сначала нужно включить защиту системы для системного диска.",
-                    ["Windows выделит под точки восстановления часть места на диске; размер можно изменить в «Защите системы»"],
-                    confirmText: "ВКЛЮЧИТЬ И СОЗДАТЬ"))
+            if (!await Ui.ConfirmAsync("Защита системы выключена", Loc.T("Чтобы создать точку восстановления, сначала нужно включить защиту системы для системного диска."),
+                    [Loc.T("Windows выделит под точки восстановления часть места на диске; размер можно изменить в «Защите системы»")],
+                    confirmText: Loc.T("ВКЛЮЧИТЬ И СОЗДАТЬ")))
                 return;
             if (!await RestorePointService.EnableAsync())
             {
@@ -476,35 +476,35 @@ public sealed partial class RestoreViewModel : PageViewModel
             await RefreshProtectionAsync();
         }
 
-        var result = await RestorePointService.CreateAsync("MONOLITH: точка, созданная вручную");
+        var result = await RestorePointService.CreateAsync(Loc.T("MONOLITH: точка, созданная вручную"));
         Ui.Toast(result.Message, result.Outcome switch
         {
             RestorePointOutcome.Created => ToastKind.Success,
             RestorePointOutcome.Skipped => ToastKind.Info,
             _ => ToastKind.Error,
-        }, "Точка восстановления");
+        }, Loc.T("Точка восстановления"));
         await LoadPointsAsync();
     });
 
     private bool CanEnable() => !IsBusy && CanOfferEnable;
 
     [RelayCommand(CanExecute = nameof(CanEnable))]
-    private Task EnableProtectionAsync() => RunBusyAsync(OperationClass.Disruptive, "Включение защиты системы…", async () =>
+    private Task EnableProtectionAsync() => RunBusyAsync(OperationClass.Disruptive, Loc.T("Включение защиты системы…"), async () =>
     {
-        if (!RequireAdmin("Включение защиты системы", "EnableProtection")) return;
+        if (!RequireAdmin(Loc.T("Включение защиты системы"), "EnableProtection")) return;
         var drive = SystemProfile.SystemDrive.TrimEnd('\\');
         if (!await Ui.ConfirmAsync("Включить защиту системы?",
-                $"Windows начнёт создавать точки восстановления для диска {drive} — перед обновлениями, установкой драйверов и изменениями MONOLITH.",
+                Loc.Tf("Windows начнёт создавать точки восстановления для диска {0} — перед обновлениями, установкой драйверов и изменениями MONOLITH.", drive),
                 [
-                    $"Защита включается для диска {drive} (то же, что «Защита системы» → «Настроить» → «Включить защиту»)",
-                    "Под точки выделяется часть места на диске; старые точки Windows удаляет сама, когда место заканчивается",
-                    "Отключить защиту можно в любой момент кнопкой «Настроить»",
+                    Loc.Tf("Защита включается для диска {0} (то же, что «Защита системы» → «Настроить» → «Включить защиту»)", drive),
+                    Loc.T("Под точки выделяется часть места на диске; старые точки Windows удаляет сама, когда место заканчивается"),
+                    Loc.T("Отключить защиту можно в любой момент кнопкой «Настроить»"),
                 ],
-                confirmText: "ВКЛЮЧИТЬ"))
+                confirmText: Loc.T("ВКЛЮЧИТЬ")))
             return;
 
         if (await RestorePointService.EnableAsync())
-            Ui.Toast($"Защита системы включена для диска {drive}.", ToastKind.Success);
+            Ui.Toast(Loc.Tf("Защита системы включена для диска {0}.", drive), ToastKind.Success);
         else
             Ui.Toast("Не удалось включить защиту системы — подробности в консоли.", ToastKind.Error);
         await RefreshProtectionAsync();
@@ -517,7 +517,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private void OpenSystemRestore() => RestorePointService.OpenSystemRestoreWizard();
 
     [RelayCommand]
-    private void OpenBackups() => ShellLauncher.OpenFolder(AppPaths.BackupsDir, "Резервные копии");
+    private void OpenBackups() => ShellLauncher.OpenFolder(AppPaths.BackupsDir, Loc.T("Резервные копии"));
 
     [RelayCommand]
     private Task RefreshPointsAsync() => RefreshProtectionAsync();
@@ -526,7 +526,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     [RelayCommand]
     private async Task ShowPointsAsync()
     {
-        if (!RequireAdmin("Список точек восстановления", "ShowPoints")) return;
+        if (!RequireAdmin(Loc.T("Список точек восстановления"), "ShowPoints")) return;
         await RefreshProtectionAsync();
     }
 
@@ -561,14 +561,14 @@ public sealed partial class RestoreViewModel : PageViewModel
         {
             var ok = await Ui.ConfirmAsync(
                 "Не создавать точки восстановления?",
-                "MONOLITH перестанет создавать точку восстановления Windows перед пакетами изменений.",
+                Loc.T("MONOLITH перестанет создавать точку восстановления Windows перед пакетами изменений."),
                 [
-                    "Журнал отката продолжит работать: каждое изменение по-прежнему можно откатить на этой странице",
-                    "Пропадёт вторая страховка: если система не загрузится, вернуться будет не к чему",
-                    "Пакеты изменений будут применяться быстрее — без паузы на создание точки",
-                    "Включить обратно можно здесь же в любой момент",
+                    Loc.T("Журнал отката продолжит работать: каждое изменение по-прежнему можно откатить на этой странице"),
+                    Loc.T("Пропадёт вторая страховка: если система не загрузится, вернуться будет не к чему"),
+                    Loc.T("Пакеты изменений будут применяться быстрее — без паузы на создание точки"),
+                    Loc.T("Включить обратно можно здесь же в любой момент"),
                 ],
-                confirmText: "ВЫКЛЮЧИТЬ", danger: true);
+                confirmText: Loc.T("ВЫКЛЮЧИТЬ"), danger: true);
             if (ok)
             {
                 AppSettings.Current.CreateRestorePoints = false;
@@ -587,9 +587,9 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanRevertRecord(object? parameter) => CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertRecord))]
-    private Task RevertRecordAsync(object? parameter) => RunBusyAsync(OperationClass.JournalChange, "Откат изменения…", async () =>
+    private Task RevertRecordAsync(object? parameter) => RunBusyAsync(OperationClass.JournalChange, Loc.T("Откат изменения…"), async () =>
     {
-        if (_journal is null || !RequireAdmin("Откат изменения", "RevertRecord", (parameter as RecordItem)?.Record.Id.ToString() ?? parameter as string)) return;
+        if (_journal is null || !RequireAdmin(Loc.T("Откат изменения"), "RevertRecord", (parameter as RecordItem)?.Record.Id.ToString() ?? parameter as string)) return;
         if (ResolveRecord(parameter) is not { CanRevert: true } item) return;
         var journal = _journal;
         var record = item.Record;
@@ -606,43 +606,44 @@ public sealed partial class RestoreViewModel : PageViewModel
         if (shadow is not null)
         {
             await Ui.AlertAsync("Сначала откатите более позднее изменение",
-                $"«{item.Title}» записано старой версией MONOLITH без учётной записи. Сейчас это значение в профиле текущей учётной записи " +
-                $"задаёт «{shadow.Title}», и откат старой записи заменил бы его. Сначала откатите «{shadow.Title}».");
+                Loc.Tf("«{0}» записано старой версией MONOLITH без учётной записи. Сейчас это значение в профиле текущей учётной записи " +
+                "задаёт «{1}», и откат старой записи заменил бы его. Сначала откатите «{1}».", Loc.Sink(item.Title), Loc.Sink(shadow.Title)));
             return;
         }
         var lines = new List<string>
         {
             $"{item.KindLabel}: {item.Target}",
-            live.Drifted is null && newer is null && item.NewValue is { Length: > 0 } applied ? $"Установлено MONOLITH: {applied}" : $"Сейчас: {live.Text}",
-            newer is null ? $"Станет: {item.OldValue}" : $"Останется как сейчас; исходное «{item.OldValue}» перейдёт к «{newer.Title}»",
+            live.Drifted is null && newer is null && Loc.Sink(item.NewValue) is { Length: > 0 } applied ? Loc.Tf("Установлено MONOLITH: {0}", applied) : Loc.Tf("Сейчас: {0}", Loc.Sink(live.Text)),
+            newer is null ? Loc.Tf("Станет: {0}", Loc.Sink(item.OldValue)) : Loc.Tf("Останется как сейчас; исходное «{0}» перейдёт к «{1}»", Loc.Sink(item.OldValue), Loc.Sink(newer.Title)),
         };
         if (live.IsDrifted)
-            lines.Add($"После MONOLITH значение изменили (Windows, политика или вы): MONOLITH ставил «{item.NewValue}». Откат заменит текущее значение исходным.");
+            lines.Add(Loc.Tf("После MONOLITH значение изменили (Windows, политика или вы): MONOLITH ставил «{0}». Откат заменит текущее значение исходным.", Loc.Sink(item.NewValue)));
         if (account is not null)
-            lines.Add($"Запись старой версии без учётной записи: исходное значение запишется в профиль {account}. Если изменение делали под другой учётной записью, у неё оно останется.");
+            lines.Add(Loc.Tf("Запись старой версии без учётной записи: исходное значение запишется в профиль {0}. Если изменение делали под другой учётной записью, у неё оно останется.", account));
         if (record.IsLegacyMerged)
-            lines.Add($"Также откатит: {string.Join(", ", record.AlsoSources.Distinct().Select(RestoreFormat.SourceTitle))} — они меняли тот же параметр.");
+            lines.Add(Loc.Tf("Также откатит: {0} — они меняли тот же параметр.", string.Join(", ", record.AlsoSources.Distinct().Select(RestoreFormat.SourceTitle))));
         var message = newer is not null
-            ? $"Сейчас значение задаёт более позднее изменение «{newer.Title}». Откат «{item.Title}» систему не изменит: исходное значение «{item.OldValue}» перейдёт к нему, и его откат вернёт " +
-              (bottom ? "то, что было до MONOLITH." : $"значение, которое было до «{item.Title}».")
+            ? (bottom
+                ? Loc.Tf("Сейчас значение задаёт более позднее изменение «{0}». Откат «{1}» систему не изменит: исходное значение «{2}» перейдёт к нему, и его откат вернёт то, что было до MONOLITH.", Loc.Sink(newer.Title), Loc.Sink(item.Title), Loc.Sink(item.OldValue))
+                : Loc.Tf("Сейчас значение задаёт более позднее изменение «{0}». Откат «{1}» систему не изменит: исходное значение «{2}» перейдёт к нему, и его откат вернёт значение, которое было до «{1}».", Loc.Sink(newer.Title), Loc.Sink(item.Title), Loc.Sink(item.OldValue)))
             : live.IsDrifted
-                ? $"«{item.Title}» изменено вне MONOLITH. Если откатить, вернётся " +
-                  (bottom ? "значение, которое было до MONOLITH" : $"значение, которое было до этого изменения («{item.OldValue}»)") +
-                  ", а более позднее изменение пропадёт."
-                : $"«{item.Title}» вернётся к значению, которое было до этого изменения.";
-        if (!await Ui.ConfirmAsync("Откатить изменение?", message, lines, confirmText: "ОТКАТИТЬ", danger: live.IsDrifted))
+                ? (bottom
+                    ? Loc.Tf("«{0}» изменено вне MONOLITH. Если откатить, вернётся значение, которое было до MONOLITH, а более позднее изменение пропадёт.", Loc.Sink(item.Title))
+                    : Loc.Tf("«{0}» изменено вне MONOLITH. Если откатить, вернётся значение, которое было до этого изменения («{1}»), а более позднее изменение пропадёт.", Loc.Sink(item.Title), Loc.Sink(item.OldValue)))
+                : Loc.Tf("«{0}» вернётся к значению, которое было до этого изменения.", Loc.Sink(item.Title));
+        if (!await Ui.ConfirmAsync("Откатить изменение?", message, lines, confirmText: Loc.T("ОТКАТИТЬ"), danger: live.IsDrifted))
             return;
 
         var result = await Task.Run(() => journal.RevertAsync([record], LiveState.VerifyRevert));
-        await ReportAsync(result, newer is null ? "Изменение откачено." : $"Изменение откачено; значение остаётся за «{newer.Title}».");
+        await ReportAsync(result, newer is null ? Loc.T("Изменение откачено.") : Loc.Tf("Изменение откачено; значение остаётся за «{0}».", Loc.Sink(newer.Title)));
     });
 
     private bool CanRevertBatch(object? parameter) => CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertBatch))]
-    private Task RevertBatchAsync(object? parameter) => RunBusyAsync(OperationClass.JournalChange, "Откат пакета…", async () =>
+    private Task RevertBatchAsync(object? parameter) => RunBusyAsync(OperationClass.JournalChange, Loc.T("Откат пакета…"), async () =>
     {
-        if (_journal is null || !RequireAdmin("Откат пакета", "RevertBatch", (parameter as BatchItem)?.Id.ToString() ?? parameter as string)) return;
+        if (_journal is null || !RequireAdmin(Loc.T("Откат пакета"), "RevertBatch", (parameter as BatchItem)?.Id.ToString() ?? parameter as string)) return;
         if (ResolveBatch(parameter) is not { CanRevert: true } batch) return;
         var journal = _journal;
         var inBatch = journal.Records.Where(r => !r.Reverted && (batch.IsSynthetic
@@ -654,14 +655,14 @@ public sealed partial class RestoreViewModel : PageViewModel
 
         var (lines, drifted, kept) = await DescribeLiveAsync(journal, active);
         if (!await Ui.ConfirmAsync("Откатить пакет?",
-                $"«{batch.Title}» — {active.Count} {RestoreFormat.Plural(active.Count, "изменение откатится", "изменения откатятся", "изменений откатятся")}, от последнего к первому." +
-                KeptSentence(kept) + DriftSentence(drifted) + (left.Length > 0 ? " Не войдут в откат: " + left : ""),
+                Loc.Tf("«{0}» — {1} {2}, от последнего к первому.", Loc.Sink(batch.Title), active.Count, Loc.Plural(active.Count, "изменение откатится", "изменения откатятся", "изменений откатятся")) +
+                KeptSentence(kept) + DriftSentence(drifted) + (left.Length > 0 ? Loc.Tf(" Не войдут в откат: {0}", left) : ""),
                 lines,
-                confirmText: "ОТКАТИТЬ ПАКЕТ", danger: drifted > 0))
+                confirmText: Loc.T("ОТКАТИТЬ ПАКЕТ"), danger: drifted > 0))
             return;
 
         var result = await Task.Run(() => journal.RevertAsync(active, LiveState.VerifyRevert));
-        await ReportAsync(result, $"Пакет «{batch.Title}» откачен.", left);
+        await ReportAsync(result, Loc.Tf("Пакет «{0}» откачен.", Loc.Sink(batch.Title)), left);
     });
 
     /// <summary>
@@ -672,7 +673,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private async Task RevertLastBatchAsync()
     {
         // Read-only mode: relaunch with rights and come back to exactly this action.
-        if (!RequireAdmin("Откат последнего пакета", "RevertLastBatch")) return;
+        if (!RequireAdmin(Loc.T("Откат последнего пакета"), "RevertLastBatch")) return;
         if (_journal is null) return;
         if (Filter != JournalFilter.All && Filter != JournalFilter.Active) Filter = JournalFilter.Active; // rebuilds
         var last = Batches.FirstOrDefault(b => b.CanRevert && !b.IsSynthetic) ?? Batches.FirstOrDefault(b => b.CanRevert);
@@ -689,9 +690,9 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanRevertAll() => RevertAllCount > 0 && CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertAll))]
-    private Task RevertAllAsync() => RunBusyAsync(OperationClass.JournalChange, "Откат всех изменений…", async () =>
+    private Task RevertAllAsync() => RunBusyAsync(OperationClass.JournalChange, Loc.T("Откат всех изменений…"), async () =>
     {
-        if (_journal is null || !RequireAdmin("Откат всех изменений", "RevertAll")) return;
+        if (_journal is null || !RequireAdmin(Loc.T("Откат всех изменений"), "RevertAll")) return;
         var journal = _journal;
         var active = journal.RevertAllCandidates().Reverse().ToList();
         if (active.Count == 0) return;
@@ -699,17 +700,17 @@ public sealed partial class RestoreViewModel : PageViewModel
 
         var (lines, drifted, _) = await DescribeLiveAsync(journal, active);
         if (!await Ui.ConfirmAsync("Откатить все изменения?",
-                $"{active.Count} {RestoreFormat.Plural(active.Count, "активное изменение MONOLITH вернётся", "активных изменения MONOLITH вернутся", "активных изменений MONOLITH вернутся")} к исходным значениям — от последнего к первому." +
-                DriftSentence(drifted) + (left.Length > 0 ? " Не войдут в откат: " + left : "") +
-                " Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются.",
+                Loc.Tf("{0} {1} к исходным значениям — от последнего к первому.", active.Count, Loc.Plural(active.Count, "активное изменение MONOLITH вернётся", "активных изменения MONOLITH вернутся", "активных изменений MONOLITH вернутся")) +
+                DriftSentence(drifted) + (left.Length > 0 ? Loc.Tf(" Не войдут в откат: {0}", left) : "") +
+                Loc.T(" Удалённые файлы, установленные драйверы и программы, сброс сети этим не отменяются."),
                 lines,
-                confirmText: "ОТКАТИТЬ ВСЁ", danger: true,
-                footnote: "Для некоторых изменений нужна перезагрузка."))
+                confirmText: Loc.T("ОТКАТИТЬ ВСЁ"), danger: true,
+                footnote: Loc.T("Для некоторых изменений нужна перезагрузка.")))
             return;
 
         var result = await Task.Run(() => journal.RevertAllAsync(LiveState.VerifyRevert));
         // What was actually left after the revert (the journal picks the records again under its gate).
-        await ReportAsync(result, "Все изменения откачены.", await LeftTextAsync(result.Left));
+        await ReportAsync(result, Loc.T("Все изменения откачены."), await LeftTextAsync(result.Left));
     });
 
     /// <summary>Why records stay active (<see cref="RestoreFormat.LeftText"/>), with account names resolved off the UI thread.</summary>
@@ -718,7 +719,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         : Task.Run(() => RestoreFormat.LeftText(left, UserScope.CurrentSid, UserScope.AccountName));
 
     private static string Describe(ChangeRecord r) =>
-        $"{r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: «{r.NewValue}» → «{r.OldValue}»";
+        $"{Loc.Sink(r.Title)} · {RestoreFormat.DescribeTarget(r.Target)}: «{Loc.Sink(r.NewValue)}» → «{Loc.Sink(r.OldValue)}»";
 
     /// <summary>
     /// Dialog lines with a live read per record, newest first; drifted ones are flagged (research services.md §3.5).
@@ -745,12 +746,12 @@ public sealed partial class RestoreViewModel : PageViewModel
             if (keeper is not null)
             {
                 kept++;
-                lines.Add($"{r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: остаётся «{live.Text}» — его задаёт более позднее «{keeper.Title}», исходное значение перейдёт к нему");
+                lines.Add(Loc.Tf("{0} · {1}: остаётся «{2}» — его задаёт более позднее «{3}», исходное значение перейдёт к нему", Loc.Sink(r.Title), RestoreFormat.DescribeTarget(r.Target), Loc.Sink(live.Text), Loc.Sink(keeper.Title)));
             }
             else if (live.IsDrifted)
             {
                 drifted++;
-                lines.Add($"ИЗМЕНЕНО ВНЕ MONOLITH · {r.Title} · {RestoreFormat.DescribeTarget(r.Target)}: сейчас «{live.Text}» (MONOLITH ставил «{r.NewValue}») → «{r.OldValue}»");
+                lines.Add(Loc.Tf("ИЗМЕНЕНО ВНЕ MONOLITH · {0} · {1}: сейчас «{2}» (MONOLITH ставил «{3}») → «{4}»", Loc.Sink(r.Title), RestoreFormat.DescribeTarget(r.Target), Loc.Sink(live.Text), Loc.Sink(r.NewValue), Loc.Sink(r.OldValue)));
             }
             else
             {
@@ -762,11 +763,11 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     private static string DriftSentence(int drifted) => drifted == 0
         ? ""
-        : $" {drifted} {RestoreFormat.Plural(drifted, "значение изменено", "значения изменены", "значений изменено")} после MONOLITH (Windows, политикой или вами) — откат заменит и {(drifted == 1 ? "его" : "их")} исходным значением; такие пункты отмечены «ИЗМЕНЕНО ВНЕ MONOLITH».";
+        : Loc.Tf(" {0} {1} после MONOLITH (Windows, политикой или вами) — откат заменит и {2} исходным значением; такие пункты отмечены «ИЗМЕНЕНО ВНЕ MONOLITH».", drifted, Loc.Plural(drifted, "значение изменено", "значения изменены", "значений изменено"), (drifted == 1 ? Loc.T("его") : Loc.T("их")));
 
     private static string KeptSentence(int kept) => kept == 0
         ? ""
-        : $" {kept} {RestoreFormat.Plural(kept, "параметр", "параметра", "параметров")} позже изменил другой пакет — {(kept == 1 ? "он останется" : "они останутся")} как есть, а исходное значение перейдёт к тому изменению.";
+        : Loc.Tf(" {0} позже изменил другой пакет — {1} как есть, а исходное значение перейдёт к тому изменению.", Loc.N(kept, "{0} параметр", "{0} параметра", "{0} параметров"), (kept == 1 ? Loc.T("он останется") : Loc.T("они останутся")));
 
     /// <summary>
     /// The outcome of a revert. <paramref name="success"/> is shown only when everything in scope was reverted;
@@ -778,24 +779,24 @@ public sealed partial class RestoreViewModel : PageViewModel
         var counts = RestoreFormat.RevertCounts(result);
         if (!result.JournalSaved)
             Ui.Toast("Откат выполнен, но журнал не удалось сохранить на диск — после перезапуска эти записи могут снова показаться активными.",
-                ToastKind.Warning, "ЖУРНАЛ НЕ СОХРАНЁН");
+                ToastKind.Warning, Loc.T("ЖУРНАЛ НЕ СОХРАНЁН"));
         if (result.Success && result.Mismatches.Count == 0)
         {
             if (left.Length == 0)
                 Ui.Toast((result.Reverted > 1 ? $"{success} {counts}" : success) + check, ToastKind.Success);
             else
-                Ui.Toast($"{counts}{check} {left}", ToastKind.Warning, "ОТКАЧЕНО НЕ ВСЁ");
+                Ui.Toast($"{counts}{check} {left}", ToastKind.Warning, Loc.T("ОТКАЧЕНО НЕ ВСЁ"));
             return;
         }
-        Ui.Toast(result.Success ? $"{counts}{check}" : $"{counts} Ошибок: {result.Failed}.{check}", ToastKind.Warning);
+        Ui.Toast(result.Success ? $"{counts}{check}" : Loc.Tf("{0} Ошибок: {1}.{2}", counts, result.Failed, check), ToastKind.Warning);
         var tail = left.Length > 0 ? " " + left : "";
         if (!result.Success)
             await Ui.AlertAsync("Часть изменений не откачена",
-                "Эти записи остались активными — их можно откатить повторно после перезагрузки или вернуть точкой восстановления Windows." + tail,
-                result.Errors.Concat(result.Mismatches.Select(m => "НЕ СОВПАДАЕТ · " + m)));
+                Loc.T("Эти записи остались активными — их можно откатить повторно после перезагрузки или вернуть точкой восстановления Windows.") + tail,
+                result.Errors.Concat(result.Mismatches.Select(m => Loc.Tf("НЕ СОВПАДАЕТ · {0}", m))));
         else
             await Ui.AlertAsync("Откат не совпал с исходным",
-                "После отката MONOLITH прочитал значения заново, и эти отличаются от записанных до изменения: их могла сразу поменять Windows, политика или другая программа. Строки отмечены «НЕ СОВПАДАЕТ»." + tail,
+                Loc.T("После отката MONOLITH прочитал значения заново, и эти отличаются от записанных до изменения: их могла сразу поменять Windows, политика или другая программа. Строки отмечены «НЕ СОВПАДАЕТ».") + tail,
                 result.Mismatches);
     }
 }
