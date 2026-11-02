@@ -216,6 +216,9 @@ internal sealed class DisplayWriter : IDisplayWriter
     /// <summary>How long the guard may take to report «armed».</summary>
     internal static TimeSpan ArmTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>HARDWARE TESTS ONLY: the Lycoris.exe to start as the guard when the host process is the test runner.</summary>
+    internal static string? GuardExecutableForTests { get; set; }
+
     public IDisplayGuard? StartGuard(Guid recordId, DateTime deadlineUtc, DisplayGuardAction action)
     {
         SafetyLock.ThrowIfLocked(What);
@@ -230,7 +233,7 @@ internal sealed class DisplayWriter : IDisplayWriter
             // The guard is this exe started again with THIS (elevated) token and no UAC prompt: it must still be the file we started from.
             if (Elevation.IsElevated && Monolith.Core.Security.SelfIntegrity.CheckBeforeElevation() is { Allowed: false } refusal)
                 throw new InvalidOperationException(refusal.Reason ?? "integrity check");
-            var psi = new ProcessStartInfo(AppPaths.ExecutablePath) { UseShellExecute = false, CreateNoWindow = true };
+            var psi = new ProcessStartInfo(GuardExecutableForTests ?? AppPaths.ExecutablePath) { UseShellExecute = false, CreateNoWindow = true };
             foreach (var arg in BuildGuardArgs(recordId, deadlineUtc, Environment.ProcessId, action)) psi.ArgumentList.Add(arg);
             process = Process.Start(psi) ?? throw new InvalidOperationException(Loc.T("процесс не запустился"));
 
@@ -346,7 +349,10 @@ internal sealed class DisplayWriter : IDisplayWriter
         {
             var p = Process.GetProcessById(pid);
             using var self = Process.GetCurrentProcess();
-            if (!p.HasExited && string.Equals(p.ProcessName, self.ProcessName, StringComparison.OrdinalIgnoreCase)) return p;
+            // The opt-in hardware tests (LYCORIS_HW_TESTS=1, docs/hardware-verification-2026-11.md) start the guard from the xUnit host.
+            var testHost = Environment.GetEnvironmentVariable("LYCORIS_HW_TESTS") == "1"
+                           && string.Equals(p.ProcessName, "testhost", StringComparison.OrdinalIgnoreCase);
+            if (!p.HasExited && (testHost || string.Equals(p.ProcessName, self.ProcessName, StringComparison.OrdinalIgnoreCase))) return p;
             p.Dispose();
         }
         catch { /* not running */ }
