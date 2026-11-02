@@ -36,7 +36,7 @@ internal static class UpdateSelfTest
 
     public static async Task RunAsync(List<string> exercised, List<string> errors)
     {
-        const string baseUrl = "https://github.com/bil-xvii/MONOLITH-releases/releases/download/v9.9.9/";
+        const string baseUrl = "https://github.com/bil-xvii/Lycoris-releases/releases/download/v9.9.9/";
         var exe = new byte[8192];
         new Random(7).NextBytes(exe);
         exe[0] = (byte)'M'; exe[1] = (byte)'Z';
@@ -47,16 +47,16 @@ internal static class UpdateSelfTest
         var sha = Convert.ToHexStringLower(SHA256.HashData(exe));
 
         var json = "{\"tag_name\":\"v9.9.9\",\"draft\":false,\"prerelease\":false,\"body\":\"## Selftest\\n- fake\"," +
-                   "\"html_url\":\"https://github.com/bil-xvii/MONOLITH-releases/releases/tag/v9.9.9\",\"assets\":[" +
-                   $"{{\"name\":\"MONOLITH.exe\",\"size\":{exe.Length},\"digest\":\"sha256:{sha}\",\"browser_download_url\":\"{baseUrl}MONOLITH.exe\"}}," +
-                   $"{{\"name\":\"MONOLITH.exe.sha256\",\"size\":80,\"browser_download_url\":\"{baseUrl}MONOLITH.exe.sha256\"}}]}}";
+                   "\"html_url\":\"https://github.com/bil-xvii/Lycoris-releases/releases/tag/v9.9.9\",\"assets\":[" +
+                   $"{{\"name\":\"Lycoris.exe\",\"size\":{exe.Length},\"digest\":\"sha256:{sha}\",\"browser_download_url\":\"{baseUrl}Lycoris.exe\"}}," +
+                   $"{{\"name\":\"Lycoris.exe.sha256\",\"size\":80,\"browser_download_url\":\"{baseUrl}Lycoris.exe.sha256\"}}]}}";
 
         var handler = new Handler(req =>
         {
             var path = req.RequestUri!.AbsolutePath;
             if (req.RequestUri.Host == "api.github.com")
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-            if (path.EndsWith(".sha256")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sha + "  MONOLITH.exe\n") };
+            if (path.EndsWith(".sha256")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sha + "  Lycoris.exe\n") };
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(exe) { Headers = { ContentType = new("application/octet-stream") } } };
         });
         using var http = new HttpClient(handler);

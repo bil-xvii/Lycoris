@@ -6,7 +6,7 @@ using Monolith.Core;
 
 namespace Monolith.Modules.Drivers;
 
-/// <summary>An official GPU driver installer that MONOLITH can download directly (no browser).</summary>
+/// <summary>An official GPU driver installer that Lycoris can download directly (no browser).</summary>
 internal sealed record DriverPackage(
     GpuVendor Vendor,
     string Version,
@@ -168,8 +168,8 @@ internal static partial class DriverDownloads
     // ───────────────────────────── Install ─────────────────────────────
 
     /// <summary>
-    /// Starts the vendor's installer interactively. Only files inside MONOLITH's admin-only downloads folder are
-    /// accepted (that is where <see cref="DownloadAsync"/> verified them). MONOLITH is elevated, so is the installer —
+    /// Starts the vendor's installer interactively. Only files inside Lycoris's admin-only downloads folder are
+    /// accepted (that is where <see cref="DownloadAsync"/> verified them). Lycoris is elevated, so is the installer —
     /// it installs a driver and would ask for administrator rights anyway.
     /// </summary>
     public static void LaunchInstaller(string path)
@@ -179,7 +179,7 @@ internal static partial class DriverDownloads
         var full = Path.GetFullPath(path);
         if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(DownloadsDir), StringComparison.OrdinalIgnoreCase) ||
             !full.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(full))
-            throw new InvalidOperationException(Loc.T("Установщик не найден в папке загрузок MONOLITH."));
+            throw new InvalidOperationException(Loc.T("Установщик не найден в папке загрузок Lycoris."));
         using var _ = Process.Start(new ProcessStartInfo(full) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(full)! });
         Log.Info("Запущен официальный установщик: {0}", Path.GetFileName(full));
     }

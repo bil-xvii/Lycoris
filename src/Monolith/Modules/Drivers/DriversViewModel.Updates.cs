@@ -253,7 +253,7 @@ public sealed partial class DriversViewModel
                 // 1. Restore point.
                 InstallStage = Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ");
                 InstallDetail = Loc.T("Создание точки восстановления системы…");
-                if (!await EnsureRestorePointAsync(Loc.T("MONOLITH: драйверы из Windows Update")))
+                if (!await EnsureRestorePointAsync(Loc.T("Lycoris: драйверы из Windows Update")))
                 {
                     Log.Info("Установка драйверов отменена: нет точки восстановления.");
                     return;

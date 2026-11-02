@@ -32,11 +32,11 @@ public enum ChangeKind
 }
 
 /// <summary>
-/// One reversible change MONOLITH made to the system, with everything needed to undo it.
+/// One reversible change Lycoris made to the system, with everything needed to undo it.
 /// Changes of the same target are LAYERS: every record holds the state right before its own change. Reverting the
 /// newest layer restores that state; reverting an older layer while a newer one is active leaves the system alone and
 /// hands its original over to the next newer layer (<see cref="ChangeJournal.RevertAsync"/>). So reverting one change
-/// undoes exactly that change, and reverting all of them, newest first, ends at the state from before MONOLITH.
+/// undoes exactly that change, and reverting all of them, newest first, ends at the state from before Lycoris.
 /// </summary>
 public sealed class ChangeRecord
 {
@@ -62,7 +62,7 @@ public sealed class ChangeRecord
     public RegistryValueSnapshot? Registry { get; set; }
     public ServiceStartSnapshot? Service { get; set; }
     public Guid? PowerSchemeOriginal { get; set; }
-    /// <summary>A scheme MONOLITH created (Ultimate Performance copy) and deletes on revert.</summary>
+    /// <summary>A scheme Lycoris created (Ultimate Performance copy) and deletes on revert.</summary>
     public Guid? PowerSchemeCreated { get; set; }
     /// <summary>More created schemes this record deletes on revert (handed over from a reverted older layer).</summary>
     public List<Guid>? PowerSchemesCreatedMore { get; set; }
@@ -176,7 +176,7 @@ public static class UserScope
     /// <summary>TESTS ONLY: replaces the account of this process.</summary>
     internal static Func<string?>? CurrentSidForTests { get; set; }
 
-    /// <summary>SID of the account MONOLITH runs as — whose HKCU it writes. Null when it cannot be read.</summary>
+    /// <summary>SID of the account Lycoris runs as — whose HKCU it writes. Null when it cannot be read.</summary>
     public static string? CurrentSid => CurrentSidForTests is { } f ? f() : ProcessSid.Value;
 
     internal static readonly Regex SidPattern = new(@"^S-1-[0-9]{1,3}(-[0-9]{1,10}){1,14}$", RegexOptions.CultureInvariant);
@@ -294,7 +294,7 @@ public sealed class ChangeJournal
     public bool IsUnavailable => UnavailableReason is not null;
 
     private static readonly string UnavailableMessage =
-        Loc.T("Журнал изменений недоступен, поэтому MONOLITH не вносит новые изменения: без журнала их нельзя было бы отменить.");
+        Loc.T("Журнал изменений недоступен, поэтому Lycoris не вносит новые изменения: без журнала их нельзя было бы отменить.");
 
     public ChangeJournal(string path) : this(path, AppPaths.IsUnderMachineDir(path)) { }
 
@@ -555,7 +555,7 @@ public sealed class ChangeJournal
     }
 
     /// <summary>
-    /// For a write of a value into <paramref name="path"/>: the shallowest key MONOLITH created that covers it, from an
+    /// For a write of a value into <paramref name="path"/>: the shallowest key Lycoris created that covers it, from an
     /// active record of the same hive and account. A value written into such a key inherits it, so whichever record is
     /// reverted last removes the created keys, in any order. Records from older builds count with their own key only,
     /// and a write of an account never inherits a key from an older per-user record without an account.
@@ -669,7 +669,7 @@ public sealed class ChangeJournal
         return saved;
     }
 
-    /// <summary>Active display / input records applied temporarily and never confirmed (MONOLITH or the PC died during the countdown).</summary>
+    /// <summary>Active display / input records applied temporarily and never confirmed (Lycoris or the PC died during the countdown).</summary>
     public IReadOnlyList<ChangeRecord> PendingDisplayRecords()
     {
         lock (_lock) return _data.Records.Where(r => !r.Reverted && r.IsPendingConfirm).ToList();
@@ -767,9 +767,9 @@ public sealed class ChangeJournal
                 // Checked before any system write: an undo that cannot be recorded must not happen at all.
                 if (!CanWrite) throw new InvalidOperationException(CannotWriteRevert);
                 if (IsOtherUser(r, sid)) throw new InvalidOperationException(UserScope.OtherAccountMessage(r.UserSid!));
-                // The journal file is input, not authority: refuse anything MONOLITH's own code could not have recorded.
+                // The journal file is input, not authority: refuse anything Lycoris's own code could not have recorded.
                 if (JournalTrust.Check(r) is { } refusal)
-                    throw new InvalidOperationException(Loc.Tf("Отказано: {0}. Такую запись MONOLITH создать не мог.", refusal));
+                    throw new InvalidOperationException(Loc.Tf("Отказано: {0}. Такую запись Lycoris создать не мог.", refusal));
 
                 ChangeRecord? newer, shadow;
                 lock (_lock)
@@ -963,7 +963,7 @@ public sealed class ChangeJournal
             r.RevertVerifiedUtc = null;
             r.RevertMismatch = null;
             r.RevertNote = !newerMayOwnPlans && keep.Count > 0
-                ? Loc.T("Созданная MONOLITH схема питания ещё нужна (она включена или к ней вернёт откат более позднего изменения), поэтому не удалена: удалите её в «Электропитании», когда она станет не нужна.")
+                ? Loc.T("Созданная Lycoris схема питания ещё нужна (она включена или к ней вернёт откат более позднего изменения), поэтому не удалена: удалите её в «Электропитании», когда она станет не нужна.")
                 : null;
             saved = SaveLocked();
         }
@@ -1021,7 +1021,7 @@ public sealed class ChangeJournal
                     r.Reverted = true;
                     r.RevertedUtc = DateTime.UtcNow;
                     r.RevertError = null;
-                    r.RevertNote = Loc.T("Схема питания, в которой MONOLITH менял этот параметр, удалена вместе с ним — откатывать нечего.");
+                    r.RevertNote = Loc.T("Схема питания, в которой Lycoris менял этот параметр, удалена вместе с ним — откатывать нечего.");
                     closed.Add(r);
                 }
             }
@@ -1078,8 +1078,8 @@ public sealed class ChangeJournal
         RevertSelectedAsync(() => (_data.Records.Where(IsBulkRevertible).ToList(), _data.Records.Where(IsLeftByBulk).ToList()), verify);
 
     /// <summary>
-    /// Registry locations MONOLITH never writes during an undo: autostart and process-hijack points.
-    /// No legitimate MONOLITH record targets them; refusing them makes a forged journal useless.
+    /// Registry locations Lycoris never writes during an undo: autostart and process-hijack points.
+    /// No legitimate Lycoris record targets them; refusing them makes a forged journal useless.
     /// </summary>
     internal static bool IsForbiddenRestoreTarget(RegistryValueSnapshot s)
     {
@@ -1107,7 +1107,7 @@ public sealed class ChangeJournal
             if (!AppPaths.MachineDirSecured)
             {
                 // Could not lock the folder down: anyone might still be able to edit the journal. Never replay it.
-                UnavailableReason = Loc.T("Не удалось защитить папку данных MONOLITH от записи обычными пользователями.");
+                UnavailableReason = Loc.T("Не удалось защитить папку данных Lycoris от записи обычными пользователями.");
                 Log.Error("Журнал изменений не загружен: папка данных не защищена.");
                 return;
             }
@@ -1195,7 +1195,7 @@ public sealed class ChangeJournal
 
     private bool SaveLocked()
     {
-        // A non-elevated MONOLITH never creates or touches the machine journal; an unavailable one is never overwritten.
+        // A non-elevated Lycoris never creates or touches the machine journal; an unavailable one is never overwritten.
         if (!CanWrite) return false;
         if (_path is null) return true; // in-memory (tests)
         try
@@ -1268,14 +1268,14 @@ internal sealed class WindowsJournalSystem : IJournalSystem
         {
             case ChangeKind.Registry when r.Registry is not null:
                 if (ChangeJournal.IsForbiddenRestoreTarget(r.Registry))
-                    throw new InvalidOperationException(Loc.Tf("Отказано: {0} — защищённое место реестра. Такую запись MONOLITH создать не мог.", r.Registry.FullName));
+                    throw new InvalidOperationException(Loc.Tf("Отказано: {0} — защищённое место реестра. Такую запись Lycoris создать не мог.", r.Registry.FullName));
                 if (r.Source == "startup" && JournalTrust.IsPackagedStartupMark(r.Registry))
                 {
                     // Never recreate the key of an uninstalled app, and never override a state set by policy.
                     if (!RegistryHelper.KeyExists(r.Registry.Hive, r.Registry.Path))
                         return new RevertOutcome(Loc.T("Приложения больше нет — откатывать нечего."), Skipped: true);
                     if (RegistryHelper.Read(r.Registry.Hive, r.Registry.Path, "State") is int live && live is 3 or 4)
-                        return new RevertOutcome(Loc.T("Состояние задано политикой организации — MONOLITH его не меняет."), Skipped: true);
+                        return new RevertOutcome(Loc.T("Состояние задано политикой организации — Lycoris его не меняет."), Skipped: true);
                 }
                 RegistryHelper.Restore(r.Registry);
                 return RevertOutcome.Done;
@@ -1311,7 +1311,7 @@ internal sealed class WindowsJournalSystem : IJournalSystem
                     if (created == r.PowerSchemeOriginal) continue;
                     if (PowerSchemes.TryExists(created) == true) PowerSchemes.Delete(created);
                     if (PowerSchemes.TryExists(created) == false) gone.Add(created);
-                    else Log.Warn("«{0}»: созданную MONOLITH схему питания {1} удалить не удалось.", r.Title, created);
+                    else Log.Warn("«{0}»: созданную Lycoris схему питания {1} удалить не удалось.", r.Title, created);
                 }
                 return new RevertOutcome(note, DeletedSchemes: gone);
             }
@@ -1387,7 +1387,7 @@ public static class ProcessExit
 
 /// <summary>
 /// Validates journal records before they are replayed with admin rights. The journal is untrusted input
-/// (CLAUDE.md §7): a record is accepted only when it has exactly the shape MONOLITH's own code writes —
+/// (CLAUDE.md §7): a record is accepted only when it has exactly the shape Lycoris's own code writes —
 /// a known source, the kind and target that source writes, no protected or hard-blocked service, and for
 /// commands an undo command line that is rebuilt from the same code and compared character for character.
 /// </summary>
@@ -1447,11 +1447,11 @@ internal static class JournalTrust
             case ChangeKind.Registry when r.Registry is { } reg:
                 if (!string.Equals(r.Target, $@"reg:{reg.Hive}\{reg.Path}\{reg.Name}", StringComparison.OrdinalIgnoreCase))
                     return Loc.T("цель записи не совпадает с параметром реестра");
-                if (reg.Hive == RegHive.HKCR) return Loc.Tf("раздел {0} MONOLITH не меняет", reg.Hive);
+                if (reg.Hive == RegHive.HKCR) return Loc.Tf("раздел {0} Lycoris не меняет", reg.Hive);
                 if (ChangeJournal.IsForbiddenRestoreTarget(reg)) return Loc.Tf("{0} — защищённое место реестра", reg.FullName);
                 if (reg.CreatedKeyRoot is { } root)
                 {
-                    if (!RegistryHelper.IsValidCreatedRoot(reg.Path, root)) return Loc.T("некорректный раздел, созданный MONOLITH");
+                    if (!RegistryHelper.IsValidCreatedRoot(reg.Path, root)) return Loc.T("некорректный раздел, созданный Lycoris");
                     if (ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = reg.Hive, Path = root, Name = "" }))
                         return Loc.Tf("{0}\\{1} — защищённое место реестра", reg.Hive, root);
                 }
@@ -1466,7 +1466,7 @@ internal static class JournalTrust
                 // start type that lets the service run. Every other hard-blocked service is never touched.
                 if (ServiceGuard.IsHardBlocked(svc.Name)
                     && !(LegacyRevertibleServices.Contains(svc.Name) && svc.StartMode != System.ServiceProcess.ServiceStartMode.Disabled))
-                    return Loc.Tf("службу {0} MONOLITH никогда не меняет", svc.Name);
+                    return Loc.Tf("службу {0} Lycoris никогда не меняет", svc.Name);
                 return null;
 
             case ChangeKind.ScheduledTask when r.TaskPath is { } task:
@@ -1525,7 +1525,7 @@ internal static class JournalTrust
             if (p.ValueExisted && (!DeviceRestore.IsPersistedKind(p.Kind) || (p.Data?.Length ?? 0) > 64))
                 return Loc.T("тип или размер сохранённого значения не тот");
             // Windows keeps the same number there as the live value (decimal text or a DWORD): anything else is not a value
-            // MONOLITH ever saw it write, so it is not put back.
+            // Lycoris ever saw it write, so it is not put back.
             if (p.ValueExisted && (!int.TryParse(p.Data, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var stored)
                                    || !entry.IsValidOriginal(stored)))
                 return Loc.T("сохранённое значение параметра вне допустимого диапазона");
@@ -1556,7 +1556,7 @@ internal static class JournalTrust
     private static string? CheckMonitor(ChangeRecord r)
     {
         if (r.Monitor is not { } m) return Loc.T("в записи монитора нет данных");
-        if (m.Code is not (MonitorVcp.Brightness or MonitorVcp.Contrast)) return Loc.T("MONOLITH меняет по DDC/CI только яркость и контраст");
+        if (m.Code is not (MonitorVcp.Brightness or MonitorVcp.Contrast)) return Loc.T("Lycoris меняет по DDC/CI только яркость и контраст");
         // VCP values are 16-bit: the whole range a real monitor can report is accepted.
         if (m.Max is < 1 or > 65535 || m.Value > m.Max || m.Min > m.Value) return Loc.T("значение вне диапазона монитора");
         if (!DeviceTargets.IsMonitorPath(m.MonitorPath)) return Loc.T("некорректный путь монитора");
@@ -1568,7 +1568,7 @@ internal static class JournalTrust
     private static string? CheckAudio(ChangeRecord r)
     {
         if (r.Audio is not { } a) return Loc.T("в записи звука нет данных");
-        if (!DeviceTargets.IsCaptureEndpointId(a.EndpointId)) return Loc.T("MONOLITH меняет уровень только у устройств записи");
+        if (!DeviceTargets.IsCaptureEndpointId(a.EndpointId)) return Loc.T("Lycoris меняет уровень только у устройств записи");
         if (a.Component is not (AudioComponent.Level or AudioComponent.Mute)) return Loc.T("неизвестная часть настройки звука");
         var scalar = a.Scalar;
         if (!float.IsFinite(scalar) || scalar < 0f || scalar > 1f) return Loc.T("уровень вне диапазона 0–100 %");
@@ -1581,7 +1581,7 @@ internal static class JournalTrust
     {
         if (r.Nic is not { } n) return Loc.T("в записи сетевого адаптера нет данных");
         if (n.InterfaceGuid == Guid.Empty) return Loc.T("не указан сетевой адаптер");
-        if (!DeviceTargets.IsNicKeyword(n.Keyword)) return Loc.Tf("свойство «{0}» MONOLITH не меняет", n.Keyword);
+        if (!DeviceTargets.IsNicKeyword(n.Keyword)) return Loc.Tf("свойство «{0}» Lycoris не меняет", n.Keyword);
         if ((n.Value is not null && !DeviceTargets.IsNicValue(n.Value)) || (n.DefaultValue is not null && !DeviceTargets.IsNicValue(n.DefaultValue)))
             return Loc.T("значение свойства не число");
         if (n.RestoreValue is null) return Loc.T("в записи нет прежнего значения");
@@ -1611,7 +1611,7 @@ internal static class JournalTrust
     }
 
     /// <summary>
-    /// A packaged app's startup task state as the startup page writes it: the value always existed (MONOLITH never
+    /// A packaged app's startup task state as the startup page writes it: the value always existed (Lycoris never
     /// creates it) and the original is one of the user states 0–2 (3/4 are set by policy and never touched).
     /// </summary>
     internal static bool IsPackagedStartupMark(RegistryValueSnapshot reg) =>
@@ -1631,7 +1631,7 @@ internal static class JournalTrust
     private const string GuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
     private const string PsPrefix = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ";
     private const string CmdHead = "/d /s /c \"";
-    private static readonly string Unknown = Loc.T("команда отката не совпадает ни с одной командой MONOLITH");
+    private static readonly string Unknown = Loc.T("команда отката не совпадает ни с одной командой Lycoris");
 
     /// <summary>Services that older builds could change in ВСЕ СЛУЖБЫ and that are hard-blocked now.</summary>
     private static readonly HashSet<string> LegacyRevertibleServices =

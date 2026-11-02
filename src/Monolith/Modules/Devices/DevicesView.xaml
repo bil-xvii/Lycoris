@@ -224,7 +224,7 @@
                                 </Button>
                                 <Button Margin="6,0,0,0"
                                         Command="{Binding DataContext.RevertSettingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                        Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Вернуть значение, которое было до изменения в MONOLITH'}">
+                                        Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Вернуть значение, которое было до изменения в Lycoris'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                                         <TextBlock Text="{loc:T 'ОТКАТИТЬ'}" VerticalAlignment="Center" />
@@ -465,7 +465,7 @@
                     <StackPanel>
                         <TextBlock Text="{loc:T 'Устройства не найдены'}" Style="{StaticResource T.H2}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0"
-                                   Text="{loc:T 'MONOLITH не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ».'}" />
+                                   Text="{loc:T 'Lycoris не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ».'}" />
                     </StackPanel>
                 </Border>
                 <TextBlock Text="{Binding FailedText}" Style="{StaticResource Dev.Caption}" Margin="2,0,0,8" TextWrapping="Wrap"
@@ -578,7 +578,7 @@
                     <StackPanel>
                         <TextBlock Text="{loc:T 'Устройства не найдены'}" Style="{StaticResource T.H2}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0"
-                                   Text="{loc:T 'MONOLITH не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ».'}" />
+                                   Text="{loc:T 'Lycoris не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ».'}" />
                     </StackPanel>
                 </Border>
                 <TextBlock Text="{Binding FailedText}" Style="{StaticResource Dev.Caption}" Margin="2,0,0,8" TextWrapping="Wrap"

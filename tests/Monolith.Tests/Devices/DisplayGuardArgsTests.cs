@@ -4,7 +4,7 @@ using Monolith.Modules.Devices.Displays;
 namespace Monolith.Tests.Devices;
 
 /// <summary>
-/// The «--display-guard» command line: built by MONOLITH, parsed strictly by the guard process (anything malformed → the
+/// The «--display-guard» command line: built by Lycoris, parsed strictly by the guard process (anything malformed → the
 /// guard does nothing). Pure: no process is started, no display is touched.
 /// </summary>
 public sealed class DisplayGuardArgsTests

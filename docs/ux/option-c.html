@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>MONOLITH — вариант C: мастер по шагам</title>
+<title>Lycoris — вариант C: мастер по шагам</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#000;color:#F2F2F2;font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;font-size:13px;padding:24px;display:flex;flex-direction:column;gap:20px;align-items:flex-start}
@@ -90,20 +90,20 @@ body{background:#000;color:#F2F2F2;font-family:"Segoe UI Variable Text","Segoe U
 
 <div class="note">
   <h1>Вариант C — «Мастер по шагам»</h1>
-  <p><b>Идея:</b> стартовый экран — не панель с цифрами, а три шага: <b>1 Проверить → 2 Исправить → 3 Готово</b>. MONOLITH сам проверяет всё (оптимизация, мусор, драйверы, автозапуск, устройства) и показывает один список «что нашёл» с галочками и одной большой кнопкой «ИСПРАВИТЬ ВЫБРАННОЕ». Ничего искать не нужно: у каждого пункта написано, что изменится, риск и как откатить. Девять подробных страниц остаются в меню ниже, как «ПОДРОБНО» — для тех, кто хочет крутить вручную.</p>
+  <p><b>Идея:</b> стартовый экран — не панель с цифрами, а три шага: <b>1 Проверить → 2 Исправить → 3 Готово</b>. Lycoris сам проверяет всё (оптимизация, мусор, драйверы, автозапуск, устройства) и показывает один список «что нашёл» с галочками и одной большой кнопкой «ИСПРАВИТЬ ВЫБРАННОЕ». Ничего искать не нужно: у каждого пункта написано, что изменится, риск и как откатить. Девять подробных страниц остаются в меню ниже, как «ПОДРОБНО» — для тех, кто хочет крутить вручную.</p>
   <p><b>Что видно на макетах:</b> кадр 1 — шаг 2 «Исправить» (список находок этого ПК, безопасное отмечено заранее, «по желанию» — нет); кадр 2 — шаг 3 «Готово» с кнопкой игрового сеанса и откатом всего пакета одной кнопкой.</p>
 </div>
 
 <div class="framelabel">Кадр 1 · Главная — шаг 2 «Исправить» · 1440×900</div>
 <div class="frame">
   <div class="title">
-    <div class="logo"></div><div class="brand">MONOLITH</div><div class="ver">v1.0.0</div>
+    <div class="logo"></div><div class="brand">Lycoris</div><div class="ver">v1.0.0</div>
     <div class="sp"></div>
     <div class="btn"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>Поиск<span class="kbd">Ctrl+K</span></div>
     <div class="btn"><svg viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.5-3.5"/><path d="M3 2v3.5h3.5"/></svg>Откат · 71<svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></div>
     <div class="win"><span>—</span><span>☐</span><span>✕</span></div>
   </div>
-  <div class="strip"><div class="hatch"></div><b>РЕЖИМ ПРОСМОТРА</b><span>— проверка уже сделана; при нажатии «Исправить» MONOLITH попросит права один раз и продолжит.</span><div class="sp"></div><div class="btn">Перезапустить с правами</div></div>
+  <div class="strip"><div class="hatch"></div><b>РЕЖИМ ПРОСМОТРА</b><span>— проверка уже сделана; при нажатии «Исправить» Lycoris попросит права один раз и продолжит.</span><div class="sp"></div><div class="btn">Перезапустить с правами</div></div>
 
   <div class="side">
     <div class="grp">Главное</div>
@@ -178,7 +178,7 @@ body{background:#000;color:#F2F2F2;font-family:"Segoe UI Variable Text","Segoe U
 <div class="framelabel">Кадр 2 · Главная — шаг 3 «Готово» · после применения</div>
 <div class="frame">
   <div class="title">
-    <div class="logo"></div><div class="brand">MONOLITH</div><div class="ver">v1.0.0</div>
+    <div class="logo"></div><div class="brand">Lycoris</div><div class="ver">v1.0.0</div>
     <div class="sp"></div>
     <div class="btn"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>Поиск<span class="kbd">Ctrl+K</span></div>
     <div class="btn"><svg viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.5-3.5"/><path d="M3 2v3.5h3.5"/></svg>Откат · 74<svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></div>
@@ -215,7 +215,7 @@ body{background:#000;color:#F2F2F2;font-family:"Segoe UI Variable Text","Segoe U
       <div class="card" style="display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;align-items:center;gap:18px">
           <div class="big">100</div>
-          <div><div class="h2">Отлично — ПК готов к игре</div><div class="cap">Сделано 3 изменения, освобождено 654,8 МБ. Точка восстановления «MONOLITH 15:44» создана.</div></div>
+          <div><div class="h2">Отлично — ПК готов к игре</div><div class="cap">Сделано 3 изменения, освобождено 654,8 МБ. Точка восстановления «Lycoris 15:44» создана.</div></div>
         </div>
         <div>
           <div class="ok"><svg viewBox="0 0 16 16"><path d="M3 8.5 6.5 12 13 4.5"/></svg>Оптимизация оконных игр — включено</div>

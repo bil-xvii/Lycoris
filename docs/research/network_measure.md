@@ -1,6 +1,6 @@
-# MONOLITH: measurement-based network auto-tuning ("Проверка сети")
+# Lycoris: measurement-based network auto-tuning ("Проверка сети")
 
-Area: what MONOLITH can **measure** about a gamer's connection, how to turn the measurements into **findings**, and
+Area: what Lycoris can **measure** about a gamer's connection, how to turn the measurements into **findings**, and
 which **actions** (only evidence-backed, journaled catalog items) an auto-tune may propose, with a before/after re-check.
 Date: 27.10.2026. Test PC: Windows 11 Pro build 26300, Ryzen 7 9800X3D, wired Realtek 1 Gbit/s, Israel.
 
@@ -10,7 +10,7 @@ Bottom line, stated up front:
   and the server's tick. Modern shooters (CS2, Call of Duty) use UDP. Registry "ping tweaks" were classified as
   placebo or ADVANCED earlier (general_tweaks.md §8, gaming_tweaks.md §2 F, §3). **I agree with all of those
   classifications and found no new evidence to change them.**
-- What *does* hurt a game connection, and what MONOLITH can detect, is: Wi-Fi instead of cable, a weak or 2.4 GHz
+- What *does* hurt a game connection, and what Lycoris can detect, is: Wi-Fi instead of cable, a weak or 2.4 GHz
   Wi-Fi link, Wi-Fi power saving, a damaged cable (100 Mbit/s or half-duplex link, receive errors), **bufferbloat**
   (latency that rises when something downloads or uploads), background downloads, a VPN in the path, and packet loss
   in the LAN or at the ISP.
@@ -84,7 +84,7 @@ Bottom line, stated up front:
    - It is refused on metered connections (`NetworkInformation.GetInternetConnectionProfile().GetConnectionCost()`
      must be `Unrestricted`).
    - **It is refused while a game is running.** I made that mistake while researching: `cod.exe` was running during
-     my load test. MONOLITH must check its own game detection (Games module) first.
+     my load test. Lycoris must check its own game detection (Games module) first.
 8. **Locale independence.** Use APIs, not parsed `ping.exe` / `netsh` output. On this Russian-UI PC `netsh wlan`
    printed English, and the language varies per system. Performance counters go through `PdhAddEnglishCounter`
    (CLAUDE.md).
@@ -299,7 +299,7 @@ contradict gaming_tweaks.md §3.
    time of day. Without a re-check at the same hour, ISP load (evenings) confounds the comparison. Say so in one
    muted line.
 
-### 3.4 What stays INFO (MONOLITH cannot or must not change it)
+### 3.4 What stays INFO (Lycoris cannot or must not change it)
 
 - **Router SQM / QoS** (fq_codel, CAKE). This is the real fix for bufferbloat, and it lives on the router.
   bufferbloat.net: tune the shaper until loaded latency stays low (their success target: under ~15–25 ms).
@@ -307,7 +307,7 @@ contradict gaming_tweaks.md §3.
 - **Cable or port replacement** (Intel: a gigabit adapter at 100 Mbit/s is almost always a cable/equipment issue).
 - **Launcher download limits.** Steam «Ограничить скорость загрузки» / «Разрешить загрузки во время игры»;
   Battle.net bandwidth limit; Windows Update pause; Delivery Optimization bandwidth limits via
-  `ms-settings:delivery-optimization-advanced`. MONOLITH opens these pages and does not write the undocumented
+  `ms-settings:delivery-optimization-advanced`. Lycoris opens these pages and does not write the undocumented
   Settings-store values (agrees with gaming_tweaks.md: DO bandwidth policies are ADVANCED because they lock the UI).
 - **ISP route / region** (F7–F9, F22), with an exportable plain-text report for the ISP.
 
@@ -443,7 +443,7 @@ contradict gaming_tweaks.md §3.
   - PMTU < 1500 (for example 1492 on PPPoE) is normal; Windows does PMTU discovery (RFC 1191).
   - Only a **black hole** (large DF probes silently vanish at every retry while small ones pass) is worth reporting.
     It hangs some TCP transfers. It never changes game ping.
-- **Action:** INFO only. The router should clamp TCP MSS. MONOLITH does not change MTU (`dni-auto-mtu`).
+- **Action:** INFO only. The router should clamp TCP MSS. Lycoris does not change MTU (`dni-auto-mtu`).
 - **This PC:** path MTU 1500 (IPv4).
 
 ### 4.7 `net-measure-wifi`: Качество Wi-Fi (MEASUREMENT)
@@ -511,7 +511,7 @@ contradict gaming_tweaks.md §3.
     session on Microsoft-Windows-Kernel-Network (PID + bytes for TCP and UDP) via P/Invoke `StartTrace`/
     `ProcessTrace`. No TraceEvent NuGet (CLAUDE.md package rule).
   - Historical per-app usage: `ConnectionProfile.GetAttributedNetworkUsageAsync` exists, but it requires the
-    `networkDataPlanProvisioning` capability (a packaged-app capability), so it is not usable for MONOLITH.
+    `networkDataPlanProvisioning` capability (a packaged-app capability), so it is not usable for Lycoris.
 - **Known updaters:**
   - Delivery Optimization: `Get-DeliveryOptimizationStatus` (worked without admin here, "no active jobs");
   - Steam `steamapps\downloading`, Battle.net Agent, Epic, OneDrive, Xbox/Gaming Services: process names only,
@@ -684,4 +684,4 @@ contradict gaming_tweaks.md §3.
 - Blizzard, Running WinMTR (per-game IPs in a support article): https://support.blizzard.com/article/000027780
 - Community evidence on Wi-Fi background-scan spikes (not authoritative): https://community.intel.com/t5/Wireless/Frequent-ping-spikes/td-p/426779,
   https://www.ghacks.net/?p=54335
-- Existing MONOLITH research (agreed, not contradicted): docs/research/general_tweaks.md §8, docs/research/gaming_tweaks.md §2 F and §3.
+- Existing Lycoris research (agreed, not contradicted): docs/research/general_tweaks.md §8, docs/research/gaming_tweaks.md §2 F and §3.

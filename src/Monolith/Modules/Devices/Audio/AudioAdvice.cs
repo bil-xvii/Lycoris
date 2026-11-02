@@ -4,8 +4,8 @@ namespace Monolith.Modules.Devices.Audio;
 public sealed record AudioIssue(string EndpointId, string Text, int SoundPanelTab);
 
 /// <summary>
-/// What MONOLITH recommends for audio (research devices_audio.md, binding). Everything here is INFO-ONLY except the
-/// ducking preference (the Optimize tweak «audio-ducking») and the microphone level: MONOLITH explains and opens the exact
+/// What Lycoris recommends for audio (research devices_audio.md, binding). Everything here is INFO-ONLY except the
+/// ducking preference (the Optimize tweak «audio-ducking») and the microphone level: Lycoris explains and opens the exact
 /// Windows page, it never writes the default device, the format, enhancements or spatial sound (IPolicyConfig and
 /// FxProperties writes are DO-NOT-INCLUDE). Pure and unit-tested.
 /// </summary>

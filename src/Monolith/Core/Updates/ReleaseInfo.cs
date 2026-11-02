@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Monolith.Core.Updates;
 
-/// <summary>One published MONOLITH release as far as the updater needs it (parsed from the GitHub API, cached in settings).</summary>
+/// <summary>One published Lycoris release as far as the updater needs it (parsed from the GitHub API, cached in settings).</summary>
 public sealed record ReleaseInfo
 {
     public string Tag { get; init; } = "";
@@ -15,7 +15,7 @@ public sealed record ReleaseInfo
     public long ExeSize { get; init; }
     /// <summary>Lower-case hex SHA-256 from the asset's "digest": "sha256:…" (GitHub computes it), or "".</summary>
     public string ExeDigest { get; init; } = "";
-    /// <summary>URL of MONOLITH.exe.sha256 ("" when the release has none).</summary>
+    /// <summary>URL of Lycoris.exe.sha256 ("" when the release has none).</summary>
     public string ShaUrl { get; init; } = "";
 
     [JsonIgnore]
@@ -41,14 +41,14 @@ public sealed record ReleaseInfo
 
 public static class ReleaseParser
 {
-    public const string ExeAssetName = "MONOLITH.exe";
-    public const string ShaAssetName = "MONOLITH.exe.sha256";
+    public const string ExeAssetName = "Lycoris.exe";
+    public const string ShaAssetName = "Lycoris.exe.sha256";
 
     private static readonly JsonSerializerOptions CacheOptions = new() { WriteIndented = false };
 
     /// <summary>
     /// Reads the answer of GET /repos/…/releases/latest. A draft, a pre-release, a tag that is not a version or a release
-    /// without the MONOLITH.exe asset is "no usable release" (null + reason); malformed JSON never throws.
+    /// without the Lycoris.exe asset is "no usable release" (null + reason); malformed JSON never throws.
     /// </summary>
     public static ReleaseInfo? TryParse(string? json, out string? problem)
     {

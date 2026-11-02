@@ -275,7 +275,7 @@ internal sealed class DisplayWriter : IDisplayWriter
     }
 
     /// <summary>
-    /// The guard process: waits for the keep signal, MONOLITH's exit or the deadline. Kept → exit 0 without touching
+    /// The guard process: waits for the keep signal, Lycoris's exit or the deadline. Kept → exit 0 without touching
     /// anything. Otherwise mode → back to the saved mode (CDS(NULL), then SDC_USE_DATABASE_CURRENT); HDR → the original
     /// state. Never touches the journal or the settings. Malformed arguments → 3, events missing → 4, nothing done.
     /// </summary>
@@ -336,7 +336,7 @@ internal sealed class DisplayWriter : IDisplayWriter
         }
     }
 
-    /// <summary>The parent MONOLITH, or null when it is gone (or its id now belongs to another program).</summary>
+    /// <summary>The parent Lycoris, or null when it is gone (or its id now belongs to another program).</summary>
     private static Process? OpenParent(int pid)
     {
         try

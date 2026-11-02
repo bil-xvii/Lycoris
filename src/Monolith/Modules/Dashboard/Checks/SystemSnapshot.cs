@@ -157,7 +157,7 @@ public sealed record SystemSnapshot
     public string OsDisplayVersion { get; init; } = "";
     /// <summary>
     /// TargetReleaseVersionInfo of the Windows Update policy when TargetReleaseVersion = 1 — the version the PC is pinned to,
-    /// whoever set it (MONOLITH's «Остаться на текущей версии» or an administrator). Null = not pinned or unknown.
+    /// whoever set it (Lycoris's «Остаться на текущей версии» or an administrator). Null = not pinned or unknown.
     /// </summary>
     public string? UpdatePinnedTo { get; init; }
 
@@ -171,7 +171,7 @@ public sealed record SystemSnapshot
 
     public VbsState Vbs { get; init; }
 
-    /// <summary>True when MONOLITH runs with administrator rights (some sources are readable only then).</summary>
+    /// <summary>True when Lycoris runs with administrator rights (some sources are readable only then).</summary>
     public bool Elevated { get; init; }
     /// <summary>Windows build number (22000+ = Windows 11). 0 = unknown.</summary>
     public int OsBuild { get; init; }

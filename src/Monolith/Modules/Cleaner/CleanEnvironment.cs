@@ -153,7 +153,7 @@ public sealed class CleanEnvironment
     public required string MemoryDumpFile { get; init; }
     public required string MinidumpDir { get; init; }
     public bool IsElevated { get; init; }
-    /// <summary>Set when MONOLITH runs elevated under another account than the signed-in user ("DOMAIN\user").</summary>
+    /// <summary>Set when Lycoris runs elevated under another account than the signed-in user ("DOMAIN\user").</summary>
     public string? ForeignSessionUser { get; init; }
     public required ServicingState Servicing { get; init; }
     public bool WindowsUpdateRunning { get; init; }

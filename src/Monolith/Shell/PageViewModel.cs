@@ -246,7 +246,7 @@ public abstract partial class PageViewModel : ObservableObject
     private static int _elevationPromptOpen;
 
     /// <summary>
-    /// Returns false when admin rights are missing and offers to relaunch MONOLITH with them on the same page
+    /// Returns false when admin rights are missing and offers to relaunch Lycoris with them on the same page
     /// (one prompt at a time; the action itself is not run in this process).
     /// Prefer the instance overload with a command name: the relaunched copy then repeats the action by itself.
     /// </summary>
@@ -291,12 +291,12 @@ public abstract partial class PageViewModel : ObservableObject
     }
 
     /// <summary>The checkbox of the «Нужны права» dialog (sets <see cref="AppSettings.ElevateAtStartup"/>).</summary>
-    public static string ElevationAlwaysOption => Loc.T("Всегда запускать MONOLITH с правами администратора (без лишних перезапусков)");
+    public static string ElevationAlwaysOption => Loc.T("Всегда запускать Lycoris с правами администратора (без лишних перезапусков)");
 
     /// <summary>Text of the «Нужны права администратора» dialog (pure; exposed for tests).</summary>
     public static string ElevationPromptText(string action, bool replays = false) =>
-        Loc.Tf("«{0}» меняет настройки Windows, поэтому нужны права администратора. MONOLITH перезапустится с ними " +
+        Loc.Tf("«{0}» меняет настройки Windows, поэтому нужны права администратора. Lycoris перезапустится с ними " +
                "и откроется на этой же странице — Windows покажет запрос контроля учётных записей (UAC). ", Loc.Sink(action)) +
-        (replays ? Loc.T("Действие продолжится само: перед изменением MONOLITH покажет обычное подтверждение.")
+        (replays ? Loc.T("Действие продолжится само: перед изменением Lycoris покажет обычное подтверждение.")
                  : Loc.T("После перезапуска повторите действие."));
 }

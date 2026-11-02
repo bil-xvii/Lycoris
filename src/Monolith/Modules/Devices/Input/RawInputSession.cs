@@ -54,14 +54,14 @@ internal sealed class RawDragGate
 /// <summary>What a capture collected. Never throws: problems are in <see cref="Error"/> / the flags.</summary>
 internal sealed record RawCapture
 {
-    /// <summary>Polling: kept reports per raw device handle (relative, non-zero motion, MONOLITH in the foreground).</summary>
+    /// <summary>Polling: kept reports per raw device handle (relative, non-zero motion, Lycoris in the foreground).</summary>
     public IReadOnlyDictionary<IntPtr, IReadOnlyList<MotionSample>> Devices { get; init; } = new Dictionary<IntPtr, IReadOnlyList<MotionSample>>();
     public long Frequency { get; init; } = Stopwatch.Frequency;
     public int Kept { get; init; }
-    /// <summary>Reports that arrived while MONOLITH was not the foreground app (RIM_INPUTSINK, possibly throttled): never used.</summary>
+    /// <summary>Reports that arrived while Lycoris was not the foreground app (RIM_INPUTSINK, possibly throttled): never used.</summary>
     public int DroppedBackground { get; init; }
     public bool TimedOut { get; init; }
-    /// <summary>MONOLITH lost the foreground (or is closing) during the capture.</summary>
+    /// <summary>Lycoris lost the foreground (or is closing) during the capture.</summary>
     public bool Interrupted { get; init; }
     public string? Error { get; init; }
 
@@ -128,7 +128,7 @@ internal static class RawInputSession
     private static readonly int HeaderSize = 8 + 2 * IntPtr.Size;
 
     /// <summary>
-    /// Captures mouse motion until the mode's own end, <paramref name="ct"/>, a timeout, MONOLITH losing the foreground or
+    /// Captures mouse motion until the mode's own end, <paramref name="ct"/>, a timeout, Lycoris losing the foreground or
     /// the app closing. <paramref name="progress"/> and <paramref name="onRun"/> are called on the capture thread.
     /// </summary>
     public static Task<RawCapture> CaptureAsync(RawCaptureMode mode, Action<RawProgress>? progress, CancellationToken ct,
@@ -174,7 +174,7 @@ internal static class RawInputSession
         })
         {
             IsBackground = true,
-            Name = "MONOLITH raw input",
+            Name = "Lycoris raw input",
         };
         thread.SetApartmentState(ApartmentState.STA);
         try
@@ -236,7 +236,7 @@ internal static class RawInputSession
             {
                 if (MouseClassRegistered()) return Result(error: AlreadyRunning);
                 _buffer = Marshal.AllocHGlobal(BufferSize);
-                _source = new HwndSource(new HwndSourceParameters("MONOLITH raw input")
+                _source = new HwndSource(new HwndSourceParameters("Lycoris raw input")
                 {
                     ParentWindow = HWND_MESSAGE, Width = 0, Height = 0, WindowStyle = 0,
                 });
@@ -379,7 +379,7 @@ internal static class RawInputSession
             if (device == IntPtr.Zero) return; // precision touchpad / injected input
             if (((long)wParam & 0xFF) == RIM_INPUTSINK)
             {
-                _dropped++; // MONOLITH was not in the foreground: possibly throttled, never used
+                _dropped++; // Lycoris was not in the foreground: possibly throttled, never used
                 return;
             }
 

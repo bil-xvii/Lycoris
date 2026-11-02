@@ -1,15 +1,15 @@
-# MONOLITH: audio devices (headsets, headphones, microphones, speakers, monitor HDMI/DP audio)
+# Lycoris: audio devices (headsets, headphones, microphones, speakers, monitor HDMI/DP audio)
 
-What MONOLITH can **read**, **recommend** and **change** for audio devices on Windows 10/11 through documented mechanisms, what it must leave to Windows' own UI or to the vendor app, and which popular "audio tweaks" are placebo or harmful.
+What Lycoris can **read**, **recommend** and **change** for audio devices on Windows 10/11 through documented mechanisms, what it must leave to Windows' own UI or to the vendor app, and which popular "audio tweaks" are placebo or harmful.
 
 ## 0. Summary
 
 **Headline findings**
-- **Reading is easy and documented.** Every device fact MONOLITH needs can be read without admin rights: the endpoint list, the default device for each role, the shared-mode format, volume and mute, spatial sound state and the topology controls. The APIs are the MMDevice API, `IAudioEndpointVolume`, `IDeviceTopology` and WinRT `SpatialAudioDeviceConfiguration`.
+- **Reading is easy and documented.** Every device fact Lycoris needs can be read without admin rights: the endpoint list, the default device for each role, the shared-mode format, volume and mute, spatial sound state and the topology controls. The APIs are the MMDevice API, `IAudioEndpointVolume`, `IDeviceTopology` and WinRT `SpatialAudioDeviceConfiguration`.
   - The "Audio enhancements" state and the communications-ducking preference come from plain registry reads.
 - **Writing is mostly not documented.** Windows' own Sound control panel (mmsys.cpl) and Settings change the default device, the format, exclusive mode, enhancements and endpoint visibility through the undocumented `IPolicyConfig` COM interface. A Microsoft engineer states that the effects (enhancements) store is restricted to the driver, the audio engine and the Sound control panel.
-  - CLAUDE.md allows only documented, reversible changes. MONOLITH therefore **reads, recommends and deep-links to the exact Windows page**, and does not write these values itself.
-- **Documented writes MONOLITH can own:**
+  - CLAUDE.md allows only documented, reversible changes. Lycoris therefore **reads, recommends and deep-links to the exact Windows page**, and does not write these values itself.
+- **Documented writes Lycoris can own:**
   1. Microphone level and mute (`IAudioEndpointVolume`).
   2. Microphone boost and AGC, when the driver exposes them (`IDeviceTopology` → `IAudioVolumeLevel` / `IAudioAutoGainControl`).
   3. The per-user communications-ducking preference (HKCU registry value).
@@ -18,12 +18,12 @@ What MONOLITH can **read**, **recommend** and **change** for audio devices on Wi
   - `ms-settings:sound-properties?endpointId=<IMMDevice id>` opens that device's own Settings page: format, audio enhancements, spatial sound, volume, and Allow/Don't allow. Documented in the ms-settings URI list.
   - `ms-settings:sound`, `ms-settings:sound-devices` and `ms-settings:apps-volume` (per-app output/input).
   - `control mmsys.cpl,,0|1|3` opens the Playback, Recording or Communications tab.
-- **Vendor DSP/firmware settings are out of reach.** These include INZONE EQ, 360 Spatial Sound, DRC and firmware, and the Razer sample rate, mixer and lighting. MONOLITH detects the vendor app and launches it unelevated.
+- **Vendor DSP/firmware settings are out of reach.** These include INZONE EQ, 360 Spatial Sound, DRC and firmware, and the Razer sample rate, mixer and lighting. Lycoris detects the vendor app and launches it unelevated.
 - **No audio setting improves FPS or input latency.** Shared-mode games already run on the Windows 10+ engine (~1.3 ms engine latency, 10 ms default buffer, set by the driver). Every "audio latency" registry tweak found online is placebo or harmful (§4).
 
-**Classes** (binding, as in the other research files): SAFE-DEFAULT = applied by default; SAFE-OPTIONAL = offered, unchecked; ADVANCED = behind a warning; DO-NOT-INCLUDE = never implemented; **INFO-ONLY** = read, explain, recommend, and open the right Windows/vendor page. MONOLITH writes nothing for INFO-ONLY items.
+**Classes** (binding, as in the other research files): SAFE-DEFAULT = applied by default; SAFE-OPTIONAL = offered, unchecked; ADVANCED = behind a warning; DO-NOT-INCLUDE = never implemented; **INFO-ONLY** = read, explain, recommend, and open the right Windows/vendor page. Lycoris writes nothing for INFO-ONLY items.
 
-| id | Title (RU UI) | Class | Recommended | MONOLITH writes via | Admin | Undo |
+| id | Title (RU UI) | Class | Recommended | Lycoris writes via | Admin | Undo |
 |---|---|---|---|---|---|---|
 | `audio-default-devices` | Устройства по умолчанию | INFO-ONLY | One headset for all 3 render roles; the mic you speak into for all 3 capture roles | — (deep link) | — | — |
 | `audio-shared-format` | Формат по умолчанию (частота, разрядность) | INFO-ONLY | 48 000 Hz; 24-bit if offered, 16-bit is fine | — (deep link) | — | — |
@@ -47,7 +47,7 @@ What MONOLITH can **read**, **recommend** and **change** for audio devices on Wi
 | `audio-high-sample-rate` | 96/192 кГц «для позиционирования» | DO-NOT-INCLUDE | — | — | — | — |
 | `audio-ghost-endpoint-cleanup` | Чистка «призрачных» аудиоустройств | DO-NOT-INCLUDE | — | — | — | — |
 
-\* The API itself needs no elevation. MONOLITH still writes only when elevated, because the undo journal lives in the admin-only `%ProgramData%\MONOLITH` (CLAUDE.md rule 7). Without admin rights the page is read-only.
+\* The API itself needs no elevation. Lycoris still writes only when elevated, because the undo journal lives in the admin-only `%ProgramData%\MONOLITH` (CLAUDE.md rule 7). Without admin rights the page is read-only.
 
 ---
 
@@ -124,7 +124,7 @@ What this tells us:
   - `IDeviceTopology` `2A07407E-…`; `IPart` `AE2DE0E4-…`; `IAudioVolumeLevel` `7FB7B48F-…`; `IAudioAutoGainControl` `85401FD4-…`.
 - Run Core Audio calls on a worker (MTA) thread (`Task.Run`). The enumerator is free-threaded.
 - Register `IMMNotificationClient` (`OnDefaultDeviceChanged`, `OnDeviceStateChanged`, `OnPropertyValueChanged`) so the page refreshes live. Post to the UI with `Ui.Post`.
-- Pass a fixed MONOLITH `eventContext` GUID to every `Set*` call. MONOLITH's own `IAudioEndpointVolumeCallback` can then ignore its own changes, and drift detection can tell user changes from MONOLITH's.
+- Pass a fixed Lycoris `eventContext` GUID to every `Set*` call. Lycoris's own `IAudioEndpointVolumeCallback` can then ignore its own changes, and drift detection can tell user changes from Lycoris's.
 
 **Endpoint id forms**
 - `IMMDevice::GetId()` → `{0.0.0.00000000}.{guid}` (render) / `{0.0.1.00000000}.{guid}` (capture). Use it for `ms-settings:sound-properties?endpointId=` and as the journal key.
@@ -136,7 +136,7 @@ What this tells us:
   - `DeviceState` (1 active, 2 disabled, 4 not present, 8 unplugged).
   - `Properties` (endpoint store).
   - `FxProperties` (effects store).
-- The ACL grants Administrators `SetValue`, but **MONOLITH never writes here** (§4).
+- The ACL grants Administrators `SetValue`, but **Lycoris never writes here** (§4).
 
 **Elevated process vs. interactive user**
 - HKCU values (ducking, mono) must be written to the interactive user's hive `HKU\<SID>` (same rule as gaming_tweaks.md §0).
@@ -169,7 +169,7 @@ What this tells us:
   - `IMMDeviceEnumerator::GetDefaultAudioEndpoint(eRender|eCapture, eConsole|eMultimedia|eCommunications)` → `GetId()`.
   - `PKEY_Device_FriendlyName` ({a45c254e-df1c-4efd-8020-67d146a850e0},14) and `PKEY_AudioEndpoint_FormFactor` ({1da5d803-…},0: 1 Speakers, 2 LineLevel, 3 Headphones, 4 Microphone, 5 Headset, 9 DigitalAudioDisplayDevice) through `OpenPropertyStore(STGM_READ)`.
   - Live changes: `IMMNotificationClient::OnDefaultDeviceChanged`.
-- **Write:** none by MONOLITH. The only way is `IPolicyConfig::SetDefaultEndpoint`, which is DO-NOT-INCLUDE (§4).
+- **Write:** none by Lycoris. The only way is `IPolicyConfig::SetDefaultEndpoint`, which is DO-NOT-INCLUDE (§4).
 - **Manual:**
   - `ms-settings:sound` (output/input pickers).
   - `control mmsys.cpl,,0` / `,,1` (right-click → "Set as Default Device" / "Set as Default Communication Device").
@@ -213,7 +213,7 @@ What this tells us:
   - Registry `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\{Render|Capture}\{guid}\FxProperties`, value `{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5` (= `PKEY_AudioEndpoint_Disable_SysFx`). REG_DWORD **1 = Off**; absent or 0 = On (Device Default Effects).
   - Installed APOs: `{b725f130-47ef-101a-a5f1-02608c9eebac},10` (friendly name), `{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},5/6/7` (SFX/MFX/EFX CLSIDs), `{9e6136e0-57ab-4949-b57a-3627be142855},100` (effects pack, for example Voice Clarity).
   - **The documented `IMMDevice::OpenPropertyStore` does not return this value. It reported VT_EMPTY while FxProperties held 1 on this PC**, so the registry read is required.
-- **Write:** **none by MONOLITH.**
+- **Write:** **none by Lycoris.**
   - Microsoft staff on Q&A: "effects property store" access is restricted to the driver, audio engine and Sound control panel, so there is no supported API.
   - The workarounds are `IPolicyConfig::SetPropertyValue(bFxStore=TRUE)` or writing the registry directly. They are reported unreliable on Windows 11: Settings deletes the value for "Device Default Effects", and the workaround cannot recreate it.
   - Both are DO-NOT-INCLUDE.
@@ -236,7 +236,7 @@ What this tells us:
   - `ConfigurationChanged` event.
   - `Guid.Empty` (string `{00000000-…}`) = Off.
   - Available through the existing `net10.0-windows10.0.19041.0` TFM; no NuGet.
-- **Write:** `SetDefaultSpatialAudioFormatAsync` is documented, but "the caller must be the app that owns this spatial audio format". MONOLITH owns none, so it **cannot** set it. There is no other documented path.
+- **Write:** `SetDefaultSpatialAudioFormatAsync` is documented, but "the caller must be the app that owns this spatial audio format". Lycoris owns none, so it **cannot** set it. There is no other documented path.
 - **Manual:** `ms-settings:sound-properties?endpointId=<id>` → Spatial sound; the taskbar volume menu; Quick Settings.
 - **Recommendation:**
   - **Off** when the headset's own spatial engine is in use (INZONE Hub "360 Spatial Sound for Gaming" on the E9's USB box). Two virtualisers in series apply HRTF twice; this is our inference, as no vendor states it.
@@ -265,7 +265,7 @@ What this tells us:
   - *Gaming with voice chat:* **3 (Do nothing).** Losing 80 % of game audio whenever someone speaks hurts positional awareness. Discord has its own optional attenuation setting.
   - *Everyday/office:* default (absent = 80 %).
 - **Range:** 0–3.
-- **Admin:** not for HKCU. MONOLITH writes only when elevated (journal).
+- **Admin:** not for HKCU. Lycoris writes only when elevated (journal).
 - **Risk:** minimal; worst case, the ducking behaviour stays as before. One Microsoft Q&A report on LTSC 2019 says the GUI choice did not survive a reboot.
 - **This PC:** 3 (set at 21:08:15 today).
 - **Evidence:** Microsoft "Default Ducking Experience" (stream-attenuation); Microsoft archived TechNet blog (value name, HKCU path, 2 s release, default communication device trigger); WiseChecker (0–3 mapping); Microsoft Q&A thread 286017 (persistence caveat).
@@ -301,11 +301,11 @@ What this tells us:
 - **Write (documented):**
   - `SetMasterVolumeLevelScalar(level, &MonolithCtx)` / `SetMute(false, &MonolithCtx)` through a new `ChangeSession.SetEndpointVolume` primitive (§2).
   - Suggest the level that puts measured speech peaks at **−12…−6 dBFS** with no sample above −1 dBFS, then re-measure.
-  - Output (render) volume gets a manual slider only. There is no recommendation (hearing safety; MONOLITH must not raise output volume by itself).
+  - Output (render) volume gets a manual slider only. There is no recommendation (hearing safety; Lycoris must not raise output volume by itself).
 - **Undo:** restore the exact previous scalar (store the float bits) and mute state. If the endpoint no longer exists, skip.
 - **Recommendation:** gaming and everyday alike: speech peaks −12…−6 dBFS; no clipping (OBS treats > −0.5 dBFS as clipping); prefer lowering gain over noise suppression.
 - **Range:** 0.0–1.0 scalar (device dB range shown alongside).
-- **Admin:** no (API). MONOLITH policy: elevated only.
+- **Admin:** no (API). Lycoris policy: elevated only.
 - **Risk:** low. Too high clips, and the change is immediately audible to call partners. Discord/Teams "automatically adjust" and vendor apps can override it (Razer Insider thread: Synapse auto-lowering Seiren gain). Detect and explain, don't fight it.
 - **This PC:** Razer 0.75 (+5.6 dB), not muted. A measurement is needed before suggesting anything.
 - **Evidence:** `IAudioEndpointVolume` reference; Peak Meters doc (pre-attenuation, needs stream); OBS KB "Audio Mixer Technical Details" (clip indicator > −0.5 dBFS); Saramonic level guide (peaks around −12…−6 dBFS); Razer Insider thread.
@@ -322,7 +322,7 @@ What this tells us:
   - Boost **0 dB, at most +10 dB**. Raise the mic level first, because boost lifts the noise floor with the voice.
   - **AGC off** for gaming and streaming (pumping, background noise swelling between phrases); on only for far-field laptop/conference use.
 - **Range:** the driver's range and steps (from `GetLevelRange`); AGC on/off.
-- **Admin:** no (API). MONOLITH policy: elevated only.
+- **Admin:** no (API). Lycoris policy: elevated only.
 - **Risk:** low; too much boost causes hiss or clipping.
 - **This PC:** the Razer Seiren V3 Mini topology exposes only the connector (with jack-description interfaces) — **no boost and no AGC part**. The section is hidden. USB class mics rarely have them; Realtek HDA mic jacks usually do.
 - **Evidence:** Microsoft Device Topologies / `IAudioVolumeLevel` / `IAudioAutoGainControl` references; probe output on this PC.
@@ -330,7 +330,7 @@ What this tells us:
 ### `audio-monitor-endpoint-hide`: Звук через монитор — скрыть неиспользуемый выход → **INFO-ONLY**
 - **What it is:** each monitor with speakers or a headphone jack (or a TV) on HDMI/DP adds an active render endpoint (form factor 9 `DigitalAudioDisplayDevice`). With a USB headset unplugged, Windows can only fall back to such an endpoint.
 - **Read:** `EnumAudioEndpoints(eRender, ACTIVE)` + FormFactor 9 + whether the endpoint is the default for any role.
-- **Write:** none by MONOLITH. Per-endpoint disable is `IPolicyConfig::SetEndpointVisibility` (DO-NOT-INCLUDE).
+- **Write:** none by Lycoris. Per-endpoint disable is `IPolicyConfig::SetEndpointVisibility` (DO-NOT-INCLUDE).
 - **Manual:** `ms-settings:sound-properties?endpointId=<id>` → "Audio: Don't allow" (re-enable with "Allow"), or mmsys.cpl → right-click → Disable / Show disabled devices.
 - **Recommendation:**
   - Optional decluttering only. Idle endpoints cost nothing, so there is **no performance gain**.
@@ -379,8 +379,8 @@ What this tells us:
   Then check the Uninstall keys and Start-menu shortcuts for the installed app.
 - **Act:**
   - Button «ОТКРЫТЬ INZONE HUB» / «ОТКРЫТЬ RAZER SYNAPSE» via `UnelevatedShell.StartAsUserAsync`.
-  - If the app is missing, link to the vendor download page in the browser (unelevated). MONOLITH does not install it; Apps/VendorDownloads rules apply if added later.
-  - MONOLITH never writes vendor app files or settings.
+  - If the app is missing, link to the vendor download page in the browser (unelevated). Lycoris does not install it; Apps/VendorDownloads rules apply if added later.
+  - Lycoris never writes vendor app files or settings.
 - **Recommendation:**
   - Use the vendor app for EQ, spatial and firmware.
   - Don't disable its autostart if its PC-side DSP is relied on. Check first whether settings persist on the device.
@@ -421,7 +421,7 @@ What this tells us:
   - It is not documented by Microsoft; CLAUDE.md rule 2 allows documented changes only.
   - The IID changed three times during Windows 10. A 2016 AutoIt report describes `SetDefaultEndpoint` silently doing nothing after the Anniversary Update.
   - Microsoft staff say the effects store is not available to applications, and Windows 11 Settings deletes values the workaround cannot recreate.
-  - Windows already offers every one of these choices in one or two clicks, and MONOLITH deep-links to the exact page.
+  - Windows already offers every one of these choices in one or two clicks, and Lycoris deep-links to the exact page.
   - (For reference only) an undo would be the same call with the previous value per role. It would still be undocumented.
 - **Evidence:** EarTrumpet source (`IPolicyConfig.cs`, `IAudioPolicyConfigFactory.cs`); AutoIt forum topic 183977; Microsoft Q&A 669471.
 

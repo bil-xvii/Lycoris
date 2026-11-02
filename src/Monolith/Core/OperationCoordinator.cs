@@ -322,7 +322,7 @@ public sealed class OperationCoordinator
         var probe = new Op { Id = -1, Request = request, Order = long.MaxValue };
         lock (_lock)
         {
-            if (_closing && !IsLow(request.Class)) return (OperationVerdict.Refuse, Loc.T("MONOLITH закрывается — новые задачи не запускаются."));
+            if (_closing && !IsLow(request.Class)) return (OperationVerdict.Refuse, Loc.T("Lycoris закрывается — новые задачи не запускаются."));
             var blocker = FindBlocker(probe, out var queuedBlocker, out var cap);
             if (blocker is null && !cap) return (OperationVerdict.Start, null);
             if (Queues(request) || cap) return (OperationVerdict.Queue, blocker is null ? null : Loc.Tf("ждёт: {0}", blocker.Request.Name));
@@ -355,7 +355,7 @@ public sealed class OperationCoordinator
         {
             op.Order = op.Id;
             if (_closing && !IsLow(request.Class))
-                refusal = Loc.T("MONOLITH закрывается — новые задачи не запускаются.");
+                refusal = Loc.T("Lycoris закрывается — новые задачи не запускаются.");
             else
             {
                 var blocker = FindBlocker(op, out var queuedBlocker, out var cap);
@@ -655,7 +655,7 @@ public sealed record ExitPlan(IReadOnlyList<OperationInfo> Blocking, int SafeToC
         Loc.Tf("Сейчас выполняется: {0}, в очереди: {1}. ", Blocking.Count(o => o.State != OperationState.Queued), Blocking.Count(o => o.State == OperationState.Queued)) +
         (NotCancellable == 0
             ? Loc.T("Все задачи можно отменить без вреда.")
-            : Loc.T("Установщики и инструменты ремонта MONOLITH не обрывает: при выходе они продолжат работу сами, но их результат в MONOLITH уже не появится."));
+            : Loc.T("Установщики и инструменты ремонта Lycoris не обрывает: при выходе они продолжат работу сами, но их результат в Lycoris уже не появится."));
 
     public IEnumerable<string> Lines =>
         Blocking.Select(o => Loc.Tf("{0} · {1} — {2}", o.ClassText, Loc.Sink(o.Name), o.State == OperationState.Queued ? Loc.T("в очереди") : Loc.T("идёт")) +

@@ -175,7 +175,7 @@ public static class RestorePointService
     private static string PendingFrequencyFile => System.IO.Path.Combine(AppPaths.MachineDir, "pending-restorepoint-frequency.json");
 
     /// <summary>
-    /// Elevated startup: if MONOLITH was closed while creating a restore point, the 24-hour limit we lifted
+    /// Elevated startup: if Lycoris was closed while creating a restore point, the 24-hour limit we lifted
     /// for that one call is still lifted — put the original value back.
     /// </summary>
     public static void RecoverPendingFrequency()

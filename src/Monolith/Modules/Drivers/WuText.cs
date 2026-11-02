@@ -132,7 +132,7 @@ internal static partial class WuText
     }
 
     /// <summary>
-    /// Firmware (UEFI/BIOS capsules) can arrive through Windows Update as a "driver". MONOLITH never flashes
+    /// Firmware (UEFI/BIOS capsules) can arrive through Windows Update as a "driver". Lycoris never flashes
     /// firmware itself (research §6) — such updates are shown but left to Windows Settings / the vendor.
     /// </summary>
     public static bool IsFirmware(string? driverClass) =>

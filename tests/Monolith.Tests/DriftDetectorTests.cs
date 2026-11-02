@@ -4,7 +4,7 @@ using Monolith.Modules.Restore;
 
 namespace Monolith.Tests;
 
-/// <summary>Pure parts of drift detection: which active records changed outside MONOLITH and how they are re-applied.</summary>
+/// <summary>Pure parts of drift detection: which active records changed outside Lycoris and how they are re-applied.</summary>
 public sealed class DriftDetectorTests
 {
     private static ChangeRecord Rec(ChangeKind kind, string source, string newValue, string target = "x", bool reverted = false) =>
@@ -39,7 +39,7 @@ public sealed class DriftDetectorTests
         Assert.Same(drifted, d.Record);
         Assert.Equal(DriftFix.Service, d.Fix);
         Assert.Equal("services", d.OwnerPage);
-        Assert.Equal("MONOLITH установил: Отключена · сейчас: Вручную", DriftDetector.RowText(d));
+        Assert.Equal("Lycoris установил: Отключена · сейчас: Вручную", DriftDetector.RowText(d));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class DriftDetectorTests
     [Fact]
     public void Packaged_startup_task_drift_is_reported_and_reapplied_as_a_dword()
     {
-        var r = Packaged("DWord: 1"); // MONOLITH turned it off
+        var r = Packaged("DWord: 1"); // Lycoris turned it off
         Assert.True(DriftDetector.IsPackagedMark(r));
 
         var d = Assert.Single(Detect([r], _ => new("DWord: 2", true)));   // turned back on in Settings
@@ -148,10 +148,10 @@ public sealed class DriftDetectorTests
     [Fact]
     public void Notice_names_the_build_change()
     {
-        Assert.StartsWith("После обновления Windows (сборка 22631.4317 → 26100.2314) система изменила 3 настройки MONOLITH.",
+        Assert.StartsWith("После обновления Windows (сборка 22631.4317 → 26100.2314) система изменила 3 настройки Lycoris.",
             DriftDetector.NoticeText(3, "22631.4317", "26100.2314"));
-        Assert.StartsWith("Windows или другая программа изменила 1 настройку MONOLITH.", DriftDetector.NoticeText(1, "26100.1", "26100.1"));
-        Assert.StartsWith("Windows или другая программа изменила 5 настроек MONOLITH.", DriftDetector.NoticeText(5, "", "26100.1"));
+        Assert.StartsWith("Windows или другая программа изменила 1 настройку Lycoris.", DriftDetector.NoticeText(1, "26100.1", "26100.1"));
+        Assert.StartsWith("Windows или другая программа изменила 5 настроек Lycoris.", DriftDetector.NoticeText(5, "", "26100.1"));
     }
 
     [Theory]

@@ -15,7 +15,7 @@ public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null, str
     public bool CanRevert => IsActive && !IsOtherUser;
     /// <summary>The value read back after the revert differs from the original.</summary>
     public bool IsMismatch => Record.Reverted && Record.RevertMismatch is not null;
-    /// <summary>Set when the live value no longer equals what MONOLITH set (changed by Windows or another program).</summary>
+    /// <summary>Set when the live value no longer equals what Lycoris set (changed by Windows or another program).</summary>
     public DriftItem? Drift { get; } = drift;
     public bool IsDrifted => Drift is not null && !Record.Reverted;
     public string DriftText => Drift is null ? "" : DriftDetector.RowText(Drift);

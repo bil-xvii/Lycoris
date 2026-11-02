@@ -15,7 +15,7 @@ public static class GameLauncher
         !string.IsNullOrEmpty(uri) && AllowedSchemes.Any(s => uri.StartsWith(s, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Launches the game as the signed-in user, never with MONOLITH's administrator token (tech.md §3): when MONOLITH is
+    /// Launches the game as the signed-in user, never with Lycoris's administrator token (tech.md §3): when Lycoris is
     /// elevated the start goes through the desktop shell (<see cref="UnelevatedShell"/>), and if that is impossible the
     /// game is not started at all. Returns the PID only for a direct (non-elevated) exe start; otherwise null, and
     /// <see cref="GameProcessFinder"/> finds the game by its exe / install folder.
@@ -79,7 +79,7 @@ public static class GameLauncher
 
     private static string NoUnelevatedShell(string what) =>
         Loc.Tf("Не удалось запустить {0} без прав администратора: рабочий стол Windows (Проводник) не отвечает. " +
-        "С правами MONOLITH игры не запускаются — запустите игру обычным способом или повторите, когда Проводник перезапустится.", what);
+        "С правами Lycoris игры не запускаются — запустите игру обычным способом или повторите, когда Проводник перезапустится.", what);
 
     /// <summary>Opens the install folder in Explorer.</summary>
     public static void OpenFolder(GameEntry game)

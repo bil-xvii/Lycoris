@@ -19,7 +19,7 @@ public sealed class UpdateDownloadTests : IDisposable
     private static SignatureInfo Unsigned => new("NotSigned", "", "");
 
     private UpdateDownloader Make(FakeHandler h, Func<string, SignatureInfo>? sig = null, UpdatePolicy? policy = null) =>
-        new(new HttpClient(h), policy ?? Kit.SmallPolicy, p => Task.FromResult((sig ?? (_ => Unsigned))(p)), @"C:\Apps\MONOLITH.exe");
+        new(new HttpClient(h), policy ?? Kit.SmallPolicy, p => Task.FromResult((sig ?? (_ => Unsigned))(p)), @"C:\Apps\Lycoris.exe");
 
     /// <summary>Serves the exe and the sha file; optional redirect through objects.githubusercontent.com like github.com does.</summary>
     private FakeHandler Serve(byte[]? exe = null, string? shaText = null, bool redirect = true)
@@ -28,9 +28,9 @@ public sealed class UpdateDownloadTests : IDisposable
         return new FakeHandler(req =>
         {
             var url = req.RequestUri!;
-            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/MONOLITH.exe.sha256"))
-                return FakeHandler.Json(shaText ?? Kit.Sha(_exe) + "  MONOLITH.exe\n");
-            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/MONOLITH.exe"))
+            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/Lycoris.exe.sha256"))
+                return FakeHandler.Json(shaText ?? Kit.Sha(_exe) + "  Lycoris.exe\n");
+            if (url.Host == "github.com" && url.AbsolutePath.EndsWith("/Lycoris.exe"))
                 return redirect ? FakeHandler.Redirect("https://release-assets.githubusercontent.com/github-production-release-asset/abc?token=1") : FakeHandler.Bytes(exe);
             if (url.Host == "release-assets.githubusercontent.com") return FakeHandler.Bytes(exe);
             return FakeHandler.Status(HttpStatusCode.NotFound);
@@ -85,7 +85,7 @@ public sealed class UpdateDownloadTests : IDisposable
         var h = new FakeHandler(req =>
         {
             if (req.RequestUri!.AbsolutePath.EndsWith(".sha256")) return FakeHandler.Json(Kit.Sha(_exe));
-            if (req.RequestUri.Host == "github.com") return FakeHandler.Redirect("https://evil.example.com/MONOLITH.exe");
+            if (req.RequestUri.Host == "github.com") return FakeHandler.Redirect("https://evil.example.com/Lycoris.exe");
             return FakeHandler.Bytes(_exe);
         });
         var ex = await Assert.ThrowsAsync<UpdateRefusedException>(() => Run(Make(h)));
@@ -95,12 +95,12 @@ public sealed class UpdateDownloadTests : IDisposable
     }
 
     [Theory]
-    [InlineData("http://github.com/bil-xvii/MONOLITH-releases/releases/download/v1.0.1/MONOLITH.exe")]
-    [InlineData("https://github.com/someone-else/MONOLITH-releases/releases/download/v1.0.1/MONOLITH.exe")]
-    [InlineData("https://evil.example.com/bil-xvii/MONOLITH-releases/releases/download/v1.0.1/MONOLITH.exe")]
-    [InlineData("https://github.com/bil-xvii/MONOLITH-releases/releases/download/v1.0.1/Other.exe")]
-    [InlineData("https://github.com:8443/bil-xvii/MONOLITH-releases/releases/download/v1.0.1/MONOLITH.exe")]
-    [InlineData("https://user:pw@github.com/bil-xvii/MONOLITH-releases/releases/download/v1.0.1/MONOLITH.exe")]
+    [InlineData("http://github.com/bil-xvii/Lycoris-releases/releases/download/v1.0.1/Lycoris.exe")]
+    [InlineData("https://github.com/someone-else/Lycoris-releases/releases/download/v1.0.1/Lycoris.exe")]
+    [InlineData("https://evil.example.com/bil-xvii/Lycoris-releases/releases/download/v1.0.1/Lycoris.exe")]
+    [InlineData("https://github.com/bil-xvii/Lycoris-releases/releases/download/v1.0.1/Other.exe")]
+    [InlineData("https://github.com:8443/bil-xvii/Lycoris-releases/releases/download/v1.0.1/Lycoris.exe")]
+    [InlineData("https://user:pw@github.com/bil-xvii/Lycoris-releases/releases/download/v1.0.1/Lycoris.exe")]
     public async Task A_link_outside_the_official_releases_is_refused_without_any_request(string url)
     {
         var h = Serve();
@@ -185,9 +185,9 @@ public sealed class UpdateDownloadTests : IDisposable
     public void Sha_file_formats_are_understood()
     {
         var h = new string('A', 64);
-        Assert.Equal(h.ToLowerInvariant(), UpdateVerifier.ParseShaFile(h + "  MONOLITH.exe\r\n"));
+        Assert.Equal(h.ToLowerInvariant(), UpdateVerifier.ParseShaFile(h + "  Lycoris.exe\r\n"));
         Assert.Equal(h.ToLowerInvariant(), UpdateVerifier.ParseShaFile(h));
-        Assert.Equal(h.ToLowerInvariant(), UpdateVerifier.ParseShaFile(h + " *MONOLITH.exe"));
+        Assert.Equal(h.ToLowerInvariant(), UpdateVerifier.ParseShaFile(h + " *Lycoris.exe"));
         Assert.Null(UpdateVerifier.ParseShaFile("<html>rate limited</html>"));
         Assert.Null(UpdateVerifier.ParseShaFile(new string('z', 64)));
     }

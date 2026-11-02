@@ -177,7 +177,7 @@ public static class NetSystem
     }
 
     /// <summary>
-    /// The advanced properties MONOLITH reads, by InterfaceGuid (InstanceID = "{GUID}::keyword"). A failed WMI query is an
+    /// The advanced properties Lycoris reads, by InterfaceGuid (InstanceID = "{GUID}::keyword"). A failed WMI query is an
     /// empty list for the scan; the writer (undo) asks for <paramref name="throwOnError"/> so that a failure is never
     /// mistaken for «the property is gone».
     /// </summary>
@@ -315,14 +315,14 @@ public static class NetSystem
         catch (ArgumentException) { return false; }
     }
 
-    /// <summary>Journal sources of the network changes MONOLITH can make (Optimize tweaks shown on this page).</summary>
+    /// <summary>Journal sources of the network changes Lycoris can make (Optimize tweaks shown on this page).</summary>
     public static readonly IReadOnlySet<string> TweakSources = new HashSet<string>(StringComparer.Ordinal)
     {
         "tweak:wifi-power-saving-off", "tweak:tcp-autotuning-normal", "tweak:dns-cloudflare", "tweak:dns-google",
         "tweak:delivery-optimization-local", "tweak:tcp-ack-frequency", "tweak:ipv6-prefer-ipv4",
     };
 
-    /// <summary>What a re-check compares against: MONOLITH's active network records, the default route and its DNS.</summary>
+    /// <summary>What a re-check compares against: Lycoris's active network records, the default route and its DNS.</summary>
     private static string Fingerprint(Guid? best, IReadOnlyList<string> dns)
     {
         IEnumerable<string> ids;

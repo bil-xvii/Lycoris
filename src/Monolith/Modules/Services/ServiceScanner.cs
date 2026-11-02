@@ -28,7 +28,7 @@ public sealed record ServiceInfo
     public ServiceStartMode? StartMode { get; init; }
     public bool Delayed { get; init; }
     public ServiceControllerStatus? Status { get; init; }
-    /// <summary>Why MONOLITH won't touch it; null = changes allowed.</summary>
+    /// <summary>Why Lycoris won't touch it; null = changes allowed.</summary>
     public string? LockReason { get; init; }
 }
 
@@ -273,7 +273,7 @@ public static class ServiceScanner
 
         var lockReason = ServiceGuard.GetLockReason(name, type, start ?? 3, errorControl, launchProtected, imagePath);
         if (lockReason is null && !registryReadable)
-            lockReason = Loc.T("Windows не даёт прочитать настройки этой службы, поэтому MONOLITH не может проверить её безопасность и не меняет её.");
+            lockReason = Loc.T("Windows не даёт прочитать настройки этой службы, поэтому Lycoris не может проверить её безопасность и не меняет её.");
         if (lockReason is null && scm != IntPtr.Zero && !CanChangeConfig(scm, name))
             lockReason = Loc.T("Windows запрещает менять настройки этой службы даже администратору (права доступа службы).");
 

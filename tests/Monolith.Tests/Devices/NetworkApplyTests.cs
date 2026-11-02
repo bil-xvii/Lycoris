@@ -104,7 +104,7 @@ public sealed class NetworkApplyTests : IDisposable
     [Fact]
     public async Task Speed_duplex_only_repairs_to_auto_and_never_forces_a_speed()
     {
-        // Research: MONOLITH returns a forced speed/duplex to auto-negotiation; it never sets a fixed speed.
+        // Research: Lycoris returns a forced speed/duplex to auto-negotiation; it never sets a fixed speed.
         var forced = SpeedRow("4");
         Assert.Equal(SettingControl.Choice, forced.Control);
         Assert.Equal([0L, 4L], forced.Options.Select(o => o.Value.Number).ToList());

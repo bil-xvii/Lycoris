@@ -187,7 +187,7 @@ public sealed class AppAdvisorTests
         foreach (var e in AppCatalog.All)
         {
             var advice = AppAdvisor.Assess(e, ctx);
-            // The only "НЕ НУЖНО" that needs no fact about the PC: Process Lasso fights MONOLITH's own game mode.
+            // The only "НЕ НУЖНО" that needs no fact about the PC: Process Lasso fights Lycoris's own game mode.
             if (advice is { Level: AdviceLevel.NotNeeded }) Assert.Equal("BitSum.ProcessLasso", e.Id);
         }
         foreach (var id in new[] { "Nvidia.PhysX", "Logitech.GHUB", "Elgato.StreamDeck", "Corsair.iCUE.5", WebView2, GamingServices, SevenZip,
@@ -432,7 +432,7 @@ public sealed class AppAdvisorTests
         Assert.Equal(AdviceLevel.Recommended, Assess("Valve.Steam", pc).Level);
         Assert.Equal(AdviceLevel.Recommended, Assess("Discord.Discord", pc).Level);
         Assert.Equal(AdviceLevel.NotNeeded, Assess("BitSum.ProcessLasso", pc).Level);
-        Assert.Contains("MONOLITH", Assess("BitSum.ProcessLasso", pc).Reason);
+        Assert.Contains("Lycoris", Assess("BitSum.ProcessLasso", pc).Reason);
         Assert.Contains("Автозапуск и службы", Assess("Microsoft.Sysinternals.Autoruns", pc).Reason);
         // Everything else is "ПО ЖЕЛАНИЮ".
         Assert.Equal(AdviceLevel.Optional, Assess("EpicGames.EpicGamesLauncher", pc).Level);

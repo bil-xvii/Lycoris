@@ -26,12 +26,12 @@ internal static class InputTools
         Run = RunDpiAsync,
     };
 
-    /// <summary>«Частота опроса»: 5 s of fast circles while MONOLITH is in the foreground.</summary>
+    /// <summary>«Частота опроса»: 5 s of fast circles while Lycoris is in the foreground.</summary>
     public static DeviceTool Polling() => new()
     {
         Id = InputProvider.PollingTool,
         Title = Loc.T("Измерение частоты опроса"),
-        Description = Loc.T("После нажатия 5 секунд водите мышью быстрыми кругами. Окно MONOLITH должно оставаться активным."),
+        Description = Loc.T("После нажатия 5 секунд водите мышью быстрыми кругами. Окно Lycoris должно оставаться активным."),
         ButtonText = Loc.T("ИЗМЕРИТЬ"),
         Run = RunPollingAsync,
     };
@@ -104,7 +104,7 @@ internal static class InputTools
         if (runs.Count < DpiEstimator.RunsNeeded)
         {
             run.Fail(capture.Interrupted
-                ? Loc.T("Окно MONOLITH стало неактивным — проверка остановлена. Нажмите «ПРОВЕРИТЬ» ещё раз.")
+                ? Loc.T("Окно Lycoris стало неактивным — проверка остановлена. Нажмите «ПРОВЕРИТЬ» ещё раз.")
                 : Loc.Tf("Время вышло: засчитано проходов — {0} из {1}. Нажмите «ПРОВЕРИТЬ» ещё раз.", runs.Count, DpiEstimator.RunsNeeded));
             return;
         }
@@ -143,7 +143,7 @@ internal static class InputTools
         }
         if (capture.Interrupted)
         {
-            run.Fail(Loc.T("Окно MONOLITH стало неактивным — измерение остановлено. Нажмите «ИЗМЕРИТЬ» и не переключайтесь на другие окна."));
+            run.Fail(Loc.T("Окно Lycoris стало неактивным — измерение остановлено. Нажмите «ИЗМЕРИТЬ» и не переключайтесь на другие окна."));
             return;
         }
 
@@ -152,7 +152,7 @@ internal static class InputTools
         if (PollingRateEstimator.EstimateBusiest(devices, capture.Frequency) is not { } best)
         {
             run.Fail(capture.MostlyBackground
-                ? Loc.T("Окно MONOLITH было неактивным — Windows не передаёт ему движения мыши. Нажмите «ИЗМЕРИТЬ» ещё раз.")
+                ? Loc.T("Окно Lycoris было неактивным — Windows не передаёт ему движения мыши. Нажмите «ИЗМЕРИТЬ» ещё раз.")
                 : Loc.T("Движения мыши не было. Нажмите «ИЗМЕРИТЬ» и сразу начните водить мышью кругами."));
             return;
         }
@@ -172,7 +172,7 @@ internal static class InputTools
         if (label is not null) detail.Add(label);
         detail.Add(InputAdvice.PollingAdvice(estimate.Hz));
         if (estimate.Saturated) detail.Add(PollingRateEstimator.SaturationHint);
-        if (capture.MostlyBackground) detail.Add(Loc.T("Часть движений пришла, когда окно MONOLITH было неактивным, — повторите, не переключая окна."));
+        if (capture.MostlyBackground) detail.Add(Loc.T("Часть движений пришла, когда окно Lycoris было неактивным, — повторите, не переключая окна."));
         run.Complete(PollingRateEstimator.ResultText(estimate), string.Join(" · ", detail));
     }
 }

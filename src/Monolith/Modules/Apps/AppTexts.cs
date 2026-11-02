@@ -32,7 +32,7 @@ public static class AppTexts
             tags.Add(new(Loc.T("ЭКСПЕРТ"), TagKind.Hatch,
                 Loc.T("Для опытных пользователей. Неправильное использование может привести к сбоям, перегреву или потере данных.")));
         if (e.Has(AppFlags.Reboot))
-            tags.Add(new(Loc.T("ПЕРЕЗАГРУЗКА"), TagKind.Muted, Loc.T("После установки нужна перезагрузка. MONOLITH никогда не перезагружает компьютер сам.")));
+            tags.Add(new(Loc.T("ПЕРЕЗАГРУЗКА"), TagKind.Muted, Loc.T("После установки нужна перезагрузка. Lycoris никогда не перезагружает компьютер сам.")));
         if (e.Has(AppFlags.Eol))
             tags.Add(new(Loc.T("УСТАРЕВАЕТ"), TagKind.Muted,
                 Loc.T("Microsoft прекращает выпуск исправлений безопасности для этой версии (.NET 6 — уже без поддержки, .NET 8 и 9 — до 10.11.2026). " +
@@ -43,7 +43,7 @@ public static class AppTexts
             tags.Add(new(Loc.T("ПРОБНЫЙ ПЕРИОД"), TagKind.Muted, Loc.T("Бесплатно на время пробного периода, дальше программа просит купить лицензию.")));
         if (e.Has(AppFlags.Preinstalled))
             tags.Add(new(Loc.T("ВСТРОЕНО В WINDOWS"), TagKind.Muted, e.SystemComponent
-                ? Loc.T("Системный компонент Windows: обновляется через Microsoft Edge Update. MONOLITH его не устанавливает и не удаляет.")
+                ? Loc.T("Системный компонент Windows: обновляется через Microsoft Edge Update. Lycoris его не устанавливает и не удаляет.")
                 : Loc.T("Обычно уже есть в Windows и обновляется сам через Microsoft Edge Update. Если его нет (бывает на Windows 10) — можно установить отсюда.")));
         if (e.Has(AppFlags.Win10Only))
             tags.Add(new(Loc.T("ДЛЯ WINDOWS 10"), TagKind.Muted, Loc.T("В Windows 11 22H2 и новее уже встроено — там этот пакет не нужен.")));
@@ -74,7 +74,7 @@ public static class AppTexts
         var e = item.Entry;
         return item.Action switch
         {
-            AppAction.SystemComponent => Loc.T("Системный компонент Windows: MONOLITH его не устанавливает, не обновляет и не удаляет."),
+            AppAction.SystemComponent => Loc.T("Системный компонент Windows: Lycoris его не устанавливает, не обновляет и не удаляет."),
             AppAction.Website => WebsiteOnlyReason(e) + Loc.T(" Откроется официальная страница загрузки."),
             AppAction.VendorDownload => WebsiteOnlyReason(e) + " " + VendorDownloadToolTip(e),
             AppAction.Installed => e.Has(AppFlags.ForceExe)
@@ -89,8 +89,8 @@ public static class AppTexts
 
     /// <summary>What the direct download does — named host and signer, no promises beyond that.</summary>
     public static string VendorDownloadToolTip(CatalogEntry e) => e.VendorInstaller is { } v
-        ? Loc.Tf("MONOLITH скачает официальный установщик с сервера {0} (HTTPS), проверит цифровую подпись ({1}) " +
-          "и запустит его от вашего имени — права администратора установщик попросит сам. Без прав администратора у MONOLITH откроется сайт.", v.Host, SignerList(v.Signers))
+        ? Loc.Tf("Lycoris скачает официальный установщик с сервера {0} (HTTPS), проверит цифровую подпись ({1}) " +
+          "и запустит его от вашего имени — права администратора установщик попросит сам. Без прав администратора у Lycoris откроется сайт.", v.Host, SignerList(v.Signers))
         : Loc.Tf("Откроется официальная страница загрузки: {0}", e.Website);
 
     private static string SignerList(IEnumerable<string> signers) => string.Join(Loc.T(" или "), signers);
@@ -110,7 +110,7 @@ public static class AppTexts
             hint += Loc.Tf(" Папка установки: {0} (без неё установщик не запускается).", folder);
         if (e.VendorInstaller is not null)
             hint += Loc.T(" Производитель обновляет файл по той же ссылке: если winget откажется из-за контрольной суммы, " +
-                    "MONOLITH предложит скачать установщик напрямую у производителя с проверкой цифровой подписи.");
+                    "Lycoris предложит скачать установщик напрямую у производителя с проверкой цифровой подписи.");
         return hint;
     }
 
@@ -169,7 +169,7 @@ public static class AppTexts
             if (e.Has(AppFlags.Expert) && !repeats)
                 list.Add(Loc.Tf("{0}: инструмент для опытных пользователей.", e.Name));
             if (e.Has(AppFlags.Reboot))
-                list.Add(Loc.Tf("{0}: после установки понадобится перезагрузка (MONOLITH сам не перезагружает).", e.Name));
+                list.Add(Loc.Tf("{0}: после установки понадобится перезагрузка (Lycoris сам не перезагружает).", e.Name));
             if (e.Has(AppFlags.Eol) && !repeats)
                 list.Add(Loc.Tf("{0}: версия без поддержки или с заканчивающейся поддержкой Microsoft.", e.Name));
             if ((e.Has(AppFlags.Trialware) || e.Has(AppFlags.Paid)) && !repeats)
@@ -201,7 +201,7 @@ public static class AppTexts
     }
 
     /// <summary>
-    /// Confirmation lines for packages MONOLITH does not advise installing now ("НЕ НУЖНО — NVIDIA PhysX: …"), "НЕ НУЖНО"
+    /// Confirmation lines for packages Lycoris does not advise installing now ("НЕ НУЖНО — NVIDIA PhysX: …"), "НЕ НУЖНО"
     /// first. Only installs are listed: updates of installed programs carry no advice.
     /// </summary>
     public static IReadOnlyList<string> AdviceNotes(IEnumerable<(CatalogEntry Entry, AppAdvice? Advice)> installs) =>
@@ -218,8 +218,8 @@ public static class AppTexts
     public static string AdviceLead(int discouraged) => discouraged switch
     {
         0 => "",
-        1 => Loc.T("1 пакет из списка MONOLITH сейчас ставить не советует — причина в начале списка. Установить его всё равно можно. "),
-        _ => Loc.Tf("{0} из списка MONOLITH сейчас ставить не советует — причины в начале списка. Установить их всё равно можно. ", Packages(discouraged)),
+        1 => Loc.T("1 пакет из списка Lycoris сейчас ставить не советует — причина в начале списка. Установить его всё равно можно. "),
+        _ => Loc.Tf("{0} из списка Lycoris сейчас ставить не советует — причины в начале списка. Установить их всё равно можно. ", Packages(discouraged)),
     };
 
     public static string KitCaption =>
@@ -292,7 +292,7 @@ public static class AppTexts
             return Loc.T("winget не знает, какая версия установлена, и не обновляет вслепую. Если нужна новая версия — обновите программу " +
                    "её встроенным средством обновления или с официального сайта.");
         if (code == WingetClient.PackageIsPinned)
-            return Loc.Tf("Пакет закреплён в winget — MONOLITH уважает закрепление и не обновляет его. Снять закрепление: «winget pin remove --id {0}».", e.Id);
+            return Loc.Tf("Пакет закреплён в winget — Lycoris уважает закрепление и не обновляет его. Снять закрепление: «winget pin remove --id {0}».", e.Id);
         if (code == unchecked((int)0x8A15010D))
             return Loc.T("Установлена другая версия программы — winget не ставит поверх неё.");
         if (code == unchecked((int)0x8A15010E))
@@ -300,20 +300,20 @@ public static class AppTexts
         if (code == WingetClient.InstallerHashMismatch)
             return Loc.T("Контрольная сумма скачанного установщика не совпала с каталогом winget. Чаще всего это значит, что производитель " +
                    "выложил новую версию по той же ссылке, а каталог winget ещё не обновлён; реже — файл повреждён или подменён по пути. " +
-                   "Поэтому winget его не запустил, и обходить эту проверку MONOLITH не будет. ") +
+                   "Поэтому winget его не запустил, и обходить эту проверку Lycoris не будет. ") +
                    (e.VendorInstaller is { } v && (elevated ?? Elevation.IsElevated)
-                       ? Loc.Tf("Нажмите «СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ»: MONOLITH скачает официальный установщик с {0} и проверит его цифровую подпись " +
+                       ? Loc.Tf("Нажмите «СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ»: Lycoris скачает официальный установщик с {0} и проверит его цифровую подпись " +
                          "({1}). Или повторите через несколько дней, когда каталог winget обновится.", v.Host, SignerList(v.Signers))
                        : Loc.T("Скачайте программу с официального сайта (кнопка «ОТКРЫТЬ САЙТ») или повторите через несколько дней, когда каталог winget обновится."));
         if (code == WingetClient.InstallLocationRequired)
             return install
                 ? Loc.T("Установщик требует указать папку установки, а спросить её у вас в тихом режиме winget не может; со стандартной папкой установка тоже не прошла. ") + site
-                : Loc.T("Для обновления winget требует папку, где стоит программа, а MONOLITH её не знает. Обновите программу её встроенным " +
+                : Loc.T("Для обновления winget требует папку, где стоит программа, а Lycoris её не знает. Обновите программу её встроенным " +
                   "средством обновления (обычно при запуске) или установщиком с официального сайта.");
         if (code == WingetClient.NoApplicationsFound)
             return install
                 ? Loc.Tf("Пакета {0} сейчас нет в каталоге winget (его могли переименовать или убрать). {1}", e.Id, site)
-                : UnmanagedExplanation + Loc.T(" MONOLITH её не трогает.");
+                : UnmanagedExplanation + Loc.T(" Lycoris её не трогает.");
         if (code == WingetClient.NoApplicableInstaller)
             return Loc.T("В каталоге winget нет установщика для этой системы (архитектура или версия Windows). ") + site;
         if (code == WingetClient.HttpNotFound)
@@ -323,11 +323,11 @@ public static class AppTexts
                    "если ошибка повторяется, ссылка в каталоге winget, скорее всего, устарела. ") + site;
         if (code == WingetClient.ElevationProhibited)
             return Loc.T("Установщик запрещает запуск с правами администратора, а запустить его от вашего имени не удалось. " +
-                   "Запустите MONOLITH без прав администратора и повторите. ") + site;
+                   "Запустите Lycoris без прав администратора и повторите. ") + site;
         if (code == WingetClient.RebootRequiredToInstall)
-            return Loc.T("Windows ждёт перезагрузки после прошлой установки или обновления. Перезагрузите компьютер и повторите — MONOLITH сам не перезагружает.");
+            return Loc.T("Windows ждёт перезагрузки после прошлой установки или обновления. Перезагрузите компьютер и повторите — Lycoris сам не перезагружает.");
         if (code == unchecked((int)0x8A150019))
-            return Loc.T("Для этого пакета нужны права администратора. Перезапустите MONOLITH с правами администратора и повторите.");
+            return Loc.T("Для этого пакета нужны права администратора. Перезапустите Lycoris с правами администратора и повторите.");
         if (code is unchecked((int)0x8A150101) or unchecked((int)0x8A150103) or unchecked((int)0x8A150111))
             return Loc.T("Программа сейчас запущена. Закройте её (и значок в трее рядом с часами) и повторите.");
         if (code == unchecked((int)0x8A150102))
@@ -386,7 +386,7 @@ public static class AppTexts
         (afterHashMismatch
             ? Loc.Tf("winget отказался ставить {0}: установщик не совпал с каталогом winget (обычно производитель обновил файл, а каталог ещё нет). ", e.Name)
             : WebsiteOnlyReason(e) + " ") +
-        Loc.T("MONOLITH может скачать официальный установщик прямо с сервера производителя — без браузера и сторонних сайтов — " +
+        Loc.T("Lycoris может скачать официальный установщик прямо с сервера производителя — без браузера и сторонних сайтов — " +
         "и проверить его цифровую подпись вместо контрольной суммы winget. Саму установку вы проводите в окне установщика.");
 
     /// <summary>Exactly what the direct download will do — host, file, folder, signer, how it is started.</summary>
@@ -395,11 +395,11 @@ public static class AppTexts
         Loc.Tf("Источник: официальный сервер {0} (HTTPS), ссылка {1}", r.Url.Host, r.Url.AbsoluteUri),
         Loc.Tf("Файл: {0} → {1} (запись туда разрешена только администраторам)", r.FileName, r.Folder),
         Loc.Tf("Проверка: действительная цифровая подпись {0}; без неё файл удаляется и не запускается", SignerList(r.Signers)),
-        Loc.T("Установщик запустится от вашего имени, без прав MONOLITH; права администратора он попросит сам (запрос UAC)"),
+        Loc.T("Установщик запустится от вашего имени, без прав Lycoris; права администратора он попросит сам (запрос UAC)"),
         restorePoint
-            ? Loc.T("Перед запуском будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)")
-            : Loc.T("Точка восстановления создана не будет (защита системы или эта настройка MONOLITH выключены)"),
-        Loc.T("Лицензию производителя показывает сам установщик — MONOLITH ничего не принимает за вас"),
+            ? Loc.T("Перед запуском будет создана точка восстановления (если Windows её не создаст, Lycoris спросит, продолжать ли)")
+            : Loc.T("Точка восстановления создана не будет (защита системы или эта настройка Lycoris выключены)"),
+        Loc.T("Лицензию производителя показывает сам установщик — Lycoris ничего не принимает за вас"),
         Loc.Tf("Нужно свободного места на системном диске: не меньше {0}", SystemProfile.FormatBytes(r.RequiredFreeSpace)),
         Loc.T("Удалить программу потом можно в «Параметры → Приложения»"),
     ];

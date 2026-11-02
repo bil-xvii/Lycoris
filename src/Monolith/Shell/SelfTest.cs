@@ -463,7 +463,7 @@ public sealed class SelfTestRunner
     private void WriteReport(List<PageReport> reports, TimeSpan elapsed, long startMem, long endMem)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# MONOLITH — отчёт самопроверки");
+        sb.AppendLine("# Lycoris — отчёт самопроверки");
         sb.AppendLine();
         sb.AppendLine($"Время: {DateTime.Now:yyyy-MM-dd HH:mm:ss} · длительность {elapsed.TotalSeconds:0} с · права администратора: {(Elevation.IsElevated ? "да" : "нет")}");
         sb.AppendLine($"Память: {startMem / 1048576} МБ → {endMem / 1048576} МБ");

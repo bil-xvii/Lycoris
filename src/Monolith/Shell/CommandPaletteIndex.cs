@@ -156,13 +156,13 @@ public static class CommandPaletteIndex
             Loc.Keep("подтверждение применить список изменений confirm"), "settings", SettingFocusPrefix + "confirm"),
         new(PaletteKind.Setting, Loc.Key("Интервал обновления мониторинга"), Loc.Key("Как часто Панель опрашивает процессор, видеокарту, память и диски — раздел «Настройки»."),
             Loc.Keep("мониторинг интервал панель опрос"), "settings", SettingFocusPrefix + "monitor-interval"),
-        new(PaletteKind.Setting, Loc.Key("Журнал действий (консоль)"), Loc.Key("Показывать журнал действий MONOLITH внизу окна — раздел «Настройки»."),
+        new(PaletteKind.Setting, Loc.Key("Журнал действий (консоль)"), Loc.Key("Показывать журнал действий Lycoris внизу окна — раздел «Настройки»."),
             Loc.Keep("консоль журнал лог"), "settings", SettingFocusPrefix + "console"),
-        new(PaletteKind.Setting, Loc.Key("Папки данных MONOLITH"), Loc.Key("Где лежат настройки, журнал изменений, резервные копии и логи — раздел «Настройки»."),
+        new(PaletteKind.Setting, Loc.Key("Папки данных Lycoris"), Loc.Key("Где лежат настройки, журнал изменений, резервные копии и логи — раздел «Настройки»."),
             Loc.Keep("данные папки журнал резервные копии логи файлы"), "settings", SettingFocusPrefix + "data"),
-        new(PaletteKind.Setting, Loc.Key("Сброс настроек MONOLITH"), Loc.Key("Вернуть параметры MONOLITH к значениям по умолчанию — раздел «Настройки»."),
+        new(PaletteKind.Setting, Loc.Key("Сброс настроек Lycoris"), Loc.Key("Вернуть параметры Lycoris к значениям по умолчанию — раздел «Настройки»."),
             Loc.Keep("сброс по умолчанию настройки"), "settings", SettingFocusPrefix + "reset"),
-        new(PaletteKind.Setting, Loc.Key("Как MONOLITH защищает систему"), Loc.Key("Журнал отката, точки восстановления, что никогда не делается — раздел «Настройки → О программе»."),
+        new(PaletteKind.Setting, Loc.Key("Как Lycoris защищает систему"), Loc.Key("Журнал отката, точки восстановления, что никогда не делается — раздел «Настройки → О программе»."),
             Loc.Keep("безопасность защита откат о программе"), "settings", SettingFocusPrefix + "about"),
         new(PaletteKind.Setting, Loc.Key("Компоненты и лицензии"), Loc.Key("Версия, шрифты, библиотеки — раздел «Настройки → О программе»."),
             Loc.Keep("лицензии версия компоненты о программе"), "settings", SettingFocusPrefix + "licenses"),
@@ -186,13 +186,13 @@ public static class CommandPaletteIndex
     /// <summary>Parts of the Restore page.</summary>
     public static IReadOnlyList<Entry> RestoreEntries { get; } =
     [
-        new(PaletteKind.Page, Loc.Key("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ ИЗМЕНЕНИЙ"), Loc.Key("Вернуть последние изменения MONOLITH — раздел «Восстановление»."),
+        new(PaletteKind.Page, Loc.Key("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ ИЗМЕНЕНИЙ"), Loc.Key("Вернуть последние изменения Lycoris — раздел «Восстановление»."),
             Loc.Keep("откат отменить вернуть последний пакет журнал"), "restore", RestoreSectionPrefix + "last-batch", IsSection: true),
-        new(PaletteKind.Page, Loc.Key("ЖУРНАЛ ИЗМЕНЕНИЙ MONOLITH"), Loc.Key("Каждое изменение с исходным значением и кнопкой отката — раздел «Восстановление»."),
+        new(PaletteKind.Page, Loc.Key("ЖУРНАЛ ИЗМЕНЕНИЙ LYCORIS"), Loc.Key("Каждое изменение с исходным значением и кнопкой отката — раздел «Восстановление»."),
             Loc.Keep("журнал изменений история откат"), "restore", RestoreSectionPrefix + "journal", IsSection: true),
         new(PaletteKind.Page, Loc.Key("ТОЧКИ ВОССТАНОВЛЕНИЯ WINDOWS"), Loc.Key("Создать точку, включить защиту системы, открыть восстановление Windows — раздел «Восстановление»."),
             Loc.Keep("точка восстановления защита системы windows создать"), "restore", RestoreSectionPrefix + "restore-points", IsSection: true),
-        new(PaletteKind.Page, Loc.Key("ИЗМЕНЕНО ВНЕ MONOLITH"), Loc.Key("Настройки MONOLITH, изменённые Windows или другой программой — раздел «Восстановление»."),
+        new(PaletteKind.Page, Loc.Key("ИЗМЕНЕНО ВНЕ LYCORIS"), Loc.Key("Настройки Lycoris, изменённые Windows или другой программой — раздел «Восстановление»."),
             Loc.Keep("изменено вне monolith drift расхождение"), "restore", RestoreSectionPrefix + "drift", IsSection: true),
     ];
 

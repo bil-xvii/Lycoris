@@ -1,11 +1,11 @@
-# MONOLITH: Services module design, with a curated safe list (verified on Win11 Pro build 26300.9457, "26H2")
+# Lycoris: Services module design, with a curated safe list (verified on Win11 Pro build 26300.9457, "26H2")
 
 ## 0. Key findings
 
 1. **Most of the commonly listed "services to disable" are already Manual or trigger-start by default on Windows 11.** This was verified on this machine. Xbox, Bluetooth, smart card, biometrics, geolocation, WER, wisvc, PhoneSvc, RetailDemo and WMPNetworkSvc are all `Manual` and **stopped**. Changing them to Disabled saves about 0 MB and 0% CPU, and only removes features. The module should show these as "уже оптимально" and should not count them as optimizations.
 2. **Only about 10 Microsoft services are Auto by default and are realistic candidates:** DiagTrack, MapsBroker, TrkWks, PcaSvc, StorSvc, CDPSvc, Spooler, WSearch, LanmanServer and edgeupdate. The real gain is small, a few tens of MB of RAM. FPS gains are placebo, so the UI should not promise FPS.
 3. **WinUtil (Chris Titus) reduced its "Set Services to Manual" list to 5 entries:** CscService→Disabled, DiagTrack→Disabled, MapsBroker→Manual, StorSvc→Manual, SharedAccess→Disabled. Its hard-coded `OriginalType` for SharedAccess is "Automatic", but on 26300 it is **Manual (trigger)**. **Never hard-code the "original" value. Always snapshot the live config.**
-4. **Use an allowlist, not a blocklist.** MONOLITH should modify only services in its curated database. Everything else (third-party, anti-cheat, vendor drivers) is read-only. The NEVER-TOUCH list in §2 is defense in depth for an expert mode.
+4. **Use an allowlist, not a blocklist.** Lycoris should modify only services in its curated database. Everything else (third-party, anti-cheat, vendor drivers) is read-only. The NEVER-TOUCH list in §2 is defense in depth for an expert mode.
 5. **TabletInputService no longer exists on Win11.** It was renamed to `TextInputManagementService` in build 22471. It is Auto with triggers, and it handles keyboard/IME, emoji, clipboard history and the touch keyboard. **Never touch it.**
 6. **Some services refuse configuration changes even for admin.** This happens through PPL (`LaunchProtected` ≠ 0) and through DACLs that don't give `SERVICE_CHANGE_CONFIG` to Builtin\Administrators. Detect this and lock those services in the UI. Never take ownership or rewrite DACLs.
 7. **Scheduled tasks differ by build.** On 26300 the task `Microsoft Compatibility Appraiser` is replaced by **`Microsoft Compatibility Appraiser Exp`**, and `ProgramDataUpdater` and `KernelCeipTask` are absent. Disabling the Appraiser is **debated**: it feeds feature-update eligibility and safeguard data, and turning it off can stop feature-update offers.
@@ -88,7 +88,7 @@ Profiles:
 | Shell/UWP/Store | `AppXSvc`, `ClipSVC`, `LicenseManager`, `InstallService`, `AppReadiness`, `camsvc`, `DispBrokerDesktopSvc`, `Themes`, `FontCache`, `TextInputManagementService` (Win10: `TabletInputService`), `ShellHWDetection`, `WpnService`, `WpnUserService`, `cbdhsvc` | Store/app licensing, display policy, typing/IME/emoji/Win+V, notifications. AppXSvc and ClipSVC are PPL. |
 | Network | `Dhcp`, `Dnscache`, `nsi`, `NlaSvc`, `netprofm`, `Wcmsvc`, `WlanSvc`, `LanmanWorkstation`, `WinHttpAutoProxySvc`, `Netman`, `NcbService`, `RasMan`, `IKEEXT`, `BFE`, `mpssvc`, `DusmSvc` | Connectivity, VPN, firewall. BFE/mpssvc: admin has no `DC` right. |
 | Security | `WinDefend`, `WdNisSvc`, `MDCoreSvc`, `Sense`, `SecurityHealthService`, `wscsvc`, `webthreatdefsvc`, `webthreatdefusersvc`, `AppIDSvc`, `CryptSvc`, `EFS`, `BDESVC`, `SgrmBroker` | Weakens security. Most are PPL and Tamper Protection guards them. |
-| Servicing/recovery | `wuauserv`, `UsoSvc`, `WaaSMedicSvc`, `BITS`, `DoSvc`, `TrustedInstaller`, `msiserver`, `sppsvc`, `VSS`, `swprv`, `InventorySvc` | Updates, activation, **System Restore (VSS/swprv) that MONOLITH itself relies on** |
+| Servicing/recovery | `wuauserv`, `UsoSvc`, `WaaSMedicSvc`, `BITS`, `DoSvc`, `TrustedInstaller`, `msiserver`, `sppsvc`, `VSS`, `swprv`, `InventorySvc` | Updates, activation, **System Restore (VSS/swprv) that Lycoris itself relies on** |
 | Audio/video/input | `Audiosrv`, `AudioEndpointBuilder`, `FrameServer`, `FrameServerMonitor`, `hidserv`, `GameInputSvc` | Sound, webcams (Discord/OBS), HID/controllers |
 | Virtualization/VBS | `HvHost`, `vmcompute`, `hns` (if present) | VBS/HVCI, WSL2, Sandbox |
 | Diagnostics needed by OS | `DPS`, `WdiServiceHost`, `WdiSystemHost`, `whesvc`, `WSAIFabricSvc` | Troubleshooters and resource-exhaustion detection. WSAIFabricSvc (Windows AI components host, Auto, new) and whesvc have unknown dependents, so they are **debated** → block. |
@@ -99,7 +99,7 @@ Profiles:
 
 | Rule | Detection |
 |---|---|
-| Not in the curated allowlist | Name lookup. In MONOLITH: enforced unless the user turns on **Settings → ЭКСПЕРТНЫЙ РЕЖИМ СЛУЖБ** (`AppSettings.ServicesExpertMode`, default off, enabling asks a danger confirmation). Expert mode lifts only this rule; every other §2A/§2B block still applies. |
+| Not in the curated allowlist | Name lookup. In Lycoris: enforced unless the user turns on **Settings → ЭКСПЕРТНЫЙ РЕЖИМ СЛУЖБ** (`AppSettings.ServicesExpertMode`, default off, enabling asks a danger confirmation). Expert mode lifts only this rule; every other §2A/§2B block still applies. |
 | Driver | `Type & 0x0B` (`SERVICE_KERNEL_DRIVER=1`, `SERVICE_FILE_SYSTEM_DRIVER=2`), or `Start` ∈ {0,1} |
 | Protected service (PPL) | `QueryServiceConfig2W(…, SERVICE_CONFIG_LAUNCH_PROTECTED=12)` ≠ 0, or registry `LaunchProtected`. Verified: WinDefend/WdNisSvc/MDCoreSvc=3 (Antimalware-Light); SecurityHealthService/wscsvc/AppXSvc/ClipSVC/WaaSMedicSvc/DoSvc/AppIDSvc/Sense=2 (Windows-Light); sppsvc=1. For PPL, MS docs say non-protected processes can't alter config (only `sc config start= auto` is allowed). |
 | Admin lacks change right | `OpenServiceW(…, SERVICE_CHANGE_CONFIG)` → error 5. Verified: the BA ACE lacks `DC` on WinDefend, WdNisSvc, MDCoreSvc, SecurityHealthService, wscsvc, AppXSvc, ClipSVC, sppsvc, RpcSs, DcomLaunch, BFE, mpssvc. |
@@ -190,8 +190,8 @@ Verified on this machine with suffix `_9fa35`. Templates: AarSvc, BcastDVRUserSe
 | Suffix | The logon-session LUID. It changes per logon/boot, so **never persist instance names**. Store the template name. |
 | Editing instance | Lost at sign-out. Don't do it. |
 | Editing template | `OpenServiceW("CDPUserSvc")` works (MS docs use `Set-Service -Name PimIndexMaintenanceSvc`). Takes effect at the next sign-in for **all users**. |
-| `UserServiceFlags=0` | Prevents instance creation. **MONOLITH must never use it.** |
-| Policy | Per-user services are **read-only** in MONOLITH (grouped under the template). Disabling cbdhsvc / WpnUserService / CDPUserSvc / UnistoreSvc breaks Win+V, notifications, Phone Link and Mail/People. |
+| `UserServiceFlags=0` | Prevents instance creation. **Lycoris must never use it.** |
+| Policy | Per-user services are **read-only** in Lycoris (grouped under the template). Disabling cbdhsvc / WpnUserService / CDPUserSvc / UnistoreSvc breaks Win+V, notifications, Phone Link and Mail/People. |
 
 ### 3.4 Admin "Access denied" cases
 

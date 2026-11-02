@@ -270,7 +270,7 @@ internal static class HardwareAdvisor
             boardActions.Add(new HwAction("bios", vendor is null ? HwActionKind.Note : HwActionKind.OpenPage, HwSource.Manual,
                 Loc.T("Проверить обновление BIOS"),
                 Loc.Tf("BIOS выпущен {0} назад. Новые версии исправляют совместимость с процессорами и памятью и закрывают уязвимости. ", DriverAge.Format(biosAge)) +
-                Loc.T("Обновление BIOS — только вручную с сайта производителя платы, строго по его инструкции: сбой прошивки может вывести плату из строя. MONOLITH BIOS не прошивает."),
+                Loc.T("Обновление BIOS — только вручную с сайта производителя платы, строго по его инструкции: сбой прошивки может вывести плату из строя. Lycoris BIOS не прошивает."),
                 vendor?.ShortName ?? (b.Manufacturer.Length > 0 ? b.Manufacturer : Loc.T("производитель платы")))
             {
                 Url = vendor?.SupportUrl,
@@ -281,8 +281,8 @@ internal static class HardwareAdvisor
         {
             boardStatus = HwStatus.Info;
             boardNote = b.BiosDate is null
-                ? Loc.T("Дата BIOS неизвестна. MONOLITH не проверяет новые версии BIOS и никогда не прошивает его.")
-                : Loc.T("BIOS моложе двух лет. MONOLITH не проверяет новые версии BIOS и никогда не прошивает его — обновление только вручную с сайта производителя платы.");
+                ? Loc.T("Дата BIOS неизвестна. Lycoris не проверяет новые версии BIOS и никогда не прошивает его.")
+                : Loc.T("BIOS моложе двух лет. Lycoris не проверяет новые версии BIOS и никогда не прошивает его — обновление только вручную с сайта производителя платы.");
             if (vendor is not null)
                 boardActions.Add(new HwAction("board-page", HwActionKind.OpenPage, HwSource.Manual, Loc.T("Страница поддержки платы"),
                     Loc.Tf("Драйверы, утилиты и BIOS для {0} — на странице поддержки производителя (найдите свою модель).", boardName), vendor.ShortName)
@@ -624,7 +624,7 @@ internal static class HardwareAdvisor
         {
             var advice = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с — скорее всего, в BIOS выключен профиль {2}. ", v.Rated, v.Configured, profile) +
                          Loc.T("Включите его в BIOS/UEFI (раздел настроек памяти → профиль → сохранить и перезагрузить). " +
-                         "MONOLITH настройки BIOS не меняет; если система станет нестабильной, верните там значение «Auto».");
+                         "Lycoris настройки BIOS не меняет; если система станет нестабильной, верните там значение «Auto».");
             if (s.IsLaptop)
                 list.Add(new HwComponent("ram", Loc.T("ОПЕРАТИВНАЯ ПАМЯТЬ"), name, details, HwStatus.Info, [])
                 { Note = Loc.Tf("{0} На ноутбуках профиль часто недоступен — тогда это нормальная работа.", advice) });

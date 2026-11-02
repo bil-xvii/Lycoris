@@ -59,12 +59,12 @@ public sealed partial class CheckItemViewModel : ObservableObject
 
     public string ActionTooltip => Result.Action?.Kind switch
     {
-        CheckActionKind.Navigate => Loc.T("Открыть раздел MONOLITH"),
+        CheckActionKind.Navigate => Loc.T("Открыть раздел Lycoris"),
         CheckActionKind.OpenUri => Loc.T("Открыть параметры Windows — сама по себе кнопка ничего не меняет"),
         CheckActionKind.FocusTweak => Loc.T("Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет"),
         CheckActionKind.FocusDevice => Loc.T("Показать монитор в разделе «Устройства и сеть» — сама по себе кнопка ничего не меняет"),
-        _ when ShowAdminHint => Loc.T("Нужны права администратора: MONOLITH предложит перезапуск и продолжит действие сам"),
-        _ => Loc.T("Перед изменением MONOLITH покажет, что именно будет сделано"),
+        _ when ShowAdminHint => Loc.T("Нужны права администратора: Lycoris предложит перезапуск и продолжит действие сам"),
+        _ => Loc.T("Перед изменением Lycoris покажет, что именно будет сделано"),
     };
 
     [ObservableProperty] private bool _isRunning;

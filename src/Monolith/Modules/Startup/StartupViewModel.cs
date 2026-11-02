@@ -122,8 +122,8 @@ public sealed partial class StartupViewModel : PageViewModel
 
     private async Task ScanAsync()
     {
-        var entriesTask = StaWorker.Run(StartupScanner.Scan, "MONOLITH startup scan");
-        var tasksTask = StaWorker.Run(() => LogonTaskScanner.Scan(), "MONOLITH task scan");
+        var entriesTask = StaWorker.Run(StartupScanner.Scan, "Lycoris startup scan");
+        var tasksTask = StaWorker.Run(() => LogonTaskScanner.Scan(), "Lycoris task scan");
         var bootTask = Task.Run(BootPerformance.Read);
 
         var entries = await entriesTask;
@@ -210,7 +210,7 @@ public sealed partial class StartupViewModel : PageViewModel
             }
             if (!enable && !item.CanDisable)
             {
-                Ui.Toast(Loc.Tf("«{0}» — значок защиты системы. MONOLITH его не отключает.", item.DisplayName), ToastKind.Warning);
+                Ui.Toast(Loc.Tf("«{0}» — значок защиты системы. Lycoris его не отключает.", item.DisplayName), ToastKind.Warning);
                 return;
             }
             if (!enable && !await ConfirmEntriesAsync([item], enable: false)) return;
@@ -333,7 +333,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (targets.Count == 0)
         {
             Ui.Toast(locked.Count > 0
-                ? Loc.T("Среди выбранных только защитные записи или задачи под управлением политики — их MONOLITH не отключает.")
+                ? Loc.T("Среди выбранных только защитные записи или задачи под управлением политики — их Lycoris не отключает.")
                 : Loc.T("Все выбранные записи уже отключены."), ToastKind.Info);
             return;
         }
@@ -350,7 +350,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (targets.Count == 0)
         {
             Ui.Toast(Items.Any(i => i.IsSelected && !i.IsEnabled)
-                ? Loc.T("Выбранные задачи отключены политикой или в неизвестном состоянии — MONOLITH их не меняет.")
+                ? Loc.T("Выбранные задачи отключены политикой или в неизвестном состоянии — Lycoris их не меняет.")
                 : Loc.T("Все выбранные записи уже включены."), ToastKind.Info);
             return;
         }
@@ -437,7 +437,7 @@ public sealed partial class StartupViewModel : PageViewModel
         var restoresMark = false;
         foreach (var i in items)
         {
-            // Packaged tasks: the State the switch really leaves — back to the state from before MONOLITH restores that exact value.
+            // Packaged tasks: the State the switch really leaves — back to the state from before Lycoris restores that exact value.
             var state = i.IsPackaged ? PackagedStartup.StateAfterSwitch(enable, StartupChanges.PackagedStateBefore(i.Entry)) : (int?)null;
             if (state.HasValue)
             {
@@ -477,17 +477,17 @@ public sealed partial class StartupViewModel : PageViewModel
         if (enable && items.Any(i => i.IsPackaged))
             details.Add(Loc.T("Приложение MSIX Windows запускает при входе, только если его хотя бы раз открывали."));
         if (skippedLocked > 0)
-            details.Add(Loc.Tf("Пропущено записей: {0} (Безопасность Windows, антивирусы и задачи под управлением политики MONOLITH не отключает).", skippedLocked));
+            details.Add(Loc.Tf("Пропущено записей: {0} (Безопасность Windows, антивирусы и задачи под управлением политики Lycoris не отключает).", skippedLocked));
         if (items.Count > 1)
-            details.Add(Loc.T("Перед изменением MONOLITH создаст точку восстановления (если это включено в разделе «Восстановление»)."));
+            details.Add(Loc.T("Перед изменением Lycoris создаст точку восстановления (если это включено в разделе «Восстановление»)."));
 
         var subject = items.Count == 1 ? $"«{items[0].DisplayName}»" : Loc.N(items.Count, "{0} запись", "{0} записи", "{0} записей");
         var markNote = restoresMark ? Loc.T(" (или возвращает отметку, что была до него)") : "";
         var message = enable
             ? (items.Count == 1 ? Loc.Tf("{0} снова будет запускаться при входе в Windows.", subject) : Loc.Tf("{0} снова будут запускаться при входе в Windows.", subject))
             : (Loc.RuForm(items.Count) == 0
-                ? Loc.Tf("{0} перестанет запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач{1}. Уже запущенные программы продолжат работать до перезагрузки.", subject, markNote)
-                : Loc.Tf("{0} перестанут запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач{1}. Уже запущенные программы продолжат работать до перезагрузки.", subject, markNote));
+                ? Loc.Tf("{0} перестанет запускаться при входе в Windows. Ничего не удаляется: Lycoris ставит отметку «отключено» так же, как Диспетчер задач{1}. Уже запущенные программы продолжат работать до перезагрузки.", subject, markNote)
+                : Loc.Tf("{0} перестанут запускаться при входе в Windows. Ничего не удаляется: Lycoris ставит отметку «отключено» так же, как Диспетчер задач{1}. Уже запущенные программы продолжат работать до перезагрузки.", subject, markNote));
 
         return Ui.ConfirmAsync(
             enable ? (items.Count == 1 ? Loc.T("ВКЛЮЧИТЬ АВТОЗАПУСК?") : Loc.Tf("ВКЛЮЧИТЬ {0}?", Loc.N(items.Count, "{0} ЗАПИСЬ", "{0} ЗАПИСИ", "{0} ЗАПИСЕЙ")))
@@ -582,7 +582,7 @@ public sealed partial class StartupViewModel : PageViewModel
         }
     }
 
-    /// <summary>Explorer window as the signed-in user (never with MONOLITH's admin token, CLAUDE.md §8).</summary>
+    /// <summary>Explorer window as the signed-in user (never with Lycoris's admin token, CLAUDE.md §8).</summary>
     private static async Task OpenExplorerAsync(string arguments)
     {
         var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");

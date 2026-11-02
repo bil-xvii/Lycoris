@@ -109,9 +109,9 @@ internal static class DeviceRestore
         var snap = r.Nic ?? throw NoData();
         var writer = DeviceWriters.Nic ?? throw new InvalidOperationException(DeviceWriters.NoWriterRevert);
         SafetyLock.ThrowIfLocked(Loc.T("откат свойства сетевого адаптера"));
-        if (GameBoostState.IsActive) throw new InvalidOperationException(Loc.T("во время игрового сеанса MONOLITH не перезапускает сетевой адаптер — повторите откат после игры"));
+        if (GameBoostState.IsActive) throw new InvalidOperationException(Loc.T("во время игрового сеанса Lycoris не перезапускает сетевой адаптер — повторите откат после игры"));
         if (writer.RunningGame() is { } game)
-            throw new InvalidOperationException(Loc.Tf("идёт игра ({0}) — MONOLITH не перезапускает сетевой адаптер, повторите откат после игры", game));
+            throw new InvalidOperationException(Loc.Tf("идёт игра ({0}) — Lycoris не перезапускает сетевой адаптер, повторите откат после игры", game));
         // The writer answers null only when WMI really knows no such adapter / property; a failed query throws instead, so a
         // transient WMI error fails this undo (the record stays) and never closes it as «gone».
         if (writer.AdapterName(snap.InterfaceGuid) is null)

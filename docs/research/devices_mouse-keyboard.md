@@ -1,10 +1,10 @@
-# MONOLITH: devices — mouse and keyboard (Win11 23H2–26H2, Win10 22H2)
+# Lycoris: devices — mouse and keyboard (Win11 23H2–26H2, Win10 22H2)
 
 Scope: what a «УСТРОЙСТВА» page can **read, measure, recommend and change** for mice and keyboards through documented
 Windows mechanisms, without new NuGet packages. Everything that lives in device firmware (DPI, report/polling rate,
-lift-off distance, debounce, onboard profiles, RGB effects) is **not writable by Windows**: MONOLITH measures it where
+lift-off distance, debounce, onboard profiles, RGB effects) is **not writable by Windows**: Lycoris measures it where
 possible, gives evidence-based advice and hands off to the vendor app (G HUB here). Classifications are binding
-(CLAUDE.md): SAFE-DEFAULT / SAFE-OPTIONAL / ADVANCED / DO-NOT-INCLUDE, plus INFO-ONLY = MONOLITH reads/measures/advises,
+(CLAUDE.md): SAFE-DEFAULT / SAFE-OPTIONAL / ADVANCED / DO-NOT-INCLUDE, plus INFO-ONLY = Lycoris reads/measures/advises,
 never writes.
 
 ## 0. Conventions and this PC (read-only, 2026-10-27)
@@ -15,7 +15,7 @@ never writes.
   (unlike the registry-only tweaks `mouse-acceleration-off` / `accessibility-hotkeys-off`, which need a sign-out).
 - **Live vs pending:** SPI_GET* returns the live session value; `HKCU\Control Panel\…` holds the persisted one. When they
   differ, a registry-only change is waiting for sign-out — show «вступит в силу после выхода из системы».
-- **Per-user:** every writable setting here is per-user (HKCU). Windows does not require admin for them; MONOLITH's
+- **Per-user:** every writable setting here is per-user (HKCU). Windows does not require admin for them; Lycoris's
   `ChangeSession` does (journal in `%ProgramData%\MONOLITH`). Measurements and reads work in read-only mode.
 - **Never verified by writing on this PC** (prime directive): SPI→registry mappings below come from Microsoft docs and
   the values Windows already wrote here; confirm them in unit tests against a redirected/test profile or a VM.
@@ -96,7 +96,7 @@ never writes.
   `UserScope.CurrentSid` == the interactive user's SID** (owner of explorer.exe). SPI changes the live state of the
   session but `SPIF_UPDATEINIFILE` persists into the profile of the *calling* account: under over-the-shoulder UAC
   (different admin account) the change would land in the admin's HKCU and vanish at the next logon. In that case the
-  page is read-only for these rows, with one muted line «Запустите MONOLITH под своей учётной записью».
+  page is read-only for these rows, with one muted line «Запустите Lycoris под своей учётной записью».
 - SPI calls with `SPIF_SENDCHANGE` broadcast `WM_SETTINGCHANGE` and can block on hung windows → always off the UI
   thread (`Task.Run`), per CLAUDE.md.
 
@@ -115,7 +115,7 @@ ChangeSession.SetUserParameter(UserParameter p, int value, string source, string
   revert   = SPI_SET(OldValue, 3) → if the registry snapshot said "absent", delete the value Windows just wrote
              → SPI_GET verify
 ```
-- `UserParameter` is a **closed whitelist** compiled into MONOLITH: (GET action, SET action, how the value is passed —
+- `UserParameter` is a **closed whitelist** compiled into Lycoris: (GET action, SET action, how the value is passed —
   uiParam or pvParam, documented range, registry value(s) it persists). The journal is untrusted input
   (`ChangeJournal.IsForbiddenRestoreTarget` spirit): revert accepts only a known id and a value inside its range.
 - Bit-type settings stored in `UserPreferencesMask` (sonar, vanish): never restore the whole binary mask — that would
@@ -141,7 +141,7 @@ ChangeSession.SetUserParameter(UserParameter p, int value, string source, string
 
 ### 2.4 "Recommended" vs manual
 - Each row: current value · recommended value · tag (БЕЗОПАСНО / ПО ЖЕЛАНИЮ) · manual control (Slider/ComboBox/Toggle)
-  · per-row ОТКАТИТЬ when MONOLITH changed it.
+  · per-row ОТКАТИТЬ when Lycoris changed it.
 - One button «Рекомендуемые» applies only rows whose value differs from the recommendation, after `Ui.ConfirmAsync`
   listing every change («Скорость указателя: 14 → 10» …). Pointer speed is **excluded** from the bulk action unless DPI
   compensation is known (§3.1) — it changes how the mouse feels.
@@ -186,7 +186,7 @@ ChangeSession.SetUserParameter(UserParameter p, int value, string source, string
 
 #### `wheel-scroll-lines`: Строк за один шаг колёсика / Wheel scroll lines → **SAFE-OPTIONAL**
 - Default 3 (Microsoft). Settings range 1–100 plus «один экран» = `WHEEL_PAGESCROLL` (UINT_MAX; persisted as "-1" —
-  verify). 0 disables scrolling → MONOLITH must not offer 0.
+  verify). 0 disables scrolling → Lycoris must not offer 0.
 - **Recommended:** 3. On the portrait Odyssey G5 (2560 px tall) 4–6 may feel better for long pages — personal choice,
   no effect in games (games use wheel deltas).
 - **Read:** `SPI_GETWHEELSCROLLLINES (0x0068)`, pvParam → UINT. **Write:** `SPI_SETWHEELSCROLLLINES (0x0069)`,
@@ -276,7 +276,7 @@ confirm a dialog — no benefit worth that), hover time, cursor schemes.
 #### `accessibility-features-state`: Залипание клавиш / фильтрация ввода включены → **SAFE-OPTIONAL (manual turn-off only when found ON; never automatic)**
 - **Why:** an accidentally enabled FilterKeys makes keystrokes count only after `iWaitMSec` (SlowKeys) or ignores quick
   repeats (BounceKeys) — keyboard "lags" in games; StickyKeys latches modifiers. People who rely on them must keep them,
-  so MONOLITH only **detects and offers**: «Фильтрация ввода включена: нажатия принимаются с задержкой N мс. Выключить?»
+  so Lycoris only **detects and offers**: «Фильтрация ввода включена: нажатия принимаются с задержкой N мс. Выключить?»
 - **Read:** `SPI_GETSTICKYKEYS (0x003A)` (cbSize 8), `SPI_GETFILTERKEYS (0x0032)` (cbSize 24) → bit 0x1
   (`SKF_STICKYKEYSON` / `FKF_FILTERKEYSON`).
 - **Write:** SPI_SET with the **full struct read just before**, clearing only bit 0x1 (`SPI_SETSTICKYKEYS 0x003B`,
@@ -306,7 +306,7 @@ The only honest number is the arrival rate of HID reports while the mouse moves.
 
 **Design (WPF, no packages)**
 1. **User-initiated, timeboxed (≤ 5 s), foreground only.** Button «Измерить»; text «Быстро двигайте мышь кругами».
-   MONOLITH must **never keep a raw-input listener registered**: Microsoft found that many background raw-mouse
+   Lycoris must **never keep a raw-input listener registered**: Microsoft found that many background raw-mouse
    subscribers caused game stutter with 1000 Hz mice and throttles/coalesces them since Windows 11 KB5028185
    (July 2023). Unregister on stop, timeout, page leave, window deactivation and app exit.
 2. **Dedicated thread** with its own message loop so 8 kHz never touches the UI thread: `new Thread(...)` →
@@ -317,12 +317,12 @@ The only honest number is the arrival rate of HID reports while the mouse moves.
    call wins)" (Microsoft). Call `GetRegisteredRawInputDevices` first; if the process already has a mouse (0x01/0x02)
    registration, refuse the measurement instead of overriding it.
 4. **Register:** `RegisterRawInputDevices([{ usUsagePage = 0x01, usUsage = 0x02, dwFlags = RIDEV_INPUTSINK (0x100),
-   hwndTarget = hwnd }], 1, sizeof)`. No `RIDEV_NOLEGACY` (it would kill MONOLITH's own mouse messages).
+   hwndTarget = hwnd }], 1, sizeof)`. No `RIDEV_NOLEGACY` (it would kill Lycoris's own mouse messages).
    **Unregister:** same entry with `dwFlags = RIDEV_REMOVE (0x1)` and `hwndTarget = NULL` (non-NULL makes it fail).
 5. **Per message** (`WM_INPUT = 0x00FF`): `t = Stopwatch.GetTimestamp()` first; `GetRawInputData(lParam,
    RID_INPUT = 0x10000003, buf, ref size, sizeof(RAWINPUTHEADER))` into a preallocated buffer; keep only
    `header.dwType == RIM_TYPEMOUSE (0)`, `(usFlags & MOUSE_MOVE_ABSOLUTE 0x1) == 0`, `lLastX|lLastY != 0`.
-   **Drop samples with `GET_RAWINPUT_CODE_WPARAM(wParam) == RIM_INPUTSINK (1)`** — input while MONOLITH was not in the
+   **Drop samples with `GET_RAWINPUT_CODE_WPARAM(wParam) == RIM_INPUTSINK (1)`** — input while Lycoris was not in the
    foreground, i.e. possibly throttled. Store `(t, hDevice, |dx|+|dy|)` in a preallocated ring buffer (no per-event
    allocations). Return without marking handled so `DefWindowProc` runs ("must call DefWindowProc so the system can
    perform cleanup" — WM_INPUT docs). Per-message `GetRawInputData` keeps a timestamp per report; `GetRawInputBuffer`
@@ -345,7 +345,7 @@ The only honest number is the arrival rate of HID reports while the mouse moves.
    - **Saturation hint:** if most reports carry |dx|+|dy| ≤ 1, the sensor wasn't moving fast enough to fill every
      report: «Двигайте быстрее или временно поднимите DPI». Required speed ≈ rate / DPI inches per second — 8000 Hz at
      800 DPI needs ≥ 10 in/s (25 cm/s); 1000 Hz at 800 DPI needs ~3 cm/s.
-   - If > 20 % of samples were dropped as RIM_INPUTSINK: «Окно MONOLITH было неактивно — повторите».
+   - If > 20 % of samples were dropped as RIM_INPUTSINK: «Окно Lycoris было неактивно — повторите».
 8. **Logitech-specific caveats (this PC):**
    - LIGHTSPEED: the rate is set in G HUB (Performance → REPORT RATE) and stored on the mouse/receiver; the measurement
      includes radio-link quality. Gaps/jitter → receiver closer (extension adapter), away from USB 3 ports/devices
@@ -370,7 +370,7 @@ The only honest number is the arrival rate of HID reports while the mouse moves.
 
 ## 7. Advice
 
-#### `mouse-dpi-advice`: DPI мыши → **INFO-ONLY (MONOLITH cannot set DPI)**
+#### `mouse-dpi-advice`: DPI мыши → **INFO-ONLY (Lycoris cannot set DPI)**
 - DPI (CPI) is how many counts per inch the sensor reports; it is set in device firmware via G HUB (PRO X SUPERLIGHT 2:
   100–44 000). Windows then multiplies by pointer speed; a raw-input game multiplies by its own sensitivity:
   **eDPI = DPI × in-game sensitivity**; keep eDPI constant when changing DPI: `newSens = oldSens × oldDPI / newDPI`.
@@ -394,20 +394,20 @@ The only honest number is the arrival rate of HID reports while the mouse moves.
   to +10–15 % while moving fast (Digital Citizen); Razer: some PCs aren't powerful enough and older engines handle it
   poorly — drop to 4000/2000 Hz; Unity developers reported frame drops at 2K–8K; wireless battery drains faster.
   Windows 11 (KB5028185) reduced the background-listener part of the cost.
-- MONOLITH measures (§5), explains, and links to G HUB → mouse → Производительность → частота опроса. It never changes
+- Lycoris measures (§5), explains, and links to G HUB → mouse → Производительность → частота опроса. It never changes
   the rate.
 
 #### `vendor-app-handoff`: Настройки в приложении производителя → **INFO-ONLY**
 - Detect vendor apps from Uninstall keys (`DisplayIcon` = `C:\Program Files\LGHUB\lghub.exe` here) and running
   processes (`lghub_agent`); map by VID: 046D → G HUB (gaming) / Logi Options+ (office), 1532 → Razer Synapse,
-  054C → INZONE Hub. Start them with `UnelevatedShell.StartAsUserAsync` (never with MONOLITH's admin token).
+  054C → INZONE Hub. Start them with `UnelevatedShell.StartAsUserAsync` (never with Lycoris's admin token).
 - Don't read or write vendor databases (`%LOCALAPPDATA%\LGHUB\settings.db`): undocumented, version-specific.
 
 #### `dynamic-lighting`: Подсветка → **INFO-ONLY**
 - Windows 11 Dynamic Lighting drives HID LampArray devices (here: the PRO keyboard and the LIGHTSPEED receiver slots;
   `logi_lamparray_service` running; `AmbientLightingEnabled` = 1). Microsoft: settings in Settings → Personalization →
   Dynamic Lighting, background controllers are ranked, and a higher-priority vendor app can override Windows' effects.
-- MONOLITH: show "управляет: Windows / G HUB" hint and link `ms-settings:personalization-lighting`. Don't write
+- Lycoris: show "управляет: Windows / G HUB" hint and link `ms-settings:personalization-lighting`. Don't write
   `HKCU\Software\Microsoft\Lighting` (undocumented). The `Windows.Devices.Lights.LampArray` WinRT API exists, but
   app-driven lighting is out of scope for an optimizer.
 
@@ -416,7 +416,7 @@ The only honest number is the arrival rate of HID reports while the mouse moves.
   (`ReverseMouseWheelDirection`, community-sourced; absent here) and the per-device `FlipFlopWheel` (Device Parameters,
   HKLM, needs re-plug) are undocumented → link `ms-settings:mousetouchpad` only.
 
-**Windows defaults (for «Как в Windows»)**: pointer speed 10; EPP on (1/6/10 — but MONOLITH recommends off and doesn't
+**Windows defaults (for «Как в Windows»)**: pointer speed 10; EPP on (1/6/10 — but Lycoris recommends off and doesn't
 touch it here); wheel 3/3; routing 2 (on); double-click 500; swap off; trails off; sonar off; vanish on; keyboard delay 1,
 speed 31; Toggle/Sticky/Filter Keys off.
 
@@ -428,7 +428,7 @@ speed 31; Toggle/Sticky/Filter Keys off.
 - Replaces `SmoothMouseXCurve/YCurve` so that *if* EPP is on, the curve is linear. Exists for old games (Quake/Half-Life
   era) that turn EPP on through the legacy API. The author: "If you don't know you need it, then you don't need it!"
   — with EPP off there is no curve to fix. Requires a different file per display scaling (100/125/150 %) and the
-  6/11 pointer speed, so a DPI-scaling change silently breaks it. Undocumented binary format. MONOLITH already offers
+  6/11 pointer speed, so a DPI-scaling change silently breaks it. Undocumented binary format. Lycoris already offers
   EPP off. (gaming_tweaks.md agrees: leave the curves alone.)
 
 #### `input-data-queue-size` (MouseDataQueueSize / KeyboardDataQueueSize) → **DO-NOT-INCLUDE**
@@ -449,14 +449,14 @@ speed 31; Toggle/Sticky/Filter Keys off.
   edits on mice and keyboards. Microsoft: "By default, USB selective suspend is disabled by Windows" for HID to avoid
   resume latency; only devices whose vendor opted in (OS descriptor / INF) use it, and they must resume "without any
   perceived delay". This PC: `SelectiveSuspendEnabled` = 0 on the receiver already → placebo. Writes are per-device
-  HKLM under `Enum`, need admin and re-plug. MONOLITH may **display** the state (read-only). The power-plan USB
+  HKLM under `Enum`, need admin and re-plug. Lycoris may **display** the state (read-only). The power-plan USB
   selective-suspend setting is a separate, existing item (gaming_tweaks.md §C).
 
 #### `raw-input-buffer-registry` → **DO-NOT-INCLUDE**
 - There is no Windows registry switch for a "raw input buffer". Valorant's «Raw Input Buffer» and Overwatch's
   «High Precision Mouse Input» are **in-game options** (the game calls `GetRawInputBuffer` / reads sub-frame input);
   Razer tells HyperPolling users to enable them in the game. Registry "raw input buffer" tweaks online are relabelled
-  MouseDataQueueSize edits or invented value names → nothing to implement. MONOLITH may mention the in-game options
+  MouseDataQueueSize edits or invented value names → nothing to implement. Lycoris may mention the in-game options
   as advice for 4–8 kHz users.
 
 #### `filterkeys-fast-repeat` → **DO-NOT-INCLUDE**

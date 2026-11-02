@@ -1,13 +1,13 @@
-# MONOLITH: displays and monitors — what to read, recommend and change (Win11 24H2–26H2, Win10 22H2)
+# Lycoris: displays and monitors — what to read, recommend and change (Win11 24H2–26H2, Win10 22H2)
 
 Scope: per-monitor resolution and refresh rate, HDR / Auto HDR / HDR calibration, scaling, VRR, colour depth, link
 bandwidth, mixed refresh rates and monitor brightness over DDC/CI. Every mechanism below is a documented Windows API or a
 documented Settings page. Monitor firmware settings (overdrive, OLED care, picture presets, DSC on/off, the
 monitor's own DP-version switch) and GPU driver settings (G-SYNC/FreeSync, colour depth, integer scaling) **cannot be
-written through Windows**. For those MONOLITH measures, recommends and points to the OSD or the vendor app.
+written through Windows**. For those Lycoris measures, recommends and points to the OSD or the vendor app.
 
 The classifications are binding (CLAUDE.md): SAFE-DEFAULT / SAFE-OPTIONAL / ADVANCED / DO-NOT-INCLUDE, plus
-**INFO-ONLY** (MONOLITH reads and explains but writes nothing). Every ✔ was checked **read-only** on the dev machine on
+**INFO-ONLY** (Lycoris reads and explains but writes nothing). Every ✔ was checked **read-only** on the dev machine on
 2026-10-27. Nothing on that PC was changed: the probes called only `EnumDisplayDevices`, `EnumDisplaySettingsEx`,
 `QueryDisplayConfig`, `DisplayConfigGetDeviceInfo`, `GetDpiForMonitor`, the dxva2 `Get*` DDC/CI calls, WMI `root\wmi`
 monitor classes and registry reads.
@@ -36,7 +36,7 @@ monitor classes and registry reads.
 | DDC/CI | Works. `GetMonitorCapabilities` fails (err 203), but `GetMonitorBrightness` = 100 (0..100) and contrast 50 succeed. MCCS 2.2. Vendor codes E0–EE (picture modes "Game Action/Racing/Sports", HDR mode) | `GetMonitorCapabilities` OK (caps 0x1C1E). Brightness **30 (0..50)**, contrast 50 (0..50). MCCS 2.0 |
 | DirectX prefs | `HKCU\Software\Microsoft\DirectX\UserGpuPreferences\DirectXUserGlobalSettings` = `SwapEffectUpgradeEnable=1;` (no `AutoHDREnable`, no `VRROptimizeEnable`). Per-game `GpuPreference=2;` for 4 games. `HKCU\…\DirectX\GraphicsSettings\AutoHDROptOutApplicable` = 0 | |
 | MonitorDataStore | `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers\MonitorDataStore\<id>` → `AutoColorManagementSupported` = 1 for both | |
-| CCD database | `HKLM\…\GraphicsDrivers\Configuration` and `\Connectivity` are **not readable** even by admins (SYSTEM-only ACL) ✔, so MONOLITH must never try to read or write them directly | |
+| CCD database | `HKLM\…\GraphicsDrivers\Configuration` and `\Connectivity` are **not readable** even by admins (SYSTEM-only ACL) ✔, so Lycoris must never try to read or write them directly | |
 | Windows HDR Calibration app | **not installed** (`Get-AppxPackage *HDRCalibration*` empty) | |
 | Other GDI devices | DISPLAY3–4 (NVIDIA) and DISPLAY5–9 (AMD iGPU) exist but are not attached: the iGPU has no monitor | |
 
@@ -51,7 +51,7 @@ port change or a new monitor, Windows/the driver can come back at 60 Hz, which i
 
 ## 1. Summary
 
-| ID | RU title | What MONOLITH does / recommends | Mechanism | Admin | Class |
+| ID | RU title | What Lycoris does / recommends | Mechanism | Admin | Class |
 |---|---|---|---|---|---|
 | `display-refresh-rate` | Частота обновления монитора | Detect "below max at native res"; one click → max rate, with **15 s auto-revert** | `EnumDisplaySettingsEx` + `ChangeDisplaySettingsEx` (temp → `CDS_UPDATEREGISTRY`), verify with `QueryDisplayConfig` | No* | **SAFE-DEFAULT** (interactive only) |
 | `display-resolution` | Разрешение экрана | Recommend native; manual choice from the driver's mode list, same auto-revert | Same as above; native = `GET_TARGET_PREFERRED_MODE` size | No* | **SAFE-DEFAULT** (native) / manual SAFE-OPTIONAL |
@@ -76,7 +76,7 @@ port change or a new monitor, Windows/the driver can come back at 60 Hz, which i
 | `display-dwm-disable` | Отключение DWM / композиции | — | killing dwm.exe, IFEO hacks | — | **DO-NOT-INCLUDE** |
 | `display-force-max-bpc` | «Максимальная глубина цвета всегда» | — | driver panel | — | **DO-NOT-INCLUDE** (as a "boost") |
 
-\* Windows itself needs no admin rights for these calls; the Settings app makes them as a standard user. MONOLITH
+\* Windows itself needs no admin rights for these calls; the Settings app makes them as a standard user. Lycoris
 still requires elevation because the undo journal lives in the admin-only `%ProgramData%\MONOLITH` and the app is
 read-only without admin (CLAUDE.md rules 1, 6, 7).
 
@@ -100,14 +100,14 @@ duplicating them (minimal-UI rule).
   `SDC_APPLY | SDC_USE_DATABASE_CURRENT`.
 - After a resolution or refresh change, Settings asks "Keep these display settings?" (RU: «Сохранить эти параметры
   экрана?») and **reverts automatically after ~15 s** unless the user clicks Keep. This is observed behaviour, described
-  in university IT guides and Windows tutorials. Microsoft doesn't document how it is implemented, so MONOLITH must build
+  in university IT guides and Windows tutorials. Microsoft doesn't document how it is implemented, so Lycoris must build
   its own equivalent and must not assume an OS safety net exists. The OS gives none: `ChangeDisplaySettingsEx` and
   `SetDisplayConfig` apply immediately and never ask.
 - The persistence database (`GraphicsDrivers\Configuration`) is SYSTEM-only ✔. Only the CCD/GDI APIs may change it.
 - The CCD API "doesn't provide any functionality to enumerate the possible source modes … APIs that existed before
   Windows 7 already provide this functionality" (Microsoft). So the mode list comes from `EnumDisplaySettingsEx`.
 
-### 2.2 MONOLITH algorithm (`ChangeSession.SetDisplayModeAsync`, new record kind)
+### 2.2 Lycoris algorithm (`ChangeSession.SetDisplayModeAsync`, new record kind)
 
 1. **Preconditions** (refuse with a plain-language reason if any one fails):
    - The process is in the interactive console session: `GetSystemMetrics(SM_REMOTESESSION) == 0`. `SetDisplayConfig`
@@ -140,7 +140,7 @@ duplicating them (minimal-UI rule).
    - Buttons **СОХРАНИТЬ** / **ВЕРНУТЬ**. Default and focused button = ВЕРНУТЬ. Esc, closing the window or Alt+F4 = revert.
    - The 15 s timer is a `System.Threading.Timer`, **not** a dispatcher timer, so a hung UI thread still reverts.
 6. **Out-of-process guard** (crash-proof):
-   - Before step 4, start `MONOLITH.exe --display-guard <id> <deadline>` in the same session.
+   - Before step 4, start `Lycoris.exe --display-guard <id> <deadline>` in the same session.
    - The guard waits on a named event `Local\MONOLITH-DisplayKeep-<id>`.
    - If the event is not signalled by the deadline (15 s + 5 s slack), or the main process dies, the guard performs the
      revert in step 8.
@@ -159,7 +159,7 @@ duplicating them (minimal-UI rule).
    3. If it still differs: `SetDisplayConfig(0, NULL, 0, NULL, SDC_APPLY | SDC_USE_DATABASE_CURRENT)`.
    4. Last resort: `SetDisplayConfig(snapshotPaths, snapshotModes, SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES)`.
    5. Delete the pending record and log `Log.Warn`.
-9. **Startup recovery:** if MONOLITH starts and finds a `PendingConfirm` record, perform step 8 and drop the record. It
+9. **Startup recovery:** if Lycoris starts and finds a `PendingConfirm` record, perform step 8 and drop the record. It
    was never confirmed.
 10. **Later undo** (Restore page or per-row ОТКАТИТЬ):
     - Find the active path whose `monitorDevicePath` matches. If the monitor isn't connected, keep the record and say
@@ -178,7 +178,7 @@ duplicating them (minimal-UI rule).
 - (a) After a flag-0 change, `ENUM_REGISTRY_SETTINGS` and a reboot still give the old mode.
 - (b) `ChangeDisplaySettingsEx(NULL,…)` restores it.
 - (c) `SDC_USE_DATABASE_CURRENT` restores it.
-- (d) Killing MONOLITH during the countdown lets the guard revert.
+- (d) Killing Lycoris during the countdown lets the guard revert.
 - (e) A mode the cable can't carry (simulate with an HDMI 2.0 cable at 1440p240) reverts by itself.
 
 Unit tests can cover the decision logic only: mode selection, the slack rule and record validation.
@@ -229,7 +229,7 @@ reachable only through `ChangeSession`. Modules stay read-only.
     recommendation.
   - Flag only when `max > current + 1` (`HealthRules.IsBelowMaxRefresh`). 239.97 vs 240 is the same timing.
 - **Write:** §2. **Revert:** §2 step 8 (immediate) / step 10 (later, exact original from the journal).
-- **Admin:** no for Windows (yes for MONOLITH's journal).
+- **Admin:** no for Windows (yes for Lycoris's journal).
 - **Risk:**
   - Low. A marginal cable at a near-limit rate can flicker or black out. Here the X27U at 240 Hz uses 25.36 of the
     25.92 Gbit/s that DP 1.4 provides; auto-revert covers that.
@@ -294,7 +294,7 @@ reachable only through `ChangeSession`. Modules stay read-only.
     - Or leave HDR on and run the Windows HDR Calibration app.
   - **Edge-lit LCDs with HDR10 / DisplayHDR 400** (no local dimming required by the tier): keep HDR **off**. The gain
     over SDR is small, and SDR content can look dim or washed out (RTINGS, TFTCentral).
-  - MONOLITH can't read the certification. Windows Settings shows certification for known displays, but there is no API
+  - Lycoris can't read the certification. Windows Settings shows certification for known displays, but there is no API
     for it.
     - So the recommendation is a hint built from the EDID HDR static metadata (max luminance), the panel name and the
       user's answer. It is never applied automatically.
@@ -336,7 +336,7 @@ reachable only through `ChangeSession`. Modules stay read-only.
   - Requirements: Windows 11, HDR on, the app running full screen, WDDM 2.7+, and NVIDIA GTX 10xx+ / AMD RX 400+ /
     Intel 11th gen+.
   - It creates a colour profile for the display. Undo: Color Management → All Profiles → Remove (Microsoft).
-- **MONOLITH:**
+- **Lycoris:**
   - Detect it with `Get-AppxPackage Microsoft.Windows.HDRCalibration` (not installed here ✔).
   - After HDR is turned on, show one muted line recommending it.
   - Installing belongs to the Apps page (msstore source via winget), per the one-place rule. Launch it with
@@ -395,7 +395,7 @@ reachable only through `ChangeSession`. Modules stay read-only.
   - V-SYNC on in the NVIDIA profile, off in-game.
   - FPS cap at least 3 below max refresh: ≤ 237 FPS @ 240 Hz, ≤ 177 @ 180 Hz. NVIDIA Reflex caps automatically at
     about 224 FPS @ 240 Hz.
-- **MONOLITH:** shows the VRR range and these steps, with a button that opens the NVIDIA App or AMD Adrenalin as the
+- **Lycoris:** shows the VRR range and these steps, with a button that opens the NVIDIA App or AMD Adrenalin as the
   user (`UnelevatedShell.StartAsUserAsync`). It writes nothing to driver profiles.
 
 ### `display-color-depth`: Глубина цвета → **INFO-ONLY**
@@ -495,13 +495,13 @@ offered max (240/240, 180/180), so there's no bottleneck ✔.
   "should not affect games designed for VRR, but it can limit the maximum refresh rate of other games", and "the best
   mitigation is to disable DRR" if a game seems slower.
 - It is offered on laptops with qualifying internal panels; not applicable on this desktop.
-- MONOLITH only explains it and links to Settings.
+- Lycoris only explains it and links to Settings.
 
 ### Orientation and Night light → **INFO-ONLY**
 
 - **Orientation:** the portrait G5 (`dmDisplayOrientation` 3 / `DISPLAYCONFIG_ROTATION_ROTATE270` = 4) must be
   **preserved** by every mode change: don't set `DM_DISPLAYORIENTATION`, and swap width/height when matching portrait
-  modes. MONOLITH doesn't offer rotation.
+  modes. Lycoris doesn't offer rotation.
 - **Night light:** stored as an undocumented CloudStore blob → no writes. Link to `ms-settings:nightlight`.
 
 ---
@@ -510,7 +510,7 @@ offered max (240/240, 180/180), so there's no bottleneck ✔.
 
 | ID | "Tweak" | Why not |
 |---|---|---|
-| `display-overclock-edid` | Monitor overclocking, custom resolutions/timings, CRU, `EDID_OVERRIDE` under `Enum\DISPLAY\…\Device Parameters` | Out-of-spec timings can give black screens, frame skipping or panel stress. An EDID override survives reboots and can leave no picture, so recovery needs Safe Mode. MONOLITH only uses modes the driver offers. |
+| `display-overclock-edid` | Monitor overclocking, custom resolutions/timings, CRU, `EDID_OVERRIDE` under `Enum\DISPLAY\…\Device Parameters` | Out-of-spec timings can give black screens, frame skipping or panel stress. An EDID override survives reboots and can leave no picture, so recovery needs Safe Mode. Lycoris only uses modes the driver offers. |
 | `display-tdr` | `TdrDelay`, `TdrLevel=0`, `TdrDdiDelay` "to stop driver crashes" | Microsoft: "End users shouldn't manipulate these registry keys. Applications shouldn't manipulate these registry keys outside of targeted testing or debugging during driver development." `TdrLevel=0` turns a recoverable GPU hang into a frozen PC. |
 | `display-dpi-registry` | Setting scaling through `PerMonitorSettings\DpiValue`, `LogPixels`, or undocumented `DisplayConfigSetDeviceInfo` types | Undocumented, needs sign-out, breaks per-monitor DPI and the recommended baseline. No FPS effect. |
 | `display-dwm-disable` | "Disable DWM / desktop composition / transparency for FPS" by killing or suspending dwm.exe or via IFEO | Composition can't be disabled on Windows 8+. Killing DWM gives a black screen and breaks HDR, VRR, flip model and Auto HDR. The modern path (flip model, `windowed-games-optimization`) is already in the catalog. |
@@ -550,7 +550,7 @@ offered max (240/240, 180/180), so there's no bottleneck ✔.
 
 ---
 
-## 6. What MONOLITH would show on this PC
+## 6. What Lycoris would show on this PC
 
 | Monitor | Mode | Recommendation |
 |---|---|---|

@@ -532,9 +532,9 @@ public sealed class PackagedStartupTests
     };
 
     [Theory]
-    [InlineData(false, 0, 0)]    // turned on in MONOLITH from 0: turning it off undoes that and restores 0, not 1
+    [InlineData(false, 0, 0)]    // turned on in Lycoris from 0: turning it off undoes that and restores 0, not 1
     [InlineData(false, 1, 1)]
-    [InlineData(false, 2, 1)]    // on before MONOLITH: turning it off writes what Task Manager writes
+    [InlineData(false, 2, 1)]    // on before Lycoris: turning it off writes what Task Manager writes
     [InlineData(false, null, 1)]
     [InlineData(true, 0, 2)]
     [InlineData(true, 1, 2)]
@@ -555,7 +555,7 @@ public sealed class PackagedStartupTests
     [InlineData(false, "x")]
     public void The_promised_state_is_what_set_entries_does(bool enable, string? original)
     {
-        // Same layers SetEntriesAsync sees: the oldest one holds the value from before MONOLITH, a newer one the 2 it wrote.
+        // Same layers SetEntriesAsync sees: the oldest one holds the value from before Lycoris, a newer one the 2 it wrote.
         IReadOnlyList<ChangeRecord> layers = [Layer(original), Layer("2")];
         var before = StartupChanges.PackagedStateBefore(layers);
         var promised = PackagedStartup.StateAfterSwitch(enable, before);
@@ -570,7 +570,7 @@ public sealed class PackagedStartupTests
     {
         Assert.Equal("2 (включено)", PackagedStartup.SwitchText(enable: true, 2));
         Assert.Equal("1 (отключено пользователем — как в Диспетчере задач)", PackagedStartup.SwitchText(enable: false, 1));
-        Assert.Equal("0 (отключено приложением) — как было до MONOLITH", PackagedStartup.SwitchText(enable: false, 0));
+        Assert.Equal("0 (отключено приложением) — как было до Lycoris", PackagedStartup.SwitchText(enable: false, 0));
         Assert.NotNull(PackagedStartup.StateNote(0));
         Assert.Null(PackagedStartup.StateNote(1));
         Assert.Null(PackagedStartup.StateNote(2));
@@ -588,7 +588,7 @@ public sealed class PackagedStartupTests
     {
         const string me = "S-1-5-21-1-2-3-1001", other = "S-1-5-21-1-2-3-1002";
         var mine = Layer("2", sid: me);
-        var legacy = Layer("2", sid: null);              // older build: written into whoever ran MONOLITH — this account
+        var legacy = Layer("2", sid: null);              // older build: written into whoever ran Lycoris — this account
         var task = new ChangeRecord { Source = StartupChanges.TaskSource, Kind = ChangeKind.ScheduledTask, Target = @"task:\Vendor\Updater" };
         var theirs = Layer("2", sid: other);             // same HKCU target string, another account's profile
         var reverted = Layer("2", sid: me, reverted: true);

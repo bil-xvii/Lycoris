@@ -26,7 +26,7 @@ public sealed record DisplayWriteResult(DisplayWriteStatus Status, string? Messa
 public enum DisplayGuardKind { Mode, Hdr }
 
 /// <summary>
-/// What the out-of-process guard does when MONOLITH dies or the deadline passes. Mode: return to the persisted mode
+/// What the out-of-process guard does when Lycoris dies or the deadline passes. Mode: return to the persisted mode
 /// (CDS(NULL) then SDC_USE_DATABASE_CURRENT). Hdr: set <see cref="OriginalHdr"/> on <see cref="MonitorPath"/>.
 /// </summary>
 public sealed record DisplayGuardAction(DisplayGuardKind Kind, string MonitorPath, bool OriginalHdr);
@@ -75,7 +75,7 @@ public interface IDisplayWriter
     DisplayWriteResult SetHdr(string monitorPath, bool enable);
 
     /// <summary>
-    /// Starts «MONOLITH.exe --display-guard …» and waits until it reports armed. Null when it could not be started:
+    /// Starts «Lycoris.exe --display-guard …» and waits until it reports armed. Null when it could not be started:
     /// the change must then not be made.
     /// </summary>
     IDisplayGuard? StartGuard(Guid recordId, DateTime deadlineUtc, DisplayGuardAction action);
@@ -162,8 +162,8 @@ public static partial class DeviceWriters
     static partial void InitNetwork();
 
     /// <summary>The message of a refused change or undo when this build has no writer for it.</summary>
-    public static string NoWriterApply => Loc.T("эта версия MONOLITH не умеет менять этот параметр");
-    public static string NoWriterRevert => Loc.T("эта версия MONOLITH не умеет откатывать такое изменение");
+    public static string NoWriterApply => Loc.T("эта версия Lycoris не умеет менять этот параметр");
+    public static string NoWriterRevert => Loc.T("эта версия Lycoris не умеет откатывать такое изменение");
 
     /// <summary>TESTS ONLY: replaces the writers until disposed (null leaves a writer absent).</summary>
     internal static IDisposable OverrideForTests(ISpiWriter? spi = null, IDisplayWriter? display = null, IMonitorWriter? monitor = null,

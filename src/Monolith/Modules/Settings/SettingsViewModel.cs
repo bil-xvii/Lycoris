@@ -20,7 +20,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     public override string Key => "settings";
     public override string Index => "11";
     public override string Title => Loc.T("НАСТРОЙКИ");
-    public override string Subtitle => Loc.T("Поведение программы, данные и сведения о MONOLITH.");
+    public override string Subtitle => Loc.T("Поведение программы, данные и сведения о Lycoris.");
     public override string Glyph => Glyphs.Settings;
 
     /// <summary>Bound directly for simple toggles; every change is saved by AppSettings itself.</summary>
@@ -42,13 +42,13 @@ public sealed partial class SettingsViewModel : PageViewModel
     public IReadOnlyList<DataPathItem> DataPaths { get; } =
     [
         new DataPathItem { Title = Loc.T("ЖУРНАЛ ИЗМЕНЕНИЙ"), Path = AppPaths.JournalFile, IsFile = true,
-            Description = Loc.T("Исходные значения всего, что менял MONOLITH. По нему работает откат.") },
+            Description = Loc.T("Исходные значения всего, что менял Lycoris. По нему работает откат.") },
         new DataPathItem { Title = Loc.T("РЕЗЕРВНЫЕ КОПИИ"), Path = AppPaths.BackupsDir,
             Description = Loc.T("Копии разделов реестра (.reg) перед каждым пакетом изменений.") },
         new DataPathItem { Title = Loc.T("ЖУРНАЛЫ РАБОТЫ"), Path = AppPaths.LogsDir,
             Description = Loc.T("Ежедневные логи консоли и отчёты; хранятся 14 дней.") },
         new DataPathItem { Title = Loc.T("НАСТРОЙКИ"), Path = AppPaths.SettingsFile, IsFile = true,
-            Description = Loc.T("Параметры MONOLITH для текущего пользователя Windows.") },
+            Description = Loc.T("Параметры Lycoris для текущего пользователя Windows.") },
     ];
 
     public IReadOnlyList<PrincipleItem> Principles { get; } =
@@ -61,10 +61,10 @@ public sealed partial class SettingsViewModel : PageViewModel
         new(Loc.T("НЕОБРАТИМОЕ — ТОЛЬКО С ПОДТВЕРЖДЕНИЕМ"), Loc.T("Удаление файлов, установка драйверов и программ, сброс сети не откатываются из журнала — поэтому перед ними всегда показывается подтверждение со списком последствий.")),
     ];
 
-    /// <summary>«Что MONOLITH не делает и почему» — the single rejected-tweaks list (Tweaks/RejectedTweaks.cs), one row each.</summary>
+    /// <summary>«Что Lycoris не делает и почему» — the single rejected-tweaks list (Tweaks/RejectedTweaks.cs), one row each.</summary>
     public IReadOnlyList<RejectedRow> Rejected { get; } = RejectedTweaks.All.Select(r => new RejectedRow(r)).ToList();
 
-    /// <summary>The «ЧТО MONOLITH НЕ ДЕЛАЕТ И ПОЧЕМУ» expander; opened by a palette focus request («myth:{id}»).</summary>
+    /// <summary>The «ЧТО LYCORIS НЕ ДЕЛАЕТ И ПОЧЕМУ» expander; opened by a palette focus request («myth:{id}»).</summary>
     [ObservableProperty] private bool _expandRejected;
 
     /// <summary>Id of the rejected-tweak row the view should scroll to (set after a focus request; one-shot, see SettingsView).</summary>
@@ -84,7 +84,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     public SettingsViewModel()
     {
         var app = Assembly.GetExecutingAssembly();
-        VersionLine = Loc.Tf("MONOLITH {0} · сборка {1} · {2} · {3}", SettingsDefaults.VersionOf(app), BuildDate(), RuntimeInformation.FrameworkDescription, RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
+        VersionLine = Loc.Tf("Lycoris {0} · сборка {1} · {2} · {3}", SettingsDefaults.VersionOf(app), BuildDate(), RuntimeInformation.FrameworkDescription, RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant());
 
         const string netFoundation = "© .NET Foundation and Contributors";
         Licenses =
@@ -197,13 +197,13 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// <summary>The chosen language is not the one this run uses: it applies after a restart.</summary>
     public bool LanguagePending => _languageChoice != Loc.Mode;
 
-    public string? LanguageNote => LanguagePending ? Loc.T("Язык изменится после перезапуска MONOLITH.") : null;
+    public string? LanguageNote => LanguagePending ? Loc.T("Язык изменится после перезапуска Lycoris.") : null;
 
     /// <summary>Asked once, in BOTH languages (the user may not read the one that is on screen now).</summary>
     private async Task OfferRestartAsync()
     {
         var restart = await Ui.ConfirmAsync(Loc.Keep("Язык / Language"),
-            Loc.Keep("Перезапустить MONOLITH сейчас, чтобы применить язык?\nRestart MONOLITH now to apply the language?"),
+            Loc.Keep("Перезапустить Lycoris сейчас, чтобы применить язык?\nRestart Lycoris now to apply the language?"),
             confirmText: Loc.Keep("ПЕРЕЗАПУСТИТЬ / RESTART"), cancelText: Loc.Keep("ПОЗЖЕ / LATER"));
         if (restart) Ui.RestartApp();
     }
@@ -274,7 +274,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     private async Task ResetSettingsAsync()
     {
         if (!await Ui.ConfirmAsync("Сбросить настройки?",
-                "Параметры MONOLITH вернутся к значениям по умолчанию.",
+                "Параметры Lycoris вернутся к значениям по умолчанию.",
                 SettingsDefaults.Describe(),
                 confirmText: "СБРОСИТЬ"))
             return;

@@ -10,7 +10,7 @@ namespace Monolith.Modules.Tools.DpcLatency;
 /// <list type="bullet">
 /// <item>Private system logger (EVENT_TRACE_SYSTEM_LOGGER_MODE, Windows 8+) under a unique name — the global
 /// «NT Kernel Logger» is never started, stopped or queried, so LatencyMon, xperf, WPR or Process Lasso running elsewhere are not touched.</item>
-/// <item>On start, only stale sessions whose name begins with <see cref="LoggerPrefix"/> (a crashed MONOLITH) are stopped.</item>
+/// <item>On start, only stale sessions whose name begins with <see cref="LoggerPrefix"/> (a crashed Lycoris) are stopped.</item>
 /// <item>Admin only (StartTrace refuses otherwise); the session is always stopped in <c>finally</c> — on timeout, cancellation and exceptions.</item>
 /// <item>Nothing is written: no log file (real-time mode), no system change.</item>
 /// </list>
@@ -23,7 +23,7 @@ public static class EtwSession
 {
     public const string LoggerPrefix = "MONOLITH-DpcLatency-";
 
-    /// <summary>The only sessions MONOLITH may stop without having started them in this process.</summary>
+    /// <summary>The only sessions Lycoris may stop without having started them in this process.</summary>
     public static bool IsOwnLoggerName(string? name) =>
         name is not null && name.StartsWith(LoggerPrefix, StringComparison.Ordinal) && name.Length > LoggerPrefix.Length;
 
@@ -78,7 +78,7 @@ public static class EtwSession
     };
 
     /// <summary>
-    /// Stops sessions left behind by a crashed MONOLITH: only names that start with <see cref="LoggerPrefix"/>; every other
+    /// Stops sessions left behind by a crashed Lycoris: only names that start with <see cref="LoggerPrefix"/>; every other
     /// session on the PC (NT Kernel Logger, LatencyMon, WPR …) is only listed, never touched. Returns how many were stopped.
     /// </summary>
     public static int StopStaleSessions()
@@ -181,7 +181,7 @@ public static class EtwSession
             uint processRc = 0;
             consumer = new Thread(() => processRc = ProcessTrace(handles, 1, IntPtr.Zero, IntPtr.Zero))
             {
-                IsBackground = true, Name = "MONOLITH DPC/ISR trace", Priority = ThreadPriority.AboveNormal,
+                IsBackground = true, Name = "Lycoris DPC/ISR trace", Priority = ThreadPriority.AboveNormal,
             };
             consumer.Start();
 

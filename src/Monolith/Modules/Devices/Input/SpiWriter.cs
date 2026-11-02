@@ -142,7 +142,7 @@ internal sealed class SpiWriter : ISpiWriter
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return false; }
     }
 
-    /// <summary>Width of the primary screen in physical pixels (MONOLITH is DPI aware); 0 when unknown.</summary>
+    /// <summary>Width of the primary screen in physical pixels (Lycoris is DPI aware); 0 when unknown.</summary>
     public static int ScreenWidth()
     {
         try { return Math.Max(0, GetSystemMetrics(SM_CXSCREEN)); }

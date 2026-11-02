@@ -1,4 +1,4 @@
-# Publishes a MONOLITH release so that every installed copy shows "UPDATE x.y.z" (docs/releasing.md).
+# Publishes a Lycoris release so that every installed copy shows "UPDATE x.y.z" (docs/releasing.md).
 #
 #   powershell -ExecutionPolicy Bypass -File tools\release.ps1 -WhatIf     # dry run: checks + the exact plan, changes nothing
 #   powershell -ExecutionPolicy Bypass -File tools\release.ps1             # the real release
@@ -6,13 +6,13 @@
 # What it does, in order (and refuses to continue when a check fails):
 #   1. reads the version from <Version> in src\Monolith\Monolith.csproj (the single source of truth);
 #   2. the working tree must be clean and HEAD must already be pushed to origin;
-#   3. the version must be GREATER than the latest release of bil-xvii/MONOLITH-releases (and the tag must not exist);
+#   3. the version must be GREATER than the latest release of bil-xvii/Lycoris-releases (and the tag must not exist);
 #   4. RELEASE_NOTES.md must have a "## x.y.z" section (it becomes the release notes the app shows);
 #   5. dotnet test must pass;
-#   6. tools\publish.ps1 builds (and signs, when a certificate exists) publish\MONOLITH.exe; --selftest on it must exit 0;
-#   7. writes publish\MONOLITH.exe.sha256 ("<hash>  MONOLITH.exe");
-#   8. gh release create vX.Y.Z in bil-xvii/MONOLITH-releases (public: this is where the app looks) and in bil-xvii/MONOLITH
-#      (private source repo, tag on this commit), both with MONOLITH.exe + MONOLITH.exe.sha256 and the notes.
+#   6. tools\publish.ps1 builds (and signs, when a certificate exists) publish\Lycoris.exe; --selftest on it must exit 0;
+#   7. writes publish\Lycoris.exe.sha256 ("<hash>  Lycoris.exe");
+#   8. gh release create vX.Y.Z in bil-xvii/Lycoris-releases (public: this is where the app looks) and in bil-xvii/Lycoris
+#      (private source repo, tag on this commit), both with Lycoris.exe + Lycoris.exe.sha256 and the notes.
 # With -WhatIf only steps 1-4 run (read-only) and the remaining steps are printed instead of executed.
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
@@ -23,8 +23,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-$PublicRepo = 'bil-xvii/MONOLITH-releases'
-$SourceRepo = 'bil-xvii/MONOLITH'
+$PublicRepo = 'bil-xvii/Lycoris-releases'
+$SourceRepo = 'bil-xvii/Lycoris'
 $dry = [bool]$WhatIfPreference
 
 function Fail($msg) { Write-Host "REFUSED: $msg" -ForegroundColor Red; exit 1 }
@@ -94,8 +94,8 @@ else {
 Step 'Release notes (what the app shows)'
 Write-Host $notes
 
-$exe = Join-Path $root 'publish\MONOLITH.exe'
-$sha = Join-Path $root 'publish\MONOLITH.exe.sha256'
+$exe = Join-Path $root 'publish\Lycoris.exe'
+$sha = Join-Path $root 'publish\Lycoris.exe.sha256'
 $notesTmp = Join-Path ([IO.Path]::GetTempPath()) "monolith-notes-$versionText.md"
 
 if ($dry) {
@@ -103,9 +103,9 @@ if ($dry) {
     if (-not $SkipTests) { Write-Host "  dotnet test tests\Monolith.Tests\Monolith.Tests.csproj   (must pass)" }
     Write-Host "  tools\publish.ps1 $(if ($NoSign) { '-NoSign' })   -> $exe"
     Write-Host "  $exe --selftest <temp>   (exit code must be 0)"
-    Write-Host "  write $sha   ('<sha256>  MONOLITH.exe')"
-    Write-Host "  gh release create $tag --repo $PublicRepo --title 'MONOLITH $versionText' --notes-file <notes> MONOLITH.exe MONOLITH.exe.sha256"
-    Write-Host "  gh release create $tag --repo $SourceRepo --target $($head.Substring(0,8)) --title 'MONOLITH $versionText' --notes-file <notes> MONOLITH.exe MONOLITH.exe.sha256"
+    Write-Host "  write $sha   ('<sha256>  Lycoris.exe')"
+    Write-Host "  gh release create $tag --repo $PublicRepo --title 'Lycoris $versionText' --notes-file <notes> Lycoris.exe Lycoris.exe.sha256"
+    Write-Host "  gh release create $tag --repo $SourceRepo --target $($head.Substring(0,8)) --title 'Lycoris $versionText' --notes-file <notes> Lycoris.exe Lycoris.exe.sha256"
     Write-Host 'WhatIf: nothing was built, tagged or published.' -ForegroundColor Green
     if ($script:problems.Count -gt 0) { Write-Host "$($script:problems.Count) check(s) would refuse a real release (see WOULD REFUSE above)." -ForegroundColor Yellow; exit 1 }
     exit 0
@@ -129,14 +129,14 @@ if ($p.ExitCode -ne 0) { Fail "--selftest of the published exe exited with $($p.
 
 # 7. checksum
 $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-[IO.File]::WriteAllText($sha, "$hash  MONOLITH.exe`n", (New-Object Text.UTF8Encoding $false))
+[IO.File]::WriteAllText($sha, "$hash  Lycoris.exe`n", (New-Object Text.UTF8Encoding $false))
 Write-Host "SHA-256 $hash"
 
 # 8. releases
 [IO.File]::WriteAllText($notesTmp, $notes + "`n", (New-Object Text.UTF8Encoding $false))
 foreach ($repo in @($PublicRepo, $SourceRepo)) {
     Step "gh release create $tag in $repo"
-    $ghArgs = @('release', 'create', $tag, $exe, $sha, '--repo', $repo, '--title', "MONOLITH $versionText", '--notes-file', $notesTmp)
+    $ghArgs = @('release', 'create', $tag, $exe, $sha, '--repo', $repo, '--title', "Lycoris $versionText", '--notes-file', $notesTmp)
     if ($repo -eq $SourceRepo) { $ghArgs += @('--target', $head) }
     if ($PSCmdlet.ShouldProcess($repo, "gh release create $tag")) {
         & gh @ghArgs

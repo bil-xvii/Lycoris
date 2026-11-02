@@ -169,7 +169,7 @@ public static class NetFindings
         if (r.Mtu is { BlackHole: true, PathMtu: { } path } m && path < m.InterfaceMtu)
             list.Add(new NetFinding("mtu-blackhole", NetSeverity.Info, Loc.T("Большие пакеты пропадают в пути"), Loc.Tf("MTU пути {0}", path),
                 Loc.T("Роутер не сообщает о слишком больших пакетах"),
-                Loc.T("Некоторые загрузки могут зависать. Это настраивается на роутере (MSS clamping); MONOLITH MTU не меняет.")));
+                Loc.T("Некоторые загрузки могут зависать. Это настраивается на роутере (MSS clamping); Lycoris MTU не меняет.")));
 
         if (includeLoad && load is not null && LoadFinding(load) is { } lf) list.Add(lf);
         return list;
@@ -188,7 +188,7 @@ public static class NetFindings
                 : Loc.T("Включите SQM / Smart Queue / QoS на роутере или ограничьте скорость на 5–10 % ниже тарифа.")));
     }
 
-    /// <summary>Receive buffers below the maximum while the adapter dropped packets under load (skeptic: audit only, MONOLITH writes nothing).</summary>
+    /// <summary>Receive buffers below the maximum while the adapter dropped packets under load (skeptic: audit only, Lycoris writes nothing).</summary>
     public static NetFinding? BuffersFinding(LoadTestResult l, NetAdapterInfo? best)
     {
         if (best?.Property("*ReceiveBuffers") is not { } rb || !int.TryParse(rb.Value ?? rb.DefaultValue, out var value)) return null;
@@ -198,7 +198,7 @@ public static class NetFindings
         if (lost * 200 <= packets) return null; // under 0,5 %
         return new NetFinding("rx-buffers", NetSeverity.Info, Loc.T("Адаптер терял пакеты под нагрузкой"), Loc.Tf("буферы {0} из {1}", value, max),
             Loc.T("Мало буферов приёма: при больших загрузках кадры отбрасываются"),
-            Loc.T("Увеличить можно в Диспетчере устройств → адаптер → Дополнительно → «Буферы приёма». MONOLITH это не меняет."), null, best.InterfaceGuid);
+            Loc.T("Увеличить можно в Диспетчере устройств → адаптер → Дополнительно → «Буферы приёма». Lycoris это не меняет."), null, best.InterfaceGuid);
     }
 
     /// <summary>IPv6 clearly worse than IPv4 on both pairs (≥ +10 ms, or ≥ 5 % loss where IPv4 is clean); null otherwise.</summary>

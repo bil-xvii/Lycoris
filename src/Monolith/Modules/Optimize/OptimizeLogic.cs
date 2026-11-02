@@ -101,10 +101,10 @@ internal static class OptimizeLogic
             "Звук других программ не приглушается при звонках (нужен повторный вход в Windows). Не трогает HAGS; при проблемах с захватом есть пункт «Отключить HAGS». По желанию: «Без отключения USB-устройств»."),
         OptimizeProfile.Efficiency => laptop
             ? Loc.T("Ниже частоты и нагрев под лёгкой нагрузкой — тише; на ноутбуке дольше от батареи. Эффект зависит от производителя — измерьте. " +
-                    "Кривые вентиляторов, лимиты мощности и предел заряда MONOLITH не трогает (утилита производителя). " +
+                    "Кривые вентиляторов, лимиты мощности и предел заряда Lycoris не трогает (утилита производителя). " +
                     "Режим «Максимальная эффективность» от сети — по желанию, отдельным пунктом. По желанию: «Без турбобуста процессора от сети».")
             : Loc.T("Ниже частоты и нагрев под лёгкой нагрузкой — тише. Эффект зависит от производителя — измерьте. " +
-                    "Кривые вентиляторов, лимиты мощности и предел заряда MONOLITH не трогает (утилита производителя). " +
+                    "Кривые вентиляторов, лимиты мощности и предел заряда Lycoris не трогает (утилита производителя). " +
                     "По желанию: «Без турбобуста процессора от сети»."),
         _ => Loc.T("Ваш собственный набор: отметьте нужные пункты в списке ниже. Выбор запоминается между запусками."),
     };
@@ -130,7 +130,7 @@ internal static class OptimizeLogic
     {
         OptimizeProfile.Streaming =>
         [
-            Loc.T("Не беспокоить → «Во время игры» — проверьте в Параметрах → Уведомления (MONOLITH не пишет эту настройку)."),
+            Loc.T("Не беспокоить → «Во время игры» — проверьте в Параметрах → Уведомления (Lycoris не пишет эту настройку)."),
         ],
         OptimizeProfile.Efficiency when laptop =>
         [
@@ -183,7 +183,7 @@ internal static class OptimizeLogic
         return result;
     }
 
-    /// <summary>Readable name of a non-tweak journal source (another MONOLITH page).</summary>
+    /// <summary>Readable name of a non-tweak journal source (another Lycoris page).</summary>
     public static string SourceLabel(string source) => source switch
     {
         "services" or "services-tasks" => Loc.T("Службы"),
@@ -382,7 +382,7 @@ internal static class OptimizeLogic
     public static string RegistryTarget(RegHive hive, string path, string name) =>
         $"{hive}\\{path}\\{(name.Length == 0 ? Loc.T("(По умолчанию)") : name)}";
 
-    /// <summary>Formats a value MONOLITH is going to write.</summary>
+    /// <summary>Formats a value Lycoris is going to write.</summary>
     public static string FormatNewValue(RegistryValueKind kind, object? value)
     {
         if (value is null) return Loc.T("удалить значение");

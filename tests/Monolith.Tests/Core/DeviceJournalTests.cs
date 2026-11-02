@@ -253,7 +253,7 @@ public sealed class DeviceJournalTests : IDisposable
     [Fact]
     public async Task Confirmed_parameter_left_pending_by_a_crash_is_reverted_at_the_next_start()
     {
-        // SPI persists the new value at once: a record left pending (MONOLITH died during the countdown) is reverted by the startup reconcile.
+        // SPI persists the new value at once: a record left pending (Lycoris died during the countdown) is reverted by the startup reconcile.
         _spi.Live["swap-buttons"] = 0;
         DeviceConfirm.Countdown = (_, _) => Task.FromResult(true);
         var s = await Begin();

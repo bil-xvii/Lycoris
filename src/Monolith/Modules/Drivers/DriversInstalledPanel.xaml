@@ -132,7 +132,7 @@
                     <Border Style="{StaticResource Card.Inverted}" Margin="12,10,12,0" Padding="10,10"
                             Visibility="{Binding BackupRebootRequired, Converter={StaticResource BoolToVis}}">
                         <TextBlock FontFamily="{StaticResource F.Body}" FontSize="12.5" Foreground="{StaticResource B.Ink}" TextWrapping="Wrap"
-                                   Text="{loc:T Требуется перезагрузка для завершения установки драйвера. MONOLITH не перезагружает компьютер сам.}" />
+                                   Text="{loc:T Требуется перезагрузка для завершения установки драйвера. Lycoris не перезагружает компьютер сам.}" />
                     </Border>
 
                     <TextBlock Text="{loc:T ВЫВОД PNPUTIL}" Style="{StaticResource T.Label}" Margin="12,10,12,6" />
@@ -166,7 +166,7 @@
                 <StackPanel>
                     <TextBlock Text="{loc:T Копий пока нет}" Style="{StaticResource T.H2}" />
                     <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0" TextWrapping="Wrap"
-                               Text="{loc:T 'Создайте копию сейчас, пока все устройства работают. Перед каждой установкой драйверов из Windows Update MONOLITH также сохраняет заменяемые драйверы автоматически.'}" />
+                               Text="{loc:T 'Создайте копию сейчас, пока все устройства работают. Перед каждой установкой драйверов из Windows Update Lycoris также сохраняет заменяемые драйверы автоматически.'}" />
                 </StackPanel>
             </Border>
 

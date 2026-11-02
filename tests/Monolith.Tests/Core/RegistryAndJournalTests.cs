@@ -5,7 +5,7 @@ using Monolith.Core;
 namespace Monolith.Tests.Core;
 
 /// <summary>
-/// The undo journal is what keeps MONOLITH from ever leaving the system in a changed state it can't restore.
+/// The undo journal is what keeps Lycoris from ever leaving the system in a changed state it can't restore.
 /// These tests only touch HKCU\Software\MONOLITH-Tests and a temp folder.
 /// </summary>
 [Collection("Registry")]

@@ -392,7 +392,7 @@
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                     <TextBlock Style="{StaticResource T.Body}" Margin="0,10,0,0" MaxWidth="540" HorizontalAlignment="Left"
-                                               Text="{loc:T 'MONOLITH проверил лаунчеры ниже и не нашёл установленных игр. Если игра стоит отдельно от лаунчера — добавьте её вручную: укажите .exe файл, и у неё появятся кнопки запуска и игрового сеанса.'}" />
+                                               Text="{loc:T 'Lycoris проверил лаунчеры ниже и не нашёл установленных игр. Если игра стоит отдельно от лаунчера — добавьте её вручную: укажите .exe файл, и у неё появятся кнопки запуска и игрового сеанса.'}" />
                                     <TextBlock Text="{loc:T 'ПРОВЕРЕННЫЕ ЛАУНЧЕРЫ'}" Style="{StaticResource T.Label}" Margin="0,14,0,8" />
                                     <ItemsControl ItemsSource="{Binding Sources}" ItemTemplate="{StaticResource Games.SourceCell}"
                                                   MaxWidth="560" HorizontalAlignment="Left" Focusable="False">
@@ -645,7 +645,7 @@
                     <StackPanel Margin="17,17,17,0">
                         <TextBlock Text="{loc:T 'Закрывать перед игрой'}" Style="{StaticResource T.H1}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="760" HorizontalAlignment="Left"
-                                   Text="{loc:T 'Отметьте программы, которые MONOLITH закроет перед запуском игры в игровом сеансе: браузеры, мессенджеры, облачные клиенты. Системные процессы, драйверы, античиты и лаунчеры сюда не попадают. Закрытые программы после игры сами не откроются.'}" />
+                                   Text="{loc:T 'Отметьте программы, которые Lycoris закроет перед запуском игры в игровом сеансе: браузеры, мессенджеры, облачные клиенты. Системные процессы, драйверы, античиты и лаунчеры сюда не попадают. Закрытые программы после игры сами не откроются.'}" />
                     </StackPanel>
 
                     <Grid Grid.Row="1" Margin="17,12,17,0" Height="330">
@@ -767,7 +767,7 @@
 
                     <Grid Grid.Row="2" Margin="17,14,17,16">
                         <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center" MaxWidth="460" HorizontalAlignment="Left" LineHeight="16"
-                                   Text="{loc:T 'Перед закрытием MONOLITH покажет список и спросит подтверждение. Принудительное завершение — только после отдельного вопроса.'}" />
+                                   Text="{loc:T 'Перед закрытием Lycoris покажет список и спросит подтверждение. Принудительное завершение — только после отдельного вопроса.'}" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Content="{loc:T 'ОТМЕНА'}" Command="{Binding CancelEditorCommand}" MinWidth="110" Margin="0,0,10,0" />
                             <Button Style="{StaticResource Btn.Primary}" Content="{loc:T 'СОХРАНИТЬ'}" Command="{Binding SaveEditorCommand}" MinWidth="140" />

@@ -15,7 +15,7 @@
     "Приёмник Unifying": "Unifying receiver",
     "раньше по кабелю подключалась: {0}": "previously connected by cable: {0}",
     "Программы производителей: список программ не прочитан ({0}).": "Vendor apps: the list of installed programs could not be read ({0}).",
-    "программа без цифровой подписи — MONOLITH её не запускает": "the program is not digitally signed — MONOLITH does not launch it",
+    "программа без цифровой подписи — Lycoris её не запускает": "the program is not digitally signed — Lycoris does not launch it",
     "нет проверенного способа запуска": "no verified way to launch it",
     "папка Program Files не найдена": "the Program Files folder was not found",
     "путь ведёт за пределы Program Files": "the path leads outside Program Files",

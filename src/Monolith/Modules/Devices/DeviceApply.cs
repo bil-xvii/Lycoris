@@ -42,7 +42,7 @@ public static class DeviceApply
         // The question is asked without holding the operation lease (the caller passes 'ask' to release it meanwhile).
         Func<Func<Task<bool>>, Task<bool>> asker = ask ?? (f => f());
         var confirmed = await asker(() => Ui.ConfirmAsync("Настроить автоматически?",
-            "MONOLITH изменит выбранные настройки. Перед изменением исходные значения записываются в журнал:",
+            "Lycoris изменит выбранные настройки. Перед изменением исходные значения записываются в журнал:",
             PlanLines(items), confirmText: "НАСТРОИТЬ",
             footnote: "Каждое изменение откатывается по одному — в «Вручную» или в «Восстановлении»."));
         if (!confirmed) return null;

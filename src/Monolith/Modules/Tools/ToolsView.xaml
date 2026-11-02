@@ -9,7 +9,7 @@
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:ToolsViewModel}">
     <UserControl.Resources>
 
-        <!-- Quick link: an outlined tile that opens a standard Windows tool (the ↗ mark says it leaves MONOLITH) -->
+        <!-- Quick link: an outlined tile that opens a standard Windows tool (the ↗ mark says it leaves Lycoris) -->
         <Style x:Key="QuickTile" TargetType="Button">
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
@@ -351,7 +351,7 @@
                             <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,3,0,0" />
                         </Grid>
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,10"
-                                   Text="{loc:T 'MONOLITH только открывает эти средства Windows — изменения в них вы вносите сами.'}" />
+                                   Text="{loc:T 'Lycoris только открывает эти средства Windows — изменения в них вы вносите сами.'}" />
                         <ItemsControl ItemsSource="{Binding QuickLinks}" Focusable="False" Margin="0,0,-8,0">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>

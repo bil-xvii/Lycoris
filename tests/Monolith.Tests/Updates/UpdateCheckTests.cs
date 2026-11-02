@@ -71,8 +71,8 @@ public sealed class ReleaseParserTests
         Assert.Equal("1.2.3", r!.VersionText);
         Assert.Equal(70_000_000, r.ExeSize);
         Assert.Equal(sha, r.ExeDigest);
-        Assert.EndsWith("/v1.2.3/MONOLITH.exe", r.ExeUrl);
-        Assert.EndsWith("/v1.2.3/MONOLITH.exe.sha256", r.ShaUrl);
+        Assert.EndsWith("/v1.2.3/Lycoris.exe", r.ExeUrl);
+        Assert.EndsWith("/v1.2.3/Lycoris.exe.sha256", r.ShaUrl);
     }
 
     [Theory]
@@ -144,7 +144,7 @@ public sealed class UpdateServiceTests
         var clock = new Clock(T0);
         var handler = new FakeHandler(answer);
         var http = new HttpClient(handler);
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("MONOLITH/" + current);
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("Lycoris/" + current);
         var service = new UpdateService(http, store, () => SemVer.Parse(current)!.Value, clock.Get);
         return (service, store, clock, handler);
     }
@@ -163,8 +163,8 @@ public sealed class UpdateServiceTests
 
         var req = Assert.Single(h.Requests);
         Assert.Equal("api.github.com", req.RequestUri!.Host);
-        Assert.Equal("/repos/bil-xvii/MONOLITH-releases/releases/latest", req.RequestUri.AbsolutePath);
-        Assert.StartsWith("MONOLITH/", req.Headers.UserAgent.ToString());
+        Assert.Equal("/repos/bil-xvii/Lycoris-releases/releases/latest", req.RequestUri.AbsolutePath);
+        Assert.StartsWith("Lycoris/", req.Headers.UserAgent.ToString());
         Assert.False(req.Headers.Contains("Authorization"));
     }
 

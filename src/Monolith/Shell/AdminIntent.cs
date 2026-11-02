@@ -4,7 +4,7 @@ using System.Windows.Input;
 namespace Monolith.Shell;
 
 /// <summary>
-/// What the user wanted to do when MONOLITH had no admin rights: a page, the name of one of its commands and the
+/// What the user wanted to do when Lycoris had no admin rights: a page, the name of one of its commands and the
 /// command parameter (text only). It travels to the elevated copy as launch arguments and is replayed there exactly
 /// once — through the same command, with the same confirmation dialog. Only replayed commands are remembered: never
 /// the content of a change, so nothing can be applied without the page's own checks.

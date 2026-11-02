@@ -3,7 +3,7 @@ using Monolith.Core;
 
 namespace Monolith.Modules.Apps;
 
-/// <summary>How strongly MONOLITH suggests a catalog entry for this PC (docs/research/apps_catalog.md §14).</summary>
+/// <summary>How strongly Lycoris suggests a catalog entry for this PC (docs/research/apps_catalog.md §14).</summary>
 public enum AdviceLevel { Required, Recommended, Optional, NotNow, NotNeeded }
 
 /// <summary>One piece of install advice: the level and one plain sentence why (may be empty for <see cref="AdviceLevel.Optional"/>).</summary>
@@ -112,7 +112,7 @@ public static class AppAdvisor
     /// 2023 preview KB5030310 (22621.2361) and the October security update KB5031354 (22621.2428), both only with
     /// "Get the latest updates as soon as they're available"; then the preview KB5031455 (22621.2506 / 22631.2506, the
     /// first 23H2 release build); for everyone with the November 2023 security update KB5032190 (22621.2715 / 22631.2715).
-    /// Every later Windows 11 has it. Between the first and the default-on build MONOLITH cannot tell.
+    /// Every later Windows 11 has it. Between the first and the default-on build Lycoris cannot tell.
     /// </summary>
     public const int NativeArchivesFirstUbr = 2361;
     public const int NativeArchivesUbr23H2 = 2506;
@@ -249,7 +249,7 @@ public static class AppAdvisor
                 return Recommended(Loc.T("Главный голосовой и текстовый чат игроков."));
 
             case "BitSum.ProcessLasso":
-                return NotNeeded(Loc.T("Спорит с игровым режимом MONOLITH: обе программы меняют приоритеты процессов."));
+                return NotNeeded(Loc.T("Спорит с игровым режимом Lycoris: обе программы меняют приоритеты процессов."));
             case "Microsoft.Sysinternals.Autoruns":
                 return NotNow(Loc.T("Инструмент для опытных; основное есть на странице «Автозапуск и службы»."));
             case "OCBase.OCCT.Personal":

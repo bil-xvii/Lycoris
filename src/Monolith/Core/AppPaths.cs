@@ -5,10 +5,10 @@ using System.Security.Principal;
 namespace Monolith.Core;
 
 /// <summary>
-/// Where MONOLITH keeps its files.
+/// Where Lycoris keeps its files.
 /// Machine-wide state (undo journal, registry backups, driver backups/downloads) lives in %ProgramData%\MONOLITH
 /// and is locked down to Administrators/SYSTEM (see <see cref="SecureMachineDir"/>);
-/// per-user state (settings, logs, cache) in %LocalAppData%\MONOLITH.
+/// per-user state (settings, logs, cache) in %LocalAppData%\Lycoris.
 /// </summary>
 public static class AppPaths
 {
@@ -28,7 +28,7 @@ public static class AppPaths
     public static string CacheDir => Path.Combine(UserDir, "Cache");
 
     public static string ExecutablePath => Environment.ProcessPath
-        ?? Path.Combine(AppContext.BaseDirectory, AppName + ".exe");
+        ?? Path.Combine(AppContext.BaseDirectory, "Lycoris.exe");
 
     /// <summary>True when the machine folder was writable by non-administrators before it was secured in this run.</summary>
     public static bool MachineDirWasInsecure { get; private set; }
@@ -113,13 +113,13 @@ public static class AppPaths
                 if (childFailures > 0)
                 {
                     // journal.json / .bak or a planted link could not be fixed: refuse to trust the folder this run.
-                    Log.Error("Не удалось исправить права для {0} файлов в папке данных MONOLITH — журнал изменений не будет использоваться.", childFailures);
+                    Log.Error("Не удалось исправить права для {0} файлов в папке данных Lycoris — журнал изменений не будет использоваться.", childFailures);
                     return;
                 }
                 _secured = true;
                 if (MachineDirWasInsecure)
                 {
-                    Log.Warn("Папка данных MONOLITH была доступна для записи обычным пользователям — права исправлены.");
+                    Log.Warn("Папка данных Lycoris была доступна для записи обычным пользователям — права исправлены.");
                     // Anything there could have been planted: never install drivers or run installers from it.
                     var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
                     foreach (var sub in new[] { DriverBackupsDir, Path.Combine(MachineDir, "Downloads"), BackupsDir })
@@ -137,7 +137,7 @@ public static class AppPaths
             }
             catch (Exception ex)
             {
-                Log.Error("Не удалось защитить папку данных MONOLITH", ex);
+                Log.Error("Не удалось защитить папку данных Lycoris", ex);
             }
         }
     }
