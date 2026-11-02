@@ -104,6 +104,7 @@ public sealed class DeviceJournalTests : IDisposable
     [InlineData("mouse-speed", 0)]
     [InlineData("wheel-routing", 1)] // the undocumented hybrid mode: never set
     [InlineData("mouse-trails", 50)]
+    [InlineData("mouse-trails", 1)] // Windows reads 1 back as 0 (hardware check): such a change could never verify
     [InlineData("no-such-parameter", 1)]
     public async Task Value_outside_the_allowed_targets_is_refused(string id, int value)
     {
