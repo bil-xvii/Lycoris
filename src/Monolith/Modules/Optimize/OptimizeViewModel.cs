@@ -19,8 +19,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
 {
     public override string Key => "optimize";
     public override string Index => "02";
-    public override string Title => "ОПТИМИЗАЦИЯ";
-    public override string Subtitle => "Выберите сценарий, проверьте изменения и примените — изменённые настройки можно откатить.";
+    public override string Title => Loc.T("ОПТИМИЗАЦИЯ");
+    public override string Subtitle => Loc.T("Выберите сценарий, проверьте изменения и примените — изменённые настройки можно откатить.");
     public override string Glyph => Glyphs.Bolt;
 
     private const string SourcePrefix = "tweak:";
@@ -63,7 +63,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         // The efficiency tile joins the row only after detection shows it has a member beyond a plan switch (UpdateCounts).
         _allTiles =
         [
-            new ProfileTileViewModel(this, OptimizeProfile.Recommended, "01", "ПО УМОЛЧАНИЮ"),
+            new ProfileTileViewModel(this, OptimizeProfile.Recommended, "01", Loc.T("ПО УМОЛЧАНИЮ")),
             new ProfileTileViewModel(this, OptimizeProfile.Gaming, "02"),
             new ProfileTileViewModel(this, OptimizeProfile.Normal, "03"),
             new ProfileTileViewModel(this, OptimizeProfile.Streaming, "04"),
@@ -123,7 +123,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     [ObservableProperty] private int _appliedTotal;
     [ObservableProperty] private int _applicableTotal;
     [ObservableProperty] private int _visibleCount;
-    [ObservableProperty] private string _barNote = "Загрузка каталога…";
+    [ObservableProperty] private string _barNote = Loc.T("Загрузка каталога…");
     /// <summary>The row the view should scroll into view (set by <see cref="ApplyFocus"/>).</summary>
     [ObservableProperty] private TweakItemViewModel? _focusedItem;
     /// <summary>A restart the user postponed ("ПОЗЖЕ"): shown as a reminder button in the action bar.</summary>
@@ -135,9 +135,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
     public int ExpertCount => _items.Count(i => i.IsAdvanced);
     /// <summary>Rows that would change something now (the chip «НЕ ПРИМЕНЕНО · N»).</summary>
     public int NotAppliedCount => _items.Count(i => !i.IsAdvanced && i.WillChange);
-    public string OnlyPendingText => $"НЕ ПРИМЕНЕНО · {NotAppliedCount}";
-    public string ChangeDetail => $"БУДЕТ ИЗМЕНЕНО {ChangeCount}";
-    public string ShownSummary => $"ПОКАЗАНО {VisibleCount} / {(ExpertTab ? ExpertCount : _items.Count(i => !i.IsAdvanced))}  ·  ПРИМЕНЕНО {AppliedSummary}";
+    public string OnlyPendingText => Loc.Tf("НЕ ПРИМЕНЕНО · {0}", NotAppliedCount);
+    public string ChangeDetail => Loc.Tf("БУДЕТ ИЗМЕНЕНО {0}", ChangeCount);
+    public string ShownSummary => Loc.Tf("ПОКАЗАНО {0} / {1}  ·  ПРИМЕНЕНО {2}", VisibleCount, ExpertTab ? ExpertCount : _items.Count(i => !i.IsAdvanced), AppliedSummary);
     /// <summary>The sticky bar's line: the busy text while working, else the hint or the read-only reason.</summary>
     public string StatusLine => IsBusy && !string.IsNullOrEmpty(BusyText) ? BusyText! : BarNote;
     /// <summary>Tile «Рекомендуемый»: how many items «ПРИМЕНИТЬ» would change (null until detected). For the Dashboard tile.</summary>
@@ -146,13 +146,13 @@ public sealed partial class OptimizeViewModel : PageViewModel
     public bool HasPendingRestart => PendingRestart != RestartRequirement.None;
     public string PendingRestartText => PendingRestart switch
     {
-        RestartRequirement.Explorer => "НУЖЕН ПЕРЕЗАПУСК ПРОВОДНИКА",
-        RestartRequirement.SignOut => "НУЖЕН ВЫХОД ИЗ СИСТЕМЫ",
-        RestartRequirement.Reboot => "НУЖНА ПЕРЕЗАГРУЗКА",
+        RestartRequirement.Explorer => Loc.T("НУЖЕН ПЕРЕЗАПУСК ПРОВОДНИКА"),
+        RestartRequirement.SignOut => Loc.T("НУЖЕН ВЫХОД ИЗ СИСТЕМЫ"),
+        RestartRequirement.Reboot => Loc.T("НУЖНА ПЕРЕЗАГРУЗКА"),
         _ => "",
     };
-    public string AppliedSummary => _detected ? $"{AppliedTotal} ИЗ {ApplicableTotal}" : "—";
-    public string ApplyButtonText => ChangeCount > 0 ? $"ПРИМЕНИТЬ · {ChangeCount}" : "ПРИМЕНИТЬ";
+    public string AppliedSummary => _detected ? Loc.Tf("{0} ИЗ {1}", AppliedTotal, ApplicableTotal) : "—";
+    public string ApplyButtonText => ChangeCount > 0 ? Loc.Tf("ПРИМЕНИТЬ · {0}", ChangeCount) : Loc.T("ПРИМЕНИТЬ");
 
     private ProfileTileViewModel CurrentTile => _allTiles.First(p => p.Kind == Profile);
 
@@ -268,7 +268,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             _sections[c] = new SectionRow(this, c);
 
         Categories.Clear();
-        Categories.Add(new CategoryFilterViewModel(this, null, "ВСЕ", _items.Count(i => !i.IsAdvanced)) { IsSelected = true });
+        Categories.Add(new CategoryFilterViewModel(this, null, Loc.T("ВСЕ"), _items.Count(i => !i.IsAdvanced)) { IsSelected = true });
         foreach (var c in Enum.GetValues<TweakCategory>())
         {
             var count = _items.Count(i => i.Category == c && !i.IsAdvanced);
@@ -276,7 +276,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         }
         // Expert items are their own segment (not part of «ВСЕ» and of no profile).
         var expertCount = _items.Count(i => i.IsAdvanced);
-        if (expertCount > 0) Categories.Add(new CategoryFilterViewModel(this, null, "ЭКСПЕРТ", expertCount, isExpert: true));
+        if (expertCount > 0) Categories.Add(new CategoryFilterViewModel(this, null, Loc.T("ЭКСПЕРТ"), expertCount, isExpert: true));
         CategoryFilter = null;
         ExpertTab = false;
         OnPropertyChanged(nameof(TotalCount));
@@ -313,7 +313,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateCounts();
         try
         {
-            await RunBusyAsync(OperationClass.Measure, "Проверка текущего состояния…", async () =>
+            await RunBusyAsync(OperationClass.Measure, Loc.T("Проверка текущего состояния…"), async () =>
             {
                 var sp = await SystemProfile.LoadAsync();
                 _hardwareFactsKnown = sp.HardwareFactsKnown;
@@ -379,7 +379,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             return;
         }
         if (item.Changes.Count == 0)
-            item.Changes = planned.Select(p => new ChangeLineViewModel(p.Target, "чтение…", p.NewValue)).ToList();
+            item.Changes = planned.Select(p => new ChangeLineViewModel(p.Target, Loc.T("чтение…"), p.NewValue)).ToList();
 
         var lines = await Task.Run(() => planned.Select(p => new ChangeLineViewModel(p.Target, SafeRead(p.ReadCurrent), p.NewValue)).ToList());
         item.Changes = lines;
@@ -388,7 +388,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private static string SafeRead(Func<string>? read)
     {
         try { return read?.Invoke() ?? "—"; }
-        catch { return "не удалось прочитать"; }
+        catch { return Loc.T("не удалось прочитать"); }
     }
 
     // ───────────────────────────── Selection & profiles ─────────────────────────────
@@ -568,7 +568,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (!item.IsApplicableNow) return;
         var details = OptimizeLogic.PlannedChanges(item.Tweak).Select(c => $"{c.Target} → {c.NewValue}").ToList();
         if (item.PendingDependency is { } dependency) details.Add(OptimizeLogic.DependencyNote(dependency.Title));
-        if (item.HasRestart) details.Add($"После применения {item.Tweak.RestartText}.");
+        if (item.HasRestart) details.Add(Loc.Tf("После применения {0}.", item.Tweak.RestartText));
         var ok = await Ui.ConfirmAsync("ЭКСПЕРТНАЯ НАСТРОЙКА",
             $"«{item.Title}». {item.Description}\n\n{item.WarningText}",
             details, confirmText: "ПОНИМАЮ РИСК", cancelText: "ОТМЕНА", danger: true,
@@ -722,30 +722,30 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var all = _items.Where(i => i.IsAdvanced).ToList();
         var chosen = all.Count(i => i.IsChecked);
         var count = _visibleExpert < all.Count
-            ? $"{_visibleExpert} ИЗ {all.Count} {OptimizeLogic.Plural(all.Count, "ПУНКТА", "ПУНКТОВ", "ПУНКТОВ")}"
-            : $"{all.Count} {OptimizeLogic.Plural(all.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")}";
-        _expertRow.CountText = count + (chosen > 0 ? $" · ВЫБРАНО {chosen}" : "");
+            ? Loc.Tf("{0} ИЗ {1}", _visibleExpert, Loc.N(all.Count, "{0} ПУНКТА", "{0} ПУНКТОВ", "{0} ПУНКТОВ"))
+            : Loc.N(all.Count, "{0} ПУНКТ", "{0} ПУНКТА", "{0} ПУНКТОВ");
+        _expertRow.CountText = count + (chosen > 0 ? Loc.Tf(" · ВЫБРАНО {0}", chosen) : "");
         OnPropertyChanged(nameof(ExpertCount));
     }
 
     private string BuildBarNote()
     {
-        if (_items.Count == 0) return _detected ? "Каталог оптимизаций пуст." : "Загрузка каталога…";
-        if (IsReadOnly) return "Режим просмотра: применить и откатить изменения можно только с правами администратора.";
-        if (!_detected || IsDetecting) return "Проверка текущего состояния системы…";
-        if (SelectedCount == 0) return "Выберите сценарий сверху или отметьте пункты в списке.";
-        if (ChangeCount == 0) return "Все выбранные пункты уже применены — менять нечего.";
+        if (_items.Count == 0) return _detected ? Loc.T("Каталог оптимизаций пуст.") : Loc.T("Загрузка каталога…");
+        if (IsReadOnly) return Loc.T("Режим просмотра: применить и откатить изменения можно только с правами администратора.");
+        if (!_detected || IsDetecting) return Loc.T("Проверка текущего состояния системы…");
+        if (SelectedCount == 0) return Loc.T("Выберите сценарий сверху или отметьте пункты в списке.");
+        if (ChangeCount == 0) return Loc.T("Все выбранные пункты уже применены — менять нечего.");
         var restart = RestartCount > 0
-            ? $" · {RestartCount} {OptimizeLogic.Plural(RestartCount, "требует", "требуют", "требуют")} перезапуска"
+            ? Loc.N(RestartCount, " · {0} требует перезапуска", " · {0} требуют перезапуска", " · {0} требуют перезапуска")
             : "";
         var rp = !AppSettings.Current.CreateRestorePoints
-            ? " · точка восстановления отключена в «Восстановлении»"
+            ? Loc.T(" · точка восстановления отключена в «Восстановлении»")
             : _protectionOn == false
-                ? " · защита системы выключена — точки восстановления не будет, откат через журнал"
+                ? Loc.T(" · защита системы выключена — точки восстановления не будет, откат через журнал")
                 : _protectionOn == true
-                    ? " · перед изменениями будет создана точка восстановления"
+                    ? Loc.T(" · перед изменениями будет создана точка восстановления")
                     : "";
-        return $"Сценарий «{CurrentTile.SentenceName}»{restart}{rp}.";
+        return Loc.Tf("Сценарий «{0}»", CurrentTile.SentenceName) + restart + rp + ".";
     }
 
     // ───────────────────────────── Commands: state ─────────────────────────────
@@ -804,7 +804,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     private async Task ApplyCoreAsync(string intentCommand, string? intentParameter)
     {
-        if (!RequireAdmin("Применение оптимизаций", intentCommand, intentParameter)) return;
+        if (!RequireAdmin(Loc.T("Применение оптимизаций"), intentCommand, intentParameter)) return;
         var targets = _items.Where(i => i.IsPending).ToList();
         if (targets.Count == 0)
         {
@@ -819,11 +819,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
         {
             var footnote = await RestorePointFootnoteAsync();
             var message = (lossy.Count > 0
-                              ? "MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому настройки можно откатить. Исключение: удалённые данные не восстанавливаются."
-                              : "MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому любой пункт можно откатить.")
-                          + (alreadyApplied > 0 ? $" Уже применённые пункты ({alreadyApplied}) не трогаются." : "");
+                              ? Loc.T("MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому настройки можно откатить. Исключение: удалённые данные не восстанавливаются.")
+                              : Loc.T("MONOLITH изменит только перечисленные настройки. Перед каждым изменением исходное значение сохраняется в журнал, поэтому любой пункт можно откатить."))
+                          + (alreadyApplied > 0 ? Loc.Tf(" Уже применённые пункты ({0}) не трогаются.", alreadyApplied) : "");
             var ok = await Ui.ConfirmAsync(
-                $"ПРИМЕНИТЬ {targets.Count} {OptimizeLogic.Plural(targets.Count, "ИЗМЕНЕНИЕ", "ИЗМЕНЕНИЯ", "ИЗМЕНЕНИЙ")}?",
+                Loc.Tf("ПРИМЕНИТЬ {0}?", Loc.N(targets.Count, "{0} ИЗМЕНЕНИЕ", "{0} ИЗМЕНЕНИЯ", "{0} ИЗМЕНЕНИЙ")),
                 message, targets.Select(DescribeForConfirm), confirmText: "ПРИМЕНИТЬ", cancelText: "ОТМЕНА",
                 danger: targets.Any(t => t.IsAdvanced) || lossy.Count > 0, footnote: footnote);
             if (!ok) return;
@@ -833,9 +833,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var scenario = Profile;
         var batchTitle = OptimizeLogic.BatchTitle(scenario, _laptop);
         TweakRunResult? result = null;
-        await RunBusyAsync(OperationClass.JournalChange, "Применение изменений…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Применение изменений…"), async () =>
         {
-            var progress = new Progress<string>(p => BusyText = p.EndsWith('…') ? p : $"Применение: {p}");
+            var progress = new Progress<string>(p => BusyText = p.EndsWith('…') ? p : Loc.Tf("Применение: {0}", p));
             result = await TweakEngine.ApplyAsync(targets.Select(t => t.Tweak).ToList(), batchTitle, progress);
         });
 
@@ -849,7 +849,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private string DescribeForConfirm(TweakItemViewModel t)
     {
         var parts = new List<string> { t.Title };
-        if (t.State == TweakState.Partial) parts[0] += " (сейчас применено частично)";
+        if (t.State == TweakState.Partial) parts[0] += Loc.T(" (сейчас применено частично)");
         parts.Add(t.RiskText.ToLowerInvariant());
         if (t.HasRestart) parts.Add(t.Tweak.RestartText);
         if (t.DataLossNote is { } loss) parts.Add(loss);
@@ -860,18 +860,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (t.Tweak.ExclusiveGroup != TweakCatalog.WuFeatureUpdatesGroup
             && OptimizeLogic.ReplacesNote(_items.Where(i => i.CanRevert && t.Tweak.SharesGroupWith(i.Tweak)).Select(i => i.Title)) is { } replaces)
             parts.Add(replaces);
-        if (t.DependencySatisfiedByPending && t.PendingDependency is { } dependency) parts.Add($"после «{dependency.Title}»");
+        if (t.DependencySatisfiedByPending && t.PendingDependency is { } dependency) parts.Add(Loc.Tf("после «{0}»", dependency.Title));
         return string.Join(" · ", parts);
     }
 
     private static async Task<string> RestorePointFootnoteAsync()
     {
         if (!AppSettings.Current.CreateRestorePoints)
-            return "Точка восстановления отключена в разделе «Восстановление». Откат — через журнал MONOLITH.";
+            return Loc.T("Точка восстановления отключена в разделе «Восстановление». Откат — через журнал MONOLITH.");
         var enabled = await Task.Run(RestorePointService.IsEnabled);
         return enabled
-            ? "Перед изменениями будет создана точка восстановления Windows."
-            : "Защита системы выключена — точки восстановления не будет. Откат — через журнал MONOLITH.";
+            ? Loc.T("Перед изменениями будет создана точка восстановления Windows.")
+            : Loc.T("Защита системы выключена — точки восстановления не будет. Откат — через журнал MONOLITH.");
     }
 
     private async Task ShowApplyResultAsync(TweakRunResult result, IReadOnlyList<TweakItemViewModel> targets, OptimizeProfile scenario)
@@ -879,7 +879,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var lines = new List<string>
         {
             string.IsNullOrWhiteSpace(result.RestorePoint)
-                ? "Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал MONOLITH."
+                ? Loc.T("Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал MONOLITH.")
                 : result.RestorePoint!,
         };
         foreach (var t in targets)
@@ -887,29 +887,29 @@ public sealed partial class OptimizeViewModel : PageViewModel
             if (result.SkippedIds.Contains(t.Id)) continue; // listed below with the reason the engine gave
             lines.Add(t.State switch
             {
-                TweakState.Applied => $"ПРИМЕНЕНО — {t.Title}",
-                TweakState.Partial => $"ЧАСТИЧНО — {t.Title}",
-                TweakState.NotApplicable => $"ПРОПУЩЕНО — {t.Title}: {t.NotApplicableText}",
-                _ => $"НЕ ПОДТВЕРЖДЕНО — {t.Title}",
+                TweakState.Applied => Loc.Tf("ПРИМЕНЕНО — {0}", t.Title),
+                TweakState.Partial => Loc.Tf("ЧАСТИЧНО — {0}", t.Title),
+                TweakState.NotApplicable => Loc.Tf("ПРОПУЩЕНО — {0}: {1}", t.Title, t.NotApplicableText),
+                _ => Loc.Tf("НЕ ПОДТВЕРЖДЕНО — {0}", t.Title),
             });
         }
-        lines.AddRange(result.SkippedReasons.Select(r => $"ПРОПУЩЕНО — {r}"));
-        lines.AddRange(result.Errors.Select(e => $"ОШИБКА — {e}"));
+        lines.AddRange(result.SkippedReasons.Select(r => Loc.Tf("ПРОПУЩЕНО — {0}", r)));
+        lines.AddRange(result.Errors.Select(e => Loc.Tf("ОШИБКА — {0}", e)));
         // What the scenario leaves to the user because MONOLITH must not write it (vendor fan curves, charge limits, DND blobs).
         // Each line carries the «ВРУЧНУЮ —» label, like the «ПРИМЕНЕНО —» lines above it (the dialog lists bullets, not headers).
         var manual = OptimizeLogic.ManualSteps(scenario, _laptop);
         if (manual.Count > 0)
         {
-            lines.AddRange(manual.Select(m => $"{OptimizeLogic.ManualStepsHeader} — {m}"));
+            lines.AddRange(manual.Select(m => OptimizeLogic.ManualStepsHeader + " — " + m));
         }
 
         var verified = targets.Count(t => t.IsApplied);
-        var title = result.Errors.Count > 0 ? "ГОТОВО С ОШИБКАМИ" : verified == targets.Count ? "ГОТОВО" : "ГОТОВО ЧАСТИЧНО";
-        var message = $"Подтверждено {verified} из {targets.Count} {OptimizeLogic.Plural(targets.Count, "пункта", "пунктов", "пунктов")}, " +
-                      $"изменено параметров системы: {result.Applied}." +
-                      (result.Skipped > 0 ? $" Пропущено как неподходящие для этого ПК: {result.Skipped}." : "") +
-                      (result.SkippedReasons.Count > 0 ? $" Пропущено из-за зависимостей: {result.SkippedReasons.Count}." : "") +
-                      " Откатить можно кнопкой «ОТКАТИТЬ» у пункта или в разделе «Восстановление».";
+        var title = result.Errors.Count > 0 ? Loc.T("ГОТОВО С ОШИБКАМИ") : verified == targets.Count ? Loc.T("ГОТОВО") : Loc.T("ГОТОВО ЧАСТИЧНО");
+        var message = Loc.Tf("Подтверждено {0} из {1}, изменено параметров системы: {2}.",
+                          verified, Loc.N(targets.Count, "{0} пункта", "{0} пунктов", "{0} пунктов"), result.Applied) +
+                      (result.Skipped > 0 ? Loc.Tf(" Пропущено как неподходящие для этого ПК: {0}.", result.Skipped) : "") +
+                      (result.SkippedReasons.Count > 0 ? Loc.Tf(" Пропущено из-за зависимостей: {0}.", result.SkippedReasons.Count) : "") +
+                      Loc.T(" Откатить можно кнопкой «ОТКАТИТЬ» у пункта или в разделе «Восстановление».");
         await Ui.AlertAsync(title, message, lines);
     }
 
@@ -922,14 +922,14 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     internal async Task RevertOneAsync(TweakItemViewModel item)
     {
-        if (!RequireAdmin("Откат изменений", "RevertItem", item.Id)) return;
+        if (!RequireAdmin(Loc.T("Откат изменений"), "RevertItem", item.Id)) return;
         var journal = ChangeJournal.Instance;
         // The same selection the revert makes: older per-user records under this account's own later change stay.
         var (records, left) = journal.SourceCandidates([SourcePrefix + item.Id]);
         if (records.Count == 0)
         {
             var why = left.Count > 0 ? await Task.Run(() => RestoreFormat.LeftText(left, UserScope.CurrentSid, UserScope.AccountName)) : "";
-            Ui.Toast(why.Length > 0 ? why : "Для этого пункта нет изменений MONOLITH, которые можно откатить.", ToastKind.Info);
+            Ui.Toast(why.Length > 0 ? why : Loc.T("Для этого пункта нет изменений MONOLITH, которые можно откатить."), ToastKind.Info);
             await RefreshStatesAsync();
             return;
         }
@@ -942,21 +942,20 @@ public sealed partial class OptimizeViewModel : PageViewModel
             records.Any(r => r.IsLegacyPerUser) && UserScope.CurrentSid is { } sid ? UserScope.AccountName(sid) : null,
             RestoreFormat.LeftText(left, UserScope.CurrentSid, UserScope.AccountName)));
         var details = records.Select(r => keepers[r] is { } keeper
-            ? $"{OptimizeLogic.DescribeTarget(r.Target)}: останется «{keeper.NewValue}» — его позже задал «{keeper.Title}», исходное значение перейдёт к нему"
+            ? Loc.Tf("{0}: останется «{1}» — его позже задал «{2}», исходное значение перейдёт к нему", OptimizeLogic.DescribeTarget(r.Target), keeper.NewValue, keeper.Title)
             : DescribeRecord(r)).ToList();
         if (AlsoRevertsLine(records.Where(r => r.IsLegacyMerged), [item.Id]) is { } also) details.Add(also);
         if (account is not null)
-            details.Add($"Часть записей сделана старой версией MONOLITH без учётной записи: исходные значения запишутся в профиль {account}. " +
-                        "Если изменения делали под другой учётной записью, у неё они останутся.");
-        if (leftText.Length > 0) details.Add("Не войдут в откат: " + leftText);
+            details.Add(Loc.Tf("Часть записей сделана старой версией MONOLITH без учётной записи: исходные значения запишутся в профиль {0}. Если изменения делали под другой учётной записью, у неё они останутся.", account));
+        if (leftText.Length > 0) details.Add(Loc.T("Не войдут в откат: ") + leftText);
         var ok = await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?",
-            $"«{item.Title}»: MONOLITH вернёт значения, которые были до применения этого пункта.",
+            Loc.Tf("«{0}»: MONOLITH вернёт значения, которые были до применения этого пункта.", item.Title),
             details, confirmText: "ОТКАТИТЬ", cancelText: "ОТМЕНА",
-            footnote: item.HasRestart ? $"После отката {item.Tweak.RestartText}." : null);
+            footnote: item.HasRestart ? Loc.Tf("После отката {0}.", item.Tweak.RestartText) : null);
         if (!ok) return;
 
         RevertResult? result = null;
-        await RunBusyAsync(OperationClass.JournalChange, $"Откат: {item.Title}…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.Tf("Откат: {0}…", item.Title), async () =>
             result = await Task.Run(() => TweakEngine.RevertAsync(item.Tweak, LiveState.VerifyRevert)));
         await RefreshStatesAsync();
         await ReportRevertAsync(result, [item]);
@@ -972,9 +971,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var others = OptimizeLogic.OtherTweakSources(records.SelectMany(r => r.AlsoSources.Prepend(r.Source)), SourcePrefix, ids);
         if (others.Count == 0) return null;
         var titles = others.Select(id => _items.FirstOrDefault(i => i.Id == id)?.Title is { } t
-            ? $"«{t}»"
-            : $"изменение раздела «{OptimizeLogic.SourceLabel(id)}»");
-        return "Также откатит: " + string.Join(", ", titles) + " — они меняли те же параметры.";
+            ? Loc.Tf("«{0}»", t)
+            : Loc.Tf("изменение раздела «{0}»", OptimizeLogic.SourceLabel(id)));
+        return Loc.T("Также откатит: ") + string.Join(", ", titles) + Loc.T(" — они меняли те же параметры.");
     }
 
     private static string DescribeRecord(ChangeRecord r) =>
@@ -985,7 +984,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (result is null) return;
         var check = result.VerificationText is { } v ? " " + v : "";
         // Only values actually put back count as returned; hand-overs left a later change working and the system as it was.
-        var counts = RestoreFormat.RevertCounts(result, "Возвращено параметров");
+        var counts = RestoreFormat.RevertCounts(result, Loc.T("Возвращено параметров"));
         var left = RestoreFormat.LeftText(result.Left, UserScope.CurrentSid, UserScope.CachedAccountName);
         var tail = left.Length > 0 ? " " + left : "";
         if (!result.JournalSaved)
@@ -999,15 +998,15 @@ public sealed partial class OptimizeViewModel : PageViewModel
         else if (result.Success)
         {
             await Ui.AlertAsync("ОТКАТ НЕ СОВПАЛ С ИСХОДНЫМ",
-                $"{counts}{check} После отката MONOLITH прочитал значения заново: эти отличаются от исходных " +
-                "(их могла сразу изменить Windows, политика или другая программа). Подробности — в разделе «Восстановление»." + tail,
+                counts + check + Loc.T(" После отката MONOLITH прочитал значения заново: эти отличаются от исходных " +
+                "(их могла сразу изменить Windows, политика или другая программа). Подробности — в разделе «Восстановление».") + tail,
                 result.Mismatches);
         }
         else
         {
             await Ui.AlertAsync("ОТКАТ С ОШИБКАМИ",
-                $"{counts} Не удалось: {result.Failed}.{check} Повторить можно здесь или в разделе «Восстановление»." + tail,
-                result.Errors.Concat(result.Mismatches.Select(m => "НЕ СОВПАДАЕТ · " + m)));
+                counts + Loc.Tf(" Не удалось: {0}.", result.Failed) + check + Loc.T(" Повторить можно здесь или в разделе «Восстановление».") + tail,
+                result.Errors.Concat(result.Mismatches.Select(m => Loc.T("НЕ СОВПАДАЕТ · ") + m)));
         }
         if (result.Restored == 0) return; // nothing changed in the system: no restart to offer
         var restart = targets.Select(t => t.Tweak.Restart).DefaultIfEmpty(RestartRequirement.None).Max();
@@ -1025,18 +1024,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 var ok = await Ui.ConfirmAsync("ПЕРЕЗАПУСТИТЬ ПРОВОДНИК?",
                     "Часть изменений вступит в силу после перезапуска Проводника. Панель задач и рабочий стол пропадут на несколько секунд и вернутся сами.",
                     [
-                        "Открытые окна папок закроются.",
-                        "Незавершённое копирование или перемещение файлов в Проводнике прервётся.",
-                        "Программы и документы останутся открытыми.",
+                        Loc.T("Открытые окна папок закроются."),
+                        Loc.T("Незавершённое копирование или перемещение файлов в Проводнике прервётся."),
+                        Loc.T("Программы и документы останутся открытыми."),
                     ],
                     confirmText: "ПЕРЕЗАПУСТИТЬ", cancelText: "ПОЗЖЕ");
                 if (!ok)
                 {
-                    Postpone(kind, "Изменения интерфейса вступят в силу после перезапуска Проводника или выхода из системы.");
+                    Postpone(kind, Loc.T("Изменения интерфейса вступят в силу после перезапуска Проводника или выхода из системы."));
                     return;
                 }
                 SessionActionResult? r = null;
-                await RunBusyAsync(OperationClass.Disruptive, "Перезапуск Проводника…", async () => r = await SessionActions.RestartExplorerAsync());
+                await RunBusyAsync(OperationClass.Disruptive, Loc.T("Перезапуск Проводника…"), async () => r = await SessionActions.RestartExplorerAsync());
                 if (r is null)
                 {
                     Postpone(kind, null);
@@ -1050,18 +1049,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
             case RestartRequirement.Reboot:
             {
                 var signOut = kind == RestartRequirement.SignOut;
-                var ok = await Ui.ConfirmAsync(signOut ? "НУЖЕН ВЫХОД ИЗ СИСТЕМЫ" : "НУЖНА ПЕРЕЗАГРУЗКА",
+                var ok = await Ui.ConfirmAsync(signOut ? Loc.T("НУЖЕН ВЫХОД ИЗ СИСТЕМЫ") : Loc.T("НУЖНА ПЕРЕЗАГРУЗКА"),
                     signOut
-                        ? "Часть изменений вступит в силу после выхода из системы и повторного входа. Перезагрузка тоже подойдёт."
-                        : "Часть изменений вступит в силу только после перезагрузки компьютера.",
+                        ? Loc.T("Часть изменений вступит в силу после выхода из системы и повторного входа. Перезагрузка тоже подойдёт.")
+                        : Loc.T("Часть изменений вступит в силу только после перезагрузки компьютера."),
                     confirmText: "ПЕРЕЗАГРУЗИТЬ СЕЙЧАС", cancelText: "ПОЗЖЕ");
                 if (ok)
                 {
                     var sure = await Ui.ConfirmAsync("ПЕРЕЗАГРУЗИТЬ КОМПЬЮТЕР?",
-                        $"Сохраните открытые документы. Через {SessionActions.RebootDelaySeconds} секунд после подтверждения Windows закроет все программы и перезагрузится.",
+                        Loc.Tf("Сохраните открытые документы. Через {0} секунд после подтверждения Windows закроет все программы и перезагрузится.", SessionActions.RebootDelaySeconds),
                         [
-                            "Несохранённые данные в открытых программах будут потеряны.",
-                            $"Передумали — нажмите Win+R, введите shutdown /a и нажмите Enter (в течение {SessionActions.RebootDelaySeconds} секунд).",
+                            Loc.T("Несохранённые данные в открытых программах будут потеряны."),
+                            Loc.Tf("Передумали — нажмите Win+R, введите shutdown /a и нажмите Enter (в течение {0} секунд).", SessionActions.RebootDelaySeconds),
                         ],
                         confirmText: "ПЕРЕЗАГРУЗИТЬ", cancelText: "ОТМЕНА", danger: true);
                     if (sure)
@@ -1073,8 +1072,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
                     }
                 }
                 Postpone(kind, signOut
-                    ? "Изменения вступят в силу после выхода из системы или перезагрузки."
-                    : "Изменения вступят в силу после перезагрузки.");
+                    ? Loc.T("Изменения вступят в силу после выхода из системы или перезагрузки.")
+                    : Loc.T("Изменения вступят в силу после перезагрузки."));
                 return;
             }
         }

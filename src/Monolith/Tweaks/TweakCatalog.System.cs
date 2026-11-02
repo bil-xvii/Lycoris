@@ -30,17 +30,17 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "storage-sense-on",
-            Title = "Контроль памяти",
-            Description = "Windows сама удаляет временные файлы и старое содержимое корзины, когда на системном диске заканчивается место.",
-            Details = "Предустановка MONOLITH: запуск при нехватке места, удаление временных файлов приложений, очистка корзины от файлов " +
+            Title = Loc.Key("Контроль памяти"),
+            Description = Loc.T("Windows сама удаляет временные файлы и старое содержимое корзины, когда на системном диске заканчивается место."),
+            Details = Loc.T("Предустановка MONOLITH: запуск при нехватке места, удаление временных файлов приложений, очистка корзины от файлов " +
                       "старше 30 дней. Папка «Загрузки» автоматически не очищается никогда. Если вы уже настраивали Контроль памяти, ваши " +
                       "значения сохраняются — MONOLITH только включает его и заполняет пустые параметры. Отмена — откатом или в Параметрах → " +
-                      "Система → Память.",
+                      "Система → Память."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             AppliesTo = _ => LmInt(@"SOFTWARE\Policies\Microsoft\Windows\StorageSense", "AllowStorageSenseGlobal") is null or 1,
-            NotApplicableReason = "Контроль памяти отключён групповой политикой.",
+            NotApplicableReason = Loc.T("Контроль памяти отключён групповой политикой."),
             DetectFunc = () => CuInt(StoragePolicy, "01") == 1 ? TweakState.Applied : TweakState.NotApplied,
             ApplyAction = ctx =>
             {
@@ -53,10 +53,10 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "ads-silent-app-installs-off",
-            Title = "Автоустановка рекламных приложений",
-            Description = "Запрещает Windows самостоятельно загружать продвигаемые приложения и игры из Microsoft Store.",
-            Details = "Предотвращает будущие установки; уже установленные приложения не удаляются — их можно убрать в разделе «Приложения». " +
-                      "Меньше фонового трафика и нагрузки на диск после крупных обновлений.",
+            Title = Loc.Key("Автоустановка рекламных приложений"),
+            Description = Loc.T("Запрещает Windows самостоятельно загружать продвигаемые приложения и игры из Microsoft Store."),
+            Details = Loc.T("Предотвращает будущие установки; уже установленные приложения не удаляются — их можно убрать в разделе «Приложения». " +
+                      "Меньше фонового трафика и нагрузки на диск после крупных обновлений."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
@@ -73,11 +73,11 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "win32-priority-programs",
-            Title = "Приоритет активных программ",
-            Description = "Если Windows переключена в режим «Оптимизировать работу служб в фоновом режиме», возвращает приоритет программам на переднем плане.",
-            Details = "Параметр из Свойств системы → Быстродействие → Дополнительно. На обычной системе он уже правильный, и пункт ничего " +
+            Title = Loc.Key("Приоритет активных программ"),
+            Description = Loc.T("Если Windows переключена в режим «Оптимизировать работу служб в фоновом режиме», возвращает приоритет программам на переднем плане."),
+            Details = Loc.T("Параметр из Свойств системы → Быстродействие → Дополнительно. На обычной системе он уже правильный, и пункт ничего " +
                       "не меняет. «Игровые» значения Win32PrioritySeparation из интернета (0x28, 0x2A, 0x16) MONOLITH не ставит: их польза " +
-                      "не подтверждена. Действует сразу.",
+                      "не подтверждена. Действует сразу."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Optional,
             DetectFunc = () => LmInt(@"SYSTEM\CurrentControlSet\Control\PriorityControl", "Win32PrioritySeparation") == 0x18
@@ -93,10 +93,10 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "startup-delay-off",
-            Title = "Без задержки автозагрузки",
-            Description = "Программы из автозагрузки запускаются сразу после входа, без искусственной паузы Windows.",
-            Details = "Параметр не документирован Microsoft. На играх не сказывается; на медленных дисках рабочий стол сразу после входа " +
-                      "может откликаться хуже, пока стартуют программы. Действует со следующего входа.",
+            Title = Loc.Key("Без задержки автозагрузки"),
+            Description = Loc.T("Программы из автозагрузки запускаются сразу после входа, без искусственной паузы Windows."),
+            Details = Loc.T("Параметр не документирован Microsoft. На играх не сказывается; на медленных дисках рабочий стол сразу после входа " +
+                      "может откликаться хуже, пока стартуют программы. Действует со следующего входа."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Optional,
             Values =
@@ -109,15 +109,15 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "background-apps-consumer-off",
-            Title = "Фоновая работа ненужных приложений",
-            Description = "Запрещает фоновую работу предустановленным приложениям: Новости, Погода, Clipchamp, «Техническая поддержка», Solitaire.",
-            Details = "Действует только на установленные приложения из этого списка; Xbox, Game Bar и «Безопасность Windows» не затрагиваются. " +
+            Title = Loc.Key("Фоновая работа ненужных приложений"),
+            Description = Loc.T("Запрещает фоновую работу предустановленным приложениям: Новости, Погода, Clipchamp, «Техническая поддержка», Solitaire."),
+            Details = Loc.T("Действует только на установленные приложения из этого списка; Xbox, Game Bar и «Безопасность Windows» не затрагиваются. " +
                       "Выигрыш небольшой — Windows и так ограничивает такие приложения, — но они перестают обновляться и присылать уведомления " +
-                      "в фоне. Приложения работают как обычно, когда вы их открываете.",
+                      "в фоне. Приложения работают как обычно, когда вы их открываете."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Optional,
             AppliesTo = _ => InstalledConsumerApps().Count > 0,
-            NotApplicableReason = "Приложения из списка не установлены.",
+            NotApplicableReason = Loc.T("Приложения из списка не установлены."),
             DetectFunc = () =>
             {
                 var apps = InstalledConsumerApps();
@@ -138,20 +138,20 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "edge-background-off",
-            Title = "Microsoft Edge без фонового запуска",
-            Description = "Политики Edge запрещают «ускорение запуска» (процессы Edge при входе в Windows) и работу Edge в фоне после " +
-                          "закрытия последнего окна.",
-            Details = "Официальные политики Microsoft StartupBoostEnabled и BackgroundModeEnabled. Сам Edge, его обновления и WebView2 " +
+            Title = Loc.Key("Microsoft Edge без фонового запуска"),
+            Description = Loc.T("Политики Edge запрещают «ускорение запуска» (процессы Edge при входе в Windows) и работу Edge в фоне после " +
+                          "закрытия последнего окна."),
+            Details = Loc.T("Официальные политики Microsoft StartupBoostEnabled и BackgroundModeEnabled. Сам Edge, его обновления и WebView2 " +
                       "(виджеты, Teams, лаунчеры игр) не затрагиваются. Эффект скромный и на FPS не влияет: Microsoft называет нагрузку от " +
                       "ускорения запуска ограниченной и включает его автоматически только тем, кто часто открывает Edge, а фоновый режим и " +
                       "так выключен по умолчанию — политика лишь закрепляет это. Цена: первый запуск Edge после входа медленнее, сайты и " +
                       "установленные веб-приложения не присылают уведомления, пока Edge закрыт, а в edge://settings/system эти переключатели " +
                       "станут недоступны с пометкой «Управляется вашей организацией». Откат удаляет политики — Edge вернётся к вашим " +
-                      "настройкам.",
+                      "настройкам."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Optional,
             AppliesTo = _ => IsEdgeInstalled(),
-            NotApplicableReason = "Microsoft Edge не установлен.",
+            NotApplicableReason = Loc.T("Microsoft Edge не установлен."),
             Values =
             [
                 Lm(EdgePolicy, "StartupBoostEnabled", 0),
@@ -162,15 +162,15 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "background-apps-global-off",
-            Title = "Запретить фоновые приложения",
-            Description = "Глобальный переключатель Windows 10: приложения из Microsoft Store не работают в фоне.",
-            Details = "Касается только приложений Store; обычные программы (Steam, Discord, лаунчеры) не затрагиваются. Уведомления и " +
-                      "синхронизация таких приложений приходят, только пока они открыты. Действует после выхода из системы.",
+            Title = Loc.Key("Запретить фоновые приложения"),
+            Description = Loc.T("Глобальный переключатель Windows 10: приложения из Microsoft Store не работают в фоне."),
+            Details = Loc.T("Касается только приложений Store; обычные программы (Steam, Discord, лаунчеры) не затрагиваются. Уведомления и " +
+                      "синхронизация таких приложений приходят, только пока они открыты. Действует после выхода из системы."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.SignOut,
             AppliesTo = sp => !sp.IsWindows11,
-            NotApplicableReason = "Только для Windows 10 — в Windows 11 этот переключатель удалён.",
+            NotApplicableReason = Loc.T("Только для Windows 10 — в Windows 11 этот переключатель удалён."),
             Values =
             [
                 Cu(BackgroundAccess, "GlobalUserDisabled", 1),
@@ -183,11 +183,11 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "wu-active-hours",
-            Title = "Период активности 08:00–02:00",
-            Description = "Центр обновления не будет перезагружать компьютер с 8:00 утра до 2:00 ночи.",
-            Details = "Отключает автоматический подбор периода активности и задаёт максимальный разрешённый интервал — 18 часов. Обновления " +
+            Title = Loc.Key("Период активности 08:00–02:00"),
+            Description = Loc.T("Центр обновления не будет перезагружать компьютер с 8:00 утра до 2:00 ночи."),
+            Details = Loc.T("Отключает автоматический подбор периода активности и задаёт максимальный разрешённый интервал — 18 часов. Обновления " +
                       "по-прежнему скачиваются и устанавливаются; перезагрузка переносится на ночь. Время можно изменить в Параметрах → " +
-                      "Центр обновления Windows → Дополнительные параметры. Игровой режим и так не даёт перезагружаться во время игры.",
+                      "Центр обновления Windows → Дополнительные параметры. Игровой режим и так не даёт перезагружаться во время игры."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
             DefaultIn = ProfileSet.Normal, // SAFE-OPTIONAL pre-check of «Работа и учёба»: no restarts during the working day
@@ -205,17 +205,17 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = DeferFeatureUpdatesId,
-            Title = "Отложить крупные обновления на 90 дней",
-            Description = "Ежегодные обновления функций (например, 24H2 → 25H2) приходят через 90 дней после выхода; обновления безопасности — как обычно.",
-            Details = "За это время Microsoft и производители драйверов исправляют проблемы новой версии, в том числе с играми и античитами. " +
+            Title = Loc.Key("Отложить крупные обновления на 90 дней"),
+            Description = Loc.T("Ежегодные обновления функций (например, 24H2 → 25H2) приходят через 90 дней после выхода; обновления безопасности — как обычно."),
+            Details = Loc.T("За это время Microsoft и производители драйверов исправляют проблемы новой версии, в том числе с играми и античитами. " +
                       "Используется политика Центра обновления, поэтому в Параметрах появится надпись «Некоторыми параметрами управляет ваша " +
                       "организация». Работает в Pro и старших редакциях. Выбирается вместо пункта «Остаться на текущей версии Windows 11» — " +
-                      "если тот уже применён, сначала откатите его.",
+                      "если тот уже применён, сначала откатите его."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
             ExclusiveGroup = WuFeatureUpdatesGroup,
             AppliesTo = sp => !IsHomeEdition(sp.OsEdition),
-            NotApplicableReason = "Windows Home не поддерживает отсрочку обновлений.",
+            NotApplicableReason = Loc.T("Windows Home не поддерживает отсрочку обновлений."),
             DetectFunc = () => StateOf(DeferFeatureUpdatesValues.Count(Matches), DeferFeatureUpdatesValues.Count),
             ApplyAction = ApplyDeferFeatureUpdates,
         };
@@ -229,8 +229,9 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = UpdatePinId,
-            Title = TitleFor(installedVersion),
-            Description = "Ежемесячные обновления безопасности приходят как обычно, а ежегодное обновление функций ждёт, пока вы не снимете пункт.",
+            Title = Ru(() => TitleFor(installedVersion)),
+            TitleDisplay = () => TitleFor(installedVersion),
+            Description = Loc.T("Ежемесячные обновления безопасности приходят как обычно, а ежегодное обновление функций ждёт, пока вы не снимете пункт."),
             Details = UpdatePinDetails(installedVersion),
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
@@ -238,8 +239,8 @@ public static partial class TweakCatalog
             // The row stays while a pin is in place (whoever set it), so an applied pin keeps its state and its ОТКАТИТЬ after the
             // version's end of servicing — exactly when the Dashboard sends the user here; a fresh pin is refused in ApplyUpdatePin.
             AppliesTo = sp => IsUpdatePinRowShown(sp.OsEdition, sp.OsDisplayVersion, UpdatePinToday(), ReadUpdatePinnedTo()),
-            NotApplicableReason = "Только для Pro и старших редакций и для выпущенных версий Windows 11 с известной и ещё не наступившей " +
-                                  "датой окончания поддержки.",
+            NotApplicableReason = Loc.T("Только для Pro и старших редакций и для выпущенных версий Windows 11 с известной и ещё не наступившей " +
+                                  "датой окончания поддержки."),
             DetectFunc = DetectUpdatePin,
             ApplyAction = ApplyUpdatePin,
         };
@@ -247,16 +248,16 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "wu-exclude-drivers",
-            Title = "Не ставить драйверы через Центр обновления",
-            Description = "Центр обновления перестаёт устанавливать драйверы вместе с ежемесячными обновлениями.",
-            Details = "Полезно, если Windows Update заменяет установленный вами драйвер видеокарты старым. Обновления самой Windows " +
-                      "продолжают приходить. Драйверы обновляйте вручную — в разделе «Драйверы» MONOLITH или на сайте производителя.",
+            Title = Loc.Key("Не ставить драйверы через Центр обновления"),
+            Description = Loc.T("Центр обновления перестаёт устанавливать драйверы вместе с ежемесячными обновлениями."),
+            Details = Loc.T("Полезно, если Windows Update заменяет установленный вами драйвер видеокарты старым. Обновления самой Windows " +
+                      "продолжают приходить. Драйверы обновляйте вручную — в разделе «Драйверы» MONOLITH или на сайте производителя."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Advanced,
-            Warning = "Windows перестанет сама ставить любые драйверы, включая полезные (чипсет, Wi-Fi, принтеры, исправления безопасности). " +
-                      "Следить за драйверами придётся вам.",
+            Warning = Loc.T("Windows перестанет сама ставить любые драйверы, включая полезные (чипсет, Wi-Fi, принтеры, исправления безопасности). " +
+                      "Следить за драйверами придётся вам."),
             AppliesTo = sp => !IsHomeEdition(sp.OsEdition),
-            NotApplicableReason = "Windows Home не поддерживает эту политику.",
+            NotApplicableReason = Loc.T("Windows Home не поддерживает эту политику."),
             Values = [Lm(WindowsUpdatePolicy, "ExcludeWUDriversInQualityUpdate", 1)],
         };
 
@@ -266,20 +267,20 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "trim-on",
-            Title = "TRIM для SSD включён",
-            Description = "Если TRIM (уведомления об удалении) для NTFS кто-то отключил, включает его обратно: SSD снова узнаёт об " +
-                          "освобождённых блоках.",
-            Details = "TRIM в Windows включён по умолчанию; его часто выключают сторонние «оптимизаторы». Без него SSD со временем " +
+            Title = Loc.Key("TRIM для SSD включён"),
+            Description = Loc.T("Если TRIM (уведомления об удалении) для NTFS кто-то отключил, включает его обратно: SSD снова узнаёт об " +
+                          "освобождённых блоках."),
+            Details = Loc.T("TRIM в Windows включён по умолчанию; его часто выключают сторонние «оптимизаторы». Без него SSD со временем " +
                       "медленнее записывает данные. На исправной системе пункт ничего не меняет. Меняется только параметр NTFS " +
                       "(DisableDeleteNotification = 0, то же, что «fsutil behavior set DisableDeleteNotify 0»); параметр ReFS, в том числе " +
                       "для Dev Drive, MONOLITH не трогает — там TRIM выключен Microsoft намеренно. Microsoft отмечает, что на отдельных " +
                       "накопителях с TRIM производительность падает: если вы выключали его из-за этого, откатите пункт — прежнее значение " +
-                      "вернётся. Если TRIM задан групповой политикой, пункт не предлагается. Перезагрузка не нужна.",
+                      "вернётся. Если TRIM задан групповой политикой, пункт не предлагается. Перезагрузка не нужна."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             AppliesTo = sp => sp.Disks.Any(d => d.IsSsd) && LmInt(FileSystemPolicy, "DisableDeleteNotification") is null,
-            NotApplicableReason = "SSD не найден, либо TRIM задан групповой политикой.",
+            NotApplicableReason = Loc.T("SSD не найден, либо TRIM задан групповой политикой."),
             DetectFunc = () => NtfsTrimDisabled() ? TweakState.NotApplied : TweakState.Applied,
             ApplyAction = ctx =>
             {
@@ -291,17 +292,17 @@ public static partial class TweakCatalog
         yield return new ScheduledTaskTweak
         {
             Id = "drive-optimize-schedule-on",
-            Title = "Оптимизация дисков по расписанию",
-            Description = "Если стандартную задачу «Оптимизация дисков» по расписанию отключили, включает её обратно.",
-            Details = "Это задача Windows \\Microsoft\\Windows\\Defrag\\ScheduledDefrag, по умолчанию включена: по расписанию (обычно раз " +
+            Title = Loc.Key("Оптимизация дисков по расписанию"),
+            Description = Loc.T("Если стандартную задачу «Оптимизация дисков» по расписанию отключили, включает её обратно."),
+            Details = Loc.T("Это задача Windows \\Microsoft\\Windows\\Defrag\\ScheduledDefrag, по умолчанию включена: по расписанию (обычно раз " +
                       "в неделю) Windows оптимизирует диски — HDD дефрагментируются, а SSD раз в месяц получают повторный TRIM и, по правилам " +
                       "Microsoft, при необходимости обычную дефрагментацию (чаще всего при включённых точках восстановления) — так задумано " +
                       "Windows. Задачу отключают некоторые «оптимизаторы», но выключить расписание можно и штатно в окне " +
                       "«Оптимизация дисков», поэтому пункт не входит в профили — включайте, если отключали не вы. На исправной системе " +
-                      "пункт ничего не меняет. Откат возвращает прежнее состояние задачи.",
+                      "пункт ничего не меняет. Откат возвращает прежнее состояние задачи."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
-            NotApplicableReason = "Задачи «Оптимизация дисков» нет в этой системе.",
+            NotApplicableReason = Loc.T("Задачи «Оптимизация дисков» нет в этой системе."),
             Enable = true,
             Tasks = [@"\Microsoft\Windows\Defrag\ScheduledDefrag"],
         };
@@ -309,15 +310,15 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "ntfs-last-access-off",
-            Title = "Не обновлять время последнего доступа",
-            Description = "NTFS перестаёт записывать время последнего открытия файлов (как fsutil behavior set disablelastaccess 1).",
-            Details = "На SSD/NVMe выигрыш ничтожный: NTFS и так обновляет это время пакетно, не чаще раза в час. Исходное значение " +
-                      "параметра сохраняется и возвращается при откате. Нужна перезагрузка.",
+            Title = Loc.Key("Не обновлять время последнего доступа"),
+            Description = Loc.T("NTFS перестаёт записывать время последнего открытия файлов (как fsutil behavior set disablelastaccess 1)."),
+            Details = Loc.T("На SSD/NVMe выигрыш ничтожный: NTFS и так обновляет это время пакетно, не чаще раза в час. Исходное значение " +
+                      "параметра сохраняется и возвращается при откате. Нужна перезагрузка."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Advanced,
             Restart = RestartRequirement.Reboot,
-            Warning = "Программы резервного копирования, удалённого хранения и очистки «давно не открытых» файлов могут работать неверно. " +
-                      "Ускорения на SSD практически нет.",
+            Warning = Loc.T("Программы резервного копирования, удалённого хранения и очистки «давно не открытых» файлов могут работать неверно. " +
+                      "Ускорения на SSD практически нет."),
             // Bit 0 = last access updates disabled (0x1, 0x80000001 user managed; 0x80000003 system managed).
             DetectFunc = () => LastAccessDisabled() ? TweakState.Applied : TweakState.NotApplied,
             ApplyAction = ctx =>
@@ -331,12 +332,12 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "pagefile-system-managed",
-            Title = "Файл подкачки: автоматический размер",
-            Description = "Возвращает стандартную настройку «Автоматически выбирать объём файла подкачки».",
-            Details = "Исправление после «оптимизаторов», которые уменьшили или отключили файл подкачки. Он задаёт предел выделяемой памяти: " +
+            Title = Loc.Key("Файл подкачки: автоматический размер"),
+            Description = Loc.T("Возвращает стандартную настройку «Автоматически выбирать объём файла подкачки»."),
+            Details = Loc.T("Исправление после «оптимизаторов», которые уменьшили или отключили файл подкачки. Он задаёт предел выделяемой памяти: " +
                       "без него игры и браузеры падают с ошибкой нехватки памяти даже при свободной ОЗУ, а дампы сбоев не сохраняются. " +
                       "Если вы сознательно перенесли файл подкачки на другой диск, этот пункт не нужен. Прежняя конфигурация запоминается " +
-                      "для отката. Нужна перезагрузка.",
+                      "для отката. Нужна перезагрузка."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.Reboot,
@@ -350,16 +351,16 @@ public static partial class TweakCatalog
         yield return new RegistryTweak
         {
             Id = "search-index-on-battery-off",
-            Title = "Не индексировать файлы от батареи",
-            Description = "Служба поиска Windows приостанавливает индексацию, пока ноутбук работает от батареи.",
-            Details = "Немного продлевает работу от батареи; при подключении к сети индексация продолжается. Используется официальная " +
-                      "политика Windows Search.",
+            Title = Loc.Key("Не индексировать файлы от батареи"),
+            Description = Loc.T("Служба поиска Windows приостанавливает индексацию, пока ноутбук работает от батареи."),
+            Details = Loc.T("Немного продлевает работу от батареи; при подключении к сети индексация продолжается. Используется официальная " +
+                      "политика Windows Search."),
             Category = TweakCategory.Power,
             Risk = TweakRisk.Optional,
             DefaultIn = ProfileSet.Efficiency, // «Ноутбук: автономность» (laptop-only by AppliesTo)
             Restart = RestartRequirement.Reboot,
             AppliesTo = sp => sp.IsLaptop,
-            NotApplicableReason = "Только для ноутбуков.",
+            NotApplicableReason = Loc.T("Только для ноутбуков."),
             Values = [Lm(@"SOFTWARE\Policies\Microsoft\Windows\Windows Search", "PreventIndexOnBattery", 1)],
         };
 
@@ -367,19 +368,19 @@ public static partial class TweakCatalog
         yield return new CustomTweak
         {
             Id = "hvci-off",
-            Title = "Отключить целостность памяти (HVCI)",
-            Description = "Отключает «Целостность памяти» (Безопасность Windows → Безопасность устройства → Изоляция ядра).",
-            Details = "Microsoft признаёт, что целостность памяти может снижать производительность в играх «в некоторых сценариях»: в тестах " +
+            Title = Loc.Key("Отключить целостность памяти (HVCI)"),
+            Description = Loc.T("Отключает «Целостность памяти» (Безопасность Windows → Безопасность устройства → Изоляция ядра)."),
+            Details = Loc.T("Microsoft признаёт, что целостность памяти может снижать производительность в играх «в некоторых сценариях»: в тестах " +
                       "потери 0–10 %, в среднем около 5 %, на новых процессорах меньше. Сама виртуализация (VBS) не отключается. " +
-                      "Включить обратно можно откатом или переключателем в Безопасности Windows. Нужна перезагрузка.",
+                      "Включить обратно можно откатом или переключателем в Безопасности Windows. Нужна перезагрузка."),
             Category = TweakCategory.Performance,
             Risk = TweakRisk.Advanced,
             Restart = RestartRequirement.Reboot,
-            Warning = "Снижает защиту ядра от эксплойтов и отключает блокировку уязвимых драйверов. Некоторые античиты (Riot Vanguard, " +
+            Warning = Loc.T("Снижает защиту ядра от эксплойтов и отключает блокировку уязвимых драйверов. Некоторые античиты (Riot Vanguard, " +
                       "FACEIT) требуют включённую целостность памяти — такие игры могут перестать запускаться. Включайте, только если " +
-                      "понимаете риск.",
+                      "понимаете риск."),
             AppliesTo = _ => LmInt(HvciKey, "Locked") != 1 && !RegistryHelper.KeyExists(RegHive.HKLM, @"SOFTWARE\Policies\Microsoft\Windows\DeviceGuard"),
-            NotApplicableReason = "Целостность памяти заблокирована в UEFI или управляется политикой.",
+            NotApplicableReason = Loc.T("Целостность памяти заблокирована в UEFI или управляется политикой."),
             DetectFunc = () => LmInt(HvciKey, "Enabled") == 1 ? TweakState.NotApplied : TweakState.Applied,
             ApplyAction = ctx =>
             {
@@ -513,7 +514,7 @@ public static partial class TweakCatalog
     internal static void ApplyDeferFeatureUpdates(TweakContext ctx)
     {
         if (ctx.Session.Journal.HasActiveSource("tweak:" + UpdatePinId))
-            throw new InvalidOperationException("сначала откатите «Остаться на текущей версии Windows 11» — выбирается один из двух пунктов");
+            throw new InvalidOperationException(Loc.T("сначала откатите «Остаться на текущей версии Windows 11» — выбирается один из двух пунктов"));
         foreach (var v in DeferFeatureUpdatesValues)
         {
             if (Matches(v)) continue;
@@ -523,8 +524,8 @@ public static partial class TweakCatalog
 
     internal static string TitleFor(string? displayVersion) =>
         string.IsNullOrWhiteSpace(displayVersion)
-            ? "Остаться на текущей версии Windows 11"
-            : $"Остаться на текущей версии Windows 11 ({displayVersion.Trim()})";
+            ? Loc.T("Остаться на текущей версии Windows 11")
+            : Loc.Tf("Остаться на текущей версии Windows 11 ({0})", displayVersion.Trim());
 
     /// <summary>dd.MM.yyyy, as the dashboard prints dates.</summary>
     internal static string DateText(DateOnly date) => date.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture);
@@ -532,14 +533,18 @@ public static partial class TweakCatalog
     internal static string UpdatePinDetails(string? displayVersion)
     {
         var v = string.IsNullOrWhiteSpace(displayVersion) ? null : displayVersion.Trim();
-        var support = KnownRelease(v) is { } eos
-            ? $"Текущая версия {v} получает обновления до {DateText(eos)}; "
-            : "Текущая версия получает обновления до своей даты окончания поддержки (24 месяца с выхода для Home и Pro); ";
-        return "Политика TargetReleaseVersion. " + support +
-               $"по данным Microsoft закреплённое устройство автоматически обновится лишь через {UpdatePinGraceDays} дней после этой даты — " +
-               "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. MONOLITH предупредит об этом на Дашборде за 90 дней. " +
-               "В Параметрах появится «Некоторыми параметрами управляет ваша организация». Работает в Pro и старших редакциях; " +
-               "выбирается вместо «Отложить крупные обновления на 90 дней».";
+        // One whole sentence per variant: word order of the translation must not depend on the pieces.
+        return KnownRelease(v) is { } eos
+            ? Loc.Tf("Политика TargetReleaseVersion. Текущая версия {0} получает обновления до {1}; " +
+                     "по данным Microsoft закреплённое устройство автоматически обновится лишь через {2} дней после этой даты — " +
+                     "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. MONOLITH предупредит об этом на Дашборде за 90 дней. " +
+                     "В Параметрах появится «Некоторыми параметрами управляет ваша организация». Работает в Pro и старших редакциях; " +
+                     "выбирается вместо «Отложить крупные обновления на 90 дней».", v, DateText(eos), UpdatePinGraceDays)
+            : Loc.Tf("Политика TargetReleaseVersion. Текущая версия получает обновления до своей даты окончания поддержки (24 месяца с выхода для Home и Pro); " +
+                     "по данным Microsoft закреплённое устройство автоматически обновится лишь через {0} дней после этой даты — " +
+                     "снимите пункт заранее, иначе до двух месяцев без обновлений безопасности. MONOLITH предупредит об этом на Дашборде за 90 дней. " +
+                     "В Параметрах появится «Некоторыми параметрами управляет ваша организация». Работает в Pro и старших редакциях; " +
+                     "выбирается вместо «Отложить крупные обновления на 90 дней».", UpdatePinGraceDays);
     }
 
     /// <summary>The installed version (DisplayVersion of Windows NT\CurrentVersion), read live.</summary>
@@ -572,14 +577,14 @@ public static partial class TweakCatalog
     internal static void ApplyUpdatePin(TweakContext ctx)
     {
         if (ctx.Session.Journal.HasActiveSource("tweak:" + DeferFeatureUpdatesId))
-            throw new InvalidOperationException("сначала откатите «Отложить крупные обновления на 90 дней» — выбирается один из двух пунктов");
+            throw new InvalidOperationException(Loc.T("сначала откатите «Отложить крупные обновления на 90 дней» — выбирается один из двух пунктов"));
         var installed = ReadInstalledDisplayVersion()?.Trim();
         if (string.IsNullOrWhiteSpace(installed))
-            throw new InvalidOperationException("не удалось прочитать версию Windows (DisplayVersion)");
+            throw new InvalidOperationException(Loc.T("не удалось прочитать версию Windows (DisplayVersion)"));
         if (KnownRelease(installed) is not { } eos)
-            throw new InvalidOperationException($"версия {installed} не входит в список выпущенных версий Windows 11 с известной датой окончания поддержки");
+            throw new InvalidOperationException(Loc.Tf("версия {0} не входит в список выпущенных версий Windows 11 с известной датой окончания поддержки", installed));
         if (eos < UpdatePinToday())
-            throw new InvalidOperationException($"поддержка версии {installed} закончилась {DateText(eos)} — закреплять её нельзя");
+            throw new InvalidOperationException(Loc.Tf("поддержка версии {0} закончилась {1} — закреплять её нельзя", installed, DateText(eos)));
 
         if (!string.Equals(RegistryHelper.ReadString(RegHive.HKLM, WindowsUpdatePolicy, "ProductVersion"), UpdatePinProduct, StringComparison.Ordinal))
             ctx.SetRegistry(RegHive.HKLM, WindowsUpdatePolicy, "ProductVersion", RegistryValueKind.String, UpdatePinProduct);

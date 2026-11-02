@@ -131,8 +131,8 @@ public static class TweakEngine
                          ?? t.Requires.Select(id => TweakCatalog.Find(id)?.Title).FirstOrDefault(x => x is not null)
                          ?? t.Requires.FirstOrDefault() ?? "";
         return dependencyApplied
-            ? $"{t.Title}: «{dependency}» применено, но пункт по-прежнему неприменим на этом ПК"
-            : $"{t.Title}: зависит от «{dependency}», которое не применилось";
+            ? Loc.Tf("{0}: «{1}» применено, но пункт по-прежнему неприменим на этом ПК", t.Title, dependency)
+            : Loc.Tf("{0}: зависит от «{1}», которое не применилось", t.Title, dependency);
     }
 
     /// <summary>True when any dependency of <paramref name="t"/> (from the batch, else the catalog) detects as applied.</summary>
@@ -159,7 +159,7 @@ public static class TweakEngine
             if (Applicability(t, sp) is not true)
             {
                 if (!sp.HardwareFactsKnown && t.AppliesTo is not null)
-                    Log.Warn($"{t.Title} — пропущено: не удалось определить характеристики компьютера.");
+                    Log.Warn("{0} — пропущено: не удалось определить характеристики компьютера.", t.Title);
                 skipped++;
                 continue;
             }
@@ -171,7 +171,7 @@ public static class TweakEngine
                 var reason = DependencySkipReason(t, tweaks, AnyDependencyApplied(t, tweaks));
                 skippedReasons.Add(reason);
                 skippedIds.Add(t.Id);
-                Log.Warn($"{reason} — пропущено.");
+                Log.Warn("{0} — пропущено.", reason);
                 continue;
             }
             progress?.Report(t.Title);
@@ -184,8 +184,8 @@ public static class TweakEngine
             }
             catch (Exception ex)
             {
-                session.Errors.Add($"{t.Title}: {ex.Message}");
-                Log.Error($"{t.Title} — ошибка", ex);
+                session.Errors.Add(Loc.Tf("{0}: {1}", t.Title, ex.Message));
+                Log.Error("{0} — ошибка", ex, t.Title);
             }
             if (session.Applied > before && t.Restart > restart) restart = t.Restart;
         }

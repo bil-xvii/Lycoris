@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:ui="clr-namespace:Monolith.UI"
+             xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Optimize"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:OptimizeViewModel}">
 
@@ -54,10 +55,10 @@
             <Setter Property="Height" Value="30" />
             <Setter Property="MinWidth" Value="124" />
             <Setter Property="Margin" Value="0" />
-            <Setter Property="Content" Value="ПОДРОБНЕЕ ▾" />
+            <Setter Property="Content" Value="{loc:T 'ПОДРОБНЕЕ ▾'}" />
             <Style.Triggers>
                 <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Content" Value="СКРЫТЬ ▴" />
+                    <Setter Property="Content" Value="{loc:T 'СКРЫТЬ ▴'}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -153,10 +154,10 @@
                         <TextBlock Text="{x:Static ui:Glyphs.Warning}" FontFamily="{StaticResource F.Icons}" FontSize="18" Foreground="{StaticResource B.Text}"
                                    VerticalAlignment="Center" Margin="0,0,12,0" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="Экспертные настройки" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
+                            <TextBlock Text="{loc:T 'Экспертные настройки'}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
                                        Foreground="{StaticResource B.Text}" />
                             <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,2,0,0"
-                                       Text="Реальные компромиссы: безопасность, совместимость, античиты. Не входят ни в один профиль, каждый пункт требует отдельного подтверждения." />
+                                       Text="{loc:T 'Реальные компромиссы: безопасность, совместимость, античиты. Не входят ни в один профиль, каждый пункт требует отдельного подтверждения.'}" />
                         </StackPanel>
                         <TextBlock Grid.Column="2" Text="{Binding CountText}" VerticalAlignment="Center" Margin="12,0,0,0" Style="{StaticResource T.Mono}"
                                    Foreground="{StaticResource B.Text2}" />
@@ -170,16 +171,16 @@
             <Border Margin="0,15,10,0" Background="{StaticResource B.DotGrid}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Padding="17,21"
                     CornerRadius="{StaticResource R.Lg}">
                 <StackPanel HorizontalAlignment="Left">
-                    <TextBlock x:Name="Head" Text="Ничего не найдено" Style="{StaticResource T.H1}" />
-                    <TextBlock x:Name="Body" Text="Под этот фильтр не подходит ни один пункт. Измените запрос или выберите вкладку «ВСЕ»." Style="{StaticResource T.Body}"
+                    <TextBlock x:Name="Head" Text="{loc:T 'Ничего не найдено'}" Style="{StaticResource T.H1}" />
+                    <TextBlock x:Name="Body" Text="{loc:T 'Под этот фильтр не подходит ни один пункт. Измените запрос или выберите вкладку «ВСЕ».'}" Style="{StaticResource T.Body}"
                                Margin="0,6,0,0" />
-                    <Button x:Name="Reset" Content="СБРОСИТЬ ФИЛЬТР" Command="{Binding Page.ClearFilterCommand}" HorizontalAlignment="Left" Margin="0,11,0,0" />
+                    <Button x:Name="Reset" Content="{loc:T 'СБРОСИТЬ ФИЛЬТР'}" Command="{Binding Page.ClearFilterCommand}" HorizontalAlignment="Left" Margin="0,11,0,0" />
                 </StackPanel>
             </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Page.TotalCount}" Value="0">
-                    <Setter TargetName="Head" Property="Text" Value="КАТАЛОГ ПУСТ" />
-                    <Setter TargetName="Body" Property="Text" Value="В этой сборке MONOLITH нет ни одной оптимизации. Обновите приложение." />
+                    <Setter TargetName="Head" Property="Text" Value="{loc:T 'КАТАЛОГ ПУСТ'}" />
+                    <Setter TargetName="Body" Property="Text" Value="{loc:T 'В этой сборке MONOLITH нет ни одной оптимизации. Обновите приложение.'}" />
                     <Setter TargetName="Reset" Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </DataTemplate.Triggers>
@@ -222,11 +223,11 @@
                             <!-- «сейчас → станет» is always visible (never behind ПОДРОБНЕЕ) -->
                             <TextBlock Margin="0,6,0,0" FontFamily="{StaticResource F.Mono}" FontSize="12" TextWrapping="Wrap"
                                        Visibility="{Binding HasPreview, Converter={StaticResource BoolToVis}}">
-                                <Run Text="сейчас " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding PreviewCurrent, Mode=OneWay}"
+                                <Run Text="{loc:T 'сейчас '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding PreviewCurrent, Mode=OneWay}"
                                      Foreground="{StaticResource B.Text2}" /><Run Text="  →  " Foreground="{StaticResource B.Text3}" /><Run
-                                     Text="станет " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding PreviewNew, Mode=OneWay}"
+                                     Text="{loc:T 'станет '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding PreviewNew, Mode=OneWay}"
                                      Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run Text="{Binding PreviewMore, Mode=OneWay}"
-                                     Foreground="{StaticResource B.Text3}" /><Run Text="   ·   откат: кнопка «ОТКАТИТЬ» или «Восстановление»" Foreground="{StaticResource B.Text3}"
+                                     Foreground="{StaticResource B.Text3}" /><Run Text="{loc:T '   ·   откат: кнопка «ОТКАТИТЬ» или «Восстановление»'}" Foreground="{StaticResource B.Text3}"
                                      FontFamily="{StaticResource F.Body}" />
                             </TextBlock>
 
@@ -240,7 +241,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Border Background="{StaticResource B.HatchStrong}" />
                                     <StackPanel Grid.Column="1" Margin="9,8">
-                                        <TextBlock Text="РИСК" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                        <TextBlock Text="{loc:T 'РИСК'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                         <TextBlock Text="{Binding WarningText}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>
@@ -276,7 +277,7 @@
                                 <StackPanel>
                                     <TextBlock Text="{Binding Details}" Style="{StaticResource T.Body}" Margin="0,0,0,10"
                                                Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}" />
-                                    <TextBlock Text="ЧТО ИЗМЕНИТСЯ" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T 'ЧТО ИЗМЕНИТСЯ'}" Style="{StaticResource T.Label}" />
                                     <ItemsControl ItemsSource="{Binding Changes}" Margin="0,8,0,0" Focusable="False"
                                                   Visibility="{Binding HasPlannedChanges, Converter={StaticResource BoolToVis}}">
                                         <ItemsControl.ItemTemplate>
@@ -285,9 +286,9 @@
                                                     <TextBlock Text="{Binding Target}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text}"
                                                                TextWrapping="Wrap" />
                                                     <TextBlock Margin="0,3,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11.5" TextWrapping="Wrap">
-                                                        <Run Text="сейчас " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Current, Mode=OneWay}"
+                                                        <Run Text="{loc:T 'сейчас '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Current, Mode=OneWay}"
                                                              Foreground="{StaticResource B.Text2}" /><Run Text="  →  " Foreground="{StaticResource B.Text3}" /><Run
-                                                             Text="станет " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding New, Mode=OneWay}"
+                                                             Text="{loc:T 'станет '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding New, Mode=OneWay}"
                                                              Foreground="{StaticResource B.Text}" FontWeight="Bold" />
                                                     </TextBlock>
                                                 </StackPanel>
@@ -296,9 +297,9 @@
                                     </ItemsControl>
                                     <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0"
                                                Visibility="{Binding HasPlannedChanges, Converter={StaticResource InverseBoolToVis}}"
-                                               Text="Особая процедура: каждый её шаг записывается в журнал при применении и откатывается из него." />
+                                               Text="{loc:T 'Особая процедура: каждый её шаг записывается в журнал при применении и откатывается из него.'}" />
 
-                                    <TextBlock Text="КАК ОТКАТИТЬ" Style="{StaticResource T.Label}" Margin="0,10,0,0" />
+                                    <TextBlock Text="{loc:T 'КАК ОТКАТИТЬ'}" Style="{StaticResource T.Label}" Margin="0,10,0,0" />
                                     <TextBlock Text="{Binding UndoText}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" />
                                 </StackPanel>
                             </Border>
@@ -311,7 +312,7 @@
                                 <TextBlock Text="{Binding StateText}" Style="{StaticResource Opt.StateText}" Margin="9,0,0,0" />
                             </StackPanel>
                             <Border Style="{StaticResource Tag.Solid}" Margin="0,9,0,0" Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="ИЗМЕНИТСЯ" />
+                                <TextBlock Text="{loc:T 'ИЗМЕНИТСЯ'}" />
                             </Border>
                         </StackPanel>
 
@@ -322,7 +323,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center"
                                                Margin="0,0,7,0" />
-                                    <TextBlock Text="ОТКАТИТЬ" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'ОТКАТИТЬ'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <ToggleButton Style="{StaticResource Opt.DetailsToggle}" IsChecked="{Binding IsExpanded}" />
@@ -358,13 +359,13 @@
                 <Button Click="OnProfileMenuClick">
                     <Button.ContextMenu>
                         <ContextMenu Placement="Bottom">
-                            <MenuItem Header="ЭКСПОРТ ВЫБОРА В ФАЙЛ…" Command="{Binding ExportProfileCommand}" />
-                            <MenuItem Header="ИМПОРТ ВЫБОРА ИЗ ФАЙЛА…" Command="{Binding ImportProfileCommand}" />
+                            <MenuItem Header="{loc:T 'ЭКСПОРТ ВЫБОРА В ФАЙЛ…'}" Command="{Binding ExportProfileCommand}" />
+                            <MenuItem Header="{loc:T 'ИМПОРТ ВЫБОРА ИЗ ФАЙЛА…'}" Command="{Binding ImportProfileCommand}" />
                         </ContextMenu>
                     </Button.ContextMenu>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Save}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
-                        <TextBlock Text="ФАЙЛ ПРОФИЛЯ" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T 'ФАЙЛ ПРОФИЛЯ'}" Margin="8,0,0,0" VerticalAlignment="Center" />
                         <TextBlock Text="▾" Margin="8,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
@@ -404,16 +405,16 @@
                                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                             <!-- Counters on two fixed lines: six tiles never wrap them at different places. -->
                             <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
-                                <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run Text=" к изменению" />
+                                <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run Text="{loc:T ' к изменению'}" />
                             </TextBlock>
                             <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
-                                <Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text=" применено" />
+                                <Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text="{loc:T ' применено'}" />
                             </TextBlock>
                             <StackPanel Margin="0,8,0,0">
                                 <!-- Outlined on every tile: the one white button is the sticky bar; the selected tile is shown by its frame and «ВЫБРАН» -->
                                 <Button Command="{Binding ActCommand}" Content="{Binding ActText}" HorizontalAlignment="Stretch" />
                                 <TextBlock Margin="0,5,0,0" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" HorizontalAlignment="Center"
-                                           Text="ВЫБРАН" Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
+                                           Text="{loc:T 'ВЫБРАН'}" Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
                                 <TextBlock Margin="0,5,0,0" Style="{StaticResource T.Caption}" Text="{Binding ActNote}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
                                            Visibility="{Binding IsSelected, Converter={StaticResource InverseBoolToVis}}" />
                             </StackPanel>
@@ -461,12 +462,12 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid Width="320" Margin="0,0,10,0">
-                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="Поиск по названию, описанию, id" Padding="10,0,22,0" />
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="{loc:T 'Поиск по названию, описанию, id'}" Padding="10,0,22,0" />
                     <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
                                HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0" IsHitTestVisible="False"
                                Visibility="{Binding HasSearch, Converter={StaticResource InverseBoolToVis}}" />
                 </Grid>
-                <Button Grid.Column="1" Content="ОЧИСТИТЬ ПОИСК" Command="{Binding ClearSearchCommand}" Margin="0,0,10,0"
+                <Button Grid.Column="1" Content="{loc:T 'ОЧИСТИТЬ ПОИСК'}" Command="{Binding ClearSearchCommand}" Margin="0,0,10,0"
                         Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}" />
                 <ToggleButton Grid.Column="2" Style="{StaticResource Chip.Toggle}" Height="30" IsChecked="{Binding OnlyPending}" Content="{Binding OnlyPendingText}" />
                 <TextBlock Grid.Column="3" Text="{Binding ShownSummary}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
@@ -513,7 +514,7 @@
                                 <TextBlock Text="{Binding PendingRestartText}" Margin="8,0,0,0" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Margin="0,0,8,0" Content="СНЯТЬ ВЫБОР" Command="{Binding ClearSelectionCommand}" />
+                        <Button Margin="0,0,8,0" Content="{loc:T 'СНЯТЬ ВЫБОР'}" Command="{Binding ClearSelectionCommand}" />
                         <Button Style="{StaticResource Btn.Hero}" MinWidth="190" Command="{Binding ApplyCommand}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="15" VerticalAlignment="Center" />

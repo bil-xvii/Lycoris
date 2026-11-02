@@ -58,14 +58,14 @@ public sealed class TweakContext
     public string Source => "tweak:" + Tweak.Id;
 
     public bool SetRegistry(RegHive hive, string path, string name, RegistryValueKind kind, object? value)
-        => Session.SetRegistry(hive, path, name, kind, value, Source, Tweak.Title);
+        => Session.SetRegistry(hive, path, name, kind, value, Source, Tweak.TitleRu);
 
     public bool SetService(string service, ServiceStartMode mode, bool delayed = false)
-        => Session.SetServiceStart(service, mode, Source, Tweak.Title, delayed);
+        => Session.SetServiceStart(service, mode, Source, Tweak.TitleRu, delayed);
 
-    public bool SetTask(string taskPath, bool enabled) => Session.SetTaskEnabled(taskPath, enabled, Source, Tweak.Title);
+    public bool SetTask(string taskPath, bool enabled) => Session.SetTaskEnabled(taskPath, enabled, Source, Tweak.TitleRu);
 
-    public bool SetPowerScheme(Guid scheme, Guid? created = null) => Session.SetPowerScheme(scheme, Source, Tweak.Title, created);
+    public bool SetPowerScheme(Guid scheme, Guid? created = null) => Session.SetPowerScheme(scheme, Source, Tweak.TitleRu, created);
 }
 
 /// <summary>
@@ -75,7 +75,13 @@ public sealed class TweakContext
 public abstract class Tweak
 {
     public required string Id { get; init; }
-    public required string Title { get; init; }
+    private string _title = "";
+    /// <summary>Shown text (translated); the journal always gets <see cref="TitleRu"/> so data on disk stays language-neutral.</summary>
+    public required string Title { get => TitleDisplay?.Invoke() ?? Loc.T(_title); init => _title = value; }
+    /// <summary>For a title built from live data (e.g. the installed version): the translated text; <see cref="Title"/> init then holds the Russian one.</summary>
+    public Func<string>? TitleDisplay { get; init; }
+    /// <summary>The Russian title (the translation key); written to the journal.</summary>
+    public string TitleRu => _title;
     /// <summary>One or two sentences: what changes, in plain Russian.</summary>
     public required string Description { get; init; }
     /// <summary>Why / evidence / caveats. Shown when the user expands the item.</summary>
@@ -118,38 +124,38 @@ public abstract class Tweak
 
     public string RiskText => Risk switch
     {
-        TweakRisk.Safe => "БЕЗОПАСНО",
-        TweakRisk.Optional => "ПО ЖЕЛАНИЮ",
-        _ => "ЭКСПЕРТ",
+        TweakRisk.Safe => Loc.T("БЕЗОПАСНО"),
+        TweakRisk.Optional => Loc.T("ПО ЖЕЛАНИЮ"),
+        _ => Loc.T("ЭКСПЕРТ"),
     };
 
     public string CategoryText => Category switch
     {
-        TweakCategory.Gaming => "ИГРЫ",
-        TweakCategory.Performance => "ПРОИЗВОДИТЕЛЬНОСТЬ",
-        TweakCategory.Power => "ПИТАНИЕ",
-        TweakCategory.Network => "СЕТЬ",
-        TweakCategory.Privacy => "КОНФИДЕНЦИАЛЬНОСТЬ",
-        TweakCategory.Interface => "ИНТЕРФЕЙС",
-        TweakCategory.Input => "ВВОД",
-        _ => "СИСТЕМА",
+        TweakCategory.Gaming => Loc.T("ИГРЫ"),
+        TweakCategory.Performance => Loc.T("ПРОИЗВОДИТЕЛЬНОСТЬ"),
+        TweakCategory.Power => Loc.T("ПИТАНИЕ"),
+        TweakCategory.Network => Loc.T("СЕТЬ"),
+        TweakCategory.Privacy => Loc.T("КОНФИДЕНЦИАЛЬНОСТЬ"),
+        TweakCategory.Interface => Loc.T("ИНТЕРФЕЙС"),
+        TweakCategory.Input => Loc.T("ВВОД"),
+        _ => Loc.T("СИСТЕМА"),
     };
 
     public string RestartText => Restart switch
     {
-        RestartRequirement.Explorer => "перезапуск Проводника",
-        RestartRequirement.SignOut => "нужен выход из системы",
-        RestartRequirement.Reboot => "нужна перезагрузка",
+        RestartRequirement.Explorer => Loc.T("перезапуск Проводника"),
+        RestartRequirement.SignOut => Loc.T("нужен выход из системы"),
+        RestartRequirement.Reboot => Loc.T("нужна перезагрузка"),
         _ => "",
     };
 
     /// <summary>When the change takes effect, for «Вступит в силу {RestartWhen}».</summary>
     public string RestartWhen => Restart switch
     {
-        RestartRequirement.Explorer => "после перезапуска Проводника",
-        RestartRequirement.SignOut => "после выхода из системы",
-        RestartRequirement.Reboot => "после перезагрузки",
-        _ => "сразу",
+        RestartRequirement.Explorer => Loc.T("после перезапуска Проводника"),
+        RestartRequirement.SignOut => Loc.T("после выхода из системы"),
+        RestartRequirement.Reboot => Loc.T("после перезагрузки"),
+        _ => Loc.T("сразу"),
     };
 }
 
