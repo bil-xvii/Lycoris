@@ -72,10 +72,10 @@ public static class StartupLocations
     /// <summary>Short label for the table.</summary>
     public static string ShortLabel(StartupSource s) => s switch
     {
-        StartupSource.RunUser or StartupSource.RunMachine => "Реестр · Run",
-        StartupSource.Run32Machine => "Реестр · Run32",
-        StartupSource.PackagedTask => "Приложение MSIX",
-        _ => "Папка автозагрузки",
+        StartupSource.RunUser or StartupSource.RunMachine => Loc.T("Реестр · Run"),
+        StartupSource.Run32Machine => Loc.T("Реестр · Run32"),
+        StartupSource.PackagedTask => Loc.T("Приложение MSIX"),
+        _ => Loc.T("Папка автозагрузки"),
     };
 
     /// <summary>The key the journal uses for the StartupApproved value of this entry (same format as ChangeSession).</summary>
@@ -180,13 +180,13 @@ public static class StartupScanner
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 {
-                    Log.Warn($"Автозапуск: не удалось прочитать {StartupLocations.Describe(source)}\\{name}: {ex.Message}");
+                    Log.Warn("Автозапуск: не удалось прочитать {0}\\{1}: {2}", StartupLocations.Describe(source), name, ex.Message);
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            Log.Warn($"Автозапуск: нет доступа к {StartupLocations.Describe(source)}: {ex.Message}");
+            Log.Warn("Автозапуск: нет доступа к {0}: {1}", StartupLocations.Describe(source), ex.Message);
         }
     }
 
@@ -207,7 +207,7 @@ public static class StartupScanner
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.Warn($"Автозапуск: нет доступа к папке {dir}: {ex.Message}");
+            Log.Warn("Автозапуск: нет доступа к папке {0}: {1}", dir, ex.Message);
             return;
         }
 
@@ -251,7 +251,7 @@ public static class StartupScanner
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                Log.Warn($"Автозапуск: не удалось прочитать {file}: {ex.Message}");
+                Log.Warn("Автозапуск: не удалось прочитать {0}: {1}", file, ex.Message);
             }
         }
     }
