@@ -337,7 +337,7 @@ public sealed class DashboardDisplayTests
         Assert.Equal(CheckSeverity.Warning, r!.Severity);
         Assert.Equal(CheckActionKind.FocusDevice, r.Action!.Kind);
         Assert.Equal("kind:monitor", r.Action.Target);
-        Assert.Equal("К МОНИТОРАМ", r.Action.Label);
+        Assert.Equal("НАСТРОИТЬ МОНИТОР", r.Action.Label);
         Assert.False(r.Action.RequiresAdmin); // the button only opens the page; the change is made there
         Assert.Contains("165", r.Detail);
         Assert.Contains("«Устройства и сеть»", r.Detail);

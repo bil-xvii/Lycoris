@@ -60,11 +60,13 @@ public sealed partial class AppItemViewModel : ObservableObject
 
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private bool _isVisible = true;
+    /// <summary>The card is outlined for a moment after a jump to it (palette «app:…» request).</summary>
+    [ObservableProperty] private bool _isHighlighted;
 
     /// <summary>null = not installed; "" = installed, version unknown.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInstalled), nameof(InstalledText), nameof(Action), nameof(ActionText), nameof(ActionToolTip),
-        nameof(IsPrimaryAction), nameof(CanRunAction), nameof(CanSelect), nameof(HasVariantPicker), nameof(DisplayTags), nameof(ShowSiteButton),
+        nameof(IsPrimaryAction), nameof(HasMainAction), nameof(StateCaption), nameof(ActionGlyph), nameof(CanRunAction), nameof(CanSelect), nameof(HasVariantPicker), nameof(DisplayTags), nameof(ShowSiteButton),
         nameof(CanUpgrade), nameof(ShownAdvice), nameof(HasAdviceCaption), nameof(AdviceReason), nameof(IsDimmed), nameof(IsSuggested))]
     private string? _installedVersion;
 
@@ -101,7 +103,7 @@ public sealed partial class AppItemViewModel : ObservableObject
     /// Runtime that came with the .NET SDK). winget cannot upgrade it, so the card offers no update.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Action), nameof(ActionText), nameof(ActionToolTip), nameof(IsPrimaryAction), nameof(CanRunAction),
+    [NotifyPropertyChangedFor(nameof(Action), nameof(ActionText), nameof(ActionToolTip), nameof(IsPrimaryAction), nameof(HasMainAction), nameof(StateCaption), nameof(ActionGlyph), nameof(CanRunAction),
         nameof(CanSelect), nameof(DisplayTags), nameof(ShowSiteButton), nameof(CanUpgrade))]
     private bool _isUnmanaged;
 
@@ -173,6 +175,23 @@ public sealed partial class AppItemViewModel : ObservableObject
     };
 
     public bool IsPrimaryAction => Action is AppAction.Install or AppAction.Website or AppAction.VendorDownload;
+
+    /// <summary>
+    /// The card has something to press (install, update, download). «УСТАНОВЛЕНО» / «ВСТРОЕН В WINDOWS» are states, not
+    /// buttons: the card shows them as text (<see cref="StateCaption"/>), never as a greyed-out button.
+    /// </summary>
+    public bool HasMainAction => Action is not (AppAction.Installed or AppAction.SystemComponent);
+
+    /// <summary>Icon of the main button (Segoe Fluent): download, refresh, open in browser.</summary>
+    public string ActionGlyph => Action switch
+    {
+        AppAction.Upgrade => "",
+        AppAction.Website or AppAction.VendorDownload => "",
+        _ => "",
+    };
+
+    /// <summary>The state line shown instead of a button when there is no action.</summary>
+    public string StateCaption => Action == AppAction.SystemComponent ? "ВСТРОЕН В WINDOWS" : "";
 
     /// <summary>The separate "САЙТ" link is redundant when the main button already opens the download page.</summary>
     public bool ShowSiteButton => Action != AppAction.Website;

@@ -62,6 +62,13 @@ public sealed partial class CleanItem : ObservableObject
         _ => "ЭКСПЕРТ",
     };
 
+    public bool IsSafeTier => Tier == CleanTier.Safe;
+    public bool IsOptionalTier => Tier == CleanTier.Optional;
+    public bool IsExpertTier => Tier == CleanTier.Expert;
+
+    /// <summary>True while the row is blocked only by missing admin rights — the row then offers «ПОЛУЧИТЬ ПРАВА».</summary>
+    [ObservableProperty] private bool _needsRights;
+
     [ObservableProperty, NotifyPropertyChangedFor(nameof(CanToggle))] private bool _isSelectable = true;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(CanToggle))] private bool _isLocked;
     [ObservableProperty] private bool _isChecked;
@@ -70,7 +77,14 @@ public sealed partial class CleanItem : ObservableObject
     [ObservableProperty] private string _sizeText = "—";
     [ObservableProperty] private string _countText = "не проверено";
     [ObservableProperty] private string _statusText = "НЕ ПРОВЕРЕНО";
-    [ObservableProperty] private StatusTone _statusTone = StatusTone.Muted;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ToneIsMuted), nameof(ToneIsNormal), nameof(ToneIsDone), nameof(ToneIsWarning))]
+    private StatusTone _statusTone = StatusTone.Muted;
+
+    // Which status tag the row shows (Tag.Muted / Tag / Tag.Solid / Tag.Hatch) — never white, never an outlined capsule.
+    public bool ToneIsMuted => StatusTone == StatusTone.Muted;
+    public bool ToneIsNormal => StatusTone == StatusTone.Normal;
+    public bool ToneIsDone => StatusTone == StatusTone.Done;
+    public bool ToneIsWarning => StatusTone == StatusTone.Warning;
     [ObservableProperty] private string? _note;
     [ObservableProperty] private bool _isWorking;
 
@@ -99,6 +113,7 @@ public sealed partial class CleanItem : ObservableObject
         var blockedAdmin = Definition.RequiresAdmin && !env.IsElevated;
         var blockedUser = Definition.IsUserScope && env.UserScopeBlocked;
         IsSelectable = !blockedAdmin && !blockedUser;
+        NeedsRights = blockedAdmin && !blockedUser;
         if (!IsSelectable) IsChecked = false;
     }
 
@@ -212,8 +227,8 @@ public sealed partial class CleanItem : ObservableObject
         }
         else if (Definition.RequiresAdmin && !env.IsElevated)
         {
-            // The hatched "НУЖНЫ ПРАВА АДМИНИСТРАТОРА" tag and the read-only banner already explain why.
-            StatusText = "ТОЛЬКО ПРОСМОТР";
+            // The row shows «НУЖНЫ ПРАВА» and its own «ПОЛУЧИТЬ ПРАВА» button; nothing is disabled-and-silent.
+            StatusText = "НУЖНЫ ПРАВА";
             StatusTone = StatusTone.Muted;
         }
         else if (a.Unavailable is { } unavailable)

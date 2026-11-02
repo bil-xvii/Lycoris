@@ -21,6 +21,10 @@ namespace Monolith;
 ///  --no-elevate            stay in read-only mode (no UAC prompt, even with the setting on)
 ///  --page &lt;key&gt;           open a specific page
 ///  --tab &lt;key&gt;            with --page: open that page's tab ("--page devices --tab manual", "--page services --tab tasks")
+///  --replay-page &lt;key&gt; --replay-command &lt;Name&gt; [--replay-param &lt;text&gt;]
+///                          INTERNAL (Shell/AdminIntent): set by MONOLITH when it relaunches itself with admin rights
+///                          after the user clicked an action; the elevated copy opens the page and runs that page's
+///                          «{Name}Command» once, with its usual confirmation. Only honoured together with --elevated.
 ///  --snapshot &lt;dir&gt;       render every page to PNG and exit (QA); tabbed pages once per tab ("devices-auto", "devices-manual")
 ///  --pages a,b,c --wait ms limit / tune --snapshot (a page key shoots all its tabs, "devices-manual" only that tab)
 ///  --full                  with --snapshot: also "&lt;page&gt;-full.png" — the page's whole scrolled list, not only the window
@@ -162,6 +166,10 @@ public partial class App : Application
         if (ArgValue(args, "--tab") is { Length: > 0 } tab)
             Ui.RequestFocus(MainViewModel.ResolvePageKey(startPage), "tab:" + tab);
         vm.NavigateTo(startPage);
+        // «--replay-page … --replay-command …»: the action the user clicked before the relaunch with admin rights.
+        // Only an elevated copy started by MONOLITH itself replays it, once, after the startup checks.
+        if (!snapshot && HasArg(args, "--elevated") && Elevation.IsElevated && AdminIntent.Parse(args) is { } intent)
+            vm.PendingIntent = intent;
 
         if (snapshot)
         {

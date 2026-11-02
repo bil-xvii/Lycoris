@@ -178,7 +178,7 @@ public static partial class HealthRules
         var detail = what + ". Выберите максимальную частоту в разделе «Устройства и сеть»: MONOLITH переключит её с подтверждением " +
                      "на экране, а откатить можно там же или в «Восстановлении». Игры и интерфейс станут плавнее.";
         return new("refresh-rate", "МОНИТОР НЕ НА МАКСИМАЛЬНОЙ ЧАСТОТЕ", detail, CheckSeverity.Warning, 10,
-            new CheckAction(CheckActionKind.FocusDevice, "К МОНИТОРАМ", "kind:monitor"));
+            new CheckAction(CheckActionKind.FocusDevice, "НАСТРОИТЬ МОНИТОР", "kind:monitor"));
     }
 
     // ───────────────────────────── System Restore ─────────────────────────────
@@ -198,7 +198,7 @@ public static partial class HealthRules
             "Windows не создаёт точки восстановления: после неудачного обновления или драйвера откатиться будет не к чему, " +
             "а MONOLITH не сможет сделать точку перед своими изменениями. Защита займёт часть диска C: (старые точки удаляются " +
             "автоматически). Включить её можно в разделе «Восстановление».",
-            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, "К ВОССТАНОВЛЕНИЮ", "restore"));
+            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, "ВКЛЮЧИТЬ ЗАЩИТУ", "restore"));
     }
 
     // ───────────────────────────── Free space ─────────────────────────────
@@ -223,7 +223,7 @@ public static partial class HealthRules
             "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением MONOLITH покажет, что именно будет удалено." +
             (facts.Length > 0 ? " " + facts : ""),
             CheckSeverity.Warning, IsCriticalSpace(free, total) ? 25 : 15,
-            new CheckAction(CheckActionKind.Navigate, "К ОЧИСТКЕ", "cleaner"), SystemFileLever(s));
+            new CheckAction(CheckActionKind.Navigate, "ОЧИСТИТЬ ДИСК", "cleaner"), SystemFileLever(s));
     }
 
     /// <summary>
@@ -268,9 +268,9 @@ public static partial class HealthRules
     public static CheckAction? SystemFileLever(SystemSnapshot s)
     {
         if (CanOfferHibernationOff(s) && s.HiberfilBytes is > 0)
-            return new CheckAction(CheckActionKind.FocusTweak, "ГИБЕРНАЦИЯ", TweakHibernationOff);
+            return new CheckAction(CheckActionKind.FocusTweak, "ОТКЛЮЧИТЬ ГИБЕРНАЦИЮ", TweakHibernationOff);
         if (s.PagefileSystemManaged == false && s.PagefileOnOtherDrive != true)
-            return new CheckAction(CheckActionKind.FocusTweak, "ФАЙЛ ПОДКАЧКИ", TweakPagefileSystemManaged);
+            return new CheckAction(CheckActionKind.FocusTweak, "НАСТРОИТЬ ПОДКАЧКУ", TweakPagefileSystemManaged);
         return null;
     }
 
@@ -340,7 +340,7 @@ public static partial class HealthRules
         var more = problems.Count > 3 ? $" и ещё {problems.Count - 3}" : "";
         return new("devices", "УСТРОЙСТВА С ОШИБКАМИ",
             $"{string.Join("; ", shown)}{more}. Чаще всего помогает установка или обновление драйвера в разделе «Драйверы».",
-            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.Navigate, "К ДРАЙВЕРАМ", "drivers"));
+            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.Navigate, "ИСПРАВИТЬ ДРАЙВЕРЫ", "drivers", "tab:problems"));
     }
 
     // ───────────────────────────── Gaming settings ─────────────────────────────
@@ -409,7 +409,7 @@ public static partial class HealthRules
                 "без каких-либо признаков. В Windows 11 24H2+ его можно включить «всегда», в том числе на настольном ПК. " +
                 "Отключается в Параметрах → Система → Питание.",
                 s.IsLaptop ? CheckSeverity.Info : CheckSeverity.Warning, s.IsLaptop ? 5 : 8,
-                new CheckAction(CheckActionKind.OpenUri, "ПАРАМЕТРЫ ПИТАНИЯ", PowerSettingsUri));
+                new CheckAction(CheckActionKind.OpenUri, "ОТКРЫТЬ ПАРАМЕТРЫ ПИТАНИЯ", PowerSettingsUri));
 
         if (s.PowerPlan == PowerPlanKind.Unknown) return null;
         var name = string.IsNullOrWhiteSpace(s.PowerPlanName) ? "—" : s.PowerPlanName;
@@ -424,13 +424,13 @@ public static partial class HealthRules
             return new("power-plan", "РЕЖИМ ПИТАНИЯ ОТ СЕТИ — «МАКСИМАЛЬНАЯ ЭФФЕКТИВНОСТЬ»",
                 "На сбалансированной схеме выбран режим питания «Максимальная эффективность»: ниже частоты и фоновая активность — " +
                 "тише и экономнее, но для игр это заметная потеря. Если ПК используется для игр, выберите «Максимальная производительность».",
-                CheckSeverity.Info, 5, new CheckAction(CheckActionKind.FocusTweak, "РЕЖИМ ПИТАНИЯ", TweakPowerModeBestPerformance));
+                CheckSeverity.Info, 5, new CheckAction(CheckActionKind.FocusTweak, "ВЫБРАТЬ РЕЖИМ ПИТАНИЯ", TweakPowerModeBestPerformance));
         // Every suggestion here is the balanced plan; the button only opens its item in «Оптимизация».
-        var open = new CheckAction(CheckActionKind.FocusTweak, "СХЕМА ПИТАНИЯ", TweakBalancedPlan);
+        var open = new CheckAction(CheckActionKind.FocusTweak, "СМЕНИТЬ СХЕМУ ПИТАНИЯ", TweakBalancedPlan);
 
         if (isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores))
         {
-            open = new CheckAction(CheckActionKind.FocusTweak, "СХЕМА ПИТАНИЯ", TweakBalancedPlanX3D);
+            open = new CheckAction(CheckActionKind.FocusTweak, "СМЕНИТЬ СХЕМУ ПИТАНИЯ", TweakBalancedPlanX3D);
             return balanced
                 ? new("power-plan", title, "Рекомендация AMD для Ryzen X3D с двумя CCD: драйвер правильно переносит игры на CCD с 3D V-Cache.", CheckSeverity.Ok, 8)
                 : new("power-plan", title,
@@ -502,7 +502,7 @@ public static partial class HealthRules
     {
         if (string.IsNullOrWhiteSpace(s.UpdatePinnedTo)) return null;
         var v = s.UpdatePinnedTo.Trim();
-        var open = new CheckAction(CheckActionKind.FocusTweak, "ЗАКРЕПЛЕНИЕ", TweakUpdatePin);
+        var open = new CheckAction(CheckActionKind.FocusTweak, "НАСТРОИТЬ ЗАКРЕПЛЕНИЕ", TweakUpdatePin);
         // The policy names another version than the installed one (Microsoft moved the PC on after the 60-day gap, or the
         // user upgraded): the installed version is serviced on its own schedule, so no «without updates» warning — the pin
         // is simply stale and only blocks the next yearly update.
@@ -607,7 +607,7 @@ public static partial class HealthRules
         return new("gpu-driver", "ДРАЙВЕР ВИДЕОКАРТЫ УСТАРЕЛ",
             $"{gpu.Name}: версия {version} от {DashFormat.Date(date)} — ему {DashFormat.Age(date, s.Now)}. " +
             "Новые драйверы исправляют ошибки и ускоряют свежие игры. Проверьте обновление в разделе «Драйверы».",
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К ДРАЙВЕРАМ", "drivers"));
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "ПРОВЕРИТЬ ДРАЙВЕР", "drivers", "tab:overview"));
     }
 
     // ───────────────────────────── Startup ─────────────────────────────
@@ -627,6 +627,6 @@ public static partial class HealthRules
         return new("startup", "МНОГО ПРОГРАММ В АВТОЗАПУСКЕ",
             $"Вместе с Windows запускается {count}. Каждая замедляет вход в систему и работает в фоне. Отключите лишние " +
             "в разделе «Автозапуск и службы» — это обратимо, программы не удаляются.",
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "К АВТОЗАПУСКУ", "startup"));
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "ОТКЛЮЧИТЬ ЛИШНЕЕ", "startup"));
     }
 }

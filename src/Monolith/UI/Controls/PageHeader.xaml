@@ -4,9 +4,13 @@
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              x:Name="Root">
     <!--
-        Compact header, one band:  ОПТИМИЗАЦИЯ                       [actions]
-                                   one muted line of subtitle
-        Embedded (PageHeader.IsEmbedded inherited from a host page): only [actions], right-aligned.
+        One page anatomy (Obvious UI): the header is one band —
+            Оптимизация                                  проверено 15:40  [⟳ ОБНОВИТЬ]  [actions…]  [■ PRIMARY]
+            one muted line of subtitle
+        Checked = «проверено HH:MM» (T.Mono; hidden when empty) · RefreshCommand = the ONE word «ОБНОВИТЬ» everywhere
+        (hidden when no command) · Actions = secondary outlined buttons · Primary = the ONE main button of the page
+        (a Btn.Primary; hidden when empty). Embedded (PageHeader.IsEmbedded inherited from a host page): title and
+        subtitle are hidden, the right side stays.
     -->
     <UserControl.Resources>
         <Style x:Key="HideWhenEmbedded" TargetType="FrameworkElement">
@@ -37,6 +41,22 @@
             <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subtitle, ElementName=Root}" />
         </StackPanel>
-        <ContentPresenter Grid.Column="1" Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Center" Margin="20,0,0,0" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
+            <!-- «проверено 15:40» -->
+            <TextBlock Text="{Binding Checked, ElementName=Root}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                       VerticalAlignment="Center" Margin="0,0,10,0" Visibility="{Binding HasChecked, ElementName=Root, Converter={StaticResource BoolToVis}}" />
+            <!-- The one word «ОБНОВИТЬ» -->
+            <Button Style="{StaticResource Btn}" Command="{Binding RefreshCommand, ElementName=Root}" Margin="0,0,8,0"
+                    Visibility="{Binding HasRefresh, ElementName=Root, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                    <TextBlock Text="{Binding RefreshText, ElementName=Root}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <ContentPresenter Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Center" />
+            <!-- The ONE main button of the page -->
+            <ContentPresenter Content="{Binding Primary, ElementName=Root}" VerticalAlignment="Center" Margin="8,0,0,0"
+                              Visibility="{Binding HasPrimary, ElementName=Root, Converter={StaticResource BoolToVis}}" />
+        </StackPanel>
     </Grid>
 </UserControl>

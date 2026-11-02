@@ -31,19 +31,7 @@ public static class Elevation
     /// </summary>
     public static bool TryRelaunchElevated(IEnumerable<string>? extraArgs = null)
     {
-        var current = Environment.GetCommandLineArgs().Skip(1).ToList();
-        var kept = new List<string>();
-        for (var i = 0; i < current.Count; i++)
-        {
-            if (current[i].Equals("--elevated", StringComparison.OrdinalIgnoreCase)) continue;
-            if (current[i].Equals("--parent", StringComparison.OrdinalIgnoreCase)) { i++; continue; }
-            kept.Add(current[i]);
-        }
-        var args = kept
-            .Concat(extraArgs ?? [])
-            .Append("--elevated")
-            .Append("--parent")
-            .Append(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var args = RelaunchArguments(Environment.GetCommandLineArgs().Skip(1), extraArgs, Environment.ProcessId);
 
         var psi = new ProcessStartInfo
         {
@@ -69,6 +57,37 @@ public static class Elevation
             Log.Error("Не удалось перезапуститься с правами администратора", ex);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Arguments of this run that describe only this run and must not be carried over to a relaunched copy: the page
+    /// and tab it was opened on and a remembered action («--replay-…», see Shell/AdminIntent). Each takes one value.
+    /// The relaunch passes its own fresh values instead.
+    /// </summary>
+    public static readonly IReadOnlySet<string> PerRunArgs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "--page", "--tab", "--replay-page", "--replay-command", "--replay-param", "--parent",
+    };
+
+    /// <summary>
+    /// The command line of the elevated copy (pure; unit-tested): the current arguments without the per-run ones and
+    /// without «--elevated», then <paramref name="extraArgs"/>, then «--elevated --parent &lt;pid&gt;».
+    /// </summary>
+    public static IReadOnlyList<string> RelaunchArguments(IEnumerable<string> current, IEnumerable<string>? extraArgs, int parentPid)
+    {
+        var list = current.ToList();
+        var kept = new List<string>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i].Equals("--elevated", StringComparison.OrdinalIgnoreCase)) continue;
+            if (PerRunArgs.Contains(list[i])) { i++; continue; }
+            kept.Add(list[i]);
+        }
+        kept.AddRange(extraArgs ?? []);
+        kept.Add("--elevated");
+        kept.Add("--parent");
+        kept.Add(parentPid.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return kept;
     }
 
     /// <summary>

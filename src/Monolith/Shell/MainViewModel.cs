@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
@@ -25,8 +27,11 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     public ObservableCollection<PageViewModel> Pages { get; }
     /// <summary>Pages in the sidebar list: all but Settings, which opens from the gear in the sidebar footer.</summary>
     public IReadOnlyList<PageViewModel> NavPages { get; }
+    /// <summary>The sidebar list grouped by <see cref="PageViewModel.NavGroup"/> (ОБЗОР · УСКОРЕНИЕ · ОБСЛУЖИВАНИЕ · ЗАЩИТА).</summary>
+    public ICollectionView NavView { get; }
     public MaintenanceViewModel Maintenance { get; }
     public DevicesViewModel Devices { get; }
+    public RestoreViewModel Restore { get; }
     public ObservableCollection<ToastItem> Toasts { get; } = new();
     public ObservableCollection<LogEntry> LogEntries => Log.Entries;
 
@@ -34,10 +39,41 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     [ObservableProperty] private DialogViewModel? _dialog;
     [ObservableProperty] private bool _consoleExpanded;
     [ObservableProperty] private int _activeChanges;
+    /// <summary>Title of the newest batch that still has changes to revert («ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ «…»»), or null.</summary>
+    [ObservableProperty] private string? _lastBatchTitle;
+
+    public bool HasLastBatch => LastBatchTitle is not null;
+    public string LastBatchMenuText => LastBatchTitle is { } t ? $"ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ «{t}»" : "ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ — ПАКЕТОВ НЕТ";
+    /// <summary>«ОТКАТ · 71» in the title bar.</summary>
+    public string UndoButtonText => ActiveChanges > 0 ? $"ОТКАТ · {ActiveChanges}" : "ОТКАТ";
+
+    partial void OnLastBatchTitleChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasLastBatch));
+        OnPropertyChanged(nameof(LastBatchMenuText));
+    }
+
+    partial void OnActiveChangesChanged(int value) => OnPropertyChanged(nameof(UndoButtonText));
 
     public bool IsElevated => Elevation.IsElevated;
     public bool IsReadOnly => !Elevation.IsElevated;
     public string Version { get; } = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
+
+    /// <summary>Sidebar groups in order; the key → group map is the single place that decides where a page lives.</summary>
+    public const string GroupOverview = "ОБЗОР";
+    public const string GroupBoost = "УСКОРЕНИЕ";
+    public const string GroupMaintenance = "ОБСЛУЖИВАНИЕ";
+    public const string GroupProtection = "ЗАЩИТА";
+
+    /// <summary>Sidebar group of a page key (pure; tested).</summary>
+    public static string NavGroupOf(string pageKey) => pageKey switch
+    {
+        "dashboard" => GroupOverview,
+        "optimize" or "games" or "services" or "devices" => GroupBoost,
+        "maintenance" or "drivers" or "apps" => GroupMaintenance,
+        "restore" => GroupProtection,
+        _ => "",
+    };
 
     public MainViewModel()
     {
@@ -51,10 +87,13 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             new DriversViewModel(),
             Devices = new DevicesViewModel(),
             new AppsViewModel(),
-            new RestoreViewModel(),
+            Restore = new RestoreViewModel(),
             new SettingsViewModel(),
         ];
+        foreach (var p in Pages) p.NavGroup = NavGroupOf(p.Key);
         NavPages = Pages.Where(p => p.Key != SettingsKey).ToList();
+        NavView = new ListCollectionView((System.Collections.IList)NavPages);
+        NavView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(PageViewModel.NavGroup)));
 
         _consoleExpanded = AppSettings.Current.ShowConsole;
         Ui.Host = this;
@@ -142,6 +181,9 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
         // 4. Drift: settings MONOLITH applied were changed afterwards (Windows feature update, another program).
         await CheckDriftAsync();
+
+        // 5. The action the user clicked before the relaunch with admin rights: repeated once, through its own command.
+        await ReplayIntentAsync();
     }
 
     /// <summary>One non-blocking toast when active records no longer match the live system; details on the Restore page.</summary>
@@ -168,7 +210,74 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         }
     }
 
-    private void RefreshJournalCount() => ActiveChanges = ChangeJournal.Instance.ActiveRecords.Count;
+    // ───────────── Admin intent replay ─────────────
+
+    /// <summary>The action to repeat once this elevated copy is up (set by App from «--replay-…»); null = nothing.</summary>
+    public AdminIntent? PendingIntent { get; set; }
+
+    /// <summary>
+    /// Opens the intent's page, waits for its first load and runs «{Command}Command» there (or on the shell) exactly
+    /// once. The command runs its own checks and confirmation — the replay only presses the button the user pressed.
+    /// Nothing is replayed without admin rights, and a failure only tells the user to repeat the action.
+    /// </summary>
+    public async Task<bool> ReplayIntentAsync()
+    {
+        var intent = PendingIntent;
+        PendingIntent = null;
+        if (intent is null) return false;
+        if (!Elevation.IsElevated)
+        {
+            Log.Warn($"Действие «{intent}» не повторено: нет прав администратора.");
+            return false;
+        }
+        try
+        {
+            var page = Pages.FirstOrDefault(p => p.Key == ResolvePageKey(intent.PageKey));
+            if (page is null)
+            {
+                Log.Warn($"Действие «{intent}» не повторено: страница не найдена.");
+                return false;
+            }
+            NavigateTo(intent.PageKey);
+            await page.EnsureLoadedAsync();
+            // Let the page settle its lists (tab focus requests, collection rebuilds) before the command's CanExecute is read.
+            await Task.Delay(250);
+            var target = intent.FindCommand(page) is not null ? (object)page : this;
+            // A busy page (a background refresh, the cleaner warm-up) is waited for: poll up to ~10 s instead of losing the click.
+            var executed = intent.TryExecuteOn(target);
+            for (var waited = 0; !executed && waited < 50 && intent.FindCommand(target) is not null; waited++)
+            {
+                await Task.Delay(200);
+                executed = intent.TryExecuteOn(target);
+            }
+            if (executed)
+            {
+                Log.Info($"Права получены — действие продолжено: {intent}.");
+                return true;
+            }
+            Log.Warn($"Действие «{intent}» не повторено: команда недоступна.");
+            Ui.Toast("Права администратора получены. Повторите действие — оно не выполнилось само.", ToastKind.Info, "ПРОДОЛЖИТЬ ВРУЧНУЮ");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Повтор действия после получения прав: {intent}", ex);
+            Ui.Toast("Права администратора получены. Повторите действие вручную.", ToastKind.Warning);
+            return false;
+        }
+    }
+
+    private void RefreshJournalCount()
+    {
+        var journal = ChangeJournal.Instance;
+        var active = journal.ActiveRecords;
+        ActiveChanges = active.Count;
+        var revertible = active.Where(ChangeJournal.IsBulkRevertible).Select(r => r.BatchId).ToHashSet();
+        var last = journal.Batches.Where(b => revertible.Contains(b.Id)).OrderByDescending(b => b.TimestampUtc).FirstOrDefault();
+        LastBatchTitle = last is null ? null : last.Title.Length > 0 ? last.Title : "Без названия";
+        // The sidebar badge of «Восстановление»: the journal count is already known — no work just for the badge.
+        Restore.BadgeText = ActiveChanges > 0 ? ActiveChanges.ToString() : null;
+    }
 
     private const string SettingsKey = "settings";
 
@@ -244,19 +353,36 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     [RelayCommand]
     private void RestartAsAdmin() => RestartElevated();
 
-    public bool RestartElevated()
+    public bool RestartElevated(AdminIntent? intent = null)
     {
-        string[]? args = CurrentPage switch
+        var args = new List<string>();
+        switch (CurrentPage)
         {
-            DevicesViewModel d => ["--page", d.Key, "--tab", d.SelectedTab],
-            { } p => ["--page", p.Key],
-            _ => null,
-        };
+            case DevicesViewModel d: args.AddRange(["--page", d.Key, "--tab", d.SelectedTab]); break;
+            case { } p: args.AddRange(["--page", p.Key]); break;
+        }
+        if (intent is not null) args.AddRange(intent.ToArgs());
         if (!Elevation.TryRelaunchElevated(args)) return false;
         Application.Current.Shutdown();
         return true;
     }
 
+    /// <summary>The visible «ПОИСК Ctrl+K» button: the window opens the command palette.</summary>
+    public event Action? SearchRequested;
+
+    [RelayCommand]
+    private void OpenSearch() => SearchRequested?.Invoke();
+
     [RelayCommand]
     private void OpenRestoreCenter() => NavigateTo("restore");
+
+    /// <summary>«ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ» from the title bar: the Restore page's own command, with its confirmation.</summary>
+    [RelayCommand]
+    private async Task RevertLastBatchAsync()
+    {
+        NavigateTo("restore");
+        try { await Restore.EnsureLoadedAsync(); }
+        catch { return; } // reported by the page
+        if (Restore.RevertLastBatchCommand.CanExecute(null)) await Restore.RevertLastBatchCommand.ExecuteAsync(null);
+    }
 }
