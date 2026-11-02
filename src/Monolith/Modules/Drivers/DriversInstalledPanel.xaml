@@ -219,7 +219,7 @@
                                                             <ColumnDefinition Width="200" />
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="170" />
-                                                            <ColumnDefinition Width="130" />
+                                                            <ColumnDefinition Width="156" />
                                                             <ColumnDefinition Width="84" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="{Binding Inf}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}"
@@ -324,7 +324,7 @@
                                 <ColumnDefinition Width="190" />
                                 <ColumnDefinition Width="180" />
                                 <ColumnDefinition Width="130" />
-                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="112" />
                                 <ColumnDefinition Width="104" />
                                 <ColumnDefinition Width="86" />
                             </Grid.ColumnDefinitions>
@@ -348,7 +348,7 @@
                                             <ColumnDefinition Width="190" />
                                             <ColumnDefinition Width="180" />
                                             <ColumnDefinition Width="130" />
-                                            <ColumnDefinition Width="92" />
+                                            <ColumnDefinition Width="112" />
                                             <ColumnDefinition Width="104" />
                                             <ColumnDefinition Width="86" />
                                         </Grid.ColumnDefinitions>
