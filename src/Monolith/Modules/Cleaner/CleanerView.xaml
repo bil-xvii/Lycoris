@@ -276,7 +276,7 @@
                                                    FontSize="19" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" />
                                         <TextBlock Grid.Column="1" Text="{Binding Label}" Style="{StaticResource T.Label}" Margin="10,0,10,5"
                                                    VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="2" Text="{Binding FreeText, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
+                                        <TextBlock Grid.Column="2" Text="{Binding FreeText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
                                                    FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" Margin="0,0,0,1" />
                                     </Grid>
                                     <c:Meter Value="{Binding UsedPercent}" Segments="32" Gap="2" Height="8" HotThreshold="90" Margin="0,10,0,0" />

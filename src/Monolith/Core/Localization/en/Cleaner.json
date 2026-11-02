@@ -34,7 +34,7 @@
     "размер определит DISM": "size set by DISM",
     "нет доступа к папке": "no access to the folder",
     "{0} · частично": "{0} · partial",
-    "ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ": "OTHER ACCOUNT",
+    "ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ": "DIFFERENT ACCOUNT",
     "MONOLITH запущен от имени {0}: пользовательские кэши принадлежат другой учётной записи и не трогаются.": "MONOLITH is running as {0}: the user caches belong to another account and are not touched.",
     "НУЖНЫ ПРАВА": "RIGHTS NEEDED",
     "НЕДОСТУПНО": "UNAVAILABLE",
