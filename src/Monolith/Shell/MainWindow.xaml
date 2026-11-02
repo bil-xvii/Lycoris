@@ -720,17 +720,11 @@
                                         Visibility="{Binding ShowCancel, Converter={StaticResource BoolToVis}}" />
                                 <Button Content="{Binding ExtraText}" Command="{Binding ExtraCommand}" Margin="0,0,10,0" MinWidth="110"
                                         Visibility="{Binding HasExtra, Converter={StaticResource BoolToVis}}" />
-                                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" MinWidth="140" IsDefault="True">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource Btn.Primary}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsDanger}" Value="True">
-                                                    <Setter Property="Background" Value="{StaticResource B.White}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                                <!-- A destructive confirmation is a red outline (not the white main button) and is not the Enter default -->
+                                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" MinWidth="140" IsDefault="True" Style="{StaticResource Btn.Primary}"
+                                        Visibility="{Binding IsDanger, Converter={StaticResource InverseBoolToVis}}" />
+                                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" MinWidth="140" Style="{StaticResource Btn.Danger}"
+                                        Visibility="{Binding IsDanger, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>
                         </Grid>
                     </Grid>
