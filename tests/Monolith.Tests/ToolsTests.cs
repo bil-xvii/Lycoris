@@ -358,7 +358,7 @@ public sealed class ToolsTests
         var reverted = new ChangeRecord { Title = "C", Reverted = true, RevertedUtc = new DateTime(2026, 10, 26, 17, 40, 0, DateTimeKind.Utc) };
 
         Assert.Equal(RecordState.Active, RestoreFormat.StateOf(active));
-        Assert.Equal("АКТИВНО", RestoreFormat.StatusText(active));
+        Assert.Equal("ИЗМЕНЕНО MONOLITH", RestoreFormat.StatusText(active));
         Assert.Equal(RecordState.Failed, RestoreFormat.StateOf(failed));
         Assert.Equal("ОШИБКА ОТКАТА", RestoreFormat.StatusText(failed));
         Assert.Equal(RecordState.Reverted, RestoreFormat.StateOf(reverted));
