@@ -114,7 +114,7 @@ if ($dry) {
 
 # 5. tests
 Step 'Unit tests'
-dotnet test (Join-Path $root 'tests\Lycoris.Tests\Lycoris.Tests.csproj') --nologo -v q
+dotnet test (Join-Path $root 'tests\Lycoris.Tests\Lycoris.Tests.csproj') --nologo -v q --blame-hang --blame-hang-timeout 180s --results-directory (Join-Path $env:TEMP 'lycoris-release-tests')
 if ($LASTEXITCODE -ne 0) { Fail 'unit tests failed' }
 
 # 6. build + selftest
