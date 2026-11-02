@@ -532,7 +532,7 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding OptionalHeader}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12.5"
                                                            Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="Chev" Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                                                <TextBlock x:Name="Chev" Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text2}"
                                                            VerticalAlignment="Center" Margin="8,1,0,0" />
                                             </StackPanel>
                                         </Border>
