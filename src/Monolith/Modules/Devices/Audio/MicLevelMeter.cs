@@ -25,9 +25,9 @@ public static class MicLevelMeter
     /// </summary>
     public static Task<MicCapture> CaptureAsync(string endpointId, TimeSpan duration, IProgress<double>? level, CancellationToken ct)
     {
-        if (!DeviceTargets.IsCaptureEndpointId(endpointId)) throw new InvalidOperationException("Это не микрофон.");
+        if (!DeviceTargets.IsCaptureEndpointId(endpointId)) throw new InvalidOperationException(Loc.T("Это не микрофон."));
         if (AudioInventory.ReadPrivacy() == MicPrivacy.Deny)
-            throw new InvalidOperationException("Доступ к микрофону запрещён в параметрах конфиденциальности Windows.");
+            throw new InvalidOperationException(Loc.T("Доступ к микрофону запрещён в параметрах конфиденциальности Windows."));
         // A dedicated pool thread (MTA): the whole stream lives and dies on it.
         return Task.Run(() => Capture(endpointId, duration, level, ct), ct);
     }
@@ -44,17 +44,17 @@ public static class MicLevelMeter
         {
             en = CoreAudio.CreateEnumerator();
             dev = CoreAudio.ActiveDevice(en, endpointId)
-                  ?? throw new InvalidOperationException("Микрофон не найден или отключён — подключите его и нажмите «ОБНОВИТЬ».");
+                  ?? throw new InvalidOperationException(Loc.T("Микрофон не найден или отключён — подключите его и нажмите «ОБНОВИТЬ»."));
             client = CoreAudio.Activate<IAudioClient>(dev, CoreAudio.IidAudioClient)
-                     ?? throw new InvalidOperationException("Windows не дала открыть микрофон.");
-            Check(client.GetMixFormat(out mixFormat), "формат микрофона не прочитан");
+                     ?? throw new InvalidOperationException(Loc.T("Windows не дала открыть микрофон."));
+            Check(client.GetMixFormat(out mixFormat), Loc.T("формат микрофона не прочитан"));
             var format = AudioParsing.ParseWaveFormat(CoreAudio.CopyWaveFormat(mixFormat))
-                         ?? throw new InvalidOperationException("Формат микрофона не поддерживается проверкой.");
-            Check(client.Initialize(CoreAudio.AudclntSharemodeShared, 0, BufferDuration, 0, mixFormat, IntPtr.Zero), "микрофон занят или недоступен");
+                         ?? throw new InvalidOperationException(Loc.T("Формат микрофона не поддерживается проверкой."));
+            Check(client.Initialize(CoreAudio.AudclntSharemodeShared, 0, BufferDuration, 0, mixFormat, IntPtr.Zero), Loc.T("микрофон занят или недоступен"));
             var iid = CoreAudio.IidAudioCaptureClient;
-            Check(client.GetService(ref iid, out var service), "поток записи не открылся");
-            capture = service as IAudioCaptureClient ?? throw new InvalidOperationException("Поток записи не открылся.");
-            Check(client.Start(), "запись не началась");
+            Check(client.GetService(ref iid, out var service), Loc.T("поток записи не открылся"));
+            capture = service as IAudioCaptureClient ?? throw new InvalidOperationException(Loc.T("Поток записи не открылся."));
+            Check(client.Start(), Loc.T("запись не началась"));
             started = true;
 
             var samples = new List<float>(format.SampleRate * Math.Max(1, (int)Math.Ceiling(duration.TotalSeconds)) + format.SampleRate);
@@ -69,9 +69,9 @@ public static class MicLevelMeter
                 while (true)
                 {
                     // An unplugged or reset device fails here (AUDCLNT_E_DEVICE_INVALIDATED): never a silent partial result.
-                    Check(capture.GetNextPacketSize(out var packet), "микрофон отключился во время проверки");
+                    Check(capture.GetNextPacketSize(out var packet), Loc.T("микрофон отключился во время проверки"));
                     if (packet == 0) break;
-                    Check(capture.GetBuffer(out var data, out var frames, out var flags, out _, out _), "чтение записи прервалось");
+                    Check(capture.GetBuffer(out var data, out var frames, out var flags, out _, out _), Loc.T("чтение записи прервалось"));
                     try
                     {
                         var silent = (flags & CoreAudio.AudclntBufferflagsSilent) != 0 || data == IntPtr.Zero;
@@ -110,7 +110,7 @@ public static class MicLevelMeter
 
     private static void Check(int hr, string what)
     {
-        if (hr < 0) throw new InvalidOperationException($"Проверка не удалась: {what} (0x{hr:X8}).");
+        if (hr < 0) throw new InvalidOperationException(Loc.Tf("Проверка не удалась: {0} (0x{1}).", what, hr.ToString("X8")));
     }
 }
 
@@ -271,15 +271,15 @@ public static class MicLevelAnalysis
     /// <summary>«тихо: пики −24 дБFS», «в норме: пики −9 дБFS», «громко: …», «перегруз: 12 отсчётов на пределе».</summary>
     public static string Verdict(MicLevelStats s) => Classify(s) switch
     {
-        MicLevelVerdict.Clipping => $"перегруз: {s.ClippedSamples.ToString(CultureInfo.InvariantCulture)} {Plural(s.ClippedSamples, "отсчёт", "отсчёта", "отсчётов")} на пределе",
-        MicLevelVerdict.NoSpeech => "мало речи — говорите обычным голосом всё время проверки",
-        MicLevelVerdict.Loud => $"громко: пики {Dbfs(Math.Max(s.P95WindowPeakDbfs, -60))}, максимум {Dbfs(s.PeakDbfs)}",
-        MicLevelVerdict.Quiet => $"тихо: пики {Dbfs(s.P95WindowPeakDbfs)}",
-        _ => $"в норме: пики {Dbfs(s.P95WindowPeakDbfs)}",
+        MicLevelVerdict.Clipping => Loc.Tf("перегруз: {0} на пределе", Loc.N(s.ClippedSamples, "{0} отсчёт", "{0} отсчёта", "{0} отсчётов")),
+        MicLevelVerdict.NoSpeech => Loc.T("мало речи — говорите обычным голосом всё время проверки"),
+        MicLevelVerdict.Loud => Loc.Tf("громко: пики {0}, максимум {1}", Dbfs(Math.Max(s.P95WindowPeakDbfs, -60)), Dbfs(s.PeakDbfs)),
+        MicLevelVerdict.Quiet => Loc.Tf("тихо: пики {0}", Dbfs(s.P95WindowPeakDbfs)),
+        _ => Loc.Tf("в норме: пики {0}", Dbfs(s.P95WindowPeakDbfs)),
     };
 
     /// <summary>«−24 дБFS».</summary>
-    public static string Dbfs(double v) => AudioParsing.SignedNumber(Math.Max(v, -120), "0") + " дБFS";
+    public static string Dbfs(double v) => Loc.Tf("{0} дБFS", AudioParsing.SignedNumber(Math.Max(v, -120), "0"));
 
     internal static string Plural(int n, string one, string few, string many)
     {

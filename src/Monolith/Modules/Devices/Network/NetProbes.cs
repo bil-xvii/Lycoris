@@ -72,7 +72,7 @@ public static class NetPing
     public static IReadOnlyList<NetTarget> Targets(NetSnapshot s)
     {
         var list = new List<NetTarget>();
-        if (s.Gateway is { } gw && IPAddress.TryParse(gw, out _)) list.Add(new NetTarget("Роутер", gw, NetTargetRole.Gateway));
+        if (s.Gateway is { } gw && IPAddress.TryParse(gw, out _)) list.Add(new NetTarget(Loc.T("Роутер"), gw, NetTargetRole.Gateway));
         list.Add(new NetTarget("Cloudflare", "1.1.1.1", NetTargetRole.Internet));
         list.Add(new NetTarget("Google", "8.8.8.8", NetTargetRole.Internet));
         if (s.HasIpv6)
@@ -187,11 +187,11 @@ public static class LoadTest
             ct.ThrowIfCancellationRequested();
             var started = Stopwatch.StartNew();
             if (await NetPing.OnceAsync(ping, target, 1000, payload).ConfigureAwait(false) is { } ms) idle.Add(ms);
-            progress(0.3 * (i + 1) / 25, "Пинг без нагрузки…");
+            progress(0.3 * (i + 1) / 25, Loc.T("Пинг без нагрузки…"));
             var rest = TimeSpan.FromMilliseconds(200) - started.Elapsed;
             if (rest > TimeSpan.Zero) await Task.Delay(rest, ct).ConfigureAwait(false);
         }
-        if (idle.Count < 5) throw new InvalidOperationException("1.1.1.1 не отвечает на ping — тест под нагрузкой сейчас невозможен.");
+        if (idle.Count < 5) throw new InvalidOperationException(Loc.T("1.1.1.1 не отвечает на ping — тест под нагрузкой сейчас невозможен."));
 
         // 2. Download while pinging.
         var before = counters();
@@ -219,7 +219,7 @@ public static class LoadTest
                 using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, stop.Token).ConfigureAwait(false);
                 if ((int)resp.StatusCode is 403 or 429)
                 {
-                    refused = $"сервер ответил {(int)resp.StatusCode}";
+                    refused = Loc.Tf("сервер ответил {0}", (int)resp.StatusCode);
                     stop.Cancel();
                     return;
                 }
@@ -253,7 +253,7 @@ public static class LoadTest
             if (clock.Elapsed > TimeSpan.FromMilliseconds(500) && Volatile.Read(ref active) >= Math.Min(4, Streams))
                 if (await NetPing.OnceAsync(ping, target, 1000, payload).ConfigureAwait(false) is { } ms) loaded.Add(ms);
             var share = Math.Max(Interlocked.Read(ref total) / (double)capBytes, clock.Elapsed / MaxDuration);
-            progress(0.3 + 0.7 * Math.Min(1, share), $"Загрузка: {Interlocked.Read(ref total) / 1_000_000} МБ…");
+            progress(0.3 + 0.7 * Math.Min(1, share), Loc.Tf("Загрузка: {0} МБ…", Interlocked.Read(ref total) / 1_000_000));
             var rest = TimeSpan.FromMilliseconds(200) - tick.Elapsed;
             if (rest > TimeSpan.Zero)
             {
@@ -269,11 +269,11 @@ public static class LoadTest
         var seconds = clock.Elapsed.TotalSeconds;
         var after = counters();
 
-        if (refused is not null && total == 0) throw new InvalidOperationException($"Тест под нагрузкой сейчас недоступен ({refused}).");
+        if (refused is not null && total == 0) throw new InvalidOperationException(Loc.Tf("Тест под нагрузкой сейчас недоступен ({0}).", refused));
         if (loaded.Count < 5)
             throw new InvalidOperationException(total == 0
-                ? "Не удалось начать загрузку с speed.cloudflare.com — проверьте подключение."
-                : "Загрузка закончилась слишком быстро для замера — выберите больший объём.");
+                ? Loc.T("Не удалось начать загрузку с speed.cloudflare.com — проверьте подключение.")
+                : Loc.T("Загрузка закончилась слишком быстро для замера — выберите больший объём."));
 
         return new LoadTestResult
         {

@@ -99,7 +99,7 @@ internal static class RawInputSession
 
     private static int _active;
 
-    public const string AlreadyRunning = "Измерение уже запущено — дождитесь его окончания.";
+    public static string AlreadyRunning => Loc.T("Измерение уже запущено — дождитесь его окончания.");
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RAWINPUTDEVICE
@@ -246,7 +246,7 @@ internal static class RawInputSession
                     new RAWINPUTDEVICE { usUsagePage = UsagePageGeneric, usUsage = UsageMouse, dwFlags = RIDEV_INPUTSINK, hwndTarget = _source.Handle },
                 };
                 if (!RegisterRawInputDevices(device, 1, DeviceSize))
-                    return Result(error: $"Windows не дала подписаться на движения мыши (код {Marshal.GetLastWin32Error()}).");
+                    return Result(error: Loc.Tf("Windows не дала подписаться на движения мыши (код {0}).", Marshal.GetLastWin32Error()));
                 _registered = true;
                 _start = Stopwatch.GetTimestamp();
 
@@ -259,7 +259,7 @@ internal static class RawInputSession
             }
             catch (Exception ex)
             {
-                Log.Warn($"Измерение мыши: {ex.Message}");
+                Log.Warn("Измерение мыши: {0}", ex.Message);
                 return Result(error: ex.Message);
             }
             finally
@@ -279,7 +279,7 @@ internal static class RawInputSession
             {
                 var remove = new[] { new RAWINPUTDEVICE { usUsagePage = UsagePageGeneric, usUsage = UsageMouse, dwFlags = RIDEV_REMOVE, hwndTarget = IntPtr.Zero } };
                 if (RegisterRawInputDevices(remove, 1, DeviceSize)) _registered = false;
-                else Log.Warn($"Измерение мыши: подписку на ввод снять не удалось (код {Marshal.GetLastWin32Error()}).");
+                else Log.Warn("Измерение мыши: подписку на ввод снять не удалось (код {0}).", Marshal.GetLastWin32Error());
             }
             if (_source is { } source)
             {
@@ -289,7 +289,7 @@ internal static class RawInputSession
                     source.RemoveHook(WndProc);
                     source.Dispose();
                 }
-                catch (Exception ex) { Log.Warn($"Измерение мыши: {ex.Message}"); }
+                catch (Exception ex) { Log.Warn("Измерение мыши: {0}", ex.Message); }
             }
             if (_buffer != IntPtr.Zero)
             {
@@ -352,7 +352,7 @@ internal static class RawInputSession
             var run = new Dictionary<IntPtr, DragCounts>(_drag);
             _drag.Clear();
             try { onRun?.Invoke(run); }
-            catch (Exception ex) { Log.Warn($"Проверка DPI: {ex.Message}"); }
+            catch (Exception ex) { Log.Warn("Проверка DPI: {0}", ex.Message); }
         }
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

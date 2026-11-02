@@ -17,12 +17,12 @@ internal sealed class DdcMonitorWriter : IMonitorWriter
 
     public bool Set(string monitorPath, MonitorVcp code, uint value)
     {
-        SafetyLock.ThrowIfLocked("изменение яркости или контраста монитора");
+        SafetyLock.ThrowIfLocked(Loc.T("изменение яркости или контраста монитора"));
         if (!DeviceTargets.IsMonitorPath(monitorPath) || code is not (MonitorVcp.Brightness or MonitorVcp.Contrast)) return false;
         var ok = WithPhysicalMonitor(monitorPath, h => code == MonitorVcp.Contrast ? SetMonitorContrast(h, value) : SetMonitorBrightness(h, value));
         if (ok != true)
         {
-            Log.Warn($"DDC/CI: монитор не принял {(code == MonitorVcp.Contrast ? "контраст" : "яркость")} {value}.");
+            Log.Warn("DDC/CI: монитор не принял {0} {1}.", code == MonitorVcp.Contrast ? Loc.T("контраст") : Loc.T("яркость"), value);
             return false;
         }
         return Read(monitorPath, code)?.Value == value;

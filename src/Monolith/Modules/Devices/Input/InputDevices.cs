@@ -36,7 +36,7 @@ internal sealed record PhysicalInputDevice(string GroupKey, string? Vid, string?
         ({ } n, { } id) => $"{n} · {id}",
         ({ } n, null) => n,
         (null, { } id) => id,
-        _ => "устройство без названия",
+        _ => Loc.T("устройство без названия"),
     };
 
     /// <summary>For the vendor enrichment (matched by VID:PID, container or instance ids). Never shown with serials.</summary>
@@ -199,7 +199,7 @@ internal static class InputDevices
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or ExternalException or InvalidOperationException)
         {
-            Log.Warn($"Мышь и клавиатура: список устройств не прочитан — {ex.Message}");
+            Log.Warn("Мышь и клавиатура: список устройств не прочитан — {0}", ex.Message);
             return InputInventory.Empty;
         }
     }

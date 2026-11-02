@@ -26,8 +26,8 @@ internal sealed class NicWriter : INicWriter
         }
         catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
-            Log.Warn($"Сеть: адаптер не прочитан — {ex.Message}");
-            throw new InvalidOperationException($"сетевой адаптер не прочитан (WMI): {ex.Message} — повторите позже", ex);
+            Log.Warn("Сеть: адаптер не прочитан — {0}", ex.Message);
+            throw new InvalidOperationException(Loc.Tf("сетевой адаптер не прочитан (WMI): {0} — повторите позже", ex.Message), ex);
         }
         return null;
     }
@@ -45,7 +45,7 @@ internal sealed class NicWriter : INicWriter
         var script = Script(interfaceGuid, keyword, value);
         var r = ProcessRunner.RunPowerShellAsync(script, new ProcessRunOptions { Encoding = OutputEncoding.Utf8, Timeout = TimeSpan.FromSeconds(90) })
             .GetAwaiter().GetResult();
-        if (r.ExitCode != 0) Log.Warn($"Сеть: {keyword} = {value} — {(r.StdErr + r.StdOut).Trim()}");
+        if (r.ExitCode != 0) Log.Warn("Сеть: {0} = {1} — {2}", keyword, value, (r.StdErr + r.StdOut).Trim());
         return r.ExitCode == 0;
     }
 
@@ -58,13 +58,13 @@ internal sealed class NicWriter : INicWriter
     /// </summary>
     internal static string Script(Guid interfaceGuid, string keyword, string value)
     {
-        if (interfaceGuid == Guid.Empty) throw new ArgumentException("не указан сетевой адаптер", nameof(interfaceGuid));
+        if (interfaceGuid == Guid.Empty) throw new ArgumentException(Loc.T("не указан сетевой адаптер"),nameof(interfaceGuid));
         var kw = DeviceTargets.NicKeywords.FirstOrDefault(k => string.Equals(k, keyword, StringComparison.OrdinalIgnoreCase))
-                 ?? throw new ArgumentException($"свойство «{keyword}» MONOLITH не меняет", nameof(keyword));
-        if (!DeviceTargets.IsNicValue(value)) throw new ArgumentException("значение свойства должно быть числом", nameof(value));
+                 ?? throw new ArgumentException(Loc.Tf("свойство «{0}» MONOLITH не меняет", keyword),nameof(keyword));
+        if (!DeviceTargets.IsNicValue(value)) throw new ArgumentException(Loc.T("значение свойства должно быть числом"),nameof(value));
         var guid = interfaceGuid.ToString("B").ToUpperInvariant();
         return $"$a=@(Get-NetAdapter -IncludeHidden | Where-Object {{ $_.InterfaceGuid -eq '{guid}' }});" +
-               "if($a.Count -eq 0){throw 'сетевой адаптер не найден'};" +
+               "if($a.Count -eq 0){throw 'сетевой адаптер не найден'};" + // loc:ignore PowerShell error text, stays in the Russian log
                $"Set-NetAdapterAdvancedProperty -Name $a[0].Name -RegistryKeyword '{kw}' -RegistryValue '{value}' -ErrorAction Stop;exit 0";
     }
 }

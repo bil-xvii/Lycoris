@@ -17,15 +17,15 @@ public sealed record PlanApplyResult(int Applied, int Declined, int Unchanged, i
 /// </summary>
 public static class DeviceApply
 {
-    public const string PlanTitle = "Устройства и сеть: автонастройка";
+    public static string PlanTitle => Loc.T("Устройства и сеть: автонастройка");
 
     // ───────────────────────────── Plan ─────────────────────────────
 
     /// <summary>Lines of the confirmation dialog: «Мышь · Скорость указателя: 14 → 10».</summary>
     public static IReadOnlyList<string> PlanLines(IEnumerable<PlanItem> items) =>
         items.Select(i => i.Kind == PlanItemKind.OptimizeTweak
-                ? $"{i.Card.GroupTitle} · {i.Setting.Title}: пункт «Оптимизации», {i.From} → {i.To}"
-                : $"{i.Card.GroupTitle} · {i.Setting.Title}: {i.From} → {i.To}" + (i.NeedsCountdown ? " (подтвердите на экране за 15 с)" : ""))
+                ? Loc.Tf("{0} · {1}: пункт «Оптимизации», {2} → {3}", i.Card.GroupTitle, i.Setting.Title, i.From, i.To)
+                : Loc.Tf("{0} · {1}: {2} → {3}", i.Card.GroupTitle, i.Setting.Title, i.From, i.To) + (i.NeedsCountdown ? Loc.T(" (подтвердите на экране за 15 с)") : ""))
             .ToList();
 
     /// <summary>
@@ -95,9 +95,9 @@ public static class DeviceApply
         if (restart != RestartRequirement.None)
             notes.Add(restart switch
             {
-                RestartRequirement.SignOut => "Часть изменений вступит в силу после выхода из системы.",
-                RestartRequirement.Reboot => "Часть изменений вступит в силу после перезагрузки.",
-                _ => "Часть изменений вступит в силу после перезапуска Проводника.",
+                RestartRequirement.SignOut => Loc.T("Часть изменений вступит в силу после выхода из системы."),
+                RestartRequirement.Reboot => Loc.T("Часть изменений вступит в силу после перезагрузки."),
+                _ => Loc.T("Часть изменений вступит в силу после перезапуска Проводника."),
             });
         return new PlanApplyResult(applied, declined, unchanged, blocked, failed, session.Errors.ToList(), restart, notes);
     }
@@ -105,11 +105,11 @@ public static class DeviceApply
     /// <summary>«Применено: 3 · не подтверждено: 1».</summary>
     public static string SummaryText(PlanApplyResult r)
     {
-        var parts = new List<string> { $"Применено: {r.Applied}" };
-        if (r.Declined > 0) parts.Add($"не подтверждено: {r.Declined}");
-        if (r.Unchanged > 0) parts.Add($"уже было так: {r.Unchanged}");
-        if (r.Blocked > 0) parts.Add($"сейчас нельзя: {r.Blocked}");
-        if (r.Failed > 0) parts.Add($"не применено: {r.Failed}");
+        var parts = new List<string> { Loc.Tf("Применено: {0}", r.Applied) };
+        if (r.Declined > 0) parts.Add(Loc.Tf("не подтверждено: {0}", r.Declined));
+        if (r.Unchanged > 0) parts.Add(Loc.Tf("уже было так: {0}", r.Unchanged));
+        if (r.Blocked > 0) parts.Add(Loc.Tf("сейчас нельзя: {0}", r.Blocked));
+        if (r.Failed > 0) parts.Add(Loc.Tf("не применено: {0}", r.Failed));
         return string.Join(" · ", parts) + "." + (r.Notes.Count > 0 ? " " + string.Join(" ", r.Notes) : "");
     }
 
@@ -124,7 +124,7 @@ public static class DeviceApply
         catch (Exception ex)
         {
             session.Errors.Add($"{s.Title}: {ex.Message}");
-            Log.Warn($"{s.Title} — не применено: {ex.Message}");
+            Log.Warn("{0} — не применено: {1}", s.Title, ex.Message);
             return ApplyOutcome.Failed;
         }
     }
@@ -140,7 +140,7 @@ public static class DeviceApply
         try
         {
             return await OperationCoordinator.Instance.RunAsync(
-                new OperationRequest(OperationClass.Disruptive, $"Настройка: {s.Title}") { Owner = "devices" },
+                new OperationRequest(OperationClass.Disruptive, Loc.Tf("Настройка: {0}", s.Title)) { Owner = "devices" },
                 _ => ApplyOneCoreAsync(s, value, ct), ct);
         }
         catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
@@ -151,10 +151,10 @@ public static class DeviceApply
 
     private static async Task<(ApplyOutcome Outcome, IReadOnlyList<string> Errors)> ApplyOneCoreAsync(DeviceSetting s, DeviceValue value, CancellationToken ct)
     {
-        if (!Elevation.IsElevated) return (ApplyOutcome.Blocked, ["Нужны права администратора."]);
-        if (s.IsReadOnly) return (ApplyOutcome.Failed, ["Эту настройку здесь не меняют."]);
+        if (!Elevation.IsElevated) return (ApplyOutcome.Blocked, [Loc.T("Нужны права администратора.")]);
+        if (s.IsReadOnly) return (ApplyOutcome.Failed, [Loc.T("Эту настройку здесь не меняют.")]);
         if (s.PerUser && await Task.Run(() => Elevation.InteractiveUserProblem) is { } account) return (ApplyOutcome.Blocked, [account]);
-        var session = await Task.Run(() => ChangeSession.BeginAsync($"Устройства и сеть: {s.Title}", createRestorePoint: false), CancellationToken.None);
+        var session = await Task.Run(() => ChangeSession.BeginAsync(Loc.Tf("Устройства и сеть: {0}", s.Title), createRestorePoint: false), CancellationToken.None);
         var outcome = await RunApplyAsync(session, s, value, ct);
         await Task.Run(session.Complete, CancellationToken.None);
         return (outcome, session.Errors.ToList());
@@ -182,7 +182,7 @@ public static class DeviceApply
         try
         {
             return await OperationCoordinator.Instance.RunAsync(
-                new OperationRequest(OperationClass.Disruptive, $"Откат: {s.Title}") { Owner = "devices", QueueIfBusy = true },
+                new OperationRequest(OperationClass.Disruptive, Loc.Tf("Откат: {0}", s.Title)) { Owner = "devices", QueueIfBusy = true },
                 _ => RevertOneCoreAsync(s));
         }
         catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
@@ -209,13 +209,13 @@ public static class DeviceApply
     {
         DeviceLinkKind.Settings => link.Target.StartsWith("ms-settings:", StringComparison.Ordinal) && link.Target.Length is > 12 and <= 200
                                    && !link.Target.Any(c => char.IsWhiteSpace(c) || char.IsControl(c) || c is '"' or '&' or '|')
-            ? null : "ссылка не на параметры Windows",
-        DeviceLinkKind.SoundPanel => link.Target is "0" or "1" or "2" or "3" ? null : "нет такой вкладки панели звука",
+            ? null : Loc.T("ссылка не на параметры Windows"),
+        DeviceLinkKind.SoundPanel => link.Target is "0" or "1" or "2" or "3" ? null : Loc.T("нет такой вкладки панели звука"),
         DeviceLinkKind.FocusTweak => link.Target.Length is > 0 and <= 80 && link.Target.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')
-            ? null : "неизвестный пункт «Оптимизации»",
-        DeviceLinkKind.Navigate => PageKey.IsMatch(link.Target) ? null : "неизвестный раздел",
-        DeviceLinkKind.Tool or DeviceLinkKind.VendorApp => string.IsNullOrWhiteSpace(link.Target) ? "не указано устройство" : null,
-        _ => "неизвестная ссылка",
+            ? null : Loc.T("неизвестный пункт «Оптимизации»"),
+        DeviceLinkKind.Navigate => PageKey.IsMatch(link.Target) ? null : Loc.T("неизвестный раздел"),
+        DeviceLinkKind.Tool or DeviceLinkKind.VendorApp => string.IsNullOrWhiteSpace(link.Target) ? Loc.T("не указано устройство") : null,
+        _ => Loc.T("неизвестная ссылка"),
     };
 
     /// <summary>Follows a link that leaves the page (Windows settings, sound panel, Optimize, another page). Never changes anything.</summary>
@@ -223,7 +223,7 @@ public static class DeviceApply
     {
         if (ValidateLink(link) is { } problem)
         {
-            Log.Warn($"Ссылка «{link.Label}» отклонена: {problem}.");
+            Log.Warn("Ссылка «{0}» отклонена: {1}.", link.Label, problem);
             return;
         }
         switch (link.Kind)
@@ -259,7 +259,7 @@ public static class DeviceApply
                 Log.Warn($"{app.AppName}: {ex.Message}");
                 ok = false;
             }
-            if (!ok) Ui.Toast($"Не удалось запустить {app.AppName}.", ToastKind.Warning);
+            if (!ok) Ui.Toast(Loc.Tf("Не удалось запустить {0}.", app.AppName), ToastKind.Warning);
             return;
         }
         if (app.OfferInstall)

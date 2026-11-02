@@ -13,7 +13,7 @@ public static class DnsWire
     {
         var labels = name.TrimEnd('.').Split('.');
         if (labels.Length == 0 || labels.Any(l => l.Length is 0 or > 63) || name.Length > 253)
-            throw new ArgumentException("некорректное имя: " + name, nameof(name));
+            throw new ArgumentException(Loc.Tf("некорректное имя: {0}", name), nameof(name));
         var buf = new List<byte>(18 + name.Length)
         {
             (byte)(id >> 8), (byte)id,
@@ -67,15 +67,15 @@ public static class DnsAdvice
     /// </summary>
     public static string? SkipReason(NetSnapshot s)
     {
-        if (s.ViaVpn) return "трафик идёт через VPN — у него свой DNS";
-        if (s.DohConfigured) return "настроено шифрование DNS (DoH)";
-        if (!string.IsNullOrWhiteSpace(s.Domain)) return "компьютер в домене организации — у неё свой DNS";
+        if (s.ViaVpn) return Loc.T("трафик идёт через VPN — у него свой DNS");
+        if (s.DohConfigured) return Loc.T("настроено шифрование DNS (DoH)");
+        if (!string.IsNullOrWhiteSpace(s.Domain)) return Loc.T("компьютер в домене организации — у неё свой DNS");
         foreach (var server in s.DnsServers)
         {
             if (!IPAddress.TryParse(server, out var ip)) continue;
-            if (PublicResolvers.Contains(ip.ToString())) return "уже используется публичный DNS";
+            if (PublicResolvers.Contains(ip.ToString())) return Loc.T("уже используется публичный DNS");
             if (IsPrivate(ip) && !string.Equals(ip.ToString(), s.Gateway, StringComparison.OrdinalIgnoreCase))
-                return "DNS-сервер в вашей сети — похоже на фильтр рекламы или родительский контроль";
+                return Loc.T("DNS-сервер в вашей сети — похоже на фильтр рекламы или родительский контроль");
         }
         return null;
     }
@@ -109,8 +109,8 @@ public static class DnsAdvice
         if (!faster && !curFails) return null;
         var id = best.Address == Cloudflare ? "dns-cloudflare" : "dns-google";
         var reason = faster
-            ? $"{best.Label} отвечает за {NetStats.Ms(bestMs)}, ваш DNS — за {NetStats.Ms(cur.MedianMs)}. На пинг в играх не влияет"
-            : $"Ваш DNS не ответил на {NetStats.Percent(cur.TimeoutPercent)} запросов, {best.Label} — на все. На пинг в играх не влияет";
+            ? Loc.Tf("{0} отвечает за {1}, ваш DNS — за {2}. На пинг в играх не влияет", best.Label, NetStats.Ms(bestMs), NetStats.Ms(cur.MedianMs))
+            : Loc.Tf("Ваш DNS не ответил на {0} запросов, {1} — на все. На пинг в играх не влияет", NetStats.Percent(cur.TimeoutPercent), best.Label);
         return (id, reason);
     }
 }
@@ -128,7 +128,7 @@ public static class DnsBench
     {
         var servers = new List<(string Label, string Address, bool Current)>();
         foreach (var d in s.DnsServers.Where(d => IPAddress.TryParse(d, out var ip) && ip.AddressFamily == AddressFamily.InterNetwork).Take(2))
-            servers.Add((string.Equals(d, s.Gateway, StringComparison.OrdinalIgnoreCase) ? $"Роутер ({d})" : $"Ваш DNS ({d})", d, true));
+            servers.Add((string.Equals(d, s.Gateway, StringComparison.OrdinalIgnoreCase) ? Loc.Tf("Роутер ({0})", d) : Loc.Tf("Ваш DNS ({0})", d), d, true));
         foreach (var (label, address) in new[] { ("Cloudflare", DnsAdvice.Cloudflare), ("Google", DnsAdvice.Google), ("Quad9", DnsAdvice.Quad9) })
             if (!servers.Any(x => x.Address == address)) servers.Add((label, address, false));
 

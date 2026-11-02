@@ -126,14 +126,14 @@ internal static class PollingRateEstimator
     public static string ResultText(PollingEstimate e)
     {
         if (!e.EnoughMotion)
-            return "Недостаточно движения — нажмите «ИЗМЕРИТЬ» ещё раз и все 5 секунд водите мышью быстрыми кругами.";
-        var stability = $"стабильность {(e.Stability * 100).ToString("0", CultureInfo.InvariantCulture)} %";
-        var jitter = e.Jitter > 0 ? $" · разброс ×{e.Jitter.ToString("0.0", InputAdvice.Ru)}" : "";
+            return Loc.T("Недостаточно движения — нажмите «ИЗМЕРИТЬ» ещё раз и все 5 секунд водите мышью быстрыми кругами.");
+        var stability = Loc.Tf("стабильность {0} %", (e.Stability * 100).ToString("0", CultureInfo.InvariantCulture));
+        var jitter = e.Jitter > 0 ? Loc.Tf(" · разброс ×{0}", e.Jitter.ToString("0.0", InputAdvice.Ru)) : "";
         return e.Hz is { } hz
-            ? $"≈ {hz.ToString(CultureInfo.InvariantCulture)} Гц · {stability}{jitter}"
-            : $"≈ {Math.Round(e.RawHz).ToString("0", CultureInfo.InvariantCulture)} Гц (нестабильно) · {stability}{jitter}";
+            ? Loc.Tf("≈ {0} Гц · {1}{2}", hz.ToString(CultureInfo.InvariantCulture), stability, jitter)
+            : Loc.Tf("≈ {0} Гц (нестабильно) · {1}{2}", Math.Round(e.RawHz).ToString("0", CultureInfo.InvariantCulture), stability, jitter);
     }
 
-    public const string SaturationHint =
-        "Водите быстрее: на высокой частоте опроса медленное движение не заполняет все отчёты, и результат занижается.";
+    public static string SaturationHint =>
+        Loc.T("Водите быстрее: на высокой частоте опроса медленное движение не заполняет все отчёты, и результат занижается.");
 }

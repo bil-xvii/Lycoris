@@ -62,7 +62,7 @@ public static class DeviceTargets
         value is { Length: >= 1 and <= 6 } && value.All(char.IsAsciiDigit);
 
     /// <summary>Shown with every adapter property change: the driver restarts the adapter.</summary>
-    public const string NicRestartNote = "адаптер перезапустится — связь пропадёт на 1–6 с";
+    public static string NicRestartNote => Loc.T("адаптер перезапустится — связь пропадёт на 1–6 с");
 
     // ───────────────────────────── DDC/CI safety ─────────────────────────────
 
@@ -88,23 +88,23 @@ public static class DeviceTargets
     public static string? DescribeTarget(string target)
     {
         if (target.StartsWith("spi:", StringComparison.Ordinal))
-            return SpiCatalog.Find(target[4..]) is { } e ? $"Параметр Windows: {e.Title}" : target[4..];
+            return SpiCatalog.Find(target[4..]) is { } e ? Loc.Tf("Параметр Windows: {0}", e.Title) : target[4..];
         if (target.StartsWith("display:mode:", StringComparison.Ordinal))
-            return $"Монитор {MonitorShort(target["display:mode:".Length..])}: разрешение и частота";
+            return Loc.Tf("Монитор {0}: разрешение и частота", MonitorShort(target["display:mode:".Length..]));
         if (target.StartsWith("display:hdr:", StringComparison.Ordinal))
-            return $"Монитор {MonitorShort(target["display:hdr:".Length..])}: HDR";
+            return Loc.Tf("Монитор {0}: HDR", MonitorShort(target["display:hdr:".Length..]));
         if (target.StartsWith("ddc:", StringComparison.Ordinal) && target.Length > 7)
         {
-            var what = target[4..6] == "12" ? "контраст" : "яркость";
-            return $"Монитор {MonitorShort(target[7..])}: {what}";
+            var what = target[4..6] == "12" ? Loc.T("контраст") : Loc.T("яркость");
+            return Loc.Tf("Монитор {0}: {1}", MonitorShort(target[7..]), what);
         }
-        if (target.StartsWith("audio:level:", StringComparison.Ordinal)) return $"Уровень записи {ShortEndpoint(target["audio:level:".Length..])}";
-        if (target.StartsWith("audio:mute:", StringComparison.Ordinal)) return $"Отключение звука {ShortEndpoint(target["audio:mute:".Length..])}";
+        if (target.StartsWith("audio:level:", StringComparison.Ordinal)) return Loc.Tf("Уровень записи {0}", ShortEndpoint(target["audio:level:".Length..]));
+        if (target.StartsWith("audio:mute:", StringComparison.Ordinal)) return Loc.Tf("Отключение звука {0}", ShortEndpoint(target["audio:mute:".Length..]));
         if (target.StartsWith("nicprop:", StringComparison.Ordinal))
         {
             var rest = target["nicprop:".Length..];
             var colon = rest.LastIndexOf(':');
-            return colon > 0 ? $"Сетевой адаптер {rest[..colon]}: {rest[(colon + 1)..]}" : rest;
+            return colon > 0 ? Loc.Tf("Сетевой адаптер {0}: {1}", rest[..colon], rest[(colon + 1)..]) : rest;
         }
         return null;
     }
@@ -117,15 +117,15 @@ public static class DeviceTargets
 
     /// <summary>«яркость 40 из 100».</summary>
     public static string DescribeVcp(MonitorVcp code, uint value, uint max) =>
-        $"{(code == MonitorVcp.Contrast ? "контраст" : "яркость")} {value.ToString(CultureInfo.InvariantCulture)} из {max.ToString(CultureInfo.InvariantCulture)}";
+        Loc.Tf("{0} {1} из {2}", code == MonitorVcp.Contrast ? Loc.T("контраст") : Loc.T("яркость"), value.ToString(CultureInfo.InvariantCulture), max.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>«уровень 82 %».</summary>
     public static string DescribeLevel(float scalar) =>
-        $"уровень {Math.Round(Math.Clamp(scalar, 0f, 1f) * 100).ToString("0", CultureInfo.InvariantCulture)} %";
+        Loc.Tf("уровень {0} %", Math.Round(Math.Clamp(scalar, 0f, 1f) * 100).ToString("0", CultureInfo.InvariantCulture));
 
-    public static string DescribeMute(bool mute) => mute ? "без звука" : "звук включён";
+    public static string DescribeMute(bool mute) => mute ? Loc.T("без звука") : Loc.T("звук включён");
 
-    public static string DescribeHdr(bool enabled) => enabled ? "HDR включён" : "HDR выключен";
+    public static string DescribeHdr(bool enabled) => enabled ? Loc.T("HDR включён") : Loc.T("HDR выключен");
 
-    public static string DescribeNic(string? value) => value is null ? "по умолчанию драйвера" : value;
+    public static string DescribeNic(string? value) => value is null ? Loc.T("по умолчанию драйвера") : value;
 }

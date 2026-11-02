@@ -10,7 +10,7 @@ namespace Monolith.Modules.Devices.Network;
 /// </summary>
 public static class NetFindings
 {
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
+    private static CultureInfo Ru => Loc.Culture;
 
     // ───────────────────────────── Scan-time (adapter and route) ─────────────────────────────
 
@@ -21,41 +21,41 @@ public static class NetFindings
     {
         var list = new List<NetFinding>();
         if (s.Best is { Medium: NetMedium.WiFi } && s.Adapters.Any(a => a.Medium == NetMedium.Ethernet))
-            list.Add(new NetFinding("wifi-instead-of-cable", NetSeverity.Warning, "Интернет идёт через Wi-Fi, а сетевой порт есть", "Wi-Fi",
-                "Кабель до роутера — самое заметное снижение скачков пинга и потерь",
-                "Важно: у ПК есть сетевой порт. Кабель до роутера убирает большую часть скачков пинга и потерь Wi-Fi."));
+            list.Add(new NetFinding("wifi-instead-of-cable", NetSeverity.Warning, Loc.T("Интернет идёт через Wi-Fi, а сетевой порт есть"), "Wi-Fi",
+                Loc.T("Кабель до роутера — самое заметное снижение скачков пинга и потерь"),
+                Loc.T("Важно: у ПК есть сетевой порт. Кабель до роутера убирает большую часть скачков пинга и потерь Wi-Fi.")));
         if (s.ViaVpn)
-            list.Add(new NetFinding("vpn", NetSeverity.Info, "Трафик идёт через VPN", Short(s.BestDescription ?? "VPN"),
-                "VPN ведёт трафик через свой сервер и добавляет задержку",
-                "VPN добавляет путь до своего сервера. Для игр выключайте его или исключите игру из туннеля."));
+            list.Add(new NetFinding("vpn", NetSeverity.Info, Loc.T("Трафик идёт через VPN"), Short(s.BestDescription ?? "VPN"),
+                Loc.T("VPN ведёт трафик через свой сервер и добавляет задержку"),
+                Loc.T("VPN добавляет путь до своего сервера. Для игр выключайте его или исключите игру из туннеля.")));
         if (s.BestInterface is null && !s.ViaVpn && s.Adapters.Count > 0)
-            list.Add(new NetFinding("offline", NetSeverity.Info, "Нет подключения к интернету", "нет маршрута",
-                "Ни один адаптер не ведёт в интернет", "Подключите кабель или Wi-Fi и нажмите «ОБНОВИТЬ»."));
+            list.Add(new NetFinding("offline", NetSeverity.Info, Loc.T("Нет подключения к интернету"), Loc.T("нет маршрута"),
+                Loc.T("Ни один адаптер не ведёт в интернет"), Loc.T("Подключите кабель или Wi-Fi и нажмите «ОБНОВИТЬ».")));
 
         foreach (var a in s.Adapters.Where(a => a.Medium == NetMedium.Ethernet))
         {
             if (a.LinkDrops is >= LinkDropThreshold and var drops)
-                list.Add(new NetFinding("link-drops", NetSeverity.Warning, "Обрывы связи на адаптере", $"{drops} за 7 дней",
-                    "По журналу Windows: отключения не при выключении и не во сне",
-                    $"Важно: связь пропадала {drops} раз за неделю. Сначала обновите драйвер адаптера, затем проверьте кабель и порт.",
-                    new DeviceLink(DeviceLinkKind.Navigate, "К ДРАЙВЕРАМ", "drivers"), a.InterfaceGuid));
+                list.Add(new NetFinding("link-drops", NetSeverity.Warning, Loc.T("Обрывы связи на адаптере"), Loc.Tf("{0} за 7 дней", drops),
+                    Loc.T("По журналу Windows: отключения не при выключении и не во сне"),
+                    Loc.Tf("Важно: связь пропадала {0} раз за неделю. Сначала обновите драйвер адаптера, затем проверьте кабель и порт.", drops),
+                    new DeviceLink(DeviceLinkKind.Navigate, Loc.T("К ДРАЙВЕРАМ"), "drivers"), a.InterfaceGuid));
             if (!a.Connected) continue;
             var sd = a.Property("*SpeedDuplex");
             var forced = sd is not null && (sd.Value ?? sd.DefaultValue) is { } v && v != "0";
             if (a.FullDuplex == false && !forced)
-                list.Add(new NetFinding("half-duplex", NetSeverity.Critical, "Связь в полудуплексе", "полудуплекс",
-                    "Порт роутера или коммутатора задан вручную, или кабель повреждён",
-                    "Важно: полудуплекс даёт потери и скачки. Проверьте кабель и порт; на коммутаторе включите автосогласование."
+                list.Add(new NetFinding("half-duplex", NetSeverity.Critical, Loc.T("Связь в полудуплексе"), Loc.T("полудуплекс"),
+                    Loc.T("Порт роутера или коммутатора задан вручную, или кабель повреждён"),
+                    Loc.T("Важно: полудуплекс даёт потери и скачки. Проверьте кабель и порт; на коммутаторе включите автосогласование.")
                     , null, a.InterfaceGuid));
             if (a.SpeedBps is { } bps && bps < 1_000_000_000 && !forced && SupportsGigabit(sd))
-                list.Add(new NetFinding("slow-link", NetSeverity.Warning, $"Кабель работает на {SpeedText(bps)}", SpeedText(bps),
-                    "Адаптер умеет 1 Гбит/с, но связь согласовалась на меньшей скорости",
-                    "Важно: так бывает с повреждённым или 4-жильным кабелем, плохим портом или старым коммутатором. " +
-                    "На пинг почти не влияет, но загрузки упираются в эту скорость.", null, a.InterfaceGuid));
+                list.Add(new NetFinding("slow-link", NetSeverity.Warning, Loc.Tf("Кабель работает на {0}", SpeedText(bps)), SpeedText(bps),
+                    Loc.T("Адаптер умеет 1 Гбит/с, но связь согласовалась на меньшей скорости"),
+                    Loc.T("Важно: так бывает с повреждённым или 4-жильным кабелем, плохим портом или старым коммутатором. " +
+                    "На пинг почти не влияет, но загрузки упираются в эту скорость."), null, a.InterfaceGuid));
             if (duplexRegression?.Invoke(a.InterfaceGuid) == true && a.FullDuplex != true)
-                list.Add(new NetFinding("duplex-regression", NetSeverity.Critical, "После автосогласования — полудуплекс", "полудуплекс",
-                    "Порт роутера или коммутатора, видимо, задан вручную",
-                    "Важно: откатите «Скорость и дуплекс» кнопкой «ОТКАТИТЬ» в строке адаптера или настройте порт на автосогласование.",
+                list.Add(new NetFinding("duplex-regression", NetSeverity.Critical, Loc.T("После автосогласования — полудуплекс"), Loc.T("полудуплекс"),
+                    Loc.T("Порт роутера или коммутатора, видимо, задан вручную"),
+                    Loc.T("Важно: откатите «Скорость и дуплекс» кнопкой «ОТКАТИТЬ» в строке адаптера или настройте порт на автосогласование."),
                     null, a.InterfaceGuid));
         }
         return list;
@@ -89,10 +89,10 @@ public static class NetFindings
 
         // F4 — loss in the home network (corroborated: ≥ 2 lost and ≥ 3 % at 2 echoes per second).
         if (gw is { HasData: true } && gw.Lost >= 2 && gw.LossPercent >= 3)
-            list.Add(new NetFinding("lan-loss", gw.LossPercent >= 5 ? NetSeverity.Critical : NetSeverity.Warning, "Потери в домашней сети",
-                $"роутер: {NetStats.Percent(gw.LossPercent)}", "Роутер не ответил на часть запросов при 2 запросах в секунду",
-                wifi ? "Важно: Wi-Fi теряет пакеты. Сядьте ближе к роутеру, перейдите на 5 ГГц или подключите кабель."
-                     : "Важно: кабельное подключение теряет пакеты. Проверьте кабель и порт роутера."));
+            list.Add(new NetFinding("lan-loss", gw.LossPercent >= 5 ? NetSeverity.Critical : NetSeverity.Warning, Loc.T("Потери в домашней сети"),
+                Loc.Tf("роутер: {0}", NetStats.Percent(gw.LossPercent)), Loc.T("Роутер не ответил на часть запросов при 2 запросах в секунду"),
+                wifi ? Loc.T("Важно: Wi-Fi теряет пакеты. Сядьте ближе к роутеру, перейдите на 5 ГГц или подключите кабель.")
+                     : Loc.T("Важно: кабельное подключение теряет пакеты. Проверьте кабель и порт роутера.")));
 
         // F5 — spikes in the home network (wired: they must also show on the internet target; router ICMP is a slow path).
         if (gw is { HasData: true, P50: { } g50, P95: { } g95, Jitter: { } gj })
@@ -101,10 +101,10 @@ public static class NetFindings
             var wired = !wifi && (g50 > 2 || (g95 > 10 && spikesPropagate));
             var air = wifi && (g50 > 5 || g95 > 30 || gj > 5);
             if (wired || air)
-                list.Add(new NetFinding("lan-spikes", wifi && g95 > 100 ? NetSeverity.Critical : NetSeverity.Warning, "Скачки задержки в домашней сети",
-                    $"роутер: {NetStats.Ms(g50)}, p95 {NetStats.Ms(g95)}", "Задержка до роутера должна быть стабильно низкой",
-                    wifi ? "Важно: Wi-Fi даёт скачки. Помогают кабель, 5/6 ГГц и место ближе к роутеру."
-                         : "Важно: задержка до роутера по кабелю высокая. Проверьте кабель, порт и не перегружен ли роутер."));
+                list.Add(new NetFinding("lan-spikes", wifi && g95 > 100 ? NetSeverity.Critical : NetSeverity.Warning, Loc.T("Скачки задержки в домашней сети"),
+                    Loc.Tf("роутер: {0}, p95 {1}", NetStats.Ms(g50), NetStats.Ms(g95)), Loc.T("Задержка до роутера должна быть стабильно низкой"),
+                    wifi ? Loc.T("Важно: Wi-Fi даёт скачки. Помогают кабель, 5/6 ГГц и место ближе к роутеру.")
+                         : Loc.T("Важно: задержка до роутера по кабелю высокая. Проверьте кабель, порт и не перегружен ли роутер.")));
         }
 
         // F7 — loss at the ISP: two internet targets lose, the router does not.
@@ -113,63 +113,63 @@ public static class NetFindings
         {
             var worst = lossy.Max(t => t.Stats.LossPercent);
             list.Add(new NetFinding("isp-loss", lossy.All(t => t.Stats.LossPercent >= 5) ? NetSeverity.Critical : NetSeverity.Warning,
-                "Потери за роутером", $"до {NetStats.Percent(worst)}", "Пакеты теряются у провайдера, домашняя сеть в порядке",
-                "Важно: потери на двух узлах интернета при чистой домашней сети — вопрос к провайдеру. Повторите замер в другое время."));
+                Loc.T("Потери за роутером"), Loc.Tf("до {0}", NetStats.Percent(worst)), Loc.T("Пакеты теряются у провайдера, домашняя сеть в порядке"),
+                Loc.T("Важно: потери на двух узлах интернета при чистой домашней сети — вопрос к провайдеру. Повторите замер в другое время.")));
         }
 
         // F8 — high base latency (Cloudflare AIM bands).
         if (inet is { P50: > 50 and var base50 })
-            list.Add(new NetFinding("high-base", NetSeverity.Info, "Высокая базовая задержка", NetStats.Ms(base50),
-                "Задержка до ближайшего узла интернета больше 50 мс",
-                "Это маршрут провайдера или расстояние — на ПК это не исправить."));
+            list.Add(new NetFinding("high-base", NetSeverity.Info, Loc.T("Высокая базовая задержка"), NetStats.Ms(base50),
+                Loc.T("Задержка до ближайшего узла интернета больше 50 мс"),
+                Loc.T("Это маршрут провайдера или расстояние — на ПК это не исправить.")));
 
         // F9 — unstable latency at the ISP while the home network is calm.
         if (inet is { Jitter: > 10 and var ij } && (gw is null || gw.Jitter is < 2))
-            list.Add(new NetFinding("isp-jitter", NetSeverity.Info, "Нестабильная задержка у провайдера", $"джиттер {NetStats.Ms(ij)}",
-                "Разброс задержки до интернета при спокойной домашней сети",
-                "Скачки возникают за роутером. Если повторяются в разное время — сообщите провайдеру."));
+            list.Add(new NetFinding("isp-jitter", NetSeverity.Info, Loc.T("Нестабильная задержка у провайдера"), Loc.Tf("джиттер {0}", NetStats.Ms(ij)),
+                Loc.T("Разброс задержки до интернета при спокойной домашней сети"),
+                Loc.T("Скачки возникают за роутером. Если повторяются в разное время — сообщите провайдеру.")));
 
         // F14 — receive errors grew while measuring (discards are not errors).
         if (r.Traffic is { InErrors: > 0 and var errors, InPackets: > 0 and var packets } && errors * 100_000 > packets)
-            list.Add(new NetFinding("rx-errors", NetSeverity.Warning, "Ошибки приёма на адаптере", $"{errors} за замер",
-                "Повреждённые кадры: кабель, разъём или помехи",
-                "Важно: адаптер принимает повреждённые пакеты. Замените кабель или попробуйте другой порт роутера."));
+            list.Add(new NetFinding("rx-errors", NetSeverity.Warning, Loc.T("Ошибки приёма на адаптере"), Loc.Tf("{0} за замер", errors),
+                Loc.T("Повреждённые кадры: кабель, разъём или помехи"),
+                Loc.T("Важно: адаптер принимает повреждённые пакеты. Замените кабель или попробуйте другой порт роутера.")));
 
         // F15 — background transfers during the idle probes.
         if (r.Traffic is { } t && (t.DownMbps > 5 || t.UpMbps > 5))
         {
             var who = t.Top.Where(p => p.Bytes is null or > 0).Take(3).Select(p => p.Bytes is { } b ? $"{p.Name} ({Mb(b)})" : p.Name).ToList();
             var wu = t.WindowsUpdateJobs is > 0;
-            list.Add(new NetFinding("background", load is null ? NetSeverity.Info : NetSeverity.Warning, "Фоновые загрузки во время замера",
-                $"↓ {NetStats.Number(t.DownMbps)} · ↑ {NetStats.Mbps(t.UpMbps)}", "Загрузки забивают канал и поднимают пинг в игре",
-                (wu ? "Windows Update скачивает обновления. " : "") +
-                (who.Count > 0 ? $"Больше всего трафика: {string.Join(", ", who)}. " : "") +
-                "Поставьте загрузки на паузу во время игры или ограничьте скорость в лаунчере.",
-                wu ? new DeviceLink(DeviceLinkKind.Settings, "ЛИМИТ ОБНОВЛЕНИЙ", "ms-settings:delivery-optimization-advanced") : null));
+            list.Add(new NetFinding("background", load is null ? NetSeverity.Info : NetSeverity.Warning, Loc.T("Фоновые загрузки во время замера"),
+                $"↓ {NetStats.Number(t.DownMbps)} · ↑ {NetStats.Mbps(t.UpMbps)}", Loc.T("Загрузки забивают канал и поднимают пинг в игре"),
+                (wu ? Loc.T("Windows Update скачивает обновления. ") : "") +
+                (who.Count > 0 ? Loc.Tf("Больше всего трафика: {0}. ", string.Join(", ", who)) : "") +
+                Loc.T("Поставьте загрузки на паузу во время игры или ограничьте скорость в лаунчере."),
+                wu ? new DeviceLink(DeviceLinkKind.Settings, Loc.T("ЛИМИТ ОБНОВЛЕНИЙ"), "ms-settings:delivery-optimization-advanced") : null));
         }
 
         // F16 / F17 — Wi-Fi signal and band.
         if (r.Wifi is { } w)
         {
             if (w.RssiDbm is { } rssi && rssi < -67)
-                list.Add(new NetFinding("wifi-weak", rssi < -75 ? NetSeverity.Warning : NetSeverity.Info, "Слабый сигнал Wi-Fi", $"{rssi} дБм",
-                    "Для игр нужен сигнал не хуже −67 дБм",
-                    (rssi < -75 ? "Важно: " : "") + "Сядьте ближе к роутеру, уберите преграды или подключите кабель."));
+                list.Add(new NetFinding("wifi-weak", rssi < -75 ? NetSeverity.Warning : NetSeverity.Info, Loc.T("Слабый сигнал Wi-Fi"), Loc.Tf("{0} дБм", rssi),
+                    Loc.T("Для игр нужен сигнал не хуже −67 дБм"),
+                    (rssi < -75 ? Loc.T("Важно: ") : "") + Loc.T("Сядьте ближе к роутеру, уберите преграды или подключите кабель.")));
             if (w.Is24GHz)
-                list.Add(new NetFinding("wifi-24", NetSeverity.Info, "Wi-Fi в диапазоне 2,4 ГГц", $"канал {w.Channel}",
-                    "2,4 ГГц перегружен соседями и бытовой техникой",
-                    "Переключитесь на 5/6 ГГц: на роутере дайте диапазонам разные имена сетей или включите band steering."));
+                list.Add(new NetFinding("wifi-24", NetSeverity.Info, Loc.T("Wi-Fi в диапазоне 2,4 ГГц"), Loc.Tf("канал {0}", w.Channel),
+                    Loc.T("2,4 ГГц перегружен соседями и бытовой техникой"),
+                    Loc.T("Переключитесь на 5/6 ГГц: на роутере дайте диапазонам разные имена сетей или включите band steering.")));
             if (w.Error is { } err)
-                list.Add(new NetFinding("wifi-location", NetSeverity.Info, "Сигнал Wi-Fi не прочитан", "нет доступа",
-                    "Windows 11 скрывает данные Wi-Fi без доступа к расположению", err + ".",
-                    new DeviceLink(DeviceLinkKind.Settings, "РАСПОЛОЖЕНИЕ", "ms-settings:privacy-location")));
+                list.Add(new NetFinding("wifi-location", NetSeverity.Info, Loc.T("Сигнал Wi-Fi не прочитан"), Loc.T("нет доступа"),
+                    Loc.T("Windows 11 скрывает данные Wi-Fi без доступа к расположению"), err + ".",
+                    new DeviceLink(DeviceLinkKind.Settings, Loc.T("РАСПОЛОЖЕНИЕ"), "ms-settings:privacy-location")));
         }
 
         // F20 — a PMTU black hole (not merely a smaller path MTU).
         if (r.Mtu is { BlackHole: true, PathMtu: { } path } m && path < m.InterfaceMtu)
-            list.Add(new NetFinding("mtu-blackhole", NetSeverity.Info, "Большие пакеты пропадают в пути", $"MTU пути {path}",
-                "Роутер не сообщает о слишком больших пакетах",
-                "Некоторые загрузки могут зависать. Это настраивается на роутере (MSS clamping); MONOLITH MTU не меняет."));
+            list.Add(new NetFinding("mtu-blackhole", NetSeverity.Info, Loc.T("Большие пакеты пропадают в пути"), Loc.Tf("MTU пути {0}", path),
+                Loc.T("Роутер не сообщает о слишком больших пакетах"),
+                Loc.T("Некоторые загрузки могут зависать. Это настраивается на роутере (MSS clamping); MONOLITH MTU не меняет.")));
 
         if (includeLoad && load is not null && LoadFinding(load) is { } lf) list.Add(lf);
         return list;
@@ -180,11 +180,12 @@ public static class NetFindings
     {
         var severity = NetStats.GradeSeverity(l.Grade);
         if (severity == NetSeverity.Ok) return null;
-        return new NetFinding("bufferbloat", severity, "Пинг растёт под нагрузкой (bufferbloat)", $"оценка {l.Grade} · {NetStats.DeltaMs(l.Increase)}",
-            "Очередь в роутере или у провайдера переполняется, когда канал занят",
-            (severity >= NetSeverity.Warning ? "Важно: " : "") +
-            (backgroundToo ? "сначала остановите фоновые загрузки, затем включите" : severity >= NetSeverity.Warning ? "включите" : "Включите") +
-            " SQM / Smart Queue / QoS на роутере или ограничьте скорость на 5–10 % ниже тарифа.");
+        return new NetFinding("bufferbloat", severity, Loc.T("Пинг растёт под нагрузкой (bufferbloat)"), Loc.Tf("оценка {0} · {1}", l.Grade, NetStats.DeltaMs(l.Increase)),
+            Loc.T("Очередь в роутере или у провайдера переполняется, когда канал занят"),
+            (severity >= NetSeverity.Warning ? Loc.T("Важно: ") : "") +
+            (backgroundToo ? Loc.T("сначала остановите фоновые загрузки, затем включите SQM / Smart Queue / QoS на роутере или ограничьте скорость на 5–10 % ниже тарифа.")
+                : severity >= NetSeverity.Warning ? Loc.T("включите SQM / Smart Queue / QoS на роутере или ограничьте скорость на 5–10 % ниже тарифа.")
+                : Loc.T("Включите SQM / Smart Queue / QoS на роутере или ограничьте скорость на 5–10 % ниже тарифа.")));
     }
 
     /// <summary>Receive buffers below the maximum while the adapter dropped packets under load (skeptic: audit only, MONOLITH writes nothing).</summary>
@@ -195,9 +196,9 @@ public static class NetFindings
         if (max <= value || l.InPacketsDelta is not { } packets || packets <= 0) return null;
         var lost = (l.InErrorsDelta ?? 0) + (l.InDiscardsDelta ?? 0);
         if (lost * 200 <= packets) return null; // under 0,5 %
-        return new NetFinding("rx-buffers", NetSeverity.Info, "Адаптер терял пакеты под нагрузкой", $"буферы {value} из {max}",
-            "Мало буферов приёма: при больших загрузках кадры отбрасываются",
-            "Увеличить можно в Диспетчере устройств → адаптер → Дополнительно → «Буферы приёма». MONOLITH это не меняет.", null, best.InterfaceGuid);
+        return new NetFinding("rx-buffers", NetSeverity.Info, Loc.T("Адаптер терял пакеты под нагрузкой"), Loc.Tf("буферы {0} из {1}", value, max),
+            Loc.T("Мало буферов приёма: при больших загрузках кадры отбрасываются"),
+            Loc.T("Увеличить можно в Диспетчере устройств → адаптер → Дополнительно → «Буферы приёма». MONOLITH это не меняет."), null, best.InterfaceGuid);
     }
 
     /// <summary>IPv6 clearly worse than IPv4 on both pairs (≥ +10 ms, or ≥ 5 % loss where IPv4 is clean); null otherwise.</summary>
@@ -220,9 +221,9 @@ public static class NetFindings
     {
         var top = r.Closest(3);
         if (top.Count == 0) return null;
-        return new NetFinding("valve-regions", NetSeverity.Info, "Ближайшие регионы Valve", $"{RegionName(top[0].Pop)} {NetStats.Ms(top[0].Stats.P50)}",
-            "Пинг до ретрансляторов Steam (CS2, Dota 2): примерно как в игре",
-            "Ближе всего: " + string.Join(", ", top.Select(x => $"{RegionName(x.Pop)} {NetStats.Ms(x.Stats.P50)}")) + ". Регион задаёт расстояние, не ПК.");
+        return new NetFinding("valve-regions", NetSeverity.Info, Loc.T("Ближайшие регионы Valve"), $"{RegionName(top[0].Pop)} {NetStats.Ms(top[0].Stats.P50)}",
+            Loc.T("Пинг до ретрансляторов Steam (CS2, Dota 2): примерно как в игре"),
+            Loc.Tf("Ближе всего: {0}. Регион задаёт расстояние, не ПК.", string.Join(", ", top.Select(x => $"{RegionName(x.Pop)} {NetStats.Ms(x.Stats.P50)}"))));
     }
 
     public static string RegionName(SdrPop p)
@@ -236,11 +237,11 @@ public static class NetFindings
 
     public static string SpeedText(long bps) => bps switch
     {
-        >= 1_000_000_000 => (bps / 1e9).ToString(bps % 1_000_000_000 == 0 ? "0" : "0.#", Ru) + " Гбит/с",
-        _ => (bps / 1e6).ToString("0", Ru) + " Мбит/с",
+        >= 1_000_000_000 => Loc.Tf("{0} Гбит/с", (bps / 1e9).ToString(bps % 1_000_000_000 == 0 ? "0" : "0.#", Ru)),
+        _ => Loc.Tf("{0} Мбит/с", (bps / 1e6).ToString("0", Ru)),
     };
 
-    public static string Mb(long bytes) => bytes >= 10_000_000 ? $"{bytes / 1_000_000} МБ" : (bytes / 1e6).ToString("0.0", Ru) + " МБ";
+    public static string Mb(long bytes) => Loc.Tf("{0} МБ", bytes >= 10_000_000 ? (bytes / 1_000_000).ToString() : (bytes / 1e6).ToString("0.0", Ru));
 
     /// <summary>«Realtek PCI(e) Ethernet» from «Realtek(R) PCI(e) Ethernet Controller».</summary>
     public static string Short(string description)

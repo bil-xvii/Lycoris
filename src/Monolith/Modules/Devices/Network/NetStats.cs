@@ -23,7 +23,7 @@ public enum NetSeverity { Ok, Info, Warning, Critical }
 
 public static class NetStats
 {
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
+    private static CultureInfo Ru => Loc.Culture;
 
     /// <summary>Statistics of samples in send order; null = no reply.</summary>
     public static LatencyStats Compute(IReadOnlyList<double?> samples)
@@ -67,20 +67,20 @@ public static class NetStats
     public static string Ms(double? v) => v switch
     {
         null => "—",
-        < 1 => "<1 мс",
-        < 10 => v.Value.ToString("0.0", Ru) + " мс",
-        _ => v.Value.ToString("0", Ru) + " мс",
+        < 1 => Loc.T("<1 мс"),
+        < 10 => Loc.Tf("{0} мс", v.Value.ToString("0.0", Ru)),
+        _ => Loc.Tf("{0} мс", v.Value.ToString("0", Ru)),
     };
 
     /// <summary>«+0,3 мс» / «+120 мс».</summary>
-    public static string DeltaMs(double v) => (v >= 0 ? "+" : "−") + (Math.Abs(v) < 10 ? Math.Abs(v).ToString("0.0", Ru) : Math.Abs(v).ToString("0", Ru)) + " мс";
+    public static string DeltaMs(double v) => Loc.Tf("{0} мс", (v >= 0 ? "+" : "−") + (Math.Abs(v) < 10 ? Math.Abs(v).ToString("0.0", Ru) : Math.Abs(v).ToString("0", Ru)));
 
-    public static string Percent(double v) => (v < 10 && v % 1 != 0 ? v.ToString("0.0", Ru) : v.ToString("0", Ru)) + " %";
+    public static string Percent(double v) => Loc.Tf("{0} %", v < 10 && v % 1 != 0 ? v.ToString("0.0", Ru) : v.ToString("0", Ru));
 
     /// <summary>«42» / «1,2» (Mbit/s without the unit).</summary>
     public static string Number(double v) => v < 10 ? v.ToString("0.0", Ru) : v.ToString("0", Ru);
 
-    public static string Mbps(double v) => v < 10 ? v.ToString("0.0", Ru) + " Мбит/с" : v.ToString("0", Ru) + " Мбит/с";
+    public static string Mbps(double v) => Loc.Tf("{0} Мбит/с", v < 10 ? v.ToString("0.0", Ru) : v.ToString("0", Ru));
 
     // ───────────────────────────── Bufferbloat ─────────────────────────────
 
@@ -165,8 +165,8 @@ public static class NetStats
 
     public static string VerdictText(ChangeVerdict v) => v switch
     {
-        ChangeVerdict.Better => "лучше",
-        ChangeVerdict.Worse => "хуже",
-        _ => "без измеримой разницы",
+        ChangeVerdict.Better => Loc.T("лучше"),
+        ChangeVerdict.Worse => Loc.T("хуже"),
+        _ => Loc.T("без измеримой разницы"),
     };
 }

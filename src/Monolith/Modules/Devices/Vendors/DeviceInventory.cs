@@ -204,12 +204,12 @@ internal static partial class DeviceInventory
         if (friendly is not null) return friendly.Trim();
         var word = kind switch
         {
-            InventoryKind.Mouse => "Мышь",
-            InventoryKind.Keyboard => "Клавиатура",
-            InventoryKind.Audio => "Аудиоустройство",
-            InventoryKind.Controller => "Геймпад",
-            InventoryKind.Lighting => "Контроллер подсветки",
-            _ => "Устройство",
+            InventoryKind.Mouse => Loc.T("Мышь"),
+            InventoryKind.Keyboard => Loc.T("Клавиатура"),
+            InventoryKind.Audio => Loc.T("Аудиоустройство"),
+            InventoryKind.Controller => Loc.T("Геймпад"),
+            InventoryKind.Lighting => Loc.T("Контроллер подсветки"),
+            _ => Loc.T("Устройство"),
         };
         return vendor is null ? word : $"{word} {vendor.Name}";
     }
