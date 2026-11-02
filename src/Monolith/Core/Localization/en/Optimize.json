@@ -269,6 +269,9 @@
     "Оптимизация: сценарий «Рекомендуемый»": "Optimize: “Recommended” scenario",
     "Оптимизация: сценарий «Стриминг и запись»": "Optimize: “Streaming & recording” scenario",
     "Оптимизация: сценарий «Ноутбук: автономность»": "Optimize: “Laptop: battery life” scenario",
-    "Оптимизация: сценарий «Тихий ПК»": "Optimize: “Quiet PC” scenario"
+    "Оптимизация: сценарий «Тихий ПК»": "Optimize: “Quiet PC” scenario",
+    "ПЕРЕЗАГРУЗКА СЕЙЧАС НЕВОЗМОЖНА": "RESTART IS NOT POSSIBLE NOW",
+    "Сейчас выполняется задача «{0}»: перезагрузка прервала бы её на середине. Дождитесь окончания (список «ЗАДАЧИ» внизу окна) и перезагрузите компьютер позже.": "The task “{0}” is running: a restart would interrupt it half-way. Wait for it to finish (the “TASKS” list at the bottom of the window) and restart the computer later.",
+    "Идёт игровой сеанс Lycoris: остановите его на странице «Игры» и перезагрузите компьютер после этого.": "A Lycoris game session is active: stop it on the Games page and restart the computer after that."
   }
 }

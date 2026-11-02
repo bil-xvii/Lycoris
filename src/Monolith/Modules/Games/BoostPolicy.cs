@@ -234,8 +234,8 @@ public static class GameProcessFinder
     /// <summary>Helpers that live in game folders but are not the game (crash reporters, anti-cheat, installers).</summary>
     private static readonly string[] HelperFragments =
     [
-        "crash", "easyanticheat", "beservice", "battleye", "vc_redist", "vcredist", "dxsetup", "unins",
-        "launcherpatcher", "cefprocess", "webhelper", "reporter",
+        "crashhandler", "crashreport", "crashpad", "crashsender", "crashrpt", "crashdump", "easyanticheat", "beservice", "battleye", "vc_redist", "vcredist", "dxsetup", "unins",
+        "launcherpatcher", "cefprocess", "webhelper", "bugreporter", "errorreporter",
     ];
 
     public static bool IsHelper(string processName) =>

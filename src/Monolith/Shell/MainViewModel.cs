@@ -120,6 +120,16 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     /// <summary>Startup safety checks, run once after the window is shown (skipped in QA modes).</summary>
     public async Task RunStartupChecksAsync()
     {
+        // Called fire-and-forget: one failing check must not stop the others, and the action the user clicked before the
+        // relaunch with admin rights must still be repeated (it used to be lost when a check above it threw).
+        try { await RunStartupChecksCoreAsync(); }
+        catch (Exception ex) { Log.Error("Проверки при запуске прерваны", ex); }
+        try { await ReplayIntentAsync(); }
+        catch (Exception ex) { Log.Error("Повтор действия после перезапуска не выполнен", ex); }
+    }
+
+    private async Task RunStartupChecksCoreAsync()
+    {
         await Task.Delay(1200);
 
         // 0. Display and input changes left unconfirmed by a crash (Lycoris or the PC died during the countdown): an
@@ -172,6 +182,18 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             }
         }
 
+        // 2b. Efficiency mode (EcoQoS) left on by a crashed session: the marker names the tagged programs. Handled here at
+        //     every start, not only when the Games page opens — a user who never opens it would keep them throttled.
+        if (Elevation.IsElevated && !GameBoostState.IsActive)
+        {
+            try
+            {
+                var text = await Task.Run(Monolith.Modules.Games.GameBoostService.RecoverStaleEcoQos);
+                if (text is not null) Ui.Toast(text, ToastKind.Warning, "ИГРОВОЙ СЕАНС");
+            }
+            catch (Exception ex) { Log.Warn("Игровой сеанс: не удалось снять режим эффективности прошлого сеанса — {0}", ex.Message); }
+        }
+
         // 3. Game Boost changes left active (e.g. Lycoris or the PC crashed during a game).
         var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)
@@ -203,8 +225,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         // 4. Drift: settings Lycoris applied were changed afterwards (Windows feature update, another program).
         await CheckDriftAsync();
 
-        // 5. The action the user clicked before the relaunch with admin rights: repeated once, through its own command.
-        await ReplayIntentAsync();
+        // 5. (the action the user clicked before the relaunch with admin rights is repeated by RunStartupChecksAsync)
     }
 
     /// <summary>One non-blocking toast when active records no longer match the live system; details on the Restore page.</summary>
@@ -325,7 +346,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     partial void OnCurrentPageChanged(PageViewModel? oldValue, PageViewModel? newValue)
     {
-        oldValue?.Deactivate();
+        oldValue?.Leave();
         if (newValue is not null) _ = newValue.ActivateAsync();
         OnPropertyChanged(nameof(NavSelection));
         OnPropertyChanged(nameof(IsSettingsOpen));

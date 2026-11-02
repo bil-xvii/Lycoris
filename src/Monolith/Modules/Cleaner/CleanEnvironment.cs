@@ -216,7 +216,8 @@ public sealed class CleanEnvironment
     private static string? FindSteam()
     {
         var reg = RegistryHelper.ReadString(RegHive.HKCU, @"Software\Valve\Steam", "SteamPath");
-        if (PathGuard.Normalize(reg) is { } p && Directory.Exists(p)) return p;
+        // HKCU is writable by any program of the user and the cleaner deletes under <Steam>\logs, \dumps…: the folder must really be Steam's.
+        if (PathGuard.Normalize(reg) is { } p && Directory.Exists(p) && File.Exists(Path.Combine(p, "steam.exe"))) return p;
         var x86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
         var fallback = string.IsNullOrEmpty(x86) ? null : Path.Combine(x86, "Steam");
         return fallback is not null && File.Exists(Path.Combine(fallback, "steam.exe")) ? fallback : null;

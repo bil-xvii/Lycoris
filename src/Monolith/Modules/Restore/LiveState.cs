@@ -257,7 +257,7 @@ public static class LiveState
         var name = r.Service?.Name ?? StripPrefix(r.Target, "svc:");
         if (string.IsNullOrEmpty(name)) return new LiveValue(Unknown, null);
         return ServiceControl.Query(name) is { } live
-            ? Compare(r, live.Describe())
+            ? Compare(r, live.DescribeNeutral())
             : new LiveValue("служба не найдена", null); // loc:ignore journal-compared state text (Russian on disk)
     }
 
@@ -320,6 +320,12 @@ public static class LiveState
     public static bool? IsDrift(ChangeKind kind, string? applied, string? live)
     {
         if (string.IsNullOrWhiteSpace(applied) || string.IsNullOrWhiteSpace(live) || live == Unknown) return null;
+        if (kind == ChangeKind.Service)
+        {
+            // Records written by an English interface hold English start types: compare the neutral forms.
+            applied = ServiceControl.NormalizeStart(applied);
+            live = ServiceControl.NormalizeStart(live);
+        }
         if (string.Equals(applied.Trim(), live.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
         if (kind == ChangeKind.Registry && DWordOf(applied) is { } a && DWordOf(live) is { } b) return a != b;
         return true;

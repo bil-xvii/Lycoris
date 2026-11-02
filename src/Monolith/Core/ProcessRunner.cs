@@ -208,14 +208,14 @@ public static class ProcessRunner
             if (e.Data is null) return;
             var line = Clean(e.Data);
             lock (stdout) { if (stdout.Length < MaxCapturedChars) stdout.AppendLine(line); }
-            if (line.Length > 0) options.OnOutput?.Invoke(line);
+            if (line.Length > 0) NotifyOutput(options, line);
         };
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
             var line = Clean(e.Data);
             lock (stderr) { if (stderr.Length < MaxCapturedChars) stderr.AppendLine(line); }
-            if (line.Length > 0) options.OnOutput?.Invoke(line);
+            if (line.Length > 0) NotifyOutput(options, line);
         };
 
         try
@@ -289,6 +289,16 @@ public static class ProcessRunner
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetOEMCP();
     [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetACP();
+
+    /// <summary>
+    /// The callback runs on a thread-pool thread of the Process class: an exception there is unhandled and ends the whole
+    /// application, so a faulty listener must never get that far.
+    /// </summary>
+    internal static void NotifyOutput(ProcessRunOptions options, string line)
+    {
+        try { options.OnOutput?.Invoke(line); }
+        catch (Exception ex) { Log.Warn("Вывод процесса: обработчик строки завершился ошибкой — {0}", ex.Message); }
+    }
 
     /// <summary>Removes NULs (sfc), backspaces and carriage-return progress spinners (winget).</summary>
     private static string Clean(string line)

@@ -324,7 +324,13 @@ public sealed partial class DriversViewModel : PageViewModel
         }
         if (card.ToolInstalled)
         {
-            if (card.ToolExePath is not null) ShellOpen(card.ToolExePath, tool.Name);
+            // The path may come from a per-user uninstall entry (any program of the user can write HKCU): start it as the
+            // desktop user, never with Lycoris's administrator token.
+            if (card.ToolExePath is not null)
+            {
+                if (!await UnelevatedShell.StartAsUserAsync(card.ToolExePath, directory: System.IO.Path.GetDirectoryName(card.ToolExePath)))
+                    Ui.Toast(Loc.Tf("Не удалось открыть {0}", tool.Name), ToastKind.Warning);
+            }
             else await OpenUrlAsync(tool.SiteUrl);
             return;
         }

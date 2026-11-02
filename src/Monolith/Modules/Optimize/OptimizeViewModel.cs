@@ -1049,6 +1049,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
             case RestartRequirement.Reboot:
             {
                 var signOut = kind == RestartRequirement.SignOut;
+                if (SessionActions.RebootBlockerText(OperationCoordinator.Instance.Snapshot(), GameBoostState.IsActive) is { } blocked)
+                {
+                    await Ui.AlertAsync("ПЕРЕЗАГРУЗКА СЕЙЧАС НЕВОЗМОЖНА", blocked);
+                    Postpone(kind, null);
+                    return;
+                }
                 var ok = await Ui.ConfirmAsync(signOut ? Loc.T("НУЖЕН ВЫХОД ИЗ СИСТЕМЫ") : Loc.T("НУЖНА ПЕРЕЗАГРУЗКА"),
                     signOut
                         ? Loc.T("Часть изменений вступит в силу после выхода из системы и повторного входа. Перезагрузка тоже подойдёт.")
