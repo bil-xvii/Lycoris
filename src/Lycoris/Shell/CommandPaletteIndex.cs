@@ -203,7 +203,13 @@ public static class CommandPaletteIndex
             $"{i.Publisher} {i.Command} " + Loc.Keep("автозапуск startup"), "services", StartupFocusPrefix + i.Key));
 
     /// <summary>Everything static (no live scans): catalogs, Settings rows, Drivers tabs, Restore sections.</summary>
-    public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries);
+    public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries).Concat(ModeEntries);
+
+    private static readonly Entry[] ModeEntries =
+    [
+        new(PaletteKind.Setting, Loc.Key("Переключить на простой режим"), Loc.Key("Показывать короткие пояснения и простые названия."), Loc.Keep("простой режим эксперт"), "home", "mode:simple"),
+        new(PaletteKind.Setting, Loc.Key("Переключить на экспертный режим"), Loc.Key("Показывать технические сведения и расширенную диагностику."), Loc.Keep("эксперт режим простой"), "home", "mode:expert"),
+    ];
 
     /// <summary>The index for the running app: pages from the shell, tools from the live Tools tab, autostart from the live scan.</summary>
     public static IReadOnlyList<PaletteEntry> Build(IEnumerable<PageViewModel> pages)

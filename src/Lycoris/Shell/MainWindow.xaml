@@ -7,6 +7,7 @@
         xmlns:shell="clr-namespace:Lycoris.Shell"
         xmlns:ui="clr-namespace:Lycoris.UI"
         xmlns:dash="clr-namespace:Lycoris.Modules.Dashboard"
+        xmlns:home="clr-namespace:Lycoris.Modules.Home"
         xmlns:opt="clr-namespace:Lycoris.Modules.Optimize"
         xmlns:games="clr-namespace:Lycoris.Modules.Games"
         xmlns:maint="clr-namespace:Lycoris.Modules.Maintenance"
@@ -31,6 +32,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
         <!-- Page view-model → view -->
+        <DataTemplate DataType="{x:Type home:HomeViewModel}"><home:HomeView /></DataTemplate>
         <DataTemplate DataType="{x:Type dash:DashboardViewModel}"><dash:DashboardView /></DataTemplate>
         <DataTemplate DataType="{x:Type opt:OptimizeViewModel}"><opt:OptimizeView /></DataTemplate>
         <DataTemplate DataType="{x:Type games:GamesViewModel}"><games:GamesView /></DataTemplate>
@@ -104,6 +106,12 @@
                             <TextBlock Text="{Binding Updates.ButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
+                    <Border Style="{StaticResource SegmentBar}" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource Segment}" Content="{loc:T ПРОСТОЙ}" Command="{Binding SetSimpleModeCommand}" IsChecked="{Binding ExpertMode, Converter={StaticResource InverseBool}}" />
+                            <RadioButton Style="{StaticResource Segment}" Content="{loc:T ЭКСПЕРТ}" Command="{Binding SetExpertModeCommandCommand}" IsChecked="{Binding ExpertMode}" />
+                        </StackPanel>
+                    </Border>
                     <!-- Visible search: the one entry to the command palette besides Ctrl+K -->
                     <Button Style="{StaticResource Btn.TitleBar}" Command="{Binding OpenSearchCommand}" ToolTip="{loc:T 'Поиск настроек, разделов и инструментов (Ctrl+K)'}">
                         <StackPanel Orientation="Horizontal">

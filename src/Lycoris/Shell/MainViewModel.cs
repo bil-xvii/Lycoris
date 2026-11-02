@@ -12,6 +12,7 @@ using Lycoris.Modules.Dashboard;
 using Lycoris.Modules.Devices;
 using Lycoris.Modules.Drivers;
 using Lycoris.Modules.Games;
+using Lycoris.Modules.Home;
 using Lycoris.Modules.Maintenance;
 using Lycoris.Modules.Optimize;
 using Lycoris.Modules.Restore;
@@ -46,6 +47,19 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     public string LastBatchMenuText => LastBatchTitle is { } t ? Loc.Tf("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ «{0}»", t) : Loc.T("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ — ПАКЕТОВ НЕТ");
     /// <summary>«ОТКАТ · 71» in the title bar.</summary>
     public string UndoButtonText => ActiveChanges > 0 ? Loc.Tf("ОТКАТ · {0}", ActiveChanges) : Loc.T("ОТКАТ");
+    public bool ExpertMode { get => AppSettings.Current.ExpertMode; set => SetExpertMode(value); }
+    public string ExpertModeText => ExpertMode ? Loc.T("ЭКСПЕРТ") : Loc.T("ПРОСТОЙ");
+
+    [RelayCommand] private void SetSimpleMode() => SetExpertMode(false);
+    [RelayCommand] private void SetExpertModeCommand() => SetExpertMode(true);
+
+    private void SetExpertMode(bool value)
+    {
+        AppSettings.Current.ExpertMode = value;
+        OnPropertyChanged(nameof(ExpertMode));
+        OnPropertyChanged(nameof(ExpertModeText));
+        PageViewModel.NotifyExpertModeChanged();
+    }
 
     partial void OnLastBatchTitleChanged(string? value)
     {
@@ -74,7 +88,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     /// <summary>Sidebar group of a page key (pure; tested).</summary>
     public static string NavGroupOf(string pageKey) => pageKey switch
     {
-        "dashboard" => GroupOverview,
+        "home" or "dashboard" => GroupOverview,
         "optimize" or "games" or "services" or "devices" => GroupBoost,
         "maintenance" or "drivers" or "apps" => GroupMaintenance,
         "restore" => GroupProtection,
@@ -83,9 +97,11 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     public MainViewModel()
     {
+        var dashboard = new DashboardViewModel();
         Pages =
         [
-            new DashboardViewModel(),
+            new HomeViewModel(dashboard),
+            dashboard,
             new OptimizeViewModel(),
             new GamesViewModel(),
             new ServicesViewModel(),
@@ -110,6 +126,8 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         {
             if (e.PropertyName == nameof(AppSettings.ShowConsole))
                 Ui.Post(() => ConsoleExpanded = AppSettings.Current.ShowConsole);
+            if (e.PropertyName == nameof(AppSettings.ExpertMode))
+                Ui.Post(() => { OnPropertyChanged(nameof(ExpertMode)); OnPropertyChanged(nameof(ExpertModeText)); PageViewModel.NotifyExpertModeChanged(); });
         };
 
         ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournalCount);

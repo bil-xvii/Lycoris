@@ -11,6 +11,11 @@ namespace Lycoris.Shell;
 /// </summary>
 public abstract partial class PageViewModel : ObservableObject
 {
+    public static event Action<bool>? ExpertModeChanged;
+    public bool ExpertMode => AppSettings.Current.ExpertMode;
+
+    internal static void NotifyExpertModeChanged() => ExpertModeChanged?.Invoke(AppSettings.Current.ExpertMode);
+
     private Task? _loadTask;
 
     /// <summary>Stable id used for navigation ("dashboard", "optimize", ...).</summary>

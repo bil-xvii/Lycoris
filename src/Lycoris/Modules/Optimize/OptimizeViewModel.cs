@@ -100,6 +100,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             if (e.PropertyName is nameof(IsBusy)) OnBusyChanged();
             if (e.PropertyName is nameof(IsBusy) or nameof(BusyText)) OnPropertyChanged(nameof(StatusLine));
         };
+        ExpertModeChanged += _ => { foreach (var item in _items) item.RefreshExpertMode(); };
     }
 
     // ───────────────────────────── Bindable state ─────────────────────────────
@@ -225,6 +226,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private void ApplyFocus(string? id)
     {
         if (id is null) return;
+        if (id.StartsWith("profile:", StringComparison.Ordinal) && Enum.TryParse<OptimizeProfile>(id[8..], out var profile))
+        {
+            SelectProfile(profile);
+            return;
+        }
         var item = _items.FirstOrDefault(i => i.Id == id);
         if (item is null) return;
         _searchTimer.Stop();
