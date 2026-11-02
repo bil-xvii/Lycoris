@@ -6,7 +6,7 @@ using Monolith.Tweaks;
 namespace Monolith.Shell;
 
 /// <summary>
-/// "--e2e &lt;dir&gt;" (admin): the real-system proof that MONOLITH never leaves changes behind.
+/// "--e2e &lt;dir&gt;" (admin): the real-system proof that Lycoris never leaves changes behind.
 /// 1. Creates a System Restore point.
 /// 2. For every safe/optional tweak that applies to this PC, one at a time:
 ///    read state → apply through the journal → check it reports "applied" → revert → check that every
@@ -32,7 +32,7 @@ public static class EndToEndTest
     {
         Directory.CreateDirectory(outDir);
         var sb = new StringBuilder();
-        sb.AppendLine("# MONOLITH — сквозной тест на реальной системе");
+        sb.AppendLine("# Lycoris — сквозной тест на реальной системе");
         sb.AppendLine();
         sb.AppendLine($"Время: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
 
@@ -47,7 +47,7 @@ public static class EndToEndTest
         sb.AppendLine($"Система: {sp.OsText}, {sp.CpuName}, {sp.PrimaryGpu?.Name}");
 
         // 1. Restore point (also proves restore-point creation works)
-        var rp = await RestorePointService.CreateAsync("MONOLITH: перед сквозным тестом");
+        var rp = await RestorePointService.CreateAsync("Lycoris: перед сквозным тестом");
         sb.AppendLine($"Точка восстановления: {rp.Outcome} — {rp.Message}");
         sb.AppendLine();
 

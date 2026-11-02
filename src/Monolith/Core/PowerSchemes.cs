@@ -5,7 +5,7 @@ namespace Monolith.Core;
 public sealed record PowerScheme(Guid Id, string Name, bool IsActive);
 
 /// <summary>
-/// The parts of SYSTEM_POWER_CAPABILITIES MONOLITH reads (GetPwrCapabilities): hiberfil present, Modern Standby (AoAc),
+/// The parts of SYSTEM_POWER_CAPABILITIES Lycoris reads (GetPwrCapabilities): hiberfil present, Modern Standby (AoAc),
 /// the hiberfil type (1 = reduced, Fast Startup only), hybrid-sleep support (FastSystemS4) and the battery facts
 /// (SystemBatteriesPresent / BatteriesAreShortTerm — short-term batteries are UPS batteries, not a laptop's).
 /// </summary>
@@ -72,7 +72,7 @@ public static class PowerSchemes
         return list.Count == 0 ? null : list.Any(s => s.Id == scheme);
     }
 
-    /// <summary>Plans Windows ships (never deleted by MONOLITH) and the hidden Ultimate template.</summary>
+    /// <summary>Plans Windows ships (never deleted by Lycoris) and the hidden Ultimate template.</summary>
     public static bool IsBuiltIn(Guid scheme) =>
         scheme == Balanced || scheme == HighPerformance || scheme == PowerSaver || scheme == UltimateTemplate;
 

@@ -17,11 +17,11 @@
         xmlns:rest="clr-namespace:Monolith.Modules.Restore"
         xmlns:set="clr-namespace:Monolith.Modules.Settings"
         mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=shell:MainViewModel}"
-        Title="MONOLITH" Width="1380" Height="880" MinWidth="1120" MinHeight="720"
+        Title="Lycoris" Width="1380" Height="880" MinWidth="1120" MinHeight="720"
         WindowStartupLocation="CenterScreen" Background="{StaticResource B.Base}"
         Foreground="{StaticResource B.Text}" FontFamily="{StaticResource F.Body}"
         UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display"
-        Icon="pack://application:,,,/Assets/monolith.ico">
+        Icon="pack://application:,,,/Assets/lycoris.ico">
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
@@ -85,9 +85,9 @@
             <Grid Grid.ColumnSpan="2" Background="{StaticResource B.Base}">
                 <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line}" />
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
-                    <!-- Logo: slab with cut corner -->
-                    <Path Data="M0,0 L7,0 L11,4 L11,22 L0,22 Z" Fill="{StaticResource B.White}" Width="11" Height="22" VerticalAlignment="Center" />
-                    <TextBlock Text="MONOLITH" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
+                    <!-- Logo: Lycoris mark (Theme/Brand.xaml) -->
+                    <Path Data="{StaticResource G.LycorisMark}" Fill="{StaticResource B.White}" Stretch="Uniform" Width="26" Height="26" VerticalAlignment="Center" />
+                    <TextBlock Text="LYCORIS" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
                                FontWeight="Bold" FontStretch="Condensed" FontSize="21" Foreground="{StaticResource B.Text}" />
                     <TextBlock Text="{Binding Version}" Margin="10,3,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}"
                                FontSize="11.5" Foreground="{StaticResource B.Text3}" />
@@ -97,7 +97,7 @@
                     <!-- «ОБНОВЛЕНИЕ 1.0.1»: a newer version exists (Core/Updates). White = clickable; opens the confirmation with what will happen. -->
                     <Button Style="{StaticResource Btn.TitleBar.Primary}" Command="{Binding Updates.UpdateNowCommand}"
                             Visibility="{Binding Updates.ButtonVisible, Converter={StaticResource BoolToVis}}"
-                            ToolTip="{loc:T 'Вышла новая версия MONOLITH. Нажмите, чтобы посмотреть, что изменится, и обновить.'}">
+                            ToolTip="{loc:T 'Вышла новая версия Lycoris. Нажмите, чтобы посмотреть, что изменится, и обновить.'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Updates.ButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
@@ -151,7 +151,7 @@
                         <Run Text="{loc:T ' — смотреть и проверять можно сразу; любая кнопка изменения сама попросит права и продолжит действие.'}" FontSize="12" Foreground="{StaticResource B.Text2}" />
                     </TextBlock>
                     <Button Grid.Column="2" Style="{StaticResource Btn}" Height="22" Padding="8,0" FontSize="11.5" Command="{Binding RestartAsAdminCommand}"
-                            ToolTip="{loc:T Перезапустить MONOLITH с правами администратора сейчас (запрос UAC)}">
+                            ToolTip="{loc:T Перезапустить Lycoris с правами администратора сейчас (запрос UAC)}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                             <TextBlock Text="{loc:T ПЕРЕЗАПУСТИТЬ С ПРАВАМИ}" VerticalAlignment="Center" />
@@ -203,7 +203,7 @@
                             <Rectangle Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.White}"
                                        RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
                         </Border>
-                        <Button Command="{Binding NavigateCommand}" CommandParameter="settings" ToolTip="{loc:T Настройки MONOLITH}"
+                        <Button Command="{Binding NavigateCommand}" CommandParameter="settings" ToolTip="{loc:T Настройки Lycoris}"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="10,0,8,0" Height="34" BorderThickness="0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -417,7 +417,7 @@
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource Btn}" Height="26" Padding="10,0" FontSize="11.5" VerticalAlignment="Center"
-                        Command="{Binding ToggleConsoleCommand}" ToolTip="{loc:T Показать или скрыть журнал действий MONOLITH}">
+                        Command="{Binding ToggleConsoleCommand}" ToolTip="{loc:T Показать или скрыть журнал действий Lycoris}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE756;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                         <TextBlock Text="{Binding LogEntries.Count, StringFormat={loc:T 'ЖУРНАЛ ДЕЙСТВИЙ · {0}'}}" VerticalAlignment="Center" />

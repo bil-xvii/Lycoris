@@ -922,7 +922,7 @@
 
     <!--
         Tags / badges: a STATUS, never an action. A filled R.Xs block without an outline-capsule, so it cannot be mistaken
-        for a button; never white (white = clickable). One state vocabulary: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО · ИЗМЕНЕНО MONOLITH ·
+        for a button; never white (white = clickable). One state vocabulary: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО · ИЗМЕНЕНО LYCORIS ·
         НЕПРИМЕНИМО; risk: БЕЗОПАСНО (Tag) · ПО ЖЕЛАНИЮ (Tag.Muted) · ЭКСПЕРТ (Tag.Hatch). Tag.Solid = emphasised status.
     -->
     <Style x:Key="Tag" TargetType="Border">

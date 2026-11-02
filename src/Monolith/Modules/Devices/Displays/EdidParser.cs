@@ -3,7 +3,7 @@ namespace Monolith.Modules.Devices.Displays;
 /// <summary>One timing the monitor lists (detailed timing descriptor or DisplayID timing), landscape as stored.</summary>
 public sealed record EdidTiming(int Width, int Height, double RefreshHz, long PixelClockHz);
 
-/// <summary>What MONOLITH needs from an EDID: ids, the preferred timing, VRR ranges, HDR metadata and every listed timing.</summary>
+/// <summary>What Lycoris needs from an EDID: ids, the preferred timing, VRR ranges, HDR metadata and every listed timing.</summary>
 public sealed record EdidInfo
 {
     /// <summary>Three-letter PNP manufacturer id («ACR»).</summary>

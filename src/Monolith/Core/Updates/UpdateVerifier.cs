@@ -18,7 +18,7 @@ public sealed record UpdatePolicy
     public IReadOnlyList<string> Hosts { get; init; } =
         ["api.github.com", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"];
 
-    /// <summary>Release assets must be served from this repository: https://github.com/bil-xvii/MONOLITH-releases/releases/download/…</summary>
+    /// <summary>Release assets must be served from this repository: https://github.com/bil-xvii/Lycoris-releases/releases/download/…</summary>
     public string AssetPathPrefix { get; init; } = "/" + UpdateService.Repository + "/releases/download/";
 }
 
@@ -45,7 +45,7 @@ public static partial class UpdateVerifier
         u.AbsolutePath.EndsWith("/" + fileName, StringComparison.Ordinal) &&
         !u.AbsolutePath.Contains("..", StringComparison.Ordinal);
 
-    /// <summary>First 64-hex token of a "MONOLITH.exe.sha256" file ("hash  MONOLITH.exe" or just "hash"), lower case; null if none.</summary>
+    /// <summary>First 64-hex token of a "Lycoris.exe.sha256" file ("hash  Lycoris.exe" or just "hash"), lower case; null if none.</summary>
     public static string? ParseShaFile(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;

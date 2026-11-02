@@ -148,19 +148,19 @@ public static class BoostPolicy
         PowerPlanAction.SkipDualCcdX3D => SkipPrefix + Loc.Tf("{0} — X3D с двумя CCD, AMD рекомендует «Сбалансированную» схему и игровой режим Windows.", Short(cpuName)),
         PowerPlanAction.SkipOnBattery => SkipPrefix + Loc.T("ноутбук работает от батареи."),
         // Reached only when the power mode is not available either: Windows 10, or a plan that is not Balanced-personality.
-        PowerPlanAction.SkipLaptop when !windows11 => SkipPrefix + Loc.T("на ноутбуке MONOLITH меняет только режим питания, а он есть только в Windows 11."),
-        PowerPlanAction.SkipLaptop => SkipPrefix + Loc.T("на ноутбуке MONOLITH меняет только режим питания Windows 11 на сбалансированной схеме — включите её в «Оптимизации»."),
-        PowerPlanAction.SkipModernStandby => SkipPrefix + Loc.T("на ПК с Modern Standby доступна только «Сбалансированная» схема, а режим питания «Максимальная производительность» MONOLITH включает только в Windows 11."),
-        PowerPlanAction.SkipManagedElsewhere => SkipPrefix + Loc.T("он уже изменён MONOLITH в разделе «Оптимизация»."),
+        PowerPlanAction.SkipLaptop when !windows11 => SkipPrefix + Loc.T("на ноутбуке Lycoris меняет только режим питания, а он есть только в Windows 11."),
+        PowerPlanAction.SkipLaptop => SkipPrefix + Loc.T("на ноутбуке Lycoris меняет только режим питания Windows 11 на сбалансированной схеме — включите её в «Оптимизации»."),
+        PowerPlanAction.SkipModernStandby => SkipPrefix + Loc.T("на ПК с Modern Standby доступна только «Сбалансированная» схема, а режим питания «Максимальная производительность» Lycoris включает только в Windows 11."),
+        PowerPlanAction.SkipManagedElsewhere => SkipPrefix + Loc.T("он уже изменён Lycoris в разделе «Оптимизация»."),
         PowerPlanAction.SkipAlreadyFast => SkipPrefix + Loc.Tf("«{0}» уже включена.", currentName),
         PowerPlanAction.SkipUnknownHardware => SkipPrefix + Loc.T("не удалось определить, ноутбук это или ПК. Нажмите «ОБНОВИТЬ» позже."),
         PowerPlanAction.SkipEnergySaver => SkipPrefix + Loc.T("включено энергосбережение — Windows не даёт выбрать режим «Максимальная производительность». Отключите его в Параметрах → Питание."),
         PowerPlanAction.SkipModeAlreadyFast => SkipPrefix + Loc.T("режим питания от сети уже «Максимальная производительность»."),
-        PowerPlanAction.SkipModeManagedElsewhere => SkipPrefix + Loc.T("режим питания уже изменён MONOLITH в разделе «Оптимизация»."),
+        PowerPlanAction.SkipModeManagedElsewhere => SkipPrefix + Loc.T("режим питания уже изменён Lycoris в разделе «Оптимизация»."),
         PowerPlanAction.SkipModeUnreadable => SkipPrefix + Loc.T("не удалось прочитать текущий режим питания Windows — без него нет точного отката."),
-        PowerPlanAction.SkipModeUnknown => SkipPrefix + Loc.T("Windows сообщила неизвестный режим питания — MONOLITH его не меняет."),
-        PowerPlanAction.SkipModeUntrusted => SkipPrefix + Loc.T("журнал MONOLITH не принял бы отмену смены режима питания — ничего не меняется."),
-        _ => SkipPrefix + Loc.T("схемы «Высокая производительность» на этом ПК нет, а режим питания MONOLITH меняет только в Windows 11 на сбалансированной схеме."),
+        PowerPlanAction.SkipModeUnknown => SkipPrefix + Loc.T("Windows сообщила неизвестный режим питания — Lycoris его не меняет."),
+        PowerPlanAction.SkipModeUntrusted => SkipPrefix + Loc.T("журнал Lycoris не принял бы отмену смены режима питания — ничего не меняется."),
+        _ => SkipPrefix + Loc.T("схемы «Высокая производительность» на этом ПК нет, а режим питания Lycoris меняет только в Windows 11 на сбалансированной схеме."),
     };
 
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];

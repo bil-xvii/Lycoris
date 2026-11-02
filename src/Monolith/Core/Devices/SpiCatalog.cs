@@ -29,8 +29,8 @@ public enum SpiSet
 public sealed record SpiPersisted(string Path, string Name, RegistryValueKind Kind);
 
 /// <summary>
-/// One per-user Windows input parameter MONOLITH may change (research devices_mouse-keyboard.md). The valid range is
-/// what an original may be (the journal check); the UI range — or <see cref="AllowedTargets"/> — is what MONOLITH sets.
+/// One per-user Windows input parameter Lycoris may change (research devices_mouse-keyboard.md). The valid range is
+/// what an original may be (the journal check); the UI range — or <see cref="AllowedTargets"/> — is what Lycoris sets.
 /// </summary>
 public sealed record SpiEntry(string Id, string Title, uint GetAction, uint SetAction, SpiGet GetShape, SpiSet SetShape,
     int ValidMin, int ValidMax, int UiMin, int UiMax, bool AllowPageScroll, SpiPersisted? Persisted, Func<int, string> Describe)
@@ -38,10 +38,10 @@ public sealed record SpiEntry(string Id, string Title, uint GetAction, uint SetA
     /// <summary>When set, only these targets are allowed (wheel routing: 0 or 2, never the undocumented hybrid 1).</summary>
     public IReadOnlySet<int>? AllowedTargets { get; init; }
 
-    /// <summary>An original value MONOLITH can put back.</summary>
+    /// <summary>An original value Lycoris can put back.</summary>
     public bool IsValidOriginal(int v) => (v >= ValidMin && v <= ValidMax) || (AllowPageScroll && v == SpiCatalog.PageScroll);
 
-    /// <summary>A value MONOLITH may set.</summary>
+    /// <summary>A value Lycoris may set.</summary>
     public bool IsAllowedTarget(int v)
     {
         if (AllowPageScroll && v == SpiCatalog.PageScroll) return true;

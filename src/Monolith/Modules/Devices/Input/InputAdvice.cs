@@ -107,7 +107,7 @@ internal static class InputAdvice
         if (currentSpeed is not { } speed || speed == NeutralSpeed) return null;
         if (measuredDpi is not { } dpi || dpi <= 0)
             return new Recommendation(DeviceValue.Of(NeutralSpeed),
-                Loc.T("Сначала проверьте DPI мыши — тогда MONOLITH скажет, какое DPI поставить, чтобы курсор не стал медленнее или быстрее."),
+                Loc.T("Сначала проверьте DPI мыши — тогда Lycoris скажет, какое DPI поставить, чтобы курсор не стал медленнее или быстрее."),
                 RecommendPolicy.Suggest, toolLink) { NeedsMeasurement = true };
         return new Recommendation(DeviceValue.Of(NeutralSpeed), PointerSpeedReason(speed, dpi), RecommendPolicy.Suggest);
     }

@@ -109,7 +109,7 @@ public sealed partial class UpdateController : ObservableObject
             Tag = "v" + AppVersion.Current.Major + "." + AppVersion.Current.Minor + "." + (AppVersion.Current.Patch + 1),
             Name = "Demo",
             Notes = "## Что нового\n- Автоматические обновления: кнопка «ОБНОВЛЕНИЕ» в заголовке окна.\n- Исправлено зависание страницы «Драйверы» при отсутствии сети.\n- Улучшен перевод на английский язык.", // loc:ignore (demo text, shown as written by the owner)
-            ExeUrl = "https://github.com/bil-xvii/MONOLITH-releases/releases/download/demo/MONOLITH.exe",
+            ExeUrl = "https://github.com/bil-xvii/Lycoris-releases/releases/download/demo/Lycoris.exe",
             ExeSize = 72L << 20,
         };
         StatusText = Loc.Tf("Доступна новая версия {0}.", _demo.VersionText);
@@ -178,7 +178,7 @@ public sealed partial class UpdateController : ObservableObject
                     Ui.Toast(result.Message, ToastKind.Warning, "ОБНОВЛЕНИЯ");
                     break;
                 default:
-                    Ui.Toast("Установлена последняя версия MONOLITH.", ToastKind.Success, "ОБНОВЛЕНИЯ");
+                    Ui.Toast("Установлена последняя версия Lycoris.", ToastKind.Success, "ОБНОВЛЕНИЯ");
                     break;
             }
         }
@@ -222,9 +222,9 @@ public sealed partial class UpdateController : ObservableObject
     {
         var blocker = operations.FirstOrDefault(o => o.IsListed);
         if (blocker is not null)
-            return Loc.Tf("Сейчас выполняется задача «{0}». Обновление перезапускает MONOLITH и не должно прерывать её — дождитесь окончания (список «ЗАДАЧИ» внизу окна).", blocker.Name);
+            return Loc.Tf("Сейчас выполняется задача «{0}». Обновление перезапускает Lycoris и не должно прерывать её — дождитесь окончания (список «ЗАДАЧИ» внизу окна).", blocker.Name);
         if (gameSessionActive)
-            return Loc.T("Идёт игровой сеанс (игровой режим MONOLITH). Обновление перезапускает программу — остановите игровой сеанс на странице «Игры» и повторите.");
+            return Loc.T("Идёт игровой сеанс (игровой режим Lycoris). Обновление перезапускает программу — остановите игровой сеанс на странице «Игры» и повторите.");
         return null;
     }
 
@@ -266,13 +266,13 @@ public sealed partial class UpdateController : ObservableObject
             Loc.Tf("Размер: {0}", release.ExeSize > 0 ? SystemProfile.FormatBytes(release.ExeSize) : Loc.T("неизвестен")),
             Loc.Tf("Источник: github.com/{0} (только этот адрес)", UpdateService.Repository),
             Loc.T("Проверка: контрольная сумма SHA-256, формат файла и (если файл подписан) подпись того же издателя"),
-            Loc.T("MONOLITH закроется и откроется заново сам; настройки и журнал изменений сохраняются"),
+            Loc.T("Lycoris закроется и откроется заново сам; настройки и журнал изменений сохраняются"),
             Loc.T("Запущенные задачи не прерываются: обновление начнётся, только когда их нет"),
-            Loc.T("Прежний MONOLITH.exe хранится рядом как MONOLITH.exe.old; при сбое запуска новой версии он возвращается автоматически"),
+            Loc.T("Прежний Lycoris.exe хранится рядом как Lycoris.exe.old; при сбое запуска новой версии он возвращается автоматически"),
         };
         if (plan.Route == UpdateRoute.Elevated)
             lines.Add(Loc.T("Папка программы защищена: Windows запросит разрешение администратора (UAC) на замену файла"));
-        var ok = await Ui.ConfirmAsync("ОБНОВИТЬ MONOLITH?",
+        var ok = await Ui.ConfirmAsync("ОБНОВИТЬ LYCORIS?",
             Loc.Tf("Будет установлена версия {0} с официальной страницы релизов.", release.VersionText),
             lines, confirmText: "СКАЧАТЬ И ОБНОВИТЬ");
         if (!ok) return;
@@ -293,7 +293,7 @@ public sealed partial class UpdateController : ObservableObject
                 });
                 var token = _download.Token;
                 staged = await OperationCoordinator.Instance.RunAsync(
-                    new OperationRequest(OperationClass.Background, Loc.T("Загрузка обновления MONOLITH")) { Owner = "updates" },
+                    new OperationRequest(OperationClass.Background, Loc.T("Загрузка обновления Lycoris")) { Owner = "updates" },
                     _ => _downloaderFactory().DownloadAsync(release, UpdateDownloader.DefaultFolder, progress, token), token);
             }
             catch (OperationCanceledException)

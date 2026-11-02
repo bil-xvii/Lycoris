@@ -92,24 +92,24 @@ public static class UpdateApplier
         if (string.IsNullOrWhiteSpace(exePath) || !exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !env.FileExists(exePath))
             return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("Не найден файл запущенной программы — обновить на месте нельзя."));
         var dir = Path.GetDirectoryName(exePath) ?? "";
-        if (Path.GetFileName(exePath).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase) || env.FileExists(Path.Combine(dir, "MONOLITH.dll")))
-            return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("Это сборка для разработки (программа состоит из нескольких файлов), а не готовый MONOLITH.exe — обновление на месте не выполняется."));
+        if (Path.GetFileName(exePath).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase) || env.FileExists(Path.Combine(dir, "Lycoris.dll")))
+            return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("Это сборка для разработки (программа состоит из нескольких файлов), а не готовый Lycoris.exe — обновление на месте не выполняется."));
         switch (env.DriveKind(exePath))
         {
             case DriveKindInfo.Network:
-                return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("MONOLITH запущен с сетевого диска: заменять файл на общем ресурсе небезопасно. Скачайте новую версию вручную со страницы релизов."));
+                return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("Lycoris запущен с сетевого диска: заменять файл на общем ресурсе небезопасно. Скачайте новую версию вручную со страницы релизов."));
             case DriveKindInfo.CdRom:
-                return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("MONOLITH запущен с диска только для чтения. Скопируйте его на компьютер и запустите оттуда."));
+                return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("Lycoris запущен с диска только для чтения. Скопируйте его на компьютер и запустите оттуда."));
         }
         if (env.CanWriteFolder(dir)) return new UpdatePlan(UpdateRoute.InPlace, exePath, null);
         if (!elevated) return new UpdatePlan(UpdateRoute.Elevated, exePath, null);
-        return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("Папка с программой защищена от записи даже для администратора (диск только для чтения?). Скопируйте MONOLITH.exe в другую папку."));
+        return new UpdatePlan(UpdateRoute.Unsupported, exePath, Loc.T("Папка с программой защищена от записи даже для администратора (диск только для чтения?). Скопируйте Lycoris.exe в другую папку."));
     }
 
     /// <summary>
     /// The work of the new exe (started as «--apply-update &lt;old exe&gt; &lt;pid&gt;»): wait for the old process, set the old exe
     /// aside as .old, COPY itself to the old name (never move: it is running), start it and watch it for 10 s. If anything
-    /// fails the old exe is put back. The user always ends up with one working MONOLITH.exe.
+    /// fails the old exe is put back. The user always ends up with one working Lycoris.exe.
     /// </summary>
     public static ApplyOutcome Apply(IUpdateEnvironment env, string self, string oldExe, int oldPid)
     {
@@ -117,7 +117,7 @@ public static class UpdateApplier
         Log.Info("Обновление: ждём закрытия прежней копии (PID {0}).", oldPid);
         if (!env.WaitForExit(oldPid, OldProcessTimeout))
         {
-            Log.Warn("Обновление отменено: прежняя копия MONOLITH не закрылась за {0} с.", (int)OldProcessTimeout.TotalSeconds);
+            Log.Warn("Обновление отменено: прежняя копия Lycoris не закрылась за {0} с.", (int)OldProcessTimeout.TotalSeconds);
             return ApplyOutcome.NothingChanged;
         }
         if (!env.FileExists(self) || string.Equals(Path.GetFullPath(self), Path.GetFullPath(oldExe), StringComparison.OrdinalIgnoreCase))
@@ -338,7 +338,7 @@ public sealed class SystemUpdateEnvironment : IUpdateEnvironment
     }
 }
 
-/// <summary>«MONOLITH.exe --apply-update &lt;old exe&gt; &lt;pid&gt;»: the headless mode of the NEW exe (see <see cref="UpdateApplier"/>).</summary>
+/// <summary>«Lycoris.exe --apply-update &lt;old exe&gt; &lt;pid&gt;»: the headless mode of the NEW exe (see <see cref="UpdateApplier"/>).</summary>
 public static class UpdateApplyMode
 {
     public const string Switch = "--apply-update";
@@ -426,10 +426,10 @@ public static class UpdateApplyMode
     /// <summary>The text for the one message box a failed update shows (the old window is already gone).</summary>
     public static string? FailureText(int exitCode, string oldExe) => exitCode switch
     {
-        10 => Loc.T("Новая версия MONOLITH не запустилась. Прежняя версия возвращена и запущена снова — ничего не потеряно."),
-        11 => Loc.T("Обновление не выполнено: прежняя копия MONOLITH не закрылась или её файл занят. Ничего не изменено — запустите MONOLITH и повторите обновление."),
-        12 => Loc.Tf("Новая версия MONOLITH не запустилась, и прежнюю не удалось вернуть автоматически. Она сохранена рядом: {0}.old — переименуйте её в MONOLITH.exe.", oldExe),
-        13 => Loc.T("Обновление отклонено проверкой безопасности: файл обновления не совпал с проверенным, либо целью указана не программа MONOLITH. Ничего не изменено."),
+        10 => Loc.T("Новая версия Lycoris не запустилась. Прежняя версия возвращена и запущена снова — ничего не потеряно."),
+        11 => Loc.T("Обновление не выполнено: прежняя копия Lycoris не закрылась или её файл занят. Ничего не изменено — запустите Lycoris и повторите обновление."),
+        12 => Loc.Tf("Новая версия Lycoris не запустилась, и прежнюю не удалось вернуть автоматически. Она сохранена рядом: {0}.old — переименуйте её в Lycoris.exe.", oldExe),
+        13 => Loc.T("Обновление отклонено проверкой безопасности: файл обновления не совпал с проверенным, либо целью указана не программа Lycoris. Ничего не изменено."),
         _ => null,
     };
 }

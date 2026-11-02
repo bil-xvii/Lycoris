@@ -1,9 +1,9 @@
 # Localization (Russian + English)
 
-MONOLITH speaks two languages: **Russian is the source language** (every string in the code is Russian and stays exactly as it is),
+Lycoris speaks two languages: **Russian is the source language** (every string in the code is Russian and stays exactly as it is),
 **English is a lookup** on top of it. The language is chosen once at startup (Settings → «Язык / Language»: АВТО | РУССКИЙ | ENGLISH;
 АВТО = the Windows display language, `ru*` → Russian, anything else → English) and is fixed for the whole run. Changing it asks
-«Перезапустить сейчас? / Restart now?» and relaunches MONOLITH with the same rights on the same page, so there are never half-translated screens.
+«Перезапустить сейчас? / Restart now?» and relaunches Lycoris with the same rights on the same page, so there are never half-translated screens.
 
 ```
 Russian text in code  ──Loc.T("Применить")──►  ru: «Применить»   en: table["Применить"] = «Apply»   (missing → Russian + remembered)
@@ -99,7 +99,7 @@ A file (embedded as `Monolith.Loc.en.<name>.json`, picked up automatically by th
    replace private `Plural` helpers and `ru-RU` cultures with `Loc.Plural`/`Loc.N` and `Loc.Culture`/`Loc.*Text`.
 3. `tools\loc-scan.ps1 -Check Optimize` lists what is still bare or has no English entry; `-Missing Optimize` prints the missing keys **numbered**.
 4. Write the English as `{"1": "…", "2": "…"}` and merge it: `tools\loc-scan.ps1 -Fill Optimize -File fill.json` (the numbers belong to the last `-Missing`; you never retype Russian).
-5. Repeat until `-Check Optimize` says `OK`, set `"translated": true`, run the tests, render the page: `MONOLITH.exe --snapshot snapshots\x --pages optimize --lang en` and **look at the PNGs**
+5. Repeat until `-Check Optimize` says `OK`, set `"translated": true`, run the tests, render the page: `Lycoris.exe --snapshot snapshots\x --pages optimize --lang en` and **look at the PNGs**
    (long English must not break the layout: trim/wrap, never shrink fonts below the design minimum).
 6. Progress of everyone: `tools\loc-scan.ps1` (per module: *to do* = bare literals, *keyed*, *no EN*).
 
@@ -135,11 +135,11 @@ Comments and `///` docs are ignored.
 * Keep brand and tech names: G HUB, NVIDIA, GeForce, winget, DirectX, UAC, SSD, DNS, DDC/CI. Windows terms use the English Windows names (Task Manager, Startup apps, Restore point).
 * «Ты/вы» → no pronoun games: imperative or neutral («Repeat the action», «Wait until it finishes»).
 * Quotes: “…” for UI names and quoted words. Em dash with spaces ` — `.
-* Apostrophes are straight (`'`: `Couldn't`, `MONOLITH's`), never `’`; double quotes are curly “…”.
+* Apostrophes are straight (`'`: `Couldn't`, `Lycoris's`), never `’`; double quotes are curly “…”.
 * On/off vocabulary (one for the whole app): `ВКЛЮЧИТЬ`/`ВЫКЛЮЧИТЬ`/`ОТКЛЮЧИТЬ` = ENABLE / DISABLE / DISABLE; states `Включена/Включено/Включён` = Enabled, `Выключена/Выключено/Отключена` = Disabled. Short inline words in running text may stay on/off.
 * Other fixed words: `ЗАПУСТИТЬ` = START, `ПРОЦЕССОР` = CPU, `ЗВУК` = AUDIO, `НАСТРОИТЬ` = SET UP, `ПРЕРВАНО` = INTERRUPTED, `нужна перезагрузка` = restart required, `Не удалось …` = Couldn't …, the change log is never called «journal» in English.
 * Terms shared by several areas live in `Common.json` (the conflict test fails otherwise); if one context needs different wording give it a distinct Russian text, not a second translation of the same key.
-* QA: `MONOLITH.exe --selftest <dir> --lang en` also writes `<dir>/missing-keys.txt` (Russian texts that were requested but have no English entry).
+* QA: `Lycoris.exe --selftest <dir> --lang en` also writes `<dir>/missing-keys.txt` (Russian texts that were requested but have no English entry).
 * Numbers/dates: `Loc.Culture` (en-US: `1,234.5`, `Nov 2, 2026`, 24-hour `15:40`). Bytes: `SystemProfile.FormatBytes` → `MB/GB`.
 
 ### Glossary (fixed translations — use exactly these)
@@ -155,7 +155,7 @@ Comments and `///` docs are ignored.
 | Журнал изменений | Change log | Точка восстановления | Restore point |
 | Откат | Undo | Откатить | Undo (revert for the verb in a sentence) |
 | Применить / Применено | Apply / Applied | Не применено | Not applied |
-| Изменено MONOLITH | Changed by MONOLITH | Неприменимо | Not applicable |
+| Изменено Lycoris | Changed by Lycoris | Неприменимо | Not applicable |
 | Безопасно | Safe | По желанию | Optional |
 | Эксперт | Expert | Режим просмотра | View-only mode |
 | Задачи | Tasks | Журнал действий | Action log |
@@ -170,7 +170,7 @@ Comments and `///` docs are ignored.
   «Язык изменится после перезапуска» and shows a labelled «ПЕРЕЗАПУСТИТЬ СЕЙЧАС» button. The restart (`Ui.RestartApp` → `MainViewModel.RestartSameRights` →
   `Elevation.TryRelaunchSameRights`) keeps the admin state (an elevated copy starts an elevated child without a new UAC prompt) and the current page and is refused
   while operations run.
-* `--lang ru|en` works with every mode and affects only that run (nothing is saved): `MONOLITH.exe --snapshot snapshots\en --pages dashboard,settings --lang en`,
+* `--lang ru|en` works with every mode and affects only that run (nothing is saved): `Lycoris.exe --snapshot snapshots\en --pages dashboard,settings --lang en`,
   `--selftest snapshots\en --lang en`. `--snapshot … --demo-shell` additionally renders toasts, the command palette, dialogs and the task list (`shell-*.png`).
 * Tests: Russian is the default in the test host; English is `using var _ = Loc.UseLanguage("en");`. `LocalizationCoverageTests` checks every area with
   `"translated": true`; `LocTests` the mechanism. Catalogs built once at static initialization keep the language of that moment — in tests construct them inside a `UseLanguage` scope

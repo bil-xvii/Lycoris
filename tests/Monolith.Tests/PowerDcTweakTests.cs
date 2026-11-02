@@ -196,7 +196,7 @@ public sealed class PowerDcTweakTests
         {
             var t = TweakCatalog.Find(id)!;
             Assert.Contains("3 или 10 минут", t.Details);
-            Assert.Contains("выбор MONOLITH", t.Details);
+            Assert.Contains("выбор Lycoris", t.Details);
             Assert.Contains("только сокращает", t.Details);
             Assert.Contains(TweakCatalog.PowerSettingUndoNote, t.Details);
         }

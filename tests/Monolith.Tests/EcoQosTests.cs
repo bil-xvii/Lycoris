@@ -74,8 +74,8 @@ public sealed class EcoQosTests
     public void Exclusion_reason_names_the_cause()
     {
         Assert.Contains("звук", EcoQos.ExclusionReason("Discord", 10, 1, NoAudio)!);
-        Assert.Contains("MONOLITH", EcoQos.ExclusionReason("chrome", 1, selfPid: 1, NoAudio)!);
-        Assert.Contains("MONOLITH", EcoQos.ExclusionReason("MONOLITH", 55, selfPid: 1, NoAudio)!);
+        Assert.Contains("Lycoris", EcoQos.ExclusionReason("chrome", 1, selfPid: 1, NoAudio)!);
+        Assert.Contains("Lycoris", EcoQos.ExclusionReason("Lycoris", 55, selfPid: 1, NoAudio)!);
         Assert.Contains("античит", EcoQos.ExclusionReason("EasyAntiCheat_EOS", 77, 1, NoAudio)!);
         Assert.Contains("игры", EcoQos.ExclusionReason("UnityCrashHandler64", 78, 1, NoAudio)!);
         Assert.Contains("системный", EcoQos.ExclusionReason("explorer", 79, 1, NoAudio)!);

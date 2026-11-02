@@ -27,7 +27,7 @@ public sealed record WingetPackageRequest(string Id, string Source = "winget")
     /// <summary>
     /// --location as a template with one known root ("%ProgramFiles(x86)%\Battle.net", "%LOCALAPPDATA%\Programs\X"):
     /// required by manifests with InstallLocationRequired, which winget cannot ask for with --disable-interactivity
-    /// (0x8A15005F). Expanded by MONOLITH, or by the de-elevated cmd for the signed-in user (<see cref="WingetClient.IsValidLocationTemplate"/>).
+    /// (0x8A15005F). Expanded by Lycoris, or by the de-elevated cmd for the signed-in user (<see cref="WingetClient.IsValidLocationTemplate"/>).
     /// </summary>
     public string? Location { get; init; }
 }
@@ -62,7 +62,7 @@ public static partial class WingetClient
     /// <summary>HTTP_E_STATUS_NOT_FOUND: the installer link in the manifest answers 404.</summary>
     public const int HttpNotFound = unchecked((int)0x80190194);
 
-    /// <summary>Oldest winget client MONOLITH relies on (export --include-versions, --disable-interactivity).</summary>
+    /// <summary>Oldest winget client Lycoris relies on (export --include-versions, --disable-interactivity).</summary>
     public static readonly Version MinimumClientVersion = new(1, 6);
 
     public static string? ExePath
@@ -163,7 +163,7 @@ public static partial class WingetClient
     /// </summary>
     /// <param name="keepLocationTemplate">
     /// true for the de-elevated runner: --location stays "%LOCALAPPDATA%\…" and the signed-in user's cmd expands it
-    /// (an elevated MONOLITH may run under another administrator's profile). Otherwise MONOLITH expands it.
+    /// (an elevated Lycoris may run under another administrator's profile). Otherwise Lycoris expands it.
     /// </param>
     public static IReadOnlyList<string> BuildInstallArgs(WingetPackageRequest request, bool keepLocationTemplate = false)
     {
@@ -208,7 +208,7 @@ public static partial class WingetClient
     }
 
     /// <summary>
-    /// Install-location templates MONOLITH may pass: one known root (%ProgramFiles%, %ProgramFiles(x86)%, %LOCALAPPDATA%)
+    /// Install-location templates Lycoris may pass: one known root (%ProgramFiles%, %ProgramFiles(x86)%, %LOCALAPPDATA%)
     /// followed by 1–4 plain folder names (letters, digits, space . _ + ( ) -; no "..", no trailing dot or space).
     /// Nothing else can reach winget's --location or the de-elevated cmd line.
     /// </summary>
@@ -353,7 +353,7 @@ public static partial class WingetClient
 
     /// <summary>
     /// Runs <paramref name="work"/> while holding the winget gate, so a winget process started some other way
-    /// (e.g. de-elevated through the shell) never overlaps with MONOLITH's own winget calls.
+    /// (e.g. de-elevated through the shell) never overlaps with Lycoris's own winget calls.
     /// </summary>
     public static async Task<T> RunExclusiveAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken ct = default)
     {
@@ -407,7 +407,7 @@ public static partial class WingetClient
                 if (r.Cancelled) return new WingetResult(r.ExitCode, text, Cancelled: true);
                 if (r.StillRunning)
                 {
-                    Log.Warn("winget {0} {1}: идёт дольше 30 минут — MONOLITH перестал ждать, процесс не прерывался.", list.FirstOrDefault(), ArgId(list));
+                    Log.Warn("winget {0} {1}: идёт дольше 30 минут — Lycoris перестал ждать, процесс не прерывался.", list.FirstOrDefault(), ArgId(list));
                     return new WingetResult(-1, text) { StillRunning = true };
                 }
                 if (r.ExitCode == InternalError && attempt == 0)
@@ -463,7 +463,7 @@ public static partial class WingetClient
     /// <summary>The installer could not be downloaded (network, server error, dead link).</summary>
     public static bool IsDownloadProblem(int code) => code is DownloadFailed or NoNetwork || IsHttpStatus(code);
 
-    /// <summary>The installer needs (or started) a reboot. MONOLITH never passes --allow-reboot.</summary>
+    /// <summary>The installer needs (or started) a reboot. Lycoris never passes --allow-reboot.</summary>
     public static bool IsRebootRequired(int code) => code is RebootRequiredToFinish or RebootRequiredToInstall or RebootInitiated;
 
     public static string Describe(int code) => code switch

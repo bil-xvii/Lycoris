@@ -75,7 +75,7 @@ public sealed partial class DriversViewModel
             var path = await DriverDownloads.DownloadAsync(package, progress, ct);
 
             card.SetDownloadStep(Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ"), Loc.T("Создание точки восстановления системы…"));
-            if (!await EnsureRestorePointAsync(Loc.Tf("MONOLITH: драйвер {0} {1}", package.VendorName, package.Version)))
+            if (!await EnsureRestorePointAsync(Loc.Tf("Lycoris: драйвер {0} {1}", package.VendorName, package.Version)))
             {
                 var declined = Loc.T("Установка отменена. Скачанный и проверенный установщик сохранён — повторно скачивать его не придётся.");
                 card.FinishDownload(false, declined);
@@ -221,9 +221,9 @@ public sealed partial class DriversViewModel
 internal static class DriverDownloadText
 {
     public static string Lead(DriverPackage p) => p.Vendor == GpuVendor.Amd
-        ? Loc.T("MONOLITH скачает официальный установщик AMD Software: Adrenalin Edition прямо с сервера AMD — без браузера и сторонних сайтов, " +
+        ? Loc.T("Lycoris скачает официальный установщик AMD Software: Adrenalin Edition прямо с сервера AMD — без браузера и сторонних сайтов, " +
           "проверит его подпись и запустит. Это компактный веб-установщик: подходящий драйвер он докачает с серверов AMD сам.")
-        : Loc.Tf("MONOLITH скачает официальный установщик драйвера прямо с сервера {0} — без браузера и сторонних сайтов, проверит его подпись и запустит. Саму установку вы проводите в окне установщика.", p.VendorName);
+        : Loc.Tf("Lycoris скачает официальный установщик драйвера прямо с сервера {0} — без браузера и сторонних сайтов, проверит его подпись и запустит. Саму установку вы проводите в окне установщика.", p.VendorName);
 
     public static List<string> Plan(DriverPackage p, bool restorePointsEnabled)
     {
@@ -235,14 +235,14 @@ internal static class DriverDownloadText
             Loc.Tf("Файл: {0} → {1} (запись туда разрешена только администраторам)", p.FileName, DriverDownloads.DownloadsDir),
             Loc.Tf("Файл будет проверен по цифровой подписи {0}: без действительной подписи он удаляется и не запускается", p.Signer),
             restorePointsEnabled
-                ? Loc.T("Перед установкой будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)")
-                : Loc.T("Защита системы отключена — точка восстановления создана не будет; MONOLITH спросит, продолжать ли без неё"),
+                ? Loc.T("Перед установкой будет создана точка восстановления (если Windows её не создаст, Lycoris спросит, продолжать ли)")
+                : Loc.T("Защита системы отключена — точка восстановления создана не будет; Lycoris спросит, продолжать ли без неё"),
             p.Vendor == GpuVendor.Amd
                 ? Loc.T("Откроется официальный установщик AMD: он определит видеокарту, а при желании в нём можно выбрать чистую установку (сброс к заводским настройкам)")
                 : Loc.T("Откроется официальный установщик NVIDIA — в нём можно выбрать «Выборочная → Чистая установка»"),
-            Loc.T("Лицензию производителя показывает сам установщик — MONOLITH ничего не принимает за вас"),
+            Loc.T("Лицензию производителя показывает сам установщик — Lycoris ничего не принимает за вас"),
             Loc.Tf("Нужно свободного места на системном диске: не меньше {0}", SystemProfile.FormatBytes(DriverDownloads.RequiredFreeSpace(p.Vendor))),
-            Loc.T("MONOLITH не перезагружает компьютер: если установщик попросит перезагрузку, решаете вы"),
+            Loc.T("Lycoris не перезагружает компьютер: если установщик попросит перезагрузку, решаете вы"),
         };
         return lines;
     }

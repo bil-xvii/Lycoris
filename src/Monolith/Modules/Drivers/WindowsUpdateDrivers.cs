@@ -110,7 +110,7 @@ internal sealed class WuException(int hresult, string message) : Exception(messa
 /// </summary>
 internal static class WindowsUpdateDrivers
 {
-    private const string ClientId = "MONOLITH";
+    private const string ClientId = "Lycoris";
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);

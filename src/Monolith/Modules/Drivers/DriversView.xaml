@@ -21,7 +21,7 @@
             <c:PageHeader.Primary>
                 <Button Style="{StaticResource Btn.Primary}" Command="{Binding RunPrimaryCommand}"
                         Visibility="{Binding HasPrimary, Converter={StaticResource BoolToVis}}"
-                        ToolTip="{loc:T 'Сначала — список того, что будет установлено, и подтверждение. Без прав администратора MONOLITH запросит их и продолжит.'}">
+                        ToolTip="{loc:T 'Сначала — список того, что будет установлено, и подтверждение. Без прав администратора Lycoris запросит их и продолжит.'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
                         <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />

@@ -197,7 +197,7 @@ public sealed partial class ServicesViewModel
         if (item.IsThirdParty)
             details.Add(Loc.Tf("Служба стороннего производителя ({0}): её программа может перестать работать.", item.Publisher));
         if (!item.IsCurated)
-            details.Add(Loc.T("Этой службы нет в списке рекомендаций MONOLITH — вы меняете её на свой риск."));
+            details.Add(Loc.T("Этой службы нет в списке рекомендаций Lycoris — вы меняете её на свой риск."));
 
         var disabling = option.Mode == ServiceStartMode.Disabled;
         if (!await Ui.ConfirmAsync(disabling ? Loc.T("ОТКЛЮЧИТЬ СЛУЖБУ?") : Loc.T("ИЗМЕНИТЬ ТИП ЗАПУСКА?"),
@@ -274,7 +274,7 @@ public sealed partial class ServicesViewModel
         if (running.Count > 0)
         {
             await Ui.AlertAsync("НЕЛЬЗЯ ОСТАНОВИТЬ",
-                Loc.Tf("От «{0}» зависят работающие службы. MONOLITH не останавливает службы каскадом — это может нарушить работу Windows.", item.DisplayName),
+                Loc.Tf("От «{0}» зависят работающие службы. Lycoris не останавливает службы каскадом — это может нарушить работу Windows.", item.DisplayName),
                 running.Select(d => $"{d.DisplayName} ({d.Name})"));
             return;
         }

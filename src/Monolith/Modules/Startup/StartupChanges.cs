@@ -14,7 +14,7 @@ public sealed record StartupChangeOutcome(int Applied, IReadOnlyList<string> Err
 /// Disabling/enabling only writes the mark Task Manager uses — the StartupApproved REG_BINARY for Run / Startup-folder
 /// entries, the DWORD <c>State</c> (2 on, 1 off) for packaged apps' startup tasks. Run values, shortcuts and packages
 /// are never deleted, packaged task keys are never created, policy-managed tasks are never written.
-/// When an entry is switched back to the state it had before MONOLITH touched it, the journal record is reverted
+/// When an entry is switched back to the state it had before Lycoris touched it, the journal record is reverted
 /// instead (the exact original value comes back and the journal stays clean).
 /// </summary>
 public static class StartupChanges
@@ -51,7 +51,7 @@ public static class StartupChanges
                 errors.Add($"{e.DisplayName}: {refusal}.");
                 continue;
             }
-            // Back to how it was before MONOLITH: undo every layer of this entry instead of stacking a new one.
+            // Back to how it was before Lycoris: undo every layer of this entry instead of stacking a new one.
             var layers = journal.ActiveLayers(StartupLocations.JournalTarget(e));
             if (UndoesLayers(e, enable, layers))
             {
@@ -142,18 +142,18 @@ public static class StartupChanges
     internal static string? PackagedWriteRefusal(StartupEntry e)
     {
         if (!PackagedStartup.IsJournalSafe(e.PackageFamilyName, e.Name))
-            return Loc.T("нестандартное имя пакета или задачи — такую запись MONOLITH не смог бы откатить, поэтому не меняет");
+            return Loc.T("нестандартное имя пакета или задачи — такую запись Lycoris не смог бы откатить, поэтому не меняет");
         return PackagedStartup.WriteRefusal(PackagedStartup.ReadState(e.PackageFamilyName!, e.Name));
     }
 
     /// <summary>
-    /// True when switching to <paramref name="enable"/> goes back to the state the entry had before MONOLITH: then every
+    /// True when switching to <paramref name="enable"/> goes back to the state the entry had before Lycoris: then every
     /// layer (<paramref name="layers"/>, this account's, oldest first) is undone and the exact original value comes back.
     /// </summary>
     public static bool UndoesLayers(StartupEntry e, bool enable, IReadOnlyList<ChangeRecord> layers) =>
         layers.Count > 0 && layers[0].Registry is { } snapshot && OriginalEnabled(e, snapshot) == enable;
 
-    /// <summary>A packaged task's State from before MONOLITH (the oldest layer's original), or null when unknown.</summary>
+    /// <summary>A packaged task's State from before Lycoris (the oldest layer's original), or null when unknown.</summary>
     public static int? PackagedStateBefore(IReadOnlyList<ChangeRecord> layers) =>
         layers.Count > 0 && layers[0].Registry is { } snapshot ? PackagedStartup.OriginalState(snapshot) : null;
 
@@ -162,13 +162,13 @@ public static class StartupChanges
         StartupLocations.IsPackaged(e.Source) ? PackagedStateBefore(ChangeJournal.Instance.ActiveLayers(StartupLocations.JournalTarget(e))) : null;
 
     /// <summary>
-    /// Was the entry enabled before MONOLITH changed it? Packaged tasks: from the DWORD State (null when unknown, so
+    /// Was the entry enabled before Lycoris changed it? Packaged tasks: from the DWORD State (null when unknown, so
     /// the page writes instead of reverting); everything else: the StartupApproved rule below.
     /// </summary>
     public static bool? OriginalEnabled(StartupEntry e, RegistryValueSnapshot snapshot) =>
         StartupLocations.IsPackaged(e.Source) ? PackagedStartup.OriginalEnabled(snapshot) : OriginalEnabled(snapshot);
 
-    /// <summary>Was the entry enabled before MONOLITH changed it? (absent value / non-binary = enabled).</summary>
+    /// <summary>Was the entry enabled before Lycoris changed it? (absent value / non-binary = enabled).</summary>
     public static bool OriginalEnabled(RegistryValueSnapshot snapshot)
     {
         if (!snapshot.ValueExisted || snapshot.Kind != RegistryValueKind.Binary) return true;
@@ -183,7 +183,7 @@ public static class StartupChanges
     }
 
     /// <summary>
-    /// Active journal records made by this page for the current account (the «MONOLITH» tag). HKCU targets read the
+    /// Active journal records made by this page for the current account (the «Lycoris» tag). HKCU targets read the
     /// same for every account, so another account's records are left out: there is nothing of theirs to undo here.
     /// </summary>
     public static IReadOnlyList<ChangeRecord> ActiveRecords() => PageRecords(ChangeJournal.Instance.ActiveRecords, UserScope.CurrentSid);

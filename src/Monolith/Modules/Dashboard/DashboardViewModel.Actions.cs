@@ -146,7 +146,7 @@ public sealed partial class DashboardViewModel
         details.Add(Loc.T("Исходное значение сохраняется в журнале — отменить можно в разделе «Восстановление»"));
 
         var confirmed = await Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",
-            Loc.Tf("MONOLITH применит настройку «{0}» через журнал изменений. Будет сделано следующее:", tweak.Title),
+            Loc.Tf("Lycoris применит настройку «{0}» через журнал изменений. Будет сделано следующее:", tweak.Title),
             details, footnote: "Изменение обратимо.");
         if (!confirmed) return;
 
@@ -218,7 +218,7 @@ public sealed partial class DashboardViewModel
         details.Add(Loc.T("Исходные значения сохраняются в журнале — отменить можно одной кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ» или в разделе «Восстановление»"));
         var title = Loc.Tf("ПРИМЕНИТЬ {0}?", Loc.N(tweaks.Count, "{0} ИСПРАВЛЕНИЕ", "{0} ИСПРАВЛЕНИЯ", "{0} ИСПРАВЛЕНИЙ"));
         var ok = await Ui.ConfirmAsync(title,
-            "MONOLITH применит только перечисленные безопасные настройки через журнал изменений. Будет сделано следующее:",
+            "Lycoris применит только перечисленные безопасные настройки через журнал изменений. Будет сделано следующее:",
             details, footnote: "Изменения обратимы.");
         if (!ok) return;
 

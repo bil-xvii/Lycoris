@@ -75,7 +75,7 @@ public sealed partial class RecommendationItem : ObservableObject
     public bool Exists => State?.Exists == true;
     public ServiceStartMode? CurrentMode => State?.StartMode;
 
-    /// <summary>Already where MONOLITH would put it (Disabled also satisfies a Manual target).</summary>
+    /// <summary>Already where Lycoris would put it (Disabled also satisfies a Manual target).</summary>
     public bool IsAtTarget => CurrentMode == Entry.Target || (Entry.Target == ServiceStartMode.Manual && CurrentMode == ServiceStartMode.Disabled);
 
     /// <summary>Research §0.1: already Manual/trigger-start — disabling gains ~nothing, so it counts as optimal.</summary>

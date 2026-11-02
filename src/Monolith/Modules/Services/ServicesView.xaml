@@ -92,7 +92,7 @@
             </Setter>
         </Style>
 
-        <!-- One state vocabulary: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО · ИЗМЕНЕНО MONOLITH · НЕПРИМЕНИМО (the theme's Tag styles) -->
+        <!-- One state vocabulary: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО · ИЗМЕНЕНО LYCORIS · НЕПРИМЕНИМО (the theme's Tag styles) -->
         <DataTemplate x:Key="RowBadge">
             <Grid HorizontalAlignment="Right">
                 <Border Style="{StaticResource Tag.Solid}" HorizontalAlignment="Right"
@@ -217,7 +217,7 @@
                     <StackPanel Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Top">
                         <StackPanel Visibility="{Binding Badge, Converter={StaticResource EqualsToVis}, ConverterParameter=Changed}" HorizontalAlignment="Right">
                             <Border Style="{StaticResource Tag.Solid}" HorizontalAlignment="Right">
-                                <TextBlock Text="{loc:T ИЗМЕНЕНО MONOLITH}" />
+                                <TextBlock Text="{loc:T ИЗМЕНЕНО LYCORIS}" />
                             </Border>
                             <Button Style="{StaticResource RowButton}" Margin="0,10,0,0" HorizontalAlignment="Right"
                                     Command="{Binding DataContext.RevertServiceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -336,7 +336,7 @@
                     <StackPanel Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Top">
                         <StackPanel Visibility="{Binding Badge, Converter={StaticResource EqualsToVis}, ConverterParameter=Changed}" HorizontalAlignment="Right">
                             <Border Style="{StaticResource Tag.Solid}" HorizontalAlignment="Right">
-                                <TextBlock Text="{loc:T ИЗМЕНЕНО MONOLITH}" />
+                                <TextBlock Text="{loc:T ИЗМЕНЕНО LYCORIS}" />
                             </Border>
                             <Button Style="{StaticResource RowButton}" Margin="0,10,0,0" HorizontalAlignment="Right"
                                     Command="{Binding DataContext.RevertTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -364,7 +364,7 @@
                     <ColumnDefinition Width="26" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="{loc:T Защищено: MONOLITH не меняет эту службу}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="{loc:T Защищено: Lycoris не меняет эту службу}"
                            Visibility="{Binding IsLocked, Converter={StaticResource BoolToVis}}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
                     <TextBlock Text="{Binding DisplayName}" FontFamily="{StaticResource F.Body}" FontSize="13" FontWeight="SemiBold"
@@ -385,7 +385,7 @@
                                TextTrimming="CharacterEllipsis" MaxWidth="120" />
                     <Border Style="{StaticResource Tag.Solid}" Margin="8,0,0,0" ToolTip="{Binding ChangeText}"
                             Visibility="{Binding IsChanged, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{loc:T ИЗМЕНЕНО MONOLITH}" />
+                        <TextBlock Text="{loc:T ИЗМЕНЕНО LYCORIS}" />
                     </Border>
                 </StackPanel>
                 <TextBlock Grid.Column="4" Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text3}"
@@ -480,7 +480,7 @@
                         <ContentPresenter ContentTemplate="{StaticResource ProfileChips}" Content="{Binding}" VerticalAlignment="Center" ToolTip="{Binding ProfileTooltip}" Visibility="{Binding ShowProfilePicker, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="16,0,0,0" TextWrapping="Wrap">
                             <Run Text="{loc:T К изменению}" /> <Run Text="{Binding ToChangeCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text="{loc:T ' · применено'}" />
-                            <Run Text="{Binding OptimalCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text="{loc:T ' · изменено MONOLITH'}" />
+                            <Run Text="{Binding OptimalCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text="{loc:T ' · изменено Lycoris'}" />
                             <Run Text="{Binding ChangedCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" /><Run Text=". " /><Run
                                  Text="{Binding ProfileCaption, Mode=OneWay}" /><Run Text="{loc:T ' Отключение служб не прибавляет FPS: выигрыш — память и меньше фоновой активности. Работающие службы не останавливаются.'}" />
                         </TextBlock>
@@ -496,7 +496,7 @@
                     </ScrollViewer>
 
                     <c:StickyBar Grid.Row="2" Margin="0,8,0,0" Count="{Binding SelectedRecommendationCount}"
-                                 Text="{loc:T Изменится только тип запуска. Перед применением MONOLITH покажет точный список «сейчас → станет».}">
+                                 Text="{loc:T Изменится только тип запуска. Перед применением Lycoris покажет точный список «сейчас → станет».}">
                         <c:StickyBar.Actions>
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Command="{Binding ClearRecommendationSelectionCommand}">
@@ -580,7 +580,7 @@
                         </StackPanel>
                         <!-- Expert mode: a labelled switch; turning it on asks first -->
                         <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding ServicesExpertMode}"
-                                  ToolTip="{loc:T 'Разрешает менять службы, которых нет в проверенном списке MONOLITH: другие службы Windows и службы сторонних программ. Критичные службы, драйверы и защищённые службы заблокированы всегда. Включение — после предупреждения.'}">
+                                  ToolTip="{loc:T 'Разрешает менять службы, которых нет в проверенном списке Lycoris: другие службы Windows и службы сторонних программ. Критичные службы, драйверы и защищённые службы заблокированы всегда. Включение — после предупреждения.'}">
                             <TextBlock Text="{loc:T ЭКСПЕРТНЫЙ РЕЖИМ}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                         </CheckBox>
                     </Grid>
@@ -743,14 +743,14 @@
                                                     <Style TargetType="ComboBox" BasedOn="{StaticResource StartCombo}">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding MustStayDisabled}" Value="True">
-                                                                <Setter Property="ToolTip" Value="{loc:T Эту службу можно только оставить отключённой — MONOLITH её не включает.}" />
+                                                                <Setter Property="ToolTip" Value="{loc:T Эту службу можно только оставить отключённой — Lycoris её не включает.}" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </ComboBox.Style>
                                             </ComboBox>
                                             <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                                       Text="{loc:T Эту службу можно только оставить отключённой — MONOLITH её не включает.}"
+                                                       Text="{loc:T Эту службу можно только оставить отключённой — Lycoris её не включает.}"
                                                        Visibility="{Binding MustStayDisabled, Converter={StaticResource BoolToVis}}" />
                                             <Grid Margin="0,8,0,0">
                                                 <Grid.ColumnDefinitions>
@@ -788,7 +788,7 @@
                                                 </Button>
                                                 <Button Grid.Column="2" Style="{StaticResource Btn.Danger}"
                                                         Command="{Binding DataContext.StopServiceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        ToolTip="{loc:T Остановка действует до перезагрузки и не записывается в журнал изменений. Службы с работающими зависимыми MONOLITH не останавливает.}">
+                                                        ToolTip="{loc:T Остановка действует до перезагрузки и не записывается в журнал изменений. Службы с работающими зависимыми Lycoris не останавливает.}">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                         <TextBlock Text="{loc:T ОСТАНОВИТЬ}" VerticalAlignment="Center" />
@@ -807,7 +807,7 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,9,0">
-                                                    <TextBlock Text="{loc:T ИЗМЕНЕНО MONOLITH}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                                    <TextBlock Text="{loc:T ИЗМЕНЕНО LYCORIS}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                                     <TextBlock Text="{Binding ChangeText}" Style="{StaticResource T.Body}" FontSize="12" Margin="0,4,0,0" />
                                                 </StackPanel>
                                                 <Button Grid.Column="1" Style="{StaticResource RowButton}" VerticalAlignment="Center"

@@ -22,7 +22,7 @@ public sealed class DeviceScanContext
 {
     public required SystemProfile Profile { get; init; }
     public bool IsElevated { get; init; }
-    /// <summary>MONOLITH runs as the desktop user: true / another account: false / cannot tell: null (treated as «not»).</summary>
+    /// <summary>Lycoris runs as the desktop user: true / another account: false / cannot tell: null (treated as «not»).</summary>
     public bool? InteractiveUser { get; init; }
     public bool IsInteractiveUser => InteractiveUser == true;
     public required DeviceResultStore Results { get; init; }
@@ -150,7 +150,7 @@ public static class DeviceScan
             var tweak = TweakCatalog.Find(setting.TweakId!);
             if (tweak is null)
             {
-                setting.DisabledReason = Loc.T("Этой настройки нет в «Оптимизации» этой версии MONOLITH.");
+                setting.DisabledReason = Loc.T("Этой настройки нет в «Оптимизации» этой версии Lycoris.");
                 continue;
             }
             switch (TweakEngine.Applicability(tweak, sp))

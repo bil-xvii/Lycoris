@@ -138,7 +138,7 @@ public sealed partial class GamesViewModel : PageViewModel
 
     /// <summary>Two or more real GPUs (iGPU + dGPU) on Windows 10 1803+: only then the per-game switch is shown.</summary>
     [ObservableProperty] private bool _showGpuToggle;
-    /// <summary>False when MONOLITH runs as another admin account (HKCU is not the player's): state is shown read-only.</summary>
+    /// <summary>False when Lycoris runs as another admin account (HKCU is not the player's): state is shown read-only.</summary>
     [ObservableProperty] private bool _gpuWritable;
     [ObservableProperty] private bool _isGpuChanging;
     private string? _dgpuName;
@@ -189,7 +189,7 @@ public sealed partial class GamesViewModel : PageViewModel
     private bool _ecoRecovered;
 
     /// <summary>
-    /// MONOLITH died during a session with efficiency mode on: the marker in the admin-only folder names the tagged processes;
+    /// Lycoris died during a session with efficiency mode on: the marker in the admin-only folder names the tagged processes;
     /// those still running (same PID and start time) go back to the system-managed state. Once per run, elevated only.
     /// </summary>
     private async Task RecoverStaleEcoQosAsync()
@@ -324,7 +324,7 @@ public sealed partial class GamesViewModel : PageViewModel
     {
         var dlg = new OpenFileDialog
         {
-            Title = Loc.T("MONOLITH — выберите .exe файл игры"),
+            Title = Loc.T("Lycoris — выберите .exe файл игры"),
             Filter = Loc.T("Исполняемые файлы (*.exe)|*.exe"),
             CheckFileExists = true,
             Multiselect = false,
@@ -344,7 +344,7 @@ public sealed partial class GamesViewModel : PageViewModel
         var windows = GamePaths.NormalizeDir(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
         if (GamePaths.IsUnder(exe, windows) || string.Equals(exe, AppPaths.ExecutablePath, StringComparison.OrdinalIgnoreCase))
         {
-            Ui.Toast("Системные программы Windows и сам MONOLITH нельзя добавить как игру.", ToastKind.Warning, "ДОБАВИТЬ ИГРУ");
+            Ui.Toast("Системные программы Windows и сам Lycoris нельзя добавить как игру.", ToastKind.Warning, "ДОБАВИТЬ ИГРУ");
             return;
         }
         var list = (Settings.CustomGameFolders ?? []).ToList();
@@ -368,7 +368,7 @@ public sealed partial class GamesViewModel : PageViewModel
     {
         if (card is null || !card.IsCustom) return;
         var ok = await Ui.ConfirmAsync("УБРАТЬ ИЗ БИБЛИОТЕКИ?",
-            Loc.Tf("«{0}» исчезнет из списка MONOLITH. Файлы игры на диске не удаляются.", card.Name),
+            Loc.Tf("«{0}» исчезнет из списка Lycoris. Файлы игры на диске не удаляются.", card.Name),
             [card.PathText], "УБРАТЬ", "ОТМЕНА");
         if (!ok) return;
         Settings.CustomGameFolders = (Settings.CustomGameFolders ?? [])
@@ -467,7 +467,7 @@ public sealed partial class GamesViewModel : PageViewModel
         }
         if (!GpuWritable)
         {
-            Ui.Toast("MONOLITH запущен от другой учётной записи администратора — выберите видеокарту в «Параметры → Система → Дисплей → Графика».",
+            Ui.Toast("Lycoris запущен от другой учётной записи администратора — выберите видеокарту в «Параметры → Система → Дисплей → Графика».",
                 ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
             card.SyncGpuToggle();
             return;
@@ -528,7 +528,7 @@ public sealed partial class GamesViewModel : PageViewModel
             return;
         }
         var after = action == GpuChange.Revert && record?.Registry is { } original
-            ? (original.ValueExisted ? Loc.Tf("«{0}» (значение до MONOLITH)", original.Data) : Loc.T("параметр удаляется (его не было до MONOLITH)"))
+            ? (original.ValueExisted ? Loc.Tf("«{0}» (значение до Lycoris)", original.Data) : Loc.T("параметр удаляется (его не было до Lycoris)"))
             : $"«{GpuPreference.Merge(current, GpuPreference.HighPerformance)}»";
         var gpu = GpuPreference.DiscreteCardPhrase(_dgpuName);
         var ok = await Ui.ConfirmAsync("ВЫСОКОПРОИЗВОДИТЕЛЬНЫЙ GPU ДЛЯ ИГРЫ?",
@@ -556,7 +556,7 @@ public sealed partial class GamesViewModel : PageViewModel
         var high = card.GpuValues.Where(v => v.IsHigh).ToList();
         if (high.Count == 0) return;
 
-        // Undoing MONOLITH's own change needs no question (it is the undo). A choice made in Windows Settings is
+        // Undoing Lycoris's own change needs no question (it is the undo). A choice made in Windows Settings is
         // changed only after the user saw exactly what happens — and is journaled like any other change.
         var foreign = high.Where(v => GpuPreference.Decide(false, v.Preference,
             ChangeJournal.Instance.FindActive(GpuPreference.JournalTarget(v.Exe))?.Registry) == GpuChange.Write).ToList();
@@ -568,8 +568,8 @@ public sealed partial class GamesViewModel : PageViewModel
                 Loc.Tf("Сейчас: «{0}» → станет: «{1}»", v.Data, GpuPreference.Merge(v.Data, GpuPreference.Auto)),
             }).Prepend(Loc.Tf(@"Реестр вашей учётной записи: HKCU\{0}", GpuPreference.KeyPath));
             var ok = await Ui.ConfirmAsync("ВЕРНУТЬ ВЫБОР ВИДЕОКАРТЫ WINDOWS?",
-                Loc.Tf("Высокую производительность для «{0}» задал не MONOLITH — скорее всего, это выбор в параметрах графики Windows. " +
-                "MONOLITH поставит «Пусть решает Windows», как в «Параметры → Система → Дисплей → Графика».", game.Name),
+                Loc.Tf("Высокую производительность для «{0}» задал не Lycoris — скорее всего, это выбор в параметрах графики Windows. " +
+                "Lycoris поставит «Пусть решает Windows», как в «Параметры → Система → Дисплей → Графика».", game.Name),
                 details, "ВЫКЛЮЧИТЬ",
                 footnote: "Это изменение тоже записывается в журнал и откатывается в «Восстановлении».");
             if (!ok) return;
@@ -593,13 +593,13 @@ public sealed partial class GamesViewModel : PageViewModel
     {
         if (!GamePaths.IsSpecificDir(dir) || !await Task.Run(() => Directory.Exists(dir)))
         {
-            Ui.Toast(Loc.Tf("Папка «{0}» не найдена. Запустите игру и включите переключатель снова — MONOLITH возьмёт файл работающей игры.", game.Name),
+            Ui.Toast(Loc.Tf("Папка «{0}» не найдена. Запустите игру и включите переключатель снова — Lycoris возьмёт файл работающей игры.", game.Name),
                 ToastKind.Warning, "ВИДЕОКАРТА ДЛЯ ИГРЫ");
             return null;
         }
         var ask = await Ui.ConfirmAsync("КАКОЙ ФАЙЛ ЗАПУСКАЕТ ИГРУ?",
             Loc.Tf("Настройка Windows действует только для файла, который рисует картинку, а «{0}» запускается через {1} — " +
-            "точный .exe MONOLITH не знает. Проще всего: запустите игру и включите переключатель снова, MONOLITH возьмёт файл работающей игры. " +
+            "точный .exe Lycoris не знает. Проще всего: запустите игру и включите переключатель снова, Lycoris возьмёт файл работающей игры. " +
             "Или укажите .exe в папке игры сами.", game.Name, GameText.SourceName(game.Platform)),
             [dir], "УКАЗАТЬ .EXE", "ОТМЕНА");
         if (!ask) return null;
@@ -607,7 +607,7 @@ public sealed partial class GamesViewModel : PageViewModel
         var guess = await Task.Run(() => GpuPreferenceStore.GuessExe(dir));
         var dlg = new OpenFileDialog
         {
-            Title = Loc.Tf("MONOLITH — .exe игры «{0}»", game.Name),
+            Title = Loc.Tf("Lycoris — .exe игры «{0}»", game.Name),
             Filter = Loc.T("Исполняемые файлы (*.exe)|*.exe"),
             CheckFileExists = true,
             Multiselect = false,
@@ -682,8 +682,8 @@ public sealed partial class GamesViewModel : PageViewModel
         var ok = await Ui.ConfirmAsync(
             game is null ? Loc.T("НАЧАТЬ ИГРОВОЙ СЕАНС?") : Loc.T("ИГРАТЬ С УСКОРЕНИЕМ?"),
             game is null
-                ? Loc.T("На время сеанса MONOLITH сделает следующее:")
-                : Loc.Tf("MONOLITH запустит «{0}» и на время игры сделает следующее:", game.Name),
+                ? Loc.T("На время сеанса Lycoris сделает следующее:")
+                : Loc.Tf("Lycoris запустит «{0}» и на время игры сделает следующее:", game.Name),
             plan.Describe(game),
             game is null ? Loc.T("ВКЛЮЧИТЬ") : Loc.T("ЗАПУСТИТЬ"),
             footnote: "Смена плана питания записывается в журнал и отменяется автоматически.");

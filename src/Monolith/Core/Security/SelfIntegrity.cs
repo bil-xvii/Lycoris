@@ -18,8 +18,8 @@ public sealed record SelfFacts(
     string? WritableReason);
 
 /// <summary>
-/// MONOLITH's trust in itself. UAC binds to the PATH of the exe, not to its bytes: a program running as the same user can
-/// swap a MONOLITH.exe that lies in a writable folder (Desktop, Downloads) for its own file before the user presses
+/// Lycoris's trust in itself. UAC binds to the PATH of the exe, not to its bytes: a program running as the same user can
+/// swap a Lycoris.exe that lies in a writable folder (Desktop, Downloads) for its own file before the user presses
 /// «Yes». We cannot make that impossible from inside the file — what we can do is (1) record the exe's SHA-256 at start and
 /// refuse to ask for rights when the file on disk is no longer the file we started from, (2) refuse to elevate from places
 /// anyone controls (network share, Temp, removable media), (3) refuse when a signed exe no longer matches its own
@@ -71,11 +71,11 @@ public static class SelfIntegrity
                 Log.Info("Целостность: {0}, SHA-256 {1}", exe, HashAtStart ?? "—");
                 Log.Info("Подпись программы: {0}{1}", Signature, SignerName is null ? "" : " (" + SignerName + ")");
                 if (Signature == SignatureState.Tampered)
-                    Log.Error("Цифровая подпись MONOLITH.exe не совпадает с файлом — файл изменён после подписания.");
+                    Log.Error("Цифровая подпись Lycoris.exe не совпадает с файлом — файл изменён после подписания.");
                 if (HostileLocation)
-                    Log.Warn("MONOLITH запущен из сетевой, временной или съёмной папки — запрос прав администратора будет отклонён.");
+                    Log.Warn("Lycoris запущен из сетевой, временной или съёмной папки — запрос прав администратора будет отклонён.");
                 else if (WritableReason is not null)
-                    Log.Warn("MONOLITH лежит в папке, куда могут писать обычные программы ({0}). Надёжнее держать его в Program Files.", WritableReason);
+                    Log.Warn("Lycoris лежит в папке, куда могут писать обычные программы ({0}). Надёжнее держать его в Program Files.", WritableReason);
                 foreach (var bad in BadNativeLibraries)
                     Log.Error("Распакованная библиотека не прошла проверку подписи: {0}", bad);
                 foreach (var name in EnvironmentGuard.PresentInThisProcess())
@@ -102,17 +102,17 @@ public static class SelfIntegrity
     public static ElevationVerdict Evaluate(SelfFacts f)
     {
         if (f.HostileLocation)
-            return new ElevationVerdict(false, Loc.T("MONOLITH запущен из сетевой, временной или съёмной папки. Права администратора ему не выдаются: " +
+            return new ElevationVerdict(false, Loc.T("Lycoris запущен из сетевой, временной или съёмной папки. Права администратора ему не выдаются: " +
                                                       "скопируйте программу в обычную папку на диске (лучше в C:\\Program Files\\Lycoris) и запустите оттуда."));
         if (f.Signature == SignatureState.Tampered)
-            return new ElevationVerdict(false, Loc.T("Цифровая подпись MONOLITH.exe не совпадает с файлом: он изменён после подписания. " +
+            return new ElevationVerdict(false, Loc.T("Цифровая подпись Lycoris.exe не совпадает с файлом: он изменён после подписания. " +
                                                       "Права администратора не запрашиваются — скачайте программу заново из официального источника."));
         if (f.HashAtStart is not null && f.HashNow is not null && !string.Equals(f.HashAtStart, f.HashNow, StringComparison.OrdinalIgnoreCase))
-            return new ElevationVerdict(false, Loc.T("Файл MONOLITH.exe на диске изменился с момента запуска — возможно, его подменила другая программа. " +
-                                                      "Права администратора не запрашиваются. Закройте MONOLITH, проверьте файл и запустите его заново."));
+            return new ElevationVerdict(false, Loc.T("Файл Lycoris.exe на диске изменился с момента запуска — возможно, его подменила другая программа. " +
+                                                      "Права администратора не запрашиваются. Закройте Lycoris, проверьте файл и запустите его заново."));
         if (f.BadNativeLibraries.Count > 0)
-            return new ElevationVerdict(false, Loc.Tf("Библиотека {0}, распакованная MONOLITH во временную папку, не прошла проверку подписи Microsoft. " +
-                                                      "Права администратора не запрашиваются. Удалите папку %TEMP%\\.net\\MONOLITH и запустите программу заново.",
+            return new ElevationVerdict(false, Loc.Tf("Библиотека {0}, распакованная Lycoris во временную папку, не прошла проверку подписи Microsoft. " +
+                                                      "Права администратора не запрашиваются. Удалите папку %TEMP%\\.net\\Lycoris и запустите программу заново.",
                                                       Path.GetFileName(f.BadNativeLibraries[0])));
         if (f.WritableReason is not null)
             return new ElevationVerdict(true, null, WritableFolderWarning);
@@ -120,8 +120,8 @@ public static class SelfIntegrity
     }
 
     /// <summary>The recommendation shown when the exe lies in a folder ordinary programs can write to.</summary>
-    public static string WritableFolderWarning => Loc.T("MONOLITH лежит в папке, куда может писать любая программа. Пока вы нажимаете «Да» в окне Windows, " +
-                                                         "другая программа теоретически успевает подменить файл. Надёжнее хранить MONOLITH в C:\\Program Files\\Lycoris (защищённая папка).");
+    public static string WritableFolderWarning => Loc.T("Lycoris лежит в папке, куда может писать любая программа. Пока вы нажимаете «Да» в окне Windows, " +
+                                                         "другая программа теоретически успевает подменить файл. Надёжнее хранить Lycoris в C:\\Program Files\\Lycoris (защищённая папка).");
 
     /// <summary>
     /// The verdict right before the UAC prompt: re-hashes the exe on disk (the window an attacker needs is between our start and
@@ -135,7 +135,7 @@ public static class SelfIntegrity
         try { now = Sha256OfFile(exe); } catch { }
         // The exe cannot be read at all: do not ask for rights for a file we cannot vouch for.
         if (now is null && HashAtStart is not null)
-            return new ElevationVerdict(false, Loc.T("Файл MONOLITH.exe сейчас недоступен для проверки. Права администратора не запрашиваются — повторите позже."));
+            return new ElevationVerdict(false, Loc.T("Файл Lycoris.exe сейчас недоступен для проверки. Права администратора не запрашиваются — повторите позже."));
         return Evaluate(new SelfFacts(HashAtStart, now, HostileLocation, Signature, BadNativeLibraries, WritableReason));
     }
 
@@ -155,8 +155,8 @@ public static class SelfIntegrity
 }
 
 /// <summary>
-/// The single-file build unpacks WPF's native libraries into %TEMP%\.net\MONOLITH\&lt;id&gt; — a folder the signed-in user (and
-/// every program running as that user) can write to, and an elevated MONOLITH loads them from there. They are all signed by
+/// The single-file build unpacks WPF's native libraries into %TEMP%\.net\Lycoris\&lt;id&gt; — a folder the signed-in user (and
+/// every program running as that user) can write to, and an elevated Lycoris loads them from there. They are all signed by
 /// Microsoft, so a file that is not validly signed is a planted one.
 /// </summary>
 public static class BundleGuard

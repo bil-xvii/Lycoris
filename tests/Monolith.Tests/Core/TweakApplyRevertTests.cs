@@ -121,7 +121,7 @@ public sealed class TweakApplyRevertTests : IDisposable
 
     // ───────────────────────────── Created keys and layers (real redirected registry) ─────────────────────────────
 
-    /// <summary>Keys that exist on every Windows: present before MONOLITH, so they must survive every revert.</summary>
+    /// <summary>Keys that exist on every Windows: present before Lycoris, so they must survive every revert.</summary>
     private static void SeedBaseline(params (RegHive Hive, string Path)[] keys)
     {
         foreach (var (hive, path) in keys) RegistryHelper.Write(hive, path, "monolith-test-baseline", RegistryValueKind.String, "x");
@@ -158,7 +158,7 @@ public sealed class TweakApplyRevertTests : IDisposable
         }
 
         Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, windows + @"\WindowsAI"));
-        Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, windows));                      // MONOLITH created it too
+        Assert.False(RegistryHelper.KeyExists(RegHive.HKCU, windows));                      // Lycoris created it too
         Assert.True(RegistryHelper.KeyExists(RegHive.HKCU, @"Software\Policies\Microsoft")); // existed before
     }
 

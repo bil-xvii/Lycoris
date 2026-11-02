@@ -31,7 +31,7 @@ internal static class SessionActions
     ///  1. ends the explorer.exe processes of this session only;
     ///  2. waits for Windows to bring the shell back itself (Winlogon AutoRestartShell, with the user's normal token);
     ///  3. if it doesn't, starts explorer.exe with the token of an unelevated process of the same session,
-    ///     so the shell never runs with MONOLITH's administrator rights.
+    ///     so the shell never runs with Lycoris's administrator rights.
     /// </summary>
     public static Task<SessionActionResult> RestartExplorerAsync() => Task.Run(RestartExplorerCore);
 
@@ -220,7 +220,7 @@ internal static class SessionActions
     public static async Task<SessionActionResult> ScheduleRebootAsync()
     {
         var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("shutdown.exe"),
-            ["/r", "/t", RebootDelaySeconds.ToString(CultureInfo.InvariantCulture), "/c", Loc.T("MONOLITH: перезагрузка для применения настроек")],
+            ["/r", "/t", RebootDelaySeconds.ToString(CultureInfo.InvariantCulture), "/c", Loc.T("Lycoris: перезагрузка для применения настроек")],
             new ProcessRunOptions { Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromSeconds(30) }).ConfigureAwait(false);
         if (r.Success)
         {

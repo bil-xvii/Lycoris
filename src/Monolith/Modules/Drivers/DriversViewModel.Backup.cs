@@ -205,7 +205,7 @@ public sealed partial class DriversViewModel
             BackupStage = Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ");
             try
             {
-                if (!await EnsureRestorePointAsync(Loc.T("MONOLITH: восстановление драйверов")))
+                if (!await EnsureRestorePointAsync(Loc.T("Lycoris: восстановление драйверов")))
                 {
                     BackupResult = Loc.T("Восстановление отменено.");
                     BackupResultOk = false;

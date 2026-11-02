@@ -80,7 +80,7 @@ public sealed class LocalizationCoverageTests
     }
 
     // Brand/tool spellings that legitimately keep lower case inside an all-caps text.
-    private static readonly string[] MixedCaseBrands = ["winget", "DirectX", "GeForce", "OneDrive", "FreeSync", "PowerShell", "SysMain", "DiagTrack", "Xbox", "PCIe", "YouTube", "Battle.net", "NetBIOS", "IPv6", "IPv4", "macOS", "iOS", "WinINet", "ENGLISH", "MONOLITH"];
+    private static readonly string[] MixedCaseBrands = ["winget", "DirectX", "GeForce", "OneDrive", "FreeSync", "PowerShell", "SysMain", "DiagTrack", "Xbox", "PCIe", "YouTube", "Battle.net", "NetBIOS", "IPv6", "IPv4", "macOS", "iOS", "WinINet", "ENGLISH", "Lycoris"];
 
     [Fact]
     public void An_all_caps_russian_label_has_an_all_caps_english_one()

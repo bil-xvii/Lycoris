@@ -144,8 +144,8 @@ public sealed partial class AppsViewModel : PageViewModel
         : HasDetection
             ? Loc.T("Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ».")
             : WingetMissing
-                ? Loc.T("Без winget MONOLITH не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Обновить».")
-                : Loc.T("MONOLITH ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.");
+                ? Loc.T("Без winget Lycoris не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Обновить».")
+                : Loc.T("Lycoris ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.");
 
     partial void OnHasDetectionChanged(bool value) => NotifyNoResultsText();
     public string VisibleText => VisibleCount == TotalCount ? AppTexts.Programs(TotalCount) : Loc.Tf("{0} из {1}", VisibleCount, TotalCount);
@@ -792,7 +792,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private static async Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
     {
-        // Packages MONOLITH does not advise installing now go first, with the reason; the install is never blocked.
+        // Packages Lycoris does not advise installing now go first, with the reason; the install is never blocked.
         var installs = plan.Where(p => p.Op == QueueOperation.Install).Select(p => (p.Item.Entry, p.Item.ShownAdvice)).ToList();
         var notes = AppTexts.AdviceNotes(installs);
         var details = notes.ToList();
@@ -812,13 +812,13 @@ public sealed partial class AppsViewModel : PageViewModel
             QueueKind.Kit => Loc.Tf("Будут установлены недостающие библиотеки ({0}). Уже установленные пропускаются. ", AppTexts.Packages(plan.Count)),
             QueueKind.UpdateAll => Loc.Tf("winget проверит обновления установленных программ из каталога ({0}) и поставит новые версии. " +
                                    "Программы, которые обновляются сами (Discord, игры Riot, Edge, WebView2), компоненты, поставленные не через winget " +
-                                   "(например, среда .NET из .NET SDK), и «Установщик приложений» MONOLITH не трогает. ", plan.Count),
+                                   "(например, среда .NET из .NET SDK), и «Установщик приложений» Lycoris не трогает. ", plan.Count),
             _ => Loc.Tf("По очереди будет обработано: {0}. ", AppTexts.Packages(plan.Count)),
         };
         var how = AppTexts.VerificationText(plan.Select(p => p.Item.Entry)) + " ";
         var elevation = Elevation.IsElevated
             ? Loc.T("Программы для всех пользователей ставятся с правами администратора, пакеты для текущего пользователя и из Microsoft Store — без них. ")
-            : Loc.T("MONOLITH работает без прав администратора: установщик каждой программы для всех пользователей сам покажет запрос UAC. ");
+            : Loc.T("Lycoris работает без прав администратора: установщик каждой программы для всех пользователей сам покажет запрос UAC. ");
         var undo = Loc.T("Удалить программу можно в «Параметры → Приложения».");
 
         string footnote;
@@ -851,7 +851,7 @@ public sealed partial class AppsViewModel : PageViewModel
             {
                 AppendLog(Loc.T("Создание точки восстановления…"));
                 SetBusyText(Loc.T("Создание точки восстановления…"));
-                var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
+                var rp = await RestorePointService.CreateAsync($"Lycoris: {QueueTitle.ToLowerInvariant()}");
                 AppendLog(rp.Message);
                 if (rp.Outcome == RestorePointOutcome.Failed && !await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
                         "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
@@ -927,7 +927,7 @@ public sealed partial class AppsViewModel : PageViewModel
         }
     }
 
-    /// <param name="Error">MONOLITH itself failed to run winget for this package (the queue goes on with the next one).</param>
+    /// <param name="Error">Lycoris itself failed to run winget for this package (the queue goes on with the next one).</param>
     private sealed record RunOutcome(UnelevatedOutcome Outcome, WingetResult Result, string? Error = null);
 
     /// <summary>Never throws: a failure of one package must not stop (or crash) the queue.</summary>
@@ -1023,7 +1023,7 @@ public sealed partial class AppsViewModel : PageViewModel
         {
             case UnelevatedOutcome.LaunchFailed when outcome.Error is not null:
                 job.State = QueueState.Failed;
-                job.StatusText = Loc.T("ОШИБКА: MONOLITH не смог запустить winget");
+                job.StatusText = Loc.T("ОШИБКА: Lycoris не смог запустить winget");
                 job.Detail = Loc.Tf("{0} Повторите установку; если ошибка повторяется — установите программу с официального сайта.", outcome.Error);
                 job.Fallback = QueueFallback.Website;
                 AppendLog(job.Detail);
@@ -1032,14 +1032,14 @@ public sealed partial class AppsViewModel : PageViewModel
                 job.State = QueueState.Failed;
                 job.StatusText = Loc.T("ОШИБКА: не удалось запустить без прав администратора");
                 job.Detail = Loc.T("Рабочий стол Windows недоступен для запуска. Откройте сайт программы (кнопка «ОТКРЫТЬ САЙТ») " +
-                             "или запустите MONOLITH без прав администратора и повторите.");
+                             "или запустите Lycoris без прав администратора и повторите.");
                 job.Fallback = QueueFallback.Website;
                 AppendLog(job.Detail);
                 return;
             case UnelevatedOutcome.Untracked when outcome.Result.StillRunning:
                 job.State = QueueState.Unknown;
                 job.StatusText = Loc.T("ЕЩЁ ИДЁТ: результат проверим заново");
-                job.Detail = Loc.T("Установка идёт дольше 30 минут. MONOLITH перестал ждать, но не прерывал её, чтобы программа не осталась " +
+                job.Detail = Loc.T("Установка идёт дольше 30 минут. Lycoris перестал ждать, но не прерывал её, чтобы программа не осталась " +
                              "установленной наполовину. Список установленного будет перечитан после очереди; если программа не появится, " +
                              "проверьте её позже или установите заново.");
                 AppendLog(job.Detail);

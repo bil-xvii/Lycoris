@@ -278,22 +278,22 @@ internal static partial class DriverBackupService
     // ───────────── Restore ─────────────
 
     /// <summary>
-    /// Checks a backup before restoring it (research §5; review finding #3): the folder must be a MONOLITH backup
+    /// Checks a backup before restoring it (research §5; review finding #3): the folder must be a Lycoris backup
     /// owned by Administrators/SYSTEM, the machine folder must not have been writable by other users, and every
     /// INF file must be one listed in the manifest. Returns the INFs to install.
     /// </summary>
     public static RestorePlan PlanRestore(string backupDir)
     {
         if (!BackupFolders.IsDirectChild(Root, backupDir) || !Directory.Exists(backupDir))
-            return new RestorePlan([], Loc.T("Папка резервной копии не найдена или находится вне хранилища MONOLITH."));
+            return new RestorePlan([], Loc.T("Папка резервной копии не найдена или находится вне хранилища Lycoris."));
         if (AppPaths.MachineDirWasInsecure)
-            return new RestorePlan([], Loc.T("Папка данных MONOLITH была доступна для записи другим пользователям этого компьютера — " +
+            return new RestorePlan([], Loc.T("Папка данных Lycoris была доступна для записи другим пользователям этого компьютера — " +
                 "содержимому старых копий нельзя доверять. Создайте новую резервную копию; восстановление из этой отключено."));
         try
         {
             var info = new DirectoryInfo(backupDir);
             if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) || !BackupFolders.TryParse(info.Name, out _, out _))
-                return new RestorePlan([], Loc.T("Это не папка резервной копии MONOLITH."));
+                return new RestorePlan([], Loc.T("Это не папка резервной копии Lycoris."));
             if (!IsTrustedOwner(info))
                 return new RestorePlan([], Loc.T("Владелец папки копии — не администратор системы. Восстановление из неё отключено."));
 
@@ -437,11 +437,11 @@ internal static partial class DriverBackupService
     {
         Elevation.Demand(Loc.T("удаление резервной копии драйверов"));
         if (!BackupFolders.IsDirectChild(Root, backupDir))
-            throw new InvalidOperationException(Loc.T("Удалять можно только папки резервных копий MONOLITH."));
+            throw new InvalidOperationException(Loc.T("Удалять можно только папки резервных копий Lycoris."));
         var info = new DirectoryInfo(backupDir);
         if (!info.Exists) return;
         if (!BackupFolders.TryParse(info.Name, out _, out _))
-            throw new InvalidOperationException(Loc.T("Это не папка резервной копии MONOLITH."));
+            throw new InvalidOperationException(Loc.T("Это не папка резервной копии Lycoris."));
         DeleteTree(info);
         Log.Info("Резервная копия драйверов удалена: {0}", info.Name);
     });

@@ -283,7 +283,7 @@ public sealed partial class DriversViewModel : PageViewModel
             ShellOpen(url, url);
             return;
         }
-        // Vendor sites: the browser must not inherit MONOLITH's administrator token (drivers downloaded there
+        // Vendor sites: the browser must not inherit Lycoris's administrator token (drivers downloaded there
         // would otherwise run elevated without a UAC prompt).
         if (!await UnelevatedShell.OpenAsync(url))
             Ui.Toast(Loc.Tf("Не удалось открыть страницу без прав администратора. Откройте её в браузере вручную: {0}", url), ToastKind.Warning);

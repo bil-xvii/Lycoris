@@ -74,7 +74,7 @@ public static class DevicePlan
 {
     /// <summary>
     /// Every setting whose recommendation (policy ≠ None) differs from the live value, plus findings (Advice, always) and
-    /// rows that need a measurement. Include is pre-selected, Suggest is not; per-user rows are not selectable when MONOLITH
+    /// rows that need a measurement. Include is pre-selected, Suggest is not; per-user rows are not selectable when Lycoris
     /// does not run as the desktop user; read-only rows never are. Rows of one Optimize tweak or link appear once. Rows
     /// with an on-screen confirmation come last. <paramref name="previousSelection"/> keeps the user's checkboxes by key.
     /// </summary>
@@ -87,7 +87,7 @@ public static class DevicePlan
     /// <summary>
     /// The row writes into the account's profile: a per-user device setting, or a tweak row whose Optimize tweak writes only
     /// HKCU («mouse-acceleration-off», «audio-ducking», «vrr»): applied from the plan it would land in the desktop user's hive
-    /// only when MONOLITH runs as that user.
+    /// only when Lycoris runs as that user.
     /// </summary>
     public static bool IsPerUser(DeviceSetting s) =>
         s.PerUser || (s.TweakId is { } id && Monolith.Tweaks.TweakCatalog.Find(id) is Monolith.Tweaks.RegistryTweak t
@@ -133,7 +133,7 @@ public static class DevicePlan
                 if (selectable && IsPerUser(s) && !interactiveUser)
                 {
                     selectable = false;
-                    disabled = Loc.T("Недоступно: MONOLITH запущен не от вашей учётной записи (или её не удалось определить).");
+                    disabled = Loc.T("Недоступно: Lycoris запущен не от вашей учётной записи (или её не удалось определить).");
                 }
 
                 var item = new PlanItem

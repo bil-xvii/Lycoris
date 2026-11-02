@@ -90,13 +90,13 @@ public interface IUiHost
     void NavigateTo(string pageKey);
 
     /// <summary>
-    /// Relaunches MONOLITH with admin rights on the current page (UAC prompt); false when declined or failed.
+    /// Relaunches Lycoris with admin rights on the current page (UAC prompt); false when declined or failed.
     /// With <paramref name="intent"/> the elevated copy also repeats that action once (see <see cref="Monolith.Shell.AdminIntent"/>).
     /// </summary>
     bool RestartElevated(Monolith.Shell.AdminIntent? intent = null);
 
     /// <summary>
-    /// Relaunches MONOLITH with the same rights on the current page (a setting that is read at startup, the language, changed);
+    /// Relaunches Lycoris with the same rights on the current page (a setting that is read at startup, the language, changed);
     /// false when it cannot be done now (operations running) — the host then says why.
     /// </summary>
     bool RestartSameRights();
@@ -331,12 +331,12 @@ public static class Ui
     }
 
     /// <summary>
-    /// Relaunches MONOLITH with admin rights on the current page (see <see cref="IUiHost.RestartElevated"/>); with an
+    /// Relaunches Lycoris with admin rights on the current page (see <see cref="IUiHost.RestartElevated"/>); with an
     /// intent, the elevated copy repeats that action once.
     /// </summary>
     public static void RestartElevated(Monolith.Shell.AdminIntent? intent = null) => Post(() => Host?.RestartElevated(intent));
 
-    /// <summary>Restarts MONOLITH with the same rights (language change); see <see cref="IUiHost.RestartSameRights"/>.</summary>
+    /// <summary>Restarts Lycoris with the same rights (language change); see <see cref="IUiHost.RestartSameRights"/>.</summary>
     public static bool RestartApp() => Host?.RestartSameRights() ?? false;
 
     /// <summary>

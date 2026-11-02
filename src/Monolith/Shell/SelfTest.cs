@@ -204,7 +204,7 @@ public sealed class SelfTestRunner
         var self = Monolith.Core.Security.SelfIntegrity.HashAtStart;
         r.Exercised.Add($"exe SHA-256: {self ?? "(not yet computed)"}, signature: {Monolith.Core.Security.SelfIntegrity.Signature}, writable folder: {Monolith.Core.Security.SelfIntegrity.WritableReason ?? "no"}");
         if (Monolith.Core.Security.SelfIntegrity.Signature == Monolith.Core.Security.SignatureState.Tampered)
-            r.Errors.Add("подпись MONOLITH.exe не совпадает с файлом");
+            r.Errors.Add("подпись Lycoris.exe не совпадает с файлом");
         foreach (var bad in Monolith.Core.Security.SelfIntegrity.BadNativeLibraries) r.Errors.Add("распакованная библиотека без подписи: " + bad);
 
         // The corpus makes parsers log their refusals (warnings): expected here, not findings. Only unhandled exceptions would matter.
@@ -495,7 +495,7 @@ public sealed class SelfTestRunner
     private void WriteReport(List<PageReport> reports, TimeSpan elapsed, long startMem, long endMem)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# MONOLITH — отчёт самопроверки");
+        sb.AppendLine("# Lycoris — отчёт самопроверки");
         sb.AppendLine();
         sb.AppendLine($"Время: {DateTime.Now:yyyy-MM-dd HH:mm:ss} · длительность {elapsed.TotalSeconds:0} с · права администратора: {(Elevation.IsElevated ? "да" : "нет")}");
         sb.AppendLine($"Память: {startMem / 1048576} МБ → {endMem / 1048576} МБ");

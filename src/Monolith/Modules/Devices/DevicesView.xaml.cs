@@ -107,7 +107,7 @@ public partial class DevicesView : UserControl
     private UIElement? _padCapture;
 
     /// <summary>
-    /// The press lands on the pad: capture the mouse (no other control reacts) and keep the cursor inside MONOLITH's window
+    /// The press lands on the pad: capture the mouse (no other control reacts) and keep the cursor inside Lycoris's window
     /// while the button is held, so a long drag can never move files or windows elsewhere.
     /// </summary>
     private void OnPadDown(object sender, MouseButtonEventArgs e)

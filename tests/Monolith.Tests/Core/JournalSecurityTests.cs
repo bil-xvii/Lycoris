@@ -134,7 +134,7 @@ public sealed class JournalSecurityTests : IDisposable
             Assert.Null(JournalTrust.Check(Command("tweak:dns", $"dns4:{g}", ps,
                 TweakCatalog.PowerShellArgs(TweakCatalog.DnsScript("ipv4", g, ["1.1.1.1"], keepRegistration: keep)))));
 
-        // DirectX tokens: scripts that also remove a key MONOLITH created rebuild exactly; appended payloads do not.
+        // DirectX tokens: scripts that also remove a key Lycoris created rebuild exactly; appended payloads do not.
         foreach (var (key, parent) in new[] { (false, false), (true, false), (true, true) })
             Assert.Null(JournalTrust.Check(Command("tweak:dx", "dx:VRROptimizeEnable", ps,
                 TweakCatalog.PowerShellArgs(TweakCatalog.DxTokenScript("VRROptimizeEnable", null, createdKey: key, createdParent: parent)))));
@@ -311,7 +311,7 @@ public sealed class JournalSecurityTests : IDisposable
         };
         const string task = @"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\SpotifyAB.SpotifyMusic_zpdnekdrzrea0\SpotifyStartupTask";
         Assert.Null(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State")));
-        // MONOLITH never creates the State value and never records a policy state (3/4) as an original.
+        // Lycoris never creates the State value and never records a policy state (3/4) as an original.
         Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "State", existed: false)));
         Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKCU, task, "Other")));
         Assert.NotNull(JournalTrust.Check(Rec("startup", RegHive.HKLM, task, "State")));

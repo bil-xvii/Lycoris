@@ -176,7 +176,7 @@ public static partial class VendorDownloads
         if (r.Signers.Count == 0 || r.Signers.Any(string.IsNullOrWhiteSpace))
             return Loc.T("Для этого файла не задан ожидаемый подписант — загрузка отменена.");
         if (!IsDownloadFolder(r.Folder))
-            return Loc.T("Файл можно сохранить только в защищённую папку загрузок MONOLITH — загрузка отменена.");
+            return Loc.T("Файл можно сохранить только в защищённую папку загрузок Lycoris — загрузка отменена.");
         return null;
     }
 
@@ -270,10 +270,10 @@ public static partial class VendorDownloads
     private static string PrepareFolder(string folder)
     {
         if (!AppPaths.TryEnsureDir(RootDir) || !AppPaths.TryEnsureDir(folder))
-            throw new InvalidOperationException(Loc.T("Не удалось создать защищённую папку загрузок MONOLITH (нужны права администратора) — загрузка отменена."));
+            throw new InvalidOperationException(Loc.T("Не удалось создать защищённую папку загрузок Lycoris (нужны права администратора) — загрузка отменена."));
         foreach (var d in new[] { RootDir, folder })
             if (new DirectoryInfo(d).Attributes.HasFlag(FileAttributes.ReparsePoint))
-                throw new InvalidOperationException(Loc.T("Папка загрузок MONOLITH подменена ссылкой — загрузка отменена."));
+                throw new InvalidOperationException(Loc.T("Папка загрузок Lycoris подменена ссылкой — загрузка отменена."));
         return folder;
     }
 
@@ -306,7 +306,7 @@ public static partial class VendorDownloads
 
     /// <summary>
     /// Writes an HTTP answer to <paramref name="part"/> (FileShare.None) with progress and the stall watchdog; the caller has
-    /// already checked status and host. Shared by the vendor installers and the MONOLITH self-update (Core/Updates).
+    /// already checked status and host. Shared by the vendor installers and the Lycoris self-update (Core/Updates).
     /// Throws InvalidOperationException with a Russian message; the stall token's cancellation passes through.
     /// </summary>
     internal static async Task CopyResponseToFileAsync(HttpResponseMessage resp, string host, string part, IProgress<DownloadProgress>? progress,

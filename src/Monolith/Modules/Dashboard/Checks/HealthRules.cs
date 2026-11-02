@@ -144,7 +144,7 @@ public static partial class HealthRules
 
         var detail = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с. Скорее всего, в BIOS выключен профиль " +
                      "XMP (Intel) или EXPO (AMD) — в играх, чувствительных к памяти, это заметная потеря FPS. Включите профиль в BIOS/UEFI " +
-                     "(раздел настроек памяти → XMP/EXPO → сохранить F10). MONOLITH настройки BIOS не меняет; если система станет " +
+                     "(раздел настроек памяти → XMP/EXPO → сохранить F10). Lycoris настройки BIOS не меняет; если система станет " +
                      "нестабильной, верните там значение «Auto».", v.Rated, v.Configured);
         if (s.IsLaptop)
             detail += " " + Loc.T("На ноутбуках профиль часто недоступен — тогда это нормальная работа.");
@@ -177,7 +177,7 @@ public static partial class HealthRules
             return new("refresh-rate", Loc.T("ЧАСТОТА ОБНОВЛЕНИЯ МАКСИМАЛЬНАЯ"), list + ".", CheckSeverity.Ok, 10);
         }
         var what = string.Join("; ", slow.Select(d => Loc.Tf("{0}: сейчас {1} Гц, доступно {2} Гц при {3}×{4}", d.Name, d.CurrentHz, d.MaxHz, d.Width, d.Height)));
-        var detail = what + ". " + Loc.T("Выберите максимальную частоту в разделе «Устройства и сеть»: MONOLITH переключит её с подтверждением " +
+        var detail = what + ". " + Loc.T("Выберите максимальную частоту в разделе «Устройства и сеть»: Lycoris переключит её с подтверждением " +
                      "на экране, а откатить можно там же или в «Восстановлении». Игры и интерфейс станут плавнее.");
         return new("refresh-rate", Loc.T("МОНИТОР НЕ НА МАКСИМАЛЬНОЙ ЧАСТОТЕ"), detail, CheckSeverity.Warning, 10,
             new CheckAction(CheckActionKind.FocusDevice, Loc.T("НАСТРОИТЬ МОНИТОР"), "kind:monitor"));
@@ -190,7 +190,7 @@ public static partial class HealthRules
         if (s.RestoreBlockedByPolicy)
             return new("restore", Loc.T("ЗАЩИТА СИСТЕМЫ ЗАПРЕЩЕНА ПОЛИТИКОЙ"),
                 Loc.T("Точки восстановления отключены групповой политикой (обычно это решение администратора организации). " +
-                "MONOLITH политики не обходит; собственные изменения по-прежнему откатываются в разделе «Восстановление»."),
+                "Lycoris политики не обходит; собственные изменения по-прежнему откатываются в разделе «Восстановление»."),
                 CheckSeverity.Info, 15);
         if (s.RestoreEnabled is null) return null;
         if (s.RestoreEnabled == true)
@@ -198,7 +198,7 @@ public static partial class HealthRules
                 Loc.T("Точки восстановления создаются — систему можно откатить штатными средствами Windows."), CheckSeverity.Ok, 15);
         return new("restore", Loc.T("ЗАЩИТА СИСТЕМЫ ВЫКЛЮЧЕНА"),
             Loc.T("Windows не создаёт точки восстановления: после неудачного обновления или драйвера откатиться будет не к чему, " +
-            "а MONOLITH не сможет сделать точку перед своими изменениями. Защита займёт часть диска C: (старые точки удаляются " +
+            "а Lycoris не сможет сделать точку перед своими изменениями. Защита займёт часть диска C: (старые точки удаляются " +
             "автоматически). Включить её можно в разделе «Восстановление»."),
             CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, Loc.T("ВКЛЮЧИТЬ ЗАЩИТУ"), "restore"));
     }
@@ -222,14 +222,14 @@ public static partial class HealthRules
         var facts = SystemFileFacts(s);
         return new("disk-space", Loc.T("НА СИСТЕМНОМ ДИСКЕ МАЛО МЕСТА"),
             text + " " + Loc.T("Когда места мало, Windows не может установить обновления, а кэш шейдеров и файл подкачки работают хуже. " +
-            "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением MONOLITH покажет, что именно будет удалено.") +
+            "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением Lycoris покажет, что именно будет удалено.") +
             (facts.Length > 0 ? " " + facts : ""),
             CheckSeverity.Warning, IsCriticalSpace(free, total) ? 25 : 15,
             new CheckAction(CheckActionKind.Navigate, Loc.T("ОЧИСТИТЬ ДИСК"), "cleaner"), SystemFileLever(s));
     }
 
     /// <summary>
-    /// What the Windows system files on the drive take (each fact only when it is known) and why MONOLITH leaves two of
+    /// What the Windows system files on the drive take (each fact only when it is known) and why Lycoris leaves two of
     /// them alone: hibernation can go on desktops only (ADVANCED; DO-NOT-INCLUDE on laptops — and when the laptop/desktop
     /// fact is unknown the lever is not offered either), the page file is managed by Windows (general_tweaks.md §10),
     /// reserved storage is released by Windows itself when space runs low.
@@ -244,7 +244,7 @@ public static partial class HealthRules
                 : CanOfferHibernationOff(s) ? " " + Loc.T("Его можно убрать пунктом «Отключить гибернацию» (ЭКСПЕРТ) в разделе «Оптимизация».") : ""));
         if (s.PagefileOnOtherDrive == true)
             parts.Add(s.PagefileBytes is > 0 and var shared
-                ? Loc.Tf("pagefile.sys — {0}: файл подкачки настроен вручную и размещён ещё и на другом диске — MONOLITH его не трогает.", DashFormat.Size(shared))
+                ? Loc.Tf("pagefile.sys — {0}: файл подкачки настроен вручную и размещён ещё и на другом диске — Lycoris его не трогает.", DashFormat.Size(shared))
                 : Loc.T("Файл подкачки размещён на другом диске — место на системном диске он не занимает."));
         else if (s.PagefileSystemManaged == false && s.PagefileBytes is > 0 and var manual)
             parts.Add(Loc.Tf("pagefile.sys — {0}: размер задан вручную; {1}", DashFormat.Size(manual), pagefileRepair));
@@ -254,7 +254,7 @@ public static partial class HealthRules
         else if (s.PagefileSystemManaged == false)
             parts.Add(Loc.Tf("Файл подкачки настроен вручную; {0} Если вы сознательно перенесли его на другой диск, этот пункт не нужен.", pagefileRepair));
         else if (s.PagefileBytes is > 0 and var pf)
-            parts.Add(Loc.Tf("pagefile.sys — {0}: размером управляет Windows, MONOLITH его не трогает — " +
+            parts.Add(Loc.Tf("pagefile.sys — {0}: размером управляет Windows, Lycoris его не трогает — " +
                       "отключение или уменьшение файла подкачки приводит к вылетам игр.", DashFormat.Size(pf)));
         if (ReservedStorageOn(s.ReservedStorageState) is { } reserved)
             parts.Add(reserved
@@ -517,10 +517,10 @@ public static partial class HealthRules
             return new("update-pin", Loc.T("ЗАКРЕПЛЕНИЕ ВЕРСИИ WINDOWS УСТАРЕЛО"),
                 Loc.Tf("Политика закрепляет Windows 11 {0}, а установлена {1} — закрепление больше не действует как задумано, но " +
                 "задержит следующее крупное обновление. Снимите его: откат пункта в «Оптимизации» или удаление политики, если её " +
-                "задали не через MONOLITH.", v, installed), CheckSeverity.Info, 0, open);
+                "задали не через Lycoris.", v, installed), CheckSeverity.Info, 0, open);
         if (Tweaks.TweakCatalog.KnownRelease(v) is not { } eos)
             return new("update-pin", Loc.T("ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА"),
-                Loc.Tf("Windows 11 {0} закреплена политикой, дата поддержки неизвестна (этой версии нет в списке MONOLITH). Крупные обновления " +
+                Loc.Tf("Windows 11 {0} закреплена политикой, дата поддержки неизвестна (этой версии нет в списке Lycoris). Крупные обновления " +
                 "не приходят, пока закрепление не снято.", v), CheckSeverity.Info, 0, open);
         var date = Tweaks.TweakCatalog.DateText(eos);
         var daysLeft = eos.DayNumber - DateOnly.FromDateTime(s.Now).DayNumber;
@@ -555,7 +555,7 @@ public static partial class HealthRules
             return new("trim", Loc.T("TRIM ВКЛЮЧЁН"), Loc.T("SSD получает команды очистки освобождённых блоков — скорость записи не деградирует."), CheckSeverity.Ok, 10);
         return new("trim", Loc.T("TRIM ВЫКЛЮЧЕН"),
             Loc.T("SSD не получает команды очистки освобождённых блоков: со временем запись замедляется, а износ растёт. " +
-            "Обычно его выключают сторонние «твикеры». Кнопка включает его через журнал MONOLITH — откат вернёт прежнее значение."),
+            "Обычно его выключают сторонние «твикеры». Кнопка включает его через журнал Lycoris — откат вернёт прежнее значение."),
             CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.ApplyTweak, Loc.T("ВКЛЮЧИТЬ"), TweakTrim));
     }
 

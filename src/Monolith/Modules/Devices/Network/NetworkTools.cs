@@ -264,15 +264,15 @@ internal static class NetworkTools
             var cost = profile.GetConnectionCost();
             if (cost.NetworkCostType is global::Windows.Networking.Connectivity.NetworkCostType.Fixed or global::Windows.Networking.Connectivity.NetworkCostType.Variable
                 || cost.Roaming || cost.OverDataLimit)
-                return Loc.T("Подключение лимитное: тест скачал бы сотни мегабайт, поэтому MONOLITH его не запускает.");
+                return Loc.T("Подключение лимитное: тест скачал бы сотни мегабайт, поэтому Lycoris его не запускает.");
             if (cost.NetworkCostType != global::Windows.Networking.Connectivity.NetworkCostType.Unrestricted)
-                return Loc.T("Windows не сообщает, лимитное ли это подключение: тест скачал бы сотни мегабайт, поэтому MONOLITH его не запускает. " +
+                return Loc.T("Windows не сообщает, лимитное ли это подключение: тест скачал бы сотни мегабайт, поэтому Lycoris его не запускает. " +
                        "Проверьте «Лимитное подключение» в Параметрах → Сеть и Интернет.");
         }
         catch (Exception ex)
         {
             Log.Warn("Сеть: тип подключения не прочитан — {0}", ex.Message);
-            return Loc.T("Не удалось узнать, лимитное ли подключение: тест скачал бы сотни мегабайт, поэтому MONOLITH его не запускает. Повторите позже.");
+            return Loc.T("Не удалось узнать, лимитное ли подключение: тест скачал бы сотни мегабайт, поэтому Lycoris его не запускает. Повторите позже.");
         }
         return null;
     }
@@ -306,7 +306,7 @@ internal static class NetworkTools
         var lines = r.Servers.Select(x => x.Label + ": " + (x.MedianMs is { } ms ? NetStats.Ms(ms) : Loc.T("нет ответа")) +
                                           (x.TimeoutPercent > 0 ? Loc.Tf(", без ответа {0}", NetStats.Percent(x.TimeoutPercent)) : "")).ToList();
         var detail = string.Join(" · ", lines) + ".";
-        if (r.SkipReason is { } skip) detail += Loc.Tf("\nСменить DNS MONOLITH не предлагает: {0}.", skip);
+        if (r.SkipReason is { } skip) detail += Loc.Tf("\nСменить DNS Lycoris не предлагает: {0}.", skip);
         else if (DnsAdvice.Offer(r) is { } offer) detail += Loc.Tf("\n{0}. Предложение — в «Автонастройке», без галочки.", offer.Reason);
         else detail += Loc.T("\nВаш DNS не медленнее публичных — менять не нужно.");
         return (text, detail + Loc.T("\nТолько поиск имён (лаунчеры, сайты): на пинг в игре не влияет."));

@@ -11,7 +11,7 @@ public sealed record CiPolicyState(bool? Blocklist, SmartAppControlState Sac);
 
 /// <summary>
 /// Boot security (Secure Boot, TPM, UEFI) and kernel protection (memory integrity, vulnerable driver blocklist,
-/// Smart App Control). Information only: MONOLITH never changes firmware or these security controls; the only button
+/// Smart App Control). Information only: Lycoris never changes firmware or these security controls; the only button
 /// opens Windows Security. Sources: tech.md §7, gaming_tweaks.md §G, competitors.md §3 (readiness #6).
 /// </summary>
 public static partial class HealthRules
@@ -114,7 +114,7 @@ public static partial class HealthRules
                       "Не выбирайте «Clear TPM» или «Reset TPM»"));
         steps.Add(Loc.T("Если включено шифрование BitLocker или шифрование устройства, сначала сохраните ключ восстановления " +
                   "(aka.ms/myrecoverykey): после изменений в BIOS Windows может его запросить"));
-        detail += string.Join(". ", steps) + ". " + Loc.T("MONOLITH прошивку и разметку дисков не меняет.");
+        detail += string.Join(". ", steps) + ". " + Loc.T("Lycoris прошивку и разметку дисков не меняет.");
 
         var title = (secureBootMissing, tpmMissing) switch
         {
@@ -207,7 +207,7 @@ public static partial class HealthRules
                 "известные уязвимые драйверы вредоносные программы и читы получают доступ к ядру системы. Включите «Список " +
                 "блокировки уязвимых драйверов» в «Безопасность Windows → Безопасность устройства → Изоляция ядра» и " +
                 "перезагрузите ПК — на FPS это не влияет. Если после этого перестанет запускаться старая утилита (разгон, " +
-                "подсветка), её драйвер как раз из этого списка.") + sac + " " + Loc.T("MONOLITH эту защиту не меняет."),
+                "подсветка), её драйвер как раз из этого списка.") + sac + " " + Loc.T("Lycoris эту защиту не меняет."),
                 CheckSeverity.Warning, 8, new CheckAction(CheckActionKind.OpenUri, Loc.T("ОТКРЫТЬ БЕЗОПАСНОСТЬ WINDOWS"), WindowsSecurityUri));
 
         switch (s.Vbs)
@@ -216,14 +216,14 @@ public static partial class HealthRules
                 return new("vbs", Loc.T("ЦЕЛОСТНОСТЬ ПАМЯТИ ВКЛЮЧЕНА"),
                     Loc.T("Изоляция ядра защищает Windows от вредоносных и уязвимых драйверов; список блокировки уязвимых драйверов " +
                     "при этом действует всегда. В части игр она стоит 0–10 % FPS (в среднем около 5 %), а античиты Riot Vanguard " +
-                    "и FACEIT могут её требовать. MONOLITH не отключает её сам; отключение есть только как экспертный пункт в " +
+                    "и FACEIT могут её требовать. Lycoris не отключает её сам; отключение есть только как экспертный пункт в " +
                     "«Оптимизации» с отдельным предупреждением — это снижает безопасность и ломает часть античитов. Настройка — " +
                     "«Безопасность Windows → Безопасность устройства → Изоляция ядра».") + sac,
                     CheckSeverity.Info, 0);
             case VbsState.VbsOnly:
                 return new("vbs", Loc.T("ВИРТУАЛИЗАЦИЯ БЕЗОПАСНОСТИ АКТИВНА"),
                     Loc.T("Windows изолирует часть ядра в защищённой виртуальной среде (VBS). Это защита от атак на учётные данные и ядро; " +
-                    "влияние на игры обычно небольшое. MONOLITH её не отключает.") +
+                    "влияние на игры обычно небольшое. Lycoris её не отключает.") +
                     (blocklist == true ? " " + Loc.T("Список блокировки уязвимых драйверов Microsoft действует.") : "") + sac,
                     CheckSeverity.Info, 0);
             default:

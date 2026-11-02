@@ -79,7 +79,7 @@ public sealed record DeviceOption(DeviceValue Value, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>What MONOLITH recommends for a setting, and why (one line).</summary>
+/// <summary>What Lycoris recommends for a setting, and why (one line).</summary>
 public sealed record Recommendation(DeviceValue Value, string Reason, RecommendPolicy Policy, DeviceLink? Link = null)
 {
     /// <summary>The recommendation depends on a measurement that has not been made: the plan says so and links the tool.</summary>
@@ -172,7 +172,7 @@ public sealed partial class DeviceSetting : ObservableObject
     public Func<DeviceValue, string>? Format { get; init; }
     /// <summary>The journal target this setting writes (for ОТКАТИТЬ and Restore → «Устройства и сеть»).</summary>
     public string? JournalTarget { get; init; }
-    /// <summary>Written into the account's profile: only when MONOLITH runs as the desktop user.</summary>
+    /// <summary>Written into the account's profile: only when Lycoris runs as the desktop user.</summary>
     public bool PerUser { get; init; }
     /// <summary>Applied with an on-screen confirmation (display mode, HDR, button swap): last in the plan, one at a time.</summary>
     public bool NeedsCountdown { get; init; }

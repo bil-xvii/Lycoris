@@ -14,7 +14,7 @@ scale. None of them shortens the milliseconds a UDP packet spends in transit. Mi
 low-latency NIC tuning: OS-induced latency "is usually measured in microseconds", while transit is "measured in
 milliseconds", and the tuning "doesn't reduce the time a packet spends in transit" (Microsoft Learn, NIC tuning).
 
-What MONOLITH can honestly do:
+What Lycoris can honestly do:
 
 1. **Measure:** gateway versus internet RTT, jitter and loss; IPv4 versus IPv6; latency under load (bufferbloat); which
    transport the running game actually uses.
@@ -117,7 +117,7 @@ What this shows:
 - The local path is excellent: 0.2 ms to the router, single-digit ms to Israeli anycast nodes.
 - The "loss" at 10 pings/s to public resolvers disappears at 1/s, and is absent over IPv6 to the same operator. That
   is ICMP rate-limiting at the anycast servers, not packet loss on the line.
-- **Implication for MONOLITH:** never report loss from fast ICMP to public DNS anycast. Probe at ≤1 packet/s, use the
+- **Implication for Lycoris:** never report loss from fast ICMP to public DNS anycast. Probe at ≤1 packet/s, use the
   gateway as a control, and confirm across several targets.
 - IPv4 and IPv6 latency are identical here, so "prefer IPv4" would gain nothing.
 
@@ -147,7 +147,7 @@ honest auto mode is therefore **diagnose → fix only the found cause → re-mea
 3. **Latency under load** (`net-latency-under-load`, opt-in because it uses bandwidth): idle versus loaded RTT.
    - A large delta means bufferbloat. The fix is in the router (SQM / "smart queue" / a bandwidth cap 5–10 % below the
      line rate) or in the launcher (limit Steam/Battle.net download speed, no downloads during gameplay).
-   - Windows cannot fix the ISP-side queue. MONOLITH explains this and does not pretend otherwise.
+   - Windows cannot fix the ISP-side queue. Lycoris explains this and does not pretend otherwise.
 4. **Background transfers during play** (`background-transfers`): name the process that moves the most bytes.
 5. **Transport of the running game** (`game-transport-detect`): if the game keeps a TCP session to its server, offer
    `tcp-ack-frequency` (ADVANCED). If it uses UDP only, say that TCP tweaks cannot help.
@@ -287,7 +287,7 @@ ADVANCED items stay opt-in there with their warnings. The measurements belong wi
       rebooted. Cisco documents a DWORD; community scripts use REG_SZ "1".
     - Microsoft's event 16512 confirms the switch's meaning: "Selective application of QoS policies based on domain
       network category has been disabled. QoS policies will be applied to all network interfaces."
-    - Because of this, MONOLITH could not even know that marking works without a packet capture.
+    - Because of this, Lycoris could not even know that marking works without a packet capture.
 - **Why it does not lower ping on a home connection:**
   1. **Upload only.** Microsoft: "QoS policies must be applied on the sending computer to affect its outbound
      traffic." Server→client game updates are never marked by your PC. Their queue sits at the ISP/modem, beyond
@@ -302,7 +302,7 @@ ADVANCED items stay opt-in there with their warnings. The measurements belong wi
   4. **Wi-Fi.** DSCP→WMM access-category mapping (RFC 8325) could help the local radio uplink. This PC is wired.
 - **Effect:** none expected on this PC (wired, router with stock queueing, ISP edge). No controlled measurement shows
   a gain on home internet.
-- **Risk:** low technically (reversible). But an unprovable policy is exactly what MONOLITH promises not to ship.
+- **Risk:** low technically (reversible). But an unprovable policy is exactly what Lycoris promises not to ship.
 - **Evidence:**
   - https://learn.microsoft.com/en-us/windows-server/networking/technologies/qos/qos-policy-faq
   - https://learn.microsoft.com/en-us/windows-server/networking/technologies/qos/qos-policy-errors (event 16512)
@@ -363,7 +363,7 @@ ADVANCED items stay opt-in there with their warnings. The measurements belong wi
 - **Effect:** a game flow at 20–128 packets/s rarely has two datagrams in one indication. There is no added timer, and
   no measurement shows a ping effect.
 - **This PC:** the inbox Ethernet driver exposes no URO/USO, so it is a no-op here.
-- **Rule:** an undocumented-benefit toggle on a brand-new path is exactly what MONOLITH should not touch.
+- **Rule:** an undocumented-benefit toggle on a brand-new path is exactly what Lycoris should not touch.
 - **Evidence:** https://learn.microsoft.com/en-us/windows-hardware/drivers/network/udp-rsc-offload
 
 ## 13. `tcp-congestion-provider` — CUBIC / BBR2 / CTCP / NewReno → DO-NOT-INCLUDE to set; SAFE-OPTIONAL repair to default
@@ -501,7 +501,7 @@ ADVANCED items stay opt-in there with their warnings. The measurements belong wi
   - Typical sources: Steam/Battle.net updates (Steam has "Allow downloads during gameplay", per-game "Background
     downloads"; Battle.net has a download-bandwidth limit), OneDrive and cloud backup, browser downloads, torrents,
     Windows Update.
-- **What MONOLITH can do (read-only):**
+- **What Lycoris can do (read-only):**
   - While a game runs, sample per-process network throughput. ETW `Microsoft-Windows-Kernel-Network` gives bytes
     sent/received per PID, the same source Resource Monitor uses. `GetPerTcpConnectionEStats` is an alternative.
   - Name the top consumers and link to the right switch: launcher setting, OneDrive pause, `ms-settings:windowsupdate`
@@ -569,7 +569,7 @@ ADVANCED items stay opt-in there with their warnings. The measurements belong wi
 - **Interpretation:** an added delay above ~30 ms means the router has no smart queue management.
   - Recommendation (no Windows change): enable SQM/"Smart Queue"/QoS in the router, or cap it 5–10 % below the line.
   - Limit launcher download speed; never download during play.
-- MONOLITH cannot fix the ISP-side queue and must say so.
+- Lycoris cannot fix the ISP-side queue and must say so.
 
 ## 28. `game-transport-detect` — which protocol the running game uses (read-only)
 

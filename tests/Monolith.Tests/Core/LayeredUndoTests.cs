@@ -8,7 +8,7 @@ namespace Monolith.Tests.Core;
 
 /// <summary>
 /// The layered undo model, as pure logic: an in-memory journal and a fake system side. "Revert one thing → exactly
-/// that thing reverts; revert everything → the state from before MONOLITH", in any order, per Windows account.
+/// that thing reverts; revert everything → the state from before Lycoris", in any order, per Windows account.
 /// </summary>
 [Collection("Registry")] // changes the process-wide test account (UserScope.CurrentSidForTests)
 public sealed class LayeredUndoTests : IDisposable
@@ -166,7 +166,7 @@ public sealed class LayeredUndoTests : IDisposable
         Assert.False(a.Reverted);
 
         await _journal.RevertSourceAsync("tweak:a");
-        Assert.Null(Value(Path1, "V")); // absent before MONOLITH
+        Assert.Null(Value(Path1, "V")); // absent before Lycoris
     }
 
     [Theory]
@@ -351,7 +351,7 @@ public sealed class LayeredUndoTests : IDisposable
         Assert.False(legacy.Reverted);
         Assert.Same(legacy, Assert.Single(all.Left)); // reported as left, never as «все изменения откачены»
         Assert.Equal(
-            "1 изменение сделано старой версией MONOLITH для неизвестной учётной записи — откатите его по одной в журнале, войдя под той учётной записью.",
+            "1 изменение сделано старой версией Lycoris для неизвестной учётной записи — откатите его по одной в журнале, войдя под той учётной записью.",
             RestoreFormat.LeftText(all.Left, Alice, s => s));
 
         var row = await _journal.RevertAsync([legacy]);
@@ -448,7 +448,7 @@ public sealed class LayeredUndoTests : IDisposable
         var b = AddLegacy("tweak:b", "B", null, "1");
         var other = new ChangeRecord { Kind = ChangeKind.Registry, Target = a.Target, Registry = a.Registry, UserSid = Bob };
         Assert.Equal(
-            "2 изменения сделаны старой версией MONOLITH для неизвестной учётной записи — откатите их по одной в журнале, войдя под той учётной записью. " +
+            "2 изменения сделаны старой версией Lycoris для неизвестной учётной записи — откатите их по одной в журнале, войдя под той учётной записью. " +
             "1 изменение сделано для учётной записи PC\\bob — его можно откатить, только войдя под ней.",
             RestoreFormat.LeftText([a, b, other], Alice, _ => "PC\\bob"));
     }
@@ -598,7 +598,7 @@ public sealed class LayeredUndoTests : IDisposable
     {
         var ultimate = Guid.NewGuid();
         var first = SetPlan(_journal.BeginBatch("1"), "tweak:power-plan-ultimate", ultimate, created: ultimate);
-        _system.Active = PowerSchemes.Balanced; // switched away outside MONOLITH, then re-applied (copy found, not created)
+        _system.Active = PowerSchemes.Balanced; // switched away outside Lycoris, then re-applied (copy found, not created)
         var second = SetPlan(_journal.BeginBatch("2"), "tweak:power-plan-ultimate", ultimate);
 
         await _journal.RevertAsync([first]);
@@ -984,7 +984,7 @@ public sealed class CreatedKeyTests
         }
         Assert.False(tree.Exists(Ai));
         Assert.False(tree.Exists(Policies + @"\Windows"));
-        Assert.True(tree.Exists(Policies)); // existed before MONOLITH
+        Assert.True(tree.Exists(Policies)); // existed before Lycoris
     }
 
     [Fact]
@@ -1014,7 +1014,7 @@ public sealed class CreatedKeyTests
         tree.Write(path, "X");
         tree.Restore(path, "X", root);
         Assert.False(tree.Exists(path));
-        Assert.True(tree.Exists(@"Software\Microsoft\Empty\Parent")); // empty, but not MONOLITH's
+        Assert.True(tree.Exists(@"Software\Microsoft\Empty\Parent")); // empty, but not Lycoris's
     }
 
     [Fact]

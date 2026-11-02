@@ -33,7 +33,7 @@ internal sealed record VendorApp(
     /// <summary>The vendor's own lighting control (G HUB, Synapse, iCUE, MSI Center, GG) — it conflicts with a unifier.</summary>
     public bool ControlsLighting { get; init; }
 
-    /// <summary>Started from MONOLITH only through a fixed, signed exe.</summary>
+    /// <summary>Started from Lycoris only through a fixed, signed exe.</summary>
     public bool IsLaunchable => ExeUnderProgramFiles is not null && Signers.Count > 0 && !IsRgbUnifier;
 
     /// <summary>The installed-program rule shared with Drivers: display name AND (verified) publisher.</summary>
@@ -194,7 +194,7 @@ internal static class VendorApps
         problem = null;
         if (!app.IsLaunchable || app.ExeUnderProgramFiles is not { Length: > 0 } rel)
         {
-            problem = app.IsRgbUnifier ? Loc.T("программа без цифровой подписи — MONOLITH её не запускает") : Loc.T("нет проверенного способа запуска");
+            problem = app.IsRgbUnifier ? Loc.T("программа без цифровой подписи — Lycoris её не запускает") : Loc.T("нет проверенного способа запуска");
             return null;
         }
         if (string.IsNullOrWhiteSpace(env.ProgramFiles))
@@ -310,6 +310,6 @@ internal static class VendorApps
         }
     }
 
-    /// <summary>Its Microsoft Store page (install or open it there), never with MONOLITH's admin token.</summary>
+    /// <summary>Its Microsoft Store page (install or open it there), never with Lycoris's admin token.</summary>
     public static Task<bool> OpenHdrCalibrationAsync() => UnelevatedShell.OpenAsync(HdrCalibrationStorePage);
 }

@@ -214,7 +214,7 @@
                                                 <WrapPanel>
                                                     <TextBlock Text="{Binding DisplayName}" Style="{StaticResource T.BodyStrong}" FontSize="13.5" TextWrapping="NoWrap"
                                                                TextTrimming="CharacterEllipsis" MaxWidth="250" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
-                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Значок защиты Windows или антивируса — MONOLITH его не отключает}"
+                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Значок защиты Windows или антивируса — Lycoris его не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Security}">
                                                         <TextBlock Text="{loc:T ЗАЩИТА}" />
                                                     </Border>
@@ -337,11 +337,11 @@
                                                 <WrapPanel>
                                                     <TextBlock Text="{Binding DisplayName}" Style="{StaticResource T.BodyStrong}" FontSize="13.5" TextWrapping="NoWrap"
                                                                TextTrimming="CharacterEllipsis" MaxWidth="250" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
-                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Задача обновляет программу и закрывает уязвимости — MONOLITH её не отключает}"
+                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Задача обновляет программу и закрывает уязвимости — Lycoris её не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Updater}">
                                                         <TextBlock Text="{loc:T ОБНОВЛЕНИЯ}" />
                                                     </Border>
-                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Задача защитного ПО — MONOLITH её не отключает}"
+                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Задача защитного ПО — Lycoris её не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Security}">
                                                         <TextBlock Text="{loc:T ЗАЩИТА}" />
                                                     </Border>
@@ -420,7 +420,7 @@
         </ScrollViewer>
 
         <!-- Sticky bar: outside the scroll, only while rows are checked -->
-        <c:StickyBar Grid.Row="3" Margin="0,8,0,0" Count="{Binding SelectedCount}" Text="{loc:T Перед изменением нескольких записей MONOLITH создаёт точку восстановления.}"
+        <c:StickyBar Grid.Row="3" Margin="0,8,0,0" Count="{Binding SelectedCount}" Text="{loc:T Перед изменением нескольких записей Lycoris создаёт точку восстановления.}"
                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
             <c:StickyBar.Actions>
                 <ContentPresenter ContentTemplate="{StaticResource SelectedBarActions}" Content="{Binding}" />

@@ -6,7 +6,7 @@ namespace Monolith.Core.Devices;
 /// The safe way to change a display mode or HDR (design devices_design.md §5; Windows gives API callers no safety net):
 /// journal first (PendingConfirm) → an out-of-process guard is armed → the change is made temporarily → a 15-second
 /// countdown on another monitor, default «go back» → keep = persist + confirm, anything else = revert + drop the
-/// record. The guard reverts when MONOLITH dies or the deadline passes; startup reconciles leftovers. The same
+/// record. The guard reverts when Lycoris dies or the deadline passes; startup reconciles leftovers. The same
 /// skeleton undoes a change (<see cref="RestoreModeAsync"/>, <see cref="RestoreHdrAsync"/>).
 /// </summary>
 internal static class DisplaySafeApply
@@ -18,9 +18,9 @@ internal static class DisplaySafeApply
     /// <summary>How often the countdown checks that the monitor is still there.</summary>
     internal static TimeSpan PollInterval = TimeSpan.FromSeconds(1);
 
-    private static string NoWriter => Loc.T("эта версия MONOLITH не умеет менять параметры экрана");
-    private static string GameBlocked => Loc.T("Во время игрового сеанса MONOLITH не меняет параметры экрана");
-    private static string GameBlockedUndo => Loc.T("во время игрового сеанса MONOLITH не меняет параметры экрана — повторите откат после игры");
+    private static string NoWriter => Loc.T("эта версия Lycoris не умеет менять параметры экрана");
+    private static string GameBlocked => Loc.T("Во время игрового сеанса Lycoris не меняет параметры экрана");
+    private static string GameBlockedUndo => Loc.T("во время игрового сеанса Lycoris не меняет параметры экрана — повторите откат после игры");
     private static string KeepModeTitle => Loc.T("ОСТАВИТЬ ЭТИ ПАРАМЕТРЫ ЭКРАНА?");
 
     private static DisplayApplyOutcome Failed(string message) => new(DisplayApplyResult.Failed, message);
@@ -60,7 +60,7 @@ internal static class DisplaySafeApply
                 MonitorPath = monitorPath, MonitorName = monitorName, Original = original, Target = target, PendingConfirm = true,
             },
         };
-        if (JournalTrust.Check(record) is { } refusal) return Failed(Loc.Tf("MONOLITH не смог бы откатить это изменение ({0})", refusal));
+        if (JournalTrust.Check(record) is { } refusal) return Failed(Loc.Tf("Lycoris не смог бы откатить это изменение ({0})", refusal));
         var (added, isNew) = journal.Add(record); // throws when the journal cannot be written: nothing changed
         if (!isNew || !ReferenceEquals(added, record)) return Failed(Loc.T("этот монитор уже меняется в этом пакете изменений"));
 
@@ -177,7 +177,7 @@ internal static class DisplaySafeApply
                 ModeBefore = modeBefore is { IsSane: true } ? modeBefore : null, AcmBefore = w.ReadAcmEnabled(monitorPath),
             },
         };
-        if (JournalTrust.Check(record) is { } refusal) return Failed(Loc.Tf("MONOLITH не смог бы откатить это изменение ({0})", refusal));
+        if (JournalTrust.Check(record) is { } refusal) return Failed(Loc.Tf("Lycoris не смог бы откатить это изменение ({0})", refusal));
         var (added, isNew) = journal.Add(record);
         if (!isNew || !ReferenceEquals(added, record)) return Failed(Loc.T("HDR этого монитора уже меняется в этом пакете изменений"));
 
@@ -299,7 +299,7 @@ internal static class DisplaySafeApply
         }
         if (!live.SameMode(snap.Target)
             && !await DeviceConfirm.AskAsync(Loc.T("Вернуть прежние параметры экрана?"),
-                Loc.Tf("{0}: сейчас {1}, а MONOLITH устанавливал {2}. Вернуть {3}?", snap.MonitorName, live.Describe(), snap.Target.Describe(), snap.Original.Describe()),
+                Loc.Tf("{0}: сейчас {1}, а Lycoris устанавливал {2}. Вернуть {3}?", snap.MonitorName, live.Describe(), snap.Target.Describe(), snap.Original.Describe()),
                 []).ConfigureAwait(false))
             throw new InvalidOperationException(Loc.T("откат отменён — оставлены текущие параметры"));
         if (!w.IsModeOffered(path, snap.Original) || !w.TestMode(path, snap.Original).Ok)
@@ -387,7 +387,7 @@ internal static class DisplaySafeApply
     // ───────────────────────────── Startup reconcile ─────────────────────────────
 
     /// <summary>
-    /// Records left pending by a crash (MONOLITH or the PC died during a countdown). A pending change was never
+    /// Records left pending by a crash (Lycoris or the PC died during a countdown). A pending change was never
     /// confirmed, so it is reverted — except when the saved mode is already the target (the keep was saved, only the
     /// journal write was lost). HDR has no temporary state: the user is asked again (default: go back). Runs elevated,
     /// off the UI thread, after any running guard process has finished.
@@ -407,7 +407,7 @@ internal static class DisplaySafeApply
         await DisplayGuardProcess.WaitForGuardsAsync(ConfirmWindow + GuardSlack + TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         if (DeviceWriters.Display is not { } w)
         {
-            Log.Warn("Незавершённые изменения экрана: {0} — эта версия MONOLITH не умеет их проверить.", pending.Count);
+            Log.Warn("Незавершённые изменения экрана: {0} — эта версия Lycoris не умеет их проверить.", pending.Count);
             return;
         }
         foreach (var r in pending)
@@ -436,7 +436,7 @@ internal static class DisplaySafeApply
         }
         var result = await journal.RevertAsync([r]).ConfigureAwait(false);
         if (result.Success && r.Reverted)
-            Log.Info("«{0}»: изменение не было подтверждено (MONOLITH закрылся во время обратного отсчёта) — возвращено прежнее значение.", r.Title);
+            Log.Info("«{0}»: изменение не было подтверждено (Lycoris закрылся во время обратного отсчёта) — возвращено прежнее значение.", r.Title);
         else
             Log.Warn("«{0}»: неподтверждённое изменение вернуть не удалось ({1}) — откатите запись в «Восстановлении».", r.Title, string.Join("; ", result.Errors));
     }
@@ -513,7 +513,7 @@ internal static class DisplaySafeApply
 }
 
 /// <summary>
-/// The «--display-guard» process marks itself with a named event, so a new MONOLITH never treats it as a hung copy
+/// The «--display-guard» process marks itself with a named event, so a new Lycoris never treats it as a hung copy
 /// (and never offers to end it) and waits for it before reconciling pending display changes.
 /// </summary>
 public static class DisplayGuardProcess
@@ -548,7 +548,7 @@ public static class DisplayGuardProcess
         }
     }
 
-    /// <summary>Running guard processes (other MONOLITH processes carrying the marker).</summary>
+    /// <summary>Running guard processes (other Lycoris processes carrying the marker).</summary>
     public static IReadOnlyList<int> RunningGuards()
     {
         try

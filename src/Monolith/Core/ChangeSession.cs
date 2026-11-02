@@ -60,7 +60,7 @@ public sealed class ChangeSession
         if (createRestorePoint && AppSettings.Current.CreateRestorePoints && !BypassElevationForTests)
         {
             progress?.Report(Loc.T("Создание точки восстановления…"));
-            var rp = await RestorePointService.CreateAsync($"MONOLITH: {title}").ConfigureAwait(false);
+            var rp = await RestorePointService.CreateAsync($"Lycoris: {title}").ConfigureAwait(false);
             batch.RestorePoint = rp.Message;
             journal.UpdateBatch(batch);
         }
@@ -95,10 +95,10 @@ public sealed class ChangeSession
                 _ = RegistryHelper.ExportKeyAsync(hive, path, file).GetAwaiter().GetResult();
             }
 
-            // HKCU is the profile of the account MONOLITH runs as; the journal is shared by every account.
+            // HKCU is the profile of the account Lycoris runs as; the journal is shared by every account.
             var userSid = hive == RegHive.HKCU ? UserScope.CurrentSid : null;
             var snapshot = RegistryHelper.Snapshot(hive, path, name);
-            // Writing into a key MONOLITH created earlier (still claimed by an active record): carry its created root,
+            // Writing into a key Lycoris created earlier (still claimed by an active record): carry its created root,
             // so whichever of these records is reverted last removes the created keys.
             if (!snapshot.ValueExisted && _journal.InheritedKeyRoot(hive, path, userSid) is { } inherited)
                 snapshot = snapshot.WithCreatedKeyRoot(RegistryHelper.ShallowerRoot(snapshot.CreatedKeyRoot, inherited));
@@ -148,7 +148,7 @@ public sealed class ChangeSession
                 throw new InvalidOperationException(Loc.Tf("служба {0} защищена от изменений", service));
             // The journal refuses to replay such records, so they are never created either.
             if (Monolith.Modules.Services.ServiceGuard.IsHardBlocked(service))
-                throw new InvalidOperationException(Loc.Tf("служба {0} в списке служб, которые MONOLITH не меняет", service));
+                throw new InvalidOperationException(Loc.Tf("служба {0} в списке служб, которые Lycoris не меняет", service));
 
             var incoming = new ChangeRecord
             {
@@ -191,7 +191,7 @@ public sealed class ChangeSession
 
     // ───────────────────────────── Power plans ─────────────────────────────
 
-    /// <summary>Activates a power plan. <paramref name="createdScheme"/> marks a plan MONOLITH created, so revert can delete it.</summary>
+    /// <summary>Activates a power plan. <paramref name="createdScheme"/> marks a plan Lycoris created, so revert can delete it.</summary>
     public bool SetPowerScheme(Guid scheme, string source, string title, Guid? createdScheme = null) =>
         _journal.Exclusive(() => SetPowerSchemeCore(scheme, source, title, createdScheme));
 
@@ -326,13 +326,13 @@ public sealed class ChangeSession
     internal static bool OutcomeUnknown(ProcessResult? r) => r is { TimedOut: true } or { Cancelled: true } or { StillRunning: true };
 
     // ───────────────────────────── Devices ─────────────────────────────
-    // Same pattern as SetRegistry: journal gate, the record is checked against JournalTrust (so MONOLITH never makes a
+    // Same pattern as SetRegistry: journal gate, the record is checked against JournalTrust (so Lycoris never makes a
     // change it could not undo) and written BEFORE the change, read-back after it, the original put back and the record
     // removed on failure. Every primitive refuses in self-test mode and without a writer for the device.
 
     /// <summary>
     /// Sets a per-user Windows input parameter (<see cref="SpiCatalog"/>): live session and the account's HKCU value.
-    /// Only when MONOLITH runs as the desktop user (otherwise the persisted value would land in another account).
+    /// Only when Lycoris runs as the desktop user (otherwise the persisted value would land in another account).
     /// An equal value creates no record.
     /// </summary>
     public bool SetUserParameter(string spiId, int value, string source, string title) =>
@@ -361,7 +361,7 @@ public sealed class ChangeSession
                 return true;
             }
             if (!entry.IsValidOriginal(original.Value))
-                throw new InvalidOperationException(Loc.Tf("текущее значение {0} вне известного диапазона — MONOLITH не смог бы его вернуть", original));
+                throw new InvalidOperationException(Loc.Tf("текущее значение {0} вне известного диапазона — Lycoris не смог бы его вернуть", original));
 
             if (entry.Persisted is { } p)
             {
@@ -411,7 +411,7 @@ public sealed class ChangeSession
     /// only when the user confirms within the countdown — with the new button. A decline or timeout reverts this
     /// session's own record; when that fails the original is written back as a new journaled layer; when that fails too,
     /// the outcome says how to put it back by hand (<paramref name="manualHint"/>). SPI persists the new value at once, so
-    /// the record is marked pending until the confirmation: if MONOLITH dies during the countdown, the next start reverts it
+    /// the record is marked pending until the confirmation: if Lycoris dies during the countdown, the next start reverts it
     /// (<see cref="DisplaySafeApply.ReconcileAsync"/>).
     /// </summary>
     public Task<DisplayApplyOutcome> SetUserParameterConfirmedAsync(string spiId, int value, CountdownRequest confirm, string source, string title,
@@ -580,7 +580,7 @@ public sealed class ChangeSession
                 if (scalar is not null && db is not null) throw new InvalidOperationException(Loc.T("укажите уровень либо в процентах, либо в децибелах"));
                 if (scalar is { } s && (!float.IsFinite(s) || s < 0f || s > 1f)) throw new InvalidOperationException(Loc.T("уровень вне диапазона 0–100 %"));
                 if (db is { } d && !float.IsFinite(d)) throw new InvalidOperationException(Loc.T("недопустимый уровень в децибелах"));
-                if (!DeviceTargets.IsCaptureEndpointId(endpointId)) throw new InvalidOperationException(Loc.T("MONOLITH меняет уровень только у устройств записи"));
+                if (!DeviceTargets.IsCaptureEndpointId(endpointId)) throw new InvalidOperationException(Loc.T("Lycoris меняет уровень только у устройств записи"));
                 if (Elevation.InteractiveUserProblem is { } account) throw new InvalidOperationException(account);
                 var writer = DeviceWriters.Audio ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
                 if (!writer.IsPresent(endpointId)) throw new InvalidOperationException(Loc.T("устройство не найдено"));
@@ -683,11 +683,11 @@ public sealed class ChangeSession
             try
             {
                 SafetyLock.ThrowIfLocked(title);
-                if (GameBoostState.IsActive) throw new InvalidOperationException(Loc.T("во время игрового сеанса MONOLITH не перезапускает сетевой адаптер"));
-                if (!DeviceTargets.IsNicKeyword(keyword)) throw new InvalidOperationException(Loc.Tf("свойство «{0}» MONOLITH не меняет", keyword));
+                if (GameBoostState.IsActive) throw new InvalidOperationException(Loc.T("во время игрового сеанса Lycoris не перезапускает сетевой адаптер"));
+                if (!DeviceTargets.IsNicKeyword(keyword)) throw new InvalidOperationException(Loc.Tf("свойство «{0}» Lycoris не меняет", keyword));
                 if (!DeviceTargets.IsNicValue(value)) throw new InvalidOperationException(Loc.T("значение свойства должно быть числом"));
                 writer = DeviceWriters.Nic ?? throw new InvalidOperationException(DeviceWriters.NoWriterApply);
-                if (writer.RunningGame() is { } game) throw new InvalidOperationException(Loc.Tf("идёт игра ({0}) — MONOLITH не перезапускает сетевой адаптер", game));
+                if (writer.RunningGame() is { } game) throw new InvalidOperationException(Loc.Tf("идёт игра ({0}) — Lycoris не перезапускает сетевой адаптер", game));
                 var name = writer.AdapterName(interfaceGuid) ?? throw new InvalidOperationException(Loc.T("сетевой адаптер не найден"));
                 var info = writer.Read(interfaceGuid, keyword) ?? throw new InvalidOperationException(Loc.Tf("у адаптера нет свойства {0}", keyword));
                 if (!info.ValidValues.Contains(value, StringComparer.Ordinal))
@@ -732,11 +732,11 @@ public sealed class ChangeSession
             }
         });
 
-    /// <summary>The journal check runs on every new device record BEFORE anything changes: never make a change MONOLITH could not undo.</summary>
+    /// <summary>The journal check runs on every new device record BEFORE anything changes: never make a change Lycoris could not undo.</summary>
     private static void RefuseUntrusted(ChangeRecord incoming)
     {
         if (JournalTrust.Check(incoming) is { } refusal)
-            throw new InvalidOperationException(Loc.Tf("MONOLITH не смог бы откатить это изменение ({0}) — ничего не изменено", refusal));
+            throw new InvalidOperationException(Loc.Tf("Lycoris не смог бы откатить это изменение ({0}) — ничего не изменено", refusal));
     }
 
     private void ExportOnce(RegHive hive, string path)

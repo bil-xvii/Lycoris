@@ -5,7 +5,7 @@ using Monolith.Tweaks;
 namespace Monolith.Tests;
 
 /// <summary>
-/// «Что MONOLITH не делает и почему» (Tweaks/RejectedTweaks.cs): the list is complete, honest Russian text without product names,
+/// «Что Lycoris не делает и почему» (Tweaks/RejectedTweaks.cs): the list is complete, honest Russian text without product names,
 /// every entry is backed by docs/research, and none of its registry values is ever written by the catalog.
 /// </summary>
 public sealed class RejectedTweaksTests

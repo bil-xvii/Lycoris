@@ -216,7 +216,7 @@ _ => Loc.T("ЭКСПЕРТ"),
         {
             StatusText = Loc.T("ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ");
             StatusTone = StatusTone.Warning;
-            note = Loc.Tf("MONOLITH запущен от имени {0}: пользовательские кэши принадлежат другой учётной записи и не трогаются.", env.ForeignSessionUser);
+            note = Loc.Tf("Lycoris запущен от имени {0}: пользовательские кэши принадлежат другой учётной записи и не трогаются.", env.ForeignSessionUser);
         }
         else if (Definition.RequiresAdmin && !env.IsElevated)
         {
@@ -241,8 +241,8 @@ _ => Loc.T("ЭКСПЕРТ"),
             StatusText = Loc.T("ЖДЁТ ЗАКРЫТИЯ");
             StatusTone = StatusTone.Warning;
             note = a.RunningApps.Count == 1
-                ? Loc.Tf("{0} запущен — закройте, включая значок в трее, иначе этот кэш будет пропущен. MONOLITH не закрывает программы сам.", a.RunningApps[0])
-                : Loc.Tf("{0} запущены — закройте, включая значок в трее, иначе этот кэш будет пропущен. MONOLITH не закрывает программы сам.", string.Join(", ", a.RunningApps));
+                ? Loc.Tf("{0} запущен — закройте, включая значок в трее, иначе этот кэш будет пропущен. Lycoris не закрывает программы сам.", a.RunningApps[0])
+                : Loc.Tf("{0} запущены — закройте, включая значок в трее, иначе этот кэш будет пропущен. Lycoris не закрывает программы сам.", string.Join(", ", a.RunningApps));
         }
         else if (a.RefusedTargets > 0 && a.Files == 0 && Definition.Method is CleanMethod.Files or CleanMethod.Tools)
         {
