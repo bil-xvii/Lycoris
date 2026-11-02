@@ -51,7 +51,7 @@ public sealed partial class DriversViewModel
 
     public bool IsSearching => UpdatesState == UpdatesState.Searching;
 
-    public string InstallButtonText => SelectedUpdatesCount > 0 ? $"ЗАГРУЗИТЬ И УСТАНОВИТЬ · {SelectedUpdatesCount}" : "ЗАГРУЗИТЬ И УСТАНОВИТЬ";
+    public string InstallButtonText => SelectedUpdatesCount > 0 ? Loc.Tf("ЗАГРУЗИТЬ И УСТАНОВИТЬ · {0}", SelectedUpdatesCount) : Loc.T("ЗАГРУЗИТЬ И УСТАНОВИТЬ");
 
     private int ServerSelection => UsesWsus && UseMicrosoftServers ? WuText.ServerWindowsUpdate : WuText.ServerDefault;
 
@@ -60,11 +60,11 @@ public sealed partial class DriversViewModel
         UsesWsus = policy.UsesWsus;
         var notes = new List<string>();
         if (policy.DriversBlocked)
-            notes.Add("Политика организации запрещает Windows Update присылать драйверы (ExcludeWUDriversInQualityUpdate = 1), поэтому поиск может ничего не найти. Драйверы ставьте с сайтов производителей.");
+            notes.Add(Loc.T("Политика организации запрещает Windows Update присылать драйверы (ExcludeWUDriversInQualityUpdate = 1), поэтому поиск может ничего не найти. Драйверы ставьте с сайтов производителей."));
         if (policy.UsesWsus)
-            notes.Add($"Обновления приходят с сервера организации (WSUS: {policy.WsusServer}) — список драйверов определяет администратор.");
+            notes.Add(Loc.Tf("Обновления приходят с сервера организации (WSUS: {0}) — список драйверов определяет администратор.", policy.WsusServer));
         if (policy.SearchOrderConfig == 0)
-            notes.Add("В параметрах установки устройств отключена автоматическая загрузка драйверов из Windows Update (SearchOrderConfig = 0) — так делает, например, DDU. Новые устройства не получат драйверы сами.");
+            notes.Add(Loc.T("В параметрах установки устройств отключена автоматическая загрузка драйверов из Windows Update (SearchOrderConfig = 0) — так делает, например, DDU. Новые устройства не получат драйверы сами."));
         PolicyNotice = notes.Count > 0 ? string.Join("\n", notes) : null;
     }
 
@@ -92,8 +92,8 @@ public sealed partial class DriversViewModel
             _lastSearchHResult = 0;
             UpdatesState = UpdatesState.Ready;
             Log.Info(result.Updates.Count == 0
-                ? "Windows Update: новых драйверов нет."
-                : $"Windows Update: найдено драйверов — {result.Updates.Count}.");
+                ? Loc.T("Windows Update: новых драйверов нет.")
+                : Loc.Tf("Windows Update: найдено драйверов — {0}.", result.Updates.Count));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -134,7 +134,7 @@ public sealed partial class DriversViewModel
             Updates.Add(item);
         }
         RebootPending = result.RebootPending;
-        LastSearchText = $"ПРОВЕРЕНО В {result.When:HH:mm}";
+        LastSearchText = Loc.Tf("ПРОВЕРЕНО В {0:HH:mm}", result.When);
         InstallSummary = null;
         RecountSelection();
     }
@@ -184,7 +184,7 @@ public sealed partial class DriversViewModel
     [RelayCommand(CanExecute = nameof(CanInstallUpdates))]
     private async Task InstallUpdatesAsync(string? packedIds)
     {
-        if (!RequireAdmin("установка драйверов", "InstallUpdates", Startup.IntentList.Pack(Updates.Where(u => u.IsSelected && u.CanSelect).Select(u => u.Id)))) return;
+        if (!RequireAdmin(Loc.T("установка драйверов"), "InstallUpdates", Startup.IntentList.Pack(Updates.Where(u => u.IsSelected && u.CanSelect).Select(u => u.Id)))) return;
         if (Startup.IntentList.Unpack(packedIds) is { Count: > 0 } replayed)
         {
             if (UpdatesState == UpdatesState.NotSearched) _ = SearchUpdatesAsync();
@@ -206,29 +206,29 @@ public sealed partial class DriversViewModel
         var eulaApproved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in selected.Where(u => u.NeedsEula))
         {
-            var text = string.IsNullOrWhiteSpace(item.Update.EulaText) ? "Текст соглашения недоступен." : item.Update.EulaText!;
+            var text = string.IsNullOrWhiteSpace(item.Update.EulaText) ? Loc.T("Текст соглашения недоступен.") : item.Update.EulaText!;
             var paragraphs = text.Split(['\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(60).ToList();
             if (await Ui.ConfirmAsync("ЛИЦЕНЗИОННОЕ СОГЛАШЕНИЕ",
-                    $"Драйвер «{item.Title}» требует принять лицензию производителя. Без согласия он не будет установлен.",
-                    paragraphs, confirmText: "ПРИНИМАЮ", cancelText: "НЕ ПРИНИМАЮ"))
+                    Loc.Tf("Драйвер «{0}» требует принять лицензию производителя. Без согласия он не будет установлен.", item.Title),
+                    paragraphs, confirmText: Loc.T("ПРИНИМАЮ"), cancelText: Loc.T("НЕ ПРИНИМАЮ")))
                 eulaApproved.Add(item.Id);
         }
 
         var totalSize = selected.Sum(u => u.Update.SizeBytes);
         var details = selected.Select(u =>
-                $"{u.Title} — {u.ClassText.ToLowerInvariant()}, {u.SizeText}{(u.IsOptional ? ", необязательное" : "")}{(u.NeedsEula && !eulaApproved.Contains(u.Id) ? " (лицензия не принята — будет пропущено)" : "")}")
+                Loc.Tf("{0} — {1}, {2}{3}{4}", u.Title, u.ClassText.ToLowerInvariant(), u.SizeText, u.IsOptional ? Loc.T(", необязательное") : "", u.NeedsEula && !eulaApproved.Contains(u.Id) ? Loc.T(" (лицензия не принята — будет пропущено)") : ""))
             .ToList();
-        details.Add("Сначала: точка восстановления системы и копия текущих драйверов этих устройств");
-        details.Add("Затем: загрузка и установка через Windows Update с отображением хода");
-        details.Add("Компьютер не будет перезагружен автоматически");
-        if (RebootPending) details.Add("Windows уже ожидает перезагрузки — лучше перезагрузить компьютер до установки");
+        details.Add(Loc.T("Сначала: точка восстановления системы и копия текущих драйверов этих устройств"));
+        details.Add(Loc.T("Затем: загрузка и установка через Windows Update с отображением хода"));
+        details.Add(Loc.T("Компьютер не будет перезагружен автоматически"));
+        if (RebootPending) details.Add(Loc.T("Windows уже ожидает перезагрузки — лучше перезагрузить компьютер до установки"));
 
         var confirmed = await Ui.ConfirmAsync(
-            $"УСТАНОВИТЬ {selected.Count} {DriverFormat.Plural(selected.Count, "ДРАЙВЕР", "ДРАЙВЕРА", "ДРАЙВЕРОВ")}?",
-            $"Драйверы будут загружены с серверов Windows Update (около {DriverFormat.Size(totalSize)}) и установлены. " +
-            "Во время установки экран может мигнуть, а устройство — ненадолго отключиться.",
-            details, confirmText: "УСТАНОВИТЬ",
-            footnote: "Откат: точка восстановления или «Откатить драйвер» в диспетчере устройств.");
+            Loc.N(selected.Count, "УСТАНОВИТЬ {0} ДРАЙВЕР?", "УСТАНОВИТЬ {0} ДРАЙВЕРА?", "УСТАНОВИТЬ {0} ДРАЙВЕРОВ?"),
+            Loc.Tf("Драйверы будут загружены с серверов Windows Update (около {0}) и установлены. ", DriverFormat.Size(totalSize)) +
+            Loc.T("Во время установки экран может мигнуть, а устройство — ненадолго отключиться."),
+            details, confirmText: Loc.T("УСТАНОВИТЬ"),
+            footnote: Loc.T("Откат: точка восстановления или «Откатить драйвер» в диспетчере устройств."));
         if (!confirmed) return;
 
         var ids = selected.Select(u => u.Id).ToList();
@@ -239,7 +239,7 @@ public sealed partial class DriversViewModel
         }
 
         var attempted = false;
-        await RunBusyAsync(OperationClass.Install, "Установка драйверов…", async () =>
+        await RunBusyAsync(OperationClass.Install, Loc.T("Установка драйверов…"), async () =>
         {
             _installCts?.Dispose();
             _installCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -251,17 +251,17 @@ public sealed partial class DriversViewModel
             try
             {
                 // 1. Restore point.
-                InstallStage = "ТОЧКА ВОССТАНОВЛЕНИЯ";
-                InstallDetail = "Создание точки восстановления системы…";
-                if (!await EnsureRestorePointAsync("MONOLITH: драйверы из Windows Update"))
+                InstallStage = Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ");
+                InstallDetail = Loc.T("Создание точки восстановления системы…");
+                if (!await EnsureRestorePointAsync(Loc.T("MONOLITH: драйверы из Windows Update")))
                 {
                     Log.Info("Установка драйверов отменена: нет точки восстановления.");
                     return;
                 }
 
                 // 2. Copy of the drivers these updates replace.
-                InstallStage = "РЕЗЕРВНАЯ КОПИЯ";
-                InstallDetail = "Сохранение текущих драйверов устройств…";
+                InstallStage = Loc.T("РЕЗЕРВНАЯ КОПИЯ");
+                InstallDetail = Loc.T("Сохранение текущих драйверов устройств…");
                 await BackupAffectedDriversAsync(selected, ct);
 
                 // 3. Download + install.
@@ -276,17 +276,17 @@ public sealed partial class DriversViewModel
             {
                 // Cancelled before the install step, or Windows Update did not report per-driver results.
                 InstallSummary = attempted
-                    ? "Установка отменена. Драйверы, которые Windows Update успела поставить, остались на месте — список обновится."
-                    : "Установка отменена. Драйверы не устанавливались.";
+                    ? Loc.T("Установка отменена. Драйверы, которые Windows Update успела поставить, остались на месте — список обновится.")
+                    : Loc.T("Установка отменена. Драйверы не устанавливались.");
                 Ui.Toast(InstallSummary, ToastKind.Warning);
                 Log.Warn(InstallSummary);
             }
             catch (Exception ex)
             {
                 var message = WuText.DescribeException(ex);
-                InstallSummary = "Установка не выполнена: " + message;
+                InstallSummary = Loc.Tf("Установка не выполнена: {0}", message);
                 Log.Error("Установка драйверов из Windows Update", ex);
-                Ui.Toast(message, ToastKind.Error, "УСТАНОВКА НЕ ВЫПОЛНЕНА");
+                Ui.Toast(message, ToastKind.Error, Loc.T("УСТАНОВКА НЕ ВЫПОЛНЕНА"));
             }
             finally
             {
@@ -296,14 +296,14 @@ public sealed partial class DriversViewModel
         });
 
         // Installed drivers changed — refresh the inventory (problems, installed list, GPU versions).
-        if (attempted) await RunBusyAsync(OperationClass.Measure, "Обновление сведений о драйверах…", LoadInventoryAsync);
+        if (attempted) await RunBusyAsync(OperationClass.Measure, Loc.T("Обновление сведений о драйверах…"), LoadInventoryAsync);
     }
 
     [RelayCommand(CanExecute = nameof(IsInstalling))]
     private void CancelInstall()
     {
         if (_installCts is null || _installCts.IsCancellationRequested) return;
-        InstallDetail = "Отмена… ждём, пока Windows Update завершит текущий драйвер. Это может занять до пары минут.";
+        InstallDetail = Loc.T("Отмена… ждём, пока Windows Update завершит текущий драйвер. Это может занять до пары минут.");
         _installCts.Cancel();
     }
 
@@ -314,20 +314,20 @@ public sealed partial class DriversViewModel
         {
             case WuStage.Searching:
                 InstallIndeterminate = true;
-                InstallStage = "ПРОВЕРКА";
-                InstallDetail = "Windows Update проверяет, что выбранные драйверы всё ещё актуальны…";
+                InstallStage = Loc.T("ПРОВЕРКА");
+                InstallDetail = Loc.T("Windows Update проверяет, что выбранные драйверы всё ещё актуальны…");
                 break;
             case WuStage.Downloading:
                 InstallIndeterminate = false;
                 InstallPercent = p.Percent * 0.5;
-                InstallStage = $"ЗАГРУЗКА · {p.Current} ИЗ {p.Total}";
-                InstallDetail = $"Загружено {p.Percent}%";
+                InstallStage = Loc.Tf("ЗАГРУЗКА · {0} ИЗ {1}", p.Current, p.Total);
+                InstallDetail = Loc.Tf("Загружено {0}%", p.Percent);
                 break;
             case WuStage.Installing:
                 InstallIndeterminate = false;
                 InstallPercent = 50 + p.Percent * 0.5;
-                InstallStage = $"УСТАНОВКА · {p.Current} ИЗ {p.Total}";
-                InstallDetail = $"Установлено {p.Percent}%";
+                InstallStage = Loc.Tf("УСТАНОВКА · {0} ИЗ {1}", p.Current, p.Total);
+                InstallDetail = Loc.Tf("Установлено {0}%", p.Percent);
                 break;
         }
     }
@@ -348,15 +348,15 @@ public sealed partial class DriversViewModel
         }
         try
         {
-            var note = "Перед установкой: " + string.Join("; ", selected.Select(s => s.Title));
+            var note = Loc.Tf("Перед установкой: {0}", string.Join("; ", selected.Select(s => s.Title)));
             var (count, folder) = await DriverBackupService.ExportPackagesAsync(infs, note, ct);
-            if (folder is not null) Log.Success($"Текущие драйверы сохранены ({count}): {folder}");
+            if (folder is not null) Log.Success("Текущие драйверы сохранены ({0}): {1}", count, folder);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
             // Not fatal: the restore point is the main safety net.
-            Log.Warn($"Не удалось сохранить текущие драйверы: {ex.Message}");
+            Log.Warn("Не удалось сохранить текущие драйверы: {0}", ex.Message);
         }
         _ = ReloadBackupsAsync();
     }
@@ -367,8 +367,8 @@ public sealed partial class DriversViewModel
         {
             var item = selected.FirstOrDefault(s => string.Equals(s.Id, r.UpdateId, StringComparison.OrdinalIgnoreCase));
             item?.ApplyResult(r);
-            if (r.Success) Log.Success($"Драйвер установлен: {r.Title}");
-            else Log.Warn($"Драйвер не установлен: {r.Title} — {r.Message}");
+            if (r.Success) Log.Success("Драйвер установлен: {0}", r.Title);
+            else Log.Warn("Драйвер не установлен: {0} — {1}", r.Title, r.Message);
         }
         RecountSelection();
         var ok = result.Items.Count(i => i.Success);
@@ -376,11 +376,11 @@ public sealed partial class DriversViewModel
         if (result.RebootRequired) RebootRequiredAfterInstall = true;
 
         InstallSummary = result.Cancelled
-            ? $"Установка прервана. Установлено: {ok}, не установлено: {failed}."
+            ? Loc.Tf("Установка прервана. Установлено: {0}, не установлено: {1}.", ok, failed)
             : failed == 0
-                ? $"Готово: установлено {ok} {DriverFormat.Plural(ok, "драйвер", "драйвера", "драйверов")}."
-                : $"Установлено: {ok}, с ошибками: {failed}. Подробности — у каждого драйвера в списке.";
-        Ui.Toast(InstallSummary + (result.RebootRequired ? " Требуется перезагрузка." : ""),
-            failed == 0 && !result.Cancelled ? ToastKind.Success : ToastKind.Warning, "ДРАЙВЕРЫ");
+                ? Loc.N(ok, "Готово: установлено {0} драйвер.", "Готово: установлено {0} драйвера.", "Готово: установлено {0} драйверов.")
+                : Loc.Tf("Установлено: {0}, с ошибками: {1}. Подробности — у каждого драйвера в списке.", ok, failed);
+        Ui.Toast(InstallSummary + (result.RebootRequired ? Loc.T(" Требуется перезагрузка.") : ""),
+            failed == 0 && !result.Cancelled ? ToastKind.Success : ToastKind.Warning, Loc.T("ДРАЙВЕРЫ"));
     }
 }

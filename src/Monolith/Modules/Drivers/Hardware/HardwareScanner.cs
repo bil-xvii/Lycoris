@@ -18,32 +18,32 @@ internal static class HardwareScanner
 
     public static HardwareSnapshot Scan(SystemProfile profile, Action<string>? stage = null)
     {
-        stage?.Invoke("Процессор и плата…");
-        var board = Safe("плата и BIOS", ReadBoard, new BoardInfo("", "", "", "", null, profile.Manufacturer, profile.Model));
+        stage?.Invoke(Loc.T("Процессор и плата…"));
+        var board = Safe(Loc.T("плата и BIOS"), ReadBoard, new BoardInfo("", "", "", "", null, profile.Manufacturer, profile.Model));
         var cpu = new CpuInfo(profile.CpuName, profile.CpuVendor, profile.CpuCores, profile.CpuThreads, profile.CpuMaxClockMhz);
 
-        stage?.Invoke("Устройства PnP…");
-        var devices = Safe("устройства", ReadDevices, []);
+        stage?.Invoke(Loc.T("Устройства PnP…"));
+        var devices = Safe(Loc.T("устройства"), ReadDevices, []);
 
-        stage?.Invoke("Видеокарты…");
-        var gpus = Safe("видеокарты", () => ReadGpus(profile), profile.Gpus.ToList());
+        stage?.Invoke(Loc.T("Видеокарты…"));
+        var gpus = Safe(Loc.T("видеокарты"), () => ReadGpus(profile), profile.Gpus.ToList());
         var regs = new Dictionary<string, GpuRegistryInfo?>(StringComparer.OrdinalIgnoreCase);
         foreach (var g in gpus.Where(g => g.PnpDeviceId.Length > 0)) regs[g.PnpDeviceId] = DriverInventory.ReadGpuRegistry(g);
 
-        stage?.Invoke("Память и накопители…");
-        var ram = Safe("память", ReadRam, []);
-        var disks = Safe("накопители", ReadDisks, []);
+        stage?.Invoke(Loc.T("Память и накопители…"));
+        var ram = Safe(Loc.T("память"), ReadRam, []);
+        var disks = Safe(Loc.T("накопители"), ReadDisks, []);
 
-        stage?.Invoke("Сеть и звук…");
-        var network = Safe("сетевые адаптеры", () => ReadNetwork(devices), []);
-        var audio = Safe("звуковые устройства", ReadAudio, []);
+        stage?.Invoke(Loc.T("Сеть и звук…"));
+        var network = Safe(Loc.T("сетевые адаптеры"), () => ReadNetwork(devices), []);
+        var audio = Safe(Loc.T("звуковые устройства"), ReadAudio, []);
 
-        stage?.Invoke("Мониторы…");
-        var displays = Safe("мониторы", DisplayProbe.Read, []);
+        stage?.Invoke(Loc.T("Мониторы…"));
+        var displays = Safe(Loc.T("мониторы"), DisplayProbe.Read, []);
 
-        stage?.Invoke("Библиотеки и программы…");
-        var apps = Safe("список программ", DriverInventory.ReadUninstallEntries, []);
-        var runtimes = Safe("библиотеки для игр", () => ReadRuntimes(apps), new RuntimeInfo(null, null, false, new Dictionary<int, string>()));
+        stage?.Invoke(Loc.T("Библиотеки и программы…"));
+        var apps = Safe(Loc.T("список программ"), DriverInventory.ReadUninstallEntries, []);
+        var runtimes = Safe(Loc.T("библиотеки для игр"), () => ReadRuntimes(apps), new RuntimeInfo(null, null, false, new Dictionary<int, string>()));
 
         return new HardwareSnapshot
         {
@@ -52,7 +52,7 @@ internal static class HardwareScanner
             IsLaptop = profile.IsLaptop,
             Board = board,
             Gpus = gpus,
-            NvidiaPackageVersion = Safe("версия пакета NVIDIA", DriverInventory.ReadNvidiaPackageVersion, null),
+            NvidiaPackageVersion = Safe(Loc.T("версия пакета NVIDIA"), DriverInventory.ReadNvidiaPackageVersion, null),
             GpuRegistry = regs,
             Ram = ram,
             Disks = disks,
@@ -74,7 +74,7 @@ internal static class HardwareScanner
         }
         catch (Exception ex)
         {
-            Log.Warn($"Анализ железа: не удалось прочитать {what} ({ex.Message})");
+            Log.Warn("Анализ железа: не удалось прочитать {0} ({1})", what, ex.Message);
             return fallback;
         }
     }
@@ -189,7 +189,7 @@ internal static class HardwareScanner
                 var vram = known?.DedicatedMemoryBytes ?? Convert.ToUInt64(mo["AdapterRAM"] ?? 0UL);
                 DateTime? date = null;
                 try { date = ManagementDateTimeConverter.ToDateTime(Str(mo["DriverDate"])); } catch { }
-                list.Add(new GpuInfo(name.Length > 0 ? name : "Видеоадаптер", SystemProfile.VendorFromPnp(pnp, name),
+                list.Add(new GpuInfo(name.Length > 0 ? name : Loc.T("Видеоадаптер"), SystemProfile.VendorFromPnp(pnp, name),
                     Str(mo["DriverVersion"]), date, vram, pnp));
             }
         return list;
@@ -225,7 +225,7 @@ internal static class HardwareScanner
                 if (bus == "Virtual") continue; // VHDs, Storage Spaces virtual disks
                 var model = Str(mo["FriendlyName"]);
                 if (model.Length == 0) model = Str(mo["Model"]);
-                list.Add(new DiskDetail(model.Length > 0 ? model : "Накопитель", media, bus, Convert.ToUInt64(mo["Size"] ?? 0UL), Str(mo["FirmwareVersion"])));
+                list.Add(new DiskDetail(model.Length > 0 ? model : Loc.T("Накопитель"), media, bus, Convert.ToUInt64(mo["Size"] ?? 0UL), Str(mo["FirmwareVersion"])));
             }
         return list;
     }

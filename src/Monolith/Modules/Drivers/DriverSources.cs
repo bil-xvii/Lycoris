@@ -41,16 +41,16 @@ internal static class DriverSources
 
     public static readonly VendorTool NvidiaApp = new(
         "NVIDIA App", "NVIDIA Corp.", NvidiaAppStoreId, "msstore", NvidiaDriversPage,
-        "Официальное приложение NVIDIA: скачивает и ставит драйверы Game Ready / Studio, показывает их описание.");
+        Loc.T("Официальное приложение NVIDIA: скачивает и ставит драйверы Game Ready / Studio, показывает их описание."));
 
     public static readonly VendorTool IntelDsa = new(
         "Intel Driver & Support Assistant", "Intel", IntelDsaWingetId, "winget", IntelDetectPage,
-        "Официальный помощник Intel: находит драйверы для видеоядра, Wi-Fi, Bluetooth и чипсета Intel.");
+        Loc.T("Официальный помощник Intel: находит драйверы для видеоядра, Wi-Fi, Bluetooth и чипсета Intel."));
 
     /// <summary>AMD has no winget package for Adrenalin: the official auto-detect installer lives on amd.com.</summary>
     public static readonly VendorTool AmdInstaller = new(
         "AMD Software: Adrenalin Edition", "Advanced Micro Devices", null, "", AmdDriversPage,
-        "У AMD нет пакета в winget. Официальный установщик с автоопределением видеокарты — на сайте amd.com.");
+        Loc.T("У AMD нет пакета в winget. Официальный установщик с автоопределением видеокарты — на сайте amd.com."));
 
     public static VendorTool? ToolFor(GpuVendor vendor) => vendor switch
     {
