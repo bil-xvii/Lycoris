@@ -2,6 +2,7 @@ using System.Text;
 using Lycoris.Modules.Games;
 using Lycoris.Modules.Optimize;
 using Lycoris.Shell;
+using Lycoris.Core.Diagnostics;
 
 namespace Lycoris.Core.Security;
 
@@ -31,6 +32,21 @@ public static class SecurityCorpus
                 failures.Add($"{name} — exception {ex.GetType().Name}: {ex.Message}");
             }
         }
+
+        Expect("diagnostics redacts hostile mixed identity and secret", () =>
+        {
+            var value = ProblemReport.Anonymize("alice 2001:db8::1 aa:bb:cc:dd:ee:ff alice@host.test api_token=do-not-leak \u041F\u0440\u0438\u0432\u0435\u0442", "alice", "pc"); // loc:ignore
+            return !value.Contains("alice", StringComparison.OrdinalIgnoreCase) && !value.Contains("2001:db8::1", StringComparison.Ordinal)
+                && !value.Contains("aa:bb:cc:dd:ee:ff", StringComparison.Ordinal) && !value.Contains("alice@host.test", StringComparison.Ordinal)
+                && !value.Contains("do-not-leak", StringComparison.Ordinal) && ProblemReport.Anonymize("\u041F\u0440\u0438\u0432\u0435\u0442", "alice", "pc").Contains("\u041F\u0440\u0438\u0432\u0435\u0442", StringComparison.Ordinal); // loc:ignore
+        });
+
+        Expect("diagnostics redacts camelCase/JSON secrets, spaced profile, UNC, zoned IPv6, unicode e-mail, serial", () =>
+        {
+            var value = ProblemReport.Anonymize("{\"accessToken\":\"hunter2\"} D:\\Users\\\u041C\u0430\u0440\u0438\u044F \u0418\u0432\u0430\u043D\u043E\u0432\u0430\\Docs \\\\SRV\\profiles$\\carol\\Desktop fe80::1%eth0 \u043C\u0430\u0440\u0438\u044F@\u043F\u043E\u0447\u0442\u0430.\u0440\u0444 DiskSerial: WD-X1 2001:db8:aa:bb:cc:dd:ee:ff", "alice", "pc"); // loc:ignore
+            string[] leaks = ["hunter2", "\u041C\u0430\u0440\u0438\u044F", "\u0418\u0432\u0430\u043D\u043E\u0432\u0430", "SRV", "carol", "eth0", "fe80", "\u043F\u043E\u0447\u0442\u0430", "WD-X1", "2001:db8", "ee:ff"]; // loc:ignore
+            return leaks.All(l => !value.Contains(l, StringComparison.OrdinalIgnoreCase));
+        });
 
         // ── Replay arguments of the elevated copy (--replay-page / --replay-command / --replay-param) ──
         string[] badCommands = ["Format", "Delete", "Apply;calc", "Apply calc", "Apply\n", "..\\Apply", "Apply()", "Apply.Execute", "041D04350442", "", new string('A', 65), "ApplyCommand", "apply"];

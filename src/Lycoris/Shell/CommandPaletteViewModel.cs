@@ -16,7 +16,7 @@ public sealed partial class PaletteResultItem(PaletteEntry entry) : ObservableOb
 /// Ctrl+K command palette. Opening a result only navigates (plus a focus request for tweaks/services):
 /// nothing is ever applied from here.
 /// </summary>
-public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEntry>> buildIndex) : ObservableObject
+public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEntry>> buildIndex, Action<string>? runAction = null) : ObservableObject
 {
     private IReadOnlyList<PaletteEntry>? _index;
 
@@ -65,6 +65,7 @@ public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEn
         if (item is null) return;
         var e = item.Entry;
         Close();
+        if (e.FocusId == "action:problem-report") { runAction?.Invoke(e.FocusId); return; }
         if (e.FocusId is "mode:simple" or "mode:expert")
         {
             AppSettings.Current.ExpertMode = e.FocusId == "mode:expert";

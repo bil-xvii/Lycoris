@@ -664,6 +664,8 @@
                                     <TextBlock Text="{Binding Message}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" FontSize="12.5" />
                                     <!-- Labelled buttons: «ОТКРЫТЬ» (when the toast points somewhere) and «ЗАКРЫТЬ» -->
                                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Style="{StaticResource Btn}" Margin="0,0,8,0" Visibility="{Binding OpenFolderPath, Converter={StaticResource NullToVis}}"
+                                                Command="{Binding DataContext.OpenToastFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Content="{loc:T ОТКРЫТЬ ПАПКУ}" />
                                         <Button Style="{StaticResource Btn}" Margin="0,0,8,0" Visibility="{Binding NavigateTo, Converter={StaticResource NullToVis}}"
                                                 Command="{Binding DataContext.OpenToastTargetCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}">
                                             <StackPanel Orientation="Horizontal">
