@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Management;
 using System.Reflection;
 using System.Text;
@@ -12,12 +9,12 @@ using Lycoris.Core.Security;
 
 namespace Lycoris.Core.Diagnostics;
 
-/// <summary>Builds a bounded, local-only diagnostic archive. This class deliberately has no network APIs.</summary>
+/// <summary>Creates a bounded local archive only. No networking APIs are used here.</summary>
 public static partial class ProblemReport
 {
     public const int MaxArchiveBytes = 5 * 1024 * 1024;
-    private const int MaxLogs = 3;
     private const int MaxLogBytes = 512 * 1024;
+    private const int MaxTextChars = 2_000_000;
     private static readonly HashSet<string> SafeSettings = new(StringComparer.Ordinal)
         { "Language", "ExpertMode", "MonitorIntervalMs", "ConfirmBeforeApply", "StartElevated", "Theme" };
 
@@ -26,73 +23,107 @@ public static partial class ProblemReport
 
     public static string Anonymize(string? value, string? userName = null, string? computerName = null)
     {
-        var text = value ?? "";
-        if (text.Length > 2_000_000) text = text[..2_000_000];
-        var replacements = new[] { (Needle: userName ?? Environment.UserName, Replacement: "<user>"), (Needle: computerName ?? Environment.MachineName, Replacement: "<pc>") }
-            .Where(x => !string.IsNullOrWhiteSpace(x.Needle)).OrderByDescending(x => x.Needle.Length);
-        foreach (var item in replacements)
-            text = Regex.Replace(text, Regex.Escape(item.Needle), item.Replacement, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-        text = Regex.Replace(text, @"(?i)\b[A-Z]:\\Users\\[^\\\s]+", "%USERPROFILE%", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-        text = Regex.Replace(text, @"(?i)\b(?:[A-F0-9]{1,4}:){2,}[A-F0-9:]{0,}", "<ip>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-        text = Regex.Replace(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b", "<ip>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-        text = Regex.Replace(text, @"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b", "<mac>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-        text = Regex.Replace(text, @"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "<email>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-        text = Regex.Replace(text, @"(?im)^.*(?:token|key|secret|password|парол|ключ|токен).*$(?:\r?\n)?", "<redacted>\n", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-        text = Regex.Replace(text, @"(?i)\b(?:serial(?:number)?|серийный\s+номер)\s*[:=#]?\s*[\w-]+", "serial: <redacted>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+        var text = value ?? string.Empty;
+        if (text.Length > MaxTextChars) text = text[..MaxTextChars];
+        var names = new[] { (Needle: userName ?? Environment.UserName, Replacement: "<user>"), (Needle: computerName ?? Environment.MachineName, Replacement: "<pc>") }
+            .Where(x => x.Needle.Length > 0).DistinctBy(x => x.Needle, StringComparer.OrdinalIgnoreCase).OrderByDescending(x => x.Needle.Length);
+        foreach (var item in names)
+            text = Regex.Replace(text, Regex.Escape(item.Needle), item.Replacement, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        text = Regex.Replace(text, @"(?i)\b[A-Z]:\\Users\\[^\\\s\""'<>|]+", "%USERPROFILE%", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        text = Regex.Replace(text, @"(?i)(?<![0-9a-f:])(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]{0,}(?![0-9a-f:])", "<ip>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        text = Regex.Replace(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b", "<ip>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        text = Regex.Replace(text, @"\b(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}\b", "<mac>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        text = Regex.Replace(text, @"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "<email>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        text = Regex.Replace(text, @"(?im)^.*(?:token|key|secret|password|парол|ключ|токен).*$", "<redacted>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        text = Regex.Replace(text, @"(?i)\b(?:serial(?:number)?|серийный\s+номер)\s*[:=#]?\s*[\w-]+", "serial: <redacted>", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
         return text;
     }
 
     public static Result Create()
     {
-        var entries = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        void Add(string name, Func<byte[]> section) { try { entries[name] = section(); } catch { entries[name] = Encoding.UTF8.GetBytes("нет данных"); } }
-        Add("report.txt", () => Encoding.UTF8.GetBytes(Anonymize(BuildReport())));
+        var entries = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+        Add("report.txt", BuildReport);
         Add("settings.json", ReadSettings);
         Add("journal.txt", ReadJournal);
-        Add("README.txt", () => Encoding.UTF8.GetBytes("Локальный диагностический отчёт. Внутри: report.txt, последние доступные логи, безопасные параметры, сводка журнала. Не включены значения реестра, пользовательские пути и секреты. Файл не отправляется автоматически.\n"));
+        Add("README.txt", () => "Локальный диагностический архив. Содержит report.txt, до трёх последних журналов работы, безопасные настройки и краткую сводку журнала изменений. Значения реестра, пользовательские пути и секреты не включены. Архив не отправляется автоматически." );
         try
         {
             if (Directory.Exists(AppPaths.LogsDir))
-                foreach (var path in Directory.EnumerateFiles(AppPaths.LogsDir).Where(p => !IsLink(p)).OrderByDescending(File.GetLastWriteTimeUtc).Take(MaxLogs))
-                    try { entries["logs/" + Path.GetFileName(path)] = Encoding.UTF8.GetBytes(Anonymize(SafeIo.ReadText(path, MaxLogBytes))); } catch { }
+                foreach (var path in Directory.EnumerateFiles(AppPaths.LogsDir).Where(p => !IsLink(p)).OrderByDescending(SafeLastWrite).Take(3))
+                    try { entries["logs/" + Path.GetFileName(path)] = Utf8(Anonymize(SafeIo.ReadText(path, MaxLogBytes))); } catch { }
         }
         catch { }
-        var sizes = entries.Select(e => new Item(e.Key, e.Value.LongLength)).ToArray();
+
+        var items = entries.Select(e => new Item(e.Key, e.Value.LongLength)).ToArray();
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))
+        {
             foreach (var entry in entries)
             {
                 var target = zip.CreateEntry(entry.Key, CompressionLevel.Optimal);
                 using var stream = target.Open(); stream.Write(entry.Value);
             }
+        }
         var archive = ms.ToArray();
-        if (archive.Length > MaxArchiveBytes) throw new InvalidDataException("Report exceeds the archive size limit.");
-        return new(archive, sizes);
+        if (archive.Length > MaxArchiveBytes) throw new InvalidDataException("Problem report exceeds the archive size limit.");
+        return new(archive, items);
+
+        void Add(string name, Func<string> section)
+        {
+            try { entries[name] = Utf8(Anonymize(section())); }
+            catch { entries[name] = Utf8("нет данных"); }
+        }
     }
 
+    private static byte[] Utf8(string text) => Encoding.UTF8.GetBytes(text);
     private static bool IsLink(string path) { try { return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint); } catch { return true; } }
-    private static byte[] ReadSettings()
+    private static DateTime SafeLastWrite(string path) { try { return File.GetLastWriteTimeUtc(path); } catch { return DateTime.MinValue; } }
+
+    private static string ReadSettings()
     {
         using var doc = JsonDocument.Parse(SafeIo.ReadBytes(AppPaths.SettingsReadFile));
+        if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Settings root is not an object.");
         var safe = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach (var p in doc.RootElement.EnumerateObject()) if (SafeSettings.Contains(p.Name)) safe[p.Name] = p.Value.Clone();
-        return Encoding.UTF8.GetBytes(Anonymize(JsonSerializer.Serialize(safe, new JsonSerializerOptions { WriteIndented = true })));
+        return JsonSerializer.Serialize(safe, new JsonSerializerOptions { WriteIndented = true });
     }
-    private static byte[] ReadJournal()
+
+    private static string ReadJournal()
     {
-        var records = ChangeJournal.Instance.Records.TakeLast(20).Select(r => new { r.Timestamp, r.Title, Count = 1 });
-        return Encoding.UTF8.GetBytes(Anonymize(JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true })));
+        var records = ChangeJournal.Instance.Records.TakeLast(20).Select(r => new { Time = r.TimestampUtc, r.Title, Changes = 1 });
+        return JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true });
     }
+
     private static string BuildReport()
     {
-        var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
-        var lines = new List<string> { $"Lycoris: {version}", $"Language: {Loc.Language}", $"Administrator: {Elevation.IsElevated}", $"Windows: {Environment.OSVersion.Version} ({Environment.OSVersion.VersionString})", $"Mode: {(AppSettings.Current.ExpertMode ? "Expert" : "Simple")}" };
+        var lines = new List<string>
+        {
+            $"Lycoris: {Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown"}",
+            $"Language: {Loc.Language}", $"Administrator: {Elevation.IsElevated}",
+            $"Windows: {Environment.OSVersion.Version} ({Environment.OSVersion.VersionString})",
+            $"Mode: {(AppSettings.Current.ExpertMode ? "Expert" : "Simple")}",
+        };
         try
         {
-            using var searcher = new ManagementObjectSearcher("SELECT Caption, Version, OSArchitecture FROM Win32_OperatingSystem");
-            foreach (ManagementObject os in searcher.Get()) lines.Add($"Windows edition: {os["Caption"]}; build {os["Version"]}; {os["OSArchitecture"]}");
+            using var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber, OSArchitecture FROM Win32_OperatingSystem");
+            foreach (ManagementObject os in searcher.Get()) lines.Add($"Windows edition: {os["Caption"]}; version {os["Version"]}; build {os["BuildNumber"]}; {os["OSArchitecture"]}");
         }
-        catch { lines.Add("Hardware: нет данных"); }
+        catch { lines.Add("Windows edition: нет данных"); }
+        AddWmi(lines, "Processor", "SELECT Name FROM Win32_Processor", "Name");
+        AddWmi(lines, "Graphics", "SELECT Name FROM Win32_VideoController", "Name");
+        AddWmi(lines, "Memory (bytes)", "SELECT TotalPhysicalMemory FROM Win32_ComputerSystem", "TotalPhysicalMemory");
+        AddWmi(lines, "Disks", "SELECT Model, Size FROM Win32_DiskDrive", "Model", "Size");
         return string.Join("\n", lines) + "\n";
+    }
+
+    private static void AddWmi(List<string> lines, string title, string query, params string[] properties)
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(query);
+            var rows = searcher.Get().Cast<ManagementObject>().Select(row => string.Join("; ", properties.Select(p => $"{p}: {row[p] ?? "?"}"))).ToArray();
+            lines.Add(title + ": " + (rows.Length == 0 ? "нет данных" : string.Join(" | ", rows)));
+        }
+        catch { lines.Add(title + ": нет данных"); }
     }
 }
