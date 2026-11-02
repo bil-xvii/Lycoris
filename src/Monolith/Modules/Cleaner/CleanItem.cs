@@ -12,20 +12,13 @@ public enum StatusTone { Muted, Normal, Done, Warning }
 /// <summary>Russian number / size formatting for the cleaner.</summary>
 public static class CleanFormat
 {
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
 
     /// <summary>1 файл, 2 файла, 5 файлов.</summary>
-    public static string Plural(long n, string one, string few, string many)
-    {
-        var abs = Math.Abs(n) % 100;
-        var last = abs % 10;
-        if (abs is >= 11 and <= 19) return many;
-        return last switch { 1 => one, >= 2 and <= 4 => few, _ => many };
-    }
+    public static string Plural(long n, string one, string few, string many) => Loc.Plural(n, one, few, many);
 
-    public static string Count(long n) => n.ToString("N0", Ru);
+    public static string Count(long n) => n.ToString("N0", Loc.Culture);
 
-    public static string Files(long n) => $"{Count(n)} {Plural(n, "файл", "файла", "файлов")}";
+    public static string Files(long n) => $"{Count(n)} {Loc.Plural(n, "файл", "файла", "файлов")}";
 
     public static string Bytes(long bytes) => SystemProfile.FormatBytes(Math.Max(0, bytes));
 
@@ -57,9 +50,9 @@ public sealed partial class CleanItem : ObservableObject
 
     public string TierText => Tier switch
     {
-        CleanTier.Safe => "БЕЗОПАСНО",
-        CleanTier.Optional => "ПО ЖЕЛАНИЮ",
-        _ => "ЭКСПЕРТ",
+CleanTier.Safe => Loc.T("БЕЗОПАСНО"),
+CleanTier.Optional => Loc.T("ПО ЖЕЛАНИЮ"),
+_ => Loc.T("ЭКСПЕРТ"),
     };
 
     public bool IsSafeTier => Tier == CleanTier.Safe;
@@ -73,10 +66,10 @@ public sealed partial class CleanItem : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(CanToggle))] private bool _isLocked;
     [ObservableProperty] private bool _isChecked;
     [ObservableProperty] private bool _isAppRunning;
-    [ObservableProperty] private string _closeAppTag = "ЗАКРОЙТЕ ПРИЛОЖЕНИЕ";
+    [ObservableProperty] private string _closeAppTag = Loc.T("ЗАКРОЙТЕ ПРИЛОЖЕНИЕ");
     [ObservableProperty] private string _sizeText = "—";
-    [ObservableProperty] private string _countText = "не проверено";
-    [ObservableProperty] private string _statusText = "НЕ ПРОВЕРЕНО";
+    [ObservableProperty] private string _countText = Loc.T("не проверено");
+    [ObservableProperty] private string _statusText = Loc.T("НЕ ПРОВЕРЕНО");
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ToneIsMuted), nameof(ToneIsNormal), nameof(ToneIsDone), nameof(ToneIsWarning))]
     private StatusTone _statusTone = StatusTone.Muted;
 
@@ -121,7 +114,7 @@ public sealed partial class CleanItem : ObservableObject
     {
         _ready = false;
         IsWorking = true;
-        StatusText = "АНАЛИЗ…";
+        StatusText = Loc.T("АНАЛИЗ…");
         StatusTone = StatusTone.Normal;
     }
 
@@ -129,7 +122,7 @@ public sealed partial class CleanItem : ObservableObject
     {
         _ready = false;
         IsWorking = true;
-        StatusText = "ОЧИСТКА…";
+        StatusText = Loc.T("ОЧИСТКА…");
         StatusTone = StatusTone.Normal;
     }
 
@@ -139,12 +132,12 @@ public sealed partial class CleanItem : ObservableObject
         IsWorking = false;
         if (Analysis is null)
         {
-            StatusText = "НЕ ПРОВЕРЕНО";
+            StatusText = Loc.T("НЕ ПРОВЕРЕНО");
             StatusTone = StatusTone.Muted;
         }
         else
         {
-            StatusText = "ОТМЕНЕНО";
+            StatusText = Loc.T("ОТМЕНЕНО");
             StatusTone = StatusTone.Muted;
         }
     }
@@ -172,11 +165,11 @@ public sealed partial class CleanItem : ObservableObject
     {
         if (Definition.Method == CleanMethod.ComponentStore)
         {
-            StatusText = IsChecked ? "ЗАПУСК ПРИ ОЧИСТКЕ" : "ДОЛГАЯ ОПЕРАЦИЯ";
+            StatusText = IsChecked ? Loc.T("ЗАПУСК ПРИ ОЧИСТКЕ") : Loc.T("ДОЛГАЯ ОПЕРАЦИЯ");
             StatusTone = IsChecked ? StatusTone.Normal : StatusTone.Muted;
             return;
         }
-        StatusText = IsChecked ? "К ОЧИСТКЕ" : "НЕ ВЫБРАНО";
+        StatusText = IsChecked ? Loc.T("К ОЧИСТКЕ") : Loc.T("НЕ ВЫБРАНО");
         StatusTone = IsChecked ? StatusTone.Normal : StatusTone.Muted;
     }
 
@@ -187,33 +180,33 @@ public sealed partial class CleanItem : ObservableObject
         _ready = false;
         IsWorking = false;
         IsAppRunning = a.HasRunningApps;
-        CloseAppTag = a.RunningApps.Count == 1 ? $"ЗАКРОЙТЕ {a.RunningApps[0].ToUpperInvariant()}" : "ЗАКРОЙТЕ ПРИЛОЖЕНИЯ";
+        CloseAppTag = a.RunningApps.Count == 1 ? Loc.Tf("ЗАКРОЙТЕ {0}", a.RunningApps[0].ToUpperInvariant()) : Loc.T("ЗАКРОЙТЕ ПРИЛОЖЕНИЯ");
 
         switch (Definition.Method)
         {
             case CleanMethod.RecycleBin:
                 SizeText = a.Unavailable is null ? CleanFormat.Bytes(a.Bytes) : "—";
-                CountText = a.Items is { } items ? $"{CleanFormat.Count(items)} {CleanFormat.Plural(items, "объект", "объекта", "объектов")}" : "";
+                CountText = a.Items is { } items ? $"{CleanFormat.Count(items)} {Loc.Plural(items, "объект", "объекта", "объектов")}" : "";
                 break;
             case CleanMethod.DeliveryOptimization:
                 SizeText = a.Unavailable is not null || a.SizeUnknown ? "—" : CleanFormat.Bytes(a.Bytes);
-                CountText = a.SizeUnknown ? "размер неизвестен" : "по данным службы";
+                CountText = a.SizeUnknown ? Loc.T("размер неизвестен") : Loc.T("по данным службы");
                 break;
             case CleanMethod.ComponentStore:
                 SizeText = "—";
-                CountText = "размер определит DISM";
+                CountText = Loc.T("размер определит DISM");
                 break;
             default:
                 if (a.PartialAccess && a.Files == 0)
                 {
                     // The folder could not be read at all: the size is unknown, not zero.
                     SizeText = "—";
-                    CountText = "нет доступа к папке";
+                    CountText = Loc.T("нет доступа к папке");
                 }
                 else
                 {
                     SizeText = CleanFormat.Bytes(a.Bytes);
-                    CountText = a.PartialAccess ? $"{CleanFormat.Files(a.Files)} · частично" : CleanFormat.Files(a.Files);
+                    CountText = a.PartialAccess ? Loc.Tf("{0} · частично", CleanFormat.Files(a.Files)) : CleanFormat.Files(a.Files);
                 }
                 break;
         }
@@ -221,40 +214,41 @@ public sealed partial class CleanItem : ObservableObject
         string? note = null;
         if (Definition.IsUserScope && env.UserScopeBlocked)
         {
-            StatusText = "ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ";
+            StatusText = Loc.T("ДРУГАЯ УЧЁТНАЯ ЗАПИСЬ");
             StatusTone = StatusTone.Warning;
-            note = $"MONOLITH запущен от имени {env.ForeignSessionUser}: пользовательские кэши принадлежат другой учётной записи и не трогаются.";
+            note = Loc.Tf("MONOLITH запущен от имени {0}: пользовательские кэши принадлежат другой учётной записи и не трогаются.", env.ForeignSessionUser);
         }
         else if (Definition.RequiresAdmin && !env.IsElevated)
         {
             // The row shows «НУЖНЫ ПРАВА» and its own «ПОЛУЧИТЬ ПРАВА» button; nothing is disabled-and-silent.
-            StatusText = "НУЖНЫ ПРАВА";
+            StatusText = Loc.T("НУЖНЫ ПРАВА");
             StatusTone = StatusTone.Muted;
         }
         else if (a.Unavailable is { } unavailable)
         {
-            StatusText = "НЕДОСТУПНО";
+            StatusText = Loc.T("НЕДОСТУПНО");
             StatusTone = StatusTone.Muted;
             note = unavailable;
         }
         else if (a.Blocker is { } blocker)
         {
-            StatusText = "ОТЛОЖЕНО";
+            StatusText = Loc.T("ОТЛОЖЕНО");
             StatusTone = StatusTone.Warning;
             note = blocker;
         }
         else if (a.HasRunningApps)
         {
-            StatusText = "ЖДЁТ ЗАКРЫТИЯ";
+            StatusText = Loc.T("ЖДЁТ ЗАКРЫТИЯ");
             StatusTone = StatusTone.Warning;
-            note = $"{string.Join(", ", a.RunningApps)} {(a.RunningApps.Count == 1 ? "запущен" : "запущены")} — закройте, включая значок в трее, " +
-                   "иначе этот кэш будет пропущен. MONOLITH не закрывает программы сам.";
+            note = a.RunningApps.Count == 1
+                ? Loc.Tf("{0} запущен — закройте, включая значок в трее, иначе этот кэш будет пропущен. MONOLITH не закрывает программы сам.", a.RunningApps[0])
+                : Loc.Tf("{0} запущены — закройте, включая значок в трее, иначе этот кэш будет пропущен. MONOLITH не закрывает программы сам.", string.Join(", ", a.RunningApps));
         }
         else if (a.RefusedTargets > 0 && a.Files == 0 && Definition.Method is CleanMethod.Files or CleanMethod.Tools)
         {
             SizeText = "—";
-            CountText = "путь отклонён";
-            StatusText = "ЗАЩИТА ПУТЕЙ";
+            CountText = Loc.T("путь отклонён");
+            StatusText = Loc.T("ЗАЩИТА ПУТЕЙ");
             StatusTone = StatusTone.Muted;
         }
         else if (Definition.Method == CleanMethod.ComponentStore || a.HasWork(Definition.Method))
@@ -264,12 +258,12 @@ public sealed partial class CleanItem : ObservableObject
         }
         else
         {
-            StatusText = "ЧИСТО";
+            StatusText = Loc.T("ЧИСТО");
             StatusTone = StatusTone.Muted;
         }
 
         if (note is null && a.RefusedNote is not null) note = a.RefusedNote;
-        if (note is null && a.PartialAccess && env.IsElevated) note = "Часть файлов защищена системой и будет пропущена.";
+        if (note is null && a.PartialAccess && env.IsElevated) note = Loc.T("Часть файлов защищена системой и будет пропущена.");
         Note = note;
         OnPropertyChanged(nameof(CleanableBytes));
         OnPropertyChanged(nameof(FoundBytes));
@@ -282,7 +276,7 @@ public sealed partial class CleanItem : ObservableObject
         _ready = false;
         if (r.Skipped is { } skipped)
         {
-            StatusText = "ПРОПУЩЕНО";
+            StatusText = Loc.T("ПРОПУЩЕНО");
             StatusTone = StatusTone.Warning;
             Note = skipped;
             return;
@@ -291,30 +285,30 @@ public sealed partial class CleanItem : ObservableObject
         var parts = new List<string>();
         var freed = r.Freed;
         if (freed > 0 || r.Tally.Deleted > 0 || r.ToolItems > 0)
-            parts.Add($"Освобождено {(r.Approximate ? "≈" : "")}{CleanFormat.Bytes(freed)}.");
-        if (r.Tally.Deleted > 0) parts.Add($"Удалено: {CleanFormat.Files(r.Tally.Deleted)}.");
-        if (r.Tally.InUse > 0) parts.Add($"{CleanFormat.Count(r.Tally.InUse)} {CleanFormat.Plural(r.Tally.InUse, "файл занят", "файла заняты", "файлов заняты")} программами — пропущено.");
-        if (r.Tally.Denied > 0) parts.Add($"Нет доступа: {CleanFormat.Files(r.Tally.Denied)}.");
-        if (r.Tally.Changed > 0) parts.Add($"Изменились после анализа и оставлены: {CleanFormat.Files(r.Tally.Changed)}.");
+            parts.Add(Loc.Tf("Освобождено {0}{1}.", r.Approximate ? "≈" : "", CleanFormat.Bytes(freed)));
+        if (r.Tally.Deleted > 0) parts.Add(Loc.Tf("Удалено: {0}.", CleanFormat.Files(r.Tally.Deleted)));
+        if (r.Tally.InUse > 0) parts.Add(Loc.N(r.Tally.InUse, "{0:N0} файл занят программами — пропущено.", "{0:N0} файла заняты программами — пропущено.", "{0:N0} файлов заняты программами — пропущено."));
+        if (r.Tally.Denied > 0) parts.Add(Loc.Tf("Нет доступа: {0}.", CleanFormat.Files(r.Tally.Denied)));
+        if (r.Tally.Changed > 0) parts.Add(Loc.Tf("Изменились после анализа и оставлены: {0}.", CleanFormat.Files(r.Tally.Changed)));
         parts.AddRange(r.Notes);
         if (r.Error is { } error) parts.Add(error);
 
         if (r.Error is not null && freed == 0 && r.Tally.Deleted == 0)
         {
-            StatusText = "ОШИБКА";
+            StatusText = Loc.T("ОШИБКА");
             StatusTone = StatusTone.Warning;
         }
         else if (r.Tally.Cancelled)
         {
-            StatusText = "ПРЕРВАНО";
+            StatusText = Loc.T("ПРЕРВАНО");
             StatusTone = StatusTone.Warning;
         }
         else
         {
-            StatusText = "ОЧИЩЕНО";
+            StatusText = Loc.T("ОЧИЩЕНО");
             StatusTone = StatusTone.Done;
         }
-        Note = parts.Count == 0 ? "Удалять было нечего." : string.Join(" ", parts);
+        Note = parts.Count == 0 ? Loc.T("Удалять было нечего.") : string.Join(" ", parts);
 
         // What is left: the analysed size minus what was removed (locked files and skipped folders stay).
         if (Analysis is { } a)
@@ -334,10 +328,10 @@ public sealed partial class CleanItem : ObservableObject
             SizeText = Definition.Method is CleanMethod.ComponentStore ? (freed > 0 ? CleanFormat.Bytes(freed) : "—") : CleanFormat.Bytes(left);
             CountText = Definition.Method switch
             {
-                CleanMethod.Files => left == 0 ? "пусто" : $"осталось {CleanFormat.Files(leftFiles)}",
-                CleanMethod.RecycleBin => a.Items is 0 ? "пусто" : CountText,
-                CleanMethod.ComponentStore => freed > 0 ? "освобождено" : "без изменений",
-                _ => "после очистки",
+                CleanMethod.Files => left == 0 ? Loc.T("пусто") : Loc.Tf("осталось {0}", CleanFormat.Files(leftFiles)),
+                CleanMethod.RecycleBin => a.Items is 0 ? Loc.T("пусто") : CountText,
+                CleanMethod.ComponentStore => freed > 0 ? Loc.T("освобождено") : Loc.T("без изменений"),
+                _ => Loc.T("после очистки"),
             };
             OnPropertyChanged(nameof(CleanableBytes));
             OnPropertyChanged(nameof(FoundBytes));
@@ -371,8 +365,8 @@ public sealed partial class CleanGroup : ObservableObject
         var selected = Items.Count(i => i.IsChecked);
         var size = analysed.Sum(i => i.FoundBytes);
         Meta = analysed.Count == 0
-            ? $"{selected} ИЗ {Items.Count}"
-            : $"{CleanFormat.Bytes(size).ToUpperInvariant()} · {selected} ИЗ {Items.Count}";
+            ? Loc.Tf("{0} ИЗ {1}", selected, Items.Count)
+            : Loc.Tf("{0} · {1} ИЗ {2}", CleanFormat.Bytes(size).ToUpperInvariant(), selected, Items.Count);
     }
 }
 

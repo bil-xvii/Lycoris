@@ -387,7 +387,7 @@ public static class CleanEngine
                 case DeleteOutcome.Refused: tally.Refused++; break;
                 default:
                     tally.Errors++;
-                    if (tally.ErrorSamples.Count < 20) tally.ErrorSamples.Add($"{f.Path}: ошибка Win32 {r.Win32Error}");
+                    if (tally.ErrorSamples.Count < 20) tally.ErrorSamples.Add(Loc.Tf("{0}: ошибка Win32 {1}", f.Path, r.Win32Error));
                     break;
             }
             if (++processed % 64 == 0) onProgress?.Invoke(processed);

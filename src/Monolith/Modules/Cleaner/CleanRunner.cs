@@ -81,7 +81,7 @@ public static class CleanRunner
                 var q = SystemCleanup.RunSta(NativeCleaner.QueryRecycleBin);
                 if (q is null)
                 {
-                    a.Unavailable = "Windows не сообщила размер корзины.";
+                    a.Unavailable = Loc.T("Windows не сообщила размер корзины.");
                 }
                 else
                 {
@@ -92,7 +92,7 @@ public static class CleanRunner
 
             case CleanMethod.DeliveryOptimization:
                 var size = deliveryOptimizationSize?.Invoke() ?? DeliveryOptimizationSize.Unknown;
-                if (!size.Available) a.Unavailable = "Служба оптимизации доставки недоступна в этой версии Windows.";
+                if (!size.Available) a.Unavailable = Loc.T("Служба оптимизации доставки недоступна в этой версии Windows.");
                 else if (size.Bytes is { } b) a.Bytes = a.CleanableBytes = b;
                 else a.SizeUnknown = true;
                 break;
@@ -119,7 +119,7 @@ public static class CleanRunner
         try { targets = def.Targets(env); }
         catch (Exception ex)
         {
-            Log.Warn($"Очистка: не удалось определить папки «{def.Name}»: {ex.Message}");
+            Log.Warn("Очистка: не удалось определить папки «{0}»: {1}", def.Name, ex.Message);
             targets = [];
         }
 
@@ -133,9 +133,9 @@ public static class CleanRunner
             if (m.Refused is { } verdict)
             {
                 a.RefusedTargets++;
-                a.RefusedNote ??= $"{t.Label}: {PathGuard.Describe(verdict)} — пропущено.";
+                a.RefusedNote ??= Loc.Tf("{0}: {1} — пропущено.", t.Label, PathGuard.Describe(verdict));
                 // Expected and safe (e.g. a cache folder moved to another drive via a junction): informational.
-                Log.Info($"Очистка: «{t.Label}» пропущено защитой путей — {PathGuard.Describe(verdict)}.");
+                Log.Info("Очистка: «{0}» пропущено защитой путей — {1}.", t.Label, PathGuard.Describe(verdict));
                 continue;
             }
             a.Bytes += m.Bytes;
@@ -168,9 +168,9 @@ public static class CleanRunner
     /// <summary>Common checks before an item is cleaned. Returns the reason to skip, or null.</summary>
     public static string? PreCheck(CleanDefinition def, CleanEnvironment env)
     {
-        if (def.RequiresAdmin && !env.IsElevated) return "Нужны права администратора.";
+        if (def.RequiresAdmin && !env.IsElevated) return Loc.T("Нужны права администратора.");
         if (def.IsUserScope && env.UserScopeBlocked)
-            return $"MONOLITH запущен от имени другой учётной записи ({env.ForeignSessionUser}) — пользовательские данные не трогаются.";
+            return Loc.Tf("MONOLITH запущен от имени другой учётной записи ({0}) — пользовательские данные не трогаются.", env.ForeignSessionUser);
         return def.Blocker?.Invoke(env);
     }
 
@@ -199,7 +199,7 @@ public static class CleanRunner
             }
             if (m.Target.RequiresAdmin && !env.IsElevated)
             {
-                r.Notes.Add($"{m.Target.Label}: нужны права администратора — пропущено.");
+                r.Notes.Add(Loc.Tf("{0}: нужны права администратора — пропущено.", m.Target.Label));
                 continue;
             }
             if (m.Target.Owner is { } owner)
@@ -207,7 +207,7 @@ public static class CleanRunner
                 if (!owners.TryGetValue(owner, out var running)) owners[owner] = running = owner.IsRunning(snapshot);
                 if (running)
                 {
-                    var note = $"{owner.Name} запущен — его кэш пропущен.";
+                    var note = Loc.Tf("{0} запущен — его кэш пропущен.", owner.Name);
                     if (!r.Notes.Contains(note)) r.Notes.Add(note);
                     continue;
                 }
@@ -216,7 +216,7 @@ public static class CleanRunner
             var offset = done;
             var t = CleanEngine.Clean(m, guard, ct, n => onProgress?.Invoke(offset + n));
             done += m.Files.Count;
-            if (t.BaseProblem is { } problem) r.Notes.Add($"{m.Target.Label}: {problem} — пропущено.");
+            if (t.BaseProblem is { } problem) r.Notes.Add(Loc.Tf("{0}: {1} — пропущено.", m.Target.Label, problem));
             r.Tally.Add(t);
             if (t.Cancelled) break;
         }
@@ -237,14 +237,14 @@ public static class CleanRunner
         var running = def.ToolOwners.FirstOrDefault(o => o.IsRunning(snapshot));
         if (running is not null)
         {
-            r.Skipped = $"Запущен {running.Name} — пункт пропущен, чтобы не помешать работе.";
+            r.Skipped = Loc.Tf("Запущен {0} — пункт пропущен, чтобы не помешать работе.", running.Name);
             return r;
         }
 
         var commands = def.Commands?.Invoke(env) ?? [];
         if (commands.Count == 0)
         {
-            r.Skipped = "Инструмент не найден.";
+            r.Skipped = Loc.T("Инструмент не найден.");
             return r;
         }
         foreach (var c in commands)
@@ -256,11 +256,12 @@ public static class CleanRunner
             if (!res.Success)
             {
                 var last = res.Combined.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).LastOrDefault();
-                r.Error ??= $"{c.Display}: {(res.TimedOut ? "превышено время ожидания" : $"код {res.ExitCode}")}{(string.IsNullOrEmpty(last) ? "" : $" — {last}")}";
+                var why = res.TimedOut ? Loc.T("превышено время ожидания") : Loc.Tf("код {0}", res.ExitCode);
+                r.Error ??= string.IsNullOrEmpty(last) ? Loc.Tf("{0}: {1}", c.Display, why) : Loc.Tf("{0}: {1} — {2}", c.Display, why, last);
             }
             else
             {
-                Log.Info($"Очистка: {c.Display} — выполнено.");
+                Log.Info("Очистка: {0} — выполнено.", c.Display);
             }
         }
 
@@ -296,19 +297,19 @@ public static class CleanRunner
             // Some builds return E_UNEXPECTED for an empty bin, so the call is skipped when there is nothing.
             if (q is null || q.Value.Items == 0)
             {
-                r.Notes.Add("Корзина уже пуста.");
+                r.Notes.Add(Loc.T("Корзина уже пуста."));
                 return;
             }
             // SHEmptyRecycleBinW empties everything: refuse if anything was added after the user confirmed.
             if (RecycleBinGrew(approved.Items, approved.CleanableBytes, q.Value.Items, q.Value.Bytes))
             {
-                r.Skipped = "Корзина изменилась после анализа — проверьте и подтвердите заново.";
+                r.Skipped = Loc.T("Корзина изменилась после анализа — проверьте и подтвердите заново.");
                 return;
             }
             var hr = SystemCleanup.RunSta(NativeCleaner.EmptyRecycleBin);
             if (hr != 0)
             {
-                r.Error = $"Windows не очистила корзину (код 0x{hr:X8}).";
+                r.Error = Loc.Tf("Windows не очистила корзину (код 0x{0}).", hr.ToString("X8"));
                 return;
             }
             r.ToolFreed = q.Value.Bytes;
@@ -418,10 +419,10 @@ public static class SystemCleanup
         var line = r.StdOut.Split('\n').Select(l => l.Trim()).LastOrDefault(l => l.StartsWith("RESULT=", StringComparison.Ordinal));
         return line switch
         {
-            "RESULT=OK" => (true, "Кэш оптимизации доставки очищен."),
-            "RESULT=NA" => (false, "Команда Delete-DeliveryOptimizationCache недоступна в этой версии Windows."),
-            null => (false, r.TimedOut ? "Превышено время ожидания PowerShell." : "PowerShell не вернул результат."),
-            _ => (false, "Ошибка: " + line["RESULT=ERR".Length..].Trim()),
+            "RESULT=OK" => (true, Loc.T("Кэш оптимизации доставки очищен.")),
+            "RESULT=NA" => (false, Loc.T("Команда Delete-DeliveryOptimizationCache недоступна в этой версии Windows.")),
+            null => (false, r.TimedOut ? Loc.T("Превышено время ожидания PowerShell.") : Loc.T("PowerShell не вернул результат.")),
+            _ => (false, Loc.Tf("Ошибка: {0}", line["RESULT=ERR".Length..].Trim())),
         };
     }
 
@@ -435,41 +436,40 @@ public static class SystemCleanup
     public static async Task<ComponentCleanupOutcome> RunComponentCleanupAsync(Action<string, double?> progress, CancellationToken ct)
     {
         var dism = ProcessRunner.Sys("Dism.exe");
-        if (!File.Exists(dism)) return new(0, null, "DISM не найден в System32.");
+        if (!File.Exists(dism)) return new(0, null, Loc.T("DISM не найден в System32."));
 
-        progress("DISM проверяет хранилище компонентов…", null);
+        progress(Loc.T("DISM проверяет хранилище компонентов…"), null);
         var analyze = await ProcessRunner.RunAsync(dism, "/Online /English /Cleanup-Image /AnalyzeComponentStore",
             new ProcessRunOptions
             {
                 Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromMinutes(40),
-                OnOutput = l => { if (DismOutput.ParsePercent(l) is { } p) progress("DISM проверяет хранилище компонентов…", p); },
+                OnOutput = l => { if (DismOutput.ParsePercent(l) is { } p) progress(Loc.T("DISM проверяет хранилище компонентов…"), p); },
             }, ct).ConfigureAwait(false);
         if (analyze.Cancelled) throw new OperationCanceledException(ct);
         if (!analyze.Success)
-            return new(0, null, analyze.TimedOut ? "DISM: превышено время анализа." : $"DISM /AnalyzeComponentStore завершился с кодом {analyze.ExitCode}.");
+            return new(0, null, analyze.TimedOut ? Loc.T("DISM: превышено время анализа.") : Loc.Tf("DISM /AnalyzeComponentStore завершился с кодом {0}.", analyze.ExitCode));
 
         var report = DismOutput.ParseAnalyze(analyze.StdOut);
-        Log.Info($"DISM: размер хранилища {report.ActualSize ?? "—"}, очистка рекомендована: {(report.CleanupRecommended is true ? "да" : "нет")}.");
+        Log.Info("DISM: размер хранилища {0}, очистка рекомендована: {1}.", report.ActualSize ?? "—", report.CleanupRecommended is true ? Loc.T("да") : Loc.T("нет"));
         if (report.CleanupRecommended is not true)
-            return new(0, "DISM сообщил, что очистка хранилища компонентов сейчас не нужна.", null);
+            return new(0, Loc.T("DISM сообщил, что очистка хранилища компонентов сейчас не нужна."), null);
 
         var drive = SystemProfile.SystemDrive;
         var before = FreeSpace(drive);
-        progress("DISM очищает хранилище компонентов — не выключайте ПК…", null);
+        progress(Loc.T("DISM очищает хранилище компонентов — не выключайте ПК…"), null);
         // Servicing is never killed: after the wait limit MONOLITH stops waiting and leaves DISM to finish.
         var run = await ProcessRunner.RunAsync(dism, "/Online /English /Cleanup-Image /StartComponentCleanup",
             new ProcessRunOptions
             {
                 Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromHours(3), KillOnTimeout = false,
-                OnOutput = l => { if (DismOutput.ParsePercent(l) is { } p) progress("DISM очищает хранилище компонентов — не выключайте ПК…", p); },
+                OnOutput = l => { if (DismOutput.ParsePercent(l) is { } p) progress(Loc.T("DISM очищает хранилище компонентов — не выключайте ПК…"), p); },
             }, CancellationToken.None).ConfigureAwait(false);
         var after = FreeSpace(drive);
         if (run.StillRunning)
-            return new(0, "DISM работает дольше 3 часов. MONOLITH перестал ждать, но не прерывал очистку — " +
-                          "не выключайте и не перезагружайте ПК, пока процесс Dism.exe не завершится (видно в диспетчере задач).", null);
+            return new(0, Loc.T("DISM работает дольше 3 часов. MONOLITH перестал ждать, но не прерывал очистку — не выключайте и не перезагружайте ПК, пока процесс Dism.exe не завершится (видно в диспетчере задач)."), null);
         if (!run.Success)
-            return new(0, null, run.TimedOut ? "DISM: превышено время очистки." : $"DISM /StartComponentCleanup завершился с кодом {run.ExitCode}.");
-        return new(Math.Max(0, after - before), "Хранилище компонентов очищено.", null);
+            return new(0, null, run.TimedOut ? Loc.T("DISM: превышено время очистки.") : Loc.Tf("DISM /StartComponentCleanup завершился с кодом {0}.", run.ExitCode));
+        return new(Math.Max(0, after - before), Loc.T("Хранилище компонентов очищено."), null);
     }
 
     private static long FreeSpace(string drive)
@@ -516,7 +516,7 @@ public static class SystemCleanup
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось записать отчёт об очистке: {ex.Message}");
+            Log.Warn("Не удалось записать отчёт об очистке: {0}", ex.Message);
             return null;
         }
     }
