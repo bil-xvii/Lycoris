@@ -11,6 +11,8 @@
     "{0} · до {1}": "{0} · up to {1}",
     "1,5 МБ": "1.5 MB",
     "1 КБ": "1 KB",
+    "Отчёт не сохранён: рабочий стол не найден в вашей папке профиля, находится на сетевом диске или перенаправлен ссылкой. Ничего не записано.": "Report not saved: the desktop is not inside your profile folder, is on a network drive or is redirected by a link. Nothing was written.",
+    "Отчёт не сохранён: не удалось определить пользователя рабочего стола. Запустите Lycoris без прав администратора и повторите.": "Report not saved: the desktop user could not be determined. Start Lycoris without administrator rights and try again.",
     "Отчёт сохранён на рабочем столе.": "Report saved to the desktop.",
     "ОТКРЫТЬ ПАПКУ": "OPEN FOLDER",
     "Создать обезличенный архив диагностики на рабочем столе.": "Create an anonymized diagnostics archive on the desktop."
