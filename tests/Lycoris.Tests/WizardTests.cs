@@ -95,3 +95,26 @@ public sealed class WizardTests
         Assert.Equal(UserGoal.Recommended, settings.UserGoal);
     }
 }
+
+public sealed class WizardGamesLinkTests
+{
+    [Fact]
+    public void Games_goal_links_to_games_page()
+    {
+        var s = AppSettings.Current;
+        var (g, c, p) = (s.UserGoal, s.FirstRunCompleted, s.FirstRunWizardInProgress);
+        string? page = null;
+        try
+        {
+            var vm = new WizardViewModel(() => { }, x => page = x);
+            vm.Open();
+            vm.Goal = UserGoal.Games;
+            vm.Step = 3;
+            Assert.True(vm.ShowGamesLink);
+            vm.OpenGamesCommand.Execute(null);
+            Assert.Equal("games", page);
+            Assert.True(s.FirstRunCompleted);
+        }
+        finally { s.UserGoal = g; s.FirstRunCompleted = c; s.FirstRunWizardInProgress = p; }
+    }
+}
