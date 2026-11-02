@@ -123,7 +123,7 @@ public static class DeviceScan
             if (finished != work)
             {
                 _ = work.ContinueWith(t => _ = t.Exception, TaskScheduler.Default);
-                Log.Warn($"Устройства: «{name}» не ответили за {Timeout.TotalSeconds:0} с — пропущено.");
+                Log.Warn("Устройства: «{0}» не ответили за {1} с — пропущено.", name, Timeout.TotalSeconds.ToString("0"));
                 return null;
             }
             return await work.ConfigureAwait(false);
@@ -134,7 +134,7 @@ public static class DeviceScan
         }
         catch (Exception ex)
         {
-            Log.Warn($"Устройства: «{name}» — {ex.Message}");
+            Log.Warn("Устройства: «{0}» — {1}", name, ex.Message);
             return null;
         }
     }
@@ -150,18 +150,18 @@ public static class DeviceScan
             var tweak = TweakCatalog.Find(setting.TweakId!);
             if (tweak is null)
             {
-                setting.DisabledReason = "Этой настройки нет в «Оптимизации» этой версии MONOLITH.";
+                setting.DisabledReason = Loc.T("Этой настройки нет в «Оптимизации» этой версии MONOLITH.");
                 continue;
             }
             switch (TweakEngine.Applicability(tweak, sp))
             {
                 case false:
-                    setting.DisabledReason = tweak.NotApplicableReason ?? "Не подходит для этого компьютера.";
+                    setting.DisabledReason = tweak.NotApplicableReason ?? Loc.T("Не подходит для этого компьютера.");
                     setting.Current = null;
                     setting.Recommended = null;
                     continue;
                 case null:
-                    setting.DisabledReason = "Не удалось определить характеристики компьютера.";
+                    setting.DisabledReason = Loc.T("Не удалось определить характеристики компьютера.");
                     continue;
             }
             TweakState state;
@@ -181,20 +181,20 @@ public static class DeviceScan
             };
             if (tweak.Risk == TweakRisk.Advanced) policy = RecommendPolicy.None; // never planned, like Dashboard shortcuts
             setting.Recommended = new Recommendation(DeviceValue.Of(true), setting.Hint.Length > 0 ? setting.Hint : tweak.Description, policy,
-                new DeviceLink(DeviceLinkKind.FocusTweak, "В ОПТИМИЗАЦИИ", tweak.Id));
+                new DeviceLink(DeviceLinkKind.FocusTweak, Loc.T("В ОПТИМИЗАЦИИ"), tweak.Id));
         }
     }
 
     /// <summary>Every row that can change something explains itself in one short line.</summary>
     internal static string? HintProblem(DeviceSetting s) =>
         s.Apply is null && s.TweakId is null ? null
-        : string.IsNullOrWhiteSpace(s.Hint) ? $"у настройки «{s.Title}» нет пояснения"
-        : s.Hint.Length > 120 ? $"пояснение настройки «{s.Title}» длиннее 120 символов"
+        : string.IsNullOrWhiteSpace(s.Hint) ? "у настройки «" + s.Title + "» нет пояснения" // loc:ignore developer diagnostic
+        : s.Hint.Length > 120 ? "пояснение настройки «" + s.Title + "» длиннее 120 символов" // loc:ignore developer diagnostic
         : null;
 
     private static void CheckHints(DeviceCard card)
     {
         foreach (var s in card.Settings)
-            if (HintProblem(s) is { } problem) Log.Warn($"Устройства: {problem}.");
+            if (HintProblem(s) is { } problem) Log.Warn("Устройства: {0}.", problem);
     }
 }

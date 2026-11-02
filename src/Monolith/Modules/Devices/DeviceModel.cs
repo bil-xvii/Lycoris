@@ -109,26 +109,26 @@ public static class DeviceKinds
 {
     public static string Label(DeviceKind kind) => kind switch
     {
-        DeviceKind.Mouse => "МЫШЬ",
-        DeviceKind.Keyboard => "КЛАВИАТУРА",
-        DeviceKind.Monitor => "МОНИТОР",
-        DeviceKind.AudioOutput => "ЗВУК",
-        DeviceKind.AudioInput => "МИКРОФОН",
-        DeviceKind.Network => "СЕТЬ",
-        DeviceKind.Lighting => "ПОДСВЕТКА",
-        DeviceKind.Controller => "ГЕЙМПАД",
-        _ => "УСТРОЙСТВО",
+        DeviceKind.Mouse => Loc.T("МЫШЬ"),
+        DeviceKind.Keyboard => Loc.T("КЛАВИАТУРА"),
+        DeviceKind.Monitor => Loc.T("МОНИТОР"),
+        DeviceKind.AudioOutput => Loc.T("ЗВУК"),
+        DeviceKind.AudioInput => Loc.T("МИКРОФОН"),
+        DeviceKind.Network => Loc.T("СЕТЬ"),
+        DeviceKind.Lighting => Loc.T("ПОДСВЕТКА"),
+        DeviceKind.Controller => Loc.T("ГЕЙМПАД"),
+        _ => Loc.T("УСТРОЙСТВО"),
     };
 
     /// <summary>The ВРУЧНУЮ groups: Мышь, Клавиатура, Мониторы, Звук, Сеть, Другие устройства (in this order).</summary>
     public static (int Order, string Key, string Title) Group(DeviceKind kind) => kind switch
     {
-        DeviceKind.Mouse => (0, "mouse", "Мышь"),
-        DeviceKind.Keyboard => (1, "keyboard", "Клавиатура"),
-        DeviceKind.Monitor => (2, "monitors", "Мониторы"),
-        DeviceKind.AudioOutput or DeviceKind.AudioInput => (3, "audio", "Звук"),
-        DeviceKind.Network => (4, "network", "Сеть"),
-        _ => (5, "other", "Другие устройства"),
+        DeviceKind.Mouse => (0, "mouse", Loc.T("Мышь")),
+        DeviceKind.Keyboard => (1, "keyboard", Loc.T("Клавиатура")),
+        DeviceKind.Monitor => (2, "monitors", Loc.T("Мониторы")),
+        DeviceKind.AudioOutput or DeviceKind.AudioInput => (3, "audio", Loc.T("Звук")),
+        DeviceKind.Network => (4, "network", Loc.T("Сеть")),
+        _ => (5, "other", Loc.T("Другие устройства")),
     };
 
     public static string Glyph(DeviceKind kind) => kind switch
@@ -233,8 +233,8 @@ public sealed partial class DeviceSetting : ObservableObject
         if (SpecialOption is { } special && SameValue(special.Value, v)) return special.Label;
         if (Control == SettingControl.Toggle)
         {
-            if (SameValue(v, On)) return "вкл";
-            if (SameValue(v, Off)) return "выкл";
+            if (SameValue(v, On)) return Loc.T("вкл");
+            if (SameValue(v, Off)) return Loc.T("выкл");
         }
         return v.Key;
     }
@@ -288,15 +288,15 @@ public sealed partial class DeviceSetting : ObservableObject
     /// The live value. An Info row whose only value comes from its own measurement (DPI, polling rate, ping) says «не измерено»
     /// until it ran; a row with a Windows value and a measurement beside it (the microphone level) shows that value or «—».
     /// </summary>
-    public string CurrentText => Current is { } c ? FormatValue(c) : Tool is not null && Control == SettingControl.Info ? "не измерено" : "—";
+    public string CurrentText => Current is { } c ? FormatValue(c) : Tool is not null && Control == SettingControl.Info ? Loc.T("не измерено") : "—";
     public bool MatchesRecommendation => Recommended is { } r && Current is { } c && SameValue(c, r.Value);
 
     /// <summary>«рек. 10» — for selectable recommendations only (not for findings or tweak rows).</summary>
     public string? RecommendedText => Recommended is { Policy: RecommendPolicy.Include or RecommendPolicy.Suggest } r && TweakId is null
-        ? r.NeedsMeasurement ? "рек.: сначала измерьте" : $"рек. {FormatValue(r.Value)}"
+        ? r.NeedsMeasurement ? Loc.T("рек.: сначала измерьте") : Loc.Tf("рек. {0}", FormatValue(r.Value))
         : null;
 
-    public string? DefaultText => Default is { } d ? $"по умолч. {FormatValue(d)}" : null;
+    public string? DefaultText => Default is { } d ? Loc.Tf("по умолч. {0}", FormatValue(d)) : null;
 
     // Slider
     public double SliderValue
@@ -404,7 +404,7 @@ public sealed partial class DeviceSetting : ObservableObject
     }
 
     /// <summary>A tweak-backed row: «применено» / «не применено».</summary>
-    public static string TweakStateText(DeviceValue v) => v.Number != 0 ? "применено" : "не применено";
+    public static string TweakStateText(DeviceValue v) => v.Number != 0 ? Loc.T("применено") : Loc.T("не применено");
 
     /// <summary>
     /// A row backed by an Optimize tweak: live state and plan row come from the tweak itself (read by the scan).
@@ -425,12 +425,12 @@ public sealed partial class DeviceTool : ObservableObject
     public required string Id { get; init; }
     public required string Title { get; init; }
     public string Description { get; init; } = "";
-    public string ButtonText { get; init; } = "ИЗМЕРИТЬ";
+    public string ButtonText { get; init; } = Loc.T("ИЗМЕРИТЬ");
     public IReadOnlyList<DeviceOption> Options { get; init; } = [];
     public bool HasOptions => Options.Count > 0;
     /// <summary>The run happens on a drag pad in the row (DPI test): the pad captures the mouse so nothing else reacts.</summary>
     public bool NeedsDragPad { get; init; }
-    public string PadText { get; init; } = "Зажмите левую кнопку здесь и, не отпуская, проведите мышь вправо";
+    public string PadText { get; init; } = Loc.T("Зажмите левую кнопку здесь и, не отпуская, проведите мышь вправо");
     public required Func<DeviceToolRun, CancellationToken, Task> Run { get; init; }
 
     [ObservableProperty] private DeviceOption? _selectedOption;
@@ -456,7 +456,7 @@ public sealed partial class DeviceTool : ObservableObject
     partial void OnLevelChanged(double? value) => OnPropertyChanged(nameof(LevelPercent));
 
     public double LevelPercent => Math.Clamp((Level ?? 0) * 100, 0, 100);
-    public string RunButtonText => IsRunning ? "ОТМЕНА" : ButtonText;
+    public string RunButtonText => IsRunning ? Loc.T("ОТМЕНА") : ButtonText;
     partial void OnIsRunningChanged(bool value) => OnPropertyChanged(nameof(RunButtonText));
 
     private CancellationTokenSource? _cts;
@@ -506,7 +506,7 @@ public sealed partial class DeviceTool : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            DeviceUi.Post(() => StatusText = "Отменено.");
+            DeviceUi.Post(() => StatusText = Loc.T("Отменено."));
         }
         catch (Exception ex)
         {
@@ -574,7 +574,7 @@ public sealed partial class VendorAppLink : ObservableObject
     public bool CanLaunch => Launch is not null;
     public bool ShowInstall => !CanLaunch && OfferInstall;
     public bool IsVisible => CanLaunch || ShowInstall;
-    public string ButtonText => CanLaunch ? $"ОТКРЫТЬ {AppName.ToUpper(CultureInfo.CurrentCulture)}" : "УСТАНОВИТЬ В «ДРАЙВЕРАХ»";
+    public string ButtonText => CanLaunch ? Loc.Tf("ОТКРЫТЬ {0}", AppName.ToUpper(CultureInfo.CurrentCulture)) : Loc.T("УСТАНОВИТЬ В «ДРАЙВЕРАХ»");
 }
 
 /// <summary>One detected device (or the network connection): settings, tools, notes and vendor apps.</summary>

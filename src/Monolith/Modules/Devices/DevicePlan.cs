@@ -55,10 +55,10 @@ public sealed partial class PlanItem : ObservableObject
     /// <summary>The tag of the row: БЕЗОПАСНО / ПО ЖЕЛАНИЮ / НУЖНО ИЗМЕРЕНИЕ / С ПОДТВЕРЖДЕНИЕМ.</summary>
     public string TagText => Kind switch
     {
-        PlanItemKind.Measurement => "НУЖНО ИЗМЕРЕНИЕ",
-        PlanItemKind.Advice => "СОВЕТ",
-        _ when NeedsCountdown => "С ПОДТВЕРЖДЕНИЕМ",
-        _ => Policy == RecommendPolicy.Include ? "БЕЗОПАСНО" : "ПО ЖЕЛАНИЮ",
+        PlanItemKind.Measurement => Loc.T("НУЖНО ИЗМЕРЕНИЕ"),
+        PlanItemKind.Advice => Loc.T("СОВЕТ"),
+        _ when NeedsCountdown => Loc.T("С ПОДТВЕРЖДЕНИЕМ"),
+        _ => Policy == RecommendPolicy.Include ? Loc.T("БЕЗОПАСНО") : Loc.T("ПО ЖЕЛАНИЮ"),
     };
 
     /// <summary>"Tag" for БЕЗОПАСНО, "Muted" for the rest (EqualsToVis in the view).</summary>
@@ -66,7 +66,7 @@ public sealed partial class PlanItem : ObservableObject
         ? "Tag" : "Muted";
 
     /// <summary>Tweak rows say where the setting lives.</summary>
-    public string? Source => Kind == PlanItemKind.OptimizeTweak ? "пункт «Оптимизации»" : null;
+    public string? Source => Kind == PlanItemKind.OptimizeTweak ? Loc.T("пункт «Оптимизации»") : null;
 }
 
 /// <summary>Builds the plan from the cards (pure).</summary>
@@ -128,12 +128,12 @@ public static class DevicePlan
 
                 string? disabled = null;
                 var selectable = kind is PlanItemKind.Setting or PlanItemKind.OptimizeTweak;
-                if (selectable && kind == PlanItemKind.Setting && s.Apply is null) { selectable = false; disabled = "Только для просмотра."; }
+                if (selectable && kind == PlanItemKind.Setting && s.Apply is null) { selectable = false; disabled = Loc.T("Только для просмотра."); }
                 if (selectable && s.DisabledReason is { } why) { selectable = false; disabled = why; }
                 if (selectable && IsPerUser(s) && !interactiveUser)
                 {
                     selectable = false;
-                    disabled = "Недоступно: MONOLITH запущен не от вашей учётной записи (или её не удалось определить).";
+                    disabled = Loc.T("Недоступно: MONOLITH запущен не от вашей учётной записи (или её не удалось определить).");
                 }
 
                 var item = new PlanItem
