@@ -93,14 +93,18 @@ public static class Log
         var entry = new LogEntry(DateTime.Now, level, message) { Display = display ?? Loc.Sink(message) };
         WriteToFile(entry, ex);
 
-        var app = Application.Current;
-        if (app?.Dispatcher is { } dispatcher && !dispatcher.HasShutdownStarted)
+        try
         {
-            if (dispatcher.CheckAccess())
-                AddToUi(entry);
-            else
-                dispatcher.BeginInvoke(() => AddToUi(entry));
+            var app = Application.Current;
+            if (app?.Dispatcher is { } dispatcher && !dispatcher.HasShutdownStarted)
+            {
+                if (dispatcher.CheckAccess())
+                    AddToUi(entry);
+                else
+                    dispatcher.BeginInvoke(() => AddToUi(entry));
+            }
         }
+        catch { /* the console is unavailable: logging must never fail the caller */ }
 
         try { Written?.Invoke(entry); } catch { /* listeners must not break logging */ }
     }
