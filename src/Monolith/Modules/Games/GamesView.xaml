@@ -114,7 +114,7 @@
                                 </StackPanel>
                             </Button>
                             <!-- White primary: the game starts together with a game session -->
-                            <Button Grid.Column="2" Style="{StaticResource Btn.Primary}" Padding="10,0"
+                            <Button Grid.Column="2" Padding="10,0"
                                     Command="{Binding DataContext.PlayBoostedCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
                                     CommandParameter="{Binding}">
                                 <Button.IsEnabled>
@@ -571,7 +571,7 @@
 
                             <!-- Start / stop -->
                             <Grid Margin="12,12,12,0">
-                                <Button Style="{StaticResource Btn.Hero}" Height="48" HorizontalAlignment="Stretch" Command="{Binding StartBoostCommand}"
+                                <Button Height="48" HorizontalAlignment="Stretch" Command="{Binding StartBoostCommand}"
                                         Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />

@@ -83,7 +83,7 @@
                     <TextBlock Text="MONOLITH" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
                                FontWeight="Bold" FontStretch="Condensed" FontSize="21" Foreground="{StaticResource B.Text}" />
                     <TextBlock Text="{Binding Version}" Margin="10,3,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}"
-                               FontSize="11" Foreground="{StaticResource B.Text3}" />
+                               FontSize="11.5" Foreground="{StaticResource B.Text3}" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -92,7 +92,7 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
                             <TextBlock Text="ПОИСК" Margin="7,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Ctrl+K" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}" FontSize="11"
+                            <TextBlock Text="Ctrl+K" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}" FontSize="11.5"
                                        FontWeight="Normal" FontStretch="Normal" Foreground="{StaticResource B.Text3}" />
                         </StackPanel>
                     </Button>
@@ -101,7 +101,7 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding UndoButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="7,1,0,0" Foreground="{StaticResource B.Text2}" />
+                            <TextBlock Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="7,1,0,0" Foreground="{StaticResource B.Text2}" />
                         </StackPanel>
                         <Button.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Placement="Bottom">
@@ -136,7 +136,7 @@
                     <Button Grid.Column="2" Style="{StaticResource Btn}" Height="22" Padding="8,0" FontSize="11.5" Command="{Binding RestartAsAdminCommand}"
                             ToolTip="Перезапустить MONOLITH с правами администратора сейчас (запрос UAC)">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                             <TextBlock Text="ПЕРЕЗАПУСТИТЬ С ПРАВАМИ" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
@@ -350,9 +350,9 @@
                 <Button Style="{StaticResource Btn}" Height="26" Padding="10,0" FontSize="11.5" HorizontalAlignment="Right" Margin="0,0,12,0" VerticalAlignment="Center"
                         Command="{Binding ToggleConsoleCommand}" ToolTip="Показать или скрыть журнал действий MONOLITH">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE756;" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="&#xE756;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                         <TextBlock Text="{Binding LogEntries.Count, StringFormat=ЖУРНАЛ ДЕЙСТВИЙ · {0}}" VerticalAlignment="Center" />
-                        <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="7,1,0,0" Foreground="{StaticResource B.Text2}">
+                        <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="7,1,0,0" Foreground="{StaticResource B.Text2}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="&#xE70E;" />
@@ -423,7 +423,7 @@
                                         <Button Style="{StaticResource Btn.Ghost}"
                                                 Command="{Binding DataContext.DismissToastCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="&#xE8BB;" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                                <TextBlock Text="&#xE8BB;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                                                 <TextBlock Text="ЗАКРЫТЬ" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
@@ -501,7 +501,7 @@
                         <TextBlock Text="{Binding SelectedDescription}" Style="{StaticResource T.Caption}" TextTrimming="CharacterEllipsis"
                                    TextWrapping="NoWrap" Margin="16,9,16,8" ToolTip="{Binding SelectedDescription}" />
                         <TextBlock Text="↑↓ ВЫБОР · ENTER ОТКРЫТЬ · ESC ЗАКРЫТЬ — ПОИСК ТОЛЬКО ОТКРЫВАЕТ, НИЧЕГО НЕ ПРИМЕНЯЕТ" Style="{StaticResource T.Mono}"
-                                   FontSize="11" Foreground="{StaticResource B.Text3}" Margin="16,0,16,12" TextTrimming="CharacterEllipsis" />
+                                   FontSize="12" Foreground="{StaticResource B.Text3}" Margin="16,0,16,12" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
             </Grid>

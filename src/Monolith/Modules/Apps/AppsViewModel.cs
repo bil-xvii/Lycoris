@@ -214,6 +214,7 @@ public sealed partial class AppsViewModel : PageViewModel
         InstallSelectedCommand.NotifyCanExecuteChanged();
         InstallKitCommand.NotifyCanExecuteChanged();
         UpdateAllCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(UpdateAllText));
         RefreshCommand.NotifyCanExecuteChanged();
         RunFallbackCommand.NotifyCanExecuteChanged();
         CloseQueueCommand.NotifyCanExecuteChanged();
@@ -221,6 +222,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(AppItemViewModel.CanUpgrade)) OnPropertyChanged(nameof(UpdateAllText));
         if (e.PropertyName == nameof(AppItemViewModel.IsSelected))
             SelectedCount = _items.Count(i => i.IsSelected);
     }
@@ -660,6 +662,9 @@ public sealed partial class AppsViewModel : PageViewModel
     }
 
     private bool CanUpdateAll() => WingetReady && !IsQueueRunning && HasDetection;
+
+    /// <summary>«ОБНОВИТЬ ПРОГРАММЫ · N»: N = installed catalog programs winget can update (a number, so it is not a twin of «ОБНОВИТЬ»).</summary>
+    public string UpdateAllText => $"ОБНОВИТЬ ПРОГРАММЫ · {_items.Count(i => i.CanUpgrade && !string.Equals(i.PackageId, AppCatalog.AppInstallerId, StringComparison.OrdinalIgnoreCase))}";
 
     [RelayCommand]
     private async Task OpenSite(AppItemViewModel? item)

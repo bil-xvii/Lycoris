@@ -154,7 +154,7 @@ public sealed partial class DevicesViewModel : PageViewModel
     /// <summary>Rows the user can actually tick (a per-user row for another account or a read-only row is shown, not counted).</summary>
     public int SelectableCount => PlanItems.Concat(OptionalItems).Count(i => i.Selectable);
     public string ChangedText => $"Изменено на этой странице: {ChangedCount}. Откатить — кнопкой «ОТКАТИТЬ» во вкладке «Вручную» или в «Восстановлении».";
-    public string FoundHeader => $"НАЙДЕНО · {Cards.Count}";
+    public string FoundHeader => $"НАЙДЕНО · {Cards.Count} · НАЖМИТЕ, ЧТОБЫ ОТКРЫТЬ ВО ВКЛАДКЕ ВРУЧНУЮ →";
 
     partial void OnSelectedCountChanged(int value)
     {

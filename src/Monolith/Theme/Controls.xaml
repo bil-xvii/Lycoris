@@ -659,7 +659,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="Bd" Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Outline}" BorderThickness="1" CornerRadius="{StaticResource R.Md}">
-                        <TextBlock Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                        <TextBlock Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text2}"
                                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -1076,7 +1076,7 @@
                                             <ContentPresenter Content="{Binding Header, RelativeSource={RelativeSource AncestorType=Expander}}" VerticalAlignment="Center"
                                                               TextElement.FontFamily="{StaticResource F.Display}" TextElement.FontWeight="SemiBold"
                                                               TextElement.FontSize="12.5" TextElement.Foreground="{StaticResource B.Text}" />
-                                            <TextBlock x:Name="Chev" Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                                            <TextBlock x:Name="Chev" Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text2}"
                                                        VerticalAlignment="Center" Margin="8,1,0,0" RenderTransformOrigin="0.5,0.5">
                                                 <TextBlock.RenderTransform>
                                                     <RotateTransform x:Name="Rot" Angle="0" />

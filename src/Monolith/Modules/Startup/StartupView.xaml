@@ -44,7 +44,7 @@
             <Setter Property="TextWrapping" Value="NoWrap" />
         </Style>
 
-        <!-- The labelled «ЕЩЁ ▾» menu of a row: its items are visible text, opened from a visible button -->
+        <!-- The labelled «ПАПКА · КОПИЯ ▾» menu of a row: its items are visible text, opened from a visible button -->
         <ContextMenu x:Key="RowMore">
             <MenuItem Header="Открыть папку файла"
                       Command="{Binding PlacementTarget.Tag.OpenLocationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
@@ -54,7 +54,7 @@
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
         </ContextMenu>
 
-        <!-- Row actions: «ЧТО ЭТО? ↗» searches the web, «ЕЩЁ ▾» opens the labelled menu (folder / copy command) -->
+        <!-- Row actions: «ЧТО ЭТО? ↗» searches the web, «ПАПКА · КОПИЯ ▾» opens the labelled menu (folder / copy command) -->
         <DataTemplate x:Key="RowActions">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Margin="0,0,6,0"
@@ -69,7 +69,7 @@
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
                         ToolTip="Открыть папку файла, скопировать команду запуска">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ЕЩЁ" VerticalAlignment="Center" />
+                        <TextBlock Text="ПАПКА · КОПИЯ" VerticalAlignment="Center" />
                         <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,1,0,0" />
                     </StackPanel>
                 </Button>
