@@ -24,6 +24,9 @@ public sealed partial class HwGroupItem : ObservableObject
     public string Title { get; }
     public ObservableCollection<HwComponentItem> Components { get; } = [];
 
+    /// <summary>At least one component passes the summary filter (a group without shown components is hidden).</summary>
+    [ObservableProperty] private bool _hasShown = true;
+
     [ObservableProperty] private string _index = "";
     [ObservableProperty] private string _summaryText = "";
     [ObservableProperty] private string _summaryKey = "muted";
@@ -84,6 +87,8 @@ public sealed partial class HwComponentItem : ObservableObject
     [ObservableProperty] private string _statusText = "";
     [ObservableProperty] private string _statusKey = "muted";
     [ObservableProperty] private bool _hasActions;
+    /// <summary>Passes the summary filter (РЕКОМЕНДАЦИЙ / АКТУАЛЬНО); the row is hidden otherwise.</summary>
+    [ObservableProperty] private bool _isShown = true;
     /// <summary>Opened from a link («УСТАНОВИТЬ В «ДРАЙВЕРАХ»» on «Устройства и сеть»): framed for a moment.</summary>
     [ObservableProperty] private bool _isHighlighted;
 

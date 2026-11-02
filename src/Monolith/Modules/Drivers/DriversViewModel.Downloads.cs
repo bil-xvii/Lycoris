@@ -17,13 +17,17 @@ public sealed partial class DriversViewModel
 
     [ObservableProperty] private bool _isDriverDownloadRunning;
 
-    private bool CanDownloadDriver(GpuCardItem? card) => card is { HasDownload: true, IsDownloading: false } && CanModify();
+    // The parameter is the card (a click) or the card's PnP id as text (the admin-intent replay, which waits for the vendor lookup).
+    private bool CanDownloadDriver(object? target) =>
+        target is string ? CanModify() : target is GpuCardItem { HasDownload: true, IsDownloading: false } && CanModify();
 
     [RelayCommand(CanExecute = nameof(CanDownloadDriver))]
-    private async Task DownloadDriverAsync(GpuCardItem? card)
+    private async Task DownloadDriverAsync(object? target)
     {
+        var card = CardFor(target);
+        if (target is string && card is not null) await WaitForGpuLookupAsync(card);
         if (card?.Package is null || !card.HasDownload || card.IsDownloading) return;
-        if (!RequireAdmin($"загрузка драйвера {card.Package.VendorName}")) return;
+        if (!RequireAdmin($"загрузка драйвера {card.Package.VendorName}", "DownloadDriver", card.Gpu.PnpDeviceId)) return;
         if (!CanModify())
         {
             Ui.Toast("Дождитесь окончания текущей операции на этой странице.", ToastKind.Warning);
@@ -90,6 +94,59 @@ public sealed partial class DriversViewModel
             IsDriverDownloadRunning = false;
         }
     }
+
+    /// <summary>A replayed intent: the vendor lookups run in the background after the page opened — wait for this card's.</summary>
+    private async Task WaitForGpuLookupAsync(GpuCardItem card)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed < TimeSpan.FromSeconds(60) && !_lifetime.IsCancellationRequested)
+        {
+            if (card.HasDownload) return;
+            // Nothing is being checked any more and still no installer: nothing to download.
+            if (!card.IsCheckingLatest && sw.Elapsed > TimeSpan.FromSeconds(5) && InventoryLoaded) return;
+            await Task.Delay(300);
+        }
+    }
+
+    /// <summary>
+    /// «ПРОВЕРИТЬ» (Dashboard tile, ПОДБОР card): re-reads the vendor's latest driver for the main video card and tells the
+    /// result — a version check only, nothing is downloaded or changed.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckGpuAsync()
+    {
+        SelectedTab = DriversTab.Hardware;
+        if (!InventoryLoaded) await WaitForGpuInventoryAsync();
+        await CheckNvidiaLatestAsync();
+        await OfferAmdInstallerAsync();
+        OnPropertyChanged(nameof(GpuTileText));
+        OnPropertyChanged(nameof(GpuUpdateAvailable));
+        var card = Gpus.FirstOrDefault(g => g.IsPrimary) ?? Gpus.FirstOrDefault();
+        if (card is null)
+        {
+            Ui.Toast("Видеокарта не найдена.", ToastKind.Warning, "ВИДЕОКАРТА");
+            return;
+        }
+        if (card.HasLatest)
+            Ui.Toast(card.UpdateAvailable
+                ? $"Есть новый драйвер {card.LatestVersion} (сейчас {card.VersionText}). Кнопка «СКАЧАТЬ И УСТАНОВИТЬ» — на карточке видеокарты."
+                : $"Установлен последний драйвер: {card.VersionText}.",
+                ToastKind.Info, "ВИДЕОКАРТА");
+        else
+            Ui.Toast($"Сейчас {card.VersionText}. Сверить версию с производителем не удалось — откройте официальный сайт на карточке.", ToastKind.Info, "ВИДЕОКАРТА");
+    }
+
+    private async Task WaitForGpuInventoryAsync()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (!InventoryLoaded && sw.Elapsed < TimeSpan.FromSeconds(60) && !_lifetime.IsCancellationRequested) await Task.Delay(200);
+    }
+
+    /// <summary>The main video card's driver version for the Dashboard tile («621.01»), or «—» before the first read.</summary>
+    public string GpuTileText => (Gpus.FirstOrDefault(g => g.IsPrimary) ?? Gpus.FirstOrDefault())?.VersionText ?? "—";
+
+    /// <summary>A newer official driver exists for the main video card (known after the vendor lookup).</summary>
+    public bool GpuUpdateAvailable => (Gpus.FirstOrDefault(g => g.IsPrimary) ?? Gpus.FirstOrDefault())?.UpdateAvailable == true;
 
     /// <summary>Asks the vendor's server for the exact size (HEAD) and shows it on the card.</summary>
     private async Task FillSizeAsync(GpuCardItem card, DriverPackage package)

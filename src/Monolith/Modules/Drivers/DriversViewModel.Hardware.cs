@@ -52,9 +52,80 @@ public sealed partial class DriversViewModel
     [ObservableProperty] private string _hwCurrentCaption = "идёт анализ";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HwInstallButtonText))]
+    [NotifyPropertyChangedFor(nameof(HwInstallButtonText), nameof(PrimaryText), nameof(HasPrimary))]
     [NotifyCanExecuteChangedFor(nameof(InstallHardwareCommand))]
     private int _hwSelectedCount;
+
+    /// <summary>The checked set is exactly what the analysis recommends by default (the header then says «РЕКОМЕНДОВАННОЕ»).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(PrimaryText))] private bool _hwSelectionIsRecommended = true;
+
+    // ── The header's ONE main button (changes with the tab) ──
+
+    /// <summary>ПОДБОР: «УСТАНОВИТЬ РЕКОМЕНДОВАННОЕ · N» / «УСТАНОВИТЬ ВЫБРАННОЕ · N»; ОБНОВЛЕНИЯ WINDOWS: «ЗАГРУЗИТЬ И УСТАНОВИТЬ · N».</summary>
+    public string PrimaryText => SelectedTab switch
+    {
+        DriversTab.Hardware or DriversTab.Overview => $"{(HwSelectionIsRecommended ? "УСТАНОВИТЬ РЕКОМЕНДОВАННОЕ" : "УСТАНОВИТЬ ВЫБРАННОЕ")} · {HwSelectedCount}",
+        DriversTab.Updates => InstallButtonText,
+        _ => "",
+    };
+
+    /// <summary>The main button is shown only when it has something to do (checked items exist, nothing runs).</summary>
+    public bool HasPrimary => !IsHwInstalling && !IsInstalling && SelectedTab switch
+    {
+        DriversTab.Hardware or DriversTab.Overview => HwSelectedCount > 0,
+        DriversTab.Updates => SelectedUpdatesCount > 0,
+        _ => false,
+    };
+
+    private void RaisePrimary()
+    {
+        OnPropertyChanged(nameof(PrimaryText));
+        OnPropertyChanged(nameof(HasPrimary));
+    }
+
+    [RelayCommand]
+    private Task RunPrimaryAsync() => SelectedTab switch
+    {
+        DriversTab.Hardware or DriversTab.Overview => InstallHardwareCommand.ExecuteAsync(null),
+        DriversTab.Updates => InstallUpdatesCommand.ExecuteAsync(null),
+        _ => Task.CompletedTask,
+    };
+
+    // ── Summary cells act as filters ──
+
+    /// <summary>"all" · "recommend" (needs attention) · "current" (checked or installed) — set by the summary cells.</summary>
+    [ObservableProperty] private string _hwFilter = "all";
+
+    [RelayCommand]
+    private void SetHwFilter(string? filter)
+    {
+        HwFilter = filter is "recommend" or "current" ? filter : "all";
+    }
+
+    partial void OnHwFilterChanged(string value) => ApplyHwFilter();
+
+    private void ApplyHwFilter()
+    {
+        foreach (var group in HardwareGroups)
+        {
+            var any = false;
+            foreach (var c in group.Components)
+            {
+                c.IsShown = HwFilter switch
+                {
+                    "recommend" => HardwareRules.NeedsAttention(c.Status),
+                    "current" => c.Status is HwStatus.Current or HwStatus.Installed,
+                    _ => true,
+                };
+                any |= c.IsShown;
+            }
+            group.HasShown = any;
+        }
+        OnPropertyChanged(nameof(HwNothingShown));
+    }
+
+    /// <summary>A filter is on and no component matches it (the list says so in text).</summary>
+    public bool HwNothingShown => HwFilter != "all" && HardwareGroups.Count > 0 && HardwareGroups.All(g => !g.HasShown);
 
     [ObservableProperty] private string _hwSelectionText = "Отметьте компоненты, которые нужно установить.";
 
@@ -276,6 +347,8 @@ public sealed partial class DriversViewModel
         HwCurrentCaption = rest.Count > 0 ? string.Join(" · ", rest) : "проверено у производителей";
 
         RecountHardwareSelection();
+        ApplyHwFilter();
+        BadgeText = recommendations > 0 ? recommendations.ToString() : null;
 
         // A link that arrived before the analysis finished: its row exists now.
         if (_hwPendingFocus is { } pending && FindHardwareComponent(pending) is not null)
@@ -356,6 +429,9 @@ public sealed partial class DriversViewModel
     private void RecountHardwareSelection()
     {
         var selected = SelectedHardwareActions();
+        // «Рекомендованное» = exactly the pre-checked items of the analysis; anything else the user changed.
+        var recommended = AllHardwareActions().Where(a => a.IsInstallable && a.Action.PreSelect).Select(a => a.Key).ToHashSet();
+        HwSelectionIsRecommended = recommended.SetEquals(selected.Select(a => a.Key));
         HwSelectedCount = selected.Count;
         HwSelectionText = selected.Count == 0
             ? "Отметьте компоненты, которые нужно установить."
@@ -407,14 +483,27 @@ public sealed partial class DriversViewModel
 
     // ───────────────────────────── Install ─────────────────────────────
 
-    private bool CanInstallHardware() =>
-        Elevation.IsElevated && HwSelectedCount > 0 && !IsHwInstalling && !IsHardwareScanning && !IsBusy && !IsInstalling && !IsBackupRunning;
+    // A replayed intent carries the checked keys (IntentList) and waits for the analysis; a click needs checked items.
+    private bool CanInstallHardware(string? keys) =>
+        !IsHwInstalling && !IsBusy && !IsInstalling && !IsBackupRunning && (keys is not null || (HwSelectedCount > 0 && !IsHardwareScanning));
+
+    private string? SelectedHardwareKeys() => Startup.IntentList.Pack(SelectedHardwareActions().Select(a => a.Key));
 
     [RelayCommand(CanExecute = nameof(CanInstallHardware))]
-    private async Task InstallHardwareAsync()
+    private async Task InstallHardwareAsync(string? keys)
     {
-        if (!RequireAdmin("установка компонентов")) return;
+        if (!RequireAdmin("установка компонентов", "InstallHardware", SelectedHardwareKeys())) return;
         if (IsBusy || IsHwInstalling) return;
+        if (Startup.IntentList.Unpack(keys) is { Count: > 0 } replayed)
+        {
+            // After a relaunch the analysis starts from scratch: wait for it, then check exactly what was checked before.
+            var sw = Stopwatch.StartNew();
+            while ((!HardwareScanned || IsHardwareScanning) && sw.Elapsed < TimeSpan.FromSeconds(120) && !_lifetime.IsCancellationRequested)
+                await Task.Delay(300);
+            var set = replayed.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var a in AllHardwareActions()) a.IsSelected = a.IsInstallable && set.Contains(a.Key);
+            RecountHardwareSelection();
+        }
         var selected = SelectedHardwareActions();
         if (selected.Count == 0)
         {

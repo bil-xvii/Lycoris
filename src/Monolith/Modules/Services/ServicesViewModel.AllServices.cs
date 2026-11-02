@@ -133,15 +133,40 @@ public sealed partial class ServicesViewModel
 
     // ───────────────────────────── Start type ─────────────────────────────
 
-    private bool CanApplyStartType() => !IsBusy && SelectedService?.CanApplyStart == true;
+    // A replayed intent names the service (and the chosen start type) — a service that is not selected is selected first.
+    private ServiceItem? SelectForReplay(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return SelectedService;
+        var item = AllServices.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (item is not null && !ReferenceEquals(item, SelectedService)) SelectedService = item;
+        return item;
+    }
+
+    /// <summary>«name|Mode|delayed» ↔ the intent parameter of «ApplyStartType»; null when the text is not of that form.</summary>
+    internal static (string Name, ServiceStartMode Mode, bool Delayed)? ParseStartSpec(string? spec)
+    {
+        if (string.IsNullOrEmpty(spec)) return null;
+        var parts = spec.Split('|');
+        if (parts.Length < 3 || !Enum.TryParse<ServiceStartMode>(parts[^2], out var mode)) return null;
+        return (string.Join('|', parts[..^2]), mode, parts[^1] == "1");
+    }
+
+    internal static string StartSpec(string name, ServiceStartMode mode, bool delayed) => $"{name}|{mode}|{(delayed ? 1 : 0)}";
+
+    private bool CanApplyStartType(string? spec) => !IsBusy && (spec is not null || SelectedService?.CanApplyStart == true);
 
     [RelayCommand(CanExecute = nameof(CanApplyStartType))]
-    private async Task ApplyStartTypeAsync()
+    private async Task ApplyStartTypeAsync(string? spec)
     {
+        if (ParseStartSpec(spec) is { } replayed)
+        {
+            if (SelectForReplay(replayed.Name) is { } target)
+                target.PendingStart = StartOptions.FirstOrDefault(o => o.Mode == replayed.Mode && o.Delayed == replayed.Delayed) ?? target.PendingStart;
+        }
         var item = SelectedService;
         var option = item?.PendingStart;
         if (item is null || option is null || item.IsLocked) return;
-        if (!RequireAdmin("изменение типа запуска")) return;
+        if (!RequireAdmin("изменение типа запуска", "ApplyStartType", StartSpec(item.Name, option.Mode, option.Delayed))) return;
         if (item.MustStayDisabled && option.Mode != ServiceStartMode.Disabled) return;
 
         var (live, dependents) = await Task.Run(() =>
@@ -204,14 +229,14 @@ public sealed partial class ServicesViewModel
 
     // ───────────────────────────── Start / stop (not journaled) ─────────────────────────────
 
-    private bool CanStartService() => !IsBusy && SelectedService?.CanStart == true;
+    private bool CanStartService(string? name) => !IsBusy && (name is not null || SelectedService?.CanStart == true);
 
     [RelayCommand(CanExecute = nameof(CanStartService))]
-    private async Task StartServiceAsync()
+    private async Task StartServiceAsync(string? name)
     {
-        var item = SelectedService;
+        var item = SelectForReplay(name);
         if (item is null || item.IsLocked || item.MustStayDisabled) return;
-        if (!RequireAdmin("запуск службы")) return;
+        if (!RequireAdmin("запуск службы", "StartService", item.Name)) return;
         if (!await Ui.ConfirmAsync("ЗАПУСТИТЬ СЛУЖБУ?",
                 $"«{item.DisplayName}» будет запущена сейчас. Тип запуска не меняется.",
                 [$"{item.DisplayName} ({item.Name}): {item.StatusText} → Работает",
@@ -235,14 +260,14 @@ public sealed partial class ServicesViewModel
         });
     }
 
-    private bool CanStopService() => !IsBusy && SelectedService?.CanStop == true;
+    private bool CanStopService(string? name) => !IsBusy && (name is not null || SelectedService?.CanStop == true);
 
     [RelayCommand(CanExecute = nameof(CanStopService))]
-    private async Task StopServiceAsync()
+    private async Task StopServiceAsync(string? name)
     {
-        var item = SelectedService;
+        var item = SelectForReplay(name);
         if (item is null || item.IsLocked) return;
-        if (!RequireAdmin("остановка службы")) return;
+        if (!RequireAdmin("остановка службы", "StopService", item.Name)) return;
 
         var dependents = await Task.Run(() => ServiceScanner.GetDependents(item.Name));
         var running = dependents.Where(d => d.IsRunning).ToList();
