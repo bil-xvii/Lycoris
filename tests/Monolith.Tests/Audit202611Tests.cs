@@ -51,6 +51,36 @@ public sealed class Audit202611Tests
         Assert.Equal(helper, Monolith.Modules.Games.GameProcessFinder.IsHelper(name));
 
     [Fact]
+    public void Unknown_link_speed_does_not_overflow()
+    {
+        Assert.Equal(long.MaxValue, Monolith.Modules.Devices.Network.NetSystem.ToLongClamped(ulong.MaxValue));
+        Assert.Equal(1_000_000_000L, Monolith.Modules.Devices.Network.NetSystem.ToLongClamped(1_000_000_000UL));
+        Assert.Equal(5L, Monolith.Modules.Devices.Network.NetSystem.ToLongClamped(5));
+    }
+
+    [Fact]
+    public void A_reboot_is_not_offered_while_a_task_or_a_game_session_runs()
+    {
+        var running = new OperationInfo(1, "Установка Steam", OperationClass.Install, OperationState.Running, "apps", null, null, false, DateTimeOffset.Now);
+        var probe = new OperationInfo(2, "Пинг", OperationClass.Measure, OperationState.Running, null, null, null, false, DateTimeOffset.Now);
+        Assert.Null(Monolith.Modules.Optimize.SessionActions.RebootBlockerText([], false));
+        Assert.Null(Monolith.Modules.Optimize.SessionActions.RebootBlockerText([probe], false));
+        Assert.Contains("Установка Steam", Monolith.Modules.Optimize.SessionActions.RebootBlockerText([running], false));
+        Assert.NotNull(Monolith.Modules.Optimize.SessionActions.RebootBlockerText([], true));
+    }
+
+    [Fact]
+    public void Only_a_real_no_such_task_answer_counts_as_gone()
+    {
+        Assert.True(ScheduledTasks.IsNotFound(new System.Runtime.InteropServices.COMException("x", unchecked((int)0x80070002))));
+        Assert.True(ScheduledTasks.IsNotFound(new System.Runtime.InteropServices.COMException("x", unchecked((int)0x80070003))));
+        // Scheduler stopped / access denied / anything else: the task may well exist — never «gone».
+        Assert.False(ScheduledTasks.IsNotFound(new System.Runtime.InteropServices.COMException("x", unchecked((int)0x80070005))));
+        Assert.False(ScheduledTasks.IsNotFound(new InvalidOperationException("no scheduler")));
+        Assert.False(ScheduledTasks.IsNotFound(new UnauthorizedAccessException()));
+    }
+
+    [Fact]
     public void A_record_written_in_English_is_not_drift_and_can_be_reapplied()
     {
         // An English-interface session wrote "Manual"; the live read is the neutral Russian text.

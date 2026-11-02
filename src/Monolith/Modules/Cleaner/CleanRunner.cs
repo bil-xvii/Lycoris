@@ -187,6 +187,7 @@ public static class CleanRunner
 
         // Fresh process list: the owner may have been started since the analysis.
         var snapshot = ProcessSnapshot.Capture();
+        var snapshotAge = System.Diagnostics.Stopwatch.StartNew();
         var owners = new Dictionary<AppOwner, bool>(ReferenceEqualityComparer.Instance);
         var done = 0;
         foreach (var m in a.Manifests)
@@ -204,6 +205,13 @@ public static class CleanRunner
             }
             if (m.Target.Owner is { } owner)
             {
+                // A long run (dozens of targets): a browser opened meanwhile must not have its cache cleaned under it.
+                if (snapshotAge.Elapsed > TimeSpan.FromSeconds(3))
+                {
+                    snapshot = ProcessSnapshot.Capture();
+                    owners.Clear();
+                    snapshotAge.Restart();
+                }
                 if (!owners.TryGetValue(owner, out var running)) owners[owner] = running = owner.IsRunning(snapshot);
                 if (running)
                 {

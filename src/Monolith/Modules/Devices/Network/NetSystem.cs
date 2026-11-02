@@ -69,6 +69,16 @@ public static class NetSystem
         };
     }
 
+    /// <summary>
+    /// WMI hands UInt64 for link speeds and counters; «unknown» is 0xFFFF_FFFF_FFFF_FFFF, which Convert.ToInt64 refuses
+    /// (OverflowException killed the whole network scan). Anything above long.MaxValue is clamped to it.
+    /// </summary>
+    internal static long ToLongClamped(object value) => value switch
+    {
+        ulong u => u > long.MaxValue ? long.MaxValue : (long)u,
+        _ => Convert.ToInt64(value),
+    };
+
     private static string? DomainName()
     {
         try { return IPGlobalProperties.GetIPGlobalProperties().DomainName is { Length: > 0 } d ? d : null; }
@@ -132,7 +142,7 @@ public static class NetSystem
                     var status = Convert.ToInt32(mo["InterfaceOperationalStatus"] ?? 0);
                     if (status == 6) continue; // not present
                     var duplex = Convert.ToInt32(mo["MediaDuplexState"] ?? 0);
-                    var speed = mo["Speed"] is { } sp ? Convert.ToInt64(sp) : (long?)null;
+                    var speed = mo["Speed"] is { } sp ? ToLongClamped(sp) : (long?)null;
                     var info = new NetAdapterInfo
                     {
                         InterfaceGuid = guid, Name = mo["Name"]?.ToString() ?? "", Description = mo["InterfaceDescription"]?.ToString() ?? "",
@@ -199,7 +209,7 @@ public static class NetSystem
                     if (keyword is null || !ReadKeywords.Contains(keyword)) continue;
                     var value = (mo["RegistryValue"] as string[])?.FirstOrDefault();
                     var valid = (mo["ValidRegistryValues"] as string[])?.Where(v => v is not null).ToList() ?? [];
-                    if (valid.Count == 0 && mo["NumericParameterMaxValue"] is { } max) valid = ["max:" + Convert.ToInt64(max)];
+                    if (valid.Count == 0 && mo["NumericParameterMaxValue"] is { } max) valid = ["max:" + ToLongClamped(max)];
                     list.Add(new NicPropertyInfo(keyword, value, valid, mo["DefaultRegistryValue"]?.ToString(), mo["DisplayName"]?.ToString()));
                 }
             }
@@ -225,7 +235,7 @@ public static class NetSystem
                 {
                     var duplex = Convert.ToInt32(mo["MediaDuplexState"] ?? 0);
                     return (Convert.ToInt32(mo["MediaConnectState"] ?? 0) == 1, duplex switch { 2 => true, 1 => false, _ => null },
-                        mo["Speed"] is { } s ? Convert.ToInt64(s) : null);
+                        mo["Speed"] is { } s ? ToLongClamped(s) : null);
                 }
             }
         }

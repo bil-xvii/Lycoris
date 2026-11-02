@@ -178,6 +178,7 @@
     "Lycoris не смог бы откатить это изменение ({0}) — ничего не изменено": "Lycoris could not undo this change ({0}) — nothing was changed",
     "Готово: {0} — изменений: {1}": "Done: {0} — changes: {1}",
     "{0}: применено {1}, ошибок {2}": "{0}: applied {1}, errors {2}",
-    "{0} — не применено": "{0} — not applied"
+    "{0} — не применено": "{0} — not applied",
+    "Планировщик заданий не ответил — откат не выполнен, повторите позже.": "Task Scheduler did not respond — nothing was reverted, try again later."
   }
 }
