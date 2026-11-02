@@ -77,7 +77,7 @@
     "Пакет из Microsoft Store (источник msstore). Ставится для текущего пользователя, дальше его обновляет сам Store.": "A Microsoft Store package (msstore source). It is installed for the current user and then updated by the Store itself.",
     "УДАЛЁННЫЙ ДОСТУП": "REMOTE ACCESS",
     "ДРАЙВЕР ЯДРА": "KERNEL DRIVER",
-    "Устанавливает драйвер режима ядра: он работает с максимальными правами и может конфликтовать с античитами. Удаляется вместе с программой через «Параметры → Приложения».": "Installs a kernel-mode driver: it runs with the highest privileges and may conflict with anti-cheats. It is removed together with the program via “Settings → Apps”.",
+    "Устанавливает драйвер режима ядра: он работает с максимальными правами и может конфликтовать с античитами. Удаляется вместе с программой через «Параметры → Приложения».": "Installs a kernel-mode driver: it runs with the highest privileges and may conflict with anti-cheats. It is removed together with the program via “Settings → Apps → Installed apps”.",
     "АНТИЧИТ": "ANTI-CHEAT",
     "Вместе с игрой ставится античит Riot Vanguard (драйвер ядра). Он работает постоянно и требует перезагрузки.": "The Riot Vanguard anti-cheat (a kernel driver) is installed with the game. It runs all the time and requires a restart.",
     "Может вызвать срабатывание античита: оверлеи, внедрение в игры и низкоуровневый доступ к железу иногда блокируются онлайн-играми.": "May trigger an anti-cheat: online games sometimes block overlays, injection into games and low-level hardware access.",
@@ -181,7 +181,7 @@
     "Не хватает оперативной памяти. Закройте лишние программы и повторите.": "Not enough RAM. Close unneeded programs and try again.",
     "Программа не поддерживает эту версию Windows. Проверьте системные требования на официальном сайте.": "The program does not support this version of Windows. Check the system requirements on the official website.",
     "Не удалось поставить то, что нужно пакету для работы (например, .NET или Visual C++). Установите «Набор геймера» на этой странице и повторите.": "Could not install what the package needs to work (for example .NET or Visual C++). Install the “Gamer kit” on this page and try again.",
-    "Установщик не умеет обновлять поверх установленной версии. Обновите программу её встроенным средством обновления или удалите её в «Параметры → Приложения» и установите заново.": "The installer cannot update over the installed version. Update the program with its built-in updater, or remove it in “Settings → Apps” and install it again.",
+    "Установщик не умеет обновлять поверх установленной версии. Обновите программу её встроенным средством обновления или удалите её в «Параметры → Приложения» и установите заново.": "The installer cannot update over the installed version. Update the program with its built-in updater, or remove it in “Settings → Apps → Installed apps” and install it again.",
     "Сбой самого winget. Обновите «Установщик приложений» в Microsoft Store (кнопка вверху страницы, если winget устарел) и повторите.": "winget itself failed. Update “App Installer” in the Microsoft Store (the button at the top of the page, if winget is outdated) and try again.",
     "Сертификат сервера не совпал: соединение, похоже, перехватывает прокси или антивирус с проверкой HTTPS. winget отказался ради безопасности. Отключите перехват HTTPS или установите программу с сайта.": "The server certificate did not match: the connection seems to be intercepted by a proxy or an antivirus that inspects HTTPS. winget refused for safety. Turn off HTTPS interception or install the program from its website.",
     "winget был прерван (закрыт или остановлен системой). Повторите установку.": "winget was interrupted (closed or stopped by the system). Try the install again.",
@@ -197,7 +197,7 @@
     "Перед запуском будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)": "A restore point will be created before the launch (if Windows fails to create it, MONOLITH asks whether to continue)",
     "Точка восстановления создана не будет (защита системы или эта настройка MONOLITH выключены)": "No restore point will be created (System Protection or this MONOLITH setting is off)",
     "Нужно свободного места на системном диске: не меньше {0}": "Free space needed on the system drive: at least {0}",
-    "Удалить программу потом можно в «Параметры → Приложения»": "You can remove the program later in “Settings → Apps”",
+    "Удалить программу потом можно в «Параметры → Приложения»": "You can remove the program later in “Settings → Apps → Installed apps”",
     "{0} программа": "{0} program|{0} programs",
     "{0} пакет": "{0} package|{0} packages"
   }
