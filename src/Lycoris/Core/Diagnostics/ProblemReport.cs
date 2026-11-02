@@ -14,6 +14,8 @@ public static partial class ProblemReport
 {
     public const int MaxArchiveBytes = 5 * 1024 * 1024;
     private const int MaxLogBytes = 512 * 1024;
+    private const int MaxLogFilesScanned = 50;
+    private const long MaxLogReadBytes = 5L * 1024 * 1024;
     private const int MaxTextChars = 2_000_000;
     private static readonly HashSet<string> SafeSettings = new(StringComparer.Ordinal)
         { "Language", "ExpertMode", "MonitorIntervalMs", "ConfirmBeforeApply", "StartElevated", "Theme" };
@@ -70,14 +72,24 @@ public static partial class ProblemReport
     }
 
     /// <summary>Newest logs of a folder as anonymized bytes under FIXED names (logs/log-N.txt): the source file name is never used.</summary>
-    internal static IReadOnlyList<(string Name, byte[] Data)> CollectLogs(string dir)
+    internal static IReadOnlyList<(string Name, byte[] Data)> CollectLogs(string dir, int maxFiles = MaxLogFilesScanned, long maxReadBytes = MaxLogReadBytes)
     {
         var result = new List<(string, byte[])>();
         try
         {
             if (!Directory.Exists(dir)) return result;
-            foreach (var path in Directory.EnumerateFiles(dir).Where(p => !IsLink(p)).OrderByDescending(SafeLastWrite).Take(3))
+            // At most maxFiles entries are looked at BEFORE sorting (a folder with millions of files must not stall the report).
+            var candidates = Directory.EnumerateFiles(dir).Take(maxFiles).Where(p => !IsLink(p)).OrderByDescending(SafeLastWrite).ToList();
+            long read = 0;
+            foreach (var path in candidates)
+            {
+                if (result.Count >= 3) break;
+                long charge;
+                try { charge = Math.Min(new FileInfo(path).Length, MaxLogBytes); } catch { continue; }
+                if (read + charge > maxReadBytes) break;
+                read += charge;
                 try { result.Add(($"logs/log-{result.Count + 1}.txt", Utf8(Anonymize(SafeIo.ReadText(path, MaxLogBytes))))); } catch { }
+            }
         }
         catch { }
         return result;

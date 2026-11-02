@@ -52,4 +52,31 @@ public sealed class ProblemReportTests
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
+
+    [Fact]
+    public void LogScanLooksAtMostFiftyFilesAndHonoursReadBudget()
+    {
+        var dir = TempDir();
+        try
+        {
+            for (var i = 0; i < 80; i++) File.WriteAllText(Path.Combine(dir, $"f{i:000}.log"), "x");
+            // The newest file is far beyond the first 50 enumerated: it must not be reached when the scan is capped.
+            var newest = Path.Combine(dir, "zzz-newest.log");
+            File.WriteAllText(newest, "NEWEST-MARKER");
+            File.SetLastWriteTimeUtc(newest, DateTime.UtcNow.AddDays(1));
+            var logs = ProblemReport.CollectLogs(dir);
+            Assert.Equal(3, logs.Count);
+            Assert.DoesNotContain(logs, l => System.Text.Encoding.UTF8.GetString(l.Data).Contains("NEWEST-MARKER"));
+
+            // Read budget: three 400 KB files with a 700 KB budget give only one log.
+            var big = TempDir();
+            try
+            {
+                for (var i = 0; i < 3; i++) File.WriteAllText(Path.Combine(big, $"b{i}.log"), new string('a', 400 * 1024));
+                Assert.Single(ProblemReport.CollectLogs(big, 50, 700 * 1024));
+            }
+            finally { try { Directory.Delete(big, true); } catch { } }
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
 }
