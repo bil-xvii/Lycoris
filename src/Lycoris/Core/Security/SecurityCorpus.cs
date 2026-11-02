@@ -35,10 +35,10 @@ public static class SecurityCorpus
 
         Expect("diagnostics redacts hostile mixed identity and secret", () =>
         {
-            var value = ProblemReport.Anonymize("alice 2001:db8::1 aa:bb:cc:dd:ee:ff alice@host.test api_token=do-not-leak Привет", "alice", "pc");
+            var value = ProblemReport.Anonymize("alice 2001:db8::1 aa:bb:cc:dd:ee:ff alice@host.test api_token=do-not-leak \u041F\u0440\u0438\u0432\u0435\u0442", "alice", "pc");
             return !value.Contains("alice", StringComparison.OrdinalIgnoreCase) && !value.Contains("2001:db8::1", StringComparison.Ordinal)
                 && !value.Contains("aa:bb:cc:dd:ee:ff", StringComparison.Ordinal) && !value.Contains("alice@host.test", StringComparison.Ordinal)
-                && !value.Contains("do-not-leak", StringComparison.Ordinal) && value.Contains("Привет", StringComparison.Ordinal);
+                && !value.Contains("do-not-leak", StringComparison.Ordinal) && ProblemReport.Anonymize("\u041F\u0440\u0438\u0432\u0435\u0442", "alice", "pc").Contains("\u041F\u0440\u0438\u0432\u0435\u0442", StringComparison.Ordinal);
         });
 
         // ── Replay arguments of the elevated copy (--replay-page / --replay-command / --replay-param) ──

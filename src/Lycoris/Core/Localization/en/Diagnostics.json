@@ -1,7 +1,7 @@
 {
   "area": "Diagnostics",
   "translated": true,
-  "sources": [],
+  "sources": ["Core/Diagnostics/ProblemReportText.cs"],
   "ignore": [],
   "en": {
     "СООБЩИТЬ О ПРОБЛЕМЕ": "REPORT A PROBLEM",

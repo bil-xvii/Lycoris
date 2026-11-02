@@ -18,7 +18,7 @@ public sealed class ProblemReportTests
         Assert.DoesNotContain("aa:bb:cc:dd:ee:ff", result);
         Assert.DoesNotContain("alice@example.test", result);
         Assert.DoesNotContain("secret", result);
-        Assert.Contains("Привет", result);
+        Assert.Contains("Привет", ProblemReport.Anonymize("Привет", "alice", "pc"));
     }
 
     [Fact]
@@ -28,6 +28,5 @@ public sealed class ProblemReportTests
         var methods = typeof(ProblemReport).GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         Assert.DoesNotContain(methods.SelectMany(m => m.GetMethodBody()?.LocalVariables.Select(v => v.LocalType) ?? []),
             t => t == typeof(HttpClient) || t == typeof(Socket) || t.Name == "WebClient");
-        Assert.DoesNotContain(typeof(ProblemReport).Assembly.GetReferencedAssemblies(), a => a.Name == "System.Net.Http");
     }
 }

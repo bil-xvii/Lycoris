@@ -34,13 +34,12 @@ public sealed partial class SettingsViewModel : PageViewModel
     public async Task CreateProblemReportAsync()
     {
         var files = new[] { "report.txt", "settings.json", "journal.txt", "README.txt", "logs/*" };
-        var details = files.Select(name => Loc.Tf("{0} · до {1}", name, name == "logs/*" ? "1,5 МБ" : "1 КБ"));
-        if (!await Ui.ConfirmAsync(Loc.T("СООБЩИТЬ О ПРОБЛЕМЕ"),
-                Loc.T("Архив содержит обезличенные сведения о системе и настройках. Ничего не отправляется — файл сохранится на рабочем столе, отправьте его сами"),
-                details, confirmText: Loc.T("СОЗДАТЬ АРХИВ"))) return;
+        var details = files.Select(name => Loc.Tf(ProblemReportText.FileSize, name, name == "logs/*" ? ProblemReportText.LargeSize : ProblemReportText.SmallSize));
+        if (!await Ui.ConfirmAsync(ProblemReportText.Button, ProblemReportText.Confirmation,
+                details, confirmText: ProblemReportText.Create)) return;
 
         string? folder = null;
-        await RunBusyAsync(OperationClass.Background, Loc.T("Создание отчёта…"), async () =>
+        await RunBusyAsync(OperationClass.Background, ProblemReportText.Busy, async () =>
         {
             var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             var report = await Task.Run(() => ProblemReport.Create());
@@ -49,7 +48,7 @@ public sealed partial class SettingsViewModel : PageViewModel
             await File.WriteAllBytesAsync(path, report.Archive);
             folder = desktop;
         });
-        if (folder is not null) Ui.Toast(Loc.T("Отчёт сохранён на рабочем столе."), ToastKind.Success, openFolderPath: folder);
+        if (folder is not null) Ui.Toast(ProblemReportText.Saved, ToastKind.Success, openFolderPath: folder);
     }
 
     public IReadOnlyList<IntervalOption> IntervalOptions { get; } = SettingsDefaults.IntervalChoices
