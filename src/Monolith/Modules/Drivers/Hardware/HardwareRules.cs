@@ -77,10 +77,10 @@ internal static partial class HardwareRules
 
     private static readonly string[] GenericNameMarkers =
     [
-        "HID", Loc.T("Составное"), "Composite", Loc.T("устройство ввода"), "Input Device", Loc.T("концентратор"), "Hub",
-        Loc.T("Запоминающее"), "Mass Storage", Loc.T("Аудио устройства USB"), "USB Audio Device", Loc.T("Универсальн"), "Generic",
-        Loc.T("Устройство USB"), "USB Device", Loc.T("Клавиатура HID"), "HID Keyboard", Loc.T("Поставщик"), "vendor-defined",
-        Loc.T("системный контроллер"), "System Controller", "Consumer Control", Loc.T("устройство управления"),
+        "HID", Loc.Keep("Составное"), "Composite", Loc.Keep("устройство ввода"), "Input Device", Loc.Keep("концентратор"), "Hub",
+        Loc.Keep("Запоминающее"), "Mass Storage", Loc.Keep("Аудио устройства USB"), "USB Audio Device", Loc.Keep("Универсальн"), "Generic",
+        Loc.Keep("Устройство USB"), "USB Device", Loc.Keep("Клавиатура HID"), "HID Keyboard", Loc.Keep("Поставщик"), "vendor-defined",
+        Loc.Keep("системный контроллер"), "System Controller", "Consumer Control", Loc.Keep("устройство управления"),
     ];
 
     /// <summary>
