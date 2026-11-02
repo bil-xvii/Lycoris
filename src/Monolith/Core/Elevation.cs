@@ -24,6 +24,9 @@ public static class Elevation
     /// <summary>True when the process runs with a full administrator token.</summary>
     public static bool IsElevated => Elevated.Value;
 
+    /// <summary>Why the last <see cref="TryRelaunchElevated"/> refused to ask for rights (integrity check), or null.</summary>
+    public static string? LastRefusal { get; private set; }
+
     /// <summary>
     /// Starts a new elevated copy of the app. Returns false if the user declined the UAC prompt.
     /// The copy gets "--elevated --parent &lt;pid&gt;" so it can wait for this process to close before
@@ -31,6 +34,16 @@ public static class Elevation
     /// </summary>
     public static bool TryRelaunchElevated(IEnumerable<string>? extraArgs = null)
     {
+        // UAC binds to the exe PATH, not its bytes: before asking, make sure the file is still the one we started from,
+        // does not lie in a place anyone controls, and its signature (if any) and unpacked libraries are intact.
+        var verdict = Security.SelfIntegrity.CheckBeforeElevation();
+        LastRefusal = verdict.Allowed ? null : verdict.Reason;
+        if (!verdict.Allowed)
+        {
+            Log.Error("Запуск с правами администратора отклонён проверкой целостности: {0}", verdict.Reason ?? "");
+            return false;
+        }
+
         var args = RelaunchArguments(Environment.GetCommandLineArgs().Skip(1), extraArgs, Environment.ProcessId);
 
         var psi = new ProcessStartInfo
@@ -66,6 +79,18 @@ public static class Elevation
     /// </summary>
     public static bool TryRelaunchSameRights(IEnumerable<string>? extraArgs = null)
     {
+        // An elevated copy starts its elevated child WITHOUT a UAC prompt: it must be sure that the file is still itself.
+        LastRefusal = null;
+        if (IsElevated)
+        {
+            var verdict = Security.SelfIntegrity.CheckBeforeElevation();
+            LastRefusal = verdict.Allowed ? null : verdict.Reason;
+            if (!verdict.Allowed)
+            {
+                Log.Error("Перезапуск с правами администратора отклонён проверкой целостности: {0}", verdict.Reason ?? "");
+                return false;
+            }
+        }
         var args = RelaunchArguments(Environment.GetCommandLineArgs().Skip(1), extraArgs, Environment.ProcessId);
         var psi = new ProcessStartInfo
         {

@@ -1,0 +1,25 @@
+{
+  "area": "Core.Security",
+  "translated": true,
+  "sources": [
+    "Core/Security/**"
+  ],
+  "ignore": [],
+  "en": {
+    "Целостность: {0}, SHA-256 {1}": "Integrity: {0}, SHA-256 {1}",
+    "Подпись программы: {0}{1}": "Program signature: {0}{1}",
+    "Цифровая подпись MONOLITH.exe не совпадает с файлом — файл изменён после подписания.": "The digital signature of MONOLITH.exe does not match the file — it was changed after signing.",
+    "MONOLITH запущен из сетевой, временной или съёмной папки — запрос прав администратора будет отклонён.": "MONOLITH was started from a network, temporary or removable folder — the request for administrator rights will be refused.",
+    "MONOLITH лежит в папке, куда могут писать обычные программы ({0}). Надёжнее держать его в Program Files.": "MONOLITH is in a folder that ordinary programs can write to ({0}). It is safer to keep it in Program Files.",
+    "Распакованная библиотека не прошла проверку подписи: {0}": "An unpacked library failed the signature check: {0}",
+    "В окружении задана переменная, подгружающая код в .NET или дочерние программы: {0}": "The environment sets a variable that loads code into .NET or child programs: {0}",
+    "Защита загрузки DLL: каталоги ограничены = {0}, доверенных каталогов = {1}, политика образов = {2}{3}": "DLL load protection: directories restricted = {0}, trusted directories = {1}, image policy = {2}{3}",
+    "Проверка целостности не выполнена: {0}": "The integrity check was not completed: {0}",
+    "MONOLITH запущен из сетевой, временной или съёмной папки. Права администратора ему не выдаются: скопируйте программу в обычную папку на диске (лучше в C:\\Program Files\\Lycoris) и запустите оттуда.": "MONOLITH was started from a network, temporary or removable folder. It is not given administrator rights: copy the program to an ordinary folder on a disk (preferably C:\\Program Files\\Lycoris) and start it from there.",
+    "Цифровая подпись MONOLITH.exe не совпадает с файлом: он изменён после подписания. Права администратора не запрашиваются — скачайте программу заново из официального источника.": "The digital signature of MONOLITH.exe does not match the file: it was changed after signing. Administrator rights are not requested — download the program again from the official source.",
+    "Файл MONOLITH.exe на диске изменился с момента запуска — возможно, его подменила другая программа. Права администратора не запрашиваются. Закройте MONOLITH, проверьте файл и запустите его заново.": "The MONOLITH.exe file on disk has changed since it was started — another program may have replaced it. Administrator rights are not requested. Close MONOLITH, check the file and start it again.",
+    "Библиотека {0}, распакованная MONOLITH во временную папку, не прошла проверку подписи Microsoft. Права администратора не запрашиваются. Удалите папку %TEMP%\\.net\\MONOLITH и запустите программу заново.": "The library {0}, which MONOLITH unpacked into a temporary folder, failed the Microsoft signature check. Administrator rights are not requested. Delete the folder %TEMP%\\.net\\MONOLITH and start the program again.",
+    "MONOLITH лежит в папке, куда может писать любая программа. Пока вы нажимаете «Да» в окне Windows, другая программа теоретически успевает подменить файл. Надёжнее хранить MONOLITH в C:\\Program Files\\Lycoris (защищённая папка).": "MONOLITH is in a folder that any program can write to. While you press “Yes” in the Windows prompt, another program could in theory replace the file. It is safer to keep MONOLITH in C:\\Program Files\\Lycoris (a protected folder).",
+    "Файл MONOLITH.exe сейчас недоступен для проверки. Права администратора не запрашиваются — повторите позже.": "The MONOLITH.exe file cannot be checked right now. Administrator rights are not requested — try again later."
+  }
+}

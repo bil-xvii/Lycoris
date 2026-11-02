@@ -18,7 +18,7 @@ internal static class CustomSelectionStore
     {
         try
         {
-            return File.Exists(FilePath) ? Parse(File.ReadAllText(FilePath)) : null;
+            return File.Exists(FilePath) ? Parse(Monolith.Core.Security.SafeIo.ReadText(FilePath)) : null;
         }
         catch (Exception ex)
         {

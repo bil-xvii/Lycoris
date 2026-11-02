@@ -224,6 +224,23 @@ public static class CleanRunner
     }
 
     /// <summary>Runs the tool's own cache command and measures the folders again.</summary>
+    /// <summary>
+    /// The reason an elevated run must skip these tool commands (a program lies where ordinary programs can write), or null.
+    /// <paramref name="whyWritable"/> gives the reason for a path or null when the path is protected (pure for tests).
+    /// </summary>
+    internal static string? UntrustedToolReason(IEnumerable<ToolCommand> commands, bool elevated, Func<string, string?> whyWritable)
+    {
+        if (!elevated) return null;
+        foreach (var c in commands)
+        {
+            var why = whyWritable(c.Program);
+            if (why is not null)
+                return Loc.Tf("{0} лежит в папке, куда могут писать обычные программы, — с правами администратора он не запускается. Очистите этот кэш командой самого инструмента в обычном окне терминала.",
+                    Path.GetFileName(c.Program));
+        }
+        return null;
+    }
+
     public static async Task<ItemCleanResult> CleanToolsAsync(CleanDefinition def, ItemAnalysis a, CleanEnvironment env, PathGuard guard,
         CancellationToken ct)
     {
@@ -245,6 +262,13 @@ public static class CleanRunner
         if (commands.Count == 0)
         {
             r.Skipped = Loc.T("Инструмент не найден.");
+            return r;
+        }
+        // Developer tools are found on PATH, usually in the user's own folders. MONOLITH's administrator token must not run a
+        // file that any program running as the user could have replaced.
+        if (UntrustedToolReason(commands, Elevation.IsElevated, Monolith.Core.Security.PathTrust.WhyUserWritable) is { } untrusted)
+        {
+            r.Skipped = untrusted;
             return r;
         }
         foreach (var c in commands)

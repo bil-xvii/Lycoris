@@ -219,6 +219,7 @@
     "ОСВОБОЖДЕНО": "FREED",
     "СВОБОДНОЕ МЕСТО": "FREE SPACE",
     "Windows выполняет обслуживание": "Windows is doing maintenance",
-    "ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ": "WHAT IS NEVER DELETED"
+    "ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ": "WHAT IS NEVER DELETED",
+    "{0} лежит в папке, куда могут писать обычные программы, — с правами администратора он не запускается. Очистите этот кэш командой самого инструмента в обычном окне терминала.": "{0} is in a folder that ordinary programs can write to, so it is not run with administrator rights. Clean this cache with the tool\u0027s own command in a normal terminal window."
   }
 }

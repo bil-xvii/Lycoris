@@ -40,8 +40,23 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
             else if (args[i].Equals(ParameterArg, StringComparison.OrdinalIgnoreCase)) parameter = args[++i];
         }
         if (string.IsNullOrWhiteSpace(page) || string.IsNullOrWhiteSpace(command) || !IsCommandName(command) || !IsReplayable(command)) return null;
+        // The arguments of an elevated copy are text anybody who can start the exe can write: the page is a plain key and the
+        // parameter a short line without control characters — nothing else is ever handed to a command.
+        if (!IsPageKey(page.Trim())) return null;
+        if (!string.IsNullOrEmpty(parameter) && !IsParameter(parameter)) return null;
         return new AdminIntent(page.Trim(), command.Trim(), string.IsNullOrEmpty(parameter) ? null : parameter);
     }
+
+    /// <summary>Longest parameter a replayed command may receive (ids, service names, GUIDs, tab keys are far shorter).</summary>
+    public const int MaxParameterLength = 200;
+
+    /// <summary>Page keys are lower-case words with digits and hyphens («optimize», «devices-manual»).</summary>
+    public static bool IsPageKey(string? key) =>
+        key is { Length: > 0 and <= 32 } && char.IsAsciiLetterLower(key[0]) && key.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-');
+
+    /// <summary>A parameter is one printable line: no control characters (no line breaks, no NUL), bounded length.</summary>
+    public static bool IsParameter(string? parameter) =>
+        parameter is { Length: > 0 and <= MaxParameterLength } && !parameter.Any(char.IsControl);
 
     /// <summary>
     /// Arguments that must not be carried over to a relaunched copy (they describe this run only) — the shared list in

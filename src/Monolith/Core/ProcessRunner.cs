@@ -119,6 +119,10 @@ public static class ProcessRunner
         return RunAsync(ps, $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}", opts, ct);
     }
 
+    internal static bool IsPowerShell(string fileName) =>
+        Path.GetFileName(fileName).Equals("powershell.exe", StringComparison.OrdinalIgnoreCase)
+        || Path.GetFileName(fileName).Equals("pwsh.exe", StringComparison.OrdinalIgnoreCase);
+
     private static ProcessStartInfo CreateStartInfo(string fileName, ProcessRunOptions? options)
     {
         var enc = GetEncoding(options?.Encoding ?? OutputEncoding.Oem);
@@ -136,6 +140,10 @@ public static class ProcessRunner
         };
         if (options?.Environment is { } env)
             foreach (var (k, v) in env) psi.Environment[k] = v;
+        // The environment is user-controlled: no hooks/profilers/start-up scripts for the child, and PowerShell only loads
+        // modules from the system folders (not from the user's Documents\WindowsPowerShell\Modules, which comes first by default).
+        if (IsPowerShell(fileName)) Security.EnvironmentGuard.ApplyForPowerShell(psi.Environment);
+        else Security.EnvironmentGuard.Clean(psi.Environment);
         return psi;
     }
 
@@ -181,6 +189,9 @@ public static class ProcessRunner
         }
     }
 
+    /// <summary>A child can print without end (a hostile or broken tool): at most this many characters per stream are kept.</summary>
+    internal const int MaxCapturedChars = 8_000_000;
+
     private static async Task<ProcessResult> RunUnlimitedAsync(ProcessStartInfo psi, string display, ProcessRunOptions options, CancellationToken ct)
     {
         if (options.LogCommand) Log.Command(display);
@@ -196,14 +207,14 @@ public static class ProcessRunner
         {
             if (e.Data is null) return;
             var line = Clean(e.Data);
-            lock (stdout) stdout.AppendLine(line);
+            lock (stdout) { if (stdout.Length < MaxCapturedChars) stdout.AppendLine(line); }
             if (line.Length > 0) options.OnOutput?.Invoke(line);
         };
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
             var line = Clean(e.Data);
-            lock (stderr) stderr.AppendLine(line);
+            lock (stderr) { if (stderr.Length < MaxCapturedChars) stderr.AppendLine(line); }
             if (line.Length > 0) options.OnOutput?.Invoke(line);
         };
 

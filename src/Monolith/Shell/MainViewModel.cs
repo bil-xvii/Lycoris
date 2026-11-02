@@ -408,6 +408,11 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         }
         if (!Elevation.TryRelaunchSameRights(CurrentPageArgs()))
         {
+            if (Elevation.LastRefusal is { } refusal)
+            {
+                _ = Ui.AlertAsync("Перезапуск отклонён", refusal);
+                return false;
+            }
             Ui.Toast("Не удалось перезапустить MONOLITH. Закройте его и откройте снова вручную.", ToastKind.Error, "ПЕРЕЗАПУСК");
             return false;
         }
@@ -419,7 +424,12 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     {
         var args = CurrentPageArgs();
         if (intent is not null) args.AddRange(intent.ToArgs());
-        if (!Elevation.TryRelaunchElevated(args)) return false;
+        if (!Elevation.TryRelaunchElevated(args))
+        {
+            if (Elevation.LastRefusal is { } refusal)
+                _ = Ui.AlertAsync("Права администратора не выданы", refusal);
+            return false;
+        }
         Application.Current.Shutdown();
         return true;
     }

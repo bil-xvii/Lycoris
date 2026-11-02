@@ -1093,6 +1093,17 @@ public sealed class ChangeJournal
         if (p.Contains(@"\services\") && n is "imagepath" or "servicedll" or "failurecommand") return true;
         if (p.Contains(@"\shell\open\command") || p.Contains(@"\shellex\")) return true;
         if (p.Contains(@"windows defender") || p.Contains(@"\lsa")) return true;
+        // More code-execution and environment hijack places (a forged journal record must never write there):
+        // the user/machine environment (PSModulePath, DOTNET_STARTUP_HOOKS, windir…), boot-time programs, KnownDLLs, the cmd AutoRun,
+        // security/print/netsh providers, Windows\Load, COM servers (the one classic-context-menu CLSID a tweak owns excepted).
+        if (p == "environment" || p.EndsWith(@"\environment")) return true;
+        if (n is "bootexecute" or "setupexecute" or "pendingfilerenameoperations" or "autocheckautochk") return true;
+        if (p.Contains(@"\knowndlls") || p.Contains(@"\securityproviders") || p.Contains(@"\print\monitors") || p.Contains(@"\netsh")
+            || p.Contains(@"\network\order") || p.Contains(@"\networkprovider")) return true;
+        if (p.Contains(@"command processor") && n == "autorun") return true;
+        if (p.EndsWith(@"nt\currentversion\windows") && n is "load" or "run") return true;
+        if ((p.Contains(@"\inprocserver32") || p.Contains(@"\localserver32") || p.Contains(@"\treatas"))
+            && !p.Contains("{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}")) return true;
         return false;
     }
 
@@ -1177,7 +1188,7 @@ public sealed class ChangeJournal
         try
         {
             if (!File.Exists(path)) return false;
-            data = JsonSerializer.Deserialize<JournalFile>(File.ReadAllText(path), JsonOptions) ?? new JournalFile();
+            data = JsonSerializer.Deserialize<JournalFile>(Security.SafeIo.ReadText(path, Security.SafeIo.MaxJournalBytes), JsonOptions) ?? new JournalFile();
             return true;
         }
         catch (Exception ex)

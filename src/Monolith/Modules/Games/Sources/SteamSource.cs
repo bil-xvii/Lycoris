@@ -107,7 +107,7 @@ public static class SteamSource
         try
         {
             var vdfPath = Path.Combine(steam, "steamapps", "libraryfolders.vdf");
-            if (File.Exists(vdfPath)) vdf = File.ReadAllText(vdfPath, Encoding.UTF8);
+            if (File.Exists(vdfPath)) vdf = Monolith.Core.Security.SafeIo.ReadText(vdfPath);
         }
         catch (Exception ex)
         {
@@ -133,7 +133,7 @@ public static class SteamSource
             {
                 try
                 {
-                    var m = ParseAppManifest(File.ReadAllText(file, Encoding.UTF8));
+                    var m = ParseAppManifest(Monolith.Core.Security.SafeIo.ReadText(file));
                     if (m is null || !m.IsInstalled || IsToolOrRedistributable(m.AppId, m.Name)) continue;
                     var folder = Path.Combine(apps, "common", m.InstallDir);
                     if (!Directory.Exists(folder)) continue;

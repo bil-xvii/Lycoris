@@ -184,7 +184,7 @@ public static class RestorePointService
         try
         {
             if (!System.IO.File.Exists(PendingFrequencyFile)) return;
-            var snap = System.Text.Json.JsonSerializer.Deserialize<RegistryValueSnapshot>(System.IO.File.ReadAllText(PendingFrequencyFile));
+            var snap = System.Text.Json.JsonSerializer.Deserialize<RegistryValueSnapshot>(Monolith.Core.Security.SafeIo.ReadText(PendingFrequencyFile));
             if (snap is { Hive: RegHive.HKLM, Name: "SystemRestorePointCreationFrequency" } &&
                 string.Equals(snap.Path, SrKey, StringComparison.OrdinalIgnoreCase))
             {

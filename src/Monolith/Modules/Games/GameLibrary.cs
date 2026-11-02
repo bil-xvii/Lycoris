@@ -149,7 +149,7 @@ public static class GameLibrary
         try
         {
             if (!File.Exists(CacheFilePath)) return null;
-            var data = JsonSerializer.Deserialize<CacheFile>(File.ReadAllText(CacheFilePath), JsonOptions);
+            var data = JsonSerializer.Deserialize<CacheFile>(Monolith.Core.Security.SafeIo.ReadText(CacheFilePath), JsonOptions);
             if (data is null || data.Version != 1) return null;
             return new LibraryScan(data.Games, data.Sources, data.ScannedAt);
         }

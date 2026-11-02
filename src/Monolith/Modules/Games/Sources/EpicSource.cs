@@ -89,7 +89,7 @@ public static class EpicSource
         {
             try
             {
-                var m = ParseManifest(File.ReadAllText(file));
+                var m = ParseManifest(Monolith.Core.Security.SafeIo.ReadText(file));
                 if (m is null || m.IsIncompleteInstall || m.IsDlc || string.IsNullOrWhiteSpace(m.LaunchExecutable)) continue;
                 var dir = GamePaths.NormalizeDir(m.InstallLocation);
                 if (dir.Length == 0 || !Directory.Exists(dir)) continue;

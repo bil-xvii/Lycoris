@@ -162,7 +162,7 @@ public static class EcoQos
     {
         try
         {
-            return File.Exists(MarkerFile) ? ParseMarker(File.ReadAllText(MarkerFile)) : [];
+            return File.Exists(MarkerFile) ? ParseMarker(Monolith.Core.Security.SafeIo.ReadText(MarkerFile)) : [];
         }
         catch
         {
