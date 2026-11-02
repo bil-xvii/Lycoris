@@ -25,7 +25,7 @@ var s = date.ToString("g", Loc.Culture); // or Loc.DateText / Loc.DateTimeText /
 Alias = Loc.Keep("мышь клавиатура");                              // stays Russian on purpose (search aliases, Windows output patterns)
 ```
 
-XAML (declare `xmlns:loc="clr-namespace:Monolith.UI"` once per file):
+XAML (declare `xmlns:loc="clr-namespace:Lycoris.UI"` once per file):
 
 ```xml
 <TextBlock Text="{loc:T Применить}" ToolTip="{loc:T 'Открыть, закрыть'}" />        <!-- quote a text with a comma or {…} -->
@@ -33,7 +33,7 @@ XAML (declare `xmlns:loc="clr-namespace:Monolith.UI"` once per file):
 <TextBlock Text="{Binding Title, Converter={x:Static loc:LocConverter.Instance}}" /> <!-- a bound Russian string -->
 ```
 
-`Loc` is available in every file of `src/Monolith` without a `using` (global using in the csproj). Tests use
+`Loc` is available in every file of `src/Lycoris` without a `using` (global using in the csproj). Tests use
 `using var _ = Loc.UseLanguage("en");` (per async flow: parallel tests never disturb each other); the test host stays Russian.
 
 ### Which call for which situation
@@ -54,18 +54,18 @@ Names that the tables do not know are **never lost**: they fall back to the Russ
 ## 2. Files and areas
 
 ```
-src/Monolith/Core/Localization/
+src/Lycoris/Core/Localization/
   Loc.cs                 the API (Loc, LocArea, LocAreas)
   en/Common.json         shared vocabulary: states, risks, units, page titles, glossary terms
   en/Shell.json          the shell: Shell/**, UI/**, App, Elevation, OperationCoordinator…  (translated)
   en/Settings.json       Modules/Settings/**                                              (translated)
   en/<Area>.json         one file per area — each agent owns exactly one file, so parallel work never conflicts
-src/Monolith/UI/LocXaml.cs   {loc:T}, LocConverter, LocFormatConverter
+src/Lycoris/UI/LocXaml.cs   {loc:T}, LocConverter, LocFormatConverter
 tools/LocScan/               the scanner / helper (LocScanner.cs is also compiled into the tests); wrapper tools/loc-scan.ps1
-tests/Monolith.Tests/Localization/   LocTests, LocalizationCoverageTests
+tests/Lycoris.Tests/Localization/   LocTests, LocalizationCoverageTests
 ```
 
-A file (embedded as `Monolith.Loc.en.<name>.json`, picked up automatically by the wildcard in the csproj — no registration code):
+A file (embedded as `Lycoris.Loc.en.<name>.json`, picked up automatically by the wildcard in the csproj — no registration code):
 
 ```json
 {
@@ -122,7 +122,7 @@ Comments and `///` docs are ignored.
   the record was made; **the schema is not changed**. Old records with Russian titles are shown as they are (or through `Loc.Sink`, which translates
   a Russian title the tables know — the table is the single place for such terms). New code stores ids/neutral data and localizes **when it displays**.
 * Texts shown from the journal (Restore page, toasts, undo dialogs) are built at display time with `Loc`.
-* **Log files** (`%LocalAppData%\MONOLITH\Logs\monolith-*.log`) are written in Russian (the Russian text of the call), so reports from users are uniform.
+* **Log files** (`%LocalAppData%\Lycoris\Logs\lycoris-*.log`) are written in Russian (the Russian text of the call), so reports from users are uniform.
   The in-app console shows the same line in the interface language (`LogEntry.Display`; `LogEntry.Message` stays Russian). Dynamic data inside a line
   (a page title, an operation name) may already be English.
 * Settings files, `.reg` backups, profile exports: no UI text.

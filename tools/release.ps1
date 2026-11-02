@@ -4,7 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File tools\release.ps1             # the real release
 #
 # What it does, in order (and refuses to continue when a check fails):
-#   1. reads the version from <Version> in src\Monolith\Monolith.csproj (the single source of truth);
+#   1. reads the version from <Version> in src\Lycoris\Lycoris.csproj (the single source of truth);
 #   2. the working tree must be clean and HEAD must already be pushed to origin;
 #   3. the version must be GREATER than the latest release of bil-xvii/Lycoris-releases (and the tag must not exist);
 #   4. RELEASE_NOTES.md must have a "## x.y.z" section (it becomes the release notes the app shows);
@@ -38,8 +38,8 @@ function Parse-Version($text) {
 }
 
 # 1. version
-$csproj = Get-Content (Join-Path $root 'src\Monolith\Monolith.csproj') -Raw
-if ($csproj -notmatch '<Version>([^<]+)</Version>') { Fail 'no <Version> in Monolith.csproj' }
+$csproj = Get-Content (Join-Path $root 'src\Lycoris\Lycoris.csproj') -Raw
+if ($csproj -notmatch '<Version>([^<]+)</Version>') { Fail 'no <Version> in Lycoris.csproj' }
 $versionText = $Matches[1].Trim()
 $version = Parse-Version $versionText
 if (-not $version) { Fail "version '$versionText' is not x.y.z (pre-release labels are never published as updates)" }
@@ -69,7 +69,7 @@ else {
     else { Fail "could not ask GitHub for the latest release: $($out | Out-String)" }
 }
 if ($latest) {
-    if ($version -le $latest) { Problem "version $versionText is not greater than the latest release v$latest - raise <Version> in Monolith.csproj" }
+    if ($version -le $latest) { Problem "version $versionText is not greater than the latest release v$latest - raise <Version> in Lycoris.csproj" }
     elseif ($version -gt $latest) { Write-Host "latest release is v$latest -> $versionText is newer" }
 }
 $existing = git tag --list $tag
@@ -96,11 +96,11 @@ Write-Host $notes
 
 $exe = Join-Path $root 'publish\Lycoris.exe'
 $sha = Join-Path $root 'publish\Lycoris.exe.sha256'
-$notesTmp = Join-Path ([IO.Path]::GetTempPath()) "monolith-notes-$versionText.md"
+$notesTmp = Join-Path ([IO.Path]::GetTempPath()) "lycoris-notes-$versionText.md"
 
 if ($dry) {
     Step 'Dry run: the rest would be'
-    if (-not $SkipTests) { Write-Host "  dotnet test tests\Monolith.Tests\Monolith.Tests.csproj   (must pass)" }
+    if (-not $SkipTests) { Write-Host "  dotnet test tests\Lycoris.Tests\Lycoris.Tests.csproj   (must pass)" }
     Write-Host "  tools\publish.ps1 $(if ($NoSign) { '-NoSign' })   -> $exe"
     Write-Host "  $exe --selftest <temp>   (exit code must be 0)"
     Write-Host "  write $sha   ('<sha256>  Lycoris.exe')"
@@ -114,7 +114,7 @@ if ($dry) {
 
 # 5. tests
 Step 'Unit tests'
-dotnet test (Join-Path $root 'tests\Monolith.Tests\Monolith.Tests.csproj') --nologo -v q
+dotnet test (Join-Path $root 'tests\Lycoris.Tests\Lycoris.Tests.csproj') --nologo -v q
 if ($LASTEXITCODE -ne 0) { Fail 'unit tests failed' }
 
 # 6. build + selftest
@@ -124,7 +124,7 @@ if ($NoSign) { $pubArgs += '-NoSign' }
 & powershell @pubArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $exe)) { Fail 'publish failed' }
 Step 'Self-test of the published exe'
-$st = Join-Path ([IO.Path]::GetTempPath()) "monolith-release-selftest-$versionText"
+$st = Join-Path ([IO.Path]::GetTempPath()) "lycoris-release-selftest-$versionText"
 $p = Start-Process -FilePath $exe -ArgumentList '--selftest', "`"$st`"" -Wait -PassThru
 if ($p.ExitCode -ne 0) { Fail "--selftest of the published exe exited with $($p.ExitCode)" }
 
@@ -136,8 +136,12 @@ Write-Host "SHA-256 $hash"
 # 7b. the owner's signature (tools\release-key.ps1). Once the public key is pinned in the app (Core\Security\ReleaseSignature.cs),
 #     every installed copy refuses a release that has no valid Lycoris.exe.sig - so a missing key must stop the release here.
 $extraAssets = @()
-$pinned = (Get-Content (Join-Path $root 'src\Monolith\Core\Security\ReleaseSignature.cs') -Raw) -match 'PinnedPublicKey\s*=\s*"[A-Za-z0-9+/=]+"'
-$keyFile = if ($env:MONOLITH_RELEASE_KEY) { $env:MONOLITH_RELEASE_KEY } else { Join-Path $env:USERPROFILE '.monolith-release\release-key.pk8' }
+$pinned = (Get-Content (Join-Path $root 'src\Lycoris\Core\Security\ReleaseSignature.cs') -Raw) -match 'PinnedPublicKey\s*=\s*"[A-Za-z0-9+/=]+"'
+$keyFile = if ($env:LYCORIS_RELEASE_KEY) { $env:LYCORIS_RELEASE_KEY } else { Join-Path $env:USERPROFILE '.lycoris-release\release-key.pk8' }
+if (-not $env:LYCORIS_RELEASE_KEY -and -not (Test-Path $keyFile)) {
+    $legacyKey = Join-Path $env:USERPROFILE '.monolith-release\release-key.pk8'
+    if (Test-Path $legacyKey) { $keyFile = $legacyKey }
+}
 if (Test-Path $keyFile) {
     Step 'Sign the release (owner key)'
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'release-key.ps1') -Sign -File $exe -Version $versionText -KeyFile $keyFile

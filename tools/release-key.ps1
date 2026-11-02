@@ -9,7 +9,7 @@
 #                                                                              # (tools\release.ps1 calls this) writes <file>.sig
 #   powershell -ExecutionPolicy Bypass -File tools\release-key.ps1 -Show       # prints the public key again
 #
-# The private key stays on this PC: %USERPROFILE%\.monolith-release\release-key.pk8 (readable only by your account). NEVER commit it,
+# The private key stays on this PC: %USERPROFILE%\.lycoris-release\release-key.pk8 (readable only by your account). NEVER commit it,
 # never upload it. Back it up somewhere offline: without it you cannot ship updates to copies that already carry the public half
 # (they would need a manual re-install).
 [CmdletBinding()]
@@ -19,8 +19,13 @@ param(
     [switch]$Show,
     [string]$File,
     [string]$Version,
-    [string]$KeyFile = $(if ($env:MONOLITH_RELEASE_KEY) { $env:MONOLITH_RELEASE_KEY } else { Join-Path $env:USERPROFILE '.monolith-release\release-key.pk8' })
+    [string]$KeyFile = $(if ($env:LYCORIS_RELEASE_KEY) { $env:LYCORIS_RELEASE_KEY } else { Join-Path $env:USERPROFILE '.lycoris-release\release-key.pk8' })
 )
+
+if (-not $env:LYCORIS_RELEASE_KEY -and -not (Test-Path $KeyFile)) {
+    $legacyKey = Join-Path $env:USERPROFILE '.monolith-release\release-key.pk8'
+    if (Test-Path $legacyKey) { $KeyFile = $legacyKey }
+}
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Security
@@ -56,7 +61,7 @@ if ($New) {
     $pub = Get-PublicKeyBase64 $key
     Write-Host "Private key written to $KeyFile (back it up OFFLINE; never commit it)." -ForegroundColor Green
     Write-Host ''
-    Write-Host 'Public key - put it into src\Monolith\Core\Security\ReleaseSignature.cs:'
+    Write-Host 'Public key - put it into src\Lycoris\Core\Security\ReleaseSignature.cs:'
     Write-Host "    public const string PinnedPublicKey = `"$pub`";"
     Write-Host ''
     Write-Host 'From the first release built with that line, every release MUST carry Lycoris.exe.sig (tools\release.ps1 adds it).'

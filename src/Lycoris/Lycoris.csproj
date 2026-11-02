@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+
+    <AssemblyName>Lycoris</AssemblyName>
+    <RootNamespace>Lycoris</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\lycoris.ico</ApplicationIcon>
+
+    <Product>Lycoris</Product>
+    <Company>Lycoris</Company>
+    <!-- Shown in Explorer → Properties → Details and read by antivirus/SmartScreen: an honest, readable identity (English + Russian) -->
+    <AssemblyTitle>Lycoris - Windows optimizer / оптимизатор Windows</AssemblyTitle>
+    <Description>Lycoris: safe Windows optimization for work and games with a full undo journal. / Lycoris — безопасная оптимизация Windows для работы и игр с полным журналом отката.</Description>
+    <Authors>Lycoris</Authors>
+    <Trademark>Lycoris</Trademark>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Copyright>© 2026 Lycoris</Copyright>
+    <Version>1.0.4</Version>
+    <NeutralLanguage>ru-RU</NeutralLanguage>
+    <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
+    <!-- WPF + WMI COM interop: trimming is not supported -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <NoWarn>$(NoWarn);CA1416;NU1510</NoWarn>
+  </PropertyGroup>
+
+  <!-- Release publish: one self-contained exe that runs on any Windows 10/11 x64 without installing .NET -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- ReadyToRun: precompiled code, about a second faster start (88 MB). Compression stays on: an uncompressed self-contained
+         WPF exe is 156 MB (222 MB with R2R) — see docs/antivirus.md. Managed assemblies run from memory; only the few native
+         WPF libraries are unpacked to %TEMP%\.net on first start (needed for a true single file). -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="System.Management" Version="10.0.14" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\**\*.png" />
+    <Resource Include="Assets\lycoris.ico" />
+    <Content Include="Data\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- English translation tables: one JSON file per area (docs/localization.md). Embedded, so single-file publish works. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Core\Localization\en\*.json" LogicalName="Lycoris.Loc.en.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Loc is available in every file without a using (docs/localization.md) -->
+  <ItemGroup>
+    <Using Include="Lycoris.Core.Localization" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lycoris.Tests" />
+  </ItemGroup>
+
+</Project>

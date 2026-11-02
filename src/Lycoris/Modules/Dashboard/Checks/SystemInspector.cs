@@ -1,0 +1,431 @@
+using System.IO;
+using System.Management;
+using System.Runtime.InteropServices;
+using Microsoft.Win32;
+using Lycoris.Core;
+using Lycoris.Modules.Dashboard.Monitoring;
+using Lycoris.Modules.Games;
+using Lycoris.Tweaks;
+
+namespace Lycoris.Modules.Dashboard.Checks;
+
+/// <summary>
+/// Collects a <see cref="SystemSnapshot"/> with read-only calls only (WMI, registry reads, user32/gdi32 queries,
+/// "fsutil behavior query", event log queries, tbs/kernel32/NVML queries, "CiTool -lp -json" and
+/// "Get-WindowsReservedStorageState" with admin rights).
+/// Runs entirely on background threads; every part has a time limit and degrades to "unknown" on failure.
+/// </summary>
+public static class SystemInspector
+{
+    private const string StartupApproved = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved";
+    /// <summary>Power saver GUID (tech.md §4).</summary>
+    private static readonly Guid PowerSaverScheme = new("a1841308-3541-4fab-bc81-f71556f20b4a");
+
+    /// <summary>Drive SMART data is re-read at most this often: reading it can spin up sleeping HDDs.</summary>
+    private static readonly TimeSpan DiskHealthCacheFor = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan EventsCacheFor = TimeSpan.FromMinutes(5);
+    /// <summary>Reserved storage changes only through DISM: one servicing query per half hour is plenty.</summary>
+    private static readonly TimeSpan ReservedStorageCacheFor = TimeSpan.FromMinutes(30);
+
+    public static async Task<SystemSnapshot> CollectAsync()
+    {
+        var profile = await SystemProfile.LoadAsync().ConfigureAwait(false);
+        var elevated = Elevation.IsElevated;
+        var trimTask = ReadTrimDisabledAsync();
+        var bootTask = Probe.RunAsync("загрузка и TPM", () => FirmwareProbe.ReadAsync(elevated), TimeSpan.FromSeconds(25), // loc:ignore log-only probe name
+            (FirmwareKind.Unknown, (bool?)null, TpmState.Unknown));
+        var kernelTask = Probe.RunAsync("защита ядра", () => KernelProtectionProbe.ReadAsync(elevated), TimeSpan.FromSeconds(20), // loc:ignore log-only probe name
+            ((bool?)null, SmartAppControlState.Unknown));
+        var disksTask = Probe.RunAsync<IReadOnlyList<DiskHealth>?>(elevated ? "накопители (админ)" : "накопители", // loc:ignore log-only probe name
+            () => DiskHealthProbe.Read(elevated), TimeSpan.FromSeconds(30), null, DiskHealthCacheFor);
+        var eventsTask = Probe.RunAsync("журнал событий", () => StabilityProbe.Read(DateTime.Now), TimeSpan.FromSeconds(20), null, EventsCacheFor); // loc:ignore log-only probe name
+        var linkTask = profile.PrimaryGpu is { Vendor: GpuVendor.Nvidia } nv
+            ? Probe.RunAsync("NVML", () => ReadGpuLink(nv.Name), TimeSpan.FromSeconds(10), null)
+            : Task.FromResult<GpuLinkFacts?>(null);
+
+        var snapshot = await Task.Run(() => Collect(profile)).ConfigureAwait(false);
+        // A servicing query (DISM provider, PowerShell start + DismCore init): only when the drive is already low on space
+        // and only with admin rights; cached, so repeated checks do not spawn it again, and with a short limit so a slow
+        // provider cannot hold the whole dashboard (a late answer is still cached by the probe for the next check).
+        var reservedTask = elevated && HealthRules.IsLowSpace(snapshot.SystemDriveFree, snapshot.SystemDriveTotal)
+            ? Probe.RunAsync("зарезервированное хранилище", ReadReservedStorageStateAsync, TimeSpan.FromSeconds(10), (string?)null, ReservedStorageCacheFor) // loc:ignore log-only probe name
+            : Task.FromResult<string?>(null);
+        var trim = await trimTask.ConfigureAwait(false);
+        var (firmware, secureBoot, tpm) = await bootTask.ConfigureAwait(false);
+        var (blocklist, sac) = await kernelTask.ConfigureAwait(false);
+        return snapshot with
+        {
+            TrimDisabled = trim,
+            Elevated = elevated,
+            Firmware = firmware,
+            SecureBootOn = secureBoot,
+            Tpm = tpm,
+            DriverBlocklistEnforced = blocklist,
+            SmartAppControl = sac,
+            Disks = await disksTask.ConfigureAwait(false),
+            Stability = await eventsTask.ConfigureAwait(false),
+            GpuLink = await linkTask.ConfigureAwait(false),
+            ReservedStorageState = await reservedTask.ConfigureAwait(false),
+        };
+    }
+
+    private static SystemSnapshot Collect(SystemProfile p)
+    {
+        var (free, total) = SystemProfile.SystemDriveSpace();
+        var (onAc, energySaver) = Safe(ReadPowerStatus, ((bool?)null, (bool?)null));
+        var (pagefileBytes, pagefileElsewhere) = Safe(ReadPagefiles, ((ulong?)null, (bool?)null));
+        return new SystemSnapshot
+        {
+            Now = DateTime.Now,
+            OsBuild = p.OsBuild,
+            Gpus = p.Gpus,
+            Adapters = Safe(ReadAdapters, []),
+            InstalledGames = Safe(ReadGameNames, []),
+            Uptime = TimeSpan.FromMilliseconds(Environment.TickCount64),
+            IsLaptop = p.IsLaptop,
+            HardwareFactsKnown = p.HardwareFactsKnown,
+            OnBattery = p.IsLaptop && Safe(Lycoris.Modules.Games.GamesNative.IsOnBattery, false),
+            CpuName = p.CpuName,
+            CpuCores = p.CpuCores,
+            RamModules = Safe(ReadRamModules, []),
+            Displays = Safe(DisplayProbe.Read, []),
+            RestoreEnabled = Safe<bool?>(() => RestorePointService.IsEnabled(), null),
+            RestoreBlockedByPolicy = Safe(() => RestorePointService.IsBlockedByPolicy, false),
+            SystemDisk = Safe(() => ReadSystemDisk(free, total), null),
+            SystemDriveFree = free,
+            SystemDriveTotal = total,
+            ProblemDevices = Safe<IReadOnlyList<ProblemDevice>?>(ReadProblemDevices, null),
+            GameModeOn = Safe(ReadGameMode, null),
+            BackgroundRecordingOn = Safe(ReadBackgroundRecording, null),
+            Hags = Safe(ReadHags, HagsState.Unknown),
+            PowerPlan = Safe(ReadPowerPlanKind, PowerPlanKind.Unknown),
+            PowerPlanName = Safe(() => PowerSchemes.GetName(PowerSchemes.GetActive()), ""),
+            OnAcPower = onAc,
+            EnergySaverOn = energySaver,
+            AcPowerMode = Safe(TweakCatalog.ReadAcPowerMode, null),
+            HiberfilBytes = Safe(ReadHiberfilBytes, null),
+            PagefileBytes = pagefileBytes,
+            PagefileOnOtherDrive = pagefileElsewhere,
+            PagefileSystemManaged = Safe(ReadPagefileSystemManaged, null),
+            PendingReboot = Safe(ReadPendingReboot, []),
+            OsDisplayVersion = p.OsDisplayVersion,
+            UpdatePinnedTo = Safe(TweakCatalog.ReadUpdatePinnedTo, null),
+            PrimaryGpu = p.PrimaryGpu,
+            StartupCount = Safe<int?>(() => CountStartupEntries(), null),
+            Vbs = Safe(ReadVbs, VbsState.Unknown),
+        };
+    }
+
+    private static T Safe<T>(Func<T> read, T fallback)
+    {
+        try { return read(); }
+        catch (Exception ex)
+        {
+            Log.Warn("Проверка системы: {0}", ex.Message);
+            return fallback;
+        }
+    }
+
+    // ───────────────────────────── WMI ─────────────────────────────
+
+    private static List<ManagementBaseObject> Query(string wql, string scope = @"\\.\root\cimv2")
+    {
+        var list = new List<ManagementBaseObject>();
+        using var searcher = new ManagementObjectSearcher(new ManagementScope(scope), new ObjectQuery(wql));
+        searcher.Options.Timeout = TimeSpan.FromSeconds(20);
+        foreach (var mo in searcher.Get()) list.Add(mo);
+        return list;
+    }
+
+    public static IReadOnlyList<RamModule> ReadRamModules() =>
+        Query("SELECT PartNumber, Speed, ConfiguredClockSpeed, SMBIOSMemoryType, Capacity, Manufacturer FROM Win32_PhysicalMemory")
+            .Select(mo => new RamModule(
+                (mo["PartNumber"]?.ToString() ?? "").Trim(),
+                ToInt(mo["Speed"]),
+                ToInt(mo["ConfiguredClockSpeed"]),
+                ToInt(mo["SMBIOSMemoryType"]),
+                mo["Capacity"] is { } c ? Convert.ToUInt64(c) : 0,
+                (mo["Manufacturer"]?.ToString() ?? "").Trim()))
+            .ToList();
+
+    private static IReadOnlyList<ProblemDevice> ReadProblemDevices() =>
+        Query("SELECT Name, ConfigManagerErrorCode FROM Win32_PnPEntity WHERE ConfigManagerErrorCode <> 0")
+            .Select(mo => new ProblemDevice((mo["Name"]?.ToString() ?? Loc.T("Неизвестное устройство")).Trim(), ToInt(mo["ConfigManagerErrorCode"])))
+            .ToList();
+
+    private static VbsState ReadVbs()
+    {
+        foreach (var mo in Query("SELECT VirtualizationBasedSecurityStatus, SecurityServicesRunning FROM Win32_DeviceGuard",
+                     @"\\.\root\Microsoft\Windows\DeviceGuard"))
+        {
+            var status = ToInt(mo["VirtualizationBasedSecurityStatus"]);
+            var running = mo["SecurityServicesRunning"] is uint[] arr ? arr : [];
+            if (running.Contains(2u)) return VbsState.MemoryIntegrity;
+            return status == 2 ? VbsState.VbsOnly : VbsState.Off;
+        }
+        return VbsState.Unknown;
+    }
+
+    /// <summary>
+    /// Allocated size of the page files on the system drive in bytes (Win32_PageFileUsage reports MB; null when there is
+    /// none there) and whether any page file lives on another drive — a deliberate move on small SSDs, which must not be
+    /// counted against the system drive nor «repaired» back onto it.
+    /// </summary>
+    private static (ulong? SystemDriveBytes, bool? OnOtherDrive) ReadPagefiles()
+    {
+        ulong sum = 0;
+        var elsewhere = false;
+        foreach (var mo in Query("SELECT Name, AllocatedBaseSize FROM Win32_PageFileUsage"))
+        {
+            var onSystemDrive = mo["Name"] is string name && name.StartsWith(SystemProfile.SystemDrive, StringComparison.OrdinalIgnoreCase);
+            if (!onSystemDrive) { elsewhere = true; continue; }
+            if (mo["AllocatedBaseSize"] is { } mb) sum += Convert.ToUInt64(mb) * 1024UL * 1024UL;
+        }
+        return (sum > 0 ? sum : null, elsewhere);
+    }
+
+    /// <summary>«Автоматически выбирать объём файла подкачки» (Win32_ComputerSystem.AutomaticManagedPagefile).</summary>
+    private static bool? ReadPagefileSystemManaged()
+    {
+        foreach (var mo in Query("SELECT AutomaticManagedPagefile FROM Win32_ComputerSystem"))
+            if (mo["AutomaticManagedPagefile"] is bool b) return b;
+        return null;
+    }
+
+    private static SystemDisk? ReadSystemDisk(ulong free, ulong total)
+    {
+        const string storage = @"\\.\root\Microsoft\Windows\Storage";
+        var letter = SystemProfile.SystemDrive.TrimEnd('\\', ':');
+        if (letter.Length != 1 || !char.IsLetter(letter[0])) return null;
+        foreach (var part in Query($"SELECT DiskNumber FROM MSFT_Partition WHERE DriveLetter = '{letter}'", storage))
+        {
+            var number = Convert.ToUInt32(part["DiskNumber"] ?? 0u);
+            foreach (var d in Query($"SELECT FriendlyName, MediaType, BusType FROM MSFT_PhysicalDisk WHERE DeviceId = '{number}'", storage))
+            {
+                var media = Convert.ToUInt16(d["MediaType"] ?? (ushort)0) switch { 3 => "HDD", 4 => "SSD", 5 => "SCM", _ => "" };
+                var bus = Convert.ToUInt16(d["BusType"] ?? (ushort)0) switch
+                {
+                    17 => "NVMe", 11 => "SATA", 7 => "USB", 8 => "RAID", 10 => "SAS", 3 => "ATA", 18 => "SCM", _ => "",
+                };
+                if (bus == "NVMe" && media.Length == 0) media = "SSD";
+                return new SystemDisk((d["FriendlyName"]?.ToString() ?? "").Trim(), media, bus, free, total);
+            }
+        }
+        return null;
+    }
+
+    private static int ToInt(object? o)
+    {
+        try { return o is null ? 0 : Convert.ToInt32(o); }
+        catch { return 0; }
+    }
+
+    // ───────────────────────────── Registry ─────────────────────────────
+
+    /// <summary>Game Mode: absent or 1 = on (gaming_tweaks.md, `game-mode`).</summary>
+    private static bool? ReadGameMode()
+    {
+        const string key = @"Software\Microsoft\GameBar";
+        var v = RegistryHelper.ReadInt(RegHive.HKCU, key, "AutoGameModeEnabled") ?? RegistryHelper.ReadInt(RegHive.HKCU, key, "AllowAutoGameMode");
+        return v is null || v != 0;
+    }
+
+    /// <summary>"Record what happened": HistoricalCaptureEnabled = 1 means on; absent means off.</summary>
+    private static bool? ReadBackgroundRecording() =>
+        RegistryHelper.ReadInt(RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled") == 1;
+
+    private static IReadOnlyList<string> ReadPendingReboot()
+    {
+        var list = new List<string>();
+        if (RegistryHelper.KeyExists(RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"))
+            list.Add(Loc.T("обслуживание компонентов Windows"));
+        if (RegistryHelper.KeyExists(RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"))
+            list.Add(Loc.T("Центр обновления Windows"));
+        return list;
+    }
+
+    /// <summary>Enabled entries in the Run keys and Startup folders (StartupApproved = Task Manager's switch).</summary>
+    public static int CountStartupEntries()
+    {
+        var n = 0;
+        n += CountRunKey(RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\Run", StartupApproved + @"\Run");
+        n += CountRunKey(RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", StartupApproved + @"\Run");
+        n += CountRunKey(RegHive.HKLM, @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run", StartupApproved + @"\Run32");
+        n += CountFolder(Environment.GetFolderPath(Environment.SpecialFolder.Startup), RegHive.HKCU);
+        n += CountFolder(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup), RegHive.HKLM);
+        n += Lycoris.Modules.Startup.PackagedStartup.Scan().Count(e => e.Enabled); // Store apps (new Teams…), as on АВТОЗАПУСК
+        return n;
+    }
+
+    private static int CountRunKey(RegHive hive, string runPath, string approvedPath)
+    {
+        using var root = RegistryHelper.OpenBase(hive);
+        using var run = root.OpenSubKey(runPath, false);
+        if (run is null) return 0;
+        using var approved = root.OpenSubKey(approvedPath, false);
+        var n = 0;
+        foreach (var name in run.GetValueNames())
+        {
+            if (string.IsNullOrEmpty(name)) continue;
+            if (string.IsNullOrWhiteSpace(run.GetValue(name)?.ToString())) continue;
+            if (HealthRules.IsStartupEntryEnabled(approved?.GetValue(name) as byte[])) n++;
+        }
+        return n;
+    }
+
+    private static int CountFolder(string folder, RegHive hive)
+    {
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return 0;
+        using var root = RegistryHelper.OpenBase(hive);
+        using var approved = root.OpenSubKey(StartupApproved + @"\StartupFolder", false);
+        var n = 0;
+        foreach (var file in new DirectoryInfo(folder).EnumerateFiles())
+        {
+            if ((file.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0) continue;
+            if (file.Name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) continue;
+            if (HealthRules.IsStartupEntryEnabled(approved?.GetValue(file.Name) as byte[])) n++;
+        }
+        return n;
+    }
+
+    // ───────────────────────────── System files on the system drive ─────────────────────────────
+
+    /// <summary>
+    /// hiberfil.sys size from the file attributes (FileInfo reads them through the directory entry; the file itself is
+    /// never opened — it is locked by the kernel anyway). Null = no hibernation file.
+    /// </summary>
+    private static ulong? ReadHiberfilBytes()
+    {
+        var file = new FileInfo(Path.Combine(SystemProfile.SystemDrive, "hiberfil.sys"));
+        return file.Exists && file.Length > 0 ? (ulong)file.Length : null;
+    }
+
+    /// <summary>"Enabled" / "Disabled" from Get-WindowsReservedStorageState (DISM provider, admin only), else null.</summary>
+    private static async Task<string?> ReadReservedStorageStateAsync()
+    {
+        var r = await ProcessRunner.RunPowerShellAsync("(Get-WindowsReservedStorageState).ReservedStorageState",
+            new ProcessRunOptions { Timeout = TimeSpan.FromSeconds(20), LogCommand = false }).ConfigureAwait(false);
+        return HealthRules.ParseReservedStorageState(r.StdOut);
+    }
+
+    // ───────────────────────────── GPU / power / TRIM ─────────────────────────────
+
+    /// <summary>
+    /// GetSystemPowerStatus: (mains power?, energy saver on?). ACLineStatus 1 = online, 0 = offline, 255 = unknown;
+    /// SystemStatusFlag 1 = energy saver («Энергосбережение») is on — on 24H2+ also possible on mains and on desktops.
+    /// </summary>
+    private static (bool? OnAc, bool? EnergySaver) ReadPowerStatus()
+    {
+        if (!GetSystemPowerStatus(out var status)) return (null, null);
+        bool? onAc = status.ACLineStatus switch { 1 => true, 0 => false, _ => null };
+        return (onAc, status.SystemStatusFlag == 1);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SYSTEM_POWER_STATUS
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public int BatteryLifeTime;
+        public int BatteryFullLifeTime;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
+
+    /// <summary>Hardware adapters by LUID (names as the display driver reports them) with their number of display outputs.</summary>
+    private static IReadOnlyList<GpuAdapter> ReadAdapters()
+    {
+        var outputs = DisplayProbe.TargetsPerAdapter();
+        var adapters = D3dkmt.OpenAdapters();
+        try
+        {
+            return adapters.Where(a => !a.IsSoftware && a.Name.Length > 0)
+                .Select(a => new GpuAdapter(a.LuidKey, a.Name, outputs.GetValueOrDefault(a.LuidKey)))
+                .ToList();
+        }
+        finally
+        {
+            D3dkmt.Close(adapters);
+        }
+    }
+
+    /// <summary>Game names from the library cache only: the dashboard never starts a library scan.</summary>
+    private static IReadOnlyList<string> ReadGameNames() =>
+        GameLibrary.LoadCache()?.Games.Select(g => g.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList() ?? [];
+
+    /// <summary>NVML (System32 only, query functions only): BAR1 vs VRAM and the PCIe link of the primary NVIDIA card.</summary>
+    private static GpuLinkFacts? ReadGpuLink(string gpuName)
+    {
+        using var nvml = NvmlSensor.TryCreate(gpuName);
+        if (nvml is null) return null;
+        var l = nvml.ReadLink();
+        return new GpuLinkFacts(gpuName, l.Bar1Total, l.VramTotal, l.CurrentGen, l.CurrentWidth, l.MaxGen, l.MaxWidth, l.GpuMaxGen, l.UnderLoad);
+    }
+
+    /// <summary>HAGS from the WDDM 2.7 caps of every hardware adapter; registry HwSchMode only as a fallback.</summary>
+    private static HagsState ReadHags()
+    {
+        var adapters = D3dkmt.OpenAdapters();
+        try
+        {
+            bool anySupported = false, anyEnabled = false, anyAnswer = false;
+            foreach (var a in adapters.Where(a => !a.IsSoftware))
+            {
+                if (D3dkmt.QueryWddm27Caps(a.Handle) is not { } caps) continue;
+                anyAnswer = true;
+                if ((caps & 0x1) != 0) anySupported = true;
+                if ((caps & 0x2) != 0) anyEnabled = true;
+            }
+            if (anyAnswer)
+                return anyEnabled ? HagsState.On : anySupported ? HagsState.Off : HagsState.Unsupported;
+        }
+        finally
+        {
+            D3dkmt.Close(adapters);
+        }
+
+        if (Environment.OSVersion.Version.Build < 19041) return HagsState.Unsupported;
+        return RegistryHelper.ReadInt(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", "HwSchMode") switch
+        {
+            2 => HagsState.On,
+            1 => HagsState.Off,
+            _ => HagsState.Unknown,
+        };
+    }
+
+    private static PowerPlanKind ReadPowerPlanKind()
+    {
+        var active = PowerSchemes.GetActive();
+        if (active == Guid.Empty) return PowerPlanKind.Unknown;
+        if (active == PowerSchemes.Balanced) return PowerPlanKind.Balanced;
+        if (active == PowerSchemes.HighPerformance) return PowerPlanKind.HighPerformance;
+        if (active == PowerSaverScheme) return PowerPlanKind.PowerSaver;
+        if (active == PowerSchemes.UltimateTemplate || PowerSchemes.FindUltimateCopy() == active) return PowerPlanKind.Ultimate;
+        return PowerPlanKind.Other;
+    }
+
+    /// <summary>"fsutil behavior query DisableDeleteNotify" (read-only, works without admin); registry as a fallback.</summary>
+    private static async Task<bool?> ReadTrimDisabledAsync()
+    {
+        try
+        {
+            var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("fsutil.exe"), ["behavior", "query", "DisableDeleteNotify"],
+                new ProcessRunOptions { Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromSeconds(15), LogCommand = false }).ConfigureAwait(false);
+            if (HealthRules.ParseTrimDisabled(r.StdOut) is { } parsed) return parsed;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"fsutil: {ex.Message}");
+        }
+        return RegistryHelper.ReadInt(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Control\FileSystem", "DisableDeleteNotification") switch
+        {
+            1 => true,
+            0 => false,
+            _ => null,
+        };
+    }
+}

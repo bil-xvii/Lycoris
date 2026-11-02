@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Monolith/Monolith.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/Monolith.Tests/Monolith.Tests.csproj" />
-  </Folder>
-</Solution>

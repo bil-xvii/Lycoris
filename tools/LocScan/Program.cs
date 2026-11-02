@@ -1,12 +1,12 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Monolith.LocScan;
+using Lycoris.LocScan;
 
 // Lycoris localization tool. Wrapper: tools/loc-scan.ps1.  Run `LocScan help` for the commands.
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 var repo = FindRepo();
-var src = Path.Combine(repo, "src", "Monolith");
+var src = Path.Combine(repo, "src", "Lycoris");
 var enDir = Path.Combine(src, "Core", "Localization", "en");
 var stateDir = Path.Combine(repo, "obj", "loc");
 
@@ -17,7 +17,7 @@ return cmd switch
     "check" => Check(args.Length > 1 ? args[1] : "--all"),
     "missing" => Missing(Need(1, "area")),
     "fill" => Fill(Need(1, "area"), Need(2, "json file")),
-    "new" => New(Need(1, "area"), Need(2, "sources (comma-separated globs relative to src/Monolith)")),
+    "new" => New(Need(1, "area"), Need(2, "sources (comma-separated globs relative to src/Lycoris)")),
     _ => Help(),
 };
 
@@ -32,8 +32,8 @@ string Need(int i, string what)
 static string FindRepo()
 {
     var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
-    while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Monolith.slnx"))) dir = dir.Parent;
-    return dir?.FullName ?? throw new InvalidOperationException("Monolith.slnx not found above the current directory");
+    while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Lycoris.slnx"))) dir = dir.Parent;
+    return dir?.FullName ?? throw new InvalidOperationException("Lycoris.slnx not found above the current directory");
 }
 
 int Help()

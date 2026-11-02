@@ -7,9 +7,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SYS=$(dirname "$(readlink -f "$(command -v dotnet)")")
-ROOT="${TMPDIR:-/tmp}/monolith-dnroot"
+ROOT="${TMPDIR:-/tmp}/lycoris-dnroot"
 VER=$(ls "$SYS/shared/Microsoft.NETCore.App" | sort -V | tail -1)
-dotnet build tests/Monolith.Tests/Monolith.Tests.csproj -p:EnableWindowsTargeting=true -v q -nologo >/dev/null
+dotnet build tests/Lycoris.Tests/Lycoris.Tests.csproj -p:EnableWindowsTargeting=true -v q -nologo >/dev/null
 PACK="$HOME/.nuget/packages/microsoft.windowsdesktop.app.runtime.win-x64/$VER/runtimes/win-x64/lib/net10.0"
 [ -d "$PACK" ] || { echo "runtime pack $VER not in the NuGet cache (run dotnet publish -r win-x64 --self-contained once)"; exit 1; }
 if [ ! -d "$ROOT/shared/Microsoft.WindowsDesktop.App/$VER" ]; then
@@ -19,4 +19,4 @@ if [ ! -d "$ROOT/shared/Microsoft.WindowsDesktop.App/$VER" ]; then
   cp "$PACK"/*.dll "$PACK"/*.json "$ROOT/shared/Microsoft.WindowsDesktop.App/$VER/"
   cp "$SYS/dotnet" "$ROOT/dotnet"
 fi
-DOTNET_ROOT="$ROOT" "$ROOT/dotnet" test tests/Monolith.Tests/Monolith.Tests.csproj --no-build -p:EnableWindowsTargeting=true "$@"
+DOTNET_ROOT="$ROOT" "$ROOT/dotnet" test tests/Lycoris.Tests/Lycoris.Tests.csproj --no-build -p:EnableWindowsTargeting=true "$@"

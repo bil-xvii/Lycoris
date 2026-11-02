@@ -28,12 +28,12 @@
 
 ## 2. Что сделано в коде (часть B задания)
 
-1. **Полные сведения о файле** (`src/Monolith/Monolith.csproj`): Company = `Lycoris`, Product, Copyright, FileDescription
+1. **Полные сведения о файле** (`src/Lycoris/Lycoris.csproj`): Company = `Lycoris`, Product, Copyright, FileDescription
    (`Lycoris - Windows optimizer / оптимизатор Windows`), Comments (описание на английском и русском), FileVersion/ProductVersion
    из единственного `<Version>`; убрана добавка хеша коммита в версию продукта. Проверено на собранном exe:
    `Lycoris 1.0.0.0 / 1.0.0, © 2026 Lycoris`.
 2. **Манифест** (`app.manifest`, уже был, проверено, что он внутри exe): `asInvoker` (запуск без UAC; права программа запрашивает сама
-   и только когда нужны), `supportedOS` Windows 10/11, `PerMonitorV2` DPI, `longPathAware`. Иконка `Assets/monolith.ico` вшита
+   и только когда нужны), `supportedOS` Windows 10/11, `PerMonitorV2` DPI, `longPathAware`. Иконка `Assets/lycoris.ico` вшита
    (32×32 читается из exe).
 3. **Параметры публикации**, замеры на этом ПК (сборка `dotnet publish -c Release -r win-x64 --self-contained`):
 

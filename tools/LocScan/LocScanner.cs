@@ -3,7 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Monolith.LocScan;
+namespace Lycoris.LocScan;
 
 /// <summary>What the scanner found in a source file.</summary>
 /// <param name="Key">A Cyrillic literal that goes through Loc / a sink: its text is a translation key.</param>
@@ -315,7 +315,7 @@ public static class Scanner
 
     private static string CalleeBefore(List<Tok> toks, int open)
     {
-        // Loc . T (  → "Loc.T";  Monolith . Core . Log . Warn ( → "Log.Warn" (last two names)
+        // Loc . T (  → "Loc.T";  Lycoris . Core . Log . Warn ( → "Log.Warn" (last two names)
         var names = new List<string>();
         var k = open - 1;
         while (k >= 0 && toks[k].Kind == 'i')

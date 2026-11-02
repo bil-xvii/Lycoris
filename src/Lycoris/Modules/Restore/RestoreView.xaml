@@ -1,0 +1,482 @@
+<UserControl x:Class="Lycoris.Modules.Restore.RestoreView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Lycoris.UI.Controls"
+             xmlns:ui="clr-namespace:Lycoris.UI"
+             xmlns:loc="clr-namespace:Lycoris.UI"
+             xmlns:local="clr-namespace:Lycoris.Modules.Restore"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:RestoreViewModel}">
+    <!--
+        Obvious UI anatomy: header (title · проверено · ОБНОВИТЬ · СОЗДАТЬ ТОЧКУ · pinned primary «ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ»)
+        → filter chips + «ОТКАТИТЬ ВСЁ» with the reason as text → drift line → the list (the only ScrollViewer):
+        journal batches (collapsed, «ПОКАЗАТЬ ЗАПИСИ ▾») + the Windows System Restore card.
+    -->
+    <UserControl.Resources>
+
+        <!-- One journal record -->
+        <DataTemplate x:Key="RecordTemplate" DataType="{x:Type local:RecordItem}">
+            <Border Style="{StaticResource Row}" BorderThickness="0,1,0,0" Padding="12,10,12,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- State marker: ■ active, □ reverted, hatched = revert failed -->
+                    <Rectangle Width="10" Height="10" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,5,0,0">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsReverted}" Value="True">
+                                        <Setter Property="Fill" Value="Transparent" />
+                                        <Setter Property="Stroke" Value="{StaticResource B.Text3}" />
+                                        <Setter Property="StrokeThickness" Value="1.5" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource B.Red}" />
+                                        <Setter Property="Stroke" Value="{StaticResource B.Text}" />
+                                        <Setter Property="StrokeThickness" Value="1" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <WrapPanel>
+                            <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
+                            <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0">
+                                <TextBlock Text="{Binding KindLabel}" />
+                            </Border>
+                            <Border Style="{StaticResource Tag.Hatch}" Margin="0,0,6,0"
+                                    Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{loc:T ИЗМЕНЕНО ВНЕ Lycoris}" />
+                            </Border>
+                            <Border Style="{StaticResource Tag.Hatch}"
+                                    Visibility="{Binding IsMismatch, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{loc:T НЕ СОВПАДАЕТ}" />
+                            </Border>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding Target}" ToolTip="{Binding RawTarget}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                                   Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Style="{StaticResource T.Mono}" Margin="0,6,0,0" TextWrapping="Wrap">
+                            <Run Text="{Binding OldValue, Mode=OneWay}" Foreground="{StaticResource B.Text2}" />
+                            <Run Text="  →  " Foreground="{StaticResource B.Text3}" />
+                            <Run Text="{Binding NewValue, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0">
+                            <Run Text="{Binding Source, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="11.5" />
+                            <Run Text="  ·  " Foreground="{StaticResource B.Text3}" />
+                            <Run Text="{Binding TimeText, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="11.5" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding DriftText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text}" Margin="0,6,0,0"
+                                   Visibility="{Binding IsFailed, Converter={StaticResource BoolToVis}}">
+                            <Run Text="{loc:T Ошибка отката:}" FontWeight="SemiBold" />
+                            <Run Text="{Binding RevertError, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Top" HorizontalAlignment="Right">
+                        <!-- Status = one vocabulary: ИЗМЕНЕНО Lycoris · ОТКАЧЕНО · ОШИБКА ОТКАТА (a filled block, never a button) -->
+                        <Border HorizontalAlignment="Right">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource Tag.Solid}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsReverted}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource B.Surface2}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding StatusText}" />
+                        </Border>
+                        <Button MinWidth="130" Margin="0,10,0,0" HorizontalAlignment="Right"
+                                Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}"
+                                Command="{Binding DataContext.RevertRecordCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{loc:T ОТКАТИТЬ}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource Btn.Primary}" MinWidth="130" Margin="0,8,0,0" HorizontalAlignment="Right"
+                                Visibility="{Binding CanReapply, Converter={StaticResource BoolToVis}}"
+                                Command="{Binding DataContext.ReapplyDriftCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{loc:T ПРИМЕНИТЬ СНОВА}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button MinWidth="130" Margin="0,8,0,0" HorizontalAlignment="Right"
+                                Visibility="{Binding CanShowOwner, Converter={StaticResource BoolToVis}}"
+                                Command="{Binding DataContext.ShowDriftOwnerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{loc:T ПОКАЗАТЬ}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button MinWidth="130" Margin="0,8,0,0" HorizontalAlignment="Right"
+                                Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}"
+                                Command="{Binding DataContext.ForgetDriftCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE711;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{loc:T ЗАБЫТЬ}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Style="{StaticResource T.Caption}" TextAlignment="Right" Margin="0,4,0,0" MaxWidth="150" TextWrapping="Wrap"
+                                   Text="{loc:T Оставить новое значение и не напоминать}"
+                                   Visibility="{Binding IsDrifted, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- Restore point row -->
+        <DataTemplate x:Key="PointTemplate" DataType="{x:Type local:RestorePointItem}">
+            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,11">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" />
+                        <TextBlock Text="{Binding SequenceText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+                    <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding Description}" />
+                    <WrapPanel Margin="0,6,0,0">
+                        <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0"
+                                Visibility="{Binding IsLycoris, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Lycoris" />
+                        </Border>
+                        <Border Style="{StaticResource Tag.Muted}">
+                            <TextBlock Text="{Binding TypeLabel}" />
+                        </Border>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: the pinned primary action is the one the owner asked for first -->
+        <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}"
+                      Checked="{Binding CheckedText}" RefreshCommand="{Binding RefreshCommand}">
+            <c:PageHeader.Actions>
+                <Button Command="{Binding CreateRestorePointCommand}" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{loc:T СОЗДАТЬ ТОЧКУ}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </c:PageHeader.Actions>
+            <c:PageHeader.Primary>
+                <Button Style="{StaticResource Btn.Primary}" Command="{Binding RevertLastBatchCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{loc:T ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </c:PageHeader.Primary>
+        </c:PageHeader>
+
+        <!-- Journal filters (chips) + «ОТКАТИТЬ ВСЁ»; the reason it is grey is the text next to it -->
+        <Grid x:Name="Sec_journal" Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{loc:T ЖУРНАЛ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <RadioButton Style="{StaticResource Chip}" GroupName="JournalFilter"
+                             IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=All}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ВСЕ}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding TotalCount}" /></Border>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Style="{StaticResource Chip}" GroupName="JournalFilter"
+                             IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=Active}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T АКТИВНЫЕ}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding ActiveCount}" /></Border>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Style="{StaticResource Chip}" GroupName="JournalFilter"
+                             IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=Reverted}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{loc:T ОТКАЧЕННЫЕ}" VerticalAlignment="Center" />
+                        <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding RevertedCount}" /></Border>
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding RevertAllNote}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                       MaxHeight="34" TextAlignment="Right" VerticalAlignment="Center" Margin="16,0,12,0"
+                       Visibility="{Binding RevertAllNote, Converter={StaticResource NullToVis}}" ToolTip="{Binding RevertAllNote}" />
+            <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Command="{Binding RevertAllCommand}" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="{loc:T ОТКАТИТЬ ВСЁ}" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource TabBadge}">
+                        <TextBlock Text="{Binding RevertAllCount}" />
+                    </Border>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- Drift: one compact line; the records themselves are tagged in the list below -->
+        <Border x:Name="Sec_drift" Grid.Row="2" Style="{StaticResource Callout}" Padding="0" Margin="0,12,0,0" ui:RoundClip.Content="True"
+                Visibility="{Binding HasDrift, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Rectangle Fill="{StaticResource B.Warning}" />
+                <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="11,9,10,9"
+                           Text="{Binding DriftCount, StringFormat={loc:T 'ИЗМЕНЕНО ВНЕ Lycoris · {0}'}}" />
+                <TextBlock Grid.Column="2" Text="{Binding DriftLine}" Style="{StaticResource T.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
+                           Margin="0,9,10,9" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,10,8">
+                    <Button Margin="0,0,8,0" Command="{Binding ShowDriftedCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T ПОКАЗАТЬ}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn.Primary}" Visibility="{Binding HasReapplicableDrift, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding ReapplyAllDriftCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T ПРИМЕНИТЬ СНОВА ВСЁ}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- The list: the page's only ScrollViewer -->
+        <ScrollViewer x:Name="MainScroll" Grid.Row="3" Margin="0,12,-10,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      Focusable="False">
+            <Grid Margin="0,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="340" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Journal -->
+                <StackPanel x:Name="Sec_last_batch">
+                    <!-- Empty journal / filter matched nothing: one line -->
+                    <Border Style="{StaticResource Card}" Visibility="{Binding IsFilterEmpty, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Rectangle Width="10" Height="10" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" Stroke="{StaticResource B.Text3}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,9,0" />
+                            <TextBlock Text="{Binding FilterEmptyText}" Style="{StaticResource T.Body}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Batches: collapsed by default — header + revert button visible, records behind «ПОКАЗАТЬ ЗАПИСИ ▾» -->
+                    <ItemsControl ItemsSource="{Binding Batches}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:BatchItem}">
+                                <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,10" ui:RoundClip.Content="True">
+                                    <StackPanel>
+                                        <Grid Margin="12,10,12,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,10,0">
+                                                <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" />
+                                                <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
+                                                           FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                    <Rectangle Width="8" Height="8" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Center" Margin="0,1,8,0">
+                                                        <Rectangle.Style>
+                                                            <Style TargetType="Rectangle">
+                                                                <Setter Property="Fill" Value="Transparent" />
+                                                                <Setter Property="Stroke" Value="{StaticResource B.Text3}" />
+                                                                <Setter Property="StrokeThickness" Value="1.5" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding RestorePointCreated}" Value="True">
+                                                                        <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                                                        <Setter Property="Stroke" Value="{x:Null}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Rectangle.Style>
+                                                    </Rectangle>
+                                                    <TextBlock Text="{Binding RestorePointText}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                                <!-- Count = status (a filled block, never white) -->
+                                                <Border HorizontalAlignment="Right">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border" BasedOn="{StaticResource Tag.Solid}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CanRevert}" Value="False">
+                                                                    <Setter Property="Background" Value="{StaticResource B.Surface2}" />
+                                                                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding CountText}" />
+                                                </Border>
+                                                <Button Margin="0,10,0,0" MinWidth="150" HorizontalAlignment="Right"
+                                                        Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.RevertBatchCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                        <TextBlock Text="{loc:T ОТКАТИТЬ ПАКЕТ}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="12,9"
+                                                Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Style="{StaticResource T.Caption}"
+                                                       Text="{loc:T 'В пакете нет записей для отката: действие выполнено напрямую (например, сброс сети), настройки уже были такими или изменение не удалось. Вернуть прежнее состояние можно точкой восстановления, если она создана.'}" />
+                                        </Border>
+                                        <Expander Header="{Binding ExpandText}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Margin="12,0,12,12"
+                                                  Visibility="{Binding IsEmpty, Converter={StaticResource InverseBoolToVis}}">
+                                            <ItemsControl ItemsSource="{Binding Records}" ItemTemplate="{StaticResource RecordTemplate}" Focusable="False" />
+                                        </Expander>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Command="{Binding ShowMoreBatchesCommand}" HorizontalAlignment="Left"
+                            Content="{Binding ShowMoreText}" Visibility="{Binding HasMoreBatches, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+
+                <!-- System Restore -->
+                <StackPanel x:Name="Sec_restore_points" Grid.Column="2">
+                    <Border Style="{StaticResource Card}" Padding="14,12">
+                        <StackPanel>
+                            <TextBlock Text="{loc:T ЗАЩИТА СИСТЕМЫ WINDOWS}" Style="{StaticResource T.Label}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Rectangle Width="14" Height="14" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Center" Margin="0,2,9,0">
+                                    <Rectangle.Style>
+                                        <Style TargetType="Rectangle">
+                                            <Setter Property="Fill" Value="{StaticResource B.Red}" />
+                                            <Setter Property="Stroke" Value="{StaticResource B.Text2}" />
+                                            <Setter Property="StrokeThickness" Value="1" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ProtectionEnabled}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource B.Success}" />
+                                                    <Setter Property="Stroke" Value="{x:Null}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Rectangle.Style>
+                                </Rectangle>
+                                <TextBlock Text="{Binding ProtectionTitle, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" FontSize="24" LineHeight="34" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ProtectionText}" Style="{StaticResource T.Body}" Margin="0,10,0,0" />
+                            <StackPanel Margin="0,10,0,0">
+                                <Button Style="{StaticResource Btn.Primary}" Command="{Binding EnableProtectionCommand}" Margin="0,0,0,8"
+                                        Visibility="{Binding CanOfferEnable, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T ВКЛЮЧИТЬ ЗАЩИТУ}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Command="{Binding ConfigureProtectionCommand}"
+                                            ToolTip="{loc:T SystemPropertiesProtection.exe — «Свойства системы» → «Защита системы»}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE713;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBlock Text="{loc:T НАСТРОИТЬ}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="2" Command="{Binding OpenBackupsCommand}" ToolTip="{Binding BackupsPath}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBlock Text="{loc:T КОПИИ}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                                <Button Command="{Binding OpenSystemRestoreCommand}" Margin="0,8,0,0"
+                                        ToolTip="{loc:T rstrui.exe — мастер «Восстановление системы»}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE81C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T ВОССТАНОВЛЕНИЕ СИСТЕМЫ}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="{loc:T Точка перед изменениями}" Style="{StaticResource T.H3}" />
+                                    <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17"
+                                               Text="{loc:T Lycoris создаёт точку восстановления перед каждым пакетом изменений (если защита включена). Рекомендуется держать включённым.}" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding CreateRestorePoints}" />
+                            </Grid>
+
+                            <Grid Margin="0,14,0,8">
+                                <TextBlock Style="{StaticResource T.Label}" VerticalAlignment="Center">
+                                    <Run Text="{loc:T ТОЧКИ ВОССТАНОВЛЕНИЯ}" /><Run Text="  " /><Run Text="{Binding PointsCountText, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
+                                </TextBlock>
+                            </Grid>
+                            <TextBlock Text="{loc:T Загрузка списка…}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
+                                       Visibility="{Binding PointsLoading, Converter={StaticResource BoolToVis}}" />
+                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,9,0,0"
+                                    Visibility="{Binding PointsMessage, Converter={StaticResource NullToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PointsMessage}" Style="{StaticResource T.Caption}" LineHeight="17" />
+                                    <!-- Read-only: not a disabled button — the click relaunches with rights and shows the list -->
+                                    <Button Command="{Binding ShowPointsCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                            Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE7EF;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBlock Text="{loc:T ПОКАЗАТЬ ТОЧКИ}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                            <ItemsControl ItemsSource="{Binding RestorePoints}" ItemTemplate="{StaticResource PointTemplate}" Focusable="False" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
