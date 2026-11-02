@@ -58,7 +58,7 @@ public static partial class HealthRules
             }
             catch (Exception ex)
             {
-                Log.Warn($"Проверка «{check.Method.Name}» пропущена: {ex.Message}");
+                Log.Warn("Проверка «{0}» пропущена: {1}", check.Method.Name, ex.Message);
             }
         }
         return results;
@@ -137,17 +137,18 @@ public static partial class HealthRules
     {
         var v = AnalyzeRam(s.RamModules);
         if (v is null) return null;
-        var kit = $"{v.Configured} МТ/с{(v.Type.Length > 0 ? " · " + v.Type : "")} · {DashFormat.Count(v.Modules, "модуль", "модуля", "модулей")}";
+        var kit = Loc.Tf("{0} МТ/с{1} · {2}", v.Configured, v.Type.Length > 0 ? " · " + v.Type : "",
+            Loc.N(v.Modules, "{0} модуль", "{0} модуля", "{0} модулей"));
         if (!v.BelowRated)
-            return new("ram-speed", "ПАМЯТЬ НА НОМИНАЛЬНОЙ ЧАСТОТЕ", $"{kit} — частота соответствует маркировке модулей.", CheckSeverity.Ok, 10);
+            return new("ram-speed", Loc.T("ПАМЯТЬ НА НОМИНАЛЬНОЙ ЧАСТОТЕ"), Loc.Tf("{0} — частота соответствует маркировке модулей.", kit), CheckSeverity.Ok, 10);
 
-        var detail = $"Модули рассчитаны на {v.Rated} МТ/с, а работают на {v.Configured} МТ/с. Скорее всего, в BIOS выключен профиль " +
+        var detail = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с. Скорее всего, в BIOS выключен профиль " +
                      "XMP (Intel) или EXPO (AMD) — в играх, чувствительных к памяти, это заметная потеря FPS. Включите профиль в BIOS/UEFI " +
                      "(раздел настроек памяти → XMP/EXPO → сохранить F10). MONOLITH настройки BIOS не меняет; если система станет " +
-                     "нестабильной, верните там значение «Auto».";
+                     "нестабильной, верните там значение «Auto».", v.Rated, v.Configured);
         if (s.IsLaptop)
-            detail += " На ноутбуках профиль часто недоступен — тогда это нормальная работа.";
-        return new("ram-speed", "ПАМЯТЬ РАБОТАЕТ НИЖЕ НОМИНАЛА", detail, s.IsLaptop ? CheckSeverity.Info : CheckSeverity.Warning, 10);
+            detail += " " + Loc.T("На ноутбуках профиль часто недоступен — тогда это нормальная работа.");
+        return new("ram-speed", Loc.T("ПАМЯТЬ РАБОТАЕТ НИЖЕ НОМИНАЛА"), detail, s.IsLaptop ? CheckSeverity.Info : CheckSeverity.Warning, 10);
     }
 
     // ───────────────────────────── Refresh rate ─────────────────────────────
@@ -172,14 +173,14 @@ public static partial class HealthRules
         if (slow.Count == 0)
         {
             if (below.Count > 0) return null; // only the laptop panel is below its maximum: Windows decides, nothing to claim
-            var list = string.Join("; ", s.Displays.Select(d => $"{d.Name} — {d.CurrentHz} Гц при {d.Width}×{d.Height}"));
-            return new("refresh-rate", "ЧАСТОТА ОБНОВЛЕНИЯ МАКСИМАЛЬНАЯ", list + ".", CheckSeverity.Ok, 10);
+            var list = string.Join("; ", s.Displays.Select(d => Loc.Tf("{0} — {1} Гц при {2}×{3}", d.Name, d.CurrentHz, d.Width, d.Height)));
+            return new("refresh-rate", Loc.T("ЧАСТОТА ОБНОВЛЕНИЯ МАКСИМАЛЬНАЯ"), list + ".", CheckSeverity.Ok, 10);
         }
-        var what = string.Join("; ", slow.Select(d => $"{d.Name}: сейчас {d.CurrentHz} Гц, доступно {d.MaxHz} Гц при {d.Width}×{d.Height}"));
-        var detail = what + ". Выберите максимальную частоту в разделе «Устройства и сеть»: MONOLITH переключит её с подтверждением " +
-                     "на экране, а откатить можно там же или в «Восстановлении». Игры и интерфейс станут плавнее.";
-        return new("refresh-rate", "МОНИТОР НЕ НА МАКСИМАЛЬНОЙ ЧАСТОТЕ", detail, CheckSeverity.Warning, 10,
-            new CheckAction(CheckActionKind.FocusDevice, "НАСТРОИТЬ МОНИТОР", "kind:monitor"));
+        var what = string.Join("; ", slow.Select(d => Loc.Tf("{0}: сейчас {1} Гц, доступно {2} Гц при {3}×{4}", d.Name, d.CurrentHz, d.MaxHz, d.Width, d.Height)));
+        var detail = what + ". " + Loc.T("Выберите максимальную частоту в разделе «Устройства и сеть»: MONOLITH переключит её с подтверждением " +
+                     "на экране, а откатить можно там же или в «Восстановлении». Игры и интерфейс станут плавнее.");
+        return new("refresh-rate", Loc.T("МОНИТОР НЕ НА МАКСИМАЛЬНОЙ ЧАСТОТЕ"), detail, CheckSeverity.Warning, 10,
+            new CheckAction(CheckActionKind.FocusDevice, Loc.T("НАСТРОИТЬ МОНИТОР"), "kind:monitor"));
     }
 
     // ───────────────────────────── System Restore ─────────────────────────────
@@ -187,19 +188,19 @@ public static partial class HealthRules
     public static HealthCheckResult? CheckRestore(SystemSnapshot s)
     {
         if (s.RestoreBlockedByPolicy)
-            return new("restore", "ЗАЩИТА СИСТЕМЫ ЗАПРЕЩЕНА ПОЛИТИКОЙ",
-                "Точки восстановления отключены групповой политикой (обычно это решение администратора организации). " +
-                "MONOLITH политики не обходит; собственные изменения по-прежнему откатываются в разделе «Восстановление».",
+            return new("restore", Loc.T("ЗАЩИТА СИСТЕМЫ ЗАПРЕЩЕНА ПОЛИТИКОЙ"),
+                Loc.T("Точки восстановления отключены групповой политикой (обычно это решение администратора организации). " +
+                "MONOLITH политики не обходит; собственные изменения по-прежнему откатываются в разделе «Восстановление»."),
                 CheckSeverity.Info, 15);
         if (s.RestoreEnabled is null) return null;
         if (s.RestoreEnabled == true)
-            return new("restore", "ЗАЩИТА СИСТЕМЫ ВКЛЮЧЕНА",
-                "Точки восстановления создаются — систему можно откатить штатными средствами Windows.", CheckSeverity.Ok, 15);
-        return new("restore", "ЗАЩИТА СИСТЕМЫ ВЫКЛЮЧЕНА",
-            "Windows не создаёт точки восстановления: после неудачного обновления или драйвера откатиться будет не к чему, " +
+            return new("restore", Loc.T("ЗАЩИТА СИСТЕМЫ ВКЛЮЧЕНА"),
+                Loc.T("Точки восстановления создаются — систему можно откатить штатными средствами Windows."), CheckSeverity.Ok, 15);
+        return new("restore", Loc.T("ЗАЩИТА СИСТЕМЫ ВЫКЛЮЧЕНА"),
+            Loc.T("Windows не создаёт точки восстановления: после неудачного обновления или драйвера откатиться будет не к чему, " +
             "а MONOLITH не сможет сделать точку перед своими изменениями. Защита займёт часть диска C: (старые точки удаляются " +
-            "автоматически). Включить её можно в разделе «Восстановление».",
-            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, "ВКЛЮЧИТЬ ЗАЩИТУ", "restore"));
+            "автоматически). Включить её можно в разделе «Восстановление»."),
+            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, Loc.T("ВКЛЮЧИТЬ ЗАЩИТУ"), "restore"));
     }
 
     // ───────────────────────────── Free space ─────────────────────────────
@@ -215,16 +216,16 @@ public static partial class HealthRules
         if (s.SystemDriveTotal == 0) return null;
         var free = s.SystemDriveFree;
         var total = s.SystemDriveTotal;
-        var text = $"Свободно {DashFormat.Size(free)} из {DashFormat.Size(total)} ({DashFormat.Share((double)free / total)}).";
+        var text = Loc.Tf("Свободно {0} из {1} ({2}).", DashFormat.Size(free), DashFormat.Size(total), DashFormat.Share((double)free / total));
         if (!IsLowSpace(free, total))
-            return new("disk-space", "МЕСТА НА СИСТЕМНОМ ДИСКЕ ДОСТАТОЧНО", text, CheckSeverity.Ok, 15);
+            return new("disk-space", Loc.T("МЕСТА НА СИСТЕМНОМ ДИСКЕ ДОСТАТОЧНО"), text, CheckSeverity.Ok, 15);
         var facts = SystemFileFacts(s);
-        return new("disk-space", "НА СИСТЕМНОМ ДИСКЕ МАЛО МЕСТА",
-            text + " Когда места мало, Windows не может установить обновления, а кэш шейдеров и файл подкачки работают хуже. " +
-            "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением MONOLITH покажет, что именно будет удалено." +
+        return new("disk-space", Loc.T("НА СИСТЕМНОМ ДИСКЕ МАЛО МЕСТА"),
+            text + " " + Loc.T("Когда места мало, Windows не может установить обновления, а кэш шейдеров и файл подкачки работают хуже. " +
+            "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением MONOLITH покажет, что именно будет удалено.") +
             (facts.Length > 0 ? " " + facts : ""),
             CheckSeverity.Warning, IsCriticalSpace(free, total) ? 25 : 15,
-            new CheckAction(CheckActionKind.Navigate, "ОЧИСТИТЬ ДИСК", "cleaner"), SystemFileLever(s));
+            new CheckAction(CheckActionKind.Navigate, Loc.T("ОЧИСТИТЬ ДИСК"), "cleaner"), SystemFileLever(s));
     }
 
     /// <summary>
@@ -235,30 +236,32 @@ public static partial class HealthRules
     /// </summary>
     public static string SystemFileFacts(SystemSnapshot s)
     {
-        const string pagefileRepair = "вернуть управление Windows можно пунктом «Файл подкачки: автоматический размер» в разделе «Оптимизация».";
+        var pagefileRepair = Loc.T("вернуть управление Windows можно пунктом «Файл подкачки: автоматический размер» в разделе «Оптимизация».");
         var parts = new List<string>();
         if (s.HiberfilBytes is > 0 and var hib)
-            parts.Add($"hiberfil.sys — {DashFormat.Size(hib)}: файл гибернации и быстрого запуска." + (s.IsLaptop
-                ? " На ноутбуке он нужен: при разряде батареи Windows сохраняет через него работу."
-                : CanOfferHibernationOff(s) ? " Его можно убрать пунктом «Отключить гибернацию» (ЭКСПЕРТ) в разделе «Оптимизация»." : ""));
+            parts.Add(Loc.Tf("hiberfil.sys — {0}: файл гибернации и быстрого запуска.", DashFormat.Size(hib)) + (s.IsLaptop
+                ? " " + Loc.T("На ноутбуке он нужен: при разряде батареи Windows сохраняет через него работу.")
+                : CanOfferHibernationOff(s) ? " " + Loc.T("Его можно убрать пунктом «Отключить гибернацию» (ЭКСПЕРТ) в разделе «Оптимизация».") : ""));
         if (s.PagefileOnOtherDrive == true)
             parts.Add(s.PagefileBytes is > 0 and var shared
-                ? $"pagefile.sys — {DashFormat.Size(shared)}: файл подкачки настроен вручную и размещён ещё и на другом диске — MONOLITH его не трогает."
-                : "Файл подкачки размещён на другом диске — место на системном диске он не занимает.");
+                ? Loc.Tf("pagefile.sys — {0}: файл подкачки настроен вручную и размещён ещё и на другом диске — MONOLITH его не трогает.", DashFormat.Size(shared))
+                : Loc.T("Файл подкачки размещён на другом диске — место на системном диске он не занимает."));
         else if (s.PagefileSystemManaged == false && s.PagefileBytes is > 0 and var manual)
-            parts.Add($"pagefile.sys — {DashFormat.Size(manual)}: размер задан вручную; " + pagefileRepair);
+            parts.Add(Loc.Tf("pagefile.sys — {0}: размер задан вручную; {1}", DashFormat.Size(manual), pagefileRepair));
         else if (s.PagefileSystemManaged == false && s.PagefileOnOtherDrive == false)
-            parts.Add("Файл подкачки отключён — так игры и браузеры падают с нехваткой памяти; вернуть автоматический размер можно пунктом " +
-                      "«Файл подкачки: автоматический размер» в разделе «Оптимизация».");
+            parts.Add(Loc.T("Файл подкачки отключён — так игры и браузеры падают с нехваткой памяти; вернуть автоматический размер можно пунктом " +
+                      "«Файл подкачки: автоматический размер» в разделе «Оптимизация»."));
         else if (s.PagefileSystemManaged == false)
-            parts.Add("Файл подкачки настроен вручную; " + pagefileRepair +
-                      " Если вы сознательно перенесли его на другой диск, этот пункт не нужен.");
+            parts.Add(Loc.Tf("Файл подкачки настроен вручную; {0} Если вы сознательно перенесли его на другой диск, этот пункт не нужен.", pagefileRepair));
         else if (s.PagefileBytes is > 0 and var pf)
-            parts.Add($"pagefile.sys — {DashFormat.Size(pf)}: размером управляет Windows, MONOLITH его не трогает — " +
-                      "отключение или уменьшение файла подкачки приводит к вылетам игр.");
+            parts.Add(Loc.Tf("pagefile.sys — {0}: размером управляет Windows, MONOLITH его не трогает — " +
+                      "отключение или уменьшение файла подкачки приводит к вылетам игр.", DashFormat.Size(pf)));
         if (ReservedStorageOn(s.ReservedStorageState) is { } reserved)
-            parts.Add($"Зарезервированное хранилище {(reserved ? "включено" : "отключено")}: Windows освобождает его сама, когда места мало — " +
-                      "отключать его не нужно, это лишь повышает риск неудачных обновлений.");
+            parts.Add(reserved
+                ? Loc.T("Зарезервированное хранилище включено: Windows освобождает его сама, когда места мало — " +
+                      "отключать его не нужно, это лишь повышает риск неудачных обновлений.")
+                : Loc.T("Зарезервированное хранилище отключено: Windows освобождает его сама, когда места мало — " +
+                      "отключать его не нужно, это лишь повышает риск неудачных обновлений."));
         return string.Join(" ", parts);
     }
 
@@ -269,9 +272,9 @@ public static partial class HealthRules
     public static CheckAction? SystemFileLever(SystemSnapshot s)
     {
         if (CanOfferHibernationOff(s) && s.HiberfilBytes is > 0)
-            return new CheckAction(CheckActionKind.FocusTweak, "ОТКЛЮЧИТЬ ГИБЕРНАЦИЮ", TweakHibernationOff);
+            return new CheckAction(CheckActionKind.FocusTweak, Loc.T("ОТКЛЮЧИТЬ ГИБЕРНАЦИЮ"), TweakHibernationOff);
         if (s.PagefileSystemManaged == false && s.PagefileOnOtherDrive != true)
-            return new CheckAction(CheckActionKind.FocusTweak, "НАСТРОИТЬ ПОДКАЧКУ", TweakPagefileSystemManaged);
+            return new CheckAction(CheckActionKind.FocusTweak, Loc.T("НАСТРОИТЬ ПОДКАЧКУ"), TweakPagefileSystemManaged);
         return null;
     }
 
@@ -309,26 +312,26 @@ public static partial class HealthRules
 
     public static string DeviceErrorText(int code) => code switch
     {
-        1 => "настроено неправильно",
-        3 => "драйвер повреждён",
-        10 => "не удаётся запустить",
-        12 => "не хватает ресурсов",
-        14 => "нужна перезагрузка",
-        18 => "нужно переустановить драйвер",
-        19 => "ошибка конфигурации в реестре",
-        21 => "удаляется",
-        24 => "устройство отсутствует или не готово",
-        28 => "драйвер не установлен",
-        31 => "работает неправильно",
-        32 => "служба драйвера отключена",
-        37 => "драйвер не инициализировался",
-        39 => "драйвер повреждён или отсутствует",
-        41 => "драйвер загружен, но устройство не найдено",
-        43 => "устройство сообщило о сбое",
-        47 => "подготовлено к безопасному извлечению",
-        48 => "драйвер заблокирован",
-        52 => "подпись драйвера не проверена",
-        _ => $"ошибка {code}",
+        1 => Loc.T("настроено неправильно"),
+        3 => Loc.T("драйвер повреждён"),
+        10 => Loc.T("не удаётся запустить"),
+        12 => Loc.T("не хватает ресурсов"),
+        14 => Loc.T("нужна перезагрузка"),
+        18 => Loc.T("нужно переустановить драйвер"),
+        19 => Loc.T("ошибка конфигурации в реестре"),
+        21 => Loc.T("удаляется"),
+        24 => Loc.T("устройство отсутствует или не готово"),
+        28 => Loc.T("драйвер не установлен"),
+        31 => Loc.T("работает неправильно"),
+        32 => Loc.T("служба драйвера отключена"),
+        37 => Loc.T("драйвер не инициализировался"),
+        39 => Loc.T("драйвер повреждён или отсутствует"),
+        41 => Loc.T("драйвер загружен, но устройство не найдено"),
+        43 => Loc.T("устройство сообщило о сбое"),
+        47 => Loc.T("подготовлено к безопасному извлечению"),
+        48 => Loc.T("драйвер заблокирован"),
+        52 => Loc.T("подпись драйвера не проверена"),
+        _ => Loc.Tf("ошибка {0}", code),
     };
 
     public static HealthCheckResult? CheckDevices(SystemSnapshot s)
@@ -336,12 +339,12 @@ public static partial class HealthRules
         if (s.ProblemDevices is null) return null;
         var problems = s.ProblemDevices.Where(d => IsProblemCode(d.Code)).ToList();
         if (problems.Count == 0)
-            return new("devices", "ВСЕ УСТРОЙСТВА РАБОТАЮТ", "Диспетчер устройств не сообщает об ошибках.", CheckSeverity.Ok, 10);
-        var shown = problems.Take(3).Select(d => $"{d.Name} (код {d.Code}: {DeviceErrorText(d.Code)})");
-        var more = problems.Count > 3 ? $" и ещё {problems.Count - 3}" : "";
-        return new("devices", "УСТРОЙСТВА С ОШИБКАМИ",
-            $"{string.Join("; ", shown)}{more}. Чаще всего помогает установка или обновление драйвера в разделе «Драйверы».",
-            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.Navigate, "ИСПРАВИТЬ ДРАЙВЕРЫ", "drivers", "tab:problems"));
+            return new("devices", Loc.T("ВСЕ УСТРОЙСТВА РАБОТАЮТ"), Loc.T("Диспетчер устройств не сообщает об ошибках."), CheckSeverity.Ok, 10);
+        var shown = problems.Take(3).Select(d => Loc.Tf("{0} (код {1}: {2})", d.Name, d.Code, DeviceErrorText(d.Code)));
+        var more = problems.Count > 3 ? Loc.Tf(" и ещё {0}", problems.Count - 3) : "";
+        return new("devices", Loc.T("УСТРОЙСТВА С ОШИБКАМИ"),
+            Loc.Tf("{0}{1}. Чаще всего помогает установка или обновление драйвера в разделе «Драйверы».", string.Join("; ", shown), more),
+            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.Navigate, Loc.T("ИСПРАВИТЬ ДРАЙВЕРЫ"), "drivers", "tab:problems"));
     }
 
     // ───────────────────────────── Gaming settings ─────────────────────────────
@@ -353,14 +356,14 @@ public static partial class HealthRules
     {
         if (s.GameModeOn is null) return null;
         if (s.GameModeOn == true)
-            return new("game-mode", "ИГРОВОЙ РЕЖИМ WINDOWS ВКЛЮЧЁН",
-                "Windows отдаёт приоритет запущенной игре и не ставит драйверы во время игры.", CheckSeverity.Ok, 6);
+            return new("game-mode", Loc.T("ИГРОВОЙ РЕЖИМ WINDOWS ВКЛЮЧЁН"),
+                Loc.T("Windows отдаёт приоритет запущенной игре и не ставит драйверы во время игры."), CheckSeverity.Ok, 6);
         var x3d = IsDualCcdX3D(s.CpuName, s.CpuCores);
-        return new("game-mode", "ИГРОВОЙ РЕЖИМ WINDOWS ВЫКЛЮЧЕН",
-            "Игровой режим Windows отдаёт приоритет игре и не даёт Центру обновления ставить драйверы и показывать уведомления о " +
-            "перезагрузке во время игры." + (x3d ? " На Ryzen X3D с двумя CCD он нужен, чтобы игра попадала на CCD с 3D V-Cache." : "") +
-            " Включается без перезагрузки; отменить можно в разделе «Восстановление».",
-            CheckSeverity.Warning, x3d ? 10 : 6, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakGameMode));
+        return new("game-mode", Loc.T("ИГРОВОЙ РЕЖИМ WINDOWS ВЫКЛЮЧЕН"),
+            Loc.T("Игровой режим Windows отдаёт приоритет игре и не даёт Центру обновления ставить драйверы и показывать уведомления о " +
+            "перезагрузке во время игры.") + (x3d ? " " + Loc.T("На Ryzen X3D с двумя CCD он нужен, чтобы игра попадала на CCD с 3D V-Cache.") : "") +
+            " " + Loc.T("Включается без перезагрузки; отменить можно в разделе «Восстановление»."),
+            CheckSeverity.Warning, x3d ? 10 : 6, new CheckAction(CheckActionKind.ApplyTweak, Loc.T("ВКЛЮЧИТЬ"), TweakGameMode));
     }
 
     /// <summary>RTX 40/50 series: HAGS is required for DLSS Frame Generation there. Same rule as the «hags» tweak.</summary>
@@ -371,16 +374,16 @@ public static partial class HealthRules
         switch (s.Hags)
         {
             case HagsState.On:
-                return new("hags", "АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU ВКЛЮЧЕНО",
-                    "Видеокарта сама управляет очередью кадров; доступна генерация кадров DLSS / FSR.", CheckSeverity.Ok, 6);
+                return new("hags", Loc.T("АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU ВКЛЮЧЕНО"),
+                    Loc.T("Видеокарта сама управляет очередью кадров; доступна генерация кадров DLSS / FSR."), CheckSeverity.Ok, 6);
             case HagsState.Off:
                 var rtx = IsRtx40Or50(s.PrimaryGpu?.Name);
-                return new("hags", "АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU ВЫКЛЮЧЕНО",
-                    "Видеокарта может сама планировать очередь кадров и разгрузить процессор." +
-                    (rtx ? " На RTX 40/50 это обязательно для генерации кадров DLSS." : "") +
-                    " Прирост FPS обычно в пределах ±5 %; при редких микрофризах его можно выключить обратно. Нужна перезагрузка.",
+                return new("hags", Loc.T("АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU ВЫКЛЮЧЕНО"),
+                    Loc.T("Видеокарта может сама планировать очередь кадров и разгрузить процессор.") +
+                    (rtx ? " " + Loc.T("На RTX 40/50 это обязательно для генерации кадров DLSS.") : "") +
+                    " " + Loc.T("Прирост FPS обычно в пределах ±5 %; при редких микрофризах его можно выключить обратно. Нужна перезагрузка."),
                     rtx ? CheckSeverity.Warning : CheckSeverity.Info, 6,
-                    new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", rtx ? TweakHags : TweakHagsOther));
+                    new CheckAction(CheckActionKind.ApplyTweak, Loc.T("ВКЛЮЧИТЬ"), rtx ? TweakHags : TweakHagsOther));
             default:
                 return null; // unsupported by the GPU / driver, or unknown
         }
@@ -390,11 +393,11 @@ public static partial class HealthRules
     {
         if (s.BackgroundRecordingOn is null) return null;
         if (s.BackgroundRecordingOn == false)
-            return new("gamedvr", "ФОНОВАЯ ЗАПИСЬ ИГР ВЫКЛЮЧЕНА", "Game Bar не тратит ресурсы на постоянную запись видео.", CheckSeverity.Ok, 5);
-        return new("gamedvr", "ФОНОВАЯ ЗАПИСЬ ИГР ВКЛЮЧЕНА",
-            "Xbox Game Bar постоянно записывает последние минуты игры. Кодирование видео отнимает 1–5 % FPS и часть видеопамяти. " +
-            "После выключения скриншоты, Game Bar и игровой режим продолжают работать; отменить можно в разделе «Восстановление».",
-            CheckSeverity.Warning, 5, new CheckAction(CheckActionKind.ApplyTweak, "ВЫКЛЮЧИТЬ", TweakGameDvr));
+            return new("gamedvr", Loc.T("ФОНОВАЯ ЗАПИСЬ ИГР ВЫКЛЮЧЕНА"), Loc.T("Game Bar не тратит ресурсы на постоянную запись видео."), CheckSeverity.Ok, 5);
+        return new("gamedvr", Loc.T("ФОНОВАЯ ЗАПИСЬ ИГР ВКЛЮЧЕНА"),
+            Loc.T("Xbox Game Bar постоянно записывает последние минуты игры. Кодирование видео отнимает 1–5 % FPS и часть видеопамяти. " +
+            "После выключения скриншоты, Game Bar и игровой режим продолжают работать; отменить можно в разделе «Восстановление»."),
+            CheckSeverity.Warning, 5, new CheckAction(CheckActionKind.ApplyTweak, Loc.T("ВЫКЛЮЧИТЬ"), TweakGameDvr));
     }
 
     // ───────────────────────────── Power plan (informational) ─────────────────────────────
@@ -404,17 +407,17 @@ public static partial class HealthRules
         // Energy saver on mains power hides a performance loss behind any plan (read from GetSystemPowerStatus; on
         // 24H2+ it can be «always on», desktops included). No tweak controls it: the button opens the Settings page.
         if (s.EnergySaverOn == true && s.OnAcPower == true)
-            return new("power-plan", "ВКЛЮЧЕНО ЭНЕРГОСБЕРЕЖЕНИЕ ПРИ ПИТАНИИ ОТ СЕТИ",
-                "Режим энергосбережения включён, хотя компьютер работает от сети: яркость снижена на 30 %, прозрачность отключена, " +
+            return new("power-plan", Loc.T("ВКЛЮЧЕНО ЭНЕРГОСБЕРЕЖЕНИЕ ПРИ ПИТАНИИ ОТ СЕТИ"),
+                Loc.T("Режим энергосбережения включён, хотя компьютер работает от сети: яркость снижена на 30 %, прозрачность отключена, " +
                 "режим питания заблокирован на «Максимальная эффективность». Для игр и тяжёлых программ это потеря производительности " +
                 "без каких-либо признаков. В Windows 11 24H2+ его можно включить «всегда», в том числе на настольном ПК. " +
-                "Отключается в Параметрах → Система → Питание.",
+                "Отключается в Параметрах → Система → Питание."),
                 s.IsLaptop ? CheckSeverity.Info : CheckSeverity.Warning, s.IsLaptop ? 5 : 8,
-                new CheckAction(CheckActionKind.OpenUri, "ОТКРЫТЬ ПАРАМЕТРЫ ПИТАНИЯ", PowerSettingsUri));
+                new CheckAction(CheckActionKind.OpenUri, Loc.T("ОТКРЫТЬ ПАРАМЕТРЫ ПИТАНИЯ"), PowerSettingsUri));
 
         if (s.PowerPlan == PowerPlanKind.Unknown) return null;
         var name = string.IsNullOrWhiteSpace(s.PowerPlanName) ? "—" : s.PowerPlanName;
-        var title = $"ПЛАН ПИТАНИЯ «{name.ToUpperInvariant()}»";
+        var title = Loc.Tf("ПЛАН ПИТАНИЯ «{0}»", name.ToUpperInvariant());
         var isX3D = s.CpuName.Contains("X3D", StringComparison.OrdinalIgnoreCase);
         var balanced = s.PowerPlan == PowerPlanKind.Balanced;
 
@@ -424,49 +427,49 @@ public static partial class HealthRules
         if (balanced && s.AcPowerMode == Tweaks.TweakCatalog.PowerModeBestEfficiency
             && OptimizeLogic.ParseProfile(AppSettings.Current.LastProfile) != OptimizeProfile.Efficiency && s.EnergySaverOn != true
             && s.OnAcPower != false && !(isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores)))
-            return new("power-plan", "РЕЖИМ ПИТАНИЯ ОТ СЕТИ — «МАКСИМАЛЬНАЯ ЭФФЕКТИВНОСТЬ»",
-                "На сбалансированной схеме выбран режим питания «Максимальная эффективность»: ниже частоты и фоновая активность — " +
-                "тише и экономнее, но для игр это заметная потеря. Если ПК используется для игр, выберите «Максимальная производительность».",
-                CheckSeverity.Info, 5, new CheckAction(CheckActionKind.FocusTweak, "ВЫБРАТЬ РЕЖИМ ПИТАНИЯ", TweakPowerModeBestPerformance));
+            return new("power-plan", Loc.T("РЕЖИМ ПИТАНИЯ ОТ СЕТИ — «МАКСИМАЛЬНАЯ ЭФФЕКТИВНОСТЬ»"),
+                Loc.T("На сбалансированной схеме выбран режим питания «Максимальная эффективность»: ниже частоты и фоновая активность — " +
+                "тише и экономнее, но для игр это заметная потеря. Если ПК используется для игр, выберите «Максимальная производительность»."),
+                CheckSeverity.Info, 5, new CheckAction(CheckActionKind.FocusTweak, Loc.T("ВЫБРАТЬ РЕЖИМ ПИТАНИЯ"), TweakPowerModeBestPerformance));
         // Every suggestion here is the balanced plan; the button only opens its item in «Оптимизация».
-        var open = new CheckAction(CheckActionKind.FocusTweak, "СМЕНИТЬ СХЕМУ ПИТАНИЯ", TweakBalancedPlan);
+        var open = new CheckAction(CheckActionKind.FocusTweak, Loc.T("СМЕНИТЬ СХЕМУ ПИТАНИЯ"), TweakBalancedPlan);
 
         if (isX3D && IsDualCcdX3D(s.CpuName, s.CpuCores))
         {
-            open = new CheckAction(CheckActionKind.FocusTweak, "СМЕНИТЬ СХЕМУ ПИТАНИЯ", TweakBalancedPlanX3D);
+            open = new CheckAction(CheckActionKind.FocusTweak, Loc.T("СМЕНИТЬ СХЕМУ ПИТАНИЯ"), TweakBalancedPlanX3D);
             return balanced
-                ? new("power-plan", title, "Рекомендация AMD для Ryzen X3D с двумя CCD: драйвер правильно переносит игры на CCD с 3D V-Cache.", CheckSeverity.Ok, 8)
+                ? new("power-plan", title, Loc.T("Рекомендация AMD для Ryzen X3D с двумя CCD: драйвер правильно переносит игры на CCD с 3D V-Cache."), CheckSeverity.Ok, 8)
                 : new("power-plan", title,
-                    "На Ryzen X3D с двумя CCD драйвер AMD переносит игры на CCD с 3D V-Cache только в «Сбалансированном» " +
-                    "плане — так рекомендует AMD. В текущем плане эта логика может не срабатывать. Включить его можно в разделе «Оптимизация».",
+                    Loc.T("На Ryzen X3D с двумя CCD драйвер AMD переносит игры на CCD с 3D V-Cache только в «Сбалансированном» " +
+                    "плане — так рекомендует AMD. В текущем плане эта логика может не срабатывать. Включить его можно в разделе «Оптимизация»."),
                     CheckSeverity.Info, 8, open);
         }
         if (isX3D)
         {
             return balanced
-                ? new("power-plan", title, "Рекомендация AMD для Ryzen X3D: меньше нагрев и энергопотребление в простое без потери FPS.", CheckSeverity.Ok, 0)
+                ? new("power-plan", title, Loc.T("Рекомендация AMD для Ryzen X3D: меньше нагрев и энергопотребление в простое без потери FPS."), CheckSeverity.Ok, 0)
                 : new("power-plan", title,
-                    "У Ryzen X3D с одним CCD выбор плана почти не влияет на FPS. AMD рекомендует «Сбалансированный» — " +
-                    "он снижает нагрев и энергопотребление в простое; «Высокая производительность» вреда не наносит.",
+                    Loc.T("У Ryzen X3D с одним CCD выбор плана почти не влияет на FPS. AMD рекомендует «Сбалансированный» — " +
+                    "он снижает нагрев и энергопотребление в простое; «Высокая производительность» вреда не наносит."),
                     CheckSeverity.Info, 0, open);
         }
         if (s.IsLaptop)
         {
             return s.PowerPlan is PowerPlanKind.HighPerformance or PowerPlanKind.Ultimate
                 ? new("power-plan", title,
-                    "На ноутбуке этот план быстрее разряжает батарею и сильнее греет корпус, а прирост в играх обычно 0–2 %. " +
-                    "Для работы от батареи лучше «Сбалансированный».", CheckSeverity.Info, 5, open)
-                : new("power-plan", title, "Подходит для ноутбука: баланс производительности и времени работы от батареи.", CheckSeverity.Ok, 5);
+                    Loc.T("На ноутбуке этот план быстрее разряжает батарею и сильнее греет корпус, а прирост в играх обычно 0–2 %. " +
+                    "Для работы от батареи лучше «Сбалансированный»."), CheckSeverity.Info, 5, open)
+                : new("power-plan", title, Loc.T("Подходит для ноутбука: баланс производительности и времени работы от батареи."), CheckSeverity.Ok, 5);
         }
         return s.PowerPlan switch
         {
             PowerPlanKind.PowerSaver => new("power-plan", title,
-                "«Экономия энергии» ограничивает частоту процессора — в играх и тяжёлых программах это заметно. " +
-                "Для настольного ПК подойдёт «Сбалансированный» или «Высокая производительность».", CheckSeverity.Info, 8, open),
+                Loc.T("«Экономия энергии» ограничивает частоту процессора — в играх и тяжёлых программах это заметно. " +
+                "Для настольного ПК подойдёт «Сбалансированный» или «Высокая производительность»."), CheckSeverity.Info, 8, open),
             PowerPlanKind.HighPerformance or PowerPlanKind.Ultimate => new("power-plan", title,
-                "Процессор держит высокие частоты без задержки на разгон; энергопотребление в простое выше.", CheckSeverity.Ok, 5),
+                Loc.T("Процессор держит высокие частоты без задержки на разгон; энергопотребление в простое выше."), CheckSeverity.Ok, 5),
             _ => new("power-plan", title,
-                "Подходит для большинства задач. «Высокая производительность» на настольном ПК даёт 0–2 % FPS ценой энергопотребления в простое.",
+                Loc.T("Подходит для большинства задач. «Высокая производительность» на настольном ПК даёт 0–2 % FPS ценой энергопотребления в простое."),
                 CheckSeverity.Ok, 5),
         };
     }
@@ -478,20 +481,20 @@ public static partial class HealthRules
         if (s.Uptime <= TimeSpan.Zero) return null;
         var days = (int)s.Uptime.TotalDays;
         if (days < UptimeDaysLimit)
-            return new("uptime", "ВРЕМЯ РАБОТЫ В НОРМЕ", $"Система работает {DashFormat.Duration(s.Uptime)} без перезагрузки.", CheckSeverity.Ok, 4);
-        return new("uptime", $"БЕЗ ПЕРЕЗАГРУЗКИ {DashFormat.Count(days, "ДЕНЬ", "ДНЯ", "ДНЕЙ")}",
-            "За долгую работу копятся утечки памяти в драйверах и программах, а часть обновлений ждёт перезапуска. " +
+            return new("uptime", Loc.T("ВРЕМЯ РАБОТЫ В НОРМЕ"), Loc.Tf("Система работает {0} без перезагрузки.", DashFormat.Duration(s.Uptime)), CheckSeverity.Ok, 4);
+        return new("uptime", Loc.Tf("БЕЗ ПЕРЕЗАГРУЗКИ {0}", Loc.N(days, "{0} ДЕНЬ", "{0} ДНЯ", "{0} ДНЕЙ")),
+            Loc.T("За долгую работу копятся утечки памяти в драйверах и программах, а часть обновлений ждёт перезапуска. " +
             "Сохраните работу и выберите именно «Перезагрузка»: при включённом быстром запуске «Завершение работы» " +
-            "систему полностью не перезапускает.", CheckSeverity.Warning, 4);
+            "систему полностью не перезапускает."), CheckSeverity.Warning, 4);
     }
 
     public static HealthCheckResult? CheckPendingReboot(SystemSnapshot s)
     {
         if (s.PendingReboot.Count == 0)
-            return new("pending-reboot", "НЕЗАВЕРШЁННЫХ ОБНОВЛЕНИЙ НЕТ", "Windows не ждёт перезагрузки для установки обновлений.", CheckSeverity.Ok, 6);
-        return new("pending-reboot", "ОЖИДАЕТСЯ ПЕРЕЗАГРУЗКА",
-            $"Перезапуска ждут: {string.Join(", ", s.PendingReboot)}. До перезагрузки часть исправлений не действует, " +
-            "а установка драйверов и обновлений может завершиться ошибкой.", CheckSeverity.Warning, 6);
+            return new("pending-reboot", Loc.T("НЕЗАВЕРШЁННЫХ ОБНОВЛЕНИЙ НЕТ"), Loc.T("Windows не ждёт перезагрузки для установки обновлений."), CheckSeverity.Ok, 6);
+        return new("pending-reboot", Loc.T("ОЖИДАЕТСЯ ПЕРЕЗАГРУЗКА"),
+            Loc.Tf("Перезапуска ждут: {0}. До перезагрузки часть исправлений не действует, " +
+            "а установка драйверов и обновлений может завершиться ошибкой.", string.Join(", ", s.PendingReboot)), CheckSeverity.Warning, 6);
     }
 
     // ───────────────────────────── Windows Update: pinned version ─────────────────────────────
@@ -505,28 +508,28 @@ public static partial class HealthRules
     {
         if (string.IsNullOrWhiteSpace(s.UpdatePinnedTo)) return null;
         var v = s.UpdatePinnedTo.Trim();
-        var open = new CheckAction(CheckActionKind.FocusTweak, "НАСТРОИТЬ ЗАКРЕПЛЕНИЕ", TweakUpdatePin);
+        var open = new CheckAction(CheckActionKind.FocusTweak, Loc.T("НАСТРОИТЬ ЗАКРЕПЛЕНИЕ"), TweakUpdatePin);
         // The policy names another version than the installed one (Microsoft moved the PC on after the 60-day gap, or the
         // user upgraded): the installed version is serviced on its own schedule, so no «without updates» warning — the pin
         // is simply stale and only blocks the next yearly update.
         var installed = s.OsDisplayVersion.Trim();
         if (installed.Length > 0 && !string.Equals(installed, v, StringComparison.OrdinalIgnoreCase))
-            return new("update-pin", "ЗАКРЕПЛЕНИЕ ВЕРСИИ WINDOWS УСТАРЕЛО",
-                $"Политика закрепляет Windows 11 {v}, а установлена {installed} — закрепление больше не действует как задумано, но " +
+            return new("update-pin", Loc.T("ЗАКРЕПЛЕНИЕ ВЕРСИИ WINDOWS УСТАРЕЛО"),
+                Loc.Tf("Политика закрепляет Windows 11 {0}, а установлена {1} — закрепление больше не действует как задумано, но " +
                 "задержит следующее крупное обновление. Снимите его: откат пункта в «Оптимизации» или удаление политики, если её " +
-                "задали не через MONOLITH.", CheckSeverity.Info, 0, open);
+                "задали не через MONOLITH.", v, installed), CheckSeverity.Info, 0, open);
         if (Tweaks.TweakCatalog.KnownRelease(v) is not { } eos)
-            return new("update-pin", "ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА",
-                $"Windows 11 {v} закреплена политикой, дата поддержки неизвестна (этой версии нет в списке MONOLITH). Крупные обновления " +
-                "не приходят, пока закрепление не снято.", CheckSeverity.Info, 0, open);
+            return new("update-pin", Loc.T("ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА"),
+                Loc.Tf("Windows 11 {0} закреплена политикой, дата поддержки неизвестна (этой версии нет в списке MONOLITH). Крупные обновления " +
+                "не приходят, пока закрепление не снято.", v), CheckSeverity.Info, 0, open);
         var date = Tweaks.TweakCatalog.DateText(eos);
         var daysLeft = eos.DayNumber - DateOnly.FromDateTime(s.Now).DayNumber;
         if (daysLeft <= UpdatePinWarnDays)
-            return new("update-pin", "ЗАКРЕПЛЁННАЯ ВЕРСИЯ WINDOWS СКОРО БЕЗ ОБНОВЛЕНИЙ",
-                $"Windows 11 {v} закреплена политикой и получает обновления до {date}. После этой даты до двух месяцев обновлений " +
-                "безопасности может не быть. Снимите закрепление в «Оптимизации» (откат пункта).", CheckSeverity.Warning, 10, open);
-        return new("update-pin", "ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА",
-            $"Windows 11 {v} закреплена политикой и получает обновления до {date}. Крупные обновления не приходят, пока закрепление не снято.",
+            return new("update-pin", Loc.T("ЗАКРЕПЛЁННАЯ ВЕРСИЯ WINDOWS СКОРО БЕЗ ОБНОВЛЕНИЙ"),
+                Loc.Tf("Windows 11 {0} закреплена политикой и получает обновления до {1}. После этой даты до двух месяцев обновлений " +
+                "безопасности может не быть. Снимите закрепление в «Оптимизации» (откат пункта).", v, date), CheckSeverity.Warning, 10, open);
+        return new("update-pin", Loc.T("ВЕРСИЯ WINDOWS ЗАКРЕПЛЕНА"),
+            Loc.Tf("Windows 11 {0} закреплена политикой и получает обновления до {1}. Крупные обновления не приходят, пока закрепление не снято.", v, date),
             CheckSeverity.Info, 0, open);
     }
 
@@ -549,11 +552,11 @@ public static partial class HealthRules
         if (s.TrimDisabled is null) return null;
         if (s.SystemDisk is { } disk && !disk.IsSsd) return null; // TRIM matters for SSDs only
         if (s.TrimDisabled == false)
-            return new("trim", "TRIM ВКЛЮЧЁН", "SSD получает команды очистки освобождённых блоков — скорость записи не деградирует.", CheckSeverity.Ok, 10);
-        return new("trim", "TRIM ВЫКЛЮЧЕН",
-            "SSD не получает команды очистки освобождённых блоков: со временем запись замедляется, а износ растёт. " +
-            "Обычно его выключают сторонние «твикеры». Кнопка включает его через журнал MONOLITH — откат вернёт прежнее значение.",
-            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", TweakTrim));
+            return new("trim", Loc.T("TRIM ВКЛЮЧЁН"), Loc.T("SSD получает команды очистки освобождённых блоков — скорость записи не деградирует."), CheckSeverity.Ok, 10);
+        return new("trim", Loc.T("TRIM ВЫКЛЮЧЕН"),
+            Loc.T("SSD не получает команды очистки освобождённых блоков: со временем запись замедляется, а износ растёт. " +
+            "Обычно его выключают сторонние «твикеры». Кнопка включает его через журнал MONOLITH — откат вернёт прежнее значение."),
+            CheckSeverity.Warning, 10, new CheckAction(CheckActionKind.ApplyTweak, Loc.T("ВКЛЮЧИТЬ"), TweakTrim));
     }
 
     // ───────────────────────────── GPU driver ─────────────────────────────
@@ -605,12 +608,13 @@ public static partial class HealthRules
         if (gpu.DriverDate is not { Year: > 2000 } date) return null;
         var version = DriverVersionText(gpu);
         if (!IsDriverOutdated(date, s.Now))
-            return new("gpu-driver", "ДРАЙВЕР ВИДЕОКАРТЫ СВЕЖИЙ",
-                $"{gpu.Name}: версия {version} от {DashFormat.Date(date)}.", CheckSeverity.Ok, 6);
-        return new("gpu-driver", "ДРАЙВЕР ВИДЕОКАРТЫ УСТАРЕЛ",
-            $"{gpu.Name}: версия {version} от {DashFormat.Date(date)} — ему {DashFormat.Age(date, s.Now)}. " +
+            return new("gpu-driver", Loc.T("ДРАЙВЕР ВИДЕОКАРТЫ СВЕЖИЙ"),
+                Loc.Tf("{0}: версия {1} от {2}.", gpu.Name, version, DashFormat.Date(date)), CheckSeverity.Ok, 6);
+        return new("gpu-driver", Loc.T("ДРАЙВЕР ВИДЕОКАРТЫ УСТАРЕЛ"),
+            Loc.Tf("{0}: версия {1} от {2} — ему {3}. " +
             "Новые драйверы исправляют ошибки и ускоряют свежие игры. Проверьте обновление в разделе «Драйверы».",
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "ПРОВЕРИТЬ ДРАЙВЕР", "drivers", "tab:overview"));
+            gpu.Name, version, DashFormat.Date(date), DashFormat.Age(date, s.Now)),
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ДРАЙВЕР"), "drivers", "tab:overview"));
     }
 
     // ───────────────────────────── Startup ─────────────────────────────
@@ -624,12 +628,12 @@ public static partial class HealthRules
     public static HealthCheckResult? CheckStartup(SystemSnapshot s)
     {
         if (s.StartupCount is not { } n) return null;
-        var count = DashFormat.Count(n, "программа", "программы", "программ");
+        var count = Loc.N(n, "{0} программа", "{0} программы", "{0} программ");
         if (n <= StartupLimit)
-            return new("startup", "АВТОЗАПУСК В НОРМЕ", $"Вместе с Windows запускается {count}.", CheckSeverity.Ok, 6);
-        return new("startup", "МНОГО ПРОГРАММ В АВТОЗАПУСКЕ",
-            $"Вместе с Windows запускается {count}. Каждая замедляет вход в систему и работает в фоне. Отключите лишние " +
-            "в разделе «Автозапуск и службы» — это обратимо, программы не удаляются.",
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, "ОТКЛЮЧИТЬ ЛИШНЕЕ", "startup"));
+            return new("startup", Loc.T("АВТОЗАПУСК В НОРМЕ"), Loc.Tf("Вместе с Windows запускается {0}.", count), CheckSeverity.Ok, 6);
+        return new("startup", Loc.T("МНОГО ПРОГРАММ В АВТОЗАПУСКЕ"),
+            Loc.Tf("Вместе с Windows запускается {0}. Каждая замедляет вход в систему и работает в фоне. Отключите лишние " +
+            "в разделе «Автозапуск и службы» — это обратимо, программы не удаляются.", count),
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("ОТКЛЮЧИТЬ ЛИШНЕЕ"), "startup"));
     }
 }

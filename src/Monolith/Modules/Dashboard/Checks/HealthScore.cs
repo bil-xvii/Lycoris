@@ -25,19 +25,19 @@ public static class HealthScore
     /// <summary>Verdict word for the gauge.</summary>
     public static string Verdict(int score) => score switch
     {
-        >= 90 => "ОТЛИЧНО",
-        >= 70 => "ХОРОШО",
-        _ => "ТРЕБУЕТ ВНИМАНИЯ",
+        >= 90 => Loc.T("ОТЛИЧНО"),
+        >= 70 => Loc.T("ХОРОШО"),
+        _ => Loc.T("ТРЕБУЕТ ВНИМАНИЯ"),
     };
 
     /// <summary>One-line explanation under the verdict.</summary>
     public static string Summary(int warnings, int infos)
     {
-        if (warnings == 0 && infos == 0) return "Все проверки пройдены. Система настроена правильно.";
-        if (warnings == 0) return "Проблем не найдено. Есть рекомендации — их стоит прочитать.";
+        if (warnings == 0 && infos == 0) return Loc.T("Все проверки пройдены. Система настроена правильно.");
+        if (warnings == 0) return Loc.T("Проблем не найдено. Есть рекомендации — их стоит прочитать.");
         return warnings == 1
-            ? "Найдена одна проблема. Исправление описано ниже."
-            : $"Найдено проблем: {warnings}. Начните с тех, что выше в списке.";
+            ? Loc.T("Найдена одна проблема. Исправление описано ниже.")
+            : Loc.Tf("Найдено проблем: {0}. Начните с тех, что выше в списке.", warnings);
     }
 
     /// <summary>Order for display: warnings first (heaviest first), then information, then OK.</summary>

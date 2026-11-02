@@ -57,13 +57,13 @@ public sealed partial class LaunchTile : ObservableObject
 /// <summary>Pure text and decisions of the launchpad (no UI, no system access): unit-tested.</summary>
 public static class LaunchpadLogic
 {
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
+    private static CultureInfo Ru => Loc.Culture;
 
     // ───────────── ИГРОВОЙ СЕАНС ─────────────
 
     public static TileState Game(bool active) => active
-        ? new("Идёт", "Схема питания и приоритет игры включены", "СТОП", Glyphs.Stop)
-        : new("Выключен", "Схема питания · приоритет игры", "СТАРТ", Glyphs.Play, Primary: true);
+        ? new(Loc.T("Идёт"), Loc.T("Схема питания и приоритет игры включены"), Loc.T("СТОП"), Glyphs.Stop)
+        : new(Loc.T("Выключен"), Loc.T("Схема питания · приоритет игры"), Loc.T("СТАРТ"), Glyphs.Play, Primary: true);
 
     // ───────────── ОПТИМИЗАЦИЯ ─────────────
 
@@ -71,16 +71,16 @@ public static class LaunchpadLogic
     /// <param name="total">Items in the recommended profile.</param>
     public static TileState Optimize(int? toChange, int total) => toChange switch
     {
-        null => new("Проверка…", "Читаем текущие настройки Windows", "ОТКРЫТЬ СПИСОК", Glyphs.OpenExternal),
-        0 => new("Всё применено", $"Рекомендуемый профиль · {total} выбрано", "ОТКРЫТЬ СПИСОК", Glyphs.OpenExternal),
-        { } n => new($"{n} к изменению", $"Рекомендуемый профиль · {total} выбрано", $"ПРИМЕНИТЬ · {n}", Glyphs.Check),
+        null => new(Loc.T("Проверка…"), Loc.T("Читаем текущие настройки Windows"), Loc.T("ОТКРЫТЬ СПИСОК"), Glyphs.OpenExternal),
+        0 => new(Loc.T("Всё применено"), Loc.Tf("Рекомендуемый профиль · {0} выбрано", total), Loc.T("ОТКРЫТЬ СПИСОК"), Glyphs.OpenExternal),
+        { } n => new(Loc.Tf("{0} к изменению", n), Loc.Tf("Рекомендуемый профиль · {0} выбрано", total), Loc.Tf("ПРИМЕНИТЬ · {0}", n), Glyphs.Check),
     };
 
     // ───────────── ОЧИСТКА ─────────────
 
     /// <summary>"654,8" → 654.8; "—" and empty → null.</summary>
     public static double? ParseAmount(string? value) =>
-        double.TryParse(value?.Replace(' ', ' ').Trim(), NumberStyles.Float, Ru, out var v) ? v : null;
+        double.TryParse(value?.Replace(' ', ' ').Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
 
     /// <summary>
     /// <paramref name="selected"/> is what the clean would delete now («654,8 МБ»); <paramref name="found"/> everything the dry run
@@ -88,14 +88,14 @@ public static class LaunchpadLogic
     /// </summary>
     public static TileState Clean(bool working, string selectedValue, string selectedUnit, string foundValue, string foundUnit)
     {
-        if (working) return new("Считаем…", "Анализ только читает диск и ничего не удаляет", "ПРОВЕРИТЬ", Glyphs.Refresh);
+        if (working) return new(Loc.T("Считаем…"), Loc.T("Анализ только читает диск и ничего не удаляет"), Loc.T("ПРОВЕРИТЬ"), Glyphs.Refresh);
         var analysed = ParseAmount(foundValue) is not null;
-        if (!analysed) return new("—", "Анализ ещё не запускался", "ПРОВЕРИТЬ", Glyphs.Refresh);
+        if (!analysed) return new("—", Loc.T("Анализ ещё не запускался"), Loc.T("ПРОВЕРИТЬ"), Glyphs.Refresh);
         var selected = ParseAmount(selectedValue) ?? 0;
         if (selected <= 0)
-            return new("Нечего чистить", $"Найдено {foundValue} {foundUnit}".TrimEnd() + ", в выбранных пунктах — ничего", "ПРОВЕРИТЬ СНОВА", Glyphs.Refresh);
+            return new(Loc.T("Нечего чистить"), Loc.Tf("Найдено {0}, в выбранных пунктах — ничего", $"{foundValue} {foundUnit}".TrimEnd()), Loc.T("ПРОВЕРИТЬ СНОВА"), Glyphs.Refresh);
         var size = $"{selectedValue} {selectedUnit}".TrimEnd();
-        return new(size, $"Найдено всего {foundValue} {foundUnit}".TrimEnd(), $"ОЧИСТИТЬ · {size}", Glyphs.Delete);
+        return new(size, Loc.Tf("Найдено всего {0}", $"{foundValue} {foundUnit}".TrimEnd()), Loc.Tf("ОЧИСТИТЬ · {0}", size), Glyphs.Delete);
     }
 
     /// <summary>The size for the problem row «ОЧИСТИТЬ 654,8 МБ»; null while nothing is known to delete.</summary>
@@ -112,15 +112,15 @@ public static class LaunchpadLogic
         var installedLine = installed.Length > 0 ? installed : "—";
         var detail = new List<string>();
         if (!string.IsNullOrWhiteSpace(gpuName)) detail.Add(gpuName!.Trim());
-        if (driverDate is { Year: > 2000 } d) detail.Add("от " + d.ToString("dd.MM.yyyy", Ru));
+        if (driverDate is { Year: > 2000 } d) detail.Add(Loc.Tf("от {0}", Loc.DateText(d)));
         var info = string.Join(" · ", detail);
         return state switch
         {
-            GpuState.Checking => new(installedLine, "Спрашиваем сайт производителя…", "ПРОВЕРКА…", Glyphs.Refresh),
+            GpuState.Checking => new(installedLine, Loc.T("Спрашиваем сайт производителя…"), Loc.T("ПРОВЕРКА…"), Glyphs.Refresh),
             GpuState.UpdateReady when !string.IsNullOrEmpty(newVersion) =>
-                new(newVersion!, $"Новый драйвер · сейчас {installedLine}", $"СКАЧАТЬ И УСТАНОВИТЬ {newVersion}", Glyphs.Download, Primary: true),
-            GpuState.UpToDate => new(installedLine, "Установлена последняя версия" + (checkedAt is { } t ? $" · {t:HH:mm}" : ""), "ПРОВЕРИТЬ СНОВА", Glyphs.Refresh),
-            _ => new(installedLine, info.Length > 0 ? info : "Версия драйвера видеокарты", "ПРОВЕРИТЬ ВЕРСИЮ", Glyphs.Refresh),
+                new(newVersion!, Loc.Tf("Новый драйвер · сейчас {0}", installedLine), Loc.Tf("СКАЧАТЬ И УСТАНОВИТЬ {0}", newVersion), Glyphs.Download, Primary: true),
+            GpuState.UpToDate => new(installedLine, Loc.T("Установлена последняя версия") + (checkedAt is { } t ? $" · {Loc.TimeText(t)}" : ""), Loc.T("ПРОВЕРИТЬ СНОВА"), Glyphs.Refresh),
+            _ => new(installedLine, info.Length > 0 ? info : Loc.T("Версия драйвера видеокарты"), Loc.T("ПРОВЕРИТЬ ВЕРСИЮ"), Glyphs.Refresh),
         };
     }
 
@@ -129,20 +129,20 @@ public static class LaunchpadLogic
     public static TileState Undo(int activeChanges, string? lastBatchTitle, DateTime? lastBatchAt)
     {
         if (activeChanges <= 0 || lastBatchTitle is null)
-            return new("Нечего откатывать", "Изменений MONOLITH пока нет", "ОТКРЫТЬ ВОССТАНОВЛЕНИЕ", Glyphs.History);
-        var when = lastBatchAt is { } t ? t.ToString("dd.MM HH:mm", Ru) : "Последний пакет";
-        return new(when, $"{lastBatchTitle} · всего {activeChanges} изм.", "ОТКАТИТЬ ПОСЛЕДНЕЕ", Glyphs.Undo);
+            return new(Loc.T("Нечего откатывать"), Loc.T("Изменений MONOLITH пока нет"), Loc.T("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ"), Glyphs.History);
+        var when = lastBatchAt is { } t ? t.ToString(Loc.IsEnglish ? "MMM d, HH:mm" : "dd.MM HH:mm", Ru) : Loc.T("Последний пакет");
+        return new(when, Loc.Tf("{0} · всего {1}", lastBatchTitle, Loc.N(activeChanges, "{0} изм.", "{0} изм.", "{0} изм.")), Loc.T("ОТКАТИТЬ ПОСЛЕДНЕЕ"), Glyphs.Undo);
     }
 
     // ───────────── ПИНГ ─────────────
 
     public static TileState Ping(string? lastResult) => string.IsNullOrWhiteSpace(lastResult)
-        ? new("не измерен", "Роутер · интернет · DNS", "ЗАМЕРИТЬ", Glyphs.Network)
-        : new(lastResult!.Trim(), "Роутер · интернет · DNS", "ЗАМЕРИТЬ СНОВА", Glyphs.Network);
+        ? new(Loc.T("не измерен"), Loc.T("Роутер · интернет · DNS"), Loc.T("ЗАМЕРИТЬ"), Glyphs.Network)
+        : new(lastResult!.Trim(), Loc.T("Роутер · интернет · DNS"), Loc.T("ЗАМЕРИТЬ СНОВА"), Glyphs.Network);
 
     // ───────────── Score strip ─────────────
 
-    public static string FixSafeText(int count) => $"ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ · {count}";
+    public static string FixSafeText(int count) => Loc.Tf("ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ · {0}", count);
 
     /// <summary>The list shown first: problems if any, otherwise advice, otherwise what is fine.</summary>
     public static CheckFilter DefaultFilter(int warnings, int infos) =>
@@ -151,9 +151,9 @@ public static class LaunchpadLogic
     /// <summary>The line shown when the chosen list is empty — says what that means, never a bare void.</summary>
     public static string EmptyText(CheckFilter filter) => filter switch
     {
-        CheckFilter.Warning => "Проблем не найдено — ничего исправлять не нужно.",
-        CheckFilter.Info => "Советов нет: настройки уже подходят этому компьютеру.",
-        _ => "Пока ни одна проверка не завершилась успешно.",
+        CheckFilter.Warning => Loc.T("Проблем не найдено — ничего исправлять не нужно."),
+        CheckFilter.Info => Loc.T("Советов нет: настройки уже подходят этому компьютеру."),
+        _ => Loc.T("Пока ни одна проверка не завершилась успешно."),
     };
 
     /// <summary>The sidebar badge: problems and advice together («2»), null when there are none.</summary>

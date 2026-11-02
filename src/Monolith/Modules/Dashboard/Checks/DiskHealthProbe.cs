@@ -35,7 +35,7 @@ internal static class DiskHealthProbe
                 if (busName == "NVMe" && media.Length == 0) media = "SSD";
                 var name = (disk["FriendlyName"]?.ToString() ?? "").Trim();
                 var status = HealthRules.DiskStatusFromWmi(ToUShort(disk["HealthStatus"]));
-                var health = new DiskHealth(name.Length > 0 ? name : "Накопитель", busName, media, status);
+                var health = new DiskHealth(name.Length > 0 ? name : Loc.T("Накопитель"), busName, media, status);
                 if (elevated) health = ReadCounters(disk, health);
                 list.Add(health);
             }
@@ -69,7 +69,7 @@ internal static class DiskHealthProbe
         }
         catch (Exception ex) when (ex is ManagementException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
-            Log.Warn($"Состояние накопителя «{health.Name}»: счётчики недоступны — {ex.Message}");
+            Log.Warn("Состояние накопителя «{0}»: счётчики недоступны — {1}", health.Name, ex.Message);
         }
         return health; // USB bridges and RAID controllers often report nothing: not an error
     }

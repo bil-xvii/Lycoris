@@ -44,16 +44,16 @@ public static class GamingReadiness
     {
         var on = (value ?? 1) != 0;
         return on
-            ? new ReadinessCheck("ИГРОВОЙ РЕЖИМ WINDOWS", "Включён", ReadinessState.Ok,
-                "Windows отдаёт приоритет запущенной игре и не ставит драйверы во время игры.")
-            : new ReadinessCheck("ИГРОВОЙ РЕЖИМ WINDOWS", "Выключен", ReadinessState.Attention,
-                "Включите в разделе «Оптимизация»: это безопасно и сразу работает при следующем запуске игры.");
+            ? new ReadinessCheck(Loc.T("ИГРОВОЙ РЕЖИМ WINDOWS"), Loc.T("Включён"), ReadinessState.Ok,
+                Loc.T("Windows отдаёт приоритет запущенной игре и не ставит драйверы во время игры."))
+            : new ReadinessCheck(Loc.T("ИГРОВОЙ РЕЖИМ WINDOWS"), Loc.T("Выключен"), ReadinessState.Attention,
+                Loc.T("Включите в разделе «Оптимизация»: это безопасно и сразу работает при следующем запуске игры."));
     }
 
     /// <summary>D3DKMT WDDM_2_7_CAPS first; the HwSchMode registry value (2 on, 1 off) only as a fallback.</summary>
     public static ReadinessCheck Hags(SystemProfile sp)
     {
-        const string title = "АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU";
+        var title = Loc.T("АППАРАТНОЕ ПЛАНИРОВАНИЕ GPU");
         var state = GamesNative.QueryHags();
         if (state == GamesNative.HagsState.Unknown)
         {
@@ -64,16 +64,16 @@ public static class GamingReadiness
         var frameGen = gpu.Contains("RTX 40", StringComparison.OrdinalIgnoreCase) || gpu.Contains("RTX 50", StringComparison.OrdinalIgnoreCase);
         return state switch
         {
-            GamesNative.HagsState.On => new ReadinessCheck(title, "Включено", ReadinessState.Ok,
-                "Нужно для генерации кадров DLSS (Frame Generation). На средний FPS почти не влияет."),
-            GamesNative.HagsState.Off when frameGen => new ReadinessCheck(title, "Выключено", ReadinessState.Attention,
-                "Для RTX 40/50 нужно для генерации кадров DLSS. Включается в «Оптимизации», нужна перезагрузка."),
-            GamesNative.HagsState.Off => new ReadinessCheck(title, "Выключено", ReadinessState.Info,
-                "Прирост FPS в пределах погрешности — включать по желанию."),
-            GamesNative.HagsState.NotSupported => new ReadinessCheck(title, "Не поддерживается", ReadinessState.Info,
-                "Видеокарта или драйвер не поддерживают эту функцию."),
-            _ => new ReadinessCheck(title, "Не удалось определить", ReadinessState.Info,
-                "Драйвер не сообщил состояние; значение реестра не задано (значит, по умолчанию)."),
+            GamesNative.HagsState.On => new ReadinessCheck(title, Loc.T("Включено"), ReadinessState.Ok,
+                Loc.T("Нужно для генерации кадров DLSS (Frame Generation). На средний FPS почти не влияет.")),
+            GamesNative.HagsState.Off when frameGen => new ReadinessCheck(title, Loc.T("Выключено"), ReadinessState.Attention,
+                Loc.T("Для RTX 40/50 нужно для генерации кадров DLSS. Включается в «Оптимизации», нужна перезагрузка.")),
+            GamesNative.HagsState.Off => new ReadinessCheck(title, Loc.T("Выключено"), ReadinessState.Info,
+                Loc.T("Прирост FPS в пределах погрешности — включать по желанию.")),
+            GamesNative.HagsState.NotSupported => new ReadinessCheck(title, Loc.T("Не поддерживается"), ReadinessState.Info,
+                Loc.T("Видеокарта или драйвер не поддерживают эту функцию.")),
+            _ => new ReadinessCheck(title, Loc.T("Не удалось определить"), ReadinessState.Info,
+                Loc.T("Драйвер не сообщил состояние; значение реестра не задано (значит, по умолчанию).")),
         };
     }
 
@@ -82,34 +82,34 @@ public static class GamingReadiness
         BackgroundRecordingFromValue(InteractiveUser.ReadInt(@"Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled"));
 
     public static ReadinessCheck BackgroundRecordingFromValue(int? value) => value == 1
-        ? new ReadinessCheck("ФОНОВАЯ ЗАПИСЬ ИГР", "Включена", ReadinessState.Attention,
-            "Постоянная запись последних минут игры отнимает 1–5 % FPS и видеопамять. Выключается в «Оптимизации».")
-        : new ReadinessCheck("ФОНОВАЯ ЗАПИСЬ ИГР", "Выключена", ReadinessState.Ok,
-            "Видеокарта не тратит ресурсы на постоянную запись.");
+        ? new ReadinessCheck(Loc.T("ФОНОВАЯ ЗАПИСЬ ИГР"), Loc.T("Включена"), ReadinessState.Attention,
+            Loc.T("Постоянная запись последних минут игры отнимает 1–5 % FPS и видеопамять. Выключается в «Оптимизации»."))
+        : new ReadinessCheck(Loc.T("ФОНОВАЯ ЗАПИСЬ ИГР"), Loc.T("Выключена"), ReadinessState.Ok,
+            Loc.T("Видеокарта не тратит ресурсы на постоянную запись."));
 
     public static ReadinessCheck PowerPlan(SystemProfile sp)
     {
-        const string title = "ПЛАН ПИТАНИЯ";
+        var title = Loc.T("ПЛАН ПИТАНИЯ");
         var active = PowerSchemes.GetActive();
-        var name = active == Guid.Empty ? "Не удалось определить" : PowerSchemes.GetName(active);
+        var name = active == Guid.Empty ? Loc.T("Не удалось определить") : PowerSchemes.GetName(active);
         if (BoostPolicy.IsDualCcdX3D(sp.CpuName, sp.CpuCores))
         {
             return active == PowerSchemes.Balanced
                 ? new ReadinessCheck(title, name, ReadinessState.Ok,
-                    "Для Ryzen X3D с двумя CCD AMD рекомендует именно эту схему.")
+                    Loc.T("Для Ryzen X3D с двумя CCD AMD рекомендует именно эту схему."))
                 : new ReadinessCheck(title, name, ReadinessState.Attention,
-                    "Для Ryzen X3D с двумя CCD AMD рекомендует «Сбалансированную»: иначе игра может попасть не на тот CCD.");
+                    Loc.T("Для Ryzen X3D с двумя CCD AMD рекомендует «Сбалансированную»: иначе игра может попасть не на тот CCD."));
         }
         if (active == PowerSchemes.PowerSaver)
             return new ReadinessCheck(title, name, ReadinessState.Attention,
-                "Экономия энергии ограничивает частоты процессора — для игр не подходит.");
+                Loc.T("Экономия энергии ограничивает частоты процессора — для игр не подходит."));
         if (GamesNative.IsOnBattery())
-            return new ReadinessCheck(title, name, ReadinessState.Info, "Ноутбук работает от батареи — для игр подключите зарядку.");
+            return new ReadinessCheck(title, name, ReadinessState.Info, Loc.T("Ноутбук работает от батареи — для игр подключите зарядку."));
         if (active == PowerSchemes.Balanced)
             return new ReadinessCheck(title, name, ReadinessState.Info,
                 BalancedHint(sp.IsLaptop, sp.IsWindows11, sp.IsModernStandby || GamesNative.IsModernStandby(), PowerSchemes.Exists(PowerSchemes.HighPerformance)));
         return new ReadinessCheck(title, name, ReadinessState.Info,
-            "Максимальные частоты процессора; в простое компьютер потребляет больше энергии.");
+            Loc.T("Максимальные частоты процессора; в простое компьютер потребляет больше энергии."));
     }
 
     /// <summary>
@@ -119,38 +119,42 @@ public static class GamingReadiness
     /// </summary>
     public static string BalancedHint(bool laptop, bool windows11, bool modernStandby, bool highPerformanceExists)
     {
-        const string head = "Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS. ";
+        var head = Loc.T("Подходит для игр: разница с «Высокой производительностью» обычно 0–2 % FPS.") + " ";
         if (!laptop && !modernStandby && highPerformanceExists)
-            return head + "Игровой сеанс MONOLITH переключает схему на время игры.";
-        var where = laptop ? "На ноутбуке игровой сеанс MONOLITH" : "Игровой сеанс MONOLITH";
-        return windows11
-            ? head + $"{where} включает режим питания «Максимальная производительность» (от сети) на время игры."
-            : head + $"{where} схему не меняет: режим питания «Максимальная производительность» есть только в Windows 11.";
+            return head + Loc.T("Игровой сеанс MONOLITH переключает схему на время игры.");
+        if (laptop)
+            return head + (windows11
+                ? Loc.T("На ноутбуке игровой сеанс MONOLITH включает режим питания «Максимальная производительность» (от сети) на время игры.")
+                : Loc.T("На ноутбуке игровой сеанс MONOLITH схему не меняет: режим питания «Максимальная производительность» есть только в Windows 11."));
+        return head + (windows11
+            ? Loc.T("Игровой сеанс MONOLITH включает режим питания «Максимальная производительность» (от сети) на время игры.")
+            : Loc.T("Игровой сеанс MONOLITH схему не меняет: режим питания «Максимальная производительность» есть только в Windows 11."));
     }
 
     public static ReadinessCheck Gpu(SystemProfile sp, DateTime now)
     {
         var gpu = sp.PrimaryGpu;
         if (gpu is null)
-            return new ReadinessCheck("ВИДЕОКАРТА", "Не определена", ReadinessState.Info, "Сведения о видеокарте ещё собираются или недоступны.");
+            return new ReadinessCheck(Loc.T("ВИДЕОКАРТА"), Loc.T("Не определена"), ReadinessState.Info, Loc.T("Сведения о видеокарте ещё собираются или недоступны."));
         return GpuFromInfo(gpu.Name, gpu.DriverVersion, gpu.DriverDate, now);
     }
 
     public static ReadinessCheck GpuFromInfo(string name, string version, DateTime? driverDate, DateTime now)
     {
-        const string title = "ВИДЕОКАРТА";
+        var title = Loc.T("ВИДЕОКАРТА");
         var shortName = ShortGpuName(name);
         var ver = string.IsNullOrWhiteSpace(version) ? "" : version.Trim();
         if (driverDate is not { } date || date.Year < 2000)
             return new ReadinessCheck(title, shortName, ReadinessState.Info,
-                $"{name}. Дата драйвера не указана.", ver.Length > 0 ? $"Драйвер {ver}" : null);
+                Loc.Tf("{0}. Дата драйвера не указана.", name), ver.Length > 0 ? Loc.Tf("Драйвер {0}", ver) : null);
         var days = Math.Max(0, (int)(now.Date - date.Date).TotalDays);
-        var detail = $"Драйвер {(ver.Length > 0 ? ver + " · " : "")}{date:dd.MM.yyyy}";
+        var detail = ver.Length > 0 ? Loc.Tf("Драйвер {0} · {1}", ver, Loc.DateText(date)) : Loc.Tf("Драйвер {0}", Loc.DateText(date));
+        var age = Loc.N(days, "{0} день", "{0} дня", "{0} дней");
         return days > DriverAgeAttentionDays
             ? new ReadinessCheck(title, shortName, ReadinessState.Attention,
-                $"Драйверу {days} {GameText.Plural(days, "день", "дня", "дней")} — проверьте обновление в разделе «Драйверы».", detail)
+                Loc.Tf("Драйверу {0} — проверьте обновление в разделе «Драйверы».", age), detail)
             : new ReadinessCheck(title, shortName, ReadinessState.Ok,
-                $"{name}: драйвер установлен {days} {GameText.Plural(days, "день", "дня", "дней")} назад.", detail);
+                Loc.Tf("{0}: драйвер установлен {1} назад.", name, age), detail);
     }
 
     /// <summary>"NVIDIA GeForce RTX 5070 Ti" → "GeForce RTX 5070 Ti"; "AMD Radeon RX 7800 XT" → "Radeon RX 7800 XT".</summary>
@@ -164,7 +168,7 @@ public static class GamingReadiness
     }
 
     /// <summary>The one muted line on the Games page; the full checklist (with fix buttons) is on the Dashboard.</summary>
-    public static string SummaryLine(int passed, int total) => $"Готовность к играм: {passed}/{total} — на Панели";
+    public static string SummaryLine(int passed, int total) => Loc.Tf("Готовность к играм: {0}/{1} — на Панели", passed, total);
 
     /// <summary>(passed, counted): Info checks are not counted.</summary>
     public static (int Passed, int Total) Score(IEnumerable<ReadinessCheck> checks)

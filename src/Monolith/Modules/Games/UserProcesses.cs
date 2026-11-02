@@ -161,7 +161,7 @@ public static class UserProcesses
         try { all = Process.GetProcesses(); }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось получить список процессов: {ex.Message}");
+            Log.Warn("Не удалось получить список процессов: {0}", ex.Message);
             yield break;
         }
 
