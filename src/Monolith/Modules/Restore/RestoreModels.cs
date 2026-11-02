@@ -62,7 +62,7 @@ public sealed partial class BatchItem(JournalGroup group, Func<ChangeRecord, Rec
 
     public string RestorePointText => IsSynthetic
         ? Loc.T("Записи, пакет которых не найден в журнале.")
-        : string.IsNullOrWhiteSpace(Group.Batch.RestorePoint) ? Loc.T("Точка восстановления не создавалась.") : Group.Batch.RestorePoint!;
+        : string.IsNullOrWhiteSpace(Group.Batch.RestorePoint) ? Loc.T("Точка восстановления не создавалась.") : Loc.Sink(Group.Batch.RestorePoint);
 
     public string CountText => TotalCount == 0
         ? Loc.T("НЕТ ЗАПИСЕЙ")
