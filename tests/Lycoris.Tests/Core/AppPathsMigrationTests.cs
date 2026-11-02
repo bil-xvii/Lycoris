@@ -19,24 +19,59 @@ public sealed class AppPathsMigrationTests
 
         Assert.False(Directory.Exists(oldPath));
         Assert.Equal("safe test data", File.ReadAllText(Path.Combine(newPath, "journal.json")));
-        Directory.Delete(_root, true);
+        if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
 
     [Fact]
-    public void Existing_destination_has_priority_and_legacy_is_untouched()
+    public void Existing_destination_merges_missing_data_without_overwriting()
     {
         var oldPath = Path.Combine(_root, "old");
         var newPath = Path.Combine(_root, "new");
         Directory.CreateDirectory(oldPath);
         Directory.CreateDirectory(newPath);
-        File.WriteAllText(Path.Combine(oldPath, "state"), "old");
-        File.WriteAllText(Path.Combine(newPath, "state"), "new");
+        File.WriteAllText(Path.Combine(oldPath, "settings.json"), "legacy settings");
+        Directory.CreateDirectory(Path.Combine(oldPath, "Cache"));
+        File.WriteAllText(Path.Combine(oldPath, "Cache", "cache.dat"), "cache");
+        File.WriteAllText(Path.Combine(newPath, "settings.json"), "current settings");
 
         AppPaths.MigrateDirectory(oldPath, newPath);
 
         Assert.Equal(newPath, AppPaths.ReadDirectory(newPath, oldPath));
-        Assert.Equal("old", File.ReadAllText(Path.Combine(oldPath, "state")));
-        Assert.Equal("new", File.ReadAllText(Path.Combine(newPath, "state")));
+        Assert.Equal("legacy settings", File.ReadAllText(Path.Combine(oldPath, "settings.json")));
+        Assert.Equal("current settings", File.ReadAllText(Path.Combine(newPath, "settings.json")));
+        Assert.Equal("cache", File.ReadAllText(Path.Combine(newPath, "Cache", "cache.dat")));
+        Assert.True(File.Exists(Path.Combine(newPath, ".migrated-from-monolith")));
+        Directory.Delete(_root, true);
+    }
+
+    [Fact]
+    public void Existing_destination_without_settings_copies_legacy_settings()
+    {
+        var oldPath = Path.Combine(_root, "old");
+        var newPath = Path.Combine(_root, "new");
+        Directory.CreateDirectory(oldPath);
+        Directory.CreateDirectory(newPath);
+        File.WriteAllText(Path.Combine(oldPath, "settings.json"), "legacy settings");
+
+        AppPaths.MigrateDirectory(oldPath, newPath);
+
+        Assert.Equal("legacy settings", File.ReadAllText(Path.Combine(newPath, "settings.json")));
+        Directory.Delete(_root, true);
+    }
+
+    [Fact]
+    public void Existing_destination_merge_runs_only_once()
+    {
+        var oldPath = Path.Combine(_root, "old");
+        var newPath = Path.Combine(_root, "new");
+        Directory.CreateDirectory(oldPath);
+        Directory.CreateDirectory(newPath);
+        AppPaths.MigrateDirectory(oldPath, newPath);
+        File.WriteAllText(Path.Combine(oldPath, "later.dat"), "later");
+
+        AppPaths.MigrateDirectory(oldPath, newPath);
+
+        Assert.False(File.Exists(Path.Combine(newPath, "later.dat")));
         Directory.Delete(_root, true);
     }
 
@@ -53,7 +88,7 @@ public sealed class AppPathsMigrationTests
             return; // Symlink creation is unavailable on this test host.
         }
 
-        Assert.Throws<IOException>(() => AppPaths.MigrateDirectory(link, Path.Combine(_root, "new")));
+        AppPaths.MigrateDirectory(link, Path.Combine(_root, "new"));
         Assert.True(Directory.Exists(link));
         Directory.Delete(link);
         Directory.Delete(_root, true);
