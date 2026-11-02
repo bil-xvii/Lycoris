@@ -1,0 +1,9 @@
+{
+  "area": "Games",
+  "translated": false,
+  "sources": [
+    "Modules/Games/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

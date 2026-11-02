@@ -76,7 +76,7 @@ internal static class StabilityProbe
             }
             catch (Exception ex) when (ex is EventLogException or UnauthorizedAccessException or InvalidOperationException)
             {
-                Monolith.Core.Log.Warn($"Журнал событий: {ex.Message}");
+                Monolith.Core.Log.Warn("Журнал событий: {0}", ex.Message);
                 return false;
             }
         }

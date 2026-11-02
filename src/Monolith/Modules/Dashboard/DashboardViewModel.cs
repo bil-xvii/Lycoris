@@ -24,8 +24,8 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     public override string Key => "dashboard";
     public override string Index => "01";
-    public override string Title => "ПАНЕЛЬ";
-    public override string Subtitle => "Что нажать, чтобы ПК был готов к игре.";
+    public override string Title => Loc.Key("ПАНЕЛЬ");
+    public override string Subtitle => Loc.Key("Что нажать, чтобы ПК был готов к игре.");
     public override string Glyph => Glyphs.Home;
 
     public DashboardViewModel()
@@ -79,8 +79,8 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     [ObservableProperty] private int _score;
     [ObservableProperty] private string _scoreText = DashFormat.Missing;
-    [ObservableProperty] private string _verdict = "ПРОВЕРКА…";
-    [ObservableProperty] private string _verdictSummary = "Собираем сведения о системе. Это займёт несколько секунд.";
+    [ObservableProperty] private string _verdict = Loc.T("ПРОВЕРКА…");
+    [ObservableProperty] private string _verdictSummary = Loc.T("Собираем сведения о системе. Это займёт несколько секунд.");
     [ObservableProperty] private string _passedText = "";
     [ObservableProperty] private int _warningCount;
     [ObservableProperty] private int _infoCount;
@@ -114,7 +114,7 @@ public sealed partial class DashboardViewModel : PageViewModel
     private void StartMonitor()
     {
         var ms = Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000);
-        IntervalText = $"ОПРОС {(ms / 1000d).ToString(ms % 1000 == 0 ? "0" : "0.0#", System.Globalization.CultureInfo.GetCultureInfo("ru-RU"))} С";
+        IntervalText = Loc.Tf("ОПРОС {0} С", (ms / 1000d).ToString(ms % 1000 == 0 ? "0" : "0.0#", Loc.Culture));
         _monitor.Start();
     }
 
@@ -144,7 +144,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         DiskLoad = s.DiskPercent ?? 0;
         DiskIoText = s.DiskReadBps is null && s.DiskWriteBps is null
             ? DashFormat.Missing
-            : $"Чтение {DashFormat.Rate(s.DiskReadBps)} · запись {DashFormat.Rate(s.DiskWriteBps)}";
+            : Loc.Tf("Чтение {0} · запись {1}", DashFormat.Rate(s.DiskReadBps), DashFormat.Rate(s.DiskWriteBps));
         if (s.DiskPercent is { } disk) MonitorMath.Push(DiskHistory, disk, HistoryLength);
 
         NetDownText = DashFormat.Rate(s.NetDownBps);
@@ -170,7 +170,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         IsChecking = true;
         try
         {
-            if (showBusy) await RunBusyAsync(OperationClass.Measure, "Проверка системы…", CheckCoreAsync);
+            if (showBusy) await RunBusyAsync(OperationClass.Measure, Loc.Key("Проверка системы…"), CheckCoreAsync);
             else
             {
                 try { await CheckCoreAsync(); }
@@ -199,12 +199,12 @@ public sealed partial class DashboardViewModel : PageViewModel
         OkCount = results.Count(r => r.Severity == CheckSeverity.Ok);
         Score = HealthScore.Calculate(results);
         ScoreText = Score.ToString();
-        Verdict = results.Count == 0 ? "НЕТ ДАННЫХ" : HealthScore.Verdict(Score);
+        Verdict = results.Count == 0 ? Loc.T("НЕТ ДАННЫХ") : HealthScore.Verdict(Score);
         VerdictSummary = results.Count == 0
-            ? "Не удалось прочитать сведения о системе. Подробности — в консоли."
+            ? Loc.T("Не удалось прочитать сведения о системе. Подробности — в консоли.")
             : HealthScore.Summary(WarningCount, InfoCount);
-        PassedText = $"{OkCount} ИЗ {results.Count}";
-        LastCheckText = $"Проверено в {snapshot.Now:HH:mm}";
+        PassedText = Loc.Tf("{0} ИЗ {1}", OkCount, results.Count);
+        LastCheckText = Loc.Tf("Проверено в {0}", Loc.TimeText(snapshot.Now));
         HasResults = results.Count > 0;
         HasIssues = Issues.Any();
         _lastCheck = DateTime.Now;
@@ -217,32 +217,31 @@ public sealed partial class DashboardViewModel : PageViewModel
 
         BuildSystemRows(profile, snapshot);
         UpdateSystemSummary();
-        CpuCoresText = $"{DashFormat.Count(profile.CpuCores, "ядро", "ядра", "ядер")} · {DashFormat.Count(profile.CpuThreads, "поток", "потока", "потоков")}";
+        CpuCoresText = CoresThreads(profile.CpuCores, profile.CpuThreads);
         GpuName = profile.PrimaryGpu?.Name ?? "";
 
-        if (WarningCount > 0) Log.Info($"Панель: оценка {Score}/100, проблем: {WarningCount}.");
-        else Log.Success($"Панель: оценка {Score}/100, проблем не найдено.");
+        if (WarningCount > 0) Log.Info("Панель: оценка {0}/100, проблем: {1}.", Score, WarningCount);
+        else Log.Success("Панель: оценка {0}/100, проблем не найдено.", Score);
     }
 
     private void BuildSystemRows(SystemProfile p, SystemSnapshot s)
     {
         SystemRows.Clear();
 
-        var clock = p.CpuMaxClockMhz > 0 ? " · база " + DashFormat.Clock(p.CpuMaxClockMhz) : "";
-        SystemRows.Add(new SystemRow("ПРОЦЕССОР", Fallback(p.CpuName),
-            $"{DashFormat.Count(p.CpuCores, "ядро", "ядра", "ядер")} · {DashFormat.Count(p.CpuThreads, "поток", "потока", "потоков")}{clock}"));
+        var clock = p.CpuMaxClockMhz > 0 ? Loc.Tf(" · база {0}", DashFormat.Clock(p.CpuMaxClockMhz)) : "";
+        SystemRows.Add(new SystemRow(Loc.T("ПРОЦЕССОР"), Fallback(p.CpuName), CoresThreads(p.CpuCores, p.CpuThreads) + clock));
 
         var gpus = p.Gpus.OrderBy(g => g.IsIntegrated).ThenByDescending(g => g.DedicatedMemoryBytes).ToList();
         for (var i = 0; i < gpus.Count; i++)
         {
             var g = gpus[i];
             var parts = new List<string>();
-            if (g.IsIntegrated) parts.Add("встроенная");
+            if (g.IsIntegrated) parts.Add(Loc.T("встроенная"));
             else if (g.DedicatedMemoryBytes > 0) parts.Add(DashFormat.WholeGb(g.DedicatedMemoryBytes));
             var version = HealthRules.DriverVersionText(g);
             if (version.Length > 0)
-                parts.Add(g.DriverDate is { Year: > 2000 } d ? $"драйвер {version} от {DashFormat.Date(d)}" : $"драйвер {version}");
-            SystemRows.Add(new SystemRow(i == 0 ? "ВИДЕОКАРТА" : $"ВИДЕОКАРТА {i + 1}", g.Name, string.Join(" · ", parts)));
+                parts.Add(g.DriverDate is { Year: > 2000 } d ? Loc.Tf("драйвер {0} от {1}", version, DashFormat.Date(d)) : Loc.Tf("драйвер {0}", version));
+            SystemRows.Add(new SystemRow(i == 0 ? Loc.T("ВИДЕОКАРТА") : Loc.Tf("ВИДЕОКАРТА {0}", i + 1), g.Name, string.Join(" · ", parts)));
         }
 
         var ram = HealthRules.AnalyzeRam(s.RamModules);
@@ -252,46 +251,49 @@ public sealed partial class DashboardViewModel : PageViewModel
         if (ram is not null)
         {
             if (ram.Type.Length > 0) ramValue += " " + ram.Type;
-            ramValue += " · " + DashFormat.Count(ram.Modules, "модуль", "модуля", "модулей");
+            ramValue += " · " + Loc.N(ram.Modules, "{0} модуль", "{0} модуля", "{0} модулей");
             var speed = ram.Configured == ram.Rated
-                ? $"{ram.Configured} МТ/с — номинал"
-                : $"{ram.Configured} МТ/с · номинал {ram.Rated} МТ/с";
-            SystemRows.Add(new SystemRow("ПАМЯТЬ", ramValue, speed));
+                ? Loc.Tf("{0} МТ/с — номинал", ram.Configured)
+                : Loc.Tf("{0} МТ/с · номинал {1} МТ/с", ram.Configured, ram.Rated);
+            SystemRows.Add(new SystemRow(Loc.T("ПАМЯТЬ"), ramValue, speed));
         }
         else
         {
-            SystemRows.Add(new SystemRow("ПАМЯТЬ", ramValue));
+            SystemRows.Add(new SystemRow(Loc.T("ПАМЯТЬ"), ramValue));
         }
 
         var board = p.IsLaptop && !string.IsNullOrWhiteSpace(p.Model) ? $"{HealthRules.ShortVendor(p.Manufacturer)} {p.Model}".Trim() : HealthRules.ShortVendor(p.Motherboard);
-        SystemRows.Add(new SystemRow(p.IsLaptop ? "УСТРОЙСТВО" : "МАТ. ПЛАТА", Fallback(board),
+        SystemRows.Add(new SystemRow(p.IsLaptop ? Loc.T("УСТРОЙСТВО") : Loc.T("МАТ. ПЛАТА"), Fallback(board),
             string.IsNullOrWhiteSpace(p.BiosVersion) ? "" : $"BIOS {p.BiosVersion}"));
 
-        var build = $"сборка {p.OsBuild}{(p.OsUbr > 0 ? "." + p.OsUbr : "")}";
-        SystemRows.Add(new SystemRow("СИСТЕМА", $"{p.OsName} {p.OsDisplayVersion}".Trim(), build));
+        var build = Loc.Tf("сборка {0}", $"{p.OsBuild}{(p.OsUbr > 0 ? "." + p.OsUbr : "")}");
+        SystemRows.Add(new SystemRow(Loc.T("СИСТЕМА"), $"{p.OsName} {p.OsDisplayVersion}".Trim(), build));
 
         for (var i = 0; i < s.Displays.Count && i < 4; i++)
         {
             var d = s.Displays[i];
             var hz = d.ExactHz is { } exact ? (int)Math.Round(exact) : d.CurrentHz;
-            var max = HealthRules.IsBelowMaxRefresh(d.CurrentHz, d.MaxHz) ? $" (до {d.MaxHz} Гц)" : "";
-            SystemRows.Add(new SystemRow(i == 0 ? "ДИСПЛЕЙ" : $"ДИСПЛЕЙ {i + 1}", d.Name, $"{d.Width}×{d.Height} · {hz} Гц{max}"));
+            var max = HealthRules.IsBelowMaxRefresh(d.CurrentHz, d.MaxHz) ? Loc.Tf(" (до {0} Гц)", d.MaxHz) : "";
+            SystemRows.Add(new SystemRow(i == 0 ? Loc.T("ДИСПЛЕЙ") : Loc.Tf("ДИСПЛЕЙ {0}", i + 1), d.Name, Loc.Tf("{0}×{1} · {2} Гц", d.Width, d.Height, hz) + max));
         }
 
         if (s.SystemDriveTotal > 0)
         {
-            var space = $"свободно {DashFormat.Size(s.SystemDriveFree)} из {DashFormat.Size(s.SystemDriveTotal)} " +
-                        $"({DashFormat.Share((double)s.SystemDriveFree / s.SystemDriveTotal)})";
+            var space = Loc.Tf("свободно {0} из {1} ({2})", DashFormat.Size(s.SystemDriveFree), DashFormat.Size(s.SystemDriveTotal),
+                DashFormat.Share((double)s.SystemDriveFree / s.SystemDriveTotal));
             var kind = s.SystemDisk is { } sd ? string.Join(" ", new[] { sd.BusType, sd.MediaType }.Where(x => x.Length > 0)) : "";
             var model = s.SystemDisk?.Model is { Length: > 0 } m ? m : SystemProfile.SystemDrive.TrimEnd('\\');
-            SystemRows.Add(new SystemRow("СИСТЕМНЫЙ ДИСК", model, kind.Length > 0 ? $"{kind} · {space}" : space));
+            SystemRows.Add(new SystemRow(Loc.T("СИСТЕМНЫЙ ДИСК"), model, kind.Length > 0 ? $"{kind} · {space}" : space));
         }
 
         var boot = DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
-        _uptimeRow = new SystemRow("ВРЕМЯ РАБОТЫ", DashFormat.Duration(s.Uptime), $"запущена {boot:dd.MM.yyyy HH:mm}");
+        _uptimeRow = new SystemRow(Loc.T("ВРЕМЯ РАБОТЫ"), DashFormat.Duration(s.Uptime), Loc.Tf("запущена {0}", Loc.DateTimeText(boot)));
         SystemRows.Add(_uptimeRow);
     }
 
     private static string Fallback(string? s) => string.IsNullOrWhiteSpace(s) ? DashFormat.Missing : s.Trim();
+
+    private static string CoresThreads(int cores, int threads) =>
+        Loc.Tf("{0} · {1}", Loc.N(cores, "{0} ядро", "{0} ядра", "{0} ядер"), Loc.N(threads, "{0} поток", "{0} потока", "{0} потоков"));
 
 }
