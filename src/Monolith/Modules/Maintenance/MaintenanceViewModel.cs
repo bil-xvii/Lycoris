@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Monolith.Modules.Cleaner;
 using Monolith.Modules.Tools;
@@ -83,9 +84,37 @@ public sealed partial class MaintenanceViewModel : PageViewModel
         ActiveTab.Deactivate();
     }
 
+    // ───────────── Shortcut targets (Dashboard tiles, admin-intent replay) ─────────────
+    // The replay and the shortcuts look for «{Command}Command» on this top-level page; the logic stays in the tabs.
+
+    /// <summary>«ОЧИСТИТЬ · N МБ» of the cleaning tab (analyses first when the last analysis is stale; confirms with the exact list).</summary>
+    public ICommand CleanCommand => Cleaner.CleanCommand;
+
+    /// <summary>A fresh read-only analysis of the cleaning tab.</summary>
+    public ICommand AnalyzeCommand => Cleaner.AnalyzeCommand;
+
+    /// <summary>A tool button by its text id («Sfc», «DismRestore», «DefragVolume:C:») — what the admin-intent replay repeats.</summary>
+    public ICommand RunToolCommand => Tools.RunToolCommand;
+
+    /// <summary>«ПРОВЕРИТЬ И ВОССТАНОВИТЬ WINDOWS»: DISM, then SFC.</summary>
+    public ICommand RepairWindowsCommand => Tools.RepairWindowsCommand;
+
+    /// <summary>
+    /// The junk the cleaning tab would remove now (checked rows of the last analysis), or null before any analysis.
+    /// Cached — reading it never scans. The Dashboard shows it and calls <see cref="CleanCommand"/>.
+    /// </summary>
+    public long? JunkBytes => Cleaner.JunkBytes;
+
     private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(IsBusy) or nameof(BusyText)) SyncBusy();
+        if (ReferenceEquals(sender, Cleaner))
+        {
+            // The sidebar badge: the junk size the last analysis found (no work only for the badge).
+            if (e.PropertyName == nameof(BadgeText)) BadgeText = Cleaner.BadgeText;
+            if (e.PropertyName == nameof(CleanerViewModel.JunkBytes)) OnPropertyChanged(nameof(JunkBytes));
+            if (e.PropertyName == nameof(CheckedAt)) CheckedAt = Cleaner.CheckedAt;
+        }
     }
 
     /// <summary>The shell's progress bar and status text follow the tabs (the active tab's text first).</summary>

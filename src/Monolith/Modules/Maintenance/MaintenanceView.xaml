@@ -19,13 +19,16 @@
         </Grid.RowDefinitions>
         <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
 
-        <!-- The tab's own header shows only its actions (right); the tabs share that line on the left. -->
+        <!-- The tab's own header shows only its right side («проверено», ОБНОВИТЬ, actions, the ONE main button);
+             the framed tabs share that line on the left. -->
         <ContentControl Grid.Row="1" Margin="0,14,0,0" Content="{Binding ActiveTab}" Focusable="False" c:PageHeader.IsEmbedded="True" />
-        <StackPanel Grid.Row="1" Margin="0,14,0,0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1">
-            <RadioButton Style="{StaticResource Segment}" Content="ОЧИСТКА" GroupName="MaintenanceTabs"
-                         IsChecked="{Binding TabKey, Converter={StaticResource Equals}, ConverterParameter=cleaner}" />
-            <RadioButton Style="{StaticResource Segment}" Content="РЕМОНТ И ДИСКИ" GroupName="MaintenanceTabs"
-                         IsChecked="{Binding TabKey, Converter={StaticResource Equals}, ConverterParameter=tools}" />
-        </StackPanel>
+        <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource SegmentBar}" VerticalAlignment="Top" Panel.ZIndex="1">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Style="{StaticResource Segment}" Content="ОЧИСТКА" GroupName="MaintenanceTabs"
+                             IsChecked="{Binding TabKey, Converter={StaticResource Equals}, ConverterParameter=cleaner}" />
+                <RadioButton Style="{StaticResource Segment}" Content="РЕМОНТ И ДИСКИ" GroupName="MaintenanceTabs"
+                             IsChecked="{Binding TabKey, Converter={StaticResource Equals}, ConverterParameter=tools}" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>
