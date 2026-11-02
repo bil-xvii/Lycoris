@@ -28,7 +28,9 @@ public sealed partial class WizardViewModel : ObservableObject
     private UserGoal _demoGoal;
     public bool IsLaptop => WizardChoices.ShowLaptop(SystemProfile.Current.IsLoaded && SystemProfile.Current.HardwareFactsKnown, SystemProfile.Current.IsLaptop);
     public UserGoal Goal { get => _demoMode ? _demoGoal : AppSettings.Current.UserGoal; set { if (_demoMode) _demoGoal = value; else AppSettings.Current.UserGoal = value; OnPropertyChanged(); OnPropertyChanged(nameof(GoalName)); OnPropertyChanged(nameof(ShowGamesLink)); OnPropertyChanged(nameof(CanGoNext)); NextCommand.NotifyCanExecuteChanged(); } }
-    public bool Expert { get => AppSettings.Current.ExpertMode; set { AppSettings.Current.ExpertMode = value; OnPropertyChanged(); } }
+    public bool Expert { get => AppSettings.Current.ExpertMode; set { AppSettings.Current.ExpertMode = value; OnPropertyChanged(); OnPropertyChanged(nameof(Simple)); OnPropertyChanged(nameof(ModeName)); } }
+    public bool Simple { get => !Expert; set { if (value) Expert = false; } }
+    public string ModeName => Expert ? Loc.T("Эксперт") : Loc.T("Простой");
     public string GoalName => Goal switch { UserGoal.Games => Loc.T("Игры"), UserGoal.Work => Loc.T("Работа"), UserGoal.LaptopBattery => Loc.T("Ноутбук от батареи"), UserGoal.Quiet => Loc.T("Тихо и прохладно"), _ => Loc.T("Не выбрано") };
     public string StepTitle => Step switch { 1 => Loc.T("Для чего этот ПК?"), 2 => Loc.T("Как показывать?"), _ => Loc.T("Готово") };
     public bool CanGoNext => Step < 3 && (Step != 1 || Goal != UserGoal.Recommended);
@@ -40,5 +42,5 @@ public sealed partial class WizardViewModel : ObservableObject
     public bool ShowGamesLink => Step == 3 && Goal == UserGoal.Games;
     [RelayCommand] private void OpenGames() { AppSettings.Current.FirstRunWizardInProgress = false; AppSettings.Current.FirstRunCompleted = true; IsOpen = false; _close(); _navigate("games"); }
     public void Open() { if (!_demoMode) AppSettings.Current.FirstRunWizardInProgress = true; Step = 1; IsOpen = true; }
-    public void OpenDemo() { _demoMode = true; _demoGoal = UserGoal.Games; OnPropertyChanged(nameof(Goal)); OnPropertyChanged(nameof(GoalName)); Open(); }
+    public void OpenDemo() { _demoMode = true; _demoGoal = UserGoal.Games; OnPropertyChanged(nameof(Goal)); OnPropertyChanged(nameof(GoalName)); Open(); NextCommand.NotifyCanExecuteChanged(); }
 }
