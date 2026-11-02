@@ -1,0 +1,10 @@
+PackageIdentifier: bil-xvii.Lycoris
+PackageVersion: __VERSION__
+PackageLocale: en-US
+Publisher: Lycoris
+PackageName: Lycoris
+License: Proprietary
+ShortDescription: Windows utility with a change journal and rollback support.
+Description: Lycoris helps review Windows settings and provides a journal for supported changes.
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

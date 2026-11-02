@@ -1,0 +1,11 @@
+PackageIdentifier: bil-xvii.Lycoris
+PackageVersion: __VERSION__
+InstallerType: portable
+Commands:
+  - Lycoris
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/bil-xvii/Lycoris-releases/releases/download/v__VERSION__/Lycoris.exe
+    InstallerSha256: __SHA256__
+ManifestType: installer
+ManifestVersion: 1.6.0

@@ -1,0 +1,6 @@
+# Шаблон версии: используйте tools\make-winget-manifest.ps1.
+PackageIdentifier: bil-xvii.Lycoris
+PackageVersion: __VERSION__
+ManifestType: version
+ManifestVersion: 1.6.0
+ManifestVersion: 1.6.0
