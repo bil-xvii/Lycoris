@@ -5,20 +5,9 @@ using Monolith.Tweaks;
 namespace Monolith.Modules.Optimize;
 
 // The Optimize page is one virtualized list of heterogeneous rows:
-//   ProfilesRow → FilterRow → (SectionRow, TweakItemViewModel…)* → ExpertRow → (TweakItemViewModel…)* | EmptyRow
+//   (SectionRow, TweakItemViewModel…)* | ExpertRow → (TweakItemViewModel…)* | EmptyRow
+// The profile tiles and the filter bar are fixed above the list (they bind to the page directly).
 // Each row type has its own DataTemplate in OptimizeView.xaml.
-
-/// <summary>The four profile tiles at the top of the list.</summary>
-public sealed class ProfilesRow(OptimizeViewModel page)
-{
-    public OptimizeViewModel Page { get; } = page;
-}
-
-/// <summary>Category segments + search box.</summary>
-public sealed class FilterRow(OptimizeViewModel page)
-{
-    public OptimizeViewModel Page { get; } = page;
-}
 
 /// <summary>Shown when nothing matches the filter.</summary>
 public sealed class EmptyRow(OptimizeViewModel page)
@@ -70,6 +59,39 @@ public sealed partial class ProfileTileViewModel : ObservableObject
     partial void OnAppliedChanged(int? value) => OnPropertyChanged(nameof(AppliedText));
     partial void OnTotalChanged(int value) => OnPropertyChanged(nameof(TotalText));
 
+    /// <summary>How many changes the button would apply: the page's pending count on the selected tile, else this profile's.</summary>
+    public int PendingChanges => IsSelected ? _owner.ChangeCount : ToChange ?? 0;
+
+    /// <summary>Applies (selecting first) rather than only selects: there is something to change, or this is the selected set.</summary>
+    public bool ActApplies => (Kind != OptimizeProfile.Custom || IsSelected) && PendingChanges > 0;
+
+    /// <summary>The tile's one button: «ПРИМЕНИТЬ · N» (current tile: all pending), «ВЫБРАТЬ» (nothing to change / own set) or «ВСЁ ПРИМЕНЕНО».</summary>
+    public string ActText => ActApplies ? $"ПРИМЕНИТЬ · {PendingChanges}" : IsSelected ? "ВСЁ ПРИМЕНЕНО" : "ВЫБРАТЬ";
+
+    /// <summary>The line under the tile's button saying why it only selects.</summary>
+    public string ActNote => ActApplies ? "" : IsSelected ? "Менять нечего" : Kind == OptimizeProfile.Custom ? "Отметьте пункты ниже" : "Уже применён";
+
+    partial void OnIsSelectedChanged(bool value) => RefreshAct();
+
+    internal void RefreshAct()
+    {
+        OnPropertyChanged(nameof(PendingChanges));
+        OnPropertyChanged(nameof(ActApplies));
+        OnPropertyChanged(nameof(ActText));
+        OnPropertyChanged(nameof(ActNote));
+        ActCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanAct() => _owner.CanActOnTile && !(IsSelected && !ActApplies);
+
+    [RelayCommand(CanExecute = nameof(CanAct))]
+    private Task ActAsync()
+    {
+        if (ActApplies) return _owner.ApplyProfileCommand.ExecuteAsync(Kind.ToString());
+        _owner.SelectProfile(Kind);
+        return Task.CompletedTask;
+    }
+
     [RelayCommand]
     private void Select() => _owner.SelectProfile(Kind);
 }
@@ -79,22 +101,29 @@ public sealed partial class CategoryFilterViewModel : ObservableObject
 {
     private readonly OptimizeViewModel _owner;
 
-    public CategoryFilterViewModel(OptimizeViewModel owner, TweakCategory? category, string title, int count)
+    public CategoryFilterViewModel(OptimizeViewModel owner, TweakCategory? category, string title, int count, bool isExpert = false)
     {
         _owner = owner;
         Category = category;
         Title = title;
         Count = count;
+        IsExpert = isExpert;
     }
 
     public TweakCategory? Category { get; }
+    /// <summary>The «ЭКСПЕРТ · N» segment (only expert items).</summary>
+    public bool IsExpert { get; }
     public string Title { get; }
     public int Count { get; }
 
     [ObservableProperty] private bool _isSelected;
 
     [RelayCommand]
-    private void Select() => _owner.SelectCategory(Category);
+    private void Select()
+    {
+        if (IsExpert) _owner.SelectExpertTab();
+        else _owner.SelectCategory(Category);
+    }
 }
 
 /// <summary>Section header for one category: title, short explanation, counters and "select all".</summary>
@@ -119,6 +148,8 @@ public sealed partial class SectionRow : ObservableObject
     /// <summary>true = all selectable items checked, false = none, null = some.</summary>
     [ObservableProperty] private bool? _checkState = false;
     [ObservableProperty] private bool _hasSelectable;
+    /// <summary>The visible caption of the section's select button («ОТМЕТИТЬ ВСЕ» / «СНЯТЬ ВСЕ»).</summary>
+    [ObservableProperty] private string _toggleAllText = "ОТМЕТИТЬ ВСЕ";
 
     public IReadOnlyList<TweakItemViewModel> Items => _items;
 
@@ -136,6 +167,7 @@ public sealed partial class SectionRow : ObservableObject
         HasSelectable = selectable.Count > 0;
         var anyChecked = selectable.Any(r => r.IsChecked);
         CheckState = !anyChecked ? false : OptimizeLogic.AllSelected(selectable) ? true : null;
+        ToggleAllText = !HasSelectable ? "НЕТ ДОСТУПНЫХ" : CheckState == true ? "СНЯТЬ ВСЕ" : "ОТМЕТИТЬ ВСЕ";
     }
 
     /// <summary>
@@ -148,16 +180,11 @@ public sealed partial class SectionRow : ObservableObject
     private void ToggleAll() => _owner.ToggleSection(this);
 }
 
-/// <summary>Hatched, collapsible header of the expert section.</summary>
+/// <summary>Hatched, always-visible header of the expert items (what makes them expert is written out, not hidden).</summary>
 public sealed partial class ExpertRow : ObservableObject
 {
-    private readonly OptimizeViewModel _owner;
+    public ExpertRow(OptimizeViewModel owner) => Page = owner;
 
-    public ExpertRow(OptimizeViewModel owner) => _owner = owner;
-
-    [ObservableProperty] private bool _isOpen;
+    public OptimizeViewModel Page { get; }
     [ObservableProperty] private string _countText = "";
-
-    [RelayCommand]
-    private void Toggle() => _owner.ToggleExpert();
 }
