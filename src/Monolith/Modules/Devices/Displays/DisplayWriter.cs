@@ -349,9 +349,13 @@ internal sealed class DisplayWriter : IDisplayWriter
         {
             var p = Process.GetProcessById(pid);
             using var self = Process.GetCurrentProcess();
-            // The opt-in hardware tests (LYCORIS_HW_TESTS=1, docs/hardware-verification-2026-11.md) start the guard from the xUnit host.
+#if DEBUG
+            // Debug only: the opt-in hardware tests (LYCORIS_HW_TESTS=1, docs/hardware-verification-2026-11.md) start the guard from the xUnit host.
             var testHost = Environment.GetEnvironmentVariable("LYCORIS_HW_TESTS") == "1"
                            && string.Equals(p.ProcessName, "testhost", StringComparison.OrdinalIgnoreCase);
+#else
+            const bool testHost = false;
+#endif
             if (!p.HasExited && (testHost || string.Equals(p.ProcessName, self.ProcessName, StringComparison.OrdinalIgnoreCase))) return p;
             p.Dispose();
         }
