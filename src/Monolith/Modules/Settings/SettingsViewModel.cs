@@ -89,7 +89,7 @@ public sealed partial class SettingsViewModel : PageViewModel
             new LicenseItem("CommunityToolkit.Mvvm", SettingsDefaults.VersionOf(typeof(ObservableObject).Assembly), "MIT", netFoundation, Loc.T("MVVM: свойства и команды")),
             new LicenseItem("System.Management", SettingsDefaults.VersionOf(typeof(ManagementObject).Assembly), "MIT", netFoundation, Loc.T("WMI: сведения о системе, точки восстановления")),
             new LicenseItem("System.ServiceProcess.ServiceController", SettingsDefaults.VersionOf(typeof(System.ServiceProcess.ServiceController).Assembly), "MIT", netFoundation, Loc.T("Управление службами")),
-            new LicenseItem(".NET и WPF", Environment.Version.ToString(3), "MIT", netFoundation, Loc.T("Среда выполнения и интерфейс")),
+            new LicenseItem(Loc.T(".NET и WPF"), Environment.Version.ToString(3), "MIT", netFoundation, Loc.T("Среда выполнения и интерфейс")),
         ];
 
         AppSettings.Current.PropertyChanged += (_, e) =>

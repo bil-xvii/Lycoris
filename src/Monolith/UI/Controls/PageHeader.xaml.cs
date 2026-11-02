@@ -20,8 +20,10 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
 {
     /// <summary>Kept so existing page bindings stay valid; the index is no longer displayed.</summary>
     public static readonly DependencyProperty IndexProperty = DependencyProperty.Register(nameof(Index), typeof(string), typeof(PageHeader), new("00"));
-    public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(PageHeader), new(""));
-    public static readonly DependencyProperty SubtitleProperty = DependencyProperty.Register(nameof(Subtitle), typeof(string), typeof(PageHeader), new(""));
+    public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(PageHeader),
+        new PropertyMetadata("", null, (_, v) => Loc.Sink(v as string))); // safety net: a page title the tables know is shown translated
+    public static readonly DependencyProperty SubtitleProperty = DependencyProperty.Register(nameof(Subtitle), typeof(string), typeof(PageHeader),
+        new PropertyMetadata("", null, (_, v) => Loc.Sink(v as string)));
     public static readonly DependencyProperty ActionsProperty = DependencyProperty.Register(nameof(Actions), typeof(object), typeof(PageHeader), new(null));
     public static readonly DependencyProperty PrimaryProperty = DependencyProperty.Register(nameof(Primary), typeof(object), typeof(PageHeader),
         new(null, (d, _) => ((PageHeader)d).Raise(nameof(HasPrimary))));

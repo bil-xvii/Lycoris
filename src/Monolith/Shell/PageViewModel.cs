@@ -20,6 +20,10 @@ public abstract partial class PageViewModel : ObservableObject
     /// <summary>Uppercase Russian title ("ПАНЕЛЬ").</summary>
     public abstract string Title { get; }
     public abstract string Subtitle { get; }
+
+    /// <summary>Title / subtitle as shown in the shell (sidebar, palette): translated when the tables know the Russian original.</summary>
+    public string DisplayTitle => Loc.Sink(Title);
+    public string DisplaySubtitle => Loc.Sink(Subtitle);
     /// <summary>Glyph from <see cref="Glyphs"/>.</summary>
     public abstract string Glyph { get; }
 

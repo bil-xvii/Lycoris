@@ -251,7 +251,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}"
+                                    <TextBlock Grid.Column="1" Text="{Binding DisplayTitle, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}"
                                                FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                     <Border Grid.Column="2" Style="{StaticResource TabBadge}" Margin="8,0,0,0"
                                             Visibility="{Binding BadgeText, Converter={StaticResource NullToVis}}">

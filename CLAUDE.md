@@ -1,6 +1,6 @@
 # MONOLITH — project guide
 
-MONOLITH is a Windows 10/11 PC optimizer and game booster (C# / WPF / .NET 10, Russian UI).
+MONOLITH is a Windows 10/11 PC optimizer and game booster (C# / WPF / .NET 10, Russian UI + English via `Loc`, see «Localization»).
 Owner: GitHub `bil-xvii`, private repo `bil-xvii/MONOLITH`. Everything is auto-committed and pushed
 by `tools/autosave.ps1` (Claude Code Stop hook in `.claude/settings.json`).
 
@@ -59,6 +59,7 @@ not from riskier changes.
 ```
 src/Monolith/
   App.xaml(.cs)          startup, optional UAC relaunch, single instance, --snapshot QA mode
+  Core/Localization/     Loc (ru text = key → English table), en/<Area>.json translation files (see «Localization»)
   Core/                  system layer (no UI): AppPaths, Log, Elevation, ProcessRunner, RegistryHelper,
                          ChangeJournal, ChangeSession, OperationCoordinator, ServiceControl, PowerSchemes, ScheduledTasks,
                          RestorePointService, SystemProfile, AppSettings, WingetClient, VendorDownloads;
@@ -72,7 +73,7 @@ src/Monolith/
   Modules/<Name>/        one folder per page: <Name>View.xaml(.cs) + <Name>ViewModel.cs + module services
 tests/Monolith.Tests/    xUnit
 docs/research/           research reports (competitors, tweaks, cleaner, drivers, services, apps catalog, tech)
-tools/                   autosave.ps1, make-icon.ps1, extract-research.ps1, publish.ps1 (build + auto-sign),
+tools/                   loc-scan.ps1 + LocScan/ (localization progress and helper), autosave.ps1, make-icon.ps1, extract-research.ps1, publish.ps1 (build + auto-sign),
                          sign.ps1 / signing-cert.ps1 (Authenticode signing; owner guide in docs/signing.md)
 ```
 
@@ -199,7 +200,7 @@ Owner: «чтобы при выполнении много задач однов
   mandatory (see «Concurrency»); shows the global progress bar, logs and toasts errors.
 - **Threading:** never block the UI thread. WMI, registry scans, `ChangeSession` calls, file IO → `Task.Run`.
   Update bound collections on the UI thread (`Ui.Post` or await back on the dispatcher).
-- **Text:** all UI text in Russian. Page titles, section headings and item titles in sentence case («Временные файлы
+- **Text:** all UI text is written in Russian in the code and goes through `Loc` (see «Localization»). Page titles, section headings and item titles in sentence case («Временные файлы
   Windows»; bound all-caps titles go through the `Sentence` converter). UPPER CASE only for small labels (`T.Label`),
   tags, tabs and buttons. Body text in sentence case.
   Explain every action in plain language (what it does, why, risk, how to undo).
@@ -211,6 +212,24 @@ Owner: «чтобы при выполнении много задач однов
   `PerformanceCounter` with English names.
 - No new NuGet packages without a very good reason (current: CommunityToolkit.Mvvm, System.Management,
   System.ServiceProcess.ServiceController). Data catalogs are C# code (single-file publish).
+
+## Localization (Russian source, English lookup)
+
+Owner: «Ещё нужно добавить английский язык». Full guide, glossary and style: `docs/localization.md`. **Every new or changed user-visible string
+goes through `Loc`; the Russian original is the key** (`Loc.T("Применить")`, formatted `Loc.Tf("Выбрано {0}", n)`, plural `Loc.N(n, "{0} файл", "{0} файла", "{0} файлов")`,
+XAML `{loc:T Применить}` with `xmlns:loc="clr-namespace:Monolith.UI"`). Never `$"…"` with Russian text (use `Loc.Tf` / `Log.Info("… {0}", x)`), never a private
+`ru-RU` culture (use `Loc.Culture`, `Loc.DateText/DateTimeText/TimeText/SecondsText`), never concatenate translated fragments.
+
+- **Language:** `AppSettings.Language` = auto (Windows language: ru* → ru, else en) | ru | en; read once at startup (`Loc.Initialize`), changed in Settings → «Язык / Language»
+  (restart with the same rights, `Ui.RestartApp`). `--lang ru|en` overrides it for one run (QA/screenshots/selftest, nothing saved).
+- **Tables:** one embedded JSON file per area, `Core/Localization/en/<Area>.json` (`Common` = shared vocabulary and the glossary; `Shell`, `Settings` done as the reference).
+  A new string = a new entry in the file of your area. A missing entry shows Russian (never crashes). `"translated": true` + `"sources"` make the coverage test
+  (`LocalizationCoverageTests`) demand that every Cyrillic literal of those sources is wrapped and has an English entry.
+- **Tools:** `tools\loc-scan.ps1` (report per module; `-Check <Area>`, `-Missing <Area>` numbered keys, `-Fill <Area> -File x.json`, `-New <Area> -Sources …`).
+  Render English: `MONOLITH.exe --snapshot snapshots\en --pages … --lang en [--demo-shell]` and LOOK at the PNGs; long English must not break the layout.
+- **Rules:** ALL-CAPS Russian label ⇒ ALL-CAPS English label, sentences stay sentences; one term = one translation (glossary in the doc, `Common.json`);
+  journal / settings / backups stay language-neutral (on-disk schema unchanged, texts are localized at display time); log FILES stay Russian, the console line is translated;
+  tests keep Russian by default, English only inside `using var _ = Loc.UseLanguage("en");`.
 
 ## Design system (black & white, adult, aggressive, modern)
 

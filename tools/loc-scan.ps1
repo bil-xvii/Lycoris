@@ -28,7 +28,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
     $project = Join-Path $root 'tools/LocScan/LocScan.csproj'
-    $run = @('run', '--project', $project, '-c', 'Release', '--nologo', '-v', 'q', '--')
+    $run = @('run', '--project', $project, '-c', 'Release', '--')
     if ($Help) { & dotnet @run help }
     elseif ($Check) { & dotnet @run check $Check; exit $LASTEXITCODE }
     elseif ($Missing) { & dotnet @run missing $Missing; exit $LASTEXITCODE }

@@ -21,6 +21,12 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Monolith.Core.Localization" />
+  </ItemGroup>
+
+  <!-- The localization scanner is shared with tools/LocScan (docs/localization.md) -->
+  <ItemGroup>
+    <Compile Include="..\..\tools\LocScan\LocScanner.cs" Link="Localization\LocScanner.cs" />
   </ItemGroup>
 
   <ItemGroup>
