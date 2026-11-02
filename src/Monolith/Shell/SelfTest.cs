@@ -158,6 +158,11 @@ public sealed class SelfTestRunner
         // Concurrency: many read-only / measure operations from several pages at once, plus a synthetic storm through the coordinator.
         reports.Add(await TestConcurrencyAsync());
 
+        // Updates: a fake check and a fake download (in-memory server, temp folder, nothing replaced).
+        var updates = new PageReport { Key = "updates", Title = "ОБНОВЛЕНИЯ" };
+        await UpdateSelfTest.RunAsync(updates.Exercised, updates.Errors);
+        reports.Add(updates);
+
         _lagRunning = false;
         lagThread.Join(2000);
         Log.Written -= OnLog;

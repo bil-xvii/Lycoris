@@ -26,6 +26,9 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// <summary>Bound directly for simple toggles; every change is saved by AppSettings itself.</summary>
     public AppSettings Settings => AppSettings.Current;
 
+    /// <summary>«О программе»: versions, release notes and the update buttons (Shell/UpdateController).</summary>
+    public UpdateController Updates => UpdateController.Instance;
+
     public IReadOnlyList<IntervalOption> IntervalOptions { get; } = SettingsDefaults.IntervalChoices
         .Select(ms => new IntervalOption(ms, SettingsDefaults.FormatInterval(ms), ms switch
         {
@@ -115,6 +118,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     {
         ApplyFocus(Ui.TakeFocusRequest(Key));
         MarkChecked();
+        Updates.Refresh();
         return RefreshPathsAsync();
     }
 
