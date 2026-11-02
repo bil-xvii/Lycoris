@@ -108,6 +108,7 @@ public sealed class ChangeSession
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Registry, Target = target,
                 OldValue = snapshot.Describe(), NewValue = newText, Registry = snapshot, UserSid = userSid,
             };
+            RefuseUntrusted(incoming); // never make a change the journal would refuse to undo
             (rec, isNew) = _journal.Add(incoming);
 
             if (value is null) RegistryHelper.DeleteValue(hive, path, name);
@@ -155,6 +156,7 @@ public sealed class ChangeSession
                 BatchId = Batch.Id, Source = source, Title = title, Kind = ChangeKind.Service, Target = $"svc:{service}",
                 OldValue = snapshot.DescribeNeutral(), NewValue = ServiceControl.DescribeStartNeutral(mode, delayed), Service = snapshot,
             };
+            RefuseUntrusted(incoming);
             (rec, isNew) = _journal.Add(incoming);
             ServiceControl.SetStartMode(service, mode, delayed);
             if (!isNew) _journal.MergeInto(rec, incoming);
@@ -211,6 +213,7 @@ public sealed class ChangeSession
                 OldValue = PowerSchemes.GetName(original), NewValue = PowerSchemes.GetName(scheme),
                 PowerSchemeOriginal = original, PowerSchemeCreated = createdScheme,
             };
+            RefuseUntrusted(incoming);
             (rec, isNew) = _journal.Add(incoming);
             PowerSchemes.SetActive(scheme);
             if (!isNew) _journal.MergeInto(rec, incoming);
@@ -249,6 +252,7 @@ public sealed class ChangeSession
                 OldValue = info.Enabled ? Loc.Keep("Включена") : Loc.Keep("Отключена"), NewValue = enabled ? Loc.Keep("Включена") : Loc.Keep("Отключена"),
                 TaskPath = taskPath, TaskWasEnabled = info.Enabled,
             };
+            RefuseUntrusted(incoming);
             (rec, isNew) = _journal.Add(incoming);
             ScheduledTasks.SetEnabled(taskPath, enabled);
             if (!isNew) _journal.MergeInto(rec, incoming);
@@ -294,6 +298,7 @@ public sealed class ChangeSession
                 OldValue = oldValue, NewValue = newValue, RevertFile = revertFile, RevertArgs = revertArgs,
                 UserSid = UserScope.IsPerUserCommand(target) ? UserScope.CurrentSid : null,
             };
+            RefuseUntrusted(incoming);
             (rec, isNew) = _journal.Add(incoming);
             // Encoded PowerShell scripts are unreadable base64 — log a readable line instead.
             var encoded = args.Contains("-EncodedCommand", StringComparison.OrdinalIgnoreCase);

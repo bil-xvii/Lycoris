@@ -217,6 +217,8 @@
     "Права администратора не выданы": "Administrator rights were not granted",
     "Запуск с правами администратора отклонён проверкой целостности: {0}": "Starting with administrator rights was refused by the integrity check: {0}",
     "В настройках исправлено значений: {0} (недопустимые значения заменены безопасными).": "Settings values corrected: {0} (invalid values were replaced with safe ones).",
-    "Перезапуск с правами администратора отклонён проверкой целостности: {0}": "Restarting with administrator rights was refused by the integrity check: {0}"
+    "Перезапуск с правами администратора отклонён проверкой целостности: {0}": "Restarting with administrator rights was refused by the integrity check: {0}",
+    "Проверки при запуске прерваны": "Startup checks were interrupted",
+    "Повтор действия после перезапуска не выполнен": "The action could not be repeated after the restart"
   }
 }
