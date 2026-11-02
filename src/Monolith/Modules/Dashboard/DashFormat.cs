@@ -102,7 +102,8 @@ public static class DashFormat
     public static string Date(DateTime date) => Loc.DateText(date);
 
     /// <summary>"7 %" for shares (free space etc.).</summary>
-    public static string Share(double fraction) => Loc.Tf("{0} %", Math.Round(fraction * 100).ToString("0", Ru));
+    public static string Share(double fraction) =>
+        Math.Round(fraction * 100).ToString("0", Ru) + (Loc.IsEnglish ? "%" : " %");
 
     private static string Scaled(double v) => v >= 100 ? v.ToString("0", Ru) : v.ToString("0.0", Ru);
 
