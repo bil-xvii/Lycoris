@@ -123,7 +123,7 @@
 
                         <!-- main action: white block for install / website (clickable), outline for an update; a state (built in) is text -->
                         <Grid Visibility="{Binding HasActiveJob, Converter={StaticResource InverseBoolToVis}}">
-                            <Button Style="{StaticResource Btn.Primary}" MinWidth="128"
+                            <Button MinWidth="128"
                                     Command="{Binding DataContext.RunActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}" IsEnabled="{Binding CanRunAction}" ToolTip="{Binding ActionToolTip}"
                                     ToolTipService.ShowOnDisabled="True">
@@ -306,11 +306,11 @@
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}"
                       Checked="{Binding CheckedText}" RefreshCommand="{Binding RefreshCommand}">
             <c:PageHeader.Primary>
-                <Button Style="{StaticResource Btn.Primary}" Command="{Binding UpdateAllCommand}"
+                <Button Command="{Binding UpdateAllCommand}"
                         ToolTip="Обновить через winget все установленные программы из каталога (кроме обновляющихся самостоятельно)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="ОБНОВИТЬ ВСЕ ПРОГРАММЫ" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding UpdateAllText}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </c:PageHeader.Primary>
@@ -451,7 +451,7 @@
                                        Margin="0,0,10,0" ToolTip="{Binding KitStatusText}">
                                 <Run Text="{Binding KitInstalled, Mode=OneWay}" /><Run Text=" / " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding KitTotal, Mode=OneWay}" Foreground="{StaticResource B.Text3}" />
                             </TextBlock>
-                            <Button Grid.Column="3" Style="{StaticResource Btn.Primary}" Command="{Binding InstallKitCommand}"
+                            <Button Grid.Column="3" Command="{Binding InstallKitCommand}"
                                     ToolTip="Показать список пакетов и установить недостающие библиотеки, которые нужны этому ПК">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />

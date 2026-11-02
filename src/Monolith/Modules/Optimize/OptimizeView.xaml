@@ -110,7 +110,7 @@
                     <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StateKey}" Value="NotApplicable">
-                    <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                    <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -310,16 +310,9 @@
                                 <Rectangle Style="{StaticResource Opt.StateMark}" />
                                 <TextBlock Text="{Binding StateText}" Style="{StaticResource Opt.StateText}" Margin="9,0,0,0" />
                             </StackPanel>
-                            <Grid Margin="0,9,0,0" HorizontalAlignment="Left" Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
-                                <Rectangle Stroke="{StaticResource B.Text2}" StrokeThickness="1" StrokeDashArray="3 2" SnapsToDevicePixels="True"
-                                           RadiusX="{StaticResource R.Sm.D}" RadiusY="{StaticResource R.Sm.D}" />
-                                <StackPanel Orientation="Horizontal" Margin="7,2,8,3">
-                                    <TextBlock Text="&#xE72A;" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="0,1,5,0"
-                                               Foreground="{StaticResource B.Text}" />
-                                    <TextBlock Text="БУДЕТ ИЗМЕНЕНО" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="11"
-                                               Foreground="{StaticResource B.Text}" />
-                                </StackPanel>
-                            </Grid>
+                            <Border Style="{StaticResource Tag.Solid}" Margin="0,9,0,0" Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="ИЗМЕНИТСЯ" />
+                            </Border>
                         </StackPanel>
 
                         <!-- Row buttons: both always visible (read-only: a click asks for admin rights and repeats itself) -->
@@ -377,7 +370,7 @@
                 </Button>
             </c:PageHeader.Actions>
             <c:PageHeader.Primary>
-                <Button Style="{StaticResource Btn.Primary}" Command="{Binding ApplyCommand}" MinWidth="150">
+                <Button Command="{Binding ApplyCommand}" MinWidth="150">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding ApplyButtonText}" Margin="8,0,0,0" VerticalAlignment="Center" />
@@ -413,8 +406,8 @@
                                      Text=" применено" />
                             </TextBlock>
                             <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
-                                <!-- Selected tile: white primary; the others are outlined -->
-                                <Button Style="{StaticResource Btn.Primary}" Command="{Binding ActCommand}" Content="{Binding ActText}" MinWidth="120"
+                                <!-- Outlined on every tile: the one white button is the sticky bar; the selected tile is shown by its frame and «ВЫБРАН» -->
+                                <Button Command="{Binding ActCommand}" Content="{Binding ActText}" MinWidth="120"
                                         Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}" />
                                 <Button Command="{Binding ActCommand}" Content="{Binding ActText}" MinWidth="120"
                                         Visibility="{Binding IsSelected, Converter={StaticResource InverseBoolToVis}}" />
