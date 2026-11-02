@@ -208,7 +208,7 @@ public sealed partial class ServicesViewModel
                 footnote: "Откат: кнопка ОТКАТИТЬ в карточке службы или раздел «Восстановление»."))
             return;
 
-        await RunBusyAsync("Изменение типа запуска…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Изменение типа запуска…", async () =>
         {
             var session = await BeginSessionAsync($"Службы: {item.DisplayName} → {newText}");
             if (session is null) return;
@@ -244,7 +244,7 @@ public sealed partial class ServicesViewModel
                 "ЗАПУСТИТЬ"))
             return;
 
-        await RunBusyAsync("Запуск службы…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Запуск службы…", async () =>
         {
             var ok = await Task.Run(() => ServiceControl.StartAsync(item.Name, TimeSpan.FromSeconds(30)));
             if (ok)
@@ -287,7 +287,7 @@ public sealed partial class ServicesViewModel
                 "ОСТАНОВИТЬ", danger: true))
             return;
 
-        await RunBusyAsync("Остановка службы…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Остановка службы…", async () =>
         {
             var ok = await Task.Run(() => ServiceControl.StopAsync(item.Name, TimeSpan.FromSeconds(30)));
             if (ok)

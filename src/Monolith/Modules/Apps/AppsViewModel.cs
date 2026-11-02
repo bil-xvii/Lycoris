@@ -698,7 +698,7 @@ public sealed partial class AppsViewModel : PageViewModel
     private async Task StartQueueAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
     {
         if (plan.Count == 0) return;
-        if (IsQueueRunning || IsVendorDownloadRunning)
+        if (IsQueueRunning || IsVendorDownloadRunning || _installWaiting)
         {
             Ui.Toast(IsVendorDownloadRunning
                 ? "Дождитесь окончания загрузки установщика у производителя."
@@ -730,7 +730,64 @@ public sealed partial class AppsViewModel : PageViewModel
             QueueKind.UpdateAll => "ОБНОВЛЕНИЕ ВСЕГО",
             _ => plan.All(p => p.Op == QueueOperation.Upgrade) ? "ОБНОВЛЕНИЕ" : "УСТАНОВКА",
         };
-        await RunQueueAsync();
+        // One installer at a time across the whole app (winget, drivers, Windows Update): a second one waits in the visible queue.
+        var lease = await AcquireInstallAsync(QueueTitle, () => Ui.Post(StopQueue));
+        if (lease is null)
+        {
+            CancelRemaining();
+            AppendLog("Очередь не запущена: " + (OperationNote ?? "задача снята из очереди."));
+            return;
+        }
+        using (lease)
+        {
+            using var scope = lease.Scope();
+            CurrentLease = lease;
+            try { await RunQueueAsync(); }
+            finally { CurrentLease = null; }
+        }
+    }
+
+    /// <summary>True while this page waits in the global install queue (the buttons treat it like a running queue).</summary>
+    private bool _installWaiting;
+
+    /// <summary>
+    /// Takes the global install lease (<see cref="OperationClass.Install"/>): waits in the visible queue when another installer
+    /// runs. Null when the wait was cancelled or timed out (the reason is in <see cref="PageViewModel.OperationNote"/>).
+    /// <paramref name="cancel"/> = the safe way to stop this work from the «ЗАДАЧИ» list (null = not cancellable once it runs).
+    /// </summary>
+    private async Task<OperationLease?> AcquireInstallAsync(string name, Action? cancel)
+    {
+        var request = new OperationRequest(OperationClass.Install, OperationName(name)) { Owner = Key };
+        var queued = Coordinator.Check(request).Verdict == OperationVerdict.Queue;
+        _installWaiting = true;
+        if (queued)
+        {
+            BeginBusy($"В очереди: {request.Name}");
+            OperationNote = $"В очереди: «{request.Name}» — начнётся, когда закончится установка, идущая сейчас. Отменить можно в списке «ЗАДАЧИ».";
+        }
+        try
+        {
+            var lease = await Coordinator.AcquireAsync(request);
+            OperationNote = null;
+            lease.SetCancelHandler(cancel);
+            return lease;
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            OperationNote = ex.Message;
+            Ui.Toast(ex.Message, ToastKind.Warning, request.Name);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            OperationNote = null;
+            return null;
+        }
+        finally
+        {
+            _installWaiting = false;
+            if (queued) EndBusy();
+        }
     }
 
     private static async Task<bool> ConfirmAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
@@ -796,10 +853,10 @@ public sealed partial class AppsViewModel : PageViewModel
                 SetBusyText("Создание точки восстановления…");
                 var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
                 AppendLog(rp.Message);
-                if (rp.Outcome == RestorePointOutcome.Failed && !await Ui.ConfirmAsync(
+                if (rp.Outcome == RestorePointOutcome.Failed && !await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
                         "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
                         $"{rp.Message} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?",
-                        confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true))
+                        confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true)))
                 {
                     AppendLog("Очередь отменена: точка восстановления не создана.");
                     CancelRemaining();

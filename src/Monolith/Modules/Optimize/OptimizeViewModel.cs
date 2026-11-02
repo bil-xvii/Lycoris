@@ -313,7 +313,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateCounts();
         try
         {
-            await RunBusyAsync("Проверка текущего состояния…", async () =>
+            await RunBusyAsync(OperationClass.Measure, "Проверка текущего состояния…", async () =>
             {
                 var sp = await SystemProfile.LoadAsync();
                 _hardwareFactsKnown = sp.HardwareFactsKnown;
@@ -833,7 +833,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         var scenario = Profile;
         var batchTitle = OptimizeLogic.BatchTitle(scenario, _laptop);
         TweakRunResult? result = null;
-        await RunBusyAsync("Применение изменений…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Применение изменений…", async () =>
         {
             var progress = new Progress<string>(p => BusyText = p.EndsWith('…') ? p : $"Применение: {p}");
             result = await TweakEngine.ApplyAsync(targets.Select(t => t.Tweak).ToList(), batchTitle, progress);
@@ -956,7 +956,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         if (!ok) return;
 
         RevertResult? result = null;
-        await RunBusyAsync($"Откат: {item.Title}…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, $"Откат: {item.Title}…", async () =>
             result = await Task.Run(() => TweakEngine.RevertAsync(item.Tweak, LiveState.VerifyRevert)));
         await RefreshStatesAsync();
         await ReportRevertAsync(result, [item]);
@@ -1036,7 +1036,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
                     return;
                 }
                 SessionActionResult? r = null;
-                await RunBusyAsync("Перезапуск Проводника…", async () => r = await SessionActions.RestartExplorerAsync());
+                await RunBusyAsync(OperationClass.Disruptive, "Перезапуск Проводника…", async () => r = await SessionActions.RestartExplorerAsync());
                 if (r is null)
                 {
                     Postpone(kind, null);

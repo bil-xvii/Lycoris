@@ -235,7 +235,7 @@ public sealed partial class GamesViewModel : PageViewModel
         try
         {
             var custom = (Settings.CustomGameFolders ?? []).ToList();
-            await RunBusyAsync("Поиск игр…", async () =>
+            await RunBusyAsync(OperationClass.Measure, "Поиск игр…", async () =>
             {
                 var scan = await Task.Run(() => GameLibrary.Scan(custom));
                 _lastScan = DateTime.Now;
@@ -817,7 +817,7 @@ public sealed partial class GamesViewModel : PageViewModel
     private async Task RestoreStale()
     {
         if (!RequireAdmin("Вернуть настройки игрового сеанса", "RestoreStale")) return;
-        await RunBusyAsync("Откат игрового сеанса…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Откат игрового сеанса…", async () =>
         {
             var r = await Task.Run(() => ChangeJournal.Instance.RevertSourceAsync(GameBoostService.Source));
             if (r.Success) Ui.Toast(GameBoostService.StaleRevertedText(r), ToastKind.Success, "ИГРОВОЙ СЕАНС");

@@ -278,6 +278,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunDismAsync(ToolOutput.DismMode mode, bool confirmed = false)
     {
+        if (!CanStartNow(OperationClass.SystemRepair, "Образ Windows (DISM)")) return;
         var (arg, title, cancellable) = mode switch
         {
             ToolOutput.DismMode.CheckHealth => ("/CheckHealth", "ОБРАЗ WINDOWS · БЫСТРАЯ ПРОВЕРКА", true),
@@ -309,6 +310,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunSfcAsync(bool confirmed = false)
     {
+        if (!CanStartNow(OperationClass.SystemRepair, "Проверка системных файлов (SFC)")) return;
         if (!confirmed && !await Ui.ConfirmAsync(
                 "Проверить системные файлы?",
                 "SFC сверит все защищённые системные файлы Windows с эталонными копиями и заменит повреждённые.",
@@ -340,7 +342,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         });
 
     private Task RunChkntfsAsync() =>
-        ExecuteAsync("СОСТОЯНИЕ ДИСКА " + SystemDrive, $"chkntfs {SystemDrive}", cancellable: true, "Чтение состояния диска…", async ct =>
+        ExecuteMeasureAsync("СОСТОЯНИЕ ДИСКА " + SystemDrive, $"chkntfs {SystemDrive}", cancellable: true, "Чтение состояния диска…", async ct =>
         {
             var r = await RunProcessAsync(ProcessRunner.Sys("chkntfs.exe"), [SystemDrive], OutputEncoding.Oem, TimeSpan.FromMinutes(1), ct);
             if (r.Cancelled) return null;
@@ -350,6 +352,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunDefragAsync(IReadOnlyList<VolumeInfo> volumes)
     {
+        if (!CanStartNow(OperationClass.SystemRepair, "Оптимизация дисков")) return;
         if (volumes.Count == 0)
         {
             Ui.Toast("Не найдено дисков, которые можно оптимизировать.", ToastKind.Warning);
@@ -391,6 +394,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunNetworkResetAsync()
     {
+        if (!CanStartNow(OperationClass.SystemRepair, "Сброс сетевых настроек")) return;
         var restoreNote = AppSettings.Current.CreateRestorePoints
             ? "Перед сбросом будет создана точка восстановления Windows — только через неё можно вернуть прежние сетевые параметры"
             : "Создание точек восстановления выключено в разделе «Восстановление» — вернуть прежние параметры будет нельзя";
@@ -417,9 +421,9 @@ public sealed partial class ToolsViewModel : PageViewModel
                 rp = await RestorePointService.CreateAsync("MONOLITH: сброс сетевых настроек");
                 Emit(rp.Message, rp.Created ? ConsoleLineKind.Success : ConsoleLineKind.Info);
                 if (rp.Outcome is RestorePointOutcome.Disabled or RestorePointOutcome.Failed &&
-                    !await Ui.ConfirmAsync("Продолжить без точки восстановления?", rp.Message,
+                    !await AskWithoutLeaseAsync(() => Ui.ConfirmAsync("Продолжить без точки восстановления?", rp.Message,
                         ["Без точки восстановления прежние сетевые параметры вернуть будет нельзя"],
-                        confirmText: "ПРОДОЛЖИТЬ", danger: true))
+                        confirmText: "ПРОДОЛЖИТЬ", danger: true)))
                     return ToolOutcome.Cancel("Сброс отменён: точка восстановления не создана.");
             }
 
@@ -532,7 +536,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     private const string MaintenanceSettingKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance";
 
     private Task RunSleepWakeDiagnosticsAsync() =>
-        ExecuteAsync("СОН И ПРОБУЖДЕНИЕ", SleepWakeCommandText, cancellable: true, "Проверка сна и пробуждения…", async ct =>
+        ExecuteMeasureAsync("СОН И ПРОБУЖДЕНИЕ", SleepWakeCommandText, cancellable: true, "Проверка сна и пробуждения…", async ct =>
         {
             var elevated = Elevation.IsElevated;
             if (!elevated)
@@ -585,6 +589,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunEnergyReportAsync()
     {
+        if (!CanStartNow(OperationClass.Measure, "Отчёт об энергоэффективности", quiet: true)) return;
         if (GameBoostState.IsActive)
         {
             Ui.Toast("Дождитесь окончания игрового сеанса — отчёт энергоэффективности снимается при простое ПК.", ToastKind.Warning);
@@ -605,7 +610,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     }
 
     private Task RunPowerReportAsync(PowerReportSpec spec) =>
-        ExecuteAsync(spec.Title, spec.Display, cancellable: true, spec.Busy, async ct =>
+        ExecuteQuietAsync(spec.Title, spec.Display, cancellable: true, spec.Busy, async ct =>
         {
             if (!AppPaths.TryEnsureDir(AppPaths.LogsDir)) return ToolOutcome.Fail("Не удалось создать папку для отчёта: " + AppPaths.LogsDir);
             var file = Path.Combine(AppPaths.LogsDir, spec.FileName);
@@ -688,6 +693,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     /// </summary>
     private async Task RunDpcLatencyAsync()
     {
+        if (!CanStartNow(OperationClass.Measure, "Измерение задержек драйверов", quiet: true)) return;
         if (GameBoostState.IsActive)
         {
             Ui.Toast("Дождитесь окончания игрового сеанса — измерение задержек драйверов во время игры не запускается.", ToastKind.Warning);
@@ -710,7 +716,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                 confirmText: "ИЗМЕРИТЬ", footnote: "Пороги (500 и 1000 мкс) — практика сообщества LatencyMon, не стандарт Microsoft."))
             return;
 
-        await ExecuteAsync(DpcCardTitle, DpcCommandText, cancellable: true, "Измерение задержек драйверов…", async ct =>
+        await ExecuteQuietAsync(DpcCardTitle, DpcCommandText, cancellable: true, "Измерение задержек драйверов…", async ct =>
         {
             try
             {
@@ -769,9 +775,28 @@ public sealed partial class ToolsViewModel : PageViewModel
     /// Runs one tool with the console: header, elapsed clock, streamed output, progress, outcome.
     /// <paramref name="work"/> returns null when it was cancelled.
     /// </summary>
-    private async Task ExecuteAsync(string title, string command, bool cancellable, string busyText, Func<CancellationToken, Task<ToolOutcome?>> work)
+    private Task ExecuteAsync(string title, string command, bool cancellable, string busyText, Func<CancellationToken, Task<ToolOutcome?>> work) =>
+        ExecuteCoreAsync(OperationClass.SystemRepair, false, title, command, cancellable, busyText, work);
+
+    /// <summary>A read-only measurement (never blocks anything; <paramref name="quiet"/> = needs an idle system).</summary>
+    private Task ExecuteMeasureAsync(string title, string command, bool cancellable, string busyText, Func<CancellationToken, Task<ToolOutcome?>> work,
+        bool quiet = false) =>
+        ExecuteCoreAsync(OperationClass.Measure, quiet, title, command, cancellable, busyText, work);
+
+    /// <summary>A measurement that needs a quiet system (DPC latency, energy report): not while an installer or repair runs.</summary>
+    private Task ExecuteQuietAsync(string title, string command, bool cancellable, string busyText, Func<CancellationToken, Task<ToolOutcome?>> work) =>
+        ExecuteMeasureAsync(title, command, cancellable, busyText, work, quiet: true);
+
+    private async Task ExecuteCoreAsync(OperationClass kind, bool quiet, string title, string command, bool cancellable, string busyText,
+        Func<CancellationToken, Task<ToolOutcome?>> work)
     {
         if (IsRunning) return;
+        if (kind == OperationClass.SystemRepair && GameBoostState.IsActive)
+        {
+            OperationNote = "Идёт игровой сеанс — инструменты ремонта и дисков запустятся после его остановки, чтобы не мешать игре.";
+            Ui.Toast(OperationNote, ToastKind.Warning, title);
+            return;
+        }
         _cts = new CancellationTokenSource();
         IsRunning = true;
         CanCancelRun = cancellable;
@@ -796,8 +821,11 @@ public sealed partial class ToolsViewModel : PageViewModel
         try
         {
             // Errors are handled here (not by RunBusyAsync) so the user gets exactly one message.
-            await RunBusyAsync(busyText, async () =>
+            var started = false;
+            await RunBusyAsync(kind, busyText, async lease =>
             {
+                started = true;
+                if (cancellable) lease.SetCancelHandler(() => Ui.Post(() => { if (CancelRunCommand.CanExecute(null)) CancelRunCommand.Execute(null); }));
                 try
                 {
                     outcome = await work(token);
@@ -810,8 +838,13 @@ public sealed partial class ToolsViewModel : PageViewModel
                 {
                     error = ex;
                 }
-            });
-            if (error is not null)
+            }, quiet);
+            if (!started)
+            {
+                // Refused or taken out of the queue: RunBusyAsync already told the user why (OperationNote + toast).
+                outcome = ToolOutcome.Cancel(OperationNote ?? "Не запущено: другая задача ещё выполняется.");
+            }
+            else if (error is not null)
             {
                 Log.Error(title, error);
                 outcome = ToolOutcome.Fail(error.Message);

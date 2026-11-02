@@ -81,7 +81,7 @@ public sealed partial class DriversViewModel
             confirmText: "ВКЛЮЧИТЬ");
         if (!confirmed) return;
 
-        await RunBusyAsync("Включение устройства…", async () =>
+        await RunBusyAsync(OperationClass.Disruptive, "Включение устройства…", async () =>
         {
             var session = await ChangeSession.BeginAsync($"Включение устройства «{device.Name}»");
             var ok = await session.RunCommandAsync(
