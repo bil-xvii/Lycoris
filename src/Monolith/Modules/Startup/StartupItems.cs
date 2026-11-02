@@ -57,7 +57,7 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     public bool CanChange => Entry.CanChange;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip), nameof(ShowBootDelay))]
+    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip), nameof(ShowBootDelay), nameof(LockNote))]
     private bool _isEnabled;
 
     /// <summary>Newest boot slowdown Windows recorded for this program (Diagnostics-Performance event 101), if any.</summary>
@@ -100,14 +100,24 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
         }
     }
 
-    public bool CanToggle => Elevation.IsElevated && CanChange && (!IsEnabled || CanDisable);
+    public bool CanToggle => CanChange && (!IsEnabled || CanDisable);
+
+    /// <summary>
+    /// Why the switch is locked, as text next to it (never only a tooltip): protection icons, policy-managed or
+    /// unrecognised packaged tasks. Null when the switch works.
+    /// </summary>
+    public string? LockNote =>
+        IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState) ? "управляет политика — не меняется"
+        : !CanChange ? "состояние не распознано — не меняется"
+        : IsEnabled && !CanDisable ? "защита Windows — не отключается"
+        : null;
 
     public string ToggleTooltip =>
-        !Elevation.IsElevated ? "Нужны права администратора: изменения записываются в журнал отката."
-        : IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState)
+        IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState)
             ? "Состоянием этой задачи управляет администратор или групповая политика — MONOLITH его не меняет."
         : !CanChange ? "Состояние задачи не распознано или имя пакета нестандартное — MONOLITH её не меняет."
         : IsEnabled && !CanDisable ? "Значок защиты Windows или антивируса — MONOLITH его не отключает."
+        : !Elevation.IsElevated ? "Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие."
         : IsPackaged ? PackagedToggleTooltip(!IsEnabled, PackagedStartup.StateAfterSwitch(!IsEnabled, PackageStateBefore))
         : IsEnabled ? "Отключить: программа не будет запускаться при входе. Ничего не удаляется."
         : "Включить: программа снова будет запускаться при входе в Windows.";
@@ -128,6 +138,7 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
         DisabledAtUtc = fresh.DisabledAtUtc;
         OnPropertyChanged(nameof(CanChange));
         OnPropertyChanged(nameof(CanToggle));
+        OnPropertyChanged(nameof(LockNote));
         OnPropertyChanged(nameof(ToggleTooltip));
         OnPropertyChanged(nameof(StatusDetail));
         OnPropertyChanged(nameof(LocationTooltip));
@@ -181,7 +192,7 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
     public bool CanDisable => StartupClassifier.CanDisable(Info.Risk);
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip), nameof(ShowBootDelay))]
+    [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip), nameof(ShowBootDelay), nameof(LockNote))]
     private bool _isEnabled;
 
     [ObservableProperty]
@@ -209,14 +220,18 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
         }
     }
 
-    public bool CanToggle => Elevation.IsElevated && (!IsEnabled || CanDisable);
+    public bool CanToggle => !IsEnabled || CanDisable;
+
+    /// <summary>Why the switch is locked, as text next to it; null when it works.</summary>
+    public string? LockNote =>
+        IsEnabled && !CanDisable ? (Info.Risk == StartupRisk.Updater ? "обновление программы — не отключается" : "защитное ПО — не отключается") : null;
 
     public string ToggleTooltip =>
-        !Elevation.IsElevated ? "Нужны права администратора: изменения записываются в журнал отката."
-        : IsEnabled && !CanDisable
+        IsEnabled && !CanDisable
             ? Info.Risk == StartupRisk.Updater
                 ? "Задача обновляет программу и закрывает уязвимости — MONOLITH её не отключает."
                 : "Задача защитного ПО — MONOLITH её не отключает."
+        : !Elevation.IsElevated ? "Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие."
         : IsEnabled ? "Отключить задачу в планировщике. Задача не удаляется."
         : "Включить задачу снова.";
 

@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Windows;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
@@ -76,8 +77,11 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     public bool IsManaged => Machine?.IsManaged == true;
 
-    /// <summary>Changes are allowed: admin rights and not an organization-managed PC.</summary>
-    public bool CanModify => IsElevated && !IsManaged;
+    /// <summary>
+    /// Changes are offered: not an organization-managed PC. Read-only mode does NOT disable anything — a click asks for
+    /// admin rights (<c>RequireAdmin</c>) and the relaunched copy repeats the action.
+    /// </summary>
+    public bool CanModify => !IsManaged;
 
     public string ManagedText => Machine switch
     {
@@ -140,13 +144,51 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     partial void OnSelectedTabChanged(int value)
     {
+        RaisePrimary();
         if (StartupTabShown) _ = EnsureStartupAsync();
     }
 
     private void OnStartupPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(IsBusy) or nameof(BusyText)) SyncStartupBusy();
-        else if (e.PropertyName == nameof(StartupViewModel.TaskCount)) OnPropertyChanged(nameof(AllTaskCount));
+        else if (e.PropertyName == nameof(StartupViewModel.TaskCount))
+        {
+            OnPropertyChanged(nameof(AllTaskCount));
+            OnPropertyChanged(nameof(StartupTabCount));
+        }
+        else if (e.PropertyName == nameof(StartupViewModel.TotalCount)) OnPropertyChanged(nameof(StartupTabCount));
+        else if (e.PropertyName == nameof(BadgeText)) BadgeText = Startup.BadgeText;
+        else if (e.PropertyName == nameof(CheckedAt)) CheckedAt = Startup.CheckedAt;
+        else if (e.PropertyName == nameof(StartupViewModel.ExtraCount)) RaisePrimary();
+    }
+
+    // ───────────────────────────── Shortcut targets (Dashboard tiles, admin-intent replay) ─────────────────────────────
+    // The replay looks for «{Command}Command» on this top-level page; the logic stays in the hosted pages.
+
+    /// <summary>One autostart switch by its entry key («ToggleStartup»).</summary>
+    public ICommand ToggleStartupCommand => Startup.ToggleKeyCommand;
+    /// <summary>One logon-task switch by its task path («ToggleLogonTask»).</summary>
+    public ICommand ToggleLogonTaskCommand => Startup.ToggleTaskKeyCommand;
+    /// <summary>The checked autostart entries off («DisableSelectedStartup»; the parameter is an <see cref="IntentList"/>).</summary>
+    public ICommand DisableSelectedStartupCommand => Startup.DisableSelectedCommand;
+    /// <summary>The checked autostart entries on («EnableSelectedStartup»).</summary>
+    public ICommand EnableSelectedStartupCommand => Startup.EnableSelectedCommand;
+    /// <summary>«ОТКЛЮЧИТЬ ЛИШНЕЕ · N»: entries slowing boot or pointing to missing files, after a confirmation with the list.</summary>
+    public ICommand DisableExtraStartupCommand => Startup.DisableExtraCommand;
+
+    /// <summary>Autostart tab badge: entries plus third-party logon tasks (they live on that tab now).</summary>
+    public int StartupTabCount => Startup.TotalCount + Startup.TaskCount;
+
+    // ───────────────────────────── Header primary (changes with the tab) ─────────────────────────────
+
+    /// <summary>The header's one main button: on АВТОЗАПУСК «ОТКЛЮЧИТЬ ЛИШНЕЕ · N» (hidden when there is nothing extra).</summary>
+    public string PrimaryText => $"ОТКЛЮЧИТЬ ЛИШНЕЕ · {Startup.ExtraCount}";
+    public bool HasPrimary => SelectedTab == TabStartup && Startup.ExtraCount > 0;
+
+    private void RaisePrimary()
+    {
+        OnPropertyChanged(nameof(PrimaryText));
+        OnPropertyChanged(nameof(HasPrimary));
     }
 
     /// <summary>
@@ -331,6 +373,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         if (_pendingServiceFocus is { } focus) ApplyFocus(focus);
 
         RefreshJournal();
+        MarkChecked();
         Log.Info($"Службы: найдено {AllServices.Count} служб, рекомендаций {RecommendationCount}, задач {TaskItems.Count}.");
         if (Machine?.IsManaged == true) Log.Warn("Службы: ПК управляется организацией — раздел только для просмотра.");
     });
