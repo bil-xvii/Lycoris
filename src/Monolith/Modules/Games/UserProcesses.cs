@@ -48,6 +48,35 @@ public static class UserProcesses
         "riotclient", "gamebar", "monolith",
     ];
 
+    /// <summary>
+    /// Close-list apps that are never put into efficiency mode (EcoQoS), even when the user listed them: voice and
+    /// conferencing (their audio would stutter), capture and streaming (dropped frames), audio routing and effects, GPU
+    /// vendor capture/broadcast helpers, overlays and frame limiters, peripheral and macro software (input latency).
+    /// Closing them stays the user's choice; throttling them silently would be felt in the game.
+    /// </summary>
+    public static readonly IReadOnlySet<string> NeverThrottle = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "audiodg", "discord", "teamspeak3", "ts3client_win64", "ts3client_win32", "teamspeak", "slack", "zoom", "teams", "ms-teams",
+        "obs64", "obs32", "streamlabs obs", "streamlabs", "nvcontainer", "nvidia share", "nvidia broadcast", "nvidia broadcast ui",
+        "wavelink", "sonar", "steelseriesgg", "steelseriesengine", "rtss", "rtsshooks", "msiafterburner", "encoderserver",
+        "xsplit.core", "elgato 4k capture utility", "mumble", "skype", "amdrsserv", "amdrssrcext", "amdow",
+    };
+
+    private static readonly string[] NeverThrottlePrefixes =
+    [
+        "voicemeeter", "nahimic", "lghub", "razer", "icue", "corsair", "logioptions", "nvidia", "discord", "teamspeak", "obs64", "obs32",
+        "obs-", "streamlabs", "steelseries", "wavelink", "rtss", "msiafterburner",
+    ];
+
+    /// <summary>True for the voice/stream/audio/overlay/peripheral software of <see cref="NeverThrottle"/> (name normalised like the close list).</summary>
+    public static bool IsNeverThrottled(string? name)
+    {
+        var n = NormalizeName(name);
+        if (n.Length == 0) return true;
+        if (NeverThrottle.Contains(n)) return true;
+        return NeverThrottlePrefixes.Any(p => n.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>"C:\x\Discord.exe" / "Discord.EXE " → "Discord".</summary>
     public static string NormalizeName(string? s)
     {
