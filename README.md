@@ -27,22 +27,28 @@
 4. Критичные службы Windows изменять нельзя — они заблокированы в коде.
 5. Без прав администратора программа работает в режиме просмотра.
 
-## Запуск
+## Скачать
 
-Готовый файл: `publish\MONOLITH.exe` — один exe, .NET устанавливать не нужно. При запуске Windows спросит права администратора (без них — режим просмотра).
+**[Последняя версия → Releases](../../releases/latest)** — скачайте `MONOLITH.exe` и запустите. Один файл, ничего устанавливать не нужно (.NET внутри).
 
-Сборка из исходников (нужен .NET 10 SDK):
+- Windows 10 (2004+) / Windows 11, 64-bit.
+- Программа открывается **без запроса прав администратора** в режиме просмотра: смотреть и проверять можно сразу. Когда вы нажимаете кнопку, которая что-то меняет, MONOLITH сам перезапускается с правами администратора и продолжает то же действие.
+- Язык интерфейса: русский / English (Настройки → «Язык / Language»; по умолчанию — язык Windows).
+- Рядом с файлом в релизе лежит `MONOLITH.exe.sha256` — сверьте контрольную сумму: `Get-FileHash MONOLITH.exe -Algorithm SHA256`.
+- Файл пока **не подписан** цифровой подписью, поэтому Windows SmartScreen / окно UAC может писать «Издатель: неизвестно» (см. `docs/signing.md`). Это не означает, что файл опасен; исходный код открыт в этом репозитории.
+
+## Сборка из исходников (нужен .NET 10 SDK)
 
 ```
 dotnet build src/Monolith/Monolith.csproj -c Debug
 dotnet test tests/Monolith.Tests/Monolith.Tests.csproj
-dotnet publish src/Monolith/Monolith.csproj -c Release -r win-x64 --self-contained true -o publish
+powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сборка в publish\MONOLITH.exe
 ```
 
-## Облако
+---
 
-Проект хранится в приватном репозитории GitHub `bil-xvii/MONOLITH`. Все изменения автоматически отправляются туда (`tools/autosave.ps1`). Восстановить проект на любом компьютере:
+# MONOLITH (English)
 
-```
-git clone https://github.com/bil-xvii/MONOLITH.git
-```
+**Safe Windows optimization for work and gaming.** Strict black-and-white interface. Every change is written to a journal and can be undone in one click; a Windows restore point is created before each batch; only documented, evidence-backed settings; critical services are protected.
+
+**Download:** grab `MONOLITH.exe` from the [latest release](../../releases/latest) — a single self-contained file, no installer, no .NET needed (Windows 10 2004+/11, 64-bit). It opens read-only without a UAC prompt and asks for administrator rights only when you press a button that changes something, then continues the same action. Interface language: Russian / English (Settings → Language; default follows Windows). Verify the download with `MONOLITH.exe.sha256`. The file is not code-signed yet, so Windows may show "Unknown publisher" (see `docs/signing.md`).
