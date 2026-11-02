@@ -79,12 +79,12 @@ public sealed partial class HomeViewModel : PageViewModel
         {
             var list = new List<HomeGoal>
             {
-                new("gaming", Glyphs.Game, Loc.T("Игры"), Loc.T("Подобрать игровой профиль оптимизации."), GamingFact, Loc.T("БЕЗОПАСНО"), Loc.T("ПОДОБРАТЬ ИГРОВОЙ РЕЖИМ"), Loc.T("Профиль Gaming · элементы сценария")),
-                new("startup", Glyphs.Rocket, Loc.T("Быстрее включается ПК"), Loc.T("Посмотреть программы, запускающиеся вместе с Windows."), StartupFact, Loc.T("ПО ЖЕЛАНИЮ"), Loc.T("ОТКРЫТЬ АВТОЗАПУСК"), Loc.T("Вкладка TabStartup · StartupViewModel.Items")),
-                new("cleanup", Glyphs.Delete, Loc.T("Освободить место"), Loc.T("Проверить временные файлы перед очисткой."), CleanupFact, Loc.T("ПО ЖЕЛАНИЮ"), Loc.T("ПОСМОТРЕТЬ, ЧТО ОЧИСТИТЬ"), Loc.T("CleanerViewModel · только выбранные пункты")),
+                new("gaming", Glyphs.Game, Loc.T("Игры"), Loc.T("Подобрать игровой профиль оптимизации."), GamingFact, Loc.T("БЕЗОПАСНО"), Loc.T("ПОДОБРАТЬ ИГРОВОЙ РЕЖИМ"), Loc.T("Профиль «Игры»: набор безопасных настроек, каждую можно откатить")),
+                new("startup", Glyphs.Rocket, Loc.T("Быстрее включается ПК"), Loc.T("Посмотреть программы, запускающиеся вместе с Windows."), StartupFact, Loc.T("ПО ЖЕЛАНИЮ"), Loc.T("ОТКРЫТЬ АВТОЗАПУСК"), Loc.T("Автозапуск: ничего не отключается без вашего подтверждения")),
+                new("cleanup", Glyphs.Delete, Loc.T("Освободить место"), Loc.T("Проверить временные файлы перед очисткой."), CleanupFact, Loc.T("ПО ЖЕЛАНИЮ"), Loc.T("ПОСМОТРЕТЬ, ЧТО ОЧИСТИТЬ"), Loc.T("Удаляются только отмеченные вами пункты, пользовательские файлы не затрагиваются")),
                 ShowLaptopGoal
                     ? new("laptop", Glyphs.Battery, Loc.T("Ноутбук от батареи"), Loc.T("Подобрать сценарий автономности."), LaptopFact, Loc.T("ПО ЖЕЛАНИЮ"), Loc.T("ОТКРЫТЬ СЦЕНАРИЙ АВТОНОМНОСТИ"), Loc.T("Профиль Efficiency · параметры питания от батареи"))
-                    : new("drivers", Glyphs.Devices, Loc.T("Проверить драйверы"), Loc.T("Открыть подбор драйверов для компонентов ПК."), DriversFact, Loc.T("БЕЗОПАСНО"), Loc.T("ПОДОБРАТЬ ДРАЙВЕРЫ"), Loc.T("DriversTab.Hardware · подбор для вашего ПК")),
+                    : new("drivers", Glyphs.Devices, Loc.T("Проверить драйверы"), Loc.T("Открыть подбор драйверов для компонентов ПК."), DriversFact, Loc.T("БЕЗОПАСНО"), Loc.T("ПОДОБРАТЬ ДРАЙВЕРЫ"), Loc.T("Подбор по вашему железу, установка только после подтверждения")),
             };
             return list;
         }
