@@ -1,0 +1,15 @@
+{
+  "area": "Services",
+  "translated": false,
+  "sources": [
+    "Modules/Services/ServiceGuard.cs",
+    "Modules/Services/ServiceItems.cs",
+    "Modules/Services/ServiceModel.cs",
+    "Modules/Services/ServiceScanner.cs",
+    "Modules/Services/ServicesView*",
+    "Modules/Services/ServicesViewModel*.cs",
+    "Modules/Services/TaskScanner.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

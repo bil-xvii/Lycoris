@@ -50,11 +50,11 @@ public static class LogonTaskScanner
     public static List<LogonTask> Scan(bool includeSystem = false)
     {
         var result = new List<LogonTask>();
-        var type = Type.GetTypeFromProgID("Schedule.Service") ?? throw new InvalidOperationException("Планировщик заданий недоступен.");
+        var type = Type.GetTypeFromProgID("Schedule.Service") ?? throw new InvalidOperationException(Loc.T("Планировщик заданий недоступен."));
         object? service = null;
         try
         {
-            service = Activator.CreateInstance(type) ?? throw new InvalidOperationException("Планировщик заданий недоступен.");
+            service = Activator.CreateInstance(type) ?? throw new InvalidOperationException(Loc.T("Планировщик заданий недоступен."));
             dynamic svc = service;
             svc.Connect();
             object root = svc.GetFolder("\\");
@@ -98,7 +98,7 @@ public static class LogonTaskScanner
         }
         catch (Exception ex) when (ex is COMException or UnauthorizedAccessException)
         {
-            Log.Warn($"Автозапуск: нет доступа к папке планировщика {folderPath}: {ex.Message}");
+            Log.Warn("Автозапуск: нет доступа к папке планировщика {0}: {1}", folderPath, ex.Message);
         }
 
         if (depth >= 24) return;
@@ -114,7 +114,7 @@ public static class LogonTaskScanner
         }
         catch (Exception ex) when (ex is COMException or UnauthorizedAccessException)
         {
-            Log.Warn($"Автозапуск: не удалось перечислить вложенные папки {folderPath}: {ex.Message}");
+            Log.Warn("Автозапуск: не удалось перечислить вложенные папки {0}: {1}", folderPath, ex.Message);
         }
     }
 
@@ -168,7 +168,7 @@ public static class LogonTaskScanner
 
         dynamic actions = def.Actions;
         int actionCount = actions.Count;
-        var command = actionCount == 0 ? "Нет действий" : "";
+        var command = actionCount == 0 ? Loc.T("Нет действий") : "";
         string? target = null;
         for (var i = 1; i <= actionCount && target is null && command.Length == 0; i++)
         {
@@ -184,14 +184,14 @@ public static class LogonTaskScanner
             else if (actionType == ActionComHandler)
             {
                 string? clsid = action.ClassId;
-                command = $"COM-обработчик {clsid}".Trim();
+                command = Loc.Tf("COM-обработчик {0}", clsid).Trim();
             }
             else
             {
-                command = $"Действие типа {actionType}";
+                command = Loc.Tf("Действие типа {0}", actionType);
             }
         }
-        if (command.Length == 0) command = "Нет действий";
+        if (command.Length == 0) command = Loc.T("Нет действий");
 
         target = StartupScanner.ResolveAppPath(target);
         var exists = target is null || FileProbe.FileExists(target);
@@ -236,7 +236,7 @@ public static class LogonTaskScanner
         return info.Exists ? info.Enabled : null;
     }
 
-    internal static string FolderLabel(string folder) => folder is "\\" or "" ? "Корневая папка" : folder;
+    internal static string FolderLabel(string folder) => folder is "\\" or "" ? Loc.T("Корневая папка") : folder;
 
     internal static string FileLabel(string? path)
     {

@@ -1,0 +1,9 @@
+{
+  "area": "Startup",
+  "translated": false,
+  "sources": [
+    "Modules/Startup/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

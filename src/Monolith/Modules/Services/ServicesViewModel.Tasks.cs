@@ -65,7 +65,7 @@ public sealed partial class ServicesViewModel
         TaskItems = new ObservableCollection<TaskItem>(items);
         MissingTasksText = missing.Count == 0
             ? ""
-            : $"Нет на этой сборке Windows (или скрыты без прав администратора): {string.Join(", ", missing)}.";
+            : Loc.Tf("Нет на этой сборке Windows (или скрыты без прав администратора): {0}.", string.Join(", ", missing));
 
         if (firstBuild) ApplyProfileToTasks();
         else UpdateTaskStats();
@@ -107,7 +107,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanApplyTasks))]
     private async Task ApplyTasksAsync(string? paths)
     {
-        if (!RequireAdmin("отключение задач планировщика", "ApplyTasks", IntentList.Pack(TaskItems.Where(t => t.IsSelected && t.CanSelect).Select(t => t.Path)))) return;
+        if (!RequireAdmin(Loc.T("отключение задач планировщика"), "ApplyTasks", IntentList.Pack(TaskItems.Where(t => t.IsSelected && t.CanSelect).Select(t => t.Path)))) return;
         if (IntentList.Unpack(paths) is { Count: > 0 } replayed)
         {
             var set = replayed.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -134,7 +134,7 @@ public sealed partial class ServicesViewModel
             return;
         }
 
-        var details = plan.Select(t => $"{t.Title}: Включена → Отключена").ToList();
+        var details = plan.Select(t => Loc.Tf("{0}: Включена → Отключена", t.Title)).ToList();
         if (!await Ui.ConfirmAsync("ОТКЛЮЧИТЬ ЗАДАЧИ?",
                 "Задачи перестанут запускаться по расписанию. Сами задачи не удаляются — их можно включить обратно. " +
                 "Перед изменением создаётся точка восстановления, исходное состояние сохраняется в журнале.",
@@ -142,17 +142,18 @@ public sealed partial class ServicesViewModel
                 footnote: "Крупные обновления Windows иногда включают задачи заново — просто отключите их снова."))
             return;
 
-        await RunBusyAsync(OperationClass.JournalChange, "Отключение задач…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Отключение задач…"), async () =>
         {
-            var session = await BeginSessionAsync(BatchTitle("Задачи планировщика", plan.Select(t => t.Title).ToList()));
+            var session = await BeginSessionAsync(BatchTitle(Loc.Keep("Задачи планировщика"), plan.Select(t => t.RuTitle).ToList()),
+                BatchTitle(Loc.T("Задачи планировщика"), plan.Select(t => t.Title).ToList(), localized: true));
             if (session is null) return;
             await Task.Run(() =>
             {
                 foreach (var t in plan)
-                    session.SetTaskEnabled(t.Path, false, TaskSource, $"Задача «{t.Title}»");
+                    session.SetTaskEnabled(t.Path, false, TaskSource, string.Format(Loc.Keep("Задача «{0}»"), t.RuTitle));
                 session.Complete();
             });
-            await ReportSessionAsync(session, $"Отключено задач: {session.Applied}.");
+            await ReportSessionAsync(session, Loc.Tf("Отключено задач: {0}.", session.Applied));
             await RefreshStatesAsync();
         });
     }
@@ -177,7 +178,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanRowAction))]
     private async Task RevertTaskAsync(string? path)
     {
-        if (string.IsNullOrEmpty(path) || !RequireAdmin("откат изменения задачи", "RevertTask", path)) return;
+        if (string.IsNullOrEmpty(path) || !RequireAdmin(Loc.T("откат изменения задачи"), "RevertTask", path)) return;
         // The row means «back to how it was before MONOLITH»: every active change of this task, newest first.
         var layers = ChangeJournal.Instance.ActiveLayers("task:" + path);
         var record = layers.LastOrDefault();
@@ -196,15 +197,15 @@ public sealed partial class ServicesViewModel
             return;
         }
 
-        var current = info.Enabled ? "Включена" : "Отключена";
+        var current = info.Enabled ? Loc.T("Включена") : Loc.T("Отключена");
         var drift = !string.Equals(current, record.NewValue, StringComparison.Ordinal);
         var message = drift
-            ? $"Состояние задачи уже изменено без MONOLITH: сейчас «{current}». Всё равно вернуть исходное «{original}»?"
-            : "Задача вернётся в исходное состояние из журнала.";
+            ? Loc.Tf("Состояние задачи уже изменено без MONOLITH: сейчас «{0}». Всё равно вернуть исходное «{1}»?", current, original)
+            : Loc.T("Задача вернётся в исходное состояние из журнала.");
         if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;
 
-        await RunBusyAsync(OperationClass.JournalChange, "Откат изменения задачи…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Откат изменения задачи…"), async () =>
         {
             var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(layers));
             await ReportRevertAsync(result);

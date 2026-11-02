@@ -1,0 +1,9 @@
+{
+  "area": "Services.Catalog",
+  "translated": false,
+  "sources": [
+    "Modules/Services/ServiceCatalog.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

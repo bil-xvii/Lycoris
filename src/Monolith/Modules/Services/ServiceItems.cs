@@ -15,9 +15,9 @@ internal static class RiskText
 {
     public static string Of(TweakRisk risk) => risk switch
     {
-        TweakRisk.Safe => "БЕЗОПАСНО",
-        TweakRisk.Optional => "ПО ЖЕЛАНИЮ",
-        _ => "ЭКСПЕРТ",
+        TweakRisk.Safe => Loc.T("БЕЗОПАСНО"),
+        TweakRisk.Optional => Loc.T("ПО ЖЕЛАНИЮ"),
+        _ => Loc.T("ЭКСПЕРТ"),
     };
 }
 
@@ -28,7 +28,9 @@ public sealed partial class RecommendationItem : ObservableObject
 
     public CuratedService Entry { get; }
     public string Name => Entry.Name;
-    public string Title => Entry.Title;
+    public string Title => Loc.T(Entry.Title);
+    /// <summary>The Russian title: what is written into the journal (the file never depends on the UI language).</summary>
+    public string RuTitle => Entry.Title;
     public string Description => Entry.Description;
     public string Condition => Entry.Condition;
     public string Impact => Entry.Impact;
@@ -131,10 +133,10 @@ public sealed partial class ServiceItem : ObservableObject
     public ServiceInfo Info { get; }
     public string Name => Info.Name;
     public string DisplayName => Info.DisplayName;
-    public string Description => string.IsNullOrWhiteSpace(Info.Description) ? "Описание не указано." : Info.Description;
+    public string Description => string.IsNullOrWhiteSpace(Info.Description) ? Loc.T("Описание не указано.") : Info.Description;
     public string Account => string.IsNullOrWhiteSpace(Info.StartName) ? "—" : Info.StartName;
     public string Binary => string.IsNullOrWhiteSpace(Info.Binary) ? "—" : Info.Binary;
-    public string Publisher => string.IsNullOrWhiteSpace(Info.Company) ? (Info.IsThirdParty ? "Не указан" : "Компонент Windows") : Info.Company;
+    public string Publisher => string.IsNullOrWhiteSpace(Info.Company) ? (Info.IsThirdParty ? Loc.T("Не указан") : Loc.T("Компонент Windows")) : Info.Company;
     public bool IsThirdParty => Info.IsThirdParty;
     public bool IsPerUser => Info.IsPerUser;
     public string TemplateName => ServiceControl.BaseName(Info.Name);
@@ -214,7 +216,8 @@ public sealed partial class TaskItem : ObservableObject
 
     public CuratedTask Entry { get; }
     public string Path { get; }
-    public string Title => Entry.IsPrefix ? $"{Entry.Title}: {TaskScanner.Split(Path).Name}" : Entry.Title;
+    public string Title => Entry.IsPrefix ? $"{Loc.T(Entry.Title)}: {TaskScanner.Split(Path).Name}" : Loc.T(Entry.Title);
+    public string RuTitle => Entry.IsPrefix ? $"{Entry.Title}: {TaskScanner.Split(Path).Name}" : Entry.Title;
     public string Description => Entry.Description;
     public string Impact => Entry.Impact;
     public bool IsConditional => Entry.Conditional;
@@ -257,6 +260,6 @@ public sealed partial class TaskItem : ObservableObject
         : IsSelected ? RowBadge.Pending
         : RowBadge.None;
 
-    public string StateText => Enabled ? "Включена" : "Отключена";
+    public string StateText => Enabled ? Loc.T("Включена") : Loc.T("Отключена");
     public string ChangeText => Journal is null ? "" : $"{Journal.OldValue} → {Journal.NewValue}";
 }

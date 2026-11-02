@@ -37,9 +37,9 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     public bool IsMachine => StartupLocations.IsMachine(Entry.Source);
     public bool IsPackaged => StartupLocations.IsPackaged(Entry.Source);
 
-    public string ScopeText => IsMachine ? "ДЛЯ ВСЕХ" : "ДЛЯ МЕНЯ";
+    public string ScopeText => IsMachine ? Loc.T("ДЛЯ ВСЕХ") : Loc.T("ДЛЯ МЕНЯ");
     public string SourceText => StartupLocations.ShortLabel(Entry.Source);
-    public string PublisherText => Entry.Publisher ?? (Entry.TargetExists ? "Издатель не указан" : "Нет данных");
+    public string PublisherText => Entry.Publisher ?? (Entry.TargetExists ? Loc.T("Издатель не указан") : Loc.T("Нет данных"));
     public bool HasPublisher => Entry.Publisher is not null;
     public string FileText => BootPerformance.FileName(TargetPath) ?? "—";
 
@@ -48,8 +48,8 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
         (Entry.Description is { } d && d != Entry.DisplayName ? $"\n{d}" : "");
 
     public string LocationTooltip => IsPackaged
-        ? $"Задача автозапуска приложения MSIX\n{StartupLocations.DescribeMark(Entry)} = {Entry.PackageState?.ToString() ?? "?"} ({PackagedStartup.StateText(Entry.PackageState)})"
-        : $"{StartupLocations.Describe(Entry.Source)}\nОтметка: {(IsMachine ? "HKLM" : "HKCU")}\\{StartupLocations.ApprovedKey(Entry.Source)}";
+        ? Loc.Tf("Задача автозапуска приложения MSIX\n{0} = {1} ({2})", StartupLocations.DescribeMark(Entry), Entry.PackageState?.ToString() ?? "?", PackagedStartup.StateText(Entry.PackageState))
+        : Loc.Tf("{0}\nОтметка: {1}\\{2}", StartupLocations.Describe(Entry.Source), IsMachine ? "HKLM" : "HKCU", StartupLocations.ApprovedKey(Entry.Source));
 
     public bool CanDisable => StartupClassifier.CanDisable(Entry.Risk);
 
@@ -85,7 +85,7 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     [NotifyPropertyChangedFor(nameof(ToggleTooltip))]
     private int? _packageStateBefore;
 
-    public string StatusText => IsEnabled ? "ВКЛЮЧЕНО" : "ОТКЛЮЧЕНО";
+    public string StatusText => IsEnabled ? Loc.T("ВКЛЮЧЕНО") : Loc.T("ОТКЛЮЧЕНО");
 
     public string StatusDetail
     {
@@ -93,8 +93,8 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
         {
             var parts = new List<string>();
             if (IsPackaged) parts.Add(PackagedStartup.StateText(Entry.PackageState));
-            else if (!IsEnabled && DisabledAtUtc is { } at) parts.Add("с " + at.ToLocalTime().ToString("dd.MM.yyyy HH:mm"));
-            else parts.Add(IsEnabled ? "при входе в Windows" : "не запускается");
+            else if (!IsEnabled && DisabledAtUtc is { } at) parts.Add(Loc.Tf("с {0:dd.MM.yyyy HH:mm}", at.ToLocalTime()));
+            else parts.Add(IsEnabled ? Loc.T("при входе в Windows") : Loc.T("не запускается"));
             if (IsJournaled) parts.Add("MONOLITH");
             return string.Join(" · ", parts);
         }
@@ -107,28 +107,30 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     /// unrecognised packaged tasks. Null when the switch works.
     /// </summary>
     public string? LockNote =>
-        IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState) ? "управляет политика — не меняется"
-        : !CanChange ? "состояние не распознано — не меняется"
-        : IsEnabled && !CanDisable ? "защита Windows — не отключается"
+        IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState) ? Loc.T("управляет политика — не меняется")
+        : !CanChange ? Loc.T("состояние не распознано — не меняется")
+        : IsEnabled && !CanDisable ? Loc.T("защита Windows — не отключается")
         : null;
 
     public string ToggleTooltip =>
         IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState)
-            ? "Состоянием этой задачи управляет администратор или групповая политика — MONOLITH его не меняет."
-        : !CanChange ? "Состояние задачи не распознано или имя пакета нестандартное — MONOLITH её не меняет."
-        : IsEnabled && !CanDisable ? "Значок защиты Windows или антивируса — MONOLITH его не отключает."
-        : !Elevation.IsElevated ? "Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие."
+            ? Loc.T("Состоянием этой задачи управляет администратор или групповая политика — MONOLITH его не меняет.")
+        : !CanChange ? Loc.T("Состояние задачи не распознано или имя пакета нестандартное — MONOLITH её не меняет.")
+        : IsEnabled && !CanDisable ? Loc.T("Значок защиты Windows или антивируса — MONOLITH его не отключает.")
+        : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие.")
         : IsPackaged ? PackagedToggleTooltip(!IsEnabled, PackagedStartup.StateAfterSwitch(!IsEnabled, PackageStateBefore))
-        : IsEnabled ? "Отключить: программа не будет запускаться при входе. Ничего не удаляется."
-        : "Включить: программа снова будет запускаться при входе в Windows.";
+        : IsEnabled ? Loc.T("Отключить: программа не будет запускаться при входе. Ничего не удаляется.")
+        : Loc.T("Включить: программа снова будет запускаться при входе в Windows.");
 
     /// <summary>The packaged toggle's tooltip names the State the switch really leaves (an undo restores the original).</summary>
     internal static string PackagedToggleTooltip(bool enable, int state) =>
         state != PackagedStartup.TargetState(enable)
-            ? $"{(enable ? "Включить" : "Отключить")}: MONOLITH вернёт State = {state} ({PackagedStartup.StateText(state)}), как было до него."
+            ? (enable
+                ? Loc.Tf("Включить: MONOLITH вернёт State = {0} ({1}), как было до него.", state, PackagedStartup.StateText(state))
+                : Loc.Tf("Отключить: MONOLITH вернёт State = {0} ({1}), как было до него.", state, PackagedStartup.StateText(state)))
               + (PackagedStartup.StateNote(state) is { } note ? " " + note : "")
-        : enable ? "Включить (State = 2). Windows запускает такое приложение при входе, если его хотя бы раз открывали."
-        : "Отключить, как в Диспетчере задач (State = 1): приложение не будет запускаться при входе. Ничего не удаляется.";
+        : enable ? Loc.T("Включить (State = 2). Windows запускает такое приложение при входе, если его хотя бы раз открывали.")
+        : Loc.T("Отключить, как в Диспетчере задач (State = 1): приложение не будет запускаться при входе. Ничего не удаляется.");
 
     /// <summary>Takes the state read back after a change (<see cref="StartupScanner.Refresh"/>).</summary>
     public void Update(StartupEntry fresh)
@@ -168,26 +170,26 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
     public StartupRisk Risk => Info.Risk;
     public string Path => Info.Path;
 
-    public string TriggerText => Info.AtLogon && Info.AtBoot ? "ВХОД + ЗАГРУЗКА" : Info.AtLogon ? "ПРИ ВХОДЕ" : "ПРИ ЗАГРУЗКЕ";
+    public string TriggerText => Info.AtLogon && Info.AtBoot ? Loc.T("ВХОД + ЗАГРУЗКА") : Info.AtLogon ? Loc.T("ПРИ ВХОДЕ") : Loc.T("ПРИ ЗАГРУЗКЕ");
 
     public string TriggerDetail
     {
         get
         {
             var who = Info.AtLogon
-                ? Info.LogonUser is { } u ? $"вход: {ShortUser(u)}" : "вход любого пользователя"
-                : "старт Windows";
-            return Info.OtherTriggers > 0 ? $"{who} · +{Info.OtherTriggers} триг." : who;
+                ? Info.LogonUser is { } u ? Loc.Tf("вход: {0}", ShortUser(u)) : Loc.T("вход любого пользователя")
+                : Loc.T("старт Windows");
+            return Info.OtherTriggers > 0 ? Loc.Tf("{0} · +{1} триг.", who, Info.OtherTriggers) : who;
         }
     }
 
-    public string AuthorText => Info.Author ?? Info.Publisher ?? "Автор не указан";
+    public string AuthorText => Info.Author ?? Info.Publisher ?? Loc.T("Автор не указан");
     public string FolderText => LogonTaskScanner.FolderLabel(Info.Folder);
 
     public string NameTooltip =>
         Info.Path + (Info.Description is { } d ? $"\n{d}" : "") +
-        (Info.RunAs is { } r ? $"\nЗапуск от: {r}{(Info.RunsElevated ? " (с наивысшими правами)" : "")}" : "") +
-        (Info.LastRun is { } lr ? $"\nПоследний запуск: {lr:dd.MM.yyyy HH:mm}" : "\nЕщё не запускалась");
+        (Info.RunAs is { } r ? Loc.Tf("\nЗапуск от: {0}", r) + (Info.RunsElevated ? Loc.T(" (с наивысшими правами)") : "") : "") +
+        (Info.LastRun is { } lr ? Loc.Tf("\nПоследний запуск: {0:dd.MM.yyyy HH:mm}", lr) : Loc.T("\nЕщё не запускалась"));
 
     public bool CanDisable => StartupClassifier.CanDisable(Info.Risk);
 
@@ -209,13 +211,13 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
 
     public string? BootDelayTooltip => BootDelay is { } m ? BootPerformance.DelayTooltip(m) : null;
 
-    public string StatusText => IsEnabled ? "ВКЛЮЧЕНА" : "ОТКЛЮЧЕНА";
+    public string StatusText => IsEnabled ? Loc.T("ВКЛЮЧЕНА") : Loc.T("ОТКЛЮЧЕНА");
 
     public string StatusDetail
     {
         get
         {
-            var text = Info.LastRun is { } lr ? $"запуск {lr:dd.MM HH:mm}" : "не запускалась";
+            var text = Info.LastRun is { } lr ? Loc.Tf("запуск {0:dd.MM HH:mm}", lr) : Loc.T("не запускалась");
             return IsJournaled ? text + " · MONOLITH" : text;
         }
     }
@@ -224,16 +226,16 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
 
     /// <summary>Why the switch is locked, as text next to it; null when it works.</summary>
     public string? LockNote =>
-        IsEnabled && !CanDisable ? (Info.Risk == StartupRisk.Updater ? "обновление программы — не отключается" : "защитное ПО — не отключается") : null;
+        IsEnabled && !CanDisable ? (Info.Risk == StartupRisk.Updater ? Loc.T("обновление программы — не отключается") : Loc.T("защитное ПО — не отключается")) : null;
 
     public string ToggleTooltip =>
         IsEnabled && !CanDisable
             ? Info.Risk == StartupRisk.Updater
-                ? "Задача обновляет программу и закрывает уязвимости — MONOLITH её не отключает."
-                : "Задача защитного ПО — MONOLITH её не отключает."
-        : !Elevation.IsElevated ? "Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие."
-        : IsEnabled ? "Отключить задачу в планировщике. Задача не удаляется."
-        : "Включить задачу снова.";
+                ? Loc.T("Задача обновляет программу и закрывает уязвимости — MONOLITH её не отключает.")
+                : Loc.T("Задача защитного ПО — MONOLITH её не отключает.")
+        : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — MONOLITH запросит права, перезапустится и продолжит это действие.")
+        : IsEnabled ? Loc.T("Отключить задачу в планировщике. Задача не удаляется.")
+        : Loc.T("Включить задачу снова.");
 
     public void Update(bool enabled)
     {

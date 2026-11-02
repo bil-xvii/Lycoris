@@ -96,7 +96,7 @@ public static class BootPerformance
         }
         catch (EventLogException ex)
         {
-            Log.Warn($"Автозапуск: журнал времени загрузки недоступен: {ex.Message}");
+            Log.Warn("Автозапуск: журнал времени загрузки недоступен: {0}", ex.Message);
             return null;
         }
     }
@@ -239,11 +239,11 @@ public static class BootPerformance
 
     // ───────────────────────────── Texts ─────────────────────────────
 
-    /// <summary>"41,2 с" (one decimal, Russian comma; culture-independent).</summary>
+    /// <summary>"41,2 с" (one decimal; the separator and the unit follow the language).</summary>
     public static string Seconds(int ms)
     {
         var tenths = (int)Math.Round(Math.Max(0, ms) / 100.0, MidpointRounding.AwayFromZero);
-        return $"{tenths / 10},{tenths % 10} с";
+        return Loc.Tf("{0},{1} с", tenths / 10, tenths % 10);
     }
 
     /// <summary>The muted summary line, e.g. «Последняя загрузка (26.10 09:14): 41,2 с — …». Null when nothing was measured.</summary>
@@ -251,14 +251,14 @@ public static class BootPerformance
     {
         if (report?.Last is not { } last) return null;
         toLocal ??= t => t.ToLocalTime();
-        var sb = new StringBuilder($"Последняя загрузка ({Stamp(toLocal(last.StartUtc))}): {Seconds(last.BootMs)}");
+        var sb = new StringBuilder(Loc.Tf("Последняя загрузка ({0}): {1}", Stamp(toLocal(last.StartUtc)), Seconds(last.BootMs)));
         if (last.MainPathMs > 0 && last.PostBootMs > 0)
-            sb.Append($" — экран входа через {Seconds(last.MainPathMs)}, ещё {Seconds(last.PostBootMs)} до готовности");
-        if (last.AfterInstall) sb.Append(", после установки обновлений");
+            sb.Append(Loc.Tf(" — экран входа через {0}, ещё {1} до готовности", Seconds(last.MainPathMs), Seconds(last.PostBootMs)));
+        if (last.AfterInstall) sb.Append(Loc.T(", после установки обновлений"));
         if (report.Boots.Count >= 3)
         {
             var avg = (int)Math.Round(report.Boots.Average(b => b.BootMs));
-            sb.Append($" · в среднем {Seconds(avg)} за {report.Boots.Count} {Plural(report.Boots.Count, "загрузку", "загрузки", "загрузок")}");
+            sb.Append(Loc.Tf(" · в среднем {0} за {1}", Seconds(avg), Loc.N(report.Boots.Count, "{0} загрузку", "{0} загрузки", "{0} загрузок")));
         }
         return sb.ToString();
     }
@@ -269,17 +269,17 @@ public static class BootPerformance
         if (report?.Last is not { } last) return null;
         toLocal ??= t => t.ToLocalTime();
         var sb = new StringBuilder();
-        sb.AppendLine("Время загрузки записывает сама Windows (журнал Diagnostics-Performance, событие 100): от логотипа до экрана входа " +
+        sb.AppendLine(Loc.T("Время загрузки записывает сама Windows (журнал Diagnostics-Performance, событие 100): от логотипа до экрана входа " +
                       "(или рабочего стола при автоматическом входе), затем до момента, когда система почти перестаёт быть занята — " +
-                      "в это время и запускаются программы автозапуска.");
-        sb.AppendLine("Windows замеряет не каждое включение: после «быстрого запуска» и выхода из гибернации замера нет. " +
-                      "Разброс между загрузками большой — сравнивайте несколько загрузок.");
+                      "в это время и запускаются программы автозапуска."));
+        sb.AppendLine(Loc.T("Windows замеряет не каждое включение: после «быстрого запуска» и выхода из гибернации замера нет. " +
+                      "Разброс между загрузками большой — сравнивайте несколько загрузок."));
         sb.AppendLine();
         foreach (var b in report.Boots)
         {
             var notes = new List<string>();
-            if (b.IsDegradation) notes.Add("медленнее обычного");
-            if (b.AfterInstall) notes.Add("после обновлений");
+            if (b.IsDegradation) notes.Add(Loc.T("медленнее обычного"));
+            if (b.AfterInstall) notes.Add(Loc.T("после обновлений"));
             sb.AppendLine($"{Stamp(toLocal(b.StartUtc))} — {Seconds(b.BootMs)}" + (notes.Count > 0 ? $" ({string.Join(", ", notes)})" : ""));
         }
 
@@ -287,7 +287,7 @@ public static class BootPerformance
         if (lastDelays.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine("При последней загрузке Windows отметила задержки (сверх обычного времени):");
+            sb.AppendLine(Loc.T("При последней загрузке Windows отметила задержки (сверх обычного времени):"));
             foreach (var d in lastDelays) sb.AppendLine($"{KindText(d.EventId)} {d.FriendlyName ?? d.Name}: +{Seconds(d.DegradationMs)}");
         }
         return sb.ToString().TrimEnd();
@@ -298,36 +298,31 @@ public static class BootPerformance
     {
         toLocal ??= t => t.ToLocalTime();
         var d = match.Latest;
-        var times = match.Boots > 1 ? $" Такое было в {match.Boots} {Plural(match.Boots, "загрузке", "загрузках", "загрузках")} из последних." : "";
-        return $"Windows отметила, что при загрузке {Stamp(toLocal(d.BootStartUtc))} эта программа запускалась {Seconds(d.TotalMs)} — " +
-               $"на {Seconds(d.DegradationMs)} дольше обычного для неё (журнал Diagnostics-Performance, событие 101).{times} " +
-               "Это задержка сверх её обычного времени, а не вся её «цена». Если программа не нужна сразу после входа, " +
-               "отключите автозапуск — запись не удаляется, вернуть можно здесь же.";
+        var times = match.Boots > 1
+            ? Loc.Tf(" Такое было в {0} из последних.", Loc.N(match.Boots, "{0} загрузке", "{0} загрузках", "{0} загрузках"))
+            : "";
+        return Loc.Tf("Windows отметила, что при загрузке {0} эта программа запускалась {1} — на {2} дольше обычного для неё " +
+                      "(журнал Diagnostics-Performance, событие 101).{3} Это задержка сверх её обычного времени, а не вся её «цена». " +
+                      "Если программа не нужна сразу после входа, отключите автозапуск — запись не удаляется, вернуть можно здесь же.",
+            Stamp(toLocal(d.BootStartUtc)), Seconds(d.TotalMs), Seconds(d.DegradationMs), times);
     }
 
-    private static string Stamp(DateTime t) => t.ToString("dd.MM HH:mm", CultureInfo.InvariantCulture);
+    private static string Stamp(DateTime t) => Loc.IsEnglish
+        ? t.ToString("MMM d, HH:mm", Loc.Culture)
+        : t.ToString("dd.MM HH:mm", CultureInfo.InvariantCulture);
 
     internal static string KindText(int eventId) => eventId switch
     {
-        101 => "Программа",
-        102 => "Драйвер",
-        103 => "Служба",
-        104 => "Ядро системы",
-        105 => "Предвыборка (основная)",
-        106 => "Предвыборка (фоновая)",
-        107 => "Политики компьютера",
-        108 => "Политики пользователя",
-        109 => "Устройство",
-        110 => "Диспетчер сеансов",
-        _ => "Компонент",
+        101 => Loc.T("Программа"),
+        102 => Loc.T("Драйвер"),
+        103 => Loc.T("Служба"),
+        104 => Loc.T("Ядро системы"),
+        105 => Loc.T("Предвыборка (основная)"),
+        106 => Loc.T("Предвыборка (фоновая)"),
+        107 => Loc.T("Политики компьютера"),
+        108 => Loc.T("Политики пользователя"),
+        109 => Loc.T("Устройство"),
+        110 => Loc.T("Диспетчер сеансов"),
+        _ => Loc.T("Компонент"),
     };
-
-    private static string Plural(int n, string one, string few, string many)
-    {
-        var n10 = n % 10;
-        var n100 = n % 100;
-        if (n10 == 1 && n100 != 11) return one;
-        if (n10 is >= 2 and <= 4 && n100 is < 12 or > 14) return few;
-        return many;
-    }
 }

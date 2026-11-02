@@ -79,9 +79,9 @@ public static class PackagedStartup
     /// <summary>Why the live State must not be written, or null when switching is allowed.</summary>
     public static string? WriteRefusal(int? liveState) => liveState switch
     {
-        null => "задача автозапуска не найдена — приложение удалено или обновлено. Обновите список",
-        3 or 4 => "состоянием управляет администратор или групповая политика — MONOLITH его не меняет",
-        < 0 or > 4 => $"неизвестное состояние задачи ({liveState}) — MONOLITH его не меняет",
+        null => Loc.T("задача автозапуска не найдена — приложение удалено или обновлено. Обновите список"),
+        3 or 4 => Loc.T("состоянием управляет администратор или групповая политика — MONOLITH его не меняет"),
+        < 0 or > 4 => Loc.Tf("неизвестное состояние задачи ({0}) — MONOLITH его не меняет", liveState),
         _ => null,
     };
 
@@ -106,23 +106,23 @@ public static class PackagedStartup
 
     /// <summary>"= …" text of the State a switch leaves, for the confirmation dialog.</summary>
     public static string SwitchText(bool enable, int state) =>
-        state != TargetState(enable) ? $"{state} ({StateText(state)}) — как было до MONOLITH"
-        : enable ? "2 (включено)"
-        : "1 (отключено пользователем — как в Диспетчере задач)";
+        state != TargetState(enable) ? Loc.Tf("{0} ({1}) — как было до MONOLITH", state, StateText(state))
+        : enable ? Loc.T("2 (включено)")
+        : Loc.T("1 (отключено пользователем — как в Диспетчере задач)");
 
     /// <summary>Added when a switch leaves State 0: unlike 1, it lets the app turn its autostart on again by itself.</summary>
     public static string? StateNote(int state) => state == (int)PackagedTaskState.Disabled
-        ? "При State = 0 приложение может само снова включить свой автозапуск (при 1 — только пользователь)."
+        ? Loc.T("При State = 0 приложение может само снова включить свой автозапуск (при 1 — только пользователь).")
         : null;
 
     public static string StateText(int? state) => state switch
     {
-        0 => "отключено приложением",
-        1 => "отключено пользователем",
-        2 => "при входе в Windows",
-        3 => "отключено политикой",
-        4 => "включено политикой",
-        _ => "состояние не распознано",
+        0 => Loc.T("отключено приложением"),
+        1 => Loc.T("отключено пользователем"),
+        2 => Loc.T("при входе в Windows"),
+        3 => Loc.T("отключено политикой"),
+        4 => Loc.T("включено политикой"),
+        _ => Loc.T("состояние не распознано"),
     };
 
     // ───────────────────────────── Package names and manifests (pure) ─────────────────────────────
@@ -272,13 +272,13 @@ public static class PackagedStartup
                 catch (Exception ex)
                 {
                     // Read-only scan: one odd package must not hide the rest of the autostart list.
-                    Log.Warn($"Автозапуск: пропущен пакет {family}: {ex.Message}");
+                    Log.Warn("Автозапуск: пропущен пакет {0}: {1}", family, ex.Message);
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            Log.Warn($"Автозапуск: нет доступа к задачам приложений MSIX: {ex.Message}");
+            Log.Warn("Автозапуск: нет доступа к задачам приложений MSIX: {0}", ex.Message);
         }
         return list;
     }

@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:ui="clr-namespace:Monolith.UI"
+             xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Startup"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:StartupViewModel}">
 
@@ -46,10 +47,10 @@
 
         <!-- The labelled «ПАПКА · КОПИЯ ▾» menu of a row: its items are visible text, opened from a visible button -->
         <ContextMenu x:Key="RowMore">
-            <MenuItem Header="Открыть папку файла"
+            <MenuItem Header="{loc:T Открыть папку файла}"
                       Command="{Binding PlacementTarget.Tag.OpenLocationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-            <MenuItem Header="Копировать команду запуска"
+            <MenuItem Header="{loc:T Копировать команду запуска}"
                       Command="{Binding PlacementTarget.Tag.CopyCommandCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
         </ContextMenu>
@@ -59,17 +60,17 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Margin="0,0,6,0"
                         Command="{Binding DataContext.SearchOnlineCommand, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
-                        CommandParameter="{Binding}" ToolTip="Найти в интернете, что это за программа (откроется браузер)">
+                        CommandParameter="{Binding}" ToolTip="{loc:T 'Найти в интернете, что это за программа (откроется браузер)'}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ЧТО ЭТО?" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ЧТО ЭТО?}" VerticalAlignment="Center" />
                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0" />
                     </StackPanel>
                 </Button>
                 <Button Click="More_Click" ContextMenu="{StaticResource RowMore}"
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
-                        ToolTip="Открыть папку файла, скопировать команду запуска">
+                        ToolTip="{loc:T 'Открыть папку файла, скопировать команду запуска'}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ПАПКА · КОПИЯ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ПАПКА · КОПИЯ}" VerticalAlignment="Center" />
                         <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,1,0,0" />
                     </StackPanel>
                 </Button>
@@ -82,19 +83,19 @@
                 <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Command="{Binding ClearSelectionCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                        <TextBlock Text="СНЯТЬ ВЫБОР" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T СНЯТЬ ВЫБОР}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Button Margin="0,0,8,0" Command="{Binding EnableSelectedCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                        <TextBlock Text="ВКЛЮЧИТЬ ВЫБРАННЫЕ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ВКЛЮЧИТЬ ВЫБРАННЫЕ}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource Btn.Hero}" Command="{Binding DisableSelectedCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Power}" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="ОТКЛЮЧИТЬ ВЫБРАННЫЕ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ОТКЛЮЧИТЬ ВЫБРАННЫЕ}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -117,7 +118,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid VerticalAlignment="Center">
-                <TextBox Tag="Поиск: имя, команда, издатель" Padding="10,0,24,0"
+                <TextBox Tag="{loc:T 'Поиск: имя, команда, издатель'}" Padding="10,0,24,0"
                          Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0" IsHitTestVisible="False" />
@@ -126,37 +127,37 @@
                 <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=all}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ВСЕ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ВСЕ}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding TotalCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=slow}"
-                             ToolTip="Программы, которые Windows записала в журнал как замедлившие последнюю загрузки">
+                             ToolTip="{loc:T 'Программы, которые Windows записала в журнал как замедлившие последнюю загрузки'}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ЗАМЕДЛЯЕТ ЗАГРУЗКУ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ЗАМЕДЛЯЕТ ЗАГРУЗКУ}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge.Alert}"><TextBlock Text="{Binding SlowCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=enabled}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ВКЛЮЧЕНО" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ВКЛЮЧЕНО}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding EnabledCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=disabled}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ОТКЛЮЧЕНО" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ОТКЛЮЧЕНО}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding DisabledCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=missing}"
-                             ToolTip="Записи, чей файл больше не существует (программа удалена или перенесена)">
+                             ToolTip="{loc:T 'Записи, чей файл больше не существует (программа удалена или перенесена)'}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="НЕТ ФАЙЛА" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T НЕТ ФАЙЛА}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding MissingCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
@@ -164,7 +165,7 @@
         </Grid>
 
         <TextBlock Grid.Row="1" Style="{StaticResource T.Caption}" Margin="0,10,0,0" TextWrapping="Wrap">
-            <Run Text="Как вкладка «Автозагрузка» Диспетчера задач: отключение не удаляет запись и сработает при следующем входе." />
+            <Run Text="{loc:T Как вкладка «Автозагрузка» Диспетчера задач: отключение не удаляет запись и сработает при следующем входе.}" />
             <Run Text="{Binding ScanText, Mode=OneWay}" />
             <Run Text="{Binding BootText, Mode=OneWay}" ToolTip="{Binding BootTooltip}" />
         </TextBlock>
@@ -185,11 +186,11 @@
                                     <ColumnDefinition Width="210" />
                                     <ColumnDefinition Width="190" />
                                 </Grid.ColumnDefinitions>
-                                <CheckBox IsChecked="{Binding AllSelected}" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Выбрать все видимые записи" />
-                                <TextBlock Grid.Column="1" Text="ПРИЛОЖЕНИЕ И КОМАНДА" Style="{StaticResource ColLabel}" />
-                                <TextBlock Grid.Column="2" Text="ИЗДАТЕЛЬ, ФАЙЛ, ОБЛАСТЬ" Style="{StaticResource ColLabel}" />
-                                <TextBlock Grid.Column="3" Text="СОСТОЯНИЕ" Style="{StaticResource ColLabel}" />
-                                <TextBlock Grid.Column="4" Text="ДЕЙСТВИЯ" Style="{StaticResource ColLabel}" HorizontalAlignment="Right" Margin="0,0,10,0" />
+                                <CheckBox IsChecked="{Binding AllSelected}" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="{loc:T Выбрать все видимые записи}" />
+                                <TextBlock Grid.Column="1" Text="{loc:T ПРИЛОЖЕНИЕ И КОМАНДА}" Style="{StaticResource ColLabel}" />
+                                <TextBlock Grid.Column="2" Text="{loc:T 'ИЗДАТЕЛЬ, ФАЙЛ, ОБЛАСТЬ'}" Style="{StaticResource ColLabel}" />
+                                <TextBlock Grid.Column="3" Text="{loc:T СОСТОЯНИЕ}" Style="{StaticResource ColLabel}" />
+                                <TextBlock Grid.Column="4" Text="{loc:T ДЕЙСТВИЯ}" Style="{StaticResource ColLabel}" HorizontalAlignment="Right" Margin="0,0,10,0" />
                             </Grid>
                         </Border>
 
@@ -207,31 +208,31 @@
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Always visible: read-only mode asks for rights when the action is pressed -->
-                                            <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Выбрать для массового действия" />
+                                            <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="{loc:T Выбрать для массового действия}" />
 
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
                                                 <WrapPanel>
                                                     <TextBlock Text="{Binding DisplayName}" Style="{StaticResource T.BodyStrong}" FontSize="13.5" TextWrapping="NoWrap"
                                                                TextTrimming="CharacterEllipsis" MaxWidth="250" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
-                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="Значок защиты Windows или антивируса — MONOLITH его не отключает"
+                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Значок защиты Windows или антивируса — MONOLITH его не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Security}">
-                                                        <TextBlock Text="ЗАЩИТА" />
+                                                        <TextBlock Text="{loc:T ЗАЩИТА}" />
                                                     </Border>
-                                                    <Border Style="{StaticResource Tag}" Margin="0,2,8,2" ToolTip="Помощник драйвера: звук, тачпад, видеокарта. Без него могут пропасть панель управления и горячие клавиши"
+                                                    <Border Style="{StaticResource Tag}" Margin="0,2,8,2" ToolTip="{loc:T 'Помощник драйвера: звук, тачпад, видеокарта. Без него могут пропасть панель управления и горячие клавиши'}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Driver}">
-                                                        <TextBlock Text="ДРАЙВЕР" />
+                                                        <TextBlock Text="{loc:T ДРАЙВЕР}" />
                                                     </Border>
-                                                    <Border Style="{StaticResource Tag.Muted}" Margin="0,2,8,2" ToolTip="Компонент Microsoft"
+                                                    <Border Style="{StaticResource Tag.Muted}" Margin="0,2,8,2" ToolTip="{loc:T Компонент Microsoft}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Microsoft}">
                                                         <TextBlock Text="MICROSOFT" />
                                                     </Border>
-                                                    <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,8,2" ToolTip="Файл программы не найден: программа удалена или перенесена. Запись можно отключить"
+                                                    <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,8,2" ToolTip="{loc:T Файл программы не найден: программа удалена или перенесена. Запись можно отключить}"
                                                             Visibility="{Binding TargetExists, Converter={StaticResource InverseBoolToVis}}">
-                                                        <TextBlock Text="НЕТ ФАЙЛА" />
+                                                        <TextBlock Text="{loc:T НЕТ ФАЙЛА}" />
                                                     </Border>
                                                     <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,8,2" ToolTip="{Binding BootDelayTooltip}"
                                                             Visibility="{Binding ShowBootDelay, Converter={StaticResource BoolToVis}}">
-                                                        <TextBlock Text="ЗАМЕДЛЯЕТ ЗАГРУЗКУ" />
+                                                        <TextBlock Text="{loc:T ЗАМЕДЛЯЕТ ЗАГРУЗКУ}" />
                                                     </Border>
                                                 </WrapPanel>
                                                 <TextBlock Text="{Binding Command}" Style="{StaticResource CommandText}" Margin="0,3,0,0" ToolTip="{Binding Command}" />
@@ -282,8 +283,8 @@
                         <!-- Empty: filter / search -->
                         <Border Background="{StaticResource B.DotGrid}" Padding="15,16" Visibility="{Binding ShowNoMatches, Converter={StaticResource BoolToVis}}">
                             <StackPanel>
-                                <TextBlock Text="Ничего не найдено" Style="{StaticResource T.H3}" />
-                                <TextBlock Text="Под фильтр или поиск не подходит ни одна запись. Выберите «Все» или очистите строку поиска." Style="{StaticResource T.Body}"
+                                <TextBlock Text="{loc:T Ничего не найдено}" Style="{StaticResource T.H3}" />
+                                <TextBlock Text="{loc:T Под фильтр или поиск не подходит ни одна запись. Выберите «Все» или очистите строку поиска.}" Style="{StaticResource T.Body}"
                                            Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
@@ -291,8 +292,8 @@
                         <!-- Empty: nothing in autostart -->
                         <Border Background="{StaticResource B.DotGrid}" Padding="15,16" Visibility="{Binding ShowNoItems, Converter={StaticResource BoolToVis}}">
                             <StackPanel>
-                                <TextBlock Text="Автозапуск пуст" Style="{StaticResource T.H3}" />
-                                <TextBlock Text="В ключах Run / Run32, папках автозагрузки и задачах приложений MSIX нет ни одной записи — Windows не запускает при входе ничего лишнего."
+                                <TextBlock Text="{loc:T Автозапуск пуст}" Style="{StaticResource T.H3}" />
+                                <TextBlock Text="{loc:T 'В ключах Run / Run32, папках автозагрузки и задачах приложений MSIX нет ни одной записи — Windows не запускает при входе ничего лишнего.'}"
                                            Style="{StaticResource T.Body}" Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
@@ -306,13 +307,13 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Задачи при входе" Style="{StaticResource T.H1}" FontSize="17" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:T Задачи при входе}" Style="{StaticResource T.H1}" FontSize="17" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Text="{Binding TasksCountText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                                Margin="9,3,0,0" VerticalAlignment="Center" />
                     <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" Margin="10,2,0,0" VerticalAlignment="Center" />
                 </Grid>
                 <TextBlock Style="{StaticResource T.Caption}" Margin="0,0,0,9" TextWrapping="Wrap"
-                           Text="Сторонние задачи «при входе» и «при загрузке» — Диспетчер задач их не показывает. Отключённая задача не удаляется." />
+                           Text="{loc:T Сторонние задачи «при входе» и «при загрузке» — Диспетчер задач их не показывает. Отключённая задача не удаляется.}" />
 
                 <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                     <StackPanel>
@@ -330,31 +331,31 @@
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Text="{x:Static ui:Glyphs.Services}" FontFamily="{StaticResource F.Icons}" FontSize="14" Foreground="{StaticResource B.Text3}"
-                                                       VerticalAlignment="Center" ToolTip="Задача планировщика Windows" />
+                                                       VerticalAlignment="Center" ToolTip="{loc:T Задача планировщика Windows}" />
 
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
                                                 <WrapPanel>
                                                     <TextBlock Text="{Binding DisplayName}" Style="{StaticResource T.BodyStrong}" FontSize="13.5" TextWrapping="NoWrap"
                                                                TextTrimming="CharacterEllipsis" MaxWidth="250" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
-                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="Задача обновляет программу и закрывает уязвимости — MONOLITH её не отключает"
+                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Задача обновляет программу и закрывает уязвимости — MONOLITH её не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Updater}">
-                                                        <TextBlock Text="ОБНОВЛЕНИЯ" />
+                                                        <TextBlock Text="{loc:T ОБНОВЛЕНИЯ}" />
                                                     </Border>
-                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="Задача защитного ПО — MONOLITH её не отключает"
+                                                    <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Задача защитного ПО — MONOLITH её не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Security}">
-                                                        <TextBlock Text="ЗАЩИТА" />
+                                                        <TextBlock Text="{loc:T ЗАЩИТА}" />
                                                     </Border>
-                                                    <Border Style="{StaticResource Tag}" Margin="0,2,8,2" ToolTip="Задача производителя оборудования"
+                                                    <Border Style="{StaticResource Tag}" Margin="0,2,8,2" ToolTip="{loc:T Задача производителя оборудования}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Driver}">
-                                                        <TextBlock Text="ДРАЙВЕР" />
+                                                        <TextBlock Text="{loc:T ДРАЙВЕР}" />
                                                     </Border>
-                                                    <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,8,2" ToolTip="Файл, который запускает задача, не найден"
+                                                    <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,8,2" ToolTip="{loc:T 'Файл, который запускает задача, не найден'}"
                                                             Visibility="{Binding TargetExists, Converter={StaticResource InverseBoolToVis}}">
-                                                        <TextBlock Text="НЕТ ФАЙЛА" />
+                                                        <TextBlock Text="{loc:T НЕТ ФАЙЛА}" />
                                                     </Border>
                                                     <Border Style="{StaticResource Tag.Hatch}" Margin="0,2,8,2" ToolTip="{Binding BootDelayTooltip}"
                                                             Visibility="{Binding ShowBootDelay, Converter={StaticResource BoolToVis}}">
-                                                        <TextBlock Text="ЗАМЕДЛЯЕТ ЗАГРУЗКУ" />
+                                                        <TextBlock Text="{loc:T ЗАМЕДЛЯЕТ ЗАГРУЗКУ}" />
                                                     </Border>
                                                 </WrapPanel>
                                                 <TextBlock Text="{Binding Command}" Style="{StaticResource CommandText}" Margin="0,3,0,0" ToolTip="{Binding Command}" />
@@ -408,9 +409,9 @@
                         <!-- Empty -->
                         <Border Background="{StaticResource B.DotGrid}" Padding="15,12" Visibility="{Binding ShowNoTasks, Converter={StaticResource BoolToVis}}">
                             <StackPanel>
-                                <TextBlock Text="Сторонних задач при входе не найдено" Style="{StaticResource T.H3}" />
+                                <TextBlock Text="{loc:T Сторонних задач при входе не найдено}" Style="{StaticResource T.H3}" />
                                 <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}"
-                                           Text="Без прав администратора часть задач скрыта (например, в корневой папке планировщика)." />
+                                           Text="{loc:T 'Без прав администратора часть задач скрыта (например, в корневой папке планировщика).'}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -419,7 +420,7 @@
         </ScrollViewer>
 
         <!-- Sticky bar: outside the scroll, only while rows are checked -->
-        <c:StickyBar Grid.Row="3" Margin="0,8,0,0" Count="{Binding SelectedCount}" Text="Перед изменением нескольких записей MONOLITH создаёт точку восстановления."
+        <c:StickyBar Grid.Row="3" Margin="0,8,0,0" Count="{Binding SelectedCount}" Text="{loc:T Перед изменением нескольких записей MONOLITH создаёт точку восстановления.}"
                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
             <c:StickyBar.Actions>
                 <ContentPresenter ContentTemplate="{StaticResource SelectedBarActions}" Content="{Binding}" />

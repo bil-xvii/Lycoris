@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -23,8 +23,8 @@ public sealed partial class StartupViewModel : PageViewModel
 {
     public override string Key => "startup";
     public override string Index => "07";
-    public override string Title => "АВТОЗАПУСК";
-    public override string Subtitle => "Программы и задачи, которые запускаются вместе с Windows.";
+    public override string Title => Loc.T("АВТОЗАПУСК");
+    public override string Subtitle => Loc.T("Программы и задачи, которые запускаются вместе с Windows.");
     public override string Glyph => Glyphs.Power;
 
     private bool _syncingSelection;
@@ -50,7 +50,7 @@ public sealed partial class StartupViewModel : PageViewModel
     [ObservableProperty] private int _selectedCount;
     [ObservableProperty] private bool _allSelected;
     [ObservableProperty] private bool _isLoaded;
-    [ObservableProperty] private string _scanText = "Сканирование…";
+    [ObservableProperty] private string _scanText = Loc.T("Сканирование…");
     [ObservableProperty] private string? _tasksError;
     /// <summary>« · Последняя загрузка …» appended to the tab's muted line; empty without data / admin rights.</summary>
     [ObservableProperty] private string _bootText = "";
@@ -65,7 +65,7 @@ public sealed partial class StartupViewModel : PageViewModel
     /// <summary>The host page is busy with its own work (changes must not overlap).</summary>
     public Func<bool>? IsHostBusy { get; set; }
 
-    public string TasksCountText => $"{TaskCount} {Plural(TaskCount, "ЗАДАЧА", "ЗАДАЧИ", "ЗАДАЧ")}";
+    public string TasksCountText => Loc.N(TaskCount, "{0} ЗАДАЧА", "{0} ЗАДАЧИ", "{0} ЗАДАЧ");
     public bool HasItems => TotalCount > 0;
     public bool HasTasks => TaskCount > 0;
     public bool ShowNoMatches => IsLoaded && TotalCount > 0 && VisibleCount == 0;
@@ -118,7 +118,7 @@ public sealed partial class StartupViewModel : PageViewModel
     // ───────────────────────────── Scan ─────────────────────────────
 
     [RelayCommand]
-    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Сканирование автозапуска…", ScanAsync);
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, Loc.T("Сканирование автозапуска…"), ScanAsync);
 
     private async Task ScanAsync()
     {
@@ -136,7 +136,7 @@ public sealed partial class StartupViewModel : PageViewModel
         catch (Exception ex)
         {
             Log.Error("Автозапуск: не удалось прочитать планировщик заданий", ex);
-            TasksError = $"Не удалось прочитать планировщик заданий: {ex.Message}";
+            TasksError = Loc.Tf("Не удалось прочитать планировщик заданий: {0}", ex.Message);
             tasks = [];
         }
 
@@ -164,10 +164,10 @@ public sealed partial class StartupViewModel : PageViewModel
         UpdateJournalState();
         RefreshView();
         Recount();
-        ScanText = "Источники: реестр, папки автозагрузки, приложения MSIX, планировщик.";
+        ScanText = Loc.T("Источники: реестр, папки автозагрузки, приложения MSIX, планировщик.");
         MarkChecked();
         IsLoaded = true;
-        Log.Info($"Автозапуск: записей {TotalCount} (включено {EnabledCount}), задач при входе {TaskCount}.");
+        Log.Info("Автозапуск: записей {0} (включено {1}), задач при входе {2}.", TotalCount, EnabledCount, TaskCount);
     }
 
     private static async Task<BootReport?> ReadBootAsync(Task<BootReport?> read)
@@ -178,7 +178,7 @@ public sealed partial class StartupViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"Автозапуск: не удалось прочитать время загрузки: {ex.Message}");
+            Log.Warn("Автозапуск: не удалось прочитать время загрузки: {0}", ex.Message);
             return null;
         }
     }
@@ -201,7 +201,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (item is null) return;
         try
         {
-            if (!EnsureIdle() || !RequireAdmin("изменение автозапуска", "ToggleStartup", ToggleParameter(item.IsEnabled, item.Key))) return;
+            if (!EnsureIdle() || !RequireAdmin(Loc.T("изменение автозапуска"), "ToggleStartup", ToggleParameter(item.IsEnabled, item.Key))) return;
             var enable = !item.IsEnabled;
             if (!item.CanChange)
             {
@@ -210,7 +210,7 @@ public sealed partial class StartupViewModel : PageViewModel
             }
             if (!enable && !item.CanDisable)
             {
-                Ui.Toast($"«{item.DisplayName}» — значок защиты системы. MONOLITH его не отключает.", ToastKind.Warning);
+                Ui.Toast(Loc.Tf("«{0}» — значок защиты системы. MONOLITH его не отключает.", item.DisplayName), ToastKind.Warning);
                 return;
             }
             if (!enable && !await ConfirmEntriesAsync([item], enable: false)) return;
@@ -228,7 +228,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (item is null) return;
         try
         {
-            if (!EnsureIdle() || !RequireAdmin("изменение задач при входе", "ToggleLogonTask", ToggleParameter(item.IsEnabled, item.Path))) return;
+            if (!EnsureIdle() || !RequireAdmin(Loc.T("изменение задач при входе"), "ToggleLogonTask", ToggleParameter(item.IsEnabled, item.Path))) return;
             var enable = !item.IsEnabled;
             if (!enable && !item.CanDisable)
             {
@@ -267,7 +267,7 @@ public sealed partial class StartupViewModel : PageViewModel
 
     private static Task AlreadyThere(string name, bool enabled)
     {
-        Ui.Toast($"«{name}» уже {(enabled ? "включён" : "отключён")} — менять нечего.", ToastKind.Info);
+        Ui.Toast(enabled ? Loc.Tf("«{0}» уже включён — менять нечего.", name) : Loc.Tf("«{0}» уже отключён — менять нечего.", name), ToastKind.Info);
         return Task.CompletedTask;
     }
 
@@ -308,7 +308,7 @@ public sealed partial class StartupViewModel : PageViewModel
     [RelayCommand]
     private async Task DisableExtraAsync()
     {
-        if (!EnsureIdle() || !RequireAdmin("отключение лишнего автозапуска", "DisableExtraStartup")) return;
+        if (!EnsureIdle() || !RequireAdmin(Loc.T("отключение лишнего автозапуска"), "DisableExtraStartup")) return;
         var targets = Items.Where(IsExtra).ToList();
         if (targets.Count == 0)
         {
@@ -325,7 +325,7 @@ public sealed partial class StartupViewModel : PageViewModel
     [RelayCommand]
     private async Task DisableSelectedAsync(string? keys)
     {
-        if (!EnsureIdle() || !RequireAdmin("отключение автозапуска", "DisableSelectedStartup", SelectedKeys())) return;
+        if (!EnsureIdle() || !RequireAdmin(Loc.T("отключение автозапуска"), "DisableSelectedStartup", SelectedKeys())) return;
         SelectOnly(keys);
         var chosen = Items.Where(i => i.IsSelected).ToList();
         var locked = chosen.Where(i => i.IsEnabled && (!i.CanDisable || !i.CanChange)).ToList();
@@ -333,8 +333,8 @@ public sealed partial class StartupViewModel : PageViewModel
         if (targets.Count == 0)
         {
             Ui.Toast(locked.Count > 0
-                ? "Среди выбранных только защитные записи или задачи под управлением политики — их MONOLITH не отключает."
-                : "Все выбранные записи уже отключены.", ToastKind.Info);
+                ? Loc.T("Среди выбранных только защитные записи или задачи под управлением политики — их MONOLITH не отключает.")
+                : Loc.T("Все выбранные записи уже отключены."), ToastKind.Info);
             return;
         }
         if (!await ConfirmEntriesAsync(targets, enable: false, skippedLocked: locked.Count)) return;
@@ -344,14 +344,14 @@ public sealed partial class StartupViewModel : PageViewModel
     [RelayCommand]
     private async Task EnableSelectedAsync(string? keys)
     {
-        if (!EnsureIdle() || !RequireAdmin("включение автозапуска", "EnableSelectedStartup", SelectedKeys())) return;
+        if (!EnsureIdle() || !RequireAdmin(Loc.T("включение автозапуска"), "EnableSelectedStartup", SelectedKeys())) return;
         SelectOnly(keys);
         var targets = Items.Where(i => i.IsSelected && !i.IsEnabled && i.CanChange).ToList();
         if (targets.Count == 0)
         {
             Ui.Toast(Items.Any(i => i.IsSelected && !i.IsEnabled)
-                ? "Выбранные задачи отключены политикой или в неизвестном состоянии — MONOLITH их не меняет."
-                : "Все выбранные записи уже включены.", ToastKind.Info);
+                ? Loc.T("Выбранные задачи отключены политикой или в неизвестном состоянии — MONOLITH их не меняет.")
+                : Loc.T("Все выбранные записи уже включены."), ToastKind.Info);
             return;
         }
         if (targets.Count > 1 && !await ConfirmEntriesAsync(targets, enable: true)) return;
@@ -376,7 +376,7 @@ public sealed partial class StartupViewModel : PageViewModel
 
     private async Task ApplyEntriesAsync(IReadOnlyList<StartupItem> items, bool enable, bool createRestorePoint)
     {
-        await RunBusyAsync(OperationClass.JournalChange, enable ? "Включение автозапуска…" : "Отключение автозапуска…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, enable ? Loc.T("Включение автозапуска…") : Loc.T("Отключение автозапуска…"), async () =>
         {
             var progress = new Progress<string>(t => BusyText = t);
             var entries = items.Select(i => i.Entry).ToList();
@@ -390,13 +390,13 @@ public sealed partial class StartupViewModel : PageViewModel
             UpdateJournalState();
             Recount();
             RefreshView();
-            ReportOutcome(outcome, items.Select(i => i.DisplayName).ToList(), enable, "Изменение вступит в силу при следующем входе в Windows.");
+            ReportOutcome(outcome, items.Select(i => i.DisplayName).ToList(), enable, Loc.T("Изменение вступит в силу при следующем входе в Windows."));
         });
     }
 
     private async Task ApplyTaskAsync(LogonTaskItem item, bool enable)
     {
-        await RunBusyAsync(OperationClass.JournalChange, enable ? "Включение задачи…" : "Отключение задачи…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, enable ? Loc.T("Включение задачи…") : Loc.T("Отключение задачи…"), async () =>
         {
             var progress = new Progress<string>(t => BusyText = t);
             var outcome = await Task.Run(() => StartupChanges.SetTasksAsync([item.Info], enable, false, progress));
@@ -404,19 +404,21 @@ public sealed partial class StartupViewModel : PageViewModel
             if (state is { } on) item.Update(on);
             UpdateJournalState();
             Recount();
-            ReportOutcome(outcome, [item.DisplayName], enable, "Планировщик применяет изменение сразу.");
+            ReportOutcome(outcome, [item.DisplayName], enable, Loc.T("Планировщик применяет изменение сразу."));
         });
     }
 
     private static void ReportOutcome(StartupChangeOutcome outcome, IReadOnlyList<string> names, bool enable, string tail)
     {
-        var subject = names.Count == 1 ? $"«{names[0]}»" : $"{names.Count} {Plural(names.Count, "запись", "записи", "записей")}";
+        var subject = names.Count == 1 ? $"«{names[0]}»" : Loc.N(names.Count, "{0} запись", "{0} записи", "{0} записей");
         if (outcome.Success && outcome.Applied > 0)
         {
             var text = enable
-                ? $"{subject} снова {(names.Count == 1 ? "будет" : "будут")} запускаться вместе с Windows. {tail}"
-                : $"{subject} больше не {(names.Count == 1 ? "будет" : "будут")} запускаться при входе. Вернуть можно здесь же или в разделе «Восстановление».";
-            Ui.Toast(text, ToastKind.Success, enable ? "АВТОЗАПУСК ВКЛЮЧЁН" : "АВТОЗАПУСК ОТКЛЮЧЁН");
+                ? (names.Count == 1 ? Loc.Tf("{0} снова будет запускаться вместе с Windows. {1}", subject, tail) : Loc.Tf("{0} снова будут запускаться вместе с Windows. {1}", subject, tail))
+                : (names.Count == 1
+                    ? Loc.Tf("{0} больше не будет запускаться при входе. Вернуть можно здесь же или в разделе «Восстановление».", subject)
+                    : Loc.Tf("{0} больше не будут запускаться при входе. Вернуть можно здесь же или в разделе «Восстановление».", subject));
+            Ui.Toast(text, ToastKind.Success, enable ? Loc.T("АВТОЗАПУСК ВКЛЮЧЁН") : Loc.T("АВТОЗАПУСК ОТКЛЮЧЁН"));
         }
         else if (outcome.Success)
         {
@@ -424,7 +426,7 @@ public sealed partial class StartupViewModel : PageViewModel
         }
         else
         {
-            Ui.Toast(outcome.Errors[0], ToastKind.Error, outcome.Applied > 0 ? $"ПРИМЕНЕНО ЧАСТИЧНО ({outcome.Applied})" : "НЕ ПРИМЕНЕНО");
+            Ui.Toast(outcome.Errors[0], ToastKind.Error, outcome.Applied > 0 ? Loc.Tf("ПРИМЕНЕНО ЧАСТИЧНО ({0})", outcome.Applied) : Loc.T("НЕ ПРИМЕНЕНО"));
         }
     }
 
@@ -444,53 +446,54 @@ public sealed partial class StartupViewModel : PageViewModel
             }
             if (items.Count == 1 && state.HasValue)
             {
-                details.Add($"Приложение MSIX: {i.Entry.PackageFamilyName}, задача автозапуска «{i.Entry.Name}»");
-                if (i.TargetPath is not null) details.Add($"Программа: {i.Command}");
-                details.Add($"Отметка: {StartupLocations.DescribeMark(i.Entry)} = {PackagedStartup.SwitchText(enable, state.Value)}");
+                details.Add(Loc.Tf("Приложение MSIX: {0}, задача автозапуска «{1}»", i.Entry.PackageFamilyName, i.Entry.Name));
+                if (i.TargetPath is not null) details.Add(Loc.Tf("Программа: {0}", i.Command));
+                details.Add(Loc.Tf("Отметка: {0} = {1}", StartupLocations.DescribeMark(i.Entry), PackagedStartup.SwitchText(enable, state.Value)));
             }
             else if (items.Count == 1)
             {
-                details.Add($"Запись: {StartupLocations.Describe(i.Entry.Source)} → {i.Entry.Name}");
-                details.Add($"Команда: {i.Command}");
-                details.Add($"Отметка: {StartupLocations.DescribeMark(i.Entry)} = " +
-                            (enable ? "02 00 00 00 … (включено)" : "03 00 00 00 + время отключения"));
+                details.Add(Loc.Tf("Запись: {0} → {1}", StartupLocations.Describe(i.Entry.Source), i.Entry.Name));
+                details.Add(Loc.Tf("Команда: {0}", i.Command));
+                details.Add(Loc.Tf("Отметка: {0} = ", StartupLocations.DescribeMark(i.Entry)) +
+                            (enable ? Loc.T("02 00 00 00 … (включено)") : Loc.T("03 00 00 00 + время отключения")));
             }
             else
             {
-                details.Add($"{i.DisplayName} — {(i.IsMachine ? "для всех" : "для меня")}, {LowerFirst(i.SourceText)}" +
+                details.Add($"{i.DisplayName} — {(i.IsMachine ? Loc.T("для всех") : Loc.T("для меня"))}, {LowerFirst(i.SourceText)}" +
                             (state is { } restored && restored != PackagedStartup.TargetState(enable) ? $", State = {PackagedStartup.SwitchText(enable, restored)}" : ""));
             }
 
             switch (i.Risk)
             {
                 case StartupRisk.Microsoft when !enable:
-                    details.Add($"Внимание ({i.DisplayName}): компонент Microsoft — может пропасть значок в трее или фоновая функция (синхронизация, уведомления).");
+                    details.Add(Loc.Tf("Внимание ({0}): компонент Microsoft — может пропасть значок в трее или фоновая функция (синхронизация, уведомления).", i.DisplayName));
                     break;
                 case StartupRisk.Driver when !enable:
-                    details.Add($"Внимание ({i.DisplayName}): помощник драйвера — могут пропасть панель звука/тачпада/видеокарты, горячие клавиши или эффекты.");
+                    details.Add(Loc.Tf("Внимание ({0}): помощник драйвера — могут пропасть панель звука/тачпада/видеокарты, горячие клавиши или эффекты.", i.DisplayName));
                     break;
             }
         }
         if (stateNote is not null) details.Add(stateNote);
         if (enable && items.Any(i => i.IsPackaged))
-            details.Add("Приложение MSIX Windows запускает при входе, только если его хотя бы раз открывали.");
+            details.Add(Loc.T("Приложение MSIX Windows запускает при входе, только если его хотя бы раз открывали."));
         if (skippedLocked > 0)
-            details.Add($"Пропущено записей: {skippedLocked} (Безопасность Windows, антивирусы и задачи под управлением политики MONOLITH не отключает).");
+            details.Add(Loc.Tf("Пропущено записей: {0} (Безопасность Windows, антивирусы и задачи под управлением политики MONOLITH не отключает).", skippedLocked));
         if (items.Count > 1)
-            details.Add("Перед изменением MONOLITH создаст точку восстановления (если это включено в разделе «Восстановление»).");
+            details.Add(Loc.T("Перед изменением MONOLITH создаст точку восстановления (если это включено в разделе «Восстановление»)."));
 
-        var subject = items.Count == 1 ? $"«{items[0].DisplayName}»" : $"{items.Count} {Plural(items.Count, "запись", "записи", "записей")}";
+        var subject = items.Count == 1 ? $"«{items[0].DisplayName}»" : Loc.N(items.Count, "{0} запись", "{0} записи", "{0} записей");
+        var markNote = restoresMark ? Loc.T(" (или возвращает отметку, что была до него)") : "";
         var message = enable
-            ? $"{subject} снова {(items.Count == 1 ? "будет" : "будут")} запускаться при входе в Windows."
-            : $"{subject} {Plural(items.Count, "перестанет", "перестанут", "перестанут")} запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач" +
-              (restoresMark ? " (или возвращает отметку, что была до него)" : "") + ". " +
-              "Уже запущенные программы продолжат работать до перезагрузки.";
+            ? (items.Count == 1 ? Loc.Tf("{0} снова будет запускаться при входе в Windows.", subject) : Loc.Tf("{0} снова будут запускаться при входе в Windows.", subject))
+            : (Loc.RuForm(items.Count) == 0
+                ? Loc.Tf("{0} перестанет запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач{1}. Уже запущенные программы продолжат работать до перезагрузки.", subject, markNote)
+                : Loc.Tf("{0} перестанут запускаться при входе в Windows. Ничего не удаляется: MONOLITH ставит отметку «отключено» так же, как Диспетчер задач{1}. Уже запущенные программы продолжат работать до перезагрузки.", subject, markNote));
 
         return Ui.ConfirmAsync(
-            enable ? (items.Count == 1 ? "ВКЛЮЧИТЬ АВТОЗАПУСК?" : $"ВКЛЮЧИТЬ {items.Count} {Plural(items.Count, "ЗАПИСЬ", "ЗАПИСИ", "ЗАПИСЕЙ")}?")
-                   : (items.Count == 1 ? "ОТКЛЮЧИТЬ АВТОЗАПУСК?" : $"ОТКЛЮЧИТЬ {items.Count} {Plural(items.Count, "ЗАПИСЬ", "ЗАПИСИ", "ЗАПИСЕЙ")}?"),
+            enable ? (items.Count == 1 ? Loc.T("ВКЛЮЧИТЬ АВТОЗАПУСК?") : Loc.Tf("ВКЛЮЧИТЬ {0}?", Loc.N(items.Count, "{0} ЗАПИСЬ", "{0} ЗАПИСИ", "{0} ЗАПИСЕЙ")))
+                   : (items.Count == 1 ? Loc.T("ОТКЛЮЧИТЬ АВТОЗАПУСК?") : Loc.Tf("ОТКЛЮЧИТЬ {0}?", Loc.N(items.Count, "{0} ЗАПИСЬ", "{0} ЗАПИСИ", "{0} ЗАПИСЕЙ"))),
             message, details,
-            confirmText: enable ? "ВКЛЮЧИТЬ" : "ОТКЛЮЧИТЬ",
+            confirmText: enable ? Loc.T("ВКЛЮЧИТЬ") : Loc.T("ОТКЛЮЧИТЬ"),
             footnote: "Вернуть: переключатель на этой странице, Диспетчер задач → «Автозагрузка» или раздел «Восстановление». " +
                       "Изменение вступит в силу при следующем входе в Windows.");
     }
@@ -499,19 +502,19 @@ public sealed partial class StartupViewModel : PageViewModel
     {
         var details = new List<string>
         {
-            $"Задача: {item.Path}",
-            $"Действие: {item.Command}",
-            $"Запуск: {item.TriggerText.ToLowerInvariant()} ({item.TriggerDetail})",
+            Loc.Tf("Задача: {0}", item.Path),
+            Loc.Tf("Действие: {0}", item.Command),
+            Loc.Tf("Запуск: {0} ({1})", item.TriggerText.ToLowerInvariant(), item.TriggerDetail),
         };
         if (item.Info.OtherTriggers > 0)
-            details.Add($"У задачи есть ещё триггеры ({item.Info.OtherTriggers}: по расписанию, при простое и т. п.) — задача отключается целиком, они тоже перестанут срабатывать.");
+            details.Add(Loc.Tf("У задачи есть ещё триггеры ({0}: по расписанию, при простое и т. п.) — задача отключается целиком, они тоже перестанут срабатывать.", item.Info.OtherTriggers));
         if (item.Risk == StartupRisk.Driver)
-            details.Add("Внимание: задача производителя оборудования — могут пропасть функции драйвера (панель, горячие клавиши).");
+            details.Add(Loc.T("Внимание: задача производителя оборудования — могут пропасть функции драйвера (панель, горячие клавиши)."));
         if (item.Risk == StartupRisk.Microsoft)
-            details.Add("Внимание: исполняемый файл подписан Microsoft — проверьте, что задача вам не нужна.");
+            details.Add(Loc.T("Внимание: исполняемый файл подписан Microsoft — проверьте, что задача вам не нужна."));
 
         return Ui.ConfirmAsync("ОТКЛЮЧИТЬ ЗАДАЧУ?",
-            $"Задача «{item.DisplayName}» больше не будет запускаться планировщиком Windows. Сама задача не удаляется.",
+            Loc.Tf("Задача «{0}» больше не будет запускаться планировщиком Windows. Сама задача не удаляется.", item.DisplayName),
             details,
             confirmText: "ОТКЛЮЧИТЬ",
             footnote: "Вернуть: переключатель на этой странице, «Планировщик заданий» Windows или раздел «Восстановление».");
@@ -539,13 +542,13 @@ public sealed partial class StartupViewModel : PageViewModel
             if (dir is not null && FileProbe.DirectoryExists(dir))
             {
                 await OpenExplorerAsync($"\"{dir}\"");
-                Ui.Toast($"Файл не найден, открыта папка: {dir}", ToastKind.Warning);
+                Ui.Toast(Loc.Tf("Файл не найден, открыта папка: {0}", dir), ToastKind.Warning);
                 return;
             }
 
             Ui.Toast(row.TargetPath is null
-                ? "У этой записи нет файла на диске, открывать нечего."
-                : $"Файл и его папка не найдены: {row.TargetPath}", ToastKind.Warning, "НЕТ ФАЙЛА");
+                ? Loc.T("У этой записи нет файла на диске, открывать нечего.")
+                : Loc.Tf("Файл и его папка не найдены: {0}", row.TargetPath), ToastKind.Warning, "НЕТ ФАЙЛА");
         }
         catch (Exception ex)
         {
@@ -603,8 +606,8 @@ public sealed partial class StartupViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"Автозапуск: буфер обмена недоступен: {ex.Message}");
-            Ui.Toast($"Не удалось открыть браузер. Поиск: {term}", ToastKind.Warning);
+            Log.Warn("Автозапуск: буфер обмена недоступен: {0}", ex.Message);
+            Ui.Toast(Loc.Tf("Не удалось открыть браузер. Поиск: {0}", term), ToastKind.Warning);
         }
     }
 
@@ -613,7 +616,7 @@ public sealed partial class StartupViewModel : PageViewModel
     private bool EnsureIdle()
     {
         if (!IsBusy && IsHostBusy?.Invoke() != true) return true;
-        Ui.Toast("Дождитесь окончания текущей операции: " + (BusyText ?? "идёт работа"), ToastKind.Info);
+        Ui.Toast(Loc.T("Дождитесь окончания текущей операции: ") + (BusyText ?? Loc.T("идёт работа")), ToastKind.Info);
         return false;
     }
 
