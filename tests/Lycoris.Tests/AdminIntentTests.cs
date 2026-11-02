@@ -121,6 +121,7 @@ public class AdminIntentTests
     }
 
     [Theory]
+    [InlineData("home", MainViewModel.GroupOverview)]
     [InlineData("dashboard", MainViewModel.GroupOverview)]
     [InlineData("optimize", MainViewModel.GroupBoost)]
     [InlineData("games", MainViewModel.GroupBoost)]
