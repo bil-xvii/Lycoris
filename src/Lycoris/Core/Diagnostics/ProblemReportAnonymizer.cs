@@ -41,7 +41,10 @@ public static partial class ProblemReport
     private static readonly Regex SecretWordRx = R(SecretWords);
     private static readonly Regex LongTokenRx = R(@"(?<![A-Za-z0-9+/_=-])[A-Za-z0-9+/_-]{24,}={0,2}(?![A-Za-z0-9+/_=-])", RegexOptions.CultureInvariant);
     private static readonly Regex SecretValueRx = R(@"(" + SecretWords + @"\w*(?:\\?[""']?\s*[:=]\s*|\s+))((?:(?:bearer|basic|digest|negotiate|ntlm)\s+)?(?:\\?""[^""]*""|\\?'[^']*'|\S+))");
-    private static readonly Regex SerialRx = R(@"\b(?:serial(?:\s*(?:number|no\.?))?|s/n|серийный\s+номер)\s*[:=#]?\s*[\w-]+");
+    // «DiskSerial: X», «"SerialNumber":"WD-X1"», «serial: 1234 5678»: no \b (camelCase prefixes), with a separator the rest of the line goes (a value may have spaces).
+    private const string SerialLabel = @"(?:serial\w*(?: +(?:number|no\.?|num|id))?|s/n|серийн\w*(?: +номер\w*)?|сер\.? *№)";
+    private static readonly Regex SerialWithSeparatorRx = R(SerialLabel + @"\\?[""']?[ \t]*[:=#][ \t]*[^\r\n]*");
+    private static readonly Regex SerialPlainRx = R(SerialLabel + @"[ \t]+\\?[""']?[^\s""',;]+");
     private static readonly Regex UsersPathLeftRx = R(@"[\\/]+(?:Users|home)[\\/]+");
     private static readonly Regex LongRunRx = R(@"(?=[A-Za-z0-9+/_-]*\d)(?=[A-Za-z0-9+/_-]*[A-Za-z])[A-Za-z0-9+/_-]{16,}", RegexOptions.CultureInvariant);
 
@@ -117,7 +120,8 @@ public static partial class ProblemReport
             line = LongTokenRx.Replace(line, "<secret>");
             line = SecretValueRx.Replace(line, "$1<redacted>");
         }
-        line = SerialRx.Replace(line, "serial: <redacted>");
+        line = SerialWithSeparatorRx.Replace(line, "serial: <redacted>");
+        line = SerialPlainRx.Replace(line, m => m.Value.EndsWith("<redacted>", StringComparison.Ordinal) ? m.Value : "serial: <redacted>");
         return StillLooksPersonal(line) ? ExcludedLine : line;
     }
 

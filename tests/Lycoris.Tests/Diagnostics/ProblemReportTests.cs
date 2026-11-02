@@ -125,6 +125,21 @@ public sealed class ProblemReportTests
         Assert.Contains("end", r);
     }
 
+    [Theory]
+    [InlineData("\"SerialNumber\":\"WD-X1\"", "WD-X1")]
+    [InlineData("DiskSerial: X9Q", "X9Q")]
+    [InlineData("serial: 1234 5678", "5678")]
+    [InlineData("serial: 1234 5678", "1234")]
+    [InlineData("Serial Number : AB 12 CD 34", "CD 34")]
+    [InlineData("SerialNumber=ZZ-77 tail", "ZZ-77")]
+    [InlineData("serial QQ-9", "QQ-9")]
+    [InlineData("S/N: 12 34", "34")]
+    [InlineData("серийный номер: ЮЯ 55", "55")]
+    public void SerialNumbersOfAnyShapeAreRemoved(string input, string leak)
+    {
+        Assert.DoesNotContain(leak, ProblemReport.Anonymize("a\n" + input + "\nb", "zzq", "qqpc"));
+    }
+
     [Fact]
     public void GuidTailsAndTimestampsAreNotTakenForMacs()
     {
