@@ -115,6 +115,7 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     /// <summary>Section the view scrolls to: last-batch, journal, restore-points, drift (one-shot, see RestoreView).</summary>
     [ObservableProperty] private string? _focusedSection;
+    [ObservableProperty] private string? _focusedRecordId;
 
     /// <summary>«section:&lt;name&gt;»: opens the part of the page (last batch expanded, drift filter) and asks the view to scroll to it.</summary>
     private void ApplyFocus(string? focusId)
@@ -122,6 +123,17 @@ public sealed partial class RestoreViewModel : PageViewModel
         const string prefix = CommandPaletteIndex.RestoreSectionPrefix;
         if (focusId is null || !focusId.StartsWith(prefix, StringComparison.Ordinal)) return;
         var section = focusId[prefix.Length..];
+        if (section.StartsWith("record:", StringComparison.Ordinal) && Guid.TryParse(section[7..], out var recordId))
+        {
+            if (Filter != JournalFilter.All) Filter = JournalFilter.All;
+            if (_shownBatches < int.MaxValue) { _shownBatches = int.MaxValue; Rebuild(); }
+            var batch = Batches.FirstOrDefault(b => b.Records.Any(r => r.Record.Id == recordId));
+            if (batch is not null) batch.IsExpanded = true;
+            FocusedRecordId = recordId.ToString();
+            FocusedSection = null;
+            FocusedSection = "journal";
+            return;
+        }
         if (section == "drift" && HasDrift) Filter = JournalFilter.Drifted;
         else if (section == "last-batch")
         {
