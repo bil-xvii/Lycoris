@@ -283,6 +283,25 @@ Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversio
   tabs (`SegmentBar`) → summary strip → list panel (search + `Chip` filters) → the list, the page's ONLY `ScrollViewer`
   (`*` row) → `c:StickyBar` (Auto row, outside the scroll). The shell already adds 24/16 px margins.
 
+## Updates (owner, 02.11.2026: «показывало, что есть обновление, нажать "обновить" в самой программе»)
+
+`Core/Updates/*` + `Shell/UpdateController`. Owner flow and failure modes: `docs/releasing.md`; antivirus notes: `docs/antivirus.md`.
+- The version has ONE source: `<Version>` in Monolith.csproj (`AppVersion.Current`). Release = `tools/release.ps1` (publishes
+  MONOLITH.exe + MONOLITH.exe.sha256 to the PUBLIC repo `bil-xvii/MONOLITH-releases` and the private one; `-WhatIf` = dry run).
+- The app asks ONLY `api.github.com/repos/bil-xvii/MONOLITH-releases/releases/latest`, anonymously, ≤ 1 request / 12 h (ETag,
+  cache in AppSettings), as an `OperationClass.Background` operation; a background failure is a log line, never a toast.
+  `--demo-update` (with `--snapshot`) renders the «ОБНОВЛЕНИЕ x.y.z» button and the Settings block without network.
+- Download = `UpdateDownloader` (HTTPS, host allow-list checked BEFORE every redirect hop, size 40–300 MB, SHA-256 from the
+  .sha256 asset AND GitHub's digest, PE x64, signer must equal the running exe's signer). Streams through
+  `VendorDownloads.CopyResponseToFileAsync` (shared with driver/installer downloads — extend it, never fork).
+- **Never overwrite the running exe.** The old copy stages the verified file (`MONOLITH.exe.new`, or runs it from
+  `%LocalAppData%\MONOLITH\Updates` elevated when the folder is protected), starts it as `--apply-update <old exe> <pid>`
+  (headless, `UpdateApplier`), which waits for the old process, renames old → `.old`, COPIES itself to the old name, starts it,
+  watches 10 s and rolls back on a crash. `UpdateCleanup` removes `.old/.new` one minute after a good start.
+  Refused while any listed operation runs or a game session is active (`UpdateController.BlockerText`); a network/read-only
+  location or a multi-file dev build is told plainly (`UpdateApplier.Plan`). Tests: `tests/Monolith.Tests/Updates/*` (fake
+  HTTP, fake file system, tiny real exes in a temp folder; no network, MONOLITH.exe is never touched).
+
 ## Build, run, verify
 
 ```

@@ -18,6 +18,11 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
 $exe = Join-Path $out 'MONOLITH.exe'
 Get-ChildItem $out | Where-Object { $_.Extension -in '.pdb', '.xml' } | Remove-Item -Force
 "Built: $exe  ({0:N1} MB)" -f ((Get-Item $exe).Length / 1MB)
+# One source of truth for the version: <Version> in Monolith.csproj (the same number the app shows and the update check compares).
+$csprojText = Get-Content (Join-Path $root 'src\Monolith\Monolith.csproj') -Raw
+$version = if ($csprojText -match '<Version>([^<]+)</Version>') { $Matches[1] } else { '?' }
+$info = (Get-Item $exe).VersionInfo
+"Version: $version  (exe file version $($info.FileVersion), product $($info.ProductVersion), company '$($info.CompanyName)')"
 
 if (-not $NoSign) {
     # Exit codes of sign.ps1: 0 signed and valid, 2 no certificate (left unsigned), 1 error.
