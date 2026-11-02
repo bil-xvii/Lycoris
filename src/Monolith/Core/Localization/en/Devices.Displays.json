@@ -1,0 +1,9 @@
+{
+  "area": "Devices.Displays",
+  "translated": false,
+  "sources": [
+    "Modules/Devices/Displays/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

@@ -1,0 +1,9 @@
+{
+  "area": "Devices.Audio",
+  "translated": false,
+  "sources": [
+    "Modules/Devices/Audio/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

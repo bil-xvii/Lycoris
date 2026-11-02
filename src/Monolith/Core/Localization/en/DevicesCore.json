@@ -1,0 +1,9 @@
+{
+  "area": "DevicesCore",
+  "translated": false,
+  "sources": [
+    "Core/Devices/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

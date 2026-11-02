@@ -1,0 +1,9 @@
+{
+  "area": "Devices.Vendors",
+  "translated": false,
+  "sources": [
+    "Modules/Devices/Vendors/**"
+  ],
+  "ignore": [],
+  "en": {}
+}
