@@ -22,12 +22,12 @@ public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null, str
     public bool CanReapply => IsDrifted && DriftReapply.CanReapply(Drift!);
     /// <summary>No direct re-apply, but the owning page can show it.</summary>
     public bool CanShowOwner => IsDrifted && !CanReapply && Drift!.OwnerPage is not null;
-    public string Title => Record.Title.Length > 0 ? Record.Title : "Без названия";
+    public string Title => Record.Title.Length > 0 ? Loc.Sink(Record.Title) : Loc.T("Без названия");
     public string KindLabel => RestoreFormat.KindLabel(Record.Kind);
     public string Target => RestoreFormat.DescribeTarget(Record.Target);
     public string RawTarget => Record.Target;
-    public string OldValue => string.IsNullOrWhiteSpace(Record.OldValue) ? "—" : Record.OldValue;
-    public string NewValue => string.IsNullOrWhiteSpace(Record.NewValue) ? "—" : Record.NewValue;
+    public string OldValue => string.IsNullOrWhiteSpace(Record.OldValue) ? "—" : Loc.Sink(Record.OldValue);
+    public string NewValue => string.IsNullOrWhiteSpace(Record.NewValue) ? "—" : Loc.Sink(Record.NewValue);
     public string Source => string.IsNullOrWhiteSpace(Record.Source) ? "monolith" : Record.Source;
     public string TimeText => Record.Timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
     public RecordState State => RestoreFormat.StateOf(Record);
@@ -43,7 +43,7 @@ public sealed partial class BatchItem(JournalGroup group, Func<ChangeRecord, Rec
 {
     public JournalGroup Group { get; } = group;
     public Guid Id => Group.Batch.Id;
-    public string Title => Group.Batch.Title.Length > 0 ? Group.Batch.Title : "Без названия";
+    public string Title => Group.Batch.Title.Length > 0 ? Loc.Sink(Group.Batch.Title) : Loc.T("Без названия");
     public string DateText => RestoreFormat.FormatDate(Group.Batch.Timestamp);
     public IReadOnlyList<RecordItem> Records { get; } = group.Records.Select(item).ToList();
     public int ActiveCount => Group.ActiveCount;
@@ -56,19 +56,19 @@ public sealed partial class BatchItem(JournalGroup group, Func<ChangeRecord, Rec
     [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty] private bool _isExpanded;
     partial void OnIsExpandedChanged(bool value) => OnPropertyChanged(nameof(ExpandText));
     /// <summary>The label of the outlined expander button.</summary>
-    public string ExpandText => IsExpanded ? $"СКРЫТЬ ЗАПИСИ · {TotalCount}" : $"ПОКАЗАТЬ ЗАПИСИ · {TotalCount}";
+    public string ExpandText => IsExpanded ? Loc.Tf("СКРЫТЬ ЗАПИСИ · {0}", TotalCount) : Loc.Tf("ПОКАЗАТЬ ЗАПИСИ · {0}", TotalCount);
     public bool HasRestorePointInfo => !IsSynthetic;
     public bool RestorePointCreated => RestoreFormat.IsRestorePointCreated(Group.Batch.RestorePoint);
 
     public string RestorePointText => IsSynthetic
-        ? "Записи, пакет которых не найден в журнале."
-        : string.IsNullOrWhiteSpace(Group.Batch.RestorePoint) ? "Точка восстановления не создавалась." : Group.Batch.RestorePoint!;
+        ? Loc.T("Записи, пакет которых не найден в журнале.")
+        : string.IsNullOrWhiteSpace(Group.Batch.RestorePoint) ? Loc.T("Точка восстановления не создавалась.") : Loc.Sink(Group.Batch.RestorePoint);
 
     public string CountText => TotalCount == 0
-        ? "НЕТ ЗАПИСЕЙ"
+        ? Loc.T("НЕТ ЗАПИСЕЙ")
         : ActiveCount == 0
-            ? "ВСЁ ОТКАЧЕНО"
-            : $"АКТИВНО {ActiveCount} ИЗ {TotalCount}";
+            ? Loc.T("ВСЁ ОТКАЧЕНО")
+            : Loc.Tf("АКТИВНО {0} ИЗ {1}", ActiveCount, TotalCount);
 }
 
 /// <summary>A Windows restore point.</summary>
@@ -76,7 +76,7 @@ public sealed class RestorePointItem(RestorePointInfo info)
 {
     public RestorePointInfo Info { get; } = info;
     public string DateText => Info.Created == DateTime.MinValue ? "—" : Info.Created.ToString("dd.MM.yyyy · HH:mm", CultureInfo.InvariantCulture);
-    public string Description => string.IsNullOrWhiteSpace(Info.Description) ? "Без описания" : Info.Description;
+    public string Description => string.IsNullOrWhiteSpace(Info.Description) ? Loc.T("Без описания") : Info.Description;
     public string TypeLabel => RestoreFormat.RestorePointTypeLabel(Info.Type);
     public bool IsMonolith => RestoreFormat.IsMonolithPoint(Info.Description);
     public string SequenceText => "#" + Info.Sequence.ToString(CultureInfo.InvariantCulture);

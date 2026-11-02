@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:ui="clr-namespace:Monolith.UI"
+             xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Apps"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:AppsViewModel}">
     <!--
@@ -89,7 +90,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Top" Margin="0,2,9,0"
-                                      ToolTip="Отметить для пакетной установки или обновления" />
+                                      ToolTip="{loc:T Отметить для пакетной установки или обновления}" />
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
                                 <TextBlock Text="{Binding PackageId}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
@@ -170,7 +171,7 @@
 
                         <ComboBox Grid.Column="1" Width="92" MinWidth="0" Margin="8,0,0,0" ItemsSource="{Binding Variants}"
                                   SelectedItem="{Binding SelectedVariant}"
-                                  ToolTip="Регион игры: от него зависят сервер и пакет winget"
+                                  ToolTip="{loc:T Регион игры: от него зависят сервер и пакет winget}"
                                   Visibility="{Binding HasVariantPicker, Converter={StaticResource BoolToVis}}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:AppVariant}">
@@ -189,7 +190,7 @@
                                 Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 CommandParameter="{Binding}" Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="САЙТ" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T САЙТ}" VerticalAlignment="Center" />
                                 <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12"
                                            Margin="7,1,0,0" VerticalAlignment="Center" />
                             </StackPanel>
@@ -307,7 +308,7 @@
                       Checked="{Binding CheckedText}" RefreshCommand="{Binding RefreshCommand}">
             <c:PageHeader.Primary>
                 <Button Command="{Binding UpdateAllCommand}"
-                        ToolTip="Обновить через winget все установленные программы из каталога (кроме обновляющихся самостоятельно)">
+                        ToolTip="{loc:T Обновить через winget все установленные программы из каталога (кроме обновляющихся самостоятельно)}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock Text="{Binding UpdateAllText}" VerticalAlignment="Center" />
@@ -325,7 +326,7 @@
             </Grid.ColumnDefinitions>
             <Grid VerticalAlignment="Top">
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,10,0" Height="32"
-                         Tag="Поиск по названию или ID" />
+                         Tag="{loc:T Поиск по названию или ID}" />
                 <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12"
                            Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"
                            IsHitTestVisible="False" Visibility="{Binding HasSearch, Converter={StaticResource InverseBoolToVis}}" />
@@ -334,7 +335,7 @@
                     Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                    <TextBlock Text="СБРОСИТЬ" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:T СБРОСИТЬ}" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
             <Border Grid.Column="2" Style="{StaticResource SegmentBar}" Margin="12,0,0,0" VerticalAlignment="Top">
@@ -368,7 +369,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <TextBlock Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center">
-                <Run Text="{Binding VisibleText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="УСТАНОВЛЕНО " /><Run Text="{Binding InstalledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
+                <Run Text="{Binding VisibleText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{loc:T 'УСТАНОВЛЕНО '}" /><Run Text="{Binding InstalledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
             </TextBlock>
             <TextBlock Grid.Column="1" Text="{Binding DetectionText}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="14,0,0,0"
                        TextTrimming="CharacterEllipsis" ToolTip="{Binding WingetVersionText}" />
@@ -396,11 +397,11 @@
                             <Border Background="{StaticResource B.HatchStrong}" />
                             <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Warning}" Style="{StaticResource T.Icon}" FontSize="18" Margin="11,0,10,0" />
                             <StackPanel Grid.Column="2" Margin="0,9,11,10">
-                                <TextBlock Text="Устаревший winget" Style="{StaticResource T.H3}" />
+                                <TextBlock Text="{loc:T Устаревший winget}" Style="{StaticResource T.H3}" />
                                 <TextBlock Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,3,0,0"
-                                           Text="Эта версия «Установщика приложений» слишком старая: часть пакетов может не ставиться. Обновите его в Microsoft Store." />
+                                           Text="{loc:T Эта версия «Установщика приложений» слишком старая: часть пакетов может не ставиться. Обновите его в Microsoft Store.}" />
                             </StackPanel>
-                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="ОБНОВИТЬ В STORE" Margin="0,0,10,0"
+                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="{loc:T ОБНОВИТЬ В STORE}" Margin="0,0,10,0"
                                     Command="{Binding OpenAppInstallerStoreCommand}" />
                         </Grid>
                     </Border>
@@ -416,19 +417,19 @@
                             </Grid.ColumnDefinitions>
                             <Border Background="{StaticResource B.HatchStrong}" />
                             <StackPanel Grid.Column="1" Margin="17,15,15,16">
-                                <TextBlock Text="WINGET · УСТАНОВЩИК ПРИЛОЖЕНИЙ" Style="{StaticResource T.Label}" />
-                                <TextBlock Text="winget не найден" Style="{StaticResource T.H1}" FontSize="22" Margin="0,6,0,0" />
+                                <TextBlock Text="{loc:T WINGET · УСТАНОВЩИК ПРИЛОЖЕНИЙ}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T winget не найден}" Style="{StaticResource T.H1}" FontSize="22" Margin="0,6,0,0" />
                                 <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="620" HorizontalAlignment="Left"
-                                           Text="MONOLITH ставит программы через winget — официальный менеджер пакетов Windows из «Установщика приложений» (App Installer). Установите или обновите его в Microsoft Store, затем нажмите «Обновить». Каталог ниже остаётся доступен: у каждой программы есть ссылка на официальный сайт." />
+                                           Text="{loc:T 'MONOLITH ставит программы через winget — официальный менеджер пакетов Windows из «Установщика приложений» (App Installer). Установите или обновите его в Microsoft Store, затем нажмите «Обновить». Каталог ниже остаётся доступен: у каждой программы есть ссылка на официальный сайт.'}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Margin="0,0,15,0" VerticalAlignment="Center">
                                 <Button Style="{StaticResource Btn.Primary}" Command="{Binding OpenAppInstallerStoreCommand}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="ОТКРЫТЬ MICROSOFT STORE" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ОТКРЫТЬ MICROSOFT STORE}" VerticalAlignment="Center" />
                                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="8,1,0,0" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource Btn}" Content="ПРОВЕРИТЬ СНОВА" Margin="0,10,0,0" Command="{Binding RefreshCommand}" />
+                                <Button Style="{StaticResource Btn}" Content="{loc:T ПРОВЕРИТЬ СНОВА}" Margin="0,10,0,0" Command="{Binding RefreshCommand}" />
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -443,7 +444,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Набор геймера" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T Набор геймера}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" Margin="10,1,10,0" VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis" Text="{Binding KitCaption, Mode=OneTime}"
                                        ToolTip="{Binding KitToolTip}" ToolTipService.ShowDuration="30000" />
@@ -452,7 +453,7 @@
                                 <Run Text="{Binding KitInstalled, Mode=OneWay}" /><Run Text=" / " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding KitTotal, Mode=OneWay}" Foreground="{StaticResource B.Text3}" />
                             </TextBlock>
                             <Button Grid.Column="3" Command="{Binding InstallKitCommand}"
-                                    ToolTip="Показать список пакетов и установить недостающие библиотеки, которые нужны этому ПК">
+                                    ToolTip="{loc:T 'Показать список пакетов и установить недостающие библиотеки, которые нужны этому ПК'}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <TextBlock Text="{Binding KitButtonText}" VerticalAlignment="Center" />
@@ -480,7 +481,7 @@
                                         <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" Margin="10,2,10,0" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="3" Style="{StaticResource T.Mono}" VerticalAlignment="Center"
                                                    Foreground="{StaticResource B.Text3}">
-                                            <Run Text="УСТАНОВЛЕНО" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12" />
+                                            <Run Text="{loc:T УСТАНОВЛЕНО}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12" />
                                             <Run Text="{Binding InstalledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
                                             <Run Text="/" />
                                             <Run Text="{Binding VisibleCount, Mode=OneWay}" />
@@ -514,9 +515,9 @@
                                 <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0" Text="{Binding NoResultsText}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0">
-                                <Button Style="{StaticResource Btn}" Content="СБРОСИТЬ ПОИСК"
+                                <Button Style="{StaticResource Btn}" Content="{loc:T СБРОСИТЬ ПОИСК}"
                                         Command="{Binding ClearSearchCommand}" Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}" />
-                                <Button Style="{StaticResource Btn.Primary}" Content="ПОКАЗАТЬ ВСЕ ПРОГРАММЫ" Margin="0,8,0,0"
+                                <Button Style="{StaticResource Btn.Primary}" Content="{loc:T ПОКАЗАТЬ ВСЕ ПРОГРАММЫ}" Margin="0,8,0,0"
                                         Command="{Binding ShowAllCommand}" Visibility="{Binding ShowAllOffered, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>
                         </Grid>
@@ -524,8 +525,8 @@
 
                     <!-- ═══════════════ Trust: one muted line (full text in the tooltip) ═══════════════ -->
                     <TextBlock Style="{StaticResource T.Caption}" Margin="0,20,0,0" TextWrapping="Wrap" ToolTipService.ShowDuration="30000"
-                               Text="Только проверенные пакеты winget и Microsoft Store. MONOLITH никогда не передаёт winget --force, --ignore-security-hash и --allow-reboot. Установка работает и без прав администратора: установщики сами запросят UAC."
-                               ToolTip="Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком, установщик скачивается с его сервера, а SHA256 сверяется с манифестом. Пакеты Microsoft Store скачиваются из Store и проверяются его подписью. При установке winget принимает за вас лицензии издателей и условия Microsoft Store — MONOLITH предупреждает об этом перед каждой установкой. Удалить программу можно в «Параметры → Приложения»." />
+                               Text="{loc:T 'Только проверенные пакеты winget и Microsoft Store. MONOLITH никогда не передаёт winget --force, --ignore-security-hash и --allow-reboot. Установка работает и без прав администратора: установщики сами запросят UAC.'}"
+                               ToolTip="{loc:T 'Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком, установщик скачивается с его сервера, а SHA256 сверяется с манифестом. Пакеты Microsoft Store скачиваются из Store и проверяются его подписью. При установке winget принимает за вас лицензии издателей и условия Microsoft Store — MONOLITH предупреждает об этом перед каждой установкой. Удалить программу можно в «Параметры → Приложения».'}" />
                 </StackPanel>
             </ScrollViewer>
 
@@ -562,10 +563,10 @@
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
-                                        <Setter Property="Text" Value="ОЧЕРЕДЬ · ЗАВЕРШЕНО" />
+                                        <Setter Property="Text" Value="{loc:T ОЧЕРЕДЬ · ЗАВЕРШЕНО}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsQueueRunning}" Value="True">
-                                                <Setter Property="Text" Value="ОЧЕРЕДЬ · ВЫПОЛНЯЕТСЯ" />
+                                                <Setter Property="Text" Value="{loc:T ОЧЕРЕДЬ · ВЫПОЛНЯЕТСЯ}" />
                                                 <Setter Property="Foreground" Value="{StaticResource B.Text}" />
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -589,7 +590,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="ВЫВОД WINGET" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ВЫВОД WINGET}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
                         <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" Margin="10,1,0,0" VerticalAlignment="Center" />
                     </Grid>
 
@@ -608,7 +609,7 @@
                     <Grid Grid.Row="5" Margin="12,10,12,11">
                         <!-- running: stop after the current package -->
                         <Button Style="{StaticResource Btn}" Command="{Binding StopQueueCommand}"
-                                ToolTip="Текущий пакет будет доведён до конца, остальные — отменены">
+                                ToolTip="{loc:T 'Текущий пакет будет доведён до конца, остальные — отменены'}">
                             <Button.Visibility>
                                 <MultiBinding Converter="{x:Static local:AppsView.AllTrueToVisibility}">
                                     <Binding Path="IsQueueRunning" />
@@ -617,12 +618,12 @@
                             </Button.Visibility>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock Text="ОСТАНОВИТЬ ПОСЛЕ ТЕКУЩЕГО" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ОСТАНОВИТЬ ПОСЛЕ ТЕКУЩЕГО}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <!-- stopping: hard abort -->
                         <Button Style="{StaticResource Btn.Danger}" Command="{Binding AbortQueueCommand}"
-                                ToolTip="Принудительно завершить winget и текущий установщик">
+                                ToolTip="{loc:T Принудительно завершить winget и текущий установщик}">
                             <Button.Visibility>
                                 <MultiBinding Converter="{x:Static local:AppsView.AllTrueToVisibility}">
                                     <Binding Path="IsQueueRunning" />
@@ -631,11 +632,11 @@
                             </Button.Visibility>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock Text="ПРЕРВАТЬ СЕЙЧАС" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ПРЕРВАТЬ СЕЙЧАС}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <!-- finished -->
-                        <Button Style="{StaticResource Btn.Primary}" Content="ЗАКРЫТЬ" Command="{Binding CloseQueueCommand}"
+                        <Button Style="{StaticResource Btn.Primary}" Content="{loc:T ЗАКРЫТЬ}" Command="{Binding CloseQueueCommand}"
                                 Visibility="{Binding IsQueueRunning, Converter={StaticResource InverseBoolToVis}}" />
                     </Grid>
                 </Grid>
@@ -650,11 +651,11 @@
                             Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="СНЯТЬ ВЫБОР" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T СНЯТЬ ВЫБОР}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource Btn.Hero}" Command="{Binding InstallSelectedCommand}"
-                            ToolTip="Поставить в очередь все отмеченные программы: неустановленные — установить, установленные — обновить">
+                            ToolTip="{loc:T 'Поставить в очередь все отмеченные программы: неустановленные — установить, установленные — обновить'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="{Binding InstallSelectedText}" VerticalAlignment="Center" />

@@ -51,7 +51,7 @@ public static class LiveState
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось прочитать текущее значение «{r.Title}»: {ex.Message}");
+            Log.Warn("Не удалось прочитать текущее значение «{0}»: {1}", r.Title, ex.Message);
             return new LiveValue(Unknown, null);
         }
     }
@@ -90,7 +90,7 @@ public static class LiveState
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось проверить откат «{r.Title}»: {ex.Message}");
+            Log.Warn("Не удалось проверить откат «{0}»: {1}", r.Title, ex.Message);
             return RevertCheck.NotChecked;
         }
     }
@@ -105,18 +105,18 @@ public static class LiveState
             case ChangeKind.UserParameter when r.Spi is { } s && SpiCatalog.Find(s.Id) is { } e && DeviceWriters.Spi is { } spi:
                 return spi.Get(e) is { } v ? e.Describe(v) : null;
             case ChangeKind.DisplayMode when r.DisplayMode is { } d && DeviceWriters.Display is { } display:
-                return display.ReadCurrentMode(d.MonitorPath)?.Describe() ?? "монитор не подключён";
+                return display.ReadCurrentMode(d.MonitorPath)?.Describe() ?? "монитор не подключён"; // loc:ignore journal-compared state text (Russian on disk)
             case ChangeKind.DisplayHdr when r.DisplayHdr is { } h && DeviceWriters.Display is { } display:
-                return display.ReadHdrEnabled(h.MonitorPath) is { } on ? DeviceTargets.DescribeHdr(on) : "монитор не подключён";
+                return display.ReadHdrEnabled(h.MonitorPath) is { } on ? DeviceTargets.DescribeHdr(on) : "монитор не подключён"; // loc:ignore journal-compared state text (Russian on disk)
             case ChangeKind.MonitorSetting when r.Monitor is { } m && DeviceWriters.Monitor is { } monitor:
                 return monitor.Get(m.MonitorPath, m.Code) is { } vcp ? DeviceTargets.DescribeVcp(m.Code, vcp.Value, vcp.Max) : null;
             case ChangeKind.AudioLevel when r.Audio is { } a && DeviceWriters.Audio is { } audio:
-                if (!audio.IsPresent(a.EndpointId)) return "устройство не найдено";
+                if (!audio.IsPresent(a.EndpointId)) return "устройство не найдено"; // loc:ignore journal-compared state text (Russian on disk)
                 return audio.Read(a.EndpointId) is { } level
                     ? a.Component == AudioComponent.Mute ? DeviceTargets.DescribeMute(level.Mute) : DeviceTargets.DescribeLevel(level.Scalar)
                     : null;
             case ChangeKind.NicProperty when r.Nic is { } n && DeviceWriters.Nic is { } nic:
-                return nic.Read(n.InterfaceGuid, n.Keyword) is { } p ? DeviceTargets.DescribeNic(p.Value) : "адаптер или свойство не найдены";
+                return nic.Read(n.InterfaceGuid, n.Keyword) is { } p ? DeviceTargets.DescribeNic(p.Value) : "адаптер или свойство не найдены"; // loc:ignore journal-compared state text (Russian on disk)
             default:
                 return null;
         }
@@ -162,7 +162,7 @@ public static class LiveState
         return new RevertCheck(same, RegistryText(live), RegistryText(original));
     }
 
-    private static string RegistryText(RegistryValueSnapshot s) => s.ValueExisted ? FormatRegistry(s) : "значения нет";
+    private static string RegistryText(RegistryValueSnapshot s) => s.ValueExisted ? FormatRegistry(s) : "значения нет"; // loc:ignore journal-compared state text (Russian on disk)
 
     private static RevertCheck VerifyRegistry(RegistryValueSnapshot original) =>
         CompareRegistry(original, RegistryHelper.Snapshot(original.Hive, original.Path, original.Name));
@@ -173,8 +173,8 @@ public static class LiveState
         var sameStart = live.StartMode == original.StartMode && live.DelayedAutoStart == original.DelayedAutoStart;
         var sameFlag = original.RawDelayed is null || live.RawDelayed == original.RawDelayed;
         if (sameStart && !sameFlag)
-            return new RevertCheck(false, $"{live.Describe()}, флаг отложенного запуска {Flag(live.RawDelayed)}",
-                $"{original.Describe()}, флаг отложенного запуска {Flag(original.RawDelayed)}");
+            return new RevertCheck(false, Loc.Tf("{0}, флаг отложенного запуска {1}", live.Describe(), Flag(live.RawDelayed)),
+                Loc.Tf("{0}, флаг отложенного запуска {1}", original.Describe(), Flag(original.RawDelayed)));
         return new RevertCheck(sameStart && sameFlag, live.Describe(), original.Describe());
 
         static string Flag(bool? f) => f == true ? "1" : "0";
@@ -191,7 +191,7 @@ public static class LiveState
         if (active != expected) return new RevertCheck(false, PowerSchemes.GetName(active), PowerSchemes.GetName(expected));
         var leftover = ChangeJournal.CreatedSchemes(r).FirstOrDefault(c => c != active && PowerSchemes.TryExists(c) == true);
         if (leftover != Guid.Empty)
-            return new RevertCheck(false, $"осталась созданная MONOLITH схема «{PowerSchemes.GetName(leftover)}»", "созданная схема удалена");
+            return new RevertCheck(false, Loc.Tf("осталась созданная MONOLITH схема «{0}»", PowerSchemes.GetName(leftover)), Loc.T("созданная схема удалена"));
         return new RevertCheck(true, PowerSchemes.GetName(active), PowerSchemes.GetName(expected));
     }
 
@@ -201,7 +201,7 @@ public static class LiveState
         if (!info.Exists) return RevertCheck.NotChecked;
         return new RevertCheck(info.Enabled == wasEnabled, TaskText(info.Enabled), TaskText(wasEnabled));
 
-        static string TaskText(bool enabled) => enabled ? "Включена" : "Отключена";
+        static string TaskText(bool enabled) => enabled ? "Включена" : "Отключена"; // loc:ignore journal-compared state text (Russian on disk)
     }
 
     private const string DxPreferencesPath = @"Software\Microsoft\DirectX\UserGpuPreferences";
@@ -237,11 +237,11 @@ public static class LiveState
         }
         return RevertCheck.NotChecked;
 
-        static string DnsText(IReadOnlyList<string> servers) => servers.Count == 0 ? "автоматически (DHCP)" : string.Join(", ", servers);
-        static string DxText(string? value) => value is null ? "не задано" : value;
+        static string DnsText(IReadOnlyList<string> servers) => servers.Count == 0 ? "автоматически (DHCP)" : string.Join(", ", servers); // loc:ignore journal-compared state text (Russian on disk)
+        static string DxText(string? value) => value is null ? "не задано" : value; // loc:ignore journal-compared state text (Russian on disk)
     }
 
-    private static string Side(bool dc) => dc ? "от батареи" : "от сети";
+    private static string Side(bool dc) => dc ? "от батареи" : "от сети"; // loc:ignore journal-compared state text (Russian on disk)
 
     /// <summary>The user-configured power mode of one side (Windows 11), null when unavailable. Read-only.</summary>
     private static Guid? ReadPowerMode(bool dc) => dc ? TweakCatalog.ReadDcPowerMode() : TweakCatalog.ReadAcPowerMode();
@@ -258,7 +258,7 @@ public static class LiveState
         if (string.IsNullOrEmpty(name)) return new LiveValue(Unknown, null);
         return ServiceControl.Query(name) is { } live
             ? Compare(r, live.Describe())
-            : new LiveValue("служба не найдена", null);
+            : new LiveValue("служба не найдена", null); // loc:ignore journal-compared state text (Russian on disk)
     }
 
     private static LiveValue ReadRegistry(ChangeRecord r)
@@ -274,8 +274,8 @@ public static class LiveState
         if (string.IsNullOrEmpty(path)) return new LiveValue(Unknown, null);
         var info = ScheduledTasks.Query(path);
         return info.Exists
-            ? Compare(r, info.Enabled ? "Включена" : "Отключена")
-            : new LiveValue("задача не найдена", null);
+            ? Compare(r, info.Enabled ? "Включена" : "Отключена") // loc:ignore journal-compared state text (Russian on disk)
+            : new LiveValue("задача не найдена", null); // loc:ignore journal-compared state text (Russian on disk)
     }
 
     private static LiveValue Compare(ChangeRecord r, string live) => new(live, IsDrift(r.Kind, r.NewValue, live));
@@ -286,7 +286,7 @@ public static class LiveState
     /// </summary>
     public static string FormatRegistry(RegistryValueSnapshot s)
     {
-        if (!s.ValueExisted) return "удалено";
+        if (!s.ValueExisted) return "удалено"; // loc:ignore journal-compared state text (Russian on disk)
         var text = s.Kind switch
         {
             RegistryValueKind.DWord when uint.TryParse(s.Data, out var u) => unchecked((int)u).ToString(),

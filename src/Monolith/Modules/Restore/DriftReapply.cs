@@ -15,7 +15,7 @@ public sealed record ReapplyResult(int Applied, IReadOnlyList<string> Errors);
 /// </summary>
 public static class DriftReapply
 {
-    public const string BatchTitle = "Повторное применение: изменено вне MONOLITH";
+    public const string BatchTitle = "Повторное применение: изменено вне MONOLITH"; // loc:ignore stored as the journal batch title (Russian on disk); shown through Loc.Sink
 
     public static bool CanReapply(DriftItem d) => d.Fix != DriftFix.None;
 
@@ -26,9 +26,9 @@ public static class DriftReapply
         foreach (var g in items.Where(CanReapply).GroupBy(d => d.Fix == DriftFix.Tweak ? d.TweakId : null))
         {
             if (g.Key is { } id)
-                lines.Add($"Пункт оптимизации «{tweakTitle(id) ?? id}» применяется заново целиком (те же значения, что при первом применении)");
+                lines.Add(Loc.Tf("Пункт оптимизации «{0}» применяется заново целиком (те же значения, что при первом применении)", tweakTitle(id) ?? id));
             foreach (var d in g)
-                lines.Add($"{d.Record.Title} · {RestoreFormat.DescribeTarget(d.Record.Target)}: «{d.Live}» → «{d.Applied}»");
+                lines.Add($"{Loc.Sink(d.Record.Title)} · {RestoreFormat.DescribeTarget(d.Record.Target)}: «{Loc.Sink(d.Live)}» → «{Loc.Sink(d.Applied)}»");
         }
         return lines;
     }
@@ -86,7 +86,7 @@ public static class DriftReapply
                 else if (DriftDetector.PackagedStateOf(r.NewValue) is null)
                     session.SetRegistry(loc.Hive, loc.Path, loc.Name, RegistryValueKind.Binary, StartupApproved.Build(on), source, r.Title);
                 else
-                    session.Errors.Add($"{r.Title}: не удалось определить вид отметки автозапуска — значение не записано.");
+                    session.Errors.Add(Loc.Tf("{0}: не удалось определить вид отметки автозапуска — значение не записано.", Loc.Sink(r.Title)));
                 break;
         }
     }
