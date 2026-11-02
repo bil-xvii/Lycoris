@@ -484,5 +484,8 @@ public sealed class SelfTestRunner
         File.WriteAllText(Path.Combine(_outDir, "report.json"),
             JsonSerializer.Serialize(reports, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }),
             new UTF8Encoding(false));
+        // QA for --lang en: every Russian text that was asked for but has no English entry (shown in Russian on screen).
+        var missing = Loc.MissingKeys.OrderBy(k => k, StringComparer.Ordinal).ToList();
+        File.WriteAllText(Path.Combine(_outDir, "missing-keys.txt"), string.Join("\n", missing), new UTF8Encoding(false));
     }
 }
