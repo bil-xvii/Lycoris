@@ -36,7 +36,7 @@ public sealed record ReleaseInfo
             .Where(l => l.Length > 0)
             .ToList();
         // The label above the notes already says «ЧТО НОВОГО»: a leading heading with the same words is dropped.
-        if (lines.Count > 1 && System.Text.RegularExpressions.Regex.IsMatch(lines[0], "^(что нового|what'?s new|changes?)[:.]?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (lines.Count > 1 && System.Text.RegularExpressions.Regex.IsMatch(lines[0], "^(что нового|what'?s new|changes?)[:.]?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) // loc:ignore (matches a heading of the release notes in any language)
             lines.RemoveAt(0);
         var text = string.Join("\n", lines.Take(maxLines));
         if (text.Length > 1500) text = text[..1500] + "…";
