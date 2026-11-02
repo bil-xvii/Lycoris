@@ -57,11 +57,21 @@ public abstract partial class PageViewModel : ObservableObject
             if (_loadTask is null) await EnsureLoadedAsync();
             else
             {
-                // A first load still running is awaited; a failed one was reported on that visit and is not repeated.
-                if (!_loadTask.IsCompleted)
+                // A first load still running is awaited. One that failed while nobody was looking (a warm-up started by the
+                // Dashboard) is reported now and retried by this visit instead of leaving an empty page without a word.
+                var failed = false;
+                try { await _loadTask; }
+                catch (Exception ex)
                 {
-                    try { await _loadTask; }
-                    catch { /* reported by the first visit */ }
+                    failed = true;
+                    Log.Error($"{Title}: ошибка загрузки", ex);
+                    Ui.Toast($"{Title}: {ex.Message}", ToastKind.Error);
+                }
+                if (failed)
+                {
+                    _loadTask = null;
+                    await EnsureLoadedAsync();
+                    return;
                 }
                 await OnReturnAsync();
             }

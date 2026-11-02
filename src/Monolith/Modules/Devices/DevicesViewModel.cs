@@ -458,10 +458,17 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     /// <summary>«НАСТРОИТЬ АВТОМАТИЧЕСКИ»: the checked rows through the journal (restore point, one batch).</summary>
     [RelayCommand(CanExecute = nameof(CanApplyPlan))]
-    private async Task ApplyPlanAsync()
+    private async Task ApplyPlanAsync(string? selection)
     {
-        // Read-only: relaunch with rights and come back to this button (the checkboxes start from the recommended ones again).
-        if (!RequireAdmin("Настроить автоматически", "ApplyPlan")) return;
+        // Read-only: the ticked rows travel with the intent (packed keys), so the relaunched copy applies exactly what was ticked.
+        var all = PlanItems.Concat(OptionalItems).ToList();
+        var pack = selection ?? Monolith.Modules.Startup.IntentList.Pack(all.Where(i => i is { Selectable: true, IsSelected: true }).Select(i => i.Key));
+        if (!RequireAdmin("Настроить автоматически", "ApplyPlan", pack)) return;
+        if (selection is not null)
+        {
+            var keys = Monolith.Modules.Startup.IntentList.Unpack(selection).ToHashSet(StringComparer.Ordinal);
+            foreach (var i in all.Where(i => i.Selectable)) i.IsSelected = keys.Contains(i.Key);
+        }
         var selected = PlanItems.Concat(OptionalItems).Where(i => i is { Selectable: true, IsSelected: true }).ToList();
         PlanApplyResult? result = null;
         await RunBusyAsync("Настройка устройств и сети…", async () =>

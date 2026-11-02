@@ -243,7 +243,14 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             // Let the page settle its lists (tab focus requests, collection rebuilds) before the command's CanExecute is read.
             await Task.Delay(250);
             var target = intent.FindCommand(page) is not null ? (object)page : this;
-            if (intent.TryExecuteOn(target))
+            // A busy page (a background refresh, the cleaner warm-up) is waited for: poll up to ~10 s instead of losing the click.
+            var executed = intent.TryExecuteOn(target);
+            for (var waited = 0; !executed && waited < 50 && intent.FindCommand(target) is not null; waited++)
+            {
+                await Task.Delay(200);
+                executed = intent.TryExecuteOn(target);
+            }
+            if (executed)
             {
                 Log.Info($"Права получены — действие продолжено: {intent}.");
                 return true;

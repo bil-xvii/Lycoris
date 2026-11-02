@@ -377,6 +377,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateCounts();
     }
 
+    /// <summary>The profile and the checked ids now — a shortcut (the Dashboard tile) that changes the selection puts it back with <see cref="RestoreSelection"/>.</summary>
+    internal (OptimizeProfile Profile, IReadOnlySet<string> Ids) CaptureSelection() =>
+        (Profile, _items.Where(i => i.IsChecked).Select(i => i.Id).ToHashSet(StringComparer.Ordinal));
+
+    internal void RestoreSelection((OptimizeProfile Profile, IReadOnlySet<string> Ids) snapshot)
+    {
+        ApplySelection(snapshot.Ids);
+        Profile = snapshot.Profile;
+        UpdateTileSelection();
+        UpdateCounts();
+    }
+
     private IReadOnlySet<string> DefaultsOf(OptimizeProfile profile) =>
         _profileDefaults.TryGetValue(profile, out var ids) ? ids : new HashSet<string>();
 

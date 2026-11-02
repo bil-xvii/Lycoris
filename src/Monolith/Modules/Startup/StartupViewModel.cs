@@ -201,7 +201,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (item is null) return;
         try
         {
-            if (!EnsureIdle() || !RequireAdmin("изменение автозапуска", "ToggleStartup", item.Key)) return;
+            if (!EnsureIdle() || !RequireAdmin("изменение автозапуска", "ToggleStartup", ToggleParameter(item.IsEnabled, item.Key))) return;
             var enable = !item.IsEnabled;
             if (!item.CanChange)
             {
@@ -228,7 +228,7 @@ public sealed partial class StartupViewModel : PageViewModel
         if (item is null) return;
         try
         {
-            if (!EnsureIdle() || !RequireAdmin("изменение задач при входе", "ToggleLogonTask", item.Path)) return;
+            if (!EnsureIdle() || !RequireAdmin("изменение задач при входе", "ToggleLogonTask", ToggleParameter(item.IsEnabled, item.Path))) return;
             var enable = !item.IsEnabled;
             if (!enable && !item.CanDisable)
             {
@@ -246,13 +246,40 @@ public sealed partial class StartupViewModel : PageViewModel
 
     /// <summary>The admin-intent replay of a single switch: «ToggleStartup» + the entry key.</summary>
     [RelayCommand]
-    private Task ToggleKeyAsync(string? key) =>
-        Items.FirstOrDefault(i => string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase)) is { } item ? ToggleAsync(item) : Task.CompletedTask;
+    private Task ToggleKeyAsync(string? parameter)
+    {
+        var (wantEnabled, key) = ParseToggleParameter(parameter);
+        if (Items.FirstOrDefault(i => string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase)) is not { } item) return Task.CompletedTask;
+        if (wantEnabled is { } want && item.IsEnabled == want) return AlreadyThere(item.DisplayName, want);
+        return ToggleAsync(item);
+    }
+
+    /// <summary>The intent remembers the state the user asked for («on:»/«off:» + key), not a bare toggle: a replay never flips an entry back.</summary>
+    internal static string ToggleParameter(bool currentlyEnabled, string key) => (currentlyEnabled ? "off:" : "on:") + key;
+
+    internal static (bool? WantEnabled, string Key) ParseToggleParameter(string? parameter)
+    {
+        if (parameter is null) return (null, "");
+        if (parameter.StartsWith("on:", StringComparison.Ordinal)) return (true, parameter[3..]);
+        if (parameter.StartsWith("off:", StringComparison.Ordinal)) return (false, parameter[4..]);
+        return (null, parameter);
+    }
+
+    private static Task AlreadyThere(string name, bool enabled)
+    {
+        Ui.Toast($"«{name}» уже {(enabled ? "включён" : "отключён")} — менять нечего.", ToastKind.Info);
+        return Task.CompletedTask;
+    }
 
     /// <summary>The admin-intent replay of a logon-task switch: «ToggleLogonTask» + the task path.</summary>
     [RelayCommand]
-    private Task ToggleTaskKeyAsync(string? path) =>
-        Tasks.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is { } item ? ToggleTaskAsync(item) : Task.CompletedTask;
+    private Task ToggleTaskKeyAsync(string? parameter)
+    {
+        var (wantEnabled, path) = ParseToggleParameter(parameter);
+        if (Tasks.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is not { } item) return Task.CompletedTask;
+        if (wantEnabled is { } want && item.IsEnabled == want) return AlreadyThere(item.DisplayName, want);
+        return ToggleTaskAsync(item);
+    }
 
     /// <summary>Re-checks exactly the entries of a replayed intent (the checked rows before the relaunch).</summary>
     private void SelectOnly(string? packedKeys)
