@@ -172,6 +172,18 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             }
         }
 
+        // 2b. Efficiency mode (EcoQoS) left on by a crashed session: the marker names the tagged programs. Handled here at
+        //     every start, not only when the Games page opens — a user who never opens it would keep them throttled.
+        if (Elevation.IsElevated && !GameBoostState.IsActive)
+        {
+            try
+            {
+                var text = await Task.Run(Monolith.Modules.Games.GameBoostService.RecoverStaleEcoQos);
+                if (text is not null) Ui.Toast(text, ToastKind.Warning, "ИГРОВОЙ СЕАНС");
+            }
+            catch (Exception ex) { Log.Warn("Игровой сеанс: не удалось снять режим эффективности прошлого сеанса — {0}", ex.Message); }
+        }
+
         // 3. Game Boost changes left active (e.g. Lycoris or the PC crashed during a game).
         var stale = ChangeJournal.Instance.ActiveRecords.Where(r => r.Source == "gameboost").ToList();
         if (stale.Count > 0 && Elevation.IsElevated && !GameBoostState.IsActive)

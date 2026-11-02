@@ -259,7 +259,8 @@ public abstract partial class PageViewModel : ObservableObject
     /// («Apply», «RevertBatch»); the parameter is text only (an id, a tab key).
     /// </summary>
     protected bool RequireAdmin(string action, string command, string? parameter = null) =>
-        RequireAdmin(action, new AdminIntent(Key, command, parameter));
+        // A parameter the relaunched copy would refuse (too long) must not promise «the action continues by itself».
+        RequireAdmin(action, !string.IsNullOrEmpty(parameter) && !AdminIntent.IsParameter(parameter) ? null : new AdminIntent(Key, command, parameter));
 
     private static int _writableFolderWarned;
 

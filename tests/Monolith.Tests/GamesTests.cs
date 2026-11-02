@@ -502,6 +502,9 @@ public sealed class GamesTests
     [InlineData("UnityCrashHandler64", true)]
     [InlineData("CrashReportClient", true)]
     [InlineData("EasyAntiCheat", true)]
+    [InlineData("BugReporter", true)]
+    [InlineData("Crashlands", false)]
+    [InlineData("CrashBandicootNSaneTrilogy", false)]
     [InlineData("cs2", false)]
     [InlineData("VALORANT-Win64-Shipping", false)]
     public void Game_helpers_are_not_taken_for_the_game(string name, bool helper) => Assert.Equal(helper, GameProcessFinder.IsHelper(name));

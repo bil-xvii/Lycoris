@@ -667,7 +667,15 @@ public sealed partial class DriversViewModel
         item.SetJob(HwJobState.Running, Loc.T("УСТАНОВКА"));
         HwInstallDetail = $"winget install {request.Id}";
         Log.Info("Установка {0} ({1}, источник {2})", item.Title, request.Id, request.Source);
-        var r = await WingetClient.InstallPackageAsync(request, line => Ui.Post(() => HwInstallDetail = line), ct);
+        if (ct.IsCancellationRequested)
+        {
+            item.SetJob(HwJobState.Skipped, Loc.T("ОТМЕНЕНО"));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОТМЕНЕНО"), false));
+            return;
+        }
+        // The token is only checked BETWEEN steps: cancelling a running winget would kill the installer it started and
+        // leave a half-installed program (OperationCoordinator rule: never kill an installer).
+        var r = await WingetClient.InstallPackageAsync(request, line => Ui.Post(() => HwInstallDetail = line), CancellationToken.None);
         if (r.Cancelled)
         {
             item.SetJob(HwJobState.Skipped, Loc.T("ОТМЕНЕНО"));
