@@ -21,7 +21,7 @@
         WindowStartupLocation="CenterScreen" Background="{StaticResource B.Base}"
         Foreground="{StaticResource B.Text}" FontFamily="{StaticResource F.Body}"
         UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display"
-        Icon="pack://application:,,,/Assets/monolith.ico">
+        Icon="pack://application:,,,/Assets/lycoris.ico">
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
@@ -85,8 +85,8 @@
             <Grid Grid.ColumnSpan="2" Background="{StaticResource B.Base}">
                 <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line}" />
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
-                    <!-- Logo: slab with cut corner -->
-                    <Path Data="M0,0 L7,0 L11,4 L11,22 L0,22 Z" Fill="{StaticResource B.White}" Width="11" Height="22" VerticalAlignment="Center" />
+                    <!-- Logo: Lycoris mark (Theme/Brand.xaml) -->
+                    <Path Data="{StaticResource G.LycorisMark}" Fill="{StaticResource B.White}" Stretch="Uniform" Width="26" Height="26" VerticalAlignment="Center" />
                     <TextBlock Text="MONOLITH" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
                                FontWeight="Bold" FontStretch="Condensed" FontSize="21" Foreground="{StaticResource B.Text}" />
                     <TextBlock Text="{Binding Version}" Margin="10,3,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}"
