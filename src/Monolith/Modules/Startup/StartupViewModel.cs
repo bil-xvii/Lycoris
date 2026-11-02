@@ -118,7 +118,7 @@ public sealed partial class StartupViewModel : PageViewModel
     // ───────────────────────────── Scan ─────────────────────────────
 
     [RelayCommand]
-    private Task RefreshAsync() => RunBusyAsync("Сканирование автозапуска…", ScanAsync);
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Сканирование автозапуска…", ScanAsync);
 
     private async Task ScanAsync()
     {
@@ -376,7 +376,7 @@ public sealed partial class StartupViewModel : PageViewModel
 
     private async Task ApplyEntriesAsync(IReadOnlyList<StartupItem> items, bool enable, bool createRestorePoint)
     {
-        await RunBusyAsync(enable ? "Включение автозапуска…" : "Отключение автозапуска…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, enable ? "Включение автозапуска…" : "Отключение автозапуска…", async () =>
         {
             var progress = new Progress<string>(t => BusyText = t);
             var entries = items.Select(i => i.Entry).ToList();
@@ -396,7 +396,7 @@ public sealed partial class StartupViewModel : PageViewModel
 
     private async Task ApplyTaskAsync(LogonTaskItem item, bool enable)
     {
-        await RunBusyAsync(enable ? "Включение задачи…" : "Отключение задачи…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, enable ? "Включение задачи…" : "Отключение задачи…", async () =>
         {
             var progress = new Progress<string>(t => BusyText = t);
             var outcome = await Task.Run(() => StartupChanges.SetTasksAsync([item.Info], enable, false, progress));

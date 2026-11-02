@@ -108,6 +108,8 @@ public sealed partial class MaintenanceViewModel : PageViewModel
     private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(IsBusy) or nameof(BusyText)) SyncBusy();
+        // The shell shows the host's note (refused / queued): mirror the tab's.
+        if (e.PropertyName == nameof(OperationNote) && sender is PageViewModel tab) OperationNote = tab.OperationNote;
         if (ReferenceEquals(sender, Cleaner))
         {
             // The sidebar badge: the junk size the last analysis found (no work only for the badge).

@@ -150,6 +150,7 @@ public sealed partial class ServicesViewModel : PageViewModel
     private void OnStartupPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(IsBusy) or nameof(BusyText)) SyncStartupBusy();
+        else if (e.PropertyName == nameof(OperationNote)) OperationNote = Startup.OperationNote;
         else if (e.PropertyName == nameof(StartupViewModel.TaskCount))
         {
             OnPropertyChanged(nameof(AllTaskCount));
@@ -349,7 +350,7 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     // ───────────────────────────── Loading ─────────────────────────────
 
-    private Task ReloadAsync() => RunBusyAsync("Чтение служб и задач…", async () =>
+    private Task ReloadAsync() => RunBusyAsync(OperationClass.Measure, "Чтение служб и задач…", async () =>
     {
         var elevated = Elevation.IsElevated;
         var machineTask = Task.Run(ServiceScanner.ReadEnvironment);

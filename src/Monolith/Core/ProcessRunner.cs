@@ -139,7 +139,49 @@ public static class ProcessRunner
         return psi;
     }
 
+    /// <summary>
+    /// At most this many SHORT child processes (probes: powercfg, reg, schtasks, PowerShell one-liners — a timeout of 90 s or less)
+    /// run at once. Dozens of parallel PowerShell / WMI helpers (Dashboard, Drivers, Devices, Cleaner warm-ups together) exhaust
+    /// handles and memory and make every one of them slower. Long tools (winget, DISM, SFC, installers: no or a long timeout) are
+    /// ordered by the OperationCoordinator instead and never take a slot, so they cannot starve the probes.
+    /// </summary>
+    public const int MaxParallelProbes = 4;
+    private static readonly SemaphoreSlim ProbeSlots = new(MaxParallelProbes, MaxParallelProbes);
+    private static readonly TimeSpan ShortRun = TimeSpan.FromSeconds(90);
+
+    /// <summary>Short processes running right now (self-test and tests read it).</summary>
+    public static int ProbesRunning => MaxParallelProbes - ProbeSlots.CurrentCount;
+
+    /// <summary>Highest number of short processes seen at once (self-test: must stay ≤ <see cref="MaxParallelProbes"/>).</summary>
+    public static int PeakProbes => Volatile.Read(ref _peakProbes);
+    private static int _peakProbes;
+
     private static async Task<ProcessResult> RunCoreAsync(ProcessStartInfo psi, string display, ProcessRunOptions options, CancellationToken ct)
+    {
+        var shortRun = options.Timeout is { } limit && limit <= ShortRun;
+        if (!shortRun) return await RunUnlimitedAsync(psi, display, options, ct).ConfigureAwait(false);
+        try
+        {
+            await ProbeSlots.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return new ProcessResult(-1, string.Empty, string.Empty, false, true);
+        }
+        try
+        {
+            var now = ProbesRunning;
+            int seen;
+            while (now > (seen = Volatile.Read(ref _peakProbes)) && Interlocked.CompareExchange(ref _peakProbes, now, seen) != seen) { }
+            return await RunUnlimitedAsync(psi, display, options, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            ProbeSlots.Release();
+        }
+    }
+
+    private static async Task<ProcessResult> RunUnlimitedAsync(ProcessStartInfo psi, string display, ProcessRunOptions options, CancellationToken ct)
     {
         if (options.LogCommand) Log.Command(display);
 

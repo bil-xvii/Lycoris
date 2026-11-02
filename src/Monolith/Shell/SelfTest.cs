@@ -155,6 +155,9 @@ public sealed class SelfTestRunner
         Collect(stress);
         reports.Add(stress);
 
+        // Concurrency: many read-only / measure operations from several pages at once, plus a synthetic storm through the coordinator.
+        reports.Add(await TestConcurrencyAsync());
+
         _lagRunning = false;
         lagThread.Join(2000);
         Log.Written -= OnLog;
@@ -170,6 +173,97 @@ public sealed class SelfTestRunner
         }
         IsRunning = false;
         return reports.Count(r => r.Status == "FAIL");
+    }
+
+    /// <summary>
+    /// "Many tasks at once": the refresh / analysis commands of every page (read-only) fired together three times, then 90
+    /// synthetic operations of every class through the coordinator. Passes when nothing deadlocks, no error or binding error is
+    /// logged, the task list ends empty, short child processes stayed within their cap, memory stays bounded and the UI thread
+    /// never froze (the lag monitor of the report).
+    /// </summary>
+    private async Task<PageReport> TestConcurrencyAsync()
+    {
+        var r = new PageReport { Key = "concurrency", Title = "ОДНОВРЕМЕННЫЕ ЗАДАЧИ" };
+        Drain();
+        var coordinator = OperationCoordinator.Instance;
+        var memBefore = Process.GetCurrentProcess().WorkingSet64;
+
+        var commands = new List<(string Name, System.Windows.Input.ICommand Command)>();
+        void AddCommands(object owner, string label)
+        {
+            foreach (var name in new[] { "RefreshCommand", "RefreshChecksCommand", "AnalyzeCommand" })
+                if (owner.GetType().GetProperty(name)?.GetValue(owner) is System.Windows.Input.ICommand cmd) commands.Add(($"{label}.{name}", cmd));
+        }
+        foreach (var page in _vm.Pages)
+        {
+            AddCommands(page, page.Key);
+            if (page is MaintenanceViewModel host) { AddCommands(host.Cleaner, "cleaner"); AddCommands(host.Tools, "tools"); }
+        }
+
+        var fired = 0;
+        for (var round = 0; round < 3; round++)
+        {
+            foreach (var (_, cmd) in commands)
+            {
+                try
+                {
+                    if (!cmd.CanExecute(null)) continue;
+                    cmd.Execute(null);
+                    fired++;
+                }
+                catch (Exception ex) { r.Errors.Add("команда: " + ex.Message); }
+            }
+            await Task.Delay(150);
+        }
+        r.Exercised.Add($"read-only commands fired together: {fired} ({commands.Count} commands × 3 rounds)");
+
+        // The synthetic storm: every class, mixed, with small delays; refusals are expected and plain.
+        var classes = Enum.GetValues<OperationClass>();
+        var rnd = new Random(2026);
+        var refused = 0;
+        var done = 0;
+        var storm = Enumerable.Range(0, 90).Select(i =>
+        {
+            var cls = classes[rnd.Next(classes.Length)];
+            var delay = rnd.Next(3, 25);
+            return Task.Run(async () =>
+            {
+                try
+                {
+                    await coordinator.RunAsync(new OperationRequest(cls, $"Проверка очереди {i}") { Owner = "selftest", QueueTimeout = TimeSpan.FromSeconds(60) },
+                        async _ => await Task.Delay(delay));
+                    Interlocked.Increment(ref done);
+                }
+                catch (OperationRefusedException ex)
+                {
+                    Interlocked.Increment(ref refused);
+                    if (ex.Message.Length < 10) lock (r) r.Errors.Add("пустая причина отказа");
+                }
+                catch (Exception ex)
+                {
+                    lock (r) r.Errors.Add($"шторм: {ex.GetType().Name}: {ex.Message}");
+                }
+            });
+        }).ToArray();
+        var all = Task.WhenAll(storm);
+        var finished = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(90))) == all;
+        if (!finished) r.Errors.Add("шторм операций не завершился за 90 с — возможна взаимная блокировка");
+        r.Exercised.Add($"coordinator storm: {done} ran, {refused} refused with a reason");
+
+        foreach (var p in _vm.Pages) await WaitIdleAsync(p, TimeSpan.FromSeconds(90));
+        await Task.Delay(500);
+        await Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+
+        if (coordinator.ListedCount != 0) r.Errors.Add($"после шторма в списке задач осталось: {coordinator.ListedCount}");
+        if (_vm.Operations.Count != 0) r.Errors.Add($"список «ЗАДАЧИ» не опустел: {_vm.Operations.Count}");
+        if (ProcessRunner.PeakProbes > ProcessRunner.MaxParallelProbes) r.Errors.Add($"одновременно коротких процессов: {ProcessRunner.PeakProbes}");
+        if (ProcessRunner.ProbesRunning != 0) r.Warnings.Add($"коротких процессов ещё идёт: {ProcessRunner.ProbesRunning}");
+        var grown = (Process.GetCurrentProcess().WorkingSet64 - memBefore) / (1024 * 1024);
+        r.Exercised.Add($"memory growth {grown} MB, peak short processes {ProcessRunner.PeakProbes}");
+        if (grown > 600) r.Errors.Add($"память выросла на {grown} МБ");
+
+        Collect(r);
+        return r;
     }
 
     private async Task<PageReport> TestPageAsync(PageViewModel page, string key, string title, string screenshot)

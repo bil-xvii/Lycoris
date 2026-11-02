@@ -89,7 +89,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     {
         _ = RefreshDrivesAsync();
         // The first visit runs a dry-run analysis right away: it only reads, never deletes.
-        await RunWorkAsync("Анализ мусора…", async () =>
+        await RunWorkAsync(OperationClass.Measure, "Анализ мусора…", async () =>
         {
             await PrepareAsync();
             await AnalyzeItemsAsync(_items.ToList());
@@ -117,7 +117,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task AnalyzeAsync()
     {
-        await RunWorkAsync("Анализ мусора…", async () =>
+        await RunWorkAsync(OperationClass.Measure, "Анализ мусора…", async () =>
         {
             await PrepareAsync();
             await AnalyzeItemsAsync(_items.ToList());
@@ -143,7 +143,7 @@ public sealed partial class CleanerViewModel : PageViewModel
         var stale = selected.Where(i => i.NeedsFreshAnalysis(StaleAfter)).ToList();
         if (stale.Count > 0)
         {
-            var ran = await RunWorkAsync("Анализ мусора…", async () =>
+            var ran = await RunWorkAsync(OperationClass.Measure, "Анализ мусора…", async () =>
             {
                 await PrepareAsync();
                 await AnalyzeItemsAsync(stale);
@@ -198,7 +198,7 @@ public sealed partial class CleanerViewModel : PageViewModel
 
         // 3. Delete.
         List<(CleanItem Item, ItemCleanResult Result)> results = [];
-        await RunWorkAsync("Очистка…", async () => results = await CleanItemsAsync(work));
+        await RunWorkAsync(OperationClass.Cleanup, "Очистка…", async () => results = await CleanItemsAsync(work));
 
         // 4. Result.
         if (results.Count > 0) await ShowResultAsync(results);
@@ -231,14 +231,19 @@ public sealed partial class CleanerViewModel : PageViewModel
     // ───────────────────────────── Work wrapper ─────────────────────────────
 
     /// <summary>Runs one analysis or cleaning job with the shell busy indicator; items are locked meanwhile.</summary>
-    private async Task<bool> RunWorkAsync(string busyText, Func<Task> work)
+    private async Task<bool> RunWorkAsync(OperationClass kind, string busyText, Func<Task> work)
     {
         if (IsWorking) return false;
         IsWorking = true;
         foreach (var i in _items) i.IsLocked = true;
         try
         {
-            await RunBusyAsync(busyText, work);
+            await RunBusyAsync(kind, busyText, lease =>
+            {
+                // ОТМЕНИТЬ in the task list = the page's own «ОСТАНОВИТЬ» (finishes the current file; not offered while DISM runs).
+                lease.SetCancelHandler(() => Ui.Post(() => { if (CancelCommand.CanExecute(null)) CancelCommand.Execute(null); }));
+                return work();
+            });
         }
         finally
         {

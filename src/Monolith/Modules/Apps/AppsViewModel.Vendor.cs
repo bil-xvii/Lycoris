@@ -87,7 +87,14 @@ public sealed partial class AppsViewModel
             plan,
             confirmText: "СКАЧАТЬ И ЗАПУСТИТЬ", cancelText: "ОТМЕНА",
             footnote: "Если подпись не подтвердится, файл будет удалён и не запустится.");
-        if (!confirmed || IsQueueRunning || IsVendorDownloadRunning) return;
+        if (!confirmed || IsQueueRunning || IsVendorDownloadRunning || _installWaiting) return;
+
+        // One installer at a time across the whole app: waits in the visible queue behind a running winget queue or driver install.
+        // The lease is released in the finally below; the signed installer, once started for the user, runs on its own.
+        var lease = await AcquireInstallAsync($"Загрузка установщика {entry.Name}", () => Ui.Post(() => _vendorCts?.Cancel()));
+        if (lease is null) return;
+        var scope = lease.Scope();
+        CurrentLease = lease;
 
         if (job is null)
         {
@@ -194,6 +201,9 @@ public sealed partial class AppsViewModel
             _vendorCts = null;
             IsVendorDownloadRunning = false;
             EndBusy();
+            CurrentLease = null;
+            scope.Dispose();
+            lease.Dispose();
         }
     }
 
@@ -204,9 +214,9 @@ public sealed partial class AppsViewModel
         SetBusyText("Создание точки восстановления…");
         var rp = await RestorePointService.CreateAsync($"MONOLITH: установка {entry.Name}");
         AppendLog(rp.Message);
-        return rp.Outcome != RestorePointOutcome.Failed || await Ui.ConfirmAsync(
+        return rp.Outcome != RestorePointOutcome.Failed || await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
             "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
             $"{rp.Message} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?",
-            confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true);
+            confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true));
     }
 }

@@ -538,7 +538,7 @@ public sealed partial class DriversViewModel
         HwResultsSummary = null;
 
         var attempted = false;
-        await RunBusyAsync("Установка компонентов…", async () =>
+        await RunBusyAsync(OperationClass.Install, "Установка компонентов…", async () =>
         {
             _hwInstallCts?.Dispose();
             _hwInstallCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -596,7 +596,7 @@ public sealed partial class DriversViewModel
         }
         // Drivers and programs changed: re-read the driver list, then the hardware, and check the driver versions.
         _hwRebuildAfterInstall = false;
-        await RunBusyAsync("Обновление сведений о драйверах…", LoadInventoryAsync);
+        await RunBusyAsync(OperationClass.Measure, "Обновление сведений о драйверах…", LoadInventoryAsync);
         await ScanHardwareAsync();
         VerifyDriverResults();
     }

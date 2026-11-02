@@ -260,7 +260,7 @@ public sealed partial class ServicesViewModel
                 footnote: "Откат: кнопка ОТКАТИТЬ в строке или раздел «Восстановление»."))
             return;
 
-        await RunBusyAsync("Изменение служб…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Изменение служб…", async () =>
         {
             var session = await BeginSessionAsync(BatchTitle("Службы", plan.Select(p => p.Item.Title).ToList()));
             if (session is null) return;
@@ -323,7 +323,7 @@ public sealed partial class ServicesViewModel
         if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;
 
-        await RunBusyAsync("Откат изменения службы…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Откат изменения службы…", async () =>
         {
             var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(layers));
             await ReportRevertAsync(result);
