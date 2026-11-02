@@ -33,13 +33,119 @@ public sealed class OptimizeTests
     public void Last_profile_is_parsed_safely(string? stored, OptimizeProfile expected) =>
         Assert.Equal(expected, OptimizeLogic.ParseProfile(stored));
 
+    [Theory]
+    [InlineData("Streaming", "Streaming")]
+    [InlineData("efficiency", "Efficiency")]
+    [InlineData(" Efficiency ", "Efficiency")]
+    [InlineData("Normal", "Normal")]
+    [InlineData("Custom", "Custom")]
+    [InlineData("8", "Recommended")]
+    [InlineData("16", "Recommended")]
+    [InlineData("Quiet", "Recommended")]
+    public void New_scenario_names_are_parsed_and_older_or_unknown_names_stay_compatible(string stored, string expected) =>
+        Assert.Equal(Enum.Parse<OptimizeProfile>(expected), OptimizeLogic.ParseProfile(stored));
+
     [Fact]
     public void Profiles_map_to_catalog_kinds()
     {
         Assert.Equal(ProfileKind.Normal, OptimizeLogic.ToKind(OptimizeProfile.Normal));
         Assert.Equal(ProfileKind.Gaming, OptimizeLogic.ToKind(OptimizeProfile.Gaming));
         Assert.Equal(ProfileKind.Recommended, OptimizeLogic.ToKind(OptimizeProfile.Recommended));
+        Assert.Equal(ProfileKind.Streaming, OptimizeLogic.ToKind(OptimizeProfile.Streaming));
+        Assert.Equal(ProfileKind.Efficiency, OptimizeLogic.ToKind(OptimizeProfile.Efficiency));
         Assert.Null(OptimizeLogic.ToKind(OptimizeProfile.Custom));
+        // Every scenario with a catalog set round-trips through ToKind/ToSet; «Свой набор» is the only one without.
+        Assert.Equal(Enum.GetValues<OptimizeProfile>().Where(p => p != OptimizeProfile.Custom), OptimizeLogic.CatalogProfiles);
+        foreach (var p in OptimizeLogic.CatalogProfiles)
+            Assert.Equal(p.ToString(), OptimizeLogic.ToKind(p)!.Value.ToString());
+    }
+
+    [Fact]
+    public void Services_recommendations_follow_the_scenario()
+    {
+        Assert.Equal(ProfileSet.Normal, OptimizeLogic.ServicesProfileFor(OptimizeProfile.Normal));
+        Assert.Equal(ProfileSet.Gaming, OptimizeLogic.ServicesProfileFor(OptimizeProfile.Gaming));
+        Assert.Equal(ProfileSet.Recommended, OptimizeLogic.ServicesProfileFor(OptimizeProfile.Recommended));
+        Assert.Equal(ProfileSet.Gaming, OptimizeLogic.ServicesProfileFor(OptimizeProfile.Streaming));
+        Assert.Equal(ProfileSet.Recommended, OptimizeLogic.ServicesProfileFor(OptimizeProfile.Efficiency));
+        Assert.Equal(ProfileSet.Recommended, OptimizeLogic.ServicesProfileFor(OptimizeProfile.Custom));
+        // Only the three sets ServiceCatalog knows.
+        Assert.All(Enum.GetValues<OptimizeProfile>(), p => Assert.True(ProfileSet.All.HasFlag(OptimizeLogic.ServicesProfileFor(p))));
+    }
+
+    [Fact]
+    public void Scenario_texts_adapt_only_the_efficiency_tile_to_laptops()
+    {
+        Assert.Equal("ТИХИЙ ПК", OptimizeLogic.ScenarioTitle(OptimizeProfile.Efficiency, laptop: false));
+        Assert.Equal("НОУТБУК: АВТОНОМНОСТЬ", OptimizeLogic.ScenarioTitle(OptimizeProfile.Efficiency, laptop: true));
+        Assert.Equal("Тихий ПК", OptimizeLogic.ScenarioName(OptimizeProfile.Efficiency, laptop: false));
+        Assert.Equal("Ноутбук: автономность", OptimizeLogic.ScenarioName(OptimizeProfile.Efficiency, laptop: true));
+        Assert.Equal("ИГРЫ", OptimizeLogic.ScenarioTitle(OptimizeProfile.Gaming, laptop: false));
+        Assert.Equal("РАБОТА И УЧЁБА", OptimizeLogic.ScenarioTitle(OptimizeProfile.Normal, laptop: true));
+        Assert.Equal("СТРИМИНГ И ЗАПИСЬ", OptimizeLogic.ScenarioTitle(OptimizeProfile.Streaming, laptop: false));
+        Assert.Equal("РЕКОМЕНДУЕМЫЙ", OptimizeLogic.ScenarioTitle(OptimizeProfile.Recommended, laptop: true));
+        Assert.Equal("СВОЙ НАБОР", OptimizeLogic.ScenarioTitle(OptimizeProfile.Custom, laptop: false));
+        foreach (var p in Enum.GetValues<OptimizeProfile>())
+        {
+            if (p == OptimizeProfile.Efficiency) continue;
+            Assert.Equal(OptimizeLogic.ScenarioTitle(p, false), OptimizeLogic.ScenarioTitle(p, true));
+            Assert.Equal(OptimizeLogic.ScenarioHint(p, false), OptimizeLogic.ScenarioHint(p, true));
+            Assert.Matches("[А-Яа-я]", OptimizeLogic.ScenarioDescription(p, false));
+        }
+        // The tooltips are honest about what a scenario does NOT touch.
+        Assert.Contains("Не трогает HAGS", OptimizeLogic.ScenarioHint(OptimizeProfile.Streaming, false));
+        Assert.Contains("Не трогает: телеметрию", OptimizeLogic.ScenarioHint(OptimizeProfile.Normal, false));
+        Assert.Contains("измерьте", OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, false));
+        Assert.Contains("дольше от батареи", OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, true));
+        Assert.DoesNotContain("батареи", OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, false));
+    }
+
+    [Fact]
+    public void Batch_titles_name_the_scenario()
+    {
+        Assert.Equal("Оптимизация: сценарий «Игры»", OptimizeLogic.BatchTitle(OptimizeProfile.Gaming, laptop: false));
+        Assert.Equal("Оптимизация: сценарий «Стриминг и запись»", OptimizeLogic.BatchTitle(OptimizeProfile.Streaming, laptop: false));
+        Assert.Equal("Оптимизация: сценарий «Тихий ПК»", OptimizeLogic.BatchTitle(OptimizeProfile.Efficiency, laptop: false));
+        Assert.Equal("Оптимизация: сценарий «Ноутбук: автономность»", OptimizeLogic.BatchTitle(OptimizeProfile.Efficiency, laptop: true));
+        Assert.Equal("Оптимизация: сценарий «Работа и учёба»", OptimizeLogic.BatchTitle(OptimizeProfile.Normal, laptop: false));
+        Assert.Equal("Оптимизация: свой набор", OptimizeLogic.BatchTitle(OptimizeProfile.Custom, laptop: false));
+    }
+
+    [Fact]
+    public void Manual_steps_exist_only_for_the_scenario_applied_and_name_no_vendor()
+    {
+        Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Gaming, false));
+        Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Normal, false));
+        Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Recommended, false));
+        Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Custom, false));
+        var streaming = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Streaming, false));
+        Assert.Contains("Не беспокоить", streaming);
+        Assert.Contains("MONOLITH не пишет", streaming);
+        var quiet = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Efficiency, false));
+        Assert.Contains("FPS", quiet);
+        Assert.Contains("вентиляторов", quiet);
+        var battery = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Efficiency, true));
+        Assert.Contains("заряда", battery);
+        Assert.Contains("динамическую частоту", battery);
+        foreach (var line in new[] { streaming, quiet, battery })
+        {
+            Assert.DoesNotContain("Armoury", line);
+            Assert.DoesNotContain("Vantage", line);
+            Assert.DoesNotContain("Устройства", line);
+            Assert.True(line.Length <= 160, "one sentence per line");
+        }
+        Assert.Equal("ВРУЧНУЮ", OptimizeLogic.ManualStepsHeader);
+    }
+
+    [Fact]
+    public void Efficiency_tile_needs_known_hardware_and_a_member_beyond_a_plan_switch()
+    {
+        var plan = new CustomTweak { Id = "plan", Title = "П", Description = "", ExclusiveGroup = TweakGroups.PowerPlan, DetectFunc = () => TweakState.NotApplied, ApplyAction = _ => { } };
+        var mode = new CustomTweak { Id = "mode", Title = "М", Description = "", ExclusiveGroup = TweakGroups.PowerModeAc, DetectFunc = () => TweakState.NotApplied, ApplyAction = _ => { } };
+        Assert.False(OptimizeLogic.EfficiencyTileVisible(hardwareFactsKnown: false, [plan, mode]));
+        Assert.False(OptimizeLogic.EfficiencyTileVisible(hardwareFactsKnown: true, [plan]), "Windows 10 / dual-CCD X3D: a plan switch makes nothing quieter");
+        Assert.False(OptimizeLogic.EfficiencyTileVisible(hardwareFactsKnown: true, []));
+        Assert.True(OptimizeLogic.EfficiencyTileVisible(hardwareFactsKnown: true, [plan, mode]));
     }
 
     [Fact]

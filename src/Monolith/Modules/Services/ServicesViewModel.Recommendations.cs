@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
 using Monolith.Modules.Startup;
+using Monolith.Modules.Optimize;
+using Monolith.Tweaks;
 using Monolith.UI;
 
 namespace Monolith.Modules.Services;
@@ -13,6 +15,7 @@ public sealed partial class ServicesViewModel
 {
     private readonly Dictionary<string, RecommendationItem> _recByName = new(StringComparer.OrdinalIgnoreCase);
     private bool _bulkSelect;
+    private bool _followingScenario;
 
     [ObservableProperty] private ObservableCollection<RecommendationGroup> _recommendationGroups = [];
     /// <summary>Curated services that are not installed on this PC (shown as a footnote).</summary>
@@ -72,8 +75,70 @@ public sealed partial class ServicesViewModel
             ? ""
             : $"Не установлены на этом ПК и скрыты: {string.Join(", ", missing)}.";
 
+        if (firstBuild) FollowScenario();
         if (firstBuild) ApplyProfileToRecommendations();
         else UpdateRecommendationStats();
+    }
+
+    // ───────────────────────────── The profile follows the Optimize scenario ─────────────────────────────
+
+    /// <summary>
+    /// The services profile the Optimize scenario saved in <see cref="AppSettings.LastProfile"/> maps to («Стриминг и запись» →
+    /// Gaming, the efficiency scenario and «Свой набор» → Recommended; unknown names → Recommended, as on the Optimize page).
+    /// </summary>
+    internal static ProfileSet ProfileFromScenario(string? lastProfile) =>
+        OptimizeLogic.ServicesProfileFor(OptimizeLogic.ParseProfile(lastProfile));
+
+    /// <summary>
+    /// One muted sentence next to the counters: the profile follows the scenario, or was picked by hand on this page
+    /// («Свой набор» names no scenario, so the picker is simply the user's choice).
+    /// </summary>
+    internal static string ProfileCaptionFor(ProfileSet selected, string? lastProfile, bool laptop)
+    {
+        var scenario = OptimizeLogic.ParseProfile(lastProfile);
+        if (scenario == OptimizeProfile.Custom) return "Свой набор — профиль выбирается здесь.";
+        var name = OptimizeLogic.ScenarioName(scenario, laptop);
+        var mapped = OptimizeLogic.ServicesProfileFor(scenario);
+        return mapped == selected
+            ? $"Следует сценарию «{name}» из раздела «Оптимизация»."
+            : $"Выбран вручную; сценарию «{name}» из раздела «Оптимизация» соответствует профиль «{Sentence(ServiceCatalog.ProfileTitle(mapped))}».";
+    }
+
+    private static string Sentence(string upper) => upper.Length == 0 ? upper : upper[0] + upper[1..].ToLowerInvariant();
+
+    public string ProfileCaption => ProfileCaptionFor(SelectedProfile, AppSettings.Current.LastProfile, SystemProfile.Current is { HardwareFactsKnown: true, IsLaptop: true });
+
+    /// <summary>The picker tooltip: what the profile does, and that it follows the scenario of the Optimize page.</summary>
+    public string ProfileTooltip => ProfileDescription + " " + ProfileCaption;
+
+    /// <summary>
+    /// First scan: the picker takes the scenario's profile and keeps following it while the app runs (a tile picked on the Optimize
+    /// page re-selects it here); the user may still pick another of the three for this session. Subscribed once.
+    /// </summary>
+    private void FollowScenario()
+    {
+        if (_followingScenario) return;
+        _followingScenario = true;
+        SelectedProfile = ProfileFromScenario(AppSettings.Current.LastProfile);
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SelectedProfile)) NotifyProfileCaption();
+        };
+        AppSettings.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AppSettings.LastProfile)) return;
+            Ui.Post(() =>
+            {
+                SelectedProfile = ProfileFromScenario(AppSettings.Current.LastProfile);
+                NotifyProfileCaption();
+            });
+        };
+    }
+
+    private void NotifyProfileCaption()
+    {
+        OnPropertyChanged(nameof(ProfileCaption));
+        OnPropertyChanged(nameof(ProfileTooltip));
     }
 
     private string? BlockReasonFor(CuratedService entry)

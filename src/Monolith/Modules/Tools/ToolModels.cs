@@ -10,6 +10,7 @@ public enum ToolOp
     StoreReset, IconCache,
     BatteryReport, MemoryDiagnostic,
     SleepWakeDiagnostics, EnergyReport, SleepStudyReport, SystemSleepDiagnostics,
+    DpcLatencyTest,
 }
 
 /// <summary>One read-only powercfg query of the «Сон и пробуждение» card (arguments as documented on Microsoft Learn).</summary>

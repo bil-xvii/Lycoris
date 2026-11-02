@@ -5,8 +5,13 @@ using System.Text.RegularExpressions;
 
 namespace Monolith.Modules.Optimize;
 
-/// <summary>A parsed profile file: only ids and metadata, nothing that could be executed.</summary>
-public sealed record ProfileFileData(string? Name, string? AppVersion, DateTimeOffset? Created, IReadOnlyList<string> Ids, int InvalidIds);
+/// <summary>
+/// A parsed profile file: only ids and metadata, nothing that could be executed. <paramref name="Scenario"/> is the Optimize
+/// scenario the set was exported from («Gaming», «Streaming», «Efficiency»…), null when absent or unknown — informational only:
+/// an import always lands in «Свой набор».
+/// </summary>
+public sealed record ProfileFileData(string? Name, string? AppVersion, DateTimeOffset? Created, IReadOnlyList<string> Ids, int InvalidIds,
+    OptimizeProfile? Scenario = null);
 
 /// <summary>What the page knows about one catalog tweak when an import is classified.</summary>
 public sealed record ProfileCatalogEntry(string Id, bool IsApplicable, bool NeedsManualPick);
@@ -37,7 +42,11 @@ internal static partial class OptimizeProfileFile
 
     public static bool IsValidId(string? id) => id is not null && IdPattern().IsMatch(id);
 
-    public static string Serialize(IEnumerable<string> ids, string? name, string? appVersion, DateTimeOffset created)
+    /// <summary>
+    /// Writes the file. <paramref name="scenario"/> (the tile the set came from; null or Custom = none) is stored by its enum NAME
+    /// («Streaming», «Efficiency»), so older builds, which read only the known properties, ignore it.
+    /// </summary>
+    public static string Serialize(IEnumerable<string> ids, string? name, string? appVersion, DateTimeOffset created, OptimizeProfile? scenario = null)
     {
         var list = ids.Where(IsValidId).Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToArray();
         var doc = new Dictionary<string, object?>
@@ -49,8 +58,16 @@ internal static partial class OptimizeProfileFile
             ["name"] = Clean(name, MaxNameLength),
             ["tweaks"] = list,
         };
+        if (scenario is { } sc && sc != OptimizeProfile.Custom && Enum.IsDefined(sc)) doc["scenario"] = sc.ToString();
         return JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true });
     }
+
+    /// <summary>«scenario» as read from a file: a known OptimizeProfile name other than Custom, else null (never a number).</summary>
+    internal static OptimizeProfile? ParseScenario(string? value) =>
+        value is not null && !int.TryParse(value, out _) && Enum.TryParse<OptimizeProfile>(value.Trim(), true, out var p)
+        && Enum.IsDefined(p) && p != OptimizeProfile.Custom
+            ? p
+            : null;
 
     /// <summary>Parses a profile file. Returns null and a Russian <paramref name="error"/> when the file is not a valid profile.</summary>
     public static ProfileFileData? Parse(byte[]? bytes, out string? error)
@@ -106,7 +123,9 @@ internal static partial class OptimizeProfileFile
                 && DateTimeOffset.TryParse(c, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dt))
                 created = dt;
 
-            return new ProfileFileData(name, appVersion, created, ids, invalid);
+            var scenario = ParseScenario(OptionalString(root, "scenario", 32));
+
+            return new ProfileFileData(name, appVersion, created, ids, invalid, scenario);
         }
         catch (JsonException)
         {

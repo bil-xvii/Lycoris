@@ -130,7 +130,7 @@ public static partial class TweakCatalog
                       "Центр отзывов работает, если открыть его самостоятельно.",
             Category = TweakCategory.Privacy,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Recommended,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
             Values =
             [
                 Cu(@"Software\Microsoft\Siuf\Rules", "NumberOfSIUFInPeriod", 0),
