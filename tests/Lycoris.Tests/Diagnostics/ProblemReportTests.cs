@@ -109,6 +109,22 @@ public sealed class ProblemReportTests
         Assert.DoesNotContain(b, r, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("мария@почта.рф", "мария", "почта")]
+    [InlineData("мария@mail.xn--p1ai", "мария", "xn--p1ai")]
+    [InlineData("alice@corp.com", "alice", "corp")]
+    [InlineData("o'neil+tag@host.example.org", "neil", "host.example")]
+    [InlineData("a!b#c$d%e&f*g/h=i?j^k`l{m|n}o~p-q@dom.test", "a!b", "dom")]
+    [InlineData("user@sub.домен.москва", "user", "домен")]
+    public void EmailsOfAnyShapeAreRemovedWholeEvenWithTheUserName(string input, string a, string b)
+    {
+        var r = ProblemReport.Anonymize("mail " + input + " end", "alice", "qqpc");
+        Assert.DoesNotContain(a, r, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(b, r, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<email>", r);
+        Assert.Contains("end", r);
+    }
+
     [Fact]
     public void GuidTailsAndTimestampsAreNotTakenForMacs()
     {

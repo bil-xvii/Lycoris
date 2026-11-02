@@ -35,7 +35,8 @@ public static partial class ProblemReport
     // No left boundary: an address glued to hex letters («deadfe80::1») is still found (the glued letters stay, the address does not).
     private static readonly Regex Ipv6Rx = R(@"(?:[0-9a-f]{0,4}:){2,}[0-9a-f.:]*(?:%[\w.-]+)?");
     private static readonly Regex Ipv4Rx = R(@"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d])");
-    private static readonly Regex EmailRx = R(@"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}");
+    // Local part: every RFC 5322 «atext» character; domain: Unicode labels, TLD of letters («.рф») or punycode («.xn--p1ai»).
+    private static readonly Regex EmailRx = R(@"[\w.+'%!#$&*/=?^`{|}~-]+@[\w.-]+\.(?:\p{L}{2,}|xn--[\w-]+)");
     private static readonly Regex BasicAuthRx = R(@"\bbasic\s+[A-Za-z0-9+/]{8,}={0,2}");
     private static readonly Regex SecretWordRx = R(SecretWords);
     private static readonly Regex LongTokenRx = R(@"(?<![A-Za-z0-9+/_=-])[A-Za-z0-9+/_-]{24,}={0,2}(?![A-Za-z0-9+/_=-])", RegexOptions.CultureInvariant);
@@ -105,11 +106,11 @@ public static partial class ProblemReport
         line = UncPathRx.Replace(line, "<unc>");
         line = ProfilePathRx.Replace(line, "%USERPROFILE%");
         line = OneDriveRx.Replace(line, "OneDrive");
+        line = EmailRx.Replace(line, "<email>");   // before the names: «alice@corp.com» must not become «<user>@corp.com»
         if (namesRx is not null) line = namesRx.Replace(line, m => map.TryGetValue(m.Value, out var r) ? r : "<user>");
         line = Ipv6Rx.Replace(line, m => ReplaceIpv6(m.Value));
         line = MacRx.Replace(line, "<mac>");
         line = Ipv4Rx.Replace(line, m => System.Net.IPAddress.TryParse(m.Value, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "<ip>" : m.Value);
-        line = EmailRx.Replace(line, "<email>");
         line = BasicAuthRx.Replace(line, "Basic <redacted>");
         if (SecretWordRx.IsMatch(line))
         {
