@@ -5,7 +5,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
-             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}"
+             xmlns:loc="clr-namespace:Monolith.UI">
     <!-- «УСТАНОВЛЕННЫЕ И КОПИИ»: the backup of drivers (create, restore, delete) and the list of installed drivers on one page -->
     <UserControl.Resources>
         <local:AnyTrueToVisibilityConverter x:Key="Drv.AnyTrueToVis" />
@@ -46,43 +47,43 @@
                     </Grid.ColumnDefinitions>
                     <Rectangle Grid.ColumnSpan="2" Height="3" VerticalAlignment="Top" Fill="{StaticResource B.White}" />
                     <StackPanel Margin="15,15,15,14">
-                        <TextBlock Text="Резервная копия драйверов" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{loc:T Резервная копия драйверов}" Style="{StaticResource T.H1}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="700" HorizontalAlignment="Left" TextWrapping="Wrap"
-                                   Text="Сохраняет все сторонние драйверы — видеокарты, чипсета, сети, звука — в отдельную папку встроенной утилитой Windows pnputil. Пригодится после переустановки системы. Более старую версию поверх новой копия не ставит — после неудачного обновления используйте «Откатить драйвер» в диспетчере устройств или точку восстановления." />
+                                   Text="{loc:T 'Сохраняет все сторонние драйверы — видеокарты, чипсета, сети, звука — в отдельную папку встроенной утилитой Windows pnputil. Пригодится после переустановки системы. Более старую версию поверх новой копия не ставит — после неудачного обновления используйте «Откатить драйвер» в диспетчере устройств или точку восстановления.'}" />
                         <WrapPanel Margin="0,11,0,0">
                             <StackPanel Style="{StaticResource Drv.Fact}">
-                                <TextBlock Text="ПАКЕТОВ К СОХРАНЕНИЮ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T ПАКЕТОВ К СОХРАНЕНИЮ}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding OemPackageCount}" Style="{StaticResource Drv.FactValue}" />
                             </StackPanel>
                             <StackPanel Style="{StaticResource Drv.Fact}">
-                                <TextBlock Text="СВОБОДНО НА ДИСКЕ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T СВОБОДНО НА ДИСКЕ}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding BackupFreeSpace}" Style="{StaticResource Drv.FactValue}" />
                             </StackPanel>
                             <StackPanel Style="{StaticResource Drv.Fact}">
-                                <TextBlock Text="ПАПКА" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T ПАПКА}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding BackupsRoot}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,11,0,0" />
                             </StackPanel>
                         </WrapPanel>
                         <Border Style="{StaticResource Tag.Hatch}" Margin="0,10,0,0" Visibility="{Binding LowDiskSpace, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="НА СИСТЕМНОМ ДИСКЕ МЕНЬШЕ 5 ГБ — КОПИЯ МОЖЕТ НЕ ПОМЕСТИТЬСЯ" />
+                            <TextBlock Text="{loc:T НА СИСТЕМНОМ ДИСКЕ МЕНЬШЕ 5 ГБ — КОПИЯ МОЖЕТ НЕ ПОМЕСТИТЬСЯ}" />
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,15,15,14" Width="230">
                         <Button Command="{Binding ExportBackupCommand}" HorizontalAlignment="Stretch"
-                                ToolTip="pnputil /export-driver * — система не изменяется">
+                                ToolTip="{loc:T pnputil /export-driver * — система не изменяется}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Save}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock Text="СОЗДАТЬ КОПИЮ" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T СОЗДАТЬ КОПИЮ}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Button Command="{Binding OpenBackupsFolderCommand}" Margin="0,8,0,0" HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Folder}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock Text="ОТКРЫТЬ ПАПКУ" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ОТКРЫТЬ ПАПКУ}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,10,0,0" TextAlignment="Center" TextWrapping="Wrap"
-                                   Text="Копирование не меняет систему. Восстановление — с точкой восстановления." />
+                                   Text="{loc:T Копирование не меняет систему. Восстановление — с точкой восстановления.}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -124,17 +125,17 @@
                         </StackPanel>
                         <Button Grid.Column="1" Style="{StaticResource Btn.Danger}" MinWidth="100" Command="{Binding CancelBackupCommand}"
                                 Visibility="{Binding CanCancelBackup, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="ОТМЕНА" />
+                            <TextBlock Text="{loc:T ОТМЕНА}" />
                         </Button>
                     </Grid>
 
                     <Border Style="{StaticResource Card.Inverted}" Margin="12,10,12,0" Padding="10,10"
                             Visibility="{Binding BackupRebootRequired, Converter={StaticResource BoolToVis}}">
                         <TextBlock FontFamily="{StaticResource F.Body}" FontSize="12.5" Foreground="{StaticResource B.Ink}" TextWrapping="Wrap"
-                                   Text="Требуется перезагрузка для завершения установки драйвера. MONOLITH не перезагружает компьютер сам." />
+                                   Text="{loc:T Требуется перезагрузка для завершения установки драйвера. MONOLITH не перезагружает компьютер сам.}" />
                     </Border>
 
-                    <TextBlock Text="ВЫВОД PNPUTIL" Style="{StaticResource T.Label}" Margin="12,10,12,6" />
+                    <TextBlock Text="{loc:T ВЫВОД PNPUTIL}" Style="{StaticResource T.Label}" Margin="12,10,12,6" />
                     <Border Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0">
                         <ListBox x:Name="OutputList" Style="{StaticResource List.Plain}" ItemsSource="{Binding BackupOutput}" Height="180" Margin="12,8,8,8"
                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel">
@@ -155,17 +156,17 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Сохранённые копии" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:T Сохранённые копии}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                 <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0" />
-                <TextBlock Grid.Column="2" Text="ВОССТАНОВЛЕНИЕ НЕ ПОНИЖАЕТ ВЕРСИИ ДРАЙВЕРОВ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{loc:T ВОССТАНОВЛЕНИЕ НЕ ПОНИЖАЕТ ВЕРСИИ ДРАЙВЕРОВ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
             </Grid>
 
             <Border Style="{StaticResource Card}" Background="{StaticResource B.DotGrid}" Padding="17,16"
                     Visibility="{Binding HasBackups, Converter={StaticResource InverseBoolToVis}}">
                 <StackPanel>
-                    <TextBlock Text="Копий пока нет" Style="{StaticResource T.H2}" />
+                    <TextBlock Text="{loc:T Копий пока нет}" Style="{StaticResource T.H2}" />
                     <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0" TextWrapping="Wrap"
-                               Text="Создайте копию сейчас, пока все устройства работают. Перед каждой установкой драйверов из Windows Update MONOLITH также сохраняет заменяемые драйверы автоматически." />
+                               Text="{loc:T 'Создайте копию сейчас, пока все устройства работают. Перед каждой установкой драйверов из Windows Update MONOLITH также сохраняет заменяемые драйверы автоматически.'}" />
                 </StackPanel>
             </Border>
 
@@ -218,7 +219,7 @@
                                                             <ColumnDefinition Width="200" />
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="170" />
-                                                            <ColumnDefinition Width="130" />
+                                                            <ColumnDefinition Width="156" />
                                                             <ColumnDefinition Width="84" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="{Binding Inf}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}"
@@ -241,10 +242,10 @@
                                     <Button Style="{StaticResource Btn.Danger}" HorizontalAlignment="Stretch"
                                             Command="{Binding DataContext.RestoreBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
-                                            ToolTip="pnputil /add-driver &lt;пакет&gt;.inf /install для каждого пакета из описания копии — после точки восстановления">
+                                            ToolTip="{loc:T pnputil /add-driver &lt;пакет&gt;.inf /install для каждого пакета из описания копии — после точки восстановления}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="ВОССТАНОВИТЬ ИЗ КОПИИ" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:T ВОССТАНОВИТЬ ИЗ КОПИИ}" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                     <Grid Margin="0,8,0,0">
@@ -255,12 +256,12 @@
                                         </Grid.ColumnDefinitions>
                                         <Button Command="{Binding DataContext.OpenBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}">
-                                            <TextBlock Text="ОТКРЫТЬ" />
+                                            <TextBlock Text="{loc:T ОТКРЫТЬ}" />
                                         </Button>
                                         <Button Grid.Column="2" Style="{StaticResource Btn.Danger}"
                                                 Command="{Binding DataContext.DeleteBackupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}" ToolTip="Папка копии будет удалена безвозвратно (не в корзину)">
-                                            <TextBlock Text="УДАЛИТЬ" />
+                                                CommandParameter="{Binding}" ToolTip="{loc:T Папка копии будет удалена безвозвратно (не в корзину)}">
+                                            <TextBlock Text="{loc:T УДАЛИТЬ}" />
                                         </Button>
                                     </Grid>
                                 </StackPanel>
@@ -277,7 +278,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Установленные драйверы" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                <TextBlock Text="{loc:T Установленные драйверы}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                 <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0" />
                 <TextBlock Grid.Column="2" Text="{Binding InstalledSummary}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" />
             </Grid>
@@ -289,22 +290,22 @@
                 </Grid.ColumnDefinitions>
                 <Grid>
                     <TextBox Text="{Binding InstalledSearch, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,98,0"
-                             Tag="Поиск: устройство, производитель, версия, INF, ID" />
+                             Tag="{loc:T 'Поиск: устройство, производитель, версия, INF, ID'}" />
                     <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
                                VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0" IsHitTestVisible="False"
                                Visibility="{Binding InstalledSearch, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
                     <!-- A labelled button instead of the icon-only «✕» -->
                     <Button Padding="8,0" HorizontalAlignment="Right" Margin="0,0,0,0"
-                            Command="{Binding ClearInstalledSearchCommand}" ToolTip="Очистить строку поиска"
+                            Command="{Binding ClearInstalledSearchCommand}" ToolTip="{loc:T Очистить строку поиска}"
                             Visibility="{Binding InstalledSearch, Converter={StaticResource NullToVis}}">
-                        <TextBlock Text="СБРОСИТЬ" />
+                        <TextBlock Text="{loc:T СБРОСИТЬ}" />
                     </Button>
                 </Grid>
                 <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" IsChecked="{Binding HideMicrosoft}" Margin="15,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left"
-                          ToolTip="Скрыть драйверы, которые входят в состав Windows или поставляются Microsoft">
+                          ToolTip="{loc:T 'Скрыть драйверы, которые входят в состав Windows или поставляются Microsoft'}">
                     <StackPanel>
-                        <TextBlock Text="СКРЫТЬ ДРАЙВЕРЫ MICROSOFT" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontStretch="SemiCondensed" FontSize="12.5" />
-                        <TextBlock Text="встроенные в Windows" Style="{StaticResource T.Caption}" />
+                        <TextBlock Text="{loc:T СКРЫТЬ ДРАЙВЕРЫ MICROSOFT}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontStretch="SemiCondensed" FontSize="12.5" />
+                        <TextBlock Text="{loc:T встроенные в Windows}" Style="{StaticResource T.Caption}" />
                     </StackPanel>
                 </CheckBox>
             </Grid>
@@ -323,16 +324,16 @@
                                 <ColumnDefinition Width="190" />
                                 <ColumnDefinition Width="180" />
                                 <ColumnDefinition Width="130" />
-                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="112" />
                                 <ColumnDefinition Width="104" />
                                 <ColumnDefinition Width="86" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="УСТРОЙСТВО" Style="{StaticResource Drv.Head}" />
-                            <TextBlock Grid.Column="1" Text="КЛАСС" Style="{StaticResource Drv.Head}" />
-                            <TextBlock Grid.Column="2" Text="ПОСТАВЩИК" Style="{StaticResource Drv.Head}" />
-                            <TextBlock Grid.Column="3" Text="ВЕРСИЯ" Style="{StaticResource Drv.Head}" />
-                            <TextBlock Grid.Column="4" Text="ДАТА" Style="{StaticResource Drv.Head}" />
-                            <TextBlock Grid.Column="5" Text="ПОДПИСЬ" Style="{StaticResource Drv.Head}" />
+                            <TextBlock Text="{loc:T УСТРОЙСТВО}" Style="{StaticResource Drv.Head}" />
+                            <TextBlock Grid.Column="1" Text="{loc:T КЛАСС}" Style="{StaticResource Drv.Head}" />
+                            <TextBlock Grid.Column="2" Text="{loc:T ПОСТАВЩИК}" Style="{StaticResource Drv.Head}" />
+                            <TextBlock Grid.Column="3" Text="{loc:T ВЕРСИЯ}" Style="{StaticResource Drv.Head}" />
+                            <TextBlock Grid.Column="4" Text="{loc:T ДАТА}" Style="{StaticResource Drv.Head}" />
+                            <TextBlock Grid.Column="5" Text="{loc:T ПОДПИСЬ}" Style="{StaticResource Drv.Head}" />
                             <TextBlock Grid.Column="6" Text="INF" Style="{StaticResource Drv.Head}" />
                         </Grid>
                     </Border>
@@ -347,7 +348,7 @@
                                             <ColumnDefinition Width="190" />
                                             <ColumnDefinition Width="180" />
                                             <ColumnDefinition Width="130" />
-                                            <ColumnDefinition Width="92" />
+                                            <ColumnDefinition Width="112" />
                                             <ColumnDefinition Width="104" />
                                             <ColumnDefinition Width="86" />
                                         </Grid.ColumnDefinitions>
@@ -365,8 +366,8 @@
                                             </Border>
                                             <Border Grid.Column="2" Style="{StaticResource Tag.Muted}" Margin="8,0,0,0"
                                                     Visibility="{Binding IsInbox, Converter={StaticResource BoolToVis}}"
-                                                    ToolTip="Драйвер входит в состав Windows. Дата 2006/2009 у таких драйверов — норма, они не «устаревшие».">
-                                                <TextBlock Text="ВСТРОЕННЫЙ" />
+                                                    ToolTip="{loc:T 'Драйвер входит в состав Windows. Дата 2006/2009 у таких драйверов — норма, они не «устаревшие».'}">
+                                                <TextBlock Text="{loc:T ВСТРОЕННЫЙ}" />
                                             </Border>
                                         </Grid>
                                         <TextBlock Grid.Column="1" Text="{Binding ClassText}" Style="{StaticResource Drv.Cell}" />
@@ -399,9 +400,9 @@
 
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,24"
                                 Visibility="{Binding InstalledEmpty, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="Ничего не найдено" Style="{StaticResource T.H2}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{loc:T Ничего не найдено}" Style="{StaticResource T.H2}" HorizontalAlignment="Center" />
                         <TextBlock Style="{StaticResource T.Caption}" HorizontalAlignment="Center" Margin="0,4,0,0"
-                                   Text="Измените запрос или выключите «Скрыть драйверы Microsoft»." />
+                                   Text="{loc:T Измените запрос или выключите «Скрыть драйверы Microsoft».}" />
                     </StackPanel>
                 </StackPanel>
             </Border>

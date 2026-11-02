@@ -6,7 +6,8 @@
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
-             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}"
+             xmlns:loc="clr-namespace:Monolith.UI">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -20,7 +21,7 @@
             <c:PageHeader.Primary>
                 <Button Style="{StaticResource Btn.Primary}" Command="{Binding RunPrimaryCommand}"
                         Visibility="{Binding HasPrimary, Converter={StaticResource BoolToVis}}"
-                        ToolTip="Сначала — список того, что будет установлено, и подтверждение. Без прав администратора MONOLITH запросит их и продолжит.">
+                        ToolTip="{loc:T 'Сначала — список того, что будет установлено, и подтверждение. Без прав администратора MONOLITH запросит их и продолжит.'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
                         <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
@@ -33,9 +34,9 @@
         <Border Grid.Row="1" Margin="0,12,0,0" Style="{StaticResource SegmentBar}">
             <StackPanel Orientation="Horizontal">
                 <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsHardware, Mode=TwoWay}"
-                             ToolTip="Видеокарта, процессор, плата, память, сеть, звук, периферия — что установить и обновить">
+                             ToolTip="{loc:T 'Видеокарта, процессор, плата, память, сеть, звук, периферия — что установить и обновить'}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ПОДБОР ДЛЯ ВАШЕГО ПК" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ПОДБОР ДЛЯ ВАШЕГО ПК}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge.Alert}" Visibility="{Binding BadgeText, Converter={StaticResource NullToVis}}">
                             <TextBlock Text="{Binding BadgeText}" />
                         </Border>
@@ -43,7 +44,7 @@
                 </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsUpdates, Mode=TwoWay}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ОБНОВЛЕНИЯ WINDOWS" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ОБНОВЛЕНИЯ WINDOWS}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}" Visibility="{Binding UpdatesBadge, Converter={StaticResource NullToVis}}">
                             <TextBlock Text="{Binding UpdatesBadge}" />
                         </Border>
@@ -51,16 +52,16 @@
                 </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsProblems, Mode=TwoWay}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ПРОБЛЕМНЫЕ УСТРОЙСТВА" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ПРОБЛЕМНЫЕ УСТРОЙСТВА}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge.Alert}" Visibility="{Binding ProblemsBadge, Converter={StaticResource NullToVis}}">
                             <TextBlock Text="{Binding ProblemsBadge}" />
                         </Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsInstalled, Mode=TwoWay}"
-                             ToolTip="Список установленных драйверов и резервные копии драйверов">
+                             ToolTip="{loc:T Список установленных драйверов и резервные копии драйверов}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="УСТАНОВЛЕННЫЕ И КОПИИ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T УСТАНОВЛЕННЫЕ И КОПИИ}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}" Visibility="{Binding InstalledBadge, Converter={StaticResource NullToVis}}">
                             <TextBlock Text="{Binding InstalledBadge}" />
                         </Border>

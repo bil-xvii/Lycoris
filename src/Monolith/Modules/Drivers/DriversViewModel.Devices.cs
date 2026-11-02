@@ -44,11 +44,11 @@ public sealed partial class DriversViewModel
         try
         {
             Clipboard.SetText(id);
-            Ui.Toast($"Скопировано: {id}", ToastKind.Success);
+            Ui.Toast(Loc.Tf("Скопировано: {0}", id), ToastKind.Success);
         }
         catch (Exception ex)
         {
-            Log.Warn($"Буфер обмена недоступен: {ex.Message}");
+            Log.Warn("Буфер обмена недоступен: {0}", ex.Message);
             Ui.Toast("Буфер обмена занят другой программой — повторите.", ToastKind.Warning);
         }
     }
@@ -66,36 +66,36 @@ public sealed partial class DriversViewModel
             _ => null,
         };
         if (device is null || !device.CanEnable) return;
-        if (!RequireAdmin("включение устройства", "EnableDevice", device.DeviceId)) return;
+        if (!RequireAdmin(Loc.T("включение устройства"), "EnableDevice", device.DeviceId)) return;
         var pnputil = ProcessRunner.Sys("pnputil.exe");
         var confirmed = await Ui.ConfirmAsync(
             "ВКЛЮЧИТЬ УСТРОЙСТВО?",
-            $"«{device.Name}» отключено. Если вы не отключали его намеренно, его можно включить обратно.",
+            Loc.Tf("«{0}» отключено. Если вы не отключали его намеренно, его можно включить обратно.", device.Name),
             [
-                $"Устройство: {device.Name}",
-                $"ID экземпляра: {device.DeviceId}",
-                "Будет выполнено: pnputil /enable-device \"<ID>\"",
-                "Перед изменением создаётся точка восстановления (если включено в разделе «Восстановление»)",
-                "Отменить можно в «Восстановлении»: устройство будет снова отключено",
+                Loc.Tf("Устройство: {0}", device.Name),
+                Loc.Tf("ID экземпляра: {0}", device.DeviceId),
+                Loc.T("Будет выполнено: pnputil /enable-device \"<ID>\""),
+                Loc.T("Перед изменением создаётся точка восстановления (если включено в разделе «Восстановление»)"),
+                Loc.T("Отменить можно в «Восстановлении»: устройство будет снова отключено"),
             ],
-            confirmText: "ВКЛЮЧИТЬ");
+            confirmText: Loc.T("ВКЛЮЧИТЬ"));
         if (!confirmed) return;
 
-        await RunBusyAsync(OperationClass.Disruptive, "Включение устройства…", async () =>
+        await RunBusyAsync(OperationClass.Disruptive, Loc.T("Включение устройства…"), async () =>
         {
-            var session = await ChangeSession.BeginAsync($"Включение устройства «{device.Name}»");
+            var session = await ChangeSession.BeginAsync(Loc.Tf("Включение устройства «{0}»", device.Name));
             var ok = await session.RunCommandAsync(
                 target: $"device-enable:{device.DeviceId}",
                 file: pnputil, args: $"/enable-device \"{device.DeviceId}\"",
                 revertFile: pnputil, revertArgs: $"/disable-device \"{device.DeviceId}\"",
-                oldValue: "Отключено", newValue: "Включено",
-                source: Source, title: $"Включение устройства «{device.Name}»",
+                oldValue: Loc.T("Отключено"), newValue: Loc.T("Включено"),
+                source: Source, title: Loc.Tf("Включение устройства «{0}»", device.Name),
                 successCodes: new HashSet<int> { 0, ProcessExit.RebootRequired });
             session.Complete();
             if (ok && session.RebootRequired)
-                Ui.Toast($"Устройство «{device.Name}» будет включено после перезагрузки.", ToastKind.Success);
-            else if (ok) Ui.Toast($"Устройство «{device.Name}» включено.", ToastKind.Success);
-            else Ui.Toast(session.Errors.FirstOrDefault() ?? "Не удалось включить устройство.", ToastKind.Error);
+                Ui.Toast(Loc.Tf("Устройство «{0}» будет включено после перезагрузки.", device.Name), ToastKind.Success);
+            else if (ok) Ui.Toast(Loc.Tf("Устройство «{0}» включено.", device.Name), ToastKind.Success);
+            else Ui.Toast(session.Errors.FirstOrDefault() ?? Loc.T("Не удалось включить устройство."), ToastKind.Error);
             await LoadInventoryAsync();
         });
     }
@@ -154,7 +154,7 @@ public sealed partial class DriversViewModel
     {
         var shown = InstalledView?.Count ?? 0;
         var devices = _installedAll.Sum(i => i.Count);
-        InstalledSummary = $"ПОКАЗАНО {shown} ИЗ {_installedAll.Count}  ·  УСТРОЙСТВ {devices}";
+        InstalledSummary = Loc.Tf("ПОКАЗАНО {0} ИЗ {1}  ·  УСТРОЙСТВ {2}", shown, _installedAll.Count, devices);
         InstalledEmpty = InstalledView is not null && shown == 0 && InstalledError is null;
     }
 }

@@ -6,7 +6,8 @@
              xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
-             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}"
+             xmlns:loc="clr-namespace:Monolith.UI">
     <UserControl.Resources>
         <local:AllTrueToVisibilityConverter x:Key="Drv.AllTrueToVis" />
         <local:HasTextConverter x:Key="Drv.HasText" />
@@ -43,13 +44,13 @@
 
         <!-- Sticky bar (outside the list's scroll): the count while drivers are checked; the install button is the page header's -->
         <c:StickyBar Grid.Row="3" Margin="0,8,0,0" Count="{Binding SelectedUpdatesCount}"
-                     Text="Перед установкой: точка восстановления и копия заменяемых драйверов. Компьютер не перезагружается сам."
+                     Text="{loc:T Перед установкой: точка восстановления и копия заменяемых драйверов. Компьютер не перезагружается сам.}"
                      Visibility="{Binding SelectedUpdatesCount, Converter={StaticResource NullToVis}}">
             <c:StickyBar.Actions>
                 <Button Style="{StaticResource Btn.Ghost}" Command="{Binding ClearUpdateSelectionCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                        <TextBlock Text="СНЯТЬ ВЫБОР" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T СНЯТЬ ВЫБОР}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </c:StickyBar.Actions>
@@ -63,25 +64,25 @@
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center" Margin="0,0,15,0">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Драйверы из Windows Update" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:T Драйверы из Windows Update}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding LastSearchText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                                VerticalAlignment="Center" Margin="10,2,0,0" />
                 </StackPanel>
                 <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="Официальный канал Microsoft: драйверы проверены и подписаны. Рекомендуемые Windows поставит и сама, необязательные ставьте только при проблеме с устройством. Отметьте драйверы — вверху появится кнопка «ЗАГРУЗИТЬ И УСТАНОВИТЬ»." />
+                           Text="{loc:T 'Официальный канал Microsoft: драйверы проверены и подписаны. Рекомендуемые Windows поставит и сама, необязательные ставьте только при проблеме с устройством. Отметьте драйверы — вверху появится кнопка «ЗАГРУЗИТЬ И УСТАНОВИТЬ».'}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Style="{StaticResource Btn.Ghost}" Command="{Binding OpenOptionalUpdatesCommand}"
-                        ToolTip="Открыть «Параметры → Windows Update → Необязательные обновления»">
+                        ToolTip="{loc:T Открыть «Параметры → Windows Update → Необязательные обновления»}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ПАРАМЕТРЫ WINDOWS" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ПАРАМЕТРЫ WINDOWS}" VerticalAlignment="Center" />
                         <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                     </StackPanel>
                 </Button>
-                <Button Command="{Binding SearchUpdatesCommand}" Margin="8,0,0,0" ToolTip="Найти драйверы в Windows Update (работает и без прав администратора)">
+                <Button Command="{Binding SearchUpdatesCommand}" Margin="8,0,0,0" ToolTip="{loc:T Найти драйверы в Windows Update (работает и без прав администратора)}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="НАЙТИ ОБНОВЛЕНИЯ" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T НАЙТИ ОБНОВЛЕНИЯ}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -99,10 +100,10 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="&#xE7E8;" FontFamily="{StaticResource F.Icons}" FontSize="17" VerticalAlignment="Center" Foreground="{StaticResource B.Ink}" />
                     <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                        <TextBlock Text="Требуется перезагрузка" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
+                        <TextBlock Text="{loc:T Требуется перезагрузка}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
                                    Foreground="{StaticResource B.Ink}" />
                         <TextBlock FontFamily="{StaticResource F.Body}" FontSize="12.5" Foreground="{StaticResource B.Ink}" TextWrapping="Wrap" Margin="0,2,0,0"
-                                   Text="Требуется перезагрузка для завершения установки драйвера. MONOLITH не перезагружает компьютер сам — сохраните работу и перезагрузите, когда будет удобно." />
+                                   Text="{loc:T 'Требуется перезагрузка для завершения установки драйвера. MONOLITH не перезагружает компьютер сам — сохраните работу и перезагрузите, когда будет удобно.'}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -124,20 +125,20 @@
                     <Border Background="{StaticResource B.HatchStrong}" />
                     <TextBlock Grid.Column="1" Text="&#xE7E8;" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" Margin="10,0,0,0" />
                     <TextBlock Grid.Column="2" Style="{StaticResource T.Body}" FontSize="12.5" Margin="9,9,10,9" VerticalAlignment="Center"
-                               Text="Windows уже ожидает перезагрузки после предыдущих обновлений. Перед установкой драйверов лучше перезагрузить компьютер." />
+                               Text="{loc:T Windows уже ожидает перезагрузки после предыдущих обновлений. Перед установкой драйверов лучше перезагрузить компьютер.}" />
                 </Grid>
             </Border>
 
             <!-- Policy / WSUS (read-only information) -->
             <Border Style="{StaticResource Callout}" Margin="0,10,0,0" Visibility="{Binding PolicyNotice, Converter={StaticResource NullToVis}}">
                 <StackPanel>
-                    <TextBlock Text="ПОЛИТИКИ ОБНОВЛЕНИЯ ДРАЙВЕРОВ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                    <TextBlock Text="{loc:T ПОЛИТИКИ ОБНОВЛЕНИЯ ДРАЙВЕРОВ}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                     <TextBlock Text="{Binding PolicyNotice}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,4,0,0" />
                     <CheckBox Style="{StaticResource Toggle}" Margin="0,10,0,0" IsChecked="{Binding UseMicrosoftServers}"
                               Visibility="{Binding UsesWsus, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="ИСКАТЬ НАПРЯМУЮ НА СЕРВЕРАХ MICROSOFT" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12" />
-                            <TextBlock Style="{StaticResource T.Caption}" Text="Для опытных: обходит сервер организации только для этого поиска. Политики не меняются." />
+                            <TextBlock Text="{loc:T ИСКАТЬ НАПРЯМУЮ НА СЕРВЕРАХ MICROSOFT}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Style="{StaticResource T.Caption}" Text="{loc:T Для опытных: обходит сервер организации только для этого поиска. Политики не меняются.}" />
                         </StackPanel>
                     </CheckBox>
                 </StackPanel>
@@ -159,8 +160,8 @@
                         </DockPanel>
                         <ProgressBar Margin="0,10,0,0" Height="4" Maximum="100" Value="{Binding InstallPercent}" IsIndeterminate="{Binding InstallIndeterminate}" />
                     </StackPanel>
-                    <Button Grid.Column="1" Content="ОТМЕНА" Command="{Binding CancelInstallCommand}" MinWidth="100"
-                            ToolTip="Прервать загрузку или установку (уже установленные драйверы останутся)" />
+                    <Button Grid.Column="1" Content="{loc:T ОТМЕНА}" Command="{Binding CancelInstallCommand}" MinWidth="100"
+                            ToolTip="{loc:T Прервать загрузку или установку (уже установленные драйверы останутся)}" />
                 </Grid>
             </Border>
 
@@ -185,11 +186,11 @@
                 <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE895;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
-                <TextBlock Text="Поиск драйверов в Windows Update" Style="{StaticResource Drv.StateTitle}" />
+                <TextBlock Text="{loc:T Поиск драйверов в Windows Update}" Style="{StaticResource Drv.StateTitle}" />
                 <TextBlock Style="{StaticResource Drv.StateText}"
-                           Text="Windows Update сверяет устройства этого компьютера с каталогом Microsoft. Обычно это занимает от 10 секунд до пары минут." />
+                           Text="{loc:T Windows Update сверяет устройства этого компьютера с каталогом Microsoft. Обычно это занимает от 10 секунд до пары минут.}" />
                 <ProgressBar IsIndeterminate="True" Width="320" Height="3" Margin="0,12,0,0" />
-                <Button Content="ОТМЕНИТЬ ПОИСК" Command="{Binding CancelSearchCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" />
+                <Button Content="{loc:T ОТМЕНИТЬ ПОИСК}" Command="{Binding CancelSearchCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" />
             </StackPanel>
 
             <!-- Not searched yet -->
@@ -198,9 +199,9 @@
                 <Border Width="64" Height="64" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE721;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
-                <TextBlock Text="Поиск ещё не выполнялся" Style="{StaticResource Drv.StateTitle}" />
-                <TextBlock Style="{StaticResource Drv.StateText}" Text="Поиск безопасен и ничего не меняет: он только показывает, какие драйверы предлагает Windows Update." />
-                <Button Style="{StaticResource Btn.Primary}" Content="НАЙТИ ОБНОВЛЕНИЯ" Command="{Binding SearchUpdatesCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" />
+                <TextBlock Text="{loc:T Поиск ещё не выполнялся}" Style="{StaticResource Drv.StateTitle}" />
+                <TextBlock Style="{StaticResource Drv.StateText}" Text="{loc:T 'Поиск безопасен и ничего не меняет: он только показывает, какие драйверы предлагает Windows Update.'}" />
+                <Button Style="{StaticResource Btn.Primary}" Content="{loc:T НАЙТИ ОБНОВЛЕНИЯ}" Command="{Binding SearchUpdatesCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" />
             </StackPanel>
 
             <!-- Error -->
@@ -210,11 +211,11 @@
                         HorizontalAlignment="Center">
                     <TextBlock Text="&#xE7BA;" Style="{StaticResource T.Icon}" FontSize="19" />
                 </Border>
-                <TextBlock Text="Поиск не удался" Style="{StaticResource Drv.StateTitle}" />
+                <TextBlock Text="{loc:T Поиск не удался}" Style="{StaticResource Drv.StateTitle}" />
                 <TextBlock Text="{Binding UpdatesError}" Style="{StaticResource Drv.StateText}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
-                    <Button Style="{StaticResource Btn.Primary}" Content="ПОВТОРИТЬ" Command="{Binding SearchUpdatesCommand}" />
-                    <Button Content="ОТКРЫТЬ СЛУЖБЫ" Command="{Binding OpenServicesCommand}" Margin="8,0,0,0"
+                    <Button Style="{StaticResource Btn.Primary}" Content="{loc:T ПОВТОРИТЬ}" Command="{Binding SearchUpdatesCommand}" />
+                    <Button Content="{loc:T ОТКРЫТЬ СЛУЖБЫ}" Command="{Binding OpenServicesCommand}" Margin="8,0,0,0"
                             Visibility="{Binding UpdatesErrorIsService, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
             </StackPanel>
@@ -227,9 +228,9 @@
                     <Border Width="64" Height="64" Background="{StaticResource B.Surface4}" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
                         <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="21" Foreground="{StaticResource B.Text}" />
                     </Border>
-                    <TextBlock Text="Новых драйверов нет" Style="{StaticResource Drv.StateTitle}" />
+                    <TextBlock Text="{loc:T Новых драйверов нет}" Style="{StaticResource Drv.StateTitle}" />
                     <TextBlock Style="{StaticResource Drv.StateText}"
-                               Text="Windows Update не предлагает обновлений драйверов для этого компьютера. Свежие видеодрайверы обычно раньше появляются у производителя — смотрите «Обзор»." />
+                               Text="{loc:T Windows Update не предлагает обновлений драйверов для этого компьютера. Свежие видеодрайверы обычно раньше появляются у производителя — смотрите «Обзор».}" />
                 </StackPanel>
 
                 <!-- List -->
@@ -251,16 +252,16 @@
                                     <ColumnDefinition Width="84" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <TextBlock Text="ДРАЙВЕР" Style="{StaticResource Drv.Head}" />
-                                    <Button Content="ВЫБРАТЬ ВСЕ" Margin="12,0,0,0" VerticalAlignment="Center"
+                                    <TextBlock Text="{loc:T ДРАЙВЕР}" Style="{StaticResource Drv.Head}" />
+                                    <Button Content="{loc:T ВЫБРАТЬ ВСЕ}" Margin="12,0,0,0" VerticalAlignment="Center"
                                             Command="{Binding SelectAllUpdatesCommand}" />
-                                    <Button Content="СНЯТЬ ВЫБОР" Margin="8,0,0,0" VerticalAlignment="Center"
+                                    <Button Content="{loc:T СНЯТЬ ВЫБОР}" Margin="8,0,0,0" VerticalAlignment="Center"
                                             Command="{Binding ClearUpdateSelectionCommand}" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="2" Text="КЛАСС" Style="{StaticResource Drv.Head}" />
-                                <TextBlock Grid.Column="3" Text="ВЕРСИЯ" Style="{StaticResource Drv.Head}" />
-                                <TextBlock Grid.Column="4" Text="ДАТА" Style="{StaticResource Drv.Head}" />
-                                <TextBlock Grid.Column="5" Text="РАЗМЕР" Style="{StaticResource Drv.Head}" HorizontalAlignment="Right" />
+                                <TextBlock Grid.Column="2" Text="{loc:T КЛАСС}" Style="{StaticResource Drv.Head}" />
+                                <TextBlock Grid.Column="3" Text="{loc:T ВЕРСИЯ}" Style="{StaticResource Drv.Head}" />
+                                <TextBlock Grid.Column="4" Text="{loc:T ДАТА}" Style="{StaticResource Drv.Head}" />
+                                <TextBlock Grid.Column="5" Text="{loc:T РАЗМЕР}" Style="{StaticResource Drv.Head}" HorizontalAlignment="Right" />
                             </Grid>
                         </Border>
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -299,16 +300,16 @@
                                                         </Border>
                                                         <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0"
                                                                 Visibility="{Binding ShowProblemDeviceTag, Converter={StaticResource BoolToVis}}"
-                                                                ToolTip="Драйвер предназначен для устройства, о котором Windows сообщает ошибку">
-                                                            <TextBlock Text="ДЛЯ ПРОБЛЕМНОГО УСТРОЙСТВА" />
+                                                                ToolTip="{loc:T 'Драйвер предназначен для устройства, о котором Windows сообщает ошибку'}">
+                                                            <TextBlock Text="{loc:T ДЛЯ ПРОБЛЕМНОГО УСТРОЙСТВА}" />
                                                         </Border>
                                                         <Border Style="{StaticResource Tag}" Margin="0,0,6,0"
                                                                 Visibility="{Binding ShowFixesProblemHint, Converter={StaticResource BoolToVis}}"
-                                                                ToolTip="Необязательный драйвер для устройства, о котором Windows сообщает ошибку. Он не отмечен заранее — отметьте его сами, если хотите попробовать исправить проблему">
-                                                            <TextBlock Text="МОЖЕТ ИСПРАВИТЬ ПРОБЛЕМУ УСТРОЙСТВА" />
+                                                                ToolTip="{loc:T 'Необязательный драйвер для устройства, о котором Windows сообщает ошибку. Он не отмечен заранее — отметьте его сами, если хотите попробовать исправить проблему'}">
+                                                            <TextBlock Text="{loc:T МОЖЕТ ИСПРАВИТЬ ПРОБЛЕМУ УСТРОЙСТВА}" />
                                                         </Border>
                                                         <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" Visibility="{Binding NeedsEula, Converter={StaticResource BoolToVis}}">
-                                                            <TextBlock Text="НУЖНО ПРИНЯТЬ ЛИЦЕНЗИЮ" />
+                                                            <TextBlock Text="{loc:T НУЖНО ПРИНЯТЬ ЛИЦЕНЗИЮ}" />
                                                         </Border>
                                                         <TextBlock Text="{Binding RebootText}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                     </WrapPanel>

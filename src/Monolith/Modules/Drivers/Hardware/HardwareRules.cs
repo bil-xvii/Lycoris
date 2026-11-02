@@ -6,7 +6,6 @@ namespace Monolith.Modules.Drivers.Hardware;
 /// <summary>Pure helpers of the hardware analysis: id parsing, vendor mapping, version and date verdicts.</summary>
 internal static partial class HardwareRules
 {
-    public static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
 
     /// <summary>A BIOS older than this is worth checking on the board maker's site (information only).</summary>
     public const int BiosOldMonths = 24;
@@ -23,13 +22,13 @@ internal static partial class HardwareRules
 
     public static string StatusText(HwStatus s) => s switch
     {
-        HwStatus.Current => "АКТУАЛЬНО",
-        HwStatus.Installed => "УСТАНОВЛЕНО",
-        HwStatus.UpdateAvailable => "ЕСТЬ ОБНОВЛЕНИЕ",
-        HwStatus.NotInstalled => "НЕ УСТАНОВЛЕНО",
-        HwStatus.ManualOnly => "ТОЛЬКО ВРУЧНУЮ",
-        HwStatus.Unchecked => "НЕ ПРОВЕРЕНО",
-        _ => "СВЕДЕНИЯ",
+        HwStatus.Current => Loc.T("АКТУАЛЬНО"),
+        HwStatus.Installed => Loc.T("УСТАНОВЛЕНО"),
+        HwStatus.UpdateAvailable => Loc.T("ЕСТЬ ОБНОВЛЕНИЕ"),
+        HwStatus.NotInstalled => Loc.T("НЕ УСТАНОВЛЕНО"),
+        HwStatus.ManualOnly => Loc.T("ТОЛЬКО ВРУЧНУЮ"),
+        HwStatus.Unchecked => Loc.T("НЕ ПРОВЕРЕНО"),
+        _ => Loc.T("СВЕДЕНИЯ"),
     };
 
     /// <summary>Style key for the status tag.</summary>
@@ -45,9 +44,9 @@ internal static partial class HardwareRules
     public static string SourceText(HwSource s) => s switch
     {
         HwSource.Winget => "WINGET",
-        HwSource.VendorServer => "ОФИЦ. СЕРВЕР",
+        HwSource.VendorServer => Loc.T("ОФИЦ. СЕРВЕР"),
         HwSource.WindowsUpdate => "WINDOWS UPDATE",
-        _ => "ВРУЧНУЮ",
+        _ => Loc.T("ВРУЧНУЮ"),
     };
 
     // ───────────────────────────── Device ids ─────────────────────────────
@@ -78,10 +77,10 @@ internal static partial class HardwareRules
 
     private static readonly string[] GenericNameMarkers =
     [
-        "HID", "Составное", "Composite", "устройство ввода", "Input Device", "концентратор", "Hub",
-        "Запоминающее", "Mass Storage", "Аудио устройства USB", "USB Audio Device", "Универсальн", "Generic",
-        "Устройство USB", "USB Device", "Клавиатура HID", "HID Keyboard", "Поставщик", "vendor-defined",
-        "системный контроллер", "System Controller", "Consumer Control", "устройство управления",
+        "HID", Loc.Keep("Составное"), "Composite", Loc.Keep("устройство ввода"), "Input Device", Loc.Keep("концентратор"), "Hub",
+        Loc.Keep("Запоминающее"), "Mass Storage", Loc.Keep("Аудио устройства USB"), "USB Audio Device", Loc.Keep("Универсальн"), "Generic",
+        Loc.Keep("Устройство USB"), "USB Device", Loc.Keep("Клавиатура HID"), "HID Keyboard", Loc.Keep("Поставщик"), "vendor-defined",
+        Loc.Keep("системный контроллер"), "System Controller", "Consumer Control", Loc.Keep("устройство управления"),
     ];
 
     /// <summary>
@@ -117,7 +116,7 @@ internal static partial class HardwareRules
         !string.IsNullOrEmpty(name) &&
         (name.Contains("Wi-Fi", StringComparison.OrdinalIgnoreCase) || name.Contains("WiFi", StringComparison.OrdinalIgnoreCase) ||
          name.Contains("Wireless", StringComparison.OrdinalIgnoreCase) || name.Contains("WLAN", StringComparison.OrdinalIgnoreCase) ||
-         name.Contains("802.11", StringComparison.Ordinal) || name.Contains("Беспровод", StringComparison.OrdinalIgnoreCase));
+         name.Contains("802.11", StringComparison.Ordinal) || name.Contains(Loc.Keep("Беспровод"), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Intel network chips (incl. Intel-made Killer Wi-Fi) are serviced by Intel Driver &amp; Support Assistant.</summary>
     public static bool IsIntelNetwork(string? deviceId) => VendorId(deviceId) is "8086" or "8087";
@@ -236,7 +235,6 @@ internal static partial class HardwareRules
 
     // ───────────────────────────── Formatting ─────────────────────────────
 
-    public static string Plural(int n, string one, string few, string many) => DriverFormat.Plural(n, one, few, many);
 
     public static string Gb(ulong bytes) => bytes == 0 ? "—" : SizeText(bytes);
 
@@ -245,12 +243,12 @@ internal static partial class HardwareRules
     {
         if (bytes == 0) return "—";
         var gb = bytes / 1e9;
-        return gb >= 1000 ? (gb / 1000).ToString(gb >= 10000 ? "0" : "0.#", Ru) + " ТБ" : gb.ToString("0", Ru) + " ГБ";
+        return gb >= 1000 ? Loc.Tf("{0} ТБ", (gb / 1000).ToString(gb >= 10000 ? "0" : "0.#", Loc.Culture)) : Loc.Tf("{0} ГБ", gb.ToString("0", Loc.Culture));
     }
 
-    private static string SizeText(ulong bytes) => (bytes / 1073741824d).ToString("0.#", Ru) + " ГБ";
+    private static string SizeText(ulong bytes) => Loc.Tf("{0} ГБ", (bytes / 1073741824d).ToString("0.#", Loc.Culture));
 
     public static string Date(DateTime? d) => DriverFormat.Date(d);
 
-    public static string Ghz(int mhz) => mhz <= 0 ? "" : (mhz / 1000d).ToString("0.0#", Ru) + " ГГц";
+    public static string Ghz(int mhz) => mhz <= 0 ? "" : Loc.Tf("{0} ГГц", (mhz / 1000d).ToString("0.0#", Loc.Culture));
 }

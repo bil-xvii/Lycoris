@@ -7,7 +7,8 @@
              xmlns:ui="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              xmlns:hw="clr-namespace:Monolith.Modules.Drivers.Hardware"
-             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}"
+             xmlns:loc="clr-namespace:Monolith.UI">
     <!-- «ПОДБОР ДЛЯ ВАШЕГО ПК»: the video card pinned first, the summary tiles that filter the list, the components, the platform -->
     <UserControl.Resources>
         <local:AllTrueToVisibilityConverter x:Key="Drv.AllTrueToVis" />
@@ -64,7 +65,7 @@
                     <!-- Always visible when installable (read-only mode asks for rights when the install is pressed) -->
                     <CheckBox VerticalAlignment="Top" Margin="0,1,0,0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanToggle}"
                               Visibility="{Binding IsInstallable, Converter={StaticResource BoolToVis}}"
-                              ToolTip="Отметить для установки" />
+                              ToolTip="{loc:T Отметить для установки}" />
                     <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
                                VerticalAlignment="Top" Margin="1,3,0,0"
                                Visibility="{Binding IsInstallable, Converter={StaticResource InverseBoolToVis}}" />
@@ -80,10 +81,10 @@
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,1,0,0">
                         <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" Visibility="{Binding IsOptional, Converter={StaticResource BoolToVis}}"
-                                ToolTip="Не обязательно: ставьте, если нужны функции этой программы">
-                            <TextBlock Text="ПО ЖЕЛАНИЮ" />
+                                ToolTip="{loc:T 'Не обязательно: ставьте, если нужны функции этой программы'}">
+                            <TextBlock Text="{loc:T ПО ЖЕЛАНИЮ}" />
                         </Border>
-                        <Border Style="{StaticResource Tag}" ToolTip="Источник">
+                        <Border Style="{StaticResource Tag}" ToolTip="{loc:T Источник}">
                             <TextBlock Text="{Binding SourceText}" />
                         </Border>
                     </StackPanel>
@@ -185,11 +186,11 @@
                                 <TextBlock Text="{Binding VersionText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="ДАТА ДРАЙВЕРА" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T ДАТА ДРАЙВЕРА}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" Foreground="{StaticResource B.Text2}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="ВОЗРАСТ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T ВОЗРАСТ}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding AgeText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" Foreground="{StaticResource B.Text2}"
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
@@ -200,7 +201,7 @@
 
                     <!-- Latest driver hint (NVIDIA / AMD): no white fill — white means «clickable» -->
                     <StackPanel Grid.Row="1" Margin="14,10,14,0">
-                        <TextBlock Style="{StaticResource T.Caption}" Text="Проверка последней версии у производителя…"
+                        <TextBlock Style="{StaticResource T.Caption}" Text="{loc:T Проверка последней версии у производителя…}"
                                    Visibility="{Binding IsCheckingLatest, Converter={StaticResource BoolToVis}}" />
                         <Border Padding="10,10" CornerRadius="{StaticResource R.Md}" Background="{StaticResource B.Surface2}" BorderThickness="1"
                                 BorderBrush="{StaticResource B.Line2}" Visibility="{Binding HasLatest, Converter={StaticResource BoolToVis}}">
@@ -229,7 +230,7 @@
                                 </StackPanel>
                                 <Border Grid.Column="2" Style="{StaticResource Tag.Solid}" Margin="10,0,0,0" VerticalAlignment="Center"
                                         Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="ЕСТЬ ОБНОВЛЕНИЕ" />
+                                    <TextBlock Text="{loc:T ЕСТЬ ОБНОВЛЕНИЕ}" />
                                 </Border>
                             </Grid>
                         </Border>
@@ -255,8 +256,8 @@
                                                  IsIndeterminate="{Binding DownloadIndeterminate}" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Style="{StaticResource Btn.Danger}" Command="{Binding CancelDownloadCommand}" MinWidth="88"
-                                        ToolTip="Остановить загрузку — недокачанный файл будет удалён">
-                                    <TextBlock Text="ОТМЕНА" />
+                                        ToolTip="{loc:T Остановить загрузку — недокачанный файл будет удалён}">
+                                    <TextBlock Text="{loc:T ОТМЕНА}" />
                                 </Button>
                             </Grid>
 
@@ -290,10 +291,10 @@
                             <!-- Every button is labelled and outlined; read-only mode asks for rights when the button is pressed -->
                             <WrapPanel Margin="0,0,0,-8">
                                 <Button Margin="0,0,8,8" Command="{Binding DataContext.CheckGpuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        ToolTip="Сверить версию драйвера с сайтом производителя. Ничего не скачивается и не меняется.">
+                                        ToolTip="{loc:T Сверить версию драйвера с сайтом производителя. Ничего не скачивается и не меняется.}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="ПРОВЕРИТЬ ВЕРСИЮ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ПРОВЕРИТЬ ВЕРСИЮ}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button Margin="0,0,8,8"
@@ -325,7 +326,7 @@
                                         Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding SiteUrl}" ToolTip="{Binding SiteUrl}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="ОФИЦИАЛЬНЫЙ САЙТ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ОФИЦИАЛЬНЫЙ САЙТ}" VerticalAlignment="Center" />
                                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                                     </StackPanel>
                                 </Button>
@@ -354,27 +355,27 @@
             </Grid.ColumnDefinitions>
             <RadioButton Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
                          IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=all, Mode=TwoWay}"
-                         ToolTip="Показать все компоненты: устройства, найденные на этом ПК, и библиотеки для игр">
+                         ToolTip="{loc:T 'Показать все компоненты: устройства, найденные на этом ПК, и библиотеки для игр'}">
                 <StackPanel>
-                    <TextBlock Text="КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{loc:T КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ}" Style="{StaticResource T.Label}" />
                     <TextBlock Text="{Binding HwComponentsStat}" Style="{StaticResource Hw.StatValue}" />
                     <TextBlock Text="{Binding HwComponentsCaption}" Style="{StaticResource Hw.StatCaption}" />
                 </StackPanel>
             </RadioButton>
             <RadioButton Grid.Column="1" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
                          IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=recommend, Mode=TwoWay}"
-                         ToolTip="Показать только компоненты, которым нужно обновление, установка или ручной шаг">
+                         ToolTip="{loc:T 'Показать только компоненты, которым нужно обновление, установка или ручной шаг'}">
                 <StackPanel>
-                    <TextBlock Text="РЕКОМЕНДАЦИЙ · ТОЛЬКО ИХ" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{loc:T РЕКОМЕНДАЦИЙ · ТОЛЬКО ИХ}" Style="{StaticResource T.Label}" />
                     <TextBlock Text="{Binding HwRecommendationsStat}" Style="{StaticResource Hw.StatValue}" />
                     <TextBlock Text="{Binding HwRecommendationsCaption}" Style="{StaticResource Hw.StatCaption}" />
                 </StackPanel>
             </RadioButton>
             <RadioButton Grid.Column="2" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
                          IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=current, Mode=TwoWay}"
-                         ToolTip="Показать только компоненты, у которых версия сверена с производителем или уже установлена">
+                         ToolTip="{loc:T 'Показать только компоненты, у которых версия сверена с производителем или уже установлена'}">
                 <StackPanel>
-                    <TextBlock Text="АКТУАЛЬНО · ТОЛЬКО ИХ" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{loc:T АКТУАЛЬНО · ТОЛЬКО ИХ}" Style="{StaticResource T.Label}" />
                     <TextBlock Text="{Binding HwCurrentStat}" Style="{StaticResource Hw.StatValue}" />
                     <TextBlock Text="{Binding HwCurrentCaption}" Style="{StaticResource Hw.StatCaption}" />
                 </StackPanel>
@@ -387,7 +388,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock Text="АНАЛИЗ ЖЕЛЕЗА" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{loc:T АНАЛИЗ ЖЕЛЕЗА}" Style="{StaticResource T.Label}" />
                         <TextBlock Text="{Binding HardwareScanTime}" Style="{StaticResource Hw.StatValue}" Foreground="{StaticResource B.Text2}" />
                         <TextBlock Text="{Binding HardwareScanCaption}" Style="{StaticResource Hw.StatCaption}"
                                    Visibility="{Binding IsHardwareScanning, Converter={StaticResource InverseBoolToVis}}" />
@@ -395,10 +396,10 @@
                                    Visibility="{Binding IsHardwareScanning, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                     <Button Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0" Command="{Binding RescanHardwareCommand}"
-                            ToolTip="Заново прочитать железо, версии драйверов, библиотеки и программы (только чтение)">
+                            ToolTip="{loc:T 'Заново прочитать железо, версии драйверов, библиотеки и программы (только чтение)'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="СКАНИРОВАТЬ" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T СКАНИРОВАТЬ}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <ProgressBar Grid.ColumnSpan="2" VerticalAlignment="Bottom" Margin="-16,0,-16,-12" IsIndeterminate="{Binding IsHardwareScanning}"
@@ -418,13 +419,13 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Видеокарта" Style="{StaticResource Drv.SectionTitle}" />
+                    <TextBlock Text="{loc:T Видеокарта}" Style="{StaticResource Drv.SectionTitle}" />
                     <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0" />
-                    <TextBlock Grid.Column="2" Text="ТОЛЬКО ОФИЦИАЛЬНЫЕ ИСТОЧНИКИ ПРОИЗВОДИТЕЛЕЙ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{loc:T ТОЛЬКО ОФИЦИАЛЬНЫЕ ИСТОЧНИКИ ПРОИЗВОДИТЕЛЕЙ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
                 </Grid>
 
                 <Border Style="{StaticResource Callout}" Margin="0,0,0,10" Visibility="{Binding GpusEmpty, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Style="{StaticResource T.Body}" Text="Видеоадаптеры не найдены. Если сведения о системе ещё собираются, нажмите «ОБНОВИТЬ» через несколько секунд." />
+                    <TextBlock Style="{StaticResource T.Body}" Text="{loc:T 'Видеоадаптеры не найдены. Если сведения о системе ещё собираются, нажмите «ОБНОВИТЬ» через несколько секунд.'}" />
                 </Border>
 
                 <ItemsControl ItemsSource="{Binding Gpus}" ItemTemplate="{StaticResource Drv.GpuCard}" Margin="0,0,-10,0" Focusable="False">
@@ -439,10 +440,10 @@
                 <Border Style="{StaticResource Card}" Padding="14,20" Margin="0,0,0,10"
                         Visibility="{Binding HardwareScanned, Converter={StaticResource InverseBoolToVis}}">
                     <StackPanel>
-                        <TextBlock Text="АНАЛИЗ ЖЕЛЕЗА" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{loc:T АНАЛИЗ ЖЕЛЕЗА}" Style="{StaticResource T.Label}" />
                         <TextBlock Text="{Binding HardwareScanStage}" Style="{StaticResource T.H2}" Margin="0,8,0,0" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0"
-                                   Text="MONOLITH читает сведения о процессоре, плате, видеокартах, памяти, накопителях, сети, звуке, мониторах и периферии и подбирает для них официальные драйверы и программы. Только чтение — ничего не меняется и не устанавливается." />
+                                   Text="{loc:T 'MONOLITH читает сведения о процессоре, плате, видеокартах, памяти, накопителях, сети, звуке, мониторах и периферии и подбирает для них официальные драйверы и программы. Только чтение — ничего не меняется и не устанавливается.'}" />
                     </StackPanel>
                 </Border>
 
@@ -456,13 +457,13 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="РЕЗУЛЬТАТ УСТАНОВКИ" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T РЕЗУЛЬТАТ УСТАНОВКИ}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding HwResultsSummary}" Style="{StaticResource T.Caption}" VerticalAlignment="Center"
                                        Margin="16,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                             <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Command="{Binding DismissHardwareResultsCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="СКРЫТЬ РЕЗУЛЬТАТ" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T СКРЫТЬ РЕЗУЛЬТАТ}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </Grid>
@@ -546,7 +547,7 @@
                                                     Command="{Binding DataContext.GoToTabCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="Updates">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="К ОБНОВЛЕНИЯМ WINDOWS" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{loc:T К ОБНОВЛЕНИЯМ WINDOWS}" VerticalAlignment="Center" />
                                                     <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="7,0,0,0" />
                                                 </StackPanel>
                                             </Button>
@@ -564,7 +565,7 @@
 
                 <!-- A filter is on and nothing matches -->
                 <Border Style="{StaticResource Callout}" Margin="0,0,0,10" Visibility="{Binding HwNothingShown, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Style="{StaticResource T.Body}" Text="Под выбранный фильтр ничего не подходит. Нажмите плитку «КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ» сверху." />
+                    <TextBlock Style="{StaticResource T.Body}" Text="{loc:T Под выбранный фильтр ничего не подходит. Нажмите плитку «КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ» сверху.}" />
                 </Border>
 
                 <!-- ═══════ Platform (chipset) ═══════ -->
@@ -573,7 +574,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Платформа" Style="{StaticResource Drv.SectionTitle}" />
+                    <TextBlock Text="{loc:T Платформа}" Style="{StaticResource Drv.SectionTitle}" />
                     <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="10,0,0,0" />
                 </Grid>
 
@@ -581,7 +582,7 @@
                     <StackPanel>
                         <StackPanel Margin="14,14,14,0">
                             <DockPanel LastChildFill="False">
-                                <TextBlock Text="ДРАЙВЕР ЧИПСЕТА" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T ДРАЙВЕР ЧИПСЕТА}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
                                 <Grid DockPanel.Dock="Right">
                                     <Border Style="{StaticResource Tag.Solid}" Visibility="{Binding ChipsetState, Converter={StaticResource EqualsToVis}, ConverterParameter=ok}">
                                         <TextBlock Text="{Binding ChipsetVerdict}" />
@@ -671,13 +672,13 @@
                                 <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsAmd, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding OpenUrlCommand}" CommandParameter="{Binding AmdDriversUrl}" ToolTip="{Binding AmdDriversUrl}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="ДРАЙВЕРЫ ЧИПСЕТА НА AMD.COM" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ДРАЙВЕРЫ ЧИПСЕТА НА AMD.COM}" VerticalAlignment="Center" />
                                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                                     </StackPanel>
                                 </Button>
                                 <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding UseIntelDsaCommand}"
-                                        ToolTip="Intel Driver &amp; Support Assistant — официальный помощник Intel (winget, издатель Intel)">
+                                        ToolTip="{loc:T 'Intel Driver &amp; Support Assistant — официальный помощник Intel (winget, издатель Intel)'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                                         <TextBlock Text="{Binding IntelDsaButtonText}" VerticalAlignment="Center" />
@@ -686,12 +687,12 @@
                                 <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding OpenUrlCommand}" CommandParameter="{Binding IntelSupportUrl}" ToolTip="{Binding IntelSupportUrl}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="ПОДДЕРЖКА INTEL" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ПОДДЕРЖКА INTEL}" VerticalAlignment="Center" />
                                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                                     </StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource Btn.Ghost}" Command="{Binding GoToTabCommand}" CommandParameter="Updates">
-                                    <TextBlock Text="ПРОВЕРИТЬ В WINDOWS UPDATE" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T ПРОВЕРИТЬ В WINDOWS UPDATE}" VerticalAlignment="Center" />
                                 </Button>
                             </WrapPanel>
                         </Border>
@@ -705,7 +706,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" TextWrapping="Wrap"
-                               Text="Повреждённый видеодрайвер переустанавливают начисто утилитой DDU — вручную, в безопасном режиме, после точки восстановления и с отключённым интернетом. MONOLITH её не запускает. Порядок: точка восстановления → скачать новый драйвер → отключить интернет → безопасный режим и DDU → установить драйвер и подключить интернет." />
+                               Text="{loc:T 'Повреждённый видеодрайвер переустанавливают начисто утилитой DDU — вручную, в безопасном режиме, после точки восстановления и с отключённым интернетом. MONOLITH её не запускает. Порядок: точка восстановления → скачать новый драйвер → отключить интернет → безопасный режим и DDU → установить драйвер и подключить интернет.'}" />
                     <Button Grid.Column="1" Style="{StaticResource Btn.Link}" Command="{Binding OpenUrlCommand}" CommandParameter="{Binding DduUrl}" ToolTip="{Binding DduUrl}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="DDU · WAGNARDSOFT" VerticalAlignment="Center" />
@@ -716,7 +717,7 @@
 
                 <TextBlock Style="{StaticResource T.Caption}" Margin="2,10,0,0" Visibility="{Binding HardwareScanned, Converter={StaticResource BoolToVis}}"
                            TextWrapping="Wrap"
-                           Text="Источники: серверы NVIDIA и AMD (с проверкой цифровой подписи производителя), winget — только пакеты, проверенные у издателя, Windows Update и официальные сайты. Сторонние базы драйверов не используются; BIOS и профиль памяти меняются только вручную." />
+                           Text="{loc:T 'Источники: серверы NVIDIA и AMD (с проверкой цифровой подписи производителя), winget — только пакеты, проверенные у издателя, Windows Update и официальные сайты. Сторонние базы драйверов не используются; BIOS и профиль памяти меняются только вручную.'}" />
             </StackPanel>
         </ScrollViewer>
 
@@ -733,7 +734,7 @@
                     <Button Style="{StaticResource Btn.Ghost}" Command="{Binding ClearHardwareSelectionCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="СНЯТЬ ОТМЕТКИ" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T СНЯТЬ ОТМЕТКИ}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </c:StickyBar.Actions>
@@ -755,10 +756,10 @@
                         <ProgressBar Value="{Binding HwInstallPercent}" Maximum="100" IsIndeterminate="{Binding HwInstallIndeterminate}" />
                     </StackPanel>
                     <Button Grid.Column="1" Style="{StaticResource Btn.Danger}" VerticalAlignment="Center" Command="{Binding CancelHardwareInstallCommand}"
-                            ToolTip="Остановить очередь. Уже открытый установщик драйвера не прерывается.">
+                            ToolTip="{loc:T Остановить очередь. Уже открытый установщик драйвера не прерывается.}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="ОТМЕНИТЬ УСТАНОВКУ" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T ОТМЕНИТЬ УСТАНОВКУ}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </Grid>

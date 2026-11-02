@@ -72,19 +72,19 @@ internal static class HardwareCatalog
 
     public static readonly VendorSoftware GHub = new("Logitech G HUB", "Logitech, Inc.", LogitechGHub, null,
         "https://www.logitechg.com/innovation/g-hub.html",
-        "Настройка игровых мышей, клавиатур и гарнитур Logitech G: кнопки, DPI, подсветка, обновление прошивки.",
+        Loc.T("Настройка игровых мышей, клавиатур и гарнитур Logitech G: кнопки, DPI, подсветка, обновление прошивки."),
         ["Logitech G HUB"])
     {
         InstalledPublisher = "Logitech", // verified: Publisher "Logitech" (2026-10-27)
     };
 
     public static readonly VendorSoftware OptionsPlus = new("Logi Options+", "Logitech", LogiOptionsPlus, null, null,
-        "Для офисных мышей и клавиатур Logitech (серии MX, ERGO) — G HUB их не настраивает.",
+        Loc.T("Для офисных мышей и клавиатур Logitech (серии MX, ERGO) — G HUB их не настраивает."),
         ["Logi Options+", "Logitech Options+"]);
 
     public static readonly VendorSoftware Synapse = new("Razer Synapse 4", "Razer Inc.", RazerSynapse4, null,
         "https://www.razer.com/synapse-4",
-        "Настройка устройств Razer: кнопки, подсветка, звук микрофона, прошивки. Часть старых устройств работает только с Synapse 3.",
+        Loc.T("Настройка устройств Razer: кнопки, подсветка, звук микрофона, прошивки. Часть старых устройств работает только с Synapse 3."),
         ["Razer Synapse"])
     {
         InstalledPublisher = "Razer", // verified: Publisher "Razer Inc." (WOW6432Node)
@@ -92,32 +92,32 @@ internal static class HardwareCatalog
 
     public static readonly VendorSoftware SteelSeriesGgApp = new("SteelSeries GG", "SteelSeries ApS", SteelSeriesGg, null,
         "https://steelseries.com/gg",
-        "Настройка устройств SteelSeries (бывший SteelSeries Engine) и звук Sonar.",
+        Loc.T("Настройка устройств SteelSeries (бывший SteelSeries Engine) и звук Sonar."),
         ["SteelSeries GG", "SteelSeries Engine"]);
 
     public static readonly VendorSoftware Icue = new("Corsair iCUE 5", "Corsair", CorsairIcue5, null,
         "https://www.corsair.com/icue",
-        "Настройка периферии, подсветки и охлаждения Corsair. Ставит свои службы — нужен, только если вы что-то настраиваете.",
+        Loc.T("Настройка периферии, подсветки и охлаждения Corsair. Ставит свои службы — нужен, только если вы что-то настраиваете."),
         ["iCUE"]);
 
     public static readonly VendorSoftware Ngenuity = new("HyperX NGENUITY", "HP Inc.", null, null,
         "https://hyperx.com/pages/ngenuity",
-        "ПО для устройств HyperX. В winget его нет — только с официального сайта HyperX или из Microsoft Store.",
+        Loc.T("ПО для устройств HyperX. В winget его нет — только с официального сайта HyperX или из Microsoft Store."),
         ["NGENUITY"]);
 
     public static readonly VendorSoftware ArmouryCrate = new("ASUS Armoury Crate", "ASUS", null, null,
         "https://www.asus.com/supportonly/armoury%20crate/helpdesk_download/",
-        "Ставится собственным загрузчиком ASUS и добавляет несколько служб — MONOLITH не устанавливает его сам.",
+        Loc.T("Ставится собственным загрузчиком ASUS и добавляет несколько служб — MONOLITH не устанавливает его сам."),
         ["Armoury Crate", "ArmouryCrate"]);
 
     public static readonly VendorSoftware Wootility = new("Wootility", "Wooting", null, null,
         "https://wooting.io/wootility",
-        "Настройка аналоговых клавиатур Wooting. В winget пакета нет — только с сайта wooting.io.",
+        Loc.T("Настройка аналоговых клавиатур Wooting. В winget пакета нет — только с сайта wooting.io."),
         ["Wootility"]);
 
     public static readonly VendorSoftware InzoneHub = new("INZONE Hub", "Sony", null, null,
         "https://www.sony.ca/en/electronics/support/others-software/inzone-hub/software/00279252",
-        "Настройка звука и профилей игровых устройств Sony INZONE. В winget пакета нет — только с сайта Sony.",
+        Loc.T("Настройка звука и профилей игровых устройств Sony INZONE. В winget пакета нет — только с сайта Sony."),
         ["INZONE Hub"])
     {
         InstalledPublisher = "Sony", // verified: Publisher "Sony Corporation"; third-party look-alikes are not INZONE Hub
@@ -129,36 +129,36 @@ internal static class HardwareCatalog
     /// </summary>
     public static readonly VendorSoftware MsiCenter = new("MSI Center", "Micro-Star International", null, null,
         "https://www.msi.com/support",
-        "Подсветка Mystic Light и настройки платы MSI. Скачивается на сайте MSI (поддержка вашей платы). Ставит свои службы и SDK — нужен, только если вы что-то настраиваете.",
+        Loc.T("Подсветка Mystic Light и настройки платы MSI. Скачивается на сайте MSI (поддержка вашей платы). Ставит свои службы и SDK — нужен, только если вы что-то настраиваете."),
         ["MSI Center"]);
 
     public static readonly VendorSoftware SamsungMagician = new("Samsung Magician", "Samsung Electronics Co. Ltd.", null, SamsungMagicianStoreId,
         "https://semiconductor.samsung.com/consumer-storage/magician/",
-        "Состояние SSD Samsung и обновление его прошивки. В winget есть только версия из Microsoft Store.",
+        Loc.T("Состояние SSD Samsung и обновление его прошивки. В winget есть только версия из Microsoft Store."),
         ["Samsung Magician"]);
 
     public static readonly VendorSoftware KingstonManager = new("Kingston SSD Manager", "Kingston Digital, Inc.", KingstonSsdManager, null, null,
-        "Состояние SSD Kingston, обновление прошивки и безопасное стирание.",
+        Loc.T("Состояние SSD Kingston, обновление прошивки и безопасное стирание."),
         ["Kingston SSD Manager"]);
 
     public static readonly VendorSoftware CrucialExecutive = new("Crucial Storage Executive", "Crucial", CrucialStorageExecutive, null,
         "https://www.crucial.com/support/storage-executive",
-        "Состояние SSD Crucial и обновление его прошивки.",
+        Loc.T("Состояние SSD Crucial и обновление его прошивки."),
         ["Storage Executive"]);
 
     public static readonly VendorSoftware SanDiskDashboardApp = new("SanDisk Dashboard", "SanDisk Corporation", SanDiskDashboard, null,
         "https://support-en.sandisk.com/app/answers/detailweb/a_id/31759",
-        "Бывший WD Dashboard: состояние SSD WD и SanDisk, обновление прошивки.",
+        Loc.T("Бывший WD Dashboard: состояние SSD WD и SanDisk, обновление прошивки."),
         ["SanDisk Dashboard", "Western Digital Dashboard", "WD Dashboard"]);
 
     public static readonly VendorSoftware SeaTools = new("Seagate SeaTools", "Seagate", SeagateSeaTools, null,
         "https://www.seagate.com/support/downloads/seatools/",
-        "Диагностика накопителей Seagate (проверка поверхности и SMART).",
+        Loc.T("Диагностика накопителей Seagate (проверка поверхности и SMART)."),
         ["SeaTools"]);
 
     public static readonly VendorSoftware IntelDsa = new(DriverSources.IntelDsa.Name, DriverSources.IntelDsa.Publisher,
         DriverSources.IntelDsaWingetId, null, DriverSources.IntelDetectPage,
-        "Официальный помощник Intel: находит драйверы видеоядра, Wi-Fi, Bluetooth, сетевых карт и чипсета Intel.",
+        Loc.T("Официальный помощник Intel: находит драйверы видеоядра, Wi-Fi, Bluetooth, сетевых карт и чипсета Intel."),
         ["Driver & Support Assistant"]);
 
     /// <summary>USB vendor ids of gaming peripheral makers. Generic chip vendors (Sinowealth, Pixart…) are not identifiable.</summary>
@@ -172,11 +172,11 @@ internal static class HardwareCatalog
         new("0951", "HyperX (Kingston)", [Ngenuity]),
         new("0B05", "ASUS", [ArmouryCrate]),
         new("31E3", "Wooting", [Wootility]),
-        new("054C", "Sony", [InzoneHub], "Геймпады и аксессуары Sony работают на драйверах Windows — отдельное ПО не нужно.")
+        new("054C", "Sony", [InzoneHub], Loc.T("Геймпады и аксессуары Sony работают на драйверах Windows — отдельное ПО не нужно."))
         {
             SoftwareNameFilter = "INZONE",
         },
-        new("045E", "Microsoft", [], "Устройства Microsoft и геймпады Xbox работают на драйверах Windows — отдельное ПО не нужно."),
+        new("045E", "Microsoft", [], Loc.T("Устройства Microsoft и геймпады Xbox работают на драйверах Windows — отдельное ПО не нужно.")),
         // 0DB0:0076 «MYSTIC LIGHT» = the board's RGB controller (internal USB header); MSI Wi-Fi / BT modules are not peripherals.
         new("0DB0", "MSI", [MsiCenter]),
     ];
@@ -187,7 +187,7 @@ internal static class HardwareCatalog
     /// <summary>Devices Windows names only by class («USB-устройство ввода»), by VID:PID (verified on the dev PC).</summary>
     public static string? KnownDeviceName(string vid, string pid) => $"{vid}:{pid}".ToUpperInvariant() switch
     {
-        "0DB0:0076" => "Mystic Light (подсветка платы)",
+        "0DB0:0076" => Loc.T("Mystic Light (подсветка платы)"),
         _ => null,
     };
 

@@ -44,19 +44,19 @@ internal static class ChipsetAdvisor
 
     private static readonly AmdPart[] AmdParts =
     [
-        new("PPM Provisioning File", "Профили питания ядер Ryzen для Windows.",
+        new("PPM Provisioning File", Loc.T("Профили питания ядер Ryzen для Windows."),
             [@"ACPI\VEN_AMDI&DEV_0052", @"ACPI\AMDI0052"], null, _ => true, true),
-        new("3D V-Cache Performance Optimizer", "Переводит игры на ядра с 3D-кэшем (X3D).",
+        new("3D V-Cache Performance Optimizer", Loc.T("Переводит игры на ядра с 3D-кэшем (X3D)."),
             [@"ACPI\VEN_AMDI&DEV_0101", @"ACPI\AMDI0101"], null, IsX3D, false),
-        new("Application Compatibility Database", "База совместимости приложений AMD.",
+        new("Application Compatibility Database", Loc.T("База совместимости приложений AMD."),
             [@"ACPI\VEN_AMDI&DEV_0204", @"ACPI\AMDI0204"], null, _ => false, false),
-        new("SMBus", "Шина управления: датчики и память.",
+        new("SMBus", Loc.T("Шина управления: датчики и память."),
             [@"PCI\VEN_1022&DEV_790B"], "SMBus", _ => false, false),
-        new("PSP", "Процессор безопасности платформы (fTPM).",
+        new("PSP", Loc.T("Процессор безопасности платформы (fTPM)."),
             [@"PCI\VEN_1022&DEV_1649"], "PSP", _ => false, false),
-        new("GPIO", "Линии ввода-вывода платформы.",
+        new("GPIO", Loc.T("Линии ввода-вывода платформы."),
             [@"ACPI\VEN_AMDI&DEV_F031", @"ACPI\AMDIF031"], "GPIO", _ => false, false),
-        new("I2C", "Шина I2C: тачпады и датчики.",
+        new("I2C", Loc.T("Шина I2C: тачпады и датчики."),
             [@"ACPI\VEN_AMDI&DEV_0010", @"ACPI\AMDI0010"], "I2C", _ => false, false),
     ];
 
@@ -73,8 +73,8 @@ internal static class ChipsetAdvisor
     {
         if (cpuIsAmd) return AnalyzeAmd(cpuName, drivers, problems, amdPackageVersion);
         if (cpuIsIntel) return AnalyzeIntel(cpuName, drivers, problems);
-        return new ChipsetReport(ChipsetPlatform.Other, cpuName, null, "ПЛАТФОРМА НЕ ОПРЕДЕЛЕНА",
-            "Драйверы чипсета для этой платформы приходят через Windows Update или с сайта производителя платы.",
+        return new ChipsetReport(ChipsetPlatform.Other, cpuName, null, Loc.T("ПЛАТФОРМА НЕ ОПРЕДЕЛЕНА"),
+            Loc.T("Драйверы чипсета для этой платформы приходят через Windows Update или с сайта производителя платы."),
             [], null, null);
     }
 
@@ -125,29 +125,29 @@ internal static class ChipsetAdvisor
         string verdict, recommendation;
         if (ok == true)
         {
-            verdict = "ДРАЙВЕР ЧИПСЕТА УСТАНОВЛЕН";
-            recommendation = "Ключевые компоненты AMD на месте. Обновляйте пакет чипсета с amd.com (раздел «Chipsets» → ваш сокет) или получайте его через Windows Update — твики не нужны.";
+            verdict = Loc.T("ДРАЙВЕР ЧИПСЕТА УСТАНОВЛЕН");
+            recommendation = Loc.T("Ключевые компоненты AMD на месте. Обновляйте пакет чипсета с amd.com (раздел «Chipsets» → ваш сокет) или получайте его через Windows Update — твики не нужны.");
         }
         else if (ok == false)
         {
-            verdict = "УСТАНОВИТЕ ДРАЙВЕР ЧИПСЕТА AMD";
-            recommendation = $"Не установлено: {string.Join(", ", requiredMissing)}. Скачайте пакет AMD Chipset Software на amd.com (раздел «Chipsets» → ваш сокет) или найдите драйверы в Windows Update.";
+            verdict = Loc.T("УСТАНОВИТЕ ДРАЙВЕР ЧИПСЕТА AMD");
+            recommendation = Loc.Tf("Не установлено: {0}. Скачайте пакет AMD Chipset Software на amd.com (раздел «Chipsets» → ваш сокет) или найдите драйверы в Windows Update.", string.Join(", ", requiredMissing));
         }
         else
         {
-            verdict = "СОСТОЯНИЕ НЕ ОПРЕДЕЛЕНО";
-            recommendation = "Устройства чипсета AMD не найдены в списке драйверов. Проверьте Windows Update или установите пакет AMD Chipset Software с amd.com.";
+            verdict = Loc.T("СОСТОЯНИЕ НЕ ОПРЕДЕЛЕНО");
+            recommendation = Loc.T("Устройства чипсета AMD не найдены в списке драйверов. Проверьте Windows Update или установите пакет AMD Chipset Software с amd.com.");
         }
 
         string? note = null;
         if (IsDualCcdX3D(cpuName))
-            note = "X3D с двумя CCD: оптимизатор V-Cache переводит игры на CCD с 3D V-Cache. Для этого нужны драйвер чипсета, включённые игровой режим Windows и Xbox Game Bar — не отключайте их.";
+            note = Loc.T("X3D с двумя CCD: оптимизатор V-Cache переводит игры на CCD с 3D V-Cache. Для этого нужны драйвер чипсета, включённые игровой режим Windows и Xbox Game Bar — не отключайте их.");
         else if (IsX3D(cpuName))
-            note = "На X3D с одним блоком ядер весь кэш доступен всем ядрам, поэтому оптимизатору, по всей видимости, почти нечего делать. Он безвреден — не отключайте его службы.";
+            note = Loc.T("На X3D с одним блоком ядер весь кэш доступен всем ядрам, поэтому оптимизатору, по всей видимости, почти нечего делать. Он безвреден — не отключайте его службы.");
 
         var package = string.IsNullOrWhiteSpace(packageVersion)
-            ? "Пакет «AMD Chipset Software» не найден среди программ — компоненты получены через Windows Update или установлены по отдельности."
-            : $"Установлен пакет «AMD Chipset Software» {packageVersion}.";
+            ? Loc.T("Пакет «AMD Chipset Software» не найден среди программ — компоненты получены через Windows Update или установлены по отдельности.")
+            : Loc.Tf("Установлен пакет «AMD Chipset Software» {0}.", packageVersion);
 
         return new ChipsetReport(ChipsetPlatform.Amd, cpuName, ok, verdict, recommendation, components, note, package);
     }
@@ -171,8 +171,8 @@ internal static class ChipsetAdvisor
 
         var ok = intelProblems.Count == 0;
         return new ChipsetReport(ChipsetPlatform.Intel, cpuName, ok,
-            ok ? "УСТРОЙСТВА ПЛАТФОРМЫ РАБОТАЮТ" : "ЕСТЬ ПРОБЛЕМЫ С УСТРОЙСТВАМИ INTEL",
-            "Драйверы чипсета Intel поставляются через Windows Update. Проверить их и драйверы видеоядра, Wi-Fi и Bluetooth Intel поможет официальный Intel Driver & Support Assistant.",
+            ok ? Loc.T("УСТРОЙСТВА ПЛАТФОРМЫ РАБОТАЮТ") : Loc.T("ЕСТЬ ПРОБЛЕМЫ С УСТРОЙСТВАМИ INTEL"),
+            Loc.T("Драйверы чипсета Intel поставляются через Windows Update. Проверить их и драйверы видеоядра, Wi-Fi и Bluetooth Intel поможет официальный Intel Driver & Support Assistant."),
             system, null, null);
     }
 }

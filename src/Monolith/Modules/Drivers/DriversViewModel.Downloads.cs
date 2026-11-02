@@ -30,7 +30,7 @@ public sealed partial class DriversViewModel
         var card = CardFor(target);
         if (target is string && card is not null) await WaitForGpuLookupAsync(card);
         if (card?.Package is null || !card.HasDownload || card.IsDownloading) return;
-        if (!RequireAdmin($"загрузка драйвера {card.Package.VendorName}", "DownloadDriver", card.Gpu.PnpDeviceId)) return;
+        if (!RequireAdmin(Loc.Tf("загрузка драйвера {0}", card.Package.VendorName), "DownloadDriver", card.Gpu.PnpDeviceId)) return;
         if (!CanModify())
         {
             Ui.Toast("Дождитесь окончания текущей операции на этой странице.", ToastKind.Warning);
@@ -42,11 +42,11 @@ public sealed partial class DriversViewModel
         var package = card.Package!;
 
         var confirmed = await Ui.ConfirmAsync(
-            $"СКАЧАТЬ И УСТАНОВИТЬ ДРАЙВЕР {package.VendorName.ToUpperInvariant()} {package.Version}?",
+            Loc.Tf("СКАЧАТЬ И УСТАНОВИТЬ ДРАЙВЕР {0} {1}?", package.VendorName.ToUpperInvariant(), package.Version),
             DriverDownloadText.Lead(package),
             DriverDownloadText.Plan(package, RestorePointService.IsEnabled()),
-            confirmText: "СКАЧАТЬ И УСТАНОВИТЬ",
-            footnote: "Откат: точка восстановления или «Откатить драйвер» в диспетчере устройств.");
+            confirmText: Loc.T("СКАЧАТЬ И УСТАНОВИТЬ"),
+            footnote: Loc.T("Откат: точка восстановления или «Откатить драйвер» в диспетчере устройств."));
         if (!confirmed || _downloadWaiting) return;
 
         // One installer at a time across the whole app: waits in the visible queue behind a winget queue or another driver install.
@@ -54,7 +54,7 @@ public sealed partial class DriversViewModel
         _downloadWaiting = true;
         try
         {
-            lease = await AcquireLeaseAsync(OperationClass.Install, $"Загрузка драйвера {package.VendorName} {package.Version}",
+            lease = await AcquireLeaseAsync(OperationClass.Install, Loc.Tf("Загрузка драйвера {0} {1}", package.VendorName, package.Version),
                 () => Ui.Post(() => { if (card.CancelDownloadCommand.CanExecute(null)) card.CancelDownloadCommand.Execute(null); }));
         }
         finally
@@ -70,44 +70,44 @@ public sealed partial class DriversViewModel
         var ct = card.BeginDownload(_lifetime.Token);
         try
         {
-            Log.Info($"Загрузка драйвера {package.VendorName} {package.Version} с {package.Url.Host}…");
+            Log.Info("Загрузка драйвера {0} {1} с {2}…", package.VendorName, package.Version, package.Url.Host);
             var progress = new Progress<DownloadProgress>(card.ReportDownload);
             var path = await DriverDownloads.DownloadAsync(package, progress, ct);
 
-            card.SetDownloadStep("ТОЧКА ВОССТАНОВЛЕНИЯ", "Создание точки восстановления системы…");
-            if (!await EnsureRestorePointAsync($"MONOLITH: драйвер {package.VendorName} {package.Version}"))
+            card.SetDownloadStep(Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ"), Loc.T("Создание точки восстановления системы…"));
+            if (!await EnsureRestorePointAsync(Loc.Tf("MONOLITH: драйвер {0} {1}", package.VendorName, package.Version)))
             {
-                const string declined = "Установка отменена. Скачанный и проверенный установщик сохранён — повторно скачивать его не придётся.";
+                var declined = Loc.T("Установка отменена. Скачанный и проверенный установщик сохранён — повторно скачивать его не придётся.");
                 card.FinishDownload(false, declined);
-                Log.Info($"Драйвер {package.VendorName} {package.Version}: установка отменена (нет точки восстановления).");
+                Log.Info("Драйвер {0} {1}: установка отменена (нет точки восстановления).", package.VendorName, package.Version);
                 return;
             }
 
             // The file sat in the admin-only folder; check it once more right before it is started.
-            card.SetDownloadStep("ПРОВЕРКА ПОДПИСИ", "Повторная проверка цифровой подписи перед запуском…");
+            card.SetDownloadStep(Loc.T("ПРОВЕРКА ПОДПИСИ"), Loc.T("Повторная проверка цифровой подписи перед запуском…"));
             var (valid, signer) = await DriverDownloads.VerifySignatureAsync(path, package.Signer);
             if (!valid)
-                throw new InvalidOperationException($"Подпись установщика не подтверждена перед запуском ({signer}) — запуск отменён.");
+                throw new InvalidOperationException(Loc.Tf("Подпись установщика не подтверждена перед запуском ({0}) — запуск отменён.", signer));
 
             DriverDownloads.LaunchInstaller(path);
-            var done = $"Официальный установщик {package.VendorName} {package.Version} запущен ({signer}). " +
-                       "Пройдите его шаги; после установки нажмите «Обновить», чтобы увидеть новую версию.";
+            var done = Loc.Tf("Официальный установщик {0} {1} запущен ({2}). Пройдите его шаги; после установки нажмите «Обновить», чтобы увидеть новую версию.",
+                package.VendorName, package.Version, signer);
             card.FinishDownload(true, done);
-            Log.Success($"Драйвер {package.VendorName} {package.Version}: установщик запущен.");
-            Ui.Toast(done, ToastKind.Success, $"ДРАЙВЕР {package.VendorName.ToUpperInvariant()}");
+            Log.Success("Драйвер {0} {1}: установщик запущен.", package.VendorName, package.Version);
+            Ui.Toast(done, ToastKind.Success, Loc.Tf("ДРАЙВЕР {0}", package.VendorName.ToUpperInvariant()));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            const string cancelled = "Загрузка отменена. Недокачанный файл удалён.";
+            var cancelled = Loc.T("Загрузка отменена. Недокачанный файл удалён.");
             card.FinishDownload(false, cancelled);
-            Log.Info($"Драйвер {package.VendorName} {package.Version}: загрузка отменена.");
-            Ui.Toast(cancelled, ToastKind.Warning, $"ДРАЙВЕР {package.VendorName.ToUpperInvariant()}");
+            Log.Info("Драйвер {0} {1}: загрузка отменена.", package.VendorName, package.Version);
+            Ui.Toast(cancelled, ToastKind.Warning, Loc.Tf("ДРАЙВЕР {0}", package.VendorName.ToUpperInvariant()));
         }
         catch (Exception ex)
         {
             card.FinishDownload(false, ex.Message);
-            Log.Error($"Драйвер {package.VendorName} {package.Version} не установлен", ex);
-            Ui.Toast(ex.Message, ToastKind.Error, "ДРАЙВЕР НЕ УСТАНОВЛЕН");
+            Log.Error("Драйвер {0} {1} не установлен", ex, package.VendorName, package.Version);
+            Ui.Toast(ex.Message, ToastKind.Error, Loc.T("ДРАЙВЕР НЕ УСТАНОВЛЕН"));
         }
         finally
         {
@@ -145,16 +145,16 @@ public sealed partial class DriversViewModel
         var card = Gpus.FirstOrDefault(g => g.IsPrimary) ?? Gpus.FirstOrDefault();
         if (card is null)
         {
-            Ui.Toast("Видеокарта не найдена.", ToastKind.Warning, "ВИДЕОКАРТА");
+            Ui.Toast("Видеокарта не найдена.", ToastKind.Warning, Loc.T("ВИДЕОКАРТА"));
             return;
         }
         if (card.HasLatest)
             Ui.Toast(card.UpdateAvailable
-                ? $"Есть новый драйвер {card.LatestVersion} (сейчас {card.VersionText}). Кнопка «СКАЧАТЬ И УСТАНОВИТЬ» — на карточке видеокарты."
-                : $"Установлен последний драйвер: {card.VersionText}.",
-                ToastKind.Info, "ВИДЕОКАРТА");
+                ? Loc.Tf("Есть новый драйвер {0} (сейчас {1}). Кнопка «СКАЧАТЬ И УСТАНОВИТЬ» — на карточке видеокарты.", card.LatestVersion, card.VersionText)
+                : Loc.Tf("Установлен последний драйвер: {0}.", card.VersionText),
+                ToastKind.Info, Loc.T("ВИДЕОКАРТА"));
         else
-            Ui.Toast($"Сейчас {card.VersionText}. Сверить версию с производителем не удалось — откройте официальный сайт на карточке.", ToastKind.Info, "ВИДЕОКАРТА");
+            Ui.Toast(Loc.Tf("Сейчас {0}. Сверить версию с производителем не удалось — откройте официальный сайт на карточке.", card.VersionText), ToastKind.Info, Loc.T("ВИДЕОКАРТА"));
     }
 
     private async Task WaitForGpuInventoryAsync()
@@ -213,7 +213,7 @@ public sealed partial class DriversViewModel
         }
         var size = await DriverDownloads.GetRemoteSizeAsync(package, _lifetime.Token);
         _amdPackage = size is null ? package : package with { SizeBytes = size };
-        Log.Info($"AMD: официальный установщик {package.Version} ({package.Url.Host}) доступен для загрузки.");
+        Log.Info("AMD: официальный установщик {0} ({1}) доступен для загрузки.", package.Version, package.Url.Host);
     }
 }
 
@@ -221,29 +221,28 @@ public sealed partial class DriversViewModel
 internal static class DriverDownloadText
 {
     public static string Lead(DriverPackage p) => p.Vendor == GpuVendor.Amd
-        ? "MONOLITH скачает официальный установщик AMD Software: Adrenalin Edition прямо с сервера AMD — без браузера и сторонних сайтов, " +
-          "проверит его подпись и запустит. Это компактный веб-установщик: подходящий драйвер он докачает с серверов AMD сам."
-        : $"MONOLITH скачает официальный установщик драйвера прямо с сервера {p.VendorName} — без браузера и сторонних сайтов, " +
-          "проверит его подпись и запустит. Саму установку вы проводите в окне установщика.";
+        ? Loc.T("MONOLITH скачает официальный установщик AMD Software: Adrenalin Edition прямо с сервера AMD — без браузера и сторонних сайтов, " +
+          "проверит его подпись и запустит. Это компактный веб-установщик: подходящий драйвер он докачает с серверов AMD сам.")
+        : Loc.Tf("MONOLITH скачает официальный установщик драйвера прямо с сервера {0} — без браузера и сторонних сайтов, проверит его подпись и запустит. Саму установку вы проводите в окне установщика.", p.VendorName);
 
     public static List<string> Plan(DriverPackage p, bool restorePointsEnabled)
     {
         var lines = new List<string>
         {
-            $"Версия: {p.VendorName} {p.Version}",
-            $"Размер: {p.SizeDisplay ?? "сервер сообщит при загрузке"}",
-            $"Источник: официальный сервер {p.VendorName} {p.Url.Host} (HTTPS)",
-            $"Файл: {p.FileName} → {DriverDownloads.DownloadsDir} (запись туда разрешена только администраторам)",
-            $"Файл будет проверен по цифровой подписи {p.Signer}: без действительной подписи он удаляется и не запускается",
+            Loc.Tf("Версия: {0} {1}", p.VendorName, p.Version),
+            Loc.Tf("Размер: {0}", p.SizeDisplay ?? Loc.T("сервер сообщит при загрузке")),
+            Loc.Tf("Источник: официальный сервер {0} {1} (HTTPS)", p.VendorName, p.Url.Host),
+            Loc.Tf("Файл: {0} → {1} (запись туда разрешена только администраторам)", p.FileName, DriverDownloads.DownloadsDir),
+            Loc.Tf("Файл будет проверен по цифровой подписи {0}: без действительной подписи он удаляется и не запускается", p.Signer),
             restorePointsEnabled
-                ? "Перед установкой будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)"
-                : "Защита системы отключена — точка восстановления создана не будет; MONOLITH спросит, продолжать ли без неё",
+                ? Loc.T("Перед установкой будет создана точка восстановления (если Windows её не создаст, MONOLITH спросит, продолжать ли)")
+                : Loc.T("Защита системы отключена — точка восстановления создана не будет; MONOLITH спросит, продолжать ли без неё"),
             p.Vendor == GpuVendor.Amd
-                ? "Откроется официальный установщик AMD: он определит видеокарту, а при желании в нём можно выбрать чистую установку (сброс к заводским настройкам)"
-                : "Откроется официальный установщик NVIDIA — в нём можно выбрать «Выборочная → Чистая установка»",
-            "Лицензию производителя показывает сам установщик — MONOLITH ничего не принимает за вас",
-            $"Нужно свободного места на системном диске: не меньше {SystemProfile.FormatBytes(DriverDownloads.RequiredFreeSpace(p.Vendor))}",
-            "MONOLITH не перезагружает компьютер: если установщик попросит перезагрузку, решаете вы",
+                ? Loc.T("Откроется официальный установщик AMD: он определит видеокарту, а при желании в нём можно выбрать чистую установку (сброс к заводским настройкам)")
+                : Loc.T("Откроется официальный установщик NVIDIA — в нём можно выбрать «Выборочная → Чистая установка»"),
+            Loc.T("Лицензию производителя показывает сам установщик — MONOLITH ничего не принимает за вас"),
+            Loc.Tf("Нужно свободного места на системном диске: не меньше {0}", SystemProfile.FormatBytes(DriverDownloads.RequiredFreeSpace(p.Vendor))),
+            Loc.T("MONOLITH не перезагружает компьютер: если установщик попросит перезагрузку, решаете вы"),
         };
         return lines;
     }

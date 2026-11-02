@@ -13,21 +13,10 @@ public enum UpdatesState { NotSearched, Searching, Ready, Error }
 
 internal static class DriverFormat
 {
-    public static string Date(DateTime? d) => d is { } v && v.Year > 1900 ? v.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : "—";
+    public static string Date(DateTime? d) => d is { } v && v.Year > 1900 ? Loc.DateText(v) : "—";
 
     public static string Size(double bytes) => bytes <= 0 ? "—" : SystemProfile.FormatBytes(bytes);
 
-    public static string Plural(int n, string one, string few, string many)
-    {
-        var mod100 = Math.Abs(n) % 100;
-        if (mod100 is >= 11 and <= 14) return many;
-        return (Math.Abs(n) % 10) switch
-        {
-            1 => one,
-            2 or 3 or 4 => few,
-            _ => many,
-        };
-    }
 }
 
 /// <summary>Matches a Windows Update driver to the devices it would replace (to back up their current package first).</summary>
@@ -64,22 +53,22 @@ public sealed partial class GpuCardItem : ObservableObject
             GpuVendor.Amd => "AMD",
             GpuVendor.Intel => "INTEL",
             GpuVendor.Microsoft => "MICROSOFT",
-            _ => "ДРУГОЙ",
+            _ => Loc.T("ДРУГОЙ"),
         };
         IsPrimary = isPrimary;
-        RoleText = isPrimary ? "ОСНОВНАЯ" : gpu.IsIntegrated ? "ВСТРОЕННАЯ" : "ДОПОЛНИТЕЛЬНАЯ";
+        RoleText = isPrimary ? Loc.T("ОСНОВНАЯ") : gpu.IsIntegrated ? Loc.T("ВСТРОЕННАЯ") : Loc.T("ДОПОЛНИТЕЛЬНАЯ");
         IsInformational = !isPrimary && gpu.IsIntegrated;
 
         IsMissingDriver = gpu.Name.Contains("Basic Display", StringComparison.OrdinalIgnoreCase)
                           || string.Equals(reg?.InfPath, "display.inf", StringComparison.OrdinalIgnoreCase);
 
-        VersionText = IsMissingDriver ? "НЕТ" : GpuDriverVersions.DisplayVersion(gpu.Vendor, gpu.DriverVersion,
+        VersionText = IsMissingDriver ? Loc.T("НЕТ") : GpuDriverVersions.DisplayVersion(gpu.Vendor, gpu.DriverVersion,
             reg?.RadeonSoftwareVersion, gpu.Vendor == GpuVendor.Nvidia ? nvidiaPackageVersion : null);
         VersionLabel = gpu.Vendor switch
         {
-            GpuVendor.Nvidia => "ВЕРСИЯ NVIDIA",
+            GpuVendor.Nvidia => Loc.T("ВЕРСИЯ NVIDIA"),
             GpuVendor.Amd when !string.IsNullOrWhiteSpace(reg?.RadeonSoftwareVersion) => "AMD SOFTWARE",
-            _ => "ВЕРСИЯ",
+            _ => Loc.T("ВЕРСИЯ"),
         };
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(gpu.DriverVersion)) parts.Add("Windows " + gpu.DriverVersion);
@@ -91,7 +80,7 @@ public sealed partial class GpuCardItem : ObservableObject
         var months = DriverAge.Months(gpu.DriverDate, now);
         AgeText = DriverAge.Format(months);
         var verdict = DriverAge.Verdict(months);
-        VerdictText = IsMissingDriver ? "НЕТ ДРАЙВЕРА ПРОИЗВОДИТЕЛЯ" : DriverAge.VerdictText(verdict);
+        VerdictText = IsMissingDriver ? Loc.T("НЕТ ДРАЙВЕРА ПРОИЗВОДИТЕЛЯ") : DriverAge.VerdictText(verdict);
         VerdictIsWarning = IsMissingDriver || verdict is DriverAgeVerdict.Aging or DriverAgeVerdict.Old;
         // Research: a non-primary iGPU is informational only — no age nag.
         ShowVerdict = !IsInformational || IsMissingDriver;
@@ -149,14 +138,14 @@ public sealed partial class GpuCardItem : ObservableObject
         get
         {
             if (Package is not { } p) return "";
-            var text = Vendor == GpuVendor.Nvidia ? $"СКАЧАТЬ И УСТАНОВИТЬ {p.Version}" : $"СКАЧАТЬ ДРАЙВЕР AMD {p.Version}";
+            var text = Vendor == GpuVendor.Nvidia ? Loc.Tf("СКАЧАТЬ И УСТАНОВИТЬ {0}", p.Version) : Loc.Tf("СКАЧАТЬ ДРАЙВЕР AMD {0}", p.Version);
             return p.SizeDisplay is { } size ? $"{text} · {size}" : text;
         }
     }
 
     public string DownloadHint => Package is not { } p ? "" :
-        $"Официальный установщик {p.VendorName} скачивается прямо с {p.Url.Host}, проверяется по цифровой подписи {p.Signer} " +
-        "и запускается после точки восстановления." + (Elevation.IsElevated ? "" : " Без прав администратора нажмите — MONOLITH запросит их и продолжит.");
+        Loc.Tf("Официальный установщик {0} скачивается прямо с {1}, проверяется по цифровой подписи {2} ", p.VendorName, p.Url.Host, p.Signer) +
+        Loc.T("и запускается после точки восстановления.") + (Elevation.IsElevated ? "" : Loc.T(" Без прав администратора нажмите — MONOLITH запросит их и продолжит."));
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
@@ -192,8 +181,8 @@ public sealed partial class GpuCardItem : ObservableObject
         DownloadResult = null;
         DownloadPercent = 0;
         DownloadIndeterminate = true;
-        DownloadStage = "ЗАГРУЗКА";
-        DownloadDetail = $"Подключение к {Package?.Url.Host}…";
+        DownloadStage = Loc.T("ЗАГРУЗКА");
+        DownloadDetail = Loc.Tf("Подключение к {0}…", Package?.Url.Host);
         IsDownloading = true;
         CanCancelDownload = true;
         return _downloadCts.Token;
@@ -204,13 +193,13 @@ public sealed partial class GpuCardItem : ObservableObject
         if (!IsDownloading) return;
         if (p.Verifying)
         {
-            DownloadStage = "ПРОВЕРКА ПОДПИСИ";
+            DownloadStage = Loc.T("ПРОВЕРКА ПОДПИСИ");
             DownloadIndeterminate = true;
             CanCancelDownload = false;
         }
         else
         {
-            DownloadStage = "ЗАГРУЗКА";
+            DownloadStage = Loc.T("ЗАГРУЗКА");
             DownloadIndeterminate = p.Total is not > 0;
             DownloadPercent = p.Percent;
         }
@@ -241,7 +230,7 @@ public sealed partial class GpuCardItem : ObservableObject
     private void CancelDownload()
     {
         if (_downloadCts is not { IsCancellationRequested: false } cts) return;
-        DownloadDetail = "Отмена…";
+        DownloadDetail = Loc.T("Отмена…");
         CanCancelDownload = false;
         cts.Cancel();
     }
@@ -263,25 +252,25 @@ public sealed partial class GpuCardItem : ObservableObject
         }
         UpdateAvailable = cmp > 0;
         LatestVersion = package.Version;
-        LatestText = UpdateAvailable ? $"ДОСТУПЕН ДРАЙВЕР {package.Version}" : $"УСТАНОВЛЕН ПОСЛЕДНИЙ ДРАЙВЕР {package.Version}";
-        LatestCaption = $"по данным amd.com, проверено в {now:HH:mm}";
+        LatestText = UpdateAvailable ? Loc.Tf("ДОСТУПЕН ДРАЙВЕР {0}", package.Version) : Loc.Tf("УСТАНОВЛЕН ПОСЛЕДНИЙ ДРАЙВЕР {0}", package.Version);
+        LatestCaption = Loc.Tf("по данным amd.com, проверено в {0:HH:mm}", now);
         HasLatest = true;
     }
 
     public string ToolButtonText => Tool switch
     {
         null => "",
-        { WingetId: null } => "ОФИЦИАЛЬНЫЙ УСТАНОВЩИК AMD",
-        _ when ToolInstalled => Vendor == GpuVendor.Nvidia ? "ОТКРЫТЬ NVIDIA APP" : "ОТКРЫТЬ INTEL DSA",
-        _ => Vendor == GpuVendor.Nvidia ? "УСТАНОВИТЬ NVIDIA APP" : "УСТАНОВИТЬ INTEL DSA",
+        { WingetId: null } => Loc.T("ОФИЦИАЛЬНЫЙ УСТАНОВЩИК AMD"),
+        _ when ToolInstalled => Vendor == GpuVendor.Nvidia ? Loc.T("ОТКРЫТЬ NVIDIA APP") : Loc.T("ОТКРЫТЬ INTEL DSA"),
+        _ => Vendor == GpuVendor.Nvidia ? Loc.T("УСТАНОВИТЬ NVIDIA APP") : Loc.T("УСТАНОВИТЬ INTEL DSA"),
     };
 
     public string ToolHint => Tool switch
     {
         null => "",
         { WingetId: null } => Tool.Description,
-        _ when ToolInstalled => $"{Tool.Name} уже установлен. {Tool.Description}",
-        _ => $"{Tool.Description} Установка через winget ({(Tool.WingetSource == "msstore" ? "Microsoft Store" : "winget")}), издатель: {Tool.Publisher}.",
+        _ when ToolInstalled => Loc.Tf("{0} уже установлен. {1}", Tool.Name, Tool.Description),
+        _ => Loc.Tf("{0} Установка через winget ({1}), издатель: {2}.", Tool.Description, (Tool.WingetSource == "msstore" ? "Microsoft Store" : "winget"), Tool.Publisher),
     };
 
     // Latest version hint (NVIDIA only)
@@ -310,12 +299,12 @@ public sealed partial class GpuCardItem : ObservableObject
         }
         UpdateAvailable = cmp > 0;
         LatestVersion = release.Version;
-        var date = release.Released is { } d ? d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : null;
+        var date = release.Released is { } d ? Loc.DateText(d) : null;
         // The size is shown on the download button (exact, from NVIDIA's server), not here in NVIDIA's decimal units.
         var flags = string.Join(" · ", new[] { release.IsWhql ? "WHQL" : null, release.IsBeta ? "BETA" : null, date }
             .Where(s => !string.IsNullOrWhiteSpace(s)));
-        LatestText = UpdateAvailable ? $"ДОСТУПЕН ДРАЙВЕР {release.Version}" : $"УСТАНОВЛЕН ПОСЛЕДНИЙ ДРАЙВЕР {release.Version}";
-        LatestCaption = $"{flags}{(flags.Length > 0 ? " · " : "")}по данным nvidia.com, проверено в {now:HH:mm}";
+        LatestText = UpdateAvailable ? Loc.Tf("ДОСТУПЕН ДРАЙВЕР {0}", release.Version) : Loc.Tf("УСТАНОВЛЕН ПОСЛЕДНИЙ ДРАЙВЕР {0}", release.Version);
+        LatestCaption = Loc.Tf("{0}{1}по данным nvidia.com, проверено в {2:HH:mm}", flags, (flags.Length > 0 ? " · " : ""), now);
         if (release.DetailsUrl is not null) SiteUrl = release.DetailsUrl;
         OnPropertyChanged(nameof(SiteUrl));
         HasLatest = true;
@@ -357,15 +346,15 @@ public sealed partial class GpuCardItem : ObservableObject
     private string BuildRecommendation()
     {
         if (IsMissingDriver)
-            return "Видеокарта работает на стандартном драйвере Windows: нет ускорения 3D, игр и нормальных частот обновления. Установите драйвер производителя — через его утилиту, сайт или Windows Update.";
+            return Loc.T("Видеокарта работает на стандартном драйвере Windows: нет ускорения 3D, игр и нормальных частот обновления. Установите драйвер производителя — через его утилиту, сайт или Windows Update.");
         if (IsInformational)
-            return "Дополнительный встроенный адаптер. Его драйвер приходит через Windows Update — отдельных действий не нужно.";
+            return Loc.T("Дополнительный встроенный адаптер. Его драйвер приходит через Windows Update — отдельных действий не нужно.");
         return Vendor switch
         {
-            GpuVendor.Nvidia => "Когда выходит новый драйвер, MONOLITH скачивает официальный установщик прямо с сервера NVIDIA. Обновлять можно и через NVIDIA App. Windows Update тоже присылает драйверы NVIDIA, но обычно с опозданием.",
-            GpuVendor.Amd => "Свежий драйвер Adrenalin ставит официальный установщик AMD: он сам определит видеокарту. MONOLITH скачивает его прямо с сервера AMD. В winget пакета AMD нет.",
-            GpuVendor.Intel => "Драйвер видеоядра Intel проверяет Intel Driver & Support Assistant; Windows Update тоже присылает его, но реже.",
-            _ => "Драйвер этого адаптера обновляется через Windows Update.",
+            GpuVendor.Nvidia => Loc.T("Когда выходит новый драйвер, MONOLITH скачивает официальный установщик прямо с сервера NVIDIA. Обновлять можно и через NVIDIA App. Windows Update тоже присылает драйверы NVIDIA, но обычно с опозданием."),
+            GpuVendor.Amd => Loc.T("Свежий драйвер Adrenalin ставит официальный установщик AMD: он сам определит видеокарту. MONOLITH скачивает его прямо с сервера AMD. В winget пакета AMD нет."),
+            GpuVendor.Intel => Loc.T("Драйвер видеоядра Intel проверяет Intel Driver & Support Assistant; Windows Update тоже присылает его, но реже."),
+            _ => Loc.T("Драйвер этого адаптера обновляется через Windows Update."),
         };
     }
 }
@@ -381,10 +370,10 @@ public sealed class ChipsetComponentItem
         IsRequired = c.Required;
         (StateText, Glyph, IsOk, IsProblem) = c.State switch
         {
-            ComponentState.Installed => ($"ДРАЙВЕР {vendorLabel}", Glyphs.Check, true, false),
-            ComponentState.Inbox => ("ДРАЙВЕР WINDOWS", Glyphs.Remove, !c.Required, c.Required),
-            ComponentState.Problem => ($"КОД {c.ProblemCode}", Glyphs.Warning, false, true),
-            _ => ("НЕ НАЙДЕНО", Glyphs.Remove, !c.Required, c.Required),
+            ComponentState.Installed => (Loc.Tf("ДРАЙВЕР {0}", vendorLabel), Glyphs.Check, true, false),
+            ComponentState.Inbox => (Loc.T("ДРАЙВЕР WINDOWS"), Glyphs.Remove, !c.Required, c.Required),
+            ComponentState.Problem => (Loc.Tf("КОД {0}", c.ProblemCode), Glyphs.Warning, false, true),
+            _ => (Loc.T("НЕ НАЙДЕНО"), Glyphs.Remove, !c.Required, c.Required),
         };
         VersionText = c.Version ?? "—";
         DetailText = string.Join(" · ", new[] { c.Date is { } d ? DriverFormat.Date(d) : null, c.InfName }
@@ -421,7 +410,7 @@ public sealed partial class WuUpdateItem : ObservableObject
     internal WuDriverUpdate Update { get; }
 
     public string Id => Update.UpdateId;
-    public string Title => string.IsNullOrWhiteSpace(Update.Title) ? "Драйвер" : Update.Title;
+    public string Title => string.IsNullOrWhiteSpace(Update.Title) ? Loc.T("Драйвер") : Update.Title;
     public string ModelText => string.Join(" · ", new[] { Update.Model, Update.Manufacturer ?? Update.Provider }
         .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase));
     public string ClassText => DeviceNaming.ClassName(Update.DriverClass);
@@ -439,18 +428,18 @@ public sealed partial class WuUpdateItem : ObservableObject
     public bool ShowProblemDeviceTag => FixesProblem && !ShowFixesProblemHint;
     public bool NeedsEula => !Update.EulaAccepted;
     public bool CanSelect => !IsFirmware;
-    public string KindText => IsFirmware ? "ПРОШИВКА" : IsOptional ? "НЕОБЯЗАТЕЛЬНОЕ" : "РЕКОМЕНДУЕМОЕ";
+    public string KindText => IsFirmware ? Loc.T("ПРОШИВКА") : IsOptional ? Loc.T("НЕОБЯЗАТЕЛЬНОЕ") : Loc.T("РЕКОМЕНДУЕМОЕ");
     // Which theme tag shows the kind: firmware = hatched, optional = muted, recommended = plain.
     public bool KindIsFirmware => IsFirmware;
     public bool KindIsOptional => IsOptional && !IsFirmware;
     public bool KindIsRecommended => !IsOptional && !IsFirmware;
     public string KindHint => IsFirmware
-        ? "Обновление прошивки (UEFI/BIOS). MONOLITH не прошивает оборудование — установите его в параметрах Windows Update или утилитой производителя."
+        ? Loc.T("Обновление прошивки (UEFI/BIOS). MONOLITH не прошивает оборудование — установите его в параметрах Windows Update или утилитой производителя.")
         : IsOptional
             ? FixesProblem
-                ? "Необязательный драйвер для устройства, которое сейчас работает с ошибкой: он может её исправить. Отметьте его, если хотите попробовать."
-                : "Необязательный драйвер: ставьте его, только если с устройством есть проблема."
-            : "Рекомендуемый драйвер: Windows Update установит его и сама, здесь можно сделать это сразу.";
+                ? Loc.T("Необязательный драйвер для устройства, которое сейчас работает с ошибкой: он может её исправить. Отметьте его, если хотите попробовать.")
+                : Loc.T("Необязательный драйвер: ставьте его, только если с устройством есть проблема.")
+            : Loc.T("Рекомендуемый драйвер: Windows Update установит его и сама, здесь можно сделать это сразу.");
 
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private string? _resultText;
@@ -460,7 +449,7 @@ public sealed partial class WuUpdateItem : ObservableObject
     internal void ApplyResult(WuItemResult r)
     {
         ResultOk = r.Success;
-        ResultText = r.Success ? (r.RebootRequired ? "НУЖНА ПЕРЕЗАГРУЗКА" : "УСТАНОВЛЕНО") : WuText.ResultText(r.ResultCode == WuText.OrcSucceeded ? WuText.OrcFailed : r.ResultCode);
+        ResultText = r.Success ? (r.RebootRequired ? Loc.T("НУЖНА ПЕРЕЗАГРУЗКА") : Loc.T("УСТАНОВЛЕНО")) : WuText.ResultText(r.ResultCode == WuText.OrcSucceeded ? WuText.OrcFailed : r.ResultCode);
         ResultMessage = r.Message;
         if (r.Success) IsSelected = false;
     }
@@ -520,8 +509,8 @@ public sealed class InstalledDriverItem
         Version = string.IsNullOrWhiteSpace(d.Version) ? "—" : d.Version;
         DateText = DriverFormat.Date(d.Date);
         IsSigned = d.IsSigned;
-        SignedText = d.IsSigned ? "ПОДПИСАН" : "БЕЗ ПОДПИСИ";
-        Signer = string.IsNullOrWhiteSpace(d.Signer) ? (d.IsSigned ? "Подпись проверена" : "Цифровая подпись отсутствует") : d.Signer;
+        SignedText = d.IsSigned ? Loc.T("ПОДПИСАН") : Loc.T("БЕЗ ПОДПИСИ");
+        Signer = string.IsNullOrWhiteSpace(d.Signer) ? (d.IsSigned ? Loc.T("Подпись проверена") : Loc.T("Цифровая подпись отсутствует")) : d.Signer;
         InfName = string.IsNullOrWhiteSpace(d.InfName) ? "—" : d.InfName;
         IsMicrosoft = d.IsMicrosoft;
         IsInbox = !d.IsOem;
@@ -550,7 +539,7 @@ public sealed class InstalledDriverItem
     public string HardwareId { get; }
     public string DeviceId { get; }
     public string Manufacturer { get; }
-    public string Tooltip => $"{DeviceName}\nПроизводитель устройства: {Manufacturer}\nПоставщик драйвера: {Provider}\n{HardwareId}\n{Signer}";
+    public string Tooltip => Loc.Tf("{0}\nПроизводитель устройства: {1}\nПоставщик драйвера: {2}\n{3}\n{4}", DeviceName, Manufacturer, Provider, HardwareId, Signer);
     internal string SearchKey { get; }
 
     public bool Matches(string[] terms) => terms.All(t => SearchKey.Contains(t, StringComparison.Ordinal));
@@ -565,8 +554,8 @@ public sealed class BackupItem
         Info = b;
         Name = b.Name;
         Path = b.Path;
-        DateText = b.Created.ToString("dd.MM.yyyy  HH:mm", CultureInfo.InvariantCulture);
-        KindText = b.Kind == BackupKind.BeforeUpdate ? "ПЕРЕД ОБНОВЛЕНИЕМ" : "ПОЛНАЯ";
+        DateText = Loc.DateTimeText(b.Created);
+        KindText = b.Kind == BackupKind.BeforeUpdate ? Loc.T("ПЕРЕД ОБНОВЛЕНИЕМ") : Loc.T("ПОЛНАЯ");
         IsBeforeUpdate = b.Kind == BackupKind.BeforeUpdate;
         SizeText = DriverFormat.Size(b.SizeBytes);
         InfCount = b.InfCount;
@@ -574,8 +563,8 @@ public sealed class BackupItem
         var providers = b.Packages.Select(p => p.Provider).Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => p!.Replace(", Inc.", "").Replace(" Inc.", "").Replace(" Corporation", "").Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        ProvidersText = providers.Count == 0 ? "Состав не определён" :
-            string.Join(" · ", providers.Take(6)) + (providers.Count > 6 ? $" и ещё {providers.Count - 6}" : "");
+        ProvidersText = providers.Count == 0 ? Loc.T("Состав не определён") :
+            string.Join(" · ", providers.Take(6)) + (providers.Count > 6 ? Loc.Tf(" и ещё {0}", providers.Count - 6) : "");
         Packages = b.Packages.Select(p => new BackupPackageItem(p)).ToList();
         Note = b.Note;
     }
@@ -591,7 +580,7 @@ public sealed class BackupItem
     public string InfCountText { get; }
     public string ProvidersText { get; }
     public IReadOnlyList<BackupPackageItem> Packages { get; }
-    public string PackagesHeader => $"СОСТАВ КОПИИ · {Packages.Count} {DriverFormat.Plural(Packages.Count, "ПАКЕТ", "ПАКЕТА", "ПАКЕТОВ")}";
+    public string PackagesHeader => Loc.N(Packages.Count, "СОСТАВ КОПИИ · {0} ПАКЕТ", "СОСТАВ КОПИИ · {0} ПАКЕТА", "СОСТАВ КОПИИ · {0} ПАКЕТОВ");
     public string? Note { get; }
 }
 

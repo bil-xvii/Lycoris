@@ -53,21 +53,21 @@ internal static partial class WuText
     /// <summary>OperationResultCode → short Russian status.</summary>
     public static string ResultText(int resultCode) => resultCode switch
     {
-        OrcNotStarted => "НЕ НАЧАТО",
-        OrcInProgress => "ВЫПОЛНЯЕТСЯ",
-        OrcSucceeded => "УСТАНОВЛЕНО",
-        OrcSucceededWithErrors => "УСТАНОВЛЕНО С ОШИБКАМИ",
-        OrcFailed => "ОШИБКА",
-        OrcAborted => "ПРЕРВАНО",
-        _ => $"КОД {resultCode}",
+        OrcNotStarted => Loc.T("НЕ НАЧАТО"),
+        OrcInProgress => Loc.T("ВЫПОЛНЯЕТСЯ"),
+        OrcSucceeded => Loc.T("УСТАНОВЛЕНО"),
+        OrcSucceededWithErrors => Loc.T("УСТАНОВЛЕНО С ОШИБКАМИ"),
+        OrcFailed => Loc.T("ОШИБКА"),
+        OrcAborted => Loc.T("ПРЕРВАНО"),
+        _ => Loc.Tf("КОД {0}", resultCode),
     };
 
     /// <summary>InstallationBehavior.RebootBehavior → text.</summary>
     public static string RebootText(int rebootBehavior) => rebootBehavior switch
     {
-        0 => "без перезагрузки",
-        1 => "нужна перезагрузка",
-        2 => "может потребоваться перезагрузка",
+        0 => Loc.T("без перезагрузки"),
+        1 => Loc.T("нужна перезагрузка"),
+        2 => Loc.T("может потребоваться перезагрузка"),
         _ => "—",
     };
 
@@ -75,20 +75,20 @@ internal static partial class WuText
     public static string DescribeHResult(int hresult)
     {
         if (IsNetworkError(hresult))
-            return "Нет подключения к Windows Update: проверьте интернет и DNS, затем повторите поиск.";
+            return Loc.T("Нет подключения к Windows Update: проверьте интернет и DNS, затем повторите поиск.");
         return hresult switch
         {
-            ServiceDisabled => "Служба Windows Update отключена. Включите службу «Центр обновления Windows» (wuauserv) — без неё Windows не получает исправления драйверов и безопасности.",
-            AccessDenied => "Недостаточно прав: загрузка и установка драйверов требуют прав администратора.",
-            OperationCancelled => "Операция отменена.",
-            NotAllowed => "Установка сейчас невозможна: Windows уже выполняет другую установку или ожидает перезагрузки.",
-            OperationInProgress or ExclusiveInstallConflict => "Windows Update уже выполняет другую операцию. Повторите позже.",
-            EulasDeclined => "Лицензионное соглашение драйвера не принято — установка пропущена.",
-            unchecked((int)0x80240021) => "Windows Update не ответил вовремя. Повторите позже.",
-            unchecked((int)0x8024001E) => "Операция прервана: служба Windows Update останавливается или компьютер завершает работу.",
-            unchecked((int)0x8024002E) => "Доступ к серверам Windows Update запрещён политикой организации.",
-            unchecked((int)0x80240044) => "Недостаточно прав для операции с обновлениями всего компьютера.",
-            _ => $"Ошибка Windows Update 0x{unchecked((uint)hresult):X8}.",
+            ServiceDisabled => Loc.T("Служба Windows Update отключена. Включите службу «Центр обновления Windows» (wuauserv) — без неё Windows не получает исправления драйверов и безопасности."),
+            AccessDenied => Loc.T("Недостаточно прав: загрузка и установка драйверов требуют прав администратора."),
+            OperationCancelled => Loc.T("Операция отменена."),
+            NotAllowed => Loc.T("Установка сейчас невозможна: Windows уже выполняет другую установку или ожидает перезагрузки."),
+            OperationInProgress or ExclusiveInstallConflict => Loc.T("Windows Update уже выполняет другую операцию. Повторите позже."),
+            EulasDeclined => Loc.T("Лицензионное соглашение драйвера не принято — установка пропущена."),
+            unchecked((int)0x80240021) => Loc.T("Windows Update не ответил вовремя. Повторите позже."),
+            unchecked((int)0x8024001E) => Loc.T("Операция прервана: служба Windows Update останавливается или компьютер завершает работу."),
+            unchecked((int)0x8024002E) => Loc.T("Доступ к серверам Windows Update запрещён политикой организации."),
+            unchecked((int)0x80240044) => Loc.T("Недостаточно прав для операции с обновлениями всего компьютера."),
+            _ => Loc.Tf("Ошибка Windows Update 0x{0:X8}.", unchecked((uint)hresult)),
         };
     }
 
@@ -109,7 +109,7 @@ internal static partial class WuText
         return ex switch
         {
             OperationCanceledException => DescribeHResult(OperationCancelled),
-            TimeoutException => "Windows Update не ответил вовремя. Повторите позже.",
+            TimeoutException => Loc.T("Windows Update не ответил вовремя. Повторите позже."),
             WuException { Code: 0 } w => w.Message,
             WuException w => DescribeHResult(w.Code),
             _ when IsMappedHResult(ex.HResult) => DescribeHResult(ex.HResult),

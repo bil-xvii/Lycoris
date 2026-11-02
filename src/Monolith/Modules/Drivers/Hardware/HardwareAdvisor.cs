@@ -56,15 +56,15 @@ internal static class HardwareAdvisor
     private static HwAction WuAction(string key, IReadOnlyList<WuDriverUpdate> updates)
     {
         var n = updates.Count;
-        var titles = string.Join("; ", updates.Take(2).Select(u => u.Title)) + (n > 2 ? $" и ещё {n - 2}" : "");
+        var titles = string.Join("; ", updates.Take(2).Select(u => u.Title)) + (n > 2 ? Loc.Tf(" и ещё {0}", n - 2) : "");
         var maker = updates.Select(u => u.Manufacturer ?? u.Provider).FirstOrDefault(m => !string.IsNullOrWhiteSpace(m));
         return new HwAction("wu:" + key, HwActionKind.GoToTab, HwSource.WindowsUpdate,
-            $"{n} {HardwareRules.Plural(n, "драйвер", "драйвера", "драйверов")} в Windows Update",
-            $"{titles}. Установка — на вкладке «Обновления Windows»: с точкой восстановления и копией текущего драйвера.",
-            maker is null ? "Microsoft (Windows Update)" : $"{maker} через Windows Update")
+            Loc.N(n, "{0} драйвер в Windows Update", "{0} драйвера в Windows Update", "{0} драйверов в Windows Update"),
+            Loc.Tf("{0}. Установка — на вкладке «Обновления Windows»: с точкой восстановления и копией текущего драйвера.", titles),
+            maker is null ? "Microsoft (Windows Update)" : Loc.Tf("{0} через Windows Update", maker))
         {
             Url = nameof(DriversTab.Updates),
-            ButtonText = "К ОБНОВЛЕНИЯМ",
+            ButtonText = Loc.T("К ОБНОВЛЕНИЯМ"),
             WuCount = n,
         };
     }
@@ -81,13 +81,13 @@ internal static class HardwareAdvisor
         if (device is not null && DeviceProblemCodes.IsReportable(device.ErrorCode, device.Present))
         {
             var info = DeviceProblemCodes.Describe(device.ErrorCode);
-            actions.Add(new HwAction("problem:" + key, HwActionKind.GoToTab, HwSource.Manual, "Подробности и что делать",
+            actions.Add(new HwAction("problem:" + key, HwActionKind.GoToTab, HwSource.Manual, Loc.T("Подробности и что делать"),
                 $"{info.Title}. {info.Action}", "Windows")
             {
                 Url = nameof(DriversTab.Problems),
-                ButtonText = "ПРОБЛЕМНЫЕ УСТРОЙСТВА",
+                ButtonText = Loc.T("ПРОБЛЕМНЫЕ УСТРОЙСТВА"),
             });
-            return new DriverVerdict(HwStatus.NotInstalled, device.ErrorCode == 28 ? null : $"ОШИБКА · КОД {device.ErrorCode}",
+            return new DriverVerdict(HwStatus.NotInstalled, device.ErrorCode == 28 ? null : Loc.Tf("ОШИБКА · КОД {0}", device.ErrorCode),
                 info.Explanation, actions);
         }
         if (matches.Count > 0) return new DriverVerdict(HwStatus.UpdateAvailable, null, null, actions);
@@ -95,16 +95,16 @@ internal static class HardwareAdvisor
         {
             WuViewState.Ready => new DriverVerdict(HwStatus.Current, null, null, actions),
             WuViewState.Error => new DriverVerdict(HwStatus.Unchecked, null,
-                "Windows Update не ответил — свежесть драйвера не проверена.", actions),
-            _ => new DriverVerdict(HwStatus.Unchecked, "ИДЁТ ПОИСК", null, actions),
+                Loc.T("Windows Update не ответил — свежесть драйвера не проверена."), actions),
+            _ => new DriverVerdict(HwStatus.Unchecked, Loc.T("ИДЁТ ПОИСК"), null, actions),
         };
     }
 
     private static string WuDetail(WuIndex wu) => wu.State switch
     {
-        WuViewState.Ready => "новых драйверов в Windows Update нет",
-        WuViewState.Error => "Windows Update не проверен",
-        _ => "Windows Update ищет драйверы…",
+        WuViewState.Ready => Loc.T("новых драйверов в Windows Update нет"),
+        WuViewState.Error => Loc.T("Windows Update не проверен"),
+        _ => Loc.T("Windows Update ищет драйверы…"),
     };
 
     // ───────────────────────────── Shared builders ─────────────────────────────
@@ -116,8 +116,8 @@ internal static class HardwareAdvisor
     {
         if (d is null) return "";
         var provider = string.IsNullOrWhiteSpace(d.Provider) ? "" : d.Provider.Replace(" Corporation", "").Replace(", Inc.", "").Replace(" Inc.", "").Trim() + " ";
-        var date = d.Date is { } dt ? " от " + HardwareRules.Date(dt) : "";
-        return $"драйвер {provider}{d.Version}{date}{(d.IsOem ? "" : " (встроен в Windows)")}";
+        var date = d.Date is { } dt ? Loc.Tf(" от {0}", HardwareRules.Date(dt)) : "";
+        return Loc.Tf("драйвер {0}{1}{2}{3}", provider, d.Version, date, (d.IsOem ? "" : Loc.T(" (встроен в Windows)")));
     }
 
     private static PnpDevice? Device(HardwareSnapshot s, string deviceId) =>
@@ -133,12 +133,12 @@ internal static class HardwareAdvisor
         if (sw.IsInstalled(s.Apps))
         {
             return new HwAction("sw:" + sw.Name, sw.Url is null ? HwActionKind.Note : HwActionKind.OpenPage, HwSource.Manual,
-                sw.Name, "Уже установлено на этом ПК. " + sw.Description, sw.Publisher)
+                sw.Name, Loc.Tf("Уже установлено на этом ПК. {0}", sw.Description), sw.Publisher)
             {
                 AlreadyInstalled = true,
                 Optional = optional,
                 Url = sw.Url,
-                ButtonText = sw.Url is null ? null : "ОФИЦИАЛЬНЫЙ САЙТ",
+                ButtonText = sw.Url is null ? null : Loc.T("ОФИЦИАЛЬНЫЙ САЙТ"),
             };
         }
         if (sw.WingetId is { } id && s.WingetAvailable && !DriverSources.IsBlocked(id))
@@ -152,7 +152,7 @@ internal static class HardwareAdvisor
         if (sw.StoreId is { } store)
         {
             return new HwAction("store:" + store, HwActionKind.OpenStore, HwSource.Manual, sw.Name,
-                why + " Установка — в Microsoft Store (откроется страница программы).", sw.Publisher)
+                Loc.Tf("{0} Установка — в Microsoft Store (откроется страница программы).", why), sw.Publisher)
             {
                 Optional = optional,
                 Url = $"ms-windows-store://pdp/?productid={store}",
@@ -165,7 +165,7 @@ internal static class HardwareAdvisor
             {
                 Optional = optional,
                 Url = url,
-                ButtonText = "ОФИЦИАЛЬНЫЙ САЙТ",
+                ButtonText = Loc.T("ОФИЦИАЛЬНЫЙ САЙТ"),
             };
         }
         return null;
@@ -186,11 +186,11 @@ internal static class HardwareAdvisor
             };
         }
         return new HwAction("page:" + id, HwActionKind.OpenPage, HwSource.Manual, name,
-            reason + (s.WingetAvailable ? "" : " winget не найден — скачайте установщик на сайте Microsoft."), "Microsoft Corporation")
+            reason + (s.WingetAvailable ? "" : Loc.T(" winget не найден — скачайте установщик на сайте Microsoft.")), "Microsoft Corporation")
         {
             Optional = optional,
             Url = entry?.Website ?? "https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist",
-            ButtonText = "САЙТ MICROSOFT",
+            ButtonText = Loc.T("САЙТ MICROSOFT"),
         };
     }
 
@@ -215,7 +215,7 @@ internal static class HardwareAdvisor
                     {
                         Key = a.Key + "@" + c.Key,
                         Kind = HwActionKind.Note,
-                        Reason = "Этот же пакет уже предложен выше — достаточно установить его один раз.",
+                        Reason = Loc.T("Этот же пакет уже предложен выше — достаточно установить его один раз."),
                         PreSelect = false,
                         Winget = null,
                         Package = null,
@@ -237,12 +237,12 @@ internal static class HardwareAdvisor
         var x3d = ChipsetAdvisor.IsX3D(cpu.Name);
         string? cpuNote = null;
         if (ChipsetAdvisor.IsDualCcdX3D(cpu.Name))
-            cpuNote = "Ryzen X3D с двумя CCD: драйвер чипсета AMD переводит игры на блок ядер с 3D V-Cache. Для этого нужны драйвер чипсета, «Игровой режим» и Xbox Game Bar — не отключайте их.";
+            cpuNote = Loc.T("Ryzen X3D с двумя CCD: драйвер чипсета AMD переводит игры на блок ядер с 3D V-Cache. Для этого нужны драйвер чипсета, «Игровой режим» и Xbox Game Bar — не отключайте их.");
         else if (x3d)
-            cpuNote = "X3D с одним блоком ядер: кэш 3D V-Cache доступен всем ядрам, специальная настройка не нужна. Оптимизатор V-Cache из пакета чипсета безвреден — не отключайте его службы.";
-        list.Add(new HwComponent("cpu", "ПРОЦЕССОР", cpu.Name.Length > 0 ? cpu.Name : "Процессор не определён",
-            Join(cpu.Cores > 0 ? $"{cpu.Cores} {HardwareRules.Plural(cpu.Cores, "ядро", "ядра", "ядер")}" : null,
-                cpu.Threads > 0 ? $"{cpu.Threads} {HardwareRules.Plural(cpu.Threads, "поток", "потока", "потоков")}" : null,
+            cpuNote = Loc.T("X3D с одним блоком ядер: кэш 3D V-Cache доступен всем ядрам, специальная настройка не нужна. Оптимизатор V-Cache из пакета чипсета безвреден — не отключайте его службы.");
+        list.Add(new HwComponent("cpu", Loc.T("ПРОЦЕССОР"), cpu.Name.Length > 0 ? cpu.Name : Loc.T("Процессор не определён"),
+            Join(cpu.Cores > 0 ? Loc.N(cpu.Cores, "{0} ядро", "{0} ядра", "{0} ядер") : null,
+                cpu.Threads > 0 ? Loc.N(cpu.Threads, "{0} поток", "{0} потока", "{0} потоков") : null,
                 HardwareRules.Ghz(cpu.MaxMhz),
                 x3d ? "3D V-Cache (X3D)" : null),
             HwStatus.Info, [])
@@ -257,9 +257,9 @@ internal static class HardwareAdvisor
         var biosAge = HardwareRules.BiosAgeMonths(b.BiosDate, ctx.Now);
         var details = Join(
             b.BiosVersion.Length > 0 ? $"BIOS {b.BiosVersion}" : null,
-            b.BiosDate is { } bd ? $"от {HardwareRules.Date(bd)} ({DriverAge.Format(biosAge)})" : null,
+            b.BiosDate is { } bd ? Loc.Tf("от {0} ({1})", HardwareRules.Date(bd), DriverAge.Format(biosAge)) : null,
             b.BiosVendor,
-            chipsetVendor is null ? null : $"чипсет {chipsetVendor}");
+            chipsetVendor is null ? null : Loc.Tf("чипсет {0}", chipsetVendor));
         var boardActions = new List<HwAction>();
         HwStatus boardStatus;
         string? boardNote;
@@ -268,36 +268,36 @@ internal static class HardwareAdvisor
             boardStatus = HwStatus.ManualOnly;
             boardNote = null;
             boardActions.Add(new HwAction("bios", vendor is null ? HwActionKind.Note : HwActionKind.OpenPage, HwSource.Manual,
-                "Проверить обновление BIOS",
-                $"BIOS выпущен {DriverAge.Format(biosAge)} назад. Новые версии исправляют совместимость с процессорами и памятью и закрывают уязвимости. " +
-                "Обновление BIOS — только вручную с сайта производителя платы, строго по его инструкции: сбой прошивки может вывести плату из строя. MONOLITH BIOS не прошивает.",
-                vendor?.ShortName ?? (b.Manufacturer.Length > 0 ? b.Manufacturer : "производитель платы"))
+                Loc.T("Проверить обновление BIOS"),
+                Loc.Tf("BIOS выпущен {0} назад. Новые версии исправляют совместимость с процессорами и памятью и закрывают уязвимости. ", DriverAge.Format(biosAge)) +
+                Loc.T("Обновление BIOS — только вручную с сайта производителя платы, строго по его инструкции: сбой прошивки может вывести плату из строя. MONOLITH BIOS не прошивает."),
+                vendor?.ShortName ?? (b.Manufacturer.Length > 0 ? b.Manufacturer : Loc.T("производитель платы")))
             {
                 Url = vendor?.SupportUrl,
-                ButtonText = vendor is null ? null : $"САЙТ {vendor.ShortName.ToUpperInvariant()}",
+                ButtonText = vendor is null ? null : Loc.Tf("САЙТ {0}", vendor.ShortName.ToUpperInvariant()),
             });
         }
         else
         {
             boardStatus = HwStatus.Info;
             boardNote = b.BiosDate is null
-                ? "Дата BIOS неизвестна. MONOLITH не проверяет новые версии BIOS и никогда не прошивает его."
-                : "BIOS моложе двух лет. MONOLITH не проверяет новые версии BIOS и никогда не прошивает его — обновление только вручную с сайта производителя платы.";
+                ? Loc.T("Дата BIOS неизвестна. MONOLITH не проверяет новые версии BIOS и никогда не прошивает его.")
+                : Loc.T("BIOS моложе двух лет. MONOLITH не проверяет новые версии BIOS и никогда не прошивает его — обновление только вручную с сайта производителя платы.");
             if (vendor is not null)
-                boardActions.Add(new HwAction("board-page", HwActionKind.OpenPage, HwSource.Manual, "Страница поддержки платы",
-                    $"Драйверы, утилиты и BIOS для {boardName} — на странице поддержки производителя (найдите свою модель).", vendor.ShortName)
+                boardActions.Add(new HwAction("board-page", HwActionKind.OpenPage, HwSource.Manual, Loc.T("Страница поддержки платы"),
+                    Loc.Tf("Драйверы, утилиты и BIOS для {0} — на странице поддержки производителя (найдите свою модель).", boardName), vendor.ShortName)
                 {
                     Optional = true,
                     Url = vendor.SupportUrl,
-                    ButtonText = $"САЙТ {vendor.ShortName.ToUpperInvariant()}",
+                    ButtonText = Loc.Tf("САЙТ {0}", vendor.ShortName.ToUpperInvariant()),
                 });
         }
         if (boardName.Length > 0 || b.BiosVersion.Length > 0)
-            list.Add(new HwComponent("board", s.IsLaptop ? "НОУТБУК И BIOS" : "ПЛАТА И BIOS", boardName.Length > 0 ? boardName : "Плата не определена",
+            list.Add(new HwComponent("board", s.IsLaptop ? Loc.T("НОУТБУК И BIOS") : Loc.T("ПЛАТА И BIOS"), boardName.Length > 0 ? boardName : Loc.T("Плата не определена"),
                 details, boardStatus, boardActions) { Note = boardNote });
 
         list.Add(Chipset(s, ctx, wu));
-        return new HwGroup(HwGroupKind.Platform, "ПРОЦЕССОР И ПЛАТФОРМА", list);
+        return new HwGroup(HwGroupKind.Platform, Loc.T("ПРОЦЕССОР И ПЛАТФОРМА"), list);
     }
 
     private static string? ChipsetVendor(HardwareSnapshot s)
@@ -353,9 +353,9 @@ internal static class HardwareAdvisor
         switch (report.Platform)
         {
             case ChipsetPlatform.Amd:
-                name = "Драйвер чипсета AMD";
+                name = Loc.T("Драйвер чипсета AMD");
                 kindNote = report.DriverOk == true
-                    ? "Новые версии пакета выходят на amd.com (Chipsets → сокет платы) и приходят через Windows Update. Автоматической загрузки с проверкой подписи для пакета чипсета нет — только вручную."
+                    ? Loc.T("Новые версии пакета выходят на amd.com (Chipsets → сокет платы) и приходят через Windows Update. Автоматической загрузки с проверкой подписи для пакета чипсета нет — только вручную.")
                     : report.Recommendation;
                 actions.Add(new HwAction("amd-chipset", HwActionKind.OpenPage, HwSource.Manual, "AMD Chipset Software",
                     kindNote, "Advanced Micro Devices")
@@ -366,28 +366,28 @@ internal static class HardwareAdvisor
                 });
                 break;
             case ChipsetPlatform.Intel:
-                name = "Драйверы платформы Intel";
+                name = Loc.T("Драйверы платформы Intel");
                 kindNote = report.Recommendation;
-                if (SoftwareAction(HardwareCatalog.IntelDsa, s, "Драйверы чипсета Intel приходят через Windows Update; проверить их поможет помощник Intel.",
+                if (SoftwareAction(HardwareCatalog.IntelDsa, s, Loc.T("Драйверы чипсета Intel приходят через Windows Update; проверить их поможет помощник Intel."),
                         optional: report.DriverOk == true) is { } dsa)
                     actions.Add(dsa);
                 break;
             default:
-                name = "Драйвер чипсета";
+                name = Loc.T("Драйвер чипсета");
                 kindNote = report.Recommendation;
                 break;
         }
 
         var details = noInventory
-            ? "список драйверов ещё не загружен"
+            ? Loc.T("список драйверов ещё не загружен")
             : Join(installedParts.Count > 0 ? string.Join(" · ", installedParts) : null,
-                missingParts.Count > 0 ? "нет: " + string.Join(", ", missingParts) : null,
+                missingParts.Count > 0 ? Loc.Tf("нет: {0}", string.Join(", ", missingParts)) : null,
                 WuDetail(wu));
         var note = report.PackageText ?? (report.Platform == ChipsetPlatform.Intel ? null : kindNote);
-        return new HwComponent("chipset", "ЧИПСЕТ", name, details, status, actions)
+        return new HwComponent("chipset", Loc.T("ЧИПСЕТ"), name, details, status, actions)
         {
             Note = note,
-            StatusText = noInventory ? "ЗАГРУЗКА ДАННЫХ" : null,
+            StatusText = noInventory ? Loc.T("ЗАГРУЗКА ДАННЫХ") : null,
         };
     }
 
@@ -399,7 +399,7 @@ internal static class HardwareAdvisor
         var list = new List<HwComponent>();
         foreach (var gpu in s.Gpus.OrderByDescending(g => g.PnpDeviceId == primary?.PnpDeviceId))
             list.Add(Gpu(gpu, gpu.PnpDeviceId == primary?.PnpDeviceId, s, ctx, wu));
-        return new HwGroup(HwGroupKind.Gpu, "ВИДЕОКАРТЫ", list);
+        return new HwGroup(HwGroupKind.Gpu, Loc.T("ВИДЕОКАРТЫ"), list);
     }
 
     private static string VendorText(GpuVendor v) => v switch
@@ -419,8 +419,8 @@ internal static class HardwareAdvisor
                       || string.Equals(reg?.InfPath, "display.inf", StringComparison.OrdinalIgnoreCase);
         var version = missing ? "—" : GpuDriverVersions.DisplayVersion(gpu.Vendor, gpu.DriverVersion, reg?.RadeonSoftwareVersion,
             gpu.Vendor == GpuVendor.Nvidia ? s.NvidiaPackageVersion : null);
-        var kind = isPrimary ? "ОСНОВНАЯ ВИДЕОКАРТА" : gpu.IsIntegrated ? "ВСТРОЕННАЯ ГРАФИКА" : "ДОП. ВИДЕОКАРТА";
-        var vram = !gpu.IsIntegrated && gpu.DedicatedMemoryBytes >= 1UL << 30 ? HardwareRules.Gb(gpu.DedicatedMemoryBytes) + " видеопамяти" : null;
+        var kind = isPrimary ? Loc.T("ОСНОВНАЯ ВИДЕОКАРТА") : gpu.IsIntegrated ? Loc.T("ВСТРОЕННАЯ ГРАФИКА") : Loc.T("ДОП. ВИДЕОКАРТА");
+        var vram = !gpu.IsIntegrated && gpu.DedicatedMemoryBytes >= 1UL << 30 ? Loc.Tf("{0} видеопамяти", HardwareRules.Gb(gpu.DedicatedMemoryBytes)) : null;
         var device = Device(s, gpu.PnpDeviceId);
         var wuMatches = wu.Match(gpu.PnpDeviceId, device?.HardwareIds);
         var key = "gpu:" + gpu.PnpDeviceId;
@@ -432,30 +432,30 @@ internal static class HardwareAdvisor
         if (missing)
         {
             status = HwStatus.NotInstalled;
-            note = "Видеокарта работает на стандартном драйвере Windows: нет 3D-ускорения, игр и высоких частот обновления. Нужен драйвер производителя.";
+            note = Loc.T("Видеокарта работает на стандартном драйвере Windows: нет 3D-ускорения, игр и высоких частот обновления. Нужен драйвер производителя.");
             switch (gpu.Vendor)
             {
                 case GpuVendor.Amd when ctx.Online.AmdPackage is { } amdPkg:
-                    actions.Add(AmdPackageAction(amdPkg, gpu, isPrimary, "Драйвер не установлен."));
+                    actions.Add(AmdPackageAction(amdPkg, gpu, isPrimary, Loc.T("Драйвер не установлен.")));
                     break;
                 case GpuVendor.Amd:
                     actions.Add(PageAction("amd-page", "AMD Software: Adrenalin Edition", "Advanced Micro Devices", DriverSources.AmdDriversPage,
-                        "Официальный установщик с автоопределением видеокарты — на amd.com.", optional: false, "AMD.COM"));
+                        Loc.T("Официальный установщик с автоопределением видеокарты — на amd.com."), optional: false, "AMD.COM"));
                     break;
                 case GpuVendor.Nvidia:
-                    actions.Add(PageAction("nvidia-page", "Драйвер NVIDIA", "NVIDIA Corporation", DriverSources.NvidiaDriversPage,
-                        "Без драйвера Windows не сообщает модель видеокарты, поэтому выберите её на nvidia.com (или установите драйвер через Windows Update).",
+                    actions.Add(PageAction("nvidia-page", Loc.T("Драйвер NVIDIA"), "NVIDIA Corporation", DriverSources.NvidiaDriversPage,
+                        Loc.T("Без драйвера Windows не сообщает модель видеокарты, поэтому выберите её на nvidia.com (или установите драйвер через Windows Update)."),
                         optional: false, "NVIDIA.COM"));
                     break;
                 case GpuVendor.Intel:
-                    if (SoftwareAction(HardwareCatalog.IntelDsa, s, "Драйвер видеоядра Intel установит помощник Intel.", optional: false) is { } dsa) actions.Add(dsa);
+                    if (SoftwareAction(HardwareCatalog.IntelDsa, s, Loc.T("Драйвер видеоядра Intel установит помощник Intel."), optional: false) is { } dsa) actions.Add(dsa);
                     break;
             }
         }
         else if (informational)
         {
             status = HwStatus.Info;
-            note ="Изображение выводит основная видеокарта. Драйвер встроенной графики приходит через Windows Update — отдельных действий не нужно.";
+            note =Loc.T("Изображение выводит основная видеокарта. Драйвер встроенной графики приходит через Windows Update — отдельных действий не нужно.");
         }
         else
         {
@@ -466,19 +466,19 @@ internal static class HardwareAdvisor
                     if (!ctx.Online.NvidiaByGpu.TryGetValue(gpu.PnpDeviceId, out var release))
                     {
                         status = HwStatus.Unchecked;
-                        statusText = ctx.Online.Pending ? "ПРОВЕРКА ВЕРСИИ" : null;
+                        statusText = ctx.Online.Pending ? Loc.T("ПРОВЕРКА ВЕРСИИ") : null;
                         break;
                     }
                     var cmp = release is null ? null : GpuDriverVersions.CompareNvidia(release.Version, version);
                     if (release is null || cmp is null)
                     {
                         status = HwStatus.Unchecked;
-                        note = "nvidia.com не ответил или не знает эту модель — последнюю версию проверьте в NVIDIA App или на сайте NVIDIA.";
-                        actions.Add(PageAction("nvidia-page", "Драйверы NVIDIA", "NVIDIA Corporation", DriverSources.NvidiaDriversPage,
-                            "Официальная страница загрузки драйверов NVIDIA.", optional: true, "NVIDIA.COM"));
+                        note = Loc.T("nvidia.com не ответил или не знает эту модель — последнюю версию проверьте в NVIDIA App или на сайте NVIDIA.");
+                        actions.Add(PageAction("nvidia-page", Loc.T("Драйверы NVIDIA"), "NVIDIA Corporation", DriverSources.NvidiaDriversPage,
+                            Loc.T("Официальная страница загрузки драйверов NVIDIA."), optional: true, "NVIDIA.COM"));
                         break;
                     }
-                    latestText = $"последний на nvidia.com: {release.Version}" + (release.Released is { } rd ? $" от {HardwareRules.Date(rd)}" : "");
+                    latestText = Loc.Tf("последний на nvidia.com: {0}", release.Version) + (release.Released is { } rd ? Loc.Tf(" от {0}", HardwareRules.Date(rd)) : "");
                     if (cmp > 0)
                     {
                         status = HwStatus.UpdateAvailable;
@@ -495,29 +495,29 @@ internal static class HardwareAdvisor
                     if (!ctx.Online.AmdChecked)
                     {
                         status = HwStatus.Unchecked;
-                        statusText = ctx.Online.Pending ? "ПРОВЕРКА ВЕРСИИ" : null;
+                        statusText = ctx.Online.Pending ? Loc.T("ПРОВЕРКА ВЕРСИИ") : null;
                         break;
                     }
                     if (ctx.Online.AmdPackage is not { } pkg)
                     {
                         status = HwStatus.Unchecked;
-                        note = "amd.com не ответил — последнюю версию проверьте на сайте AMD.";
+                        note = Loc.T("amd.com не ответил — последнюю версию проверьте на сайте AMD.");
                         actions.Add(PageAction("amd-page", "AMD Software: Adrenalin Edition", "Advanced Micro Devices", DriverSources.AmdDriversPage,
-                            "Официальный установщик с автоопределением видеокарты — на amd.com.", optional: true, "AMD.COM"));
+                            Loc.T("Официальный установщик с автоопределением видеокарты — на amd.com."), optional: true, "AMD.COM"));
                         break;
                     }
                     var cmp = HardwareRules.CompareVersions(pkg.Version, reg?.RadeonSoftwareVersion);
-                    latestText = pkg.Version != "—" ? $"последний на amd.com: {pkg.Version}" : null;
+                    latestText = pkg.Version != "—" ? Loc.Tf("последний на amd.com: {0}", pkg.Version) : null;
                     if (cmp is null)
                     {
                         status = HwStatus.Unchecked;
-                        note = "Версию установленного AMD Software сравнить не удалось. Официальный установщик сам определит видеокарту и предложит нужный драйвер.";
-                        actions.Add(AmdPackageAction(pkg, gpu, preselect: false, "Версии сравнить не удалось.") with { Optional = true });
+                        note = Loc.T("Версию установленного AMD Software сравнить не удалось. Официальный установщик сам определит видеокарту и предложит нужный драйвер.");
+                        actions.Add(AmdPackageAction(pkg, gpu, preselect: false, Loc.T("Версии сравнить не удалось.")) with { Optional = true });
                     }
                     else if (cmp > 0)
                     {
                         status = HwStatus.UpdateAvailable;
-                        actions.Add(AmdPackageAction(pkg, gpu, isPrimary, $"Установлен {version}."));
+                        actions.Add(AmdPackageAction(pkg, gpu, isPrimary, Loc.Tf("Установлен {0}.", version)));
                     }
                     else
                     {
@@ -527,8 +527,8 @@ internal static class HardwareAdvisor
                 }
                 case GpuVendor.Intel:
                     status = HwStatus.Unchecked;
-                    statusText = "ПРОВЕРЯЕТ INTEL DSA";
-                    note = "У Intel нет открытого способа узнать последнюю версию — её проверяет Intel Driver & Support Assistant.";
+                    statusText = Loc.T("ПРОВЕРЯЕТ INTEL DSA");
+                    note = Loc.T("У Intel нет открытого способа узнать последнюю версию — её проверяет Intel Driver & Support Assistant.");
                     if (SoftwareAction(HardwareCatalog.IntelDsa, s, optional: false) is { } dsa) actions.Add(dsa);
                     break;
                 default:
@@ -545,8 +545,8 @@ internal static class HardwareAdvisor
         }
 
         var details = Join(VendorText(gpu.Vendor),
-            missing ? "драйвер производителя не установлен" : $"драйвер {version}",
-            gpu.DriverDate is { } dd && !missing ? $"от {HardwareRules.Date(dd)}" : null,
+            missing ? Loc.T("драйвер производителя не установлен") : Loc.Tf("драйвер {0}", version),
+            gpu.DriverDate is { } dd && !missing ? Loc.Tf("от {0}", HardwareRules.Date(dd)) : null,
             vram, latestText);
         return new HwComponent(key, kind, gpu.Name, details, status, actions) { Note = note, StatusText = statusText };
     }
@@ -561,19 +561,19 @@ internal static class HardwareAdvisor
 
     private static HwAction NvidiaAction(NvidiaRelease release, GpuInfo gpu, string installed, bool isPrimary)
     {
-        var flags = string.Join(", ", new[] { release.IsWhql ? "WHQL" : null, release.IsBeta ? "бета" : null,
-            release.Released is { } d ? "от " + HardwareRules.Date(d) : null }.Where(x => x is not null));
+        var flags = string.Join(", ", new[] { release.IsWhql ? "WHQL" : null, release.IsBeta ? Loc.T("бета") : null,
+            release.Released is { } d ? Loc.Tf("от {0}", HardwareRules.Date(d)) : null }.Where(x => x is not null));
         if (DriverDownloads.NvidiaPackage(release) is not { } pkg)
         {
-            return PageAction("nvidia-page", $"Драйвер NVIDIA {release.Version}", "NVIDIA Corporation",
+            return PageAction("nvidia-page", Loc.Tf("Драйвер NVIDIA {0}", release.Version), "NVIDIA Corporation",
                 release.DetailsUrl ?? DriverSources.NvidiaDriversPage,
-                $"Установлен {installed}, доступен {release.Version} ({flags}). Прямую ссылку на установщик NVIDIA не дала — скачайте его на nvidia.com.",
+                Loc.Tf("Установлен {0}, доступен {1} ({2}). Прямую ссылку на установщик NVIDIA не дала — скачайте его на nvidia.com.", installed, release.Version, flags),
                 optional: false, "NVIDIA.COM");
         }
         return new HwAction("nvidia:" + gpu.PnpDeviceId, HwActionKind.DriverPackage, HwSource.VendorServer,
-            $"Драйвер NVIDIA {release.Version}",
-            $"Установлен {installed}, доступен {release.Version}{(flags.Length > 0 ? $" ({flags})" : "")}. Загрузка с сервера NVIDIA" +
-            $"{(string.IsNullOrWhiteSpace(release.FileSize) ? "" : $" ({release.FileSize})")}, подпись NVIDIA проверяется, затем откроется установщик NVIDIA.",
+            Loc.Tf("Драйвер NVIDIA {0}", release.Version),
+            Loc.Tf("Установлен {0}, доступен {1}{2}. Загрузка с сервера NVIDIA", installed, release.Version, (flags.Length > 0 ? $" ({flags})" : "")) +
+            Loc.Tf("{0}, подпись NVIDIA проверяется, затем откроется установщик NVIDIA.", (string.IsNullOrWhiteSpace(release.FileSize) ? "" : $" ({release.FileSize})")),
             "NVIDIA Corporation")
         {
             Package = pkg,
@@ -587,7 +587,7 @@ internal static class HardwareAdvisor
     private static HwAction AmdPackageAction(DriverPackage pkg, GpuInfo gpu, bool preselect, string prefix) =>
         new("amd:" + gpu.PnpDeviceId, HwActionKind.DriverPackage, HwSource.VendorServer,
             pkg.Version != "—" ? $"AMD Software: Adrenalin Edition {pkg.Version}" : "AMD Software: Adrenalin Edition",
-            $"{prefix} Официальный установщик AMD с автоопределением видеокарты: загрузка с drivers.amd.com, подпись AMD проверяется, затем откроется установщик AMD.",
+            Loc.Tf("{0} Официальный установщик AMD с автоопределением видеокарты: загрузка с drivers.amd.com, подпись AMD проверяется, затем откроется установщик AMD.", prefix),
             "Advanced Micro Devices")
         {
             Package = pkg,
@@ -602,44 +602,44 @@ internal static class HardwareAdvisor
     {
         var list = new List<HwComponent>();
         var installed = s.Ram.Aggregate(0UL, (sum, m) => sum + m.Capacity);
-        if (s.Ram.Count == 0) return new HwGroup(HwGroupKind.Memory, "ПАМЯТЬ", list);
+        if (s.Ram.Count == 0) return new HwGroup(HwGroupKind.Memory, Loc.T("ПАМЯТЬ"), list);
 
         var v = HealthRules.AnalyzeRam(s.Ram);
         var type = v?.Type ?? "";
         var sizes = s.Ram.GroupBy(m => m.Capacity).Select(g => $"{g.Count()} × {HardwareRules.Gb(g.Key)}");
         var parts = s.Ram.Select(m => m.PartNumber).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(2);
         var name = $"{HardwareRules.Gb(installed)} {type}".Trim();
-        var profile = s.Cpu.IsAmd ? (type == "DDR5" ? "EXPO (или XMP)" : "XMP (DOCP / A-XMP)") : "XMP";
+        var profile = s.Cpu.IsAmd ? (type == "DDR5" ? Loc.T("EXPO (или XMP)") : "XMP (DOCP / A-XMP)") : "XMP";
         var details = Join(string.Join(", ", sizes),
-            v is null ? null : $"{v.Configured} МТ/с",
-            v is null ? null : $"номинал {v.Rated} МТ/с",
+            v is null ? null : Loc.Tf("{0} МТ/с", v.Configured),
+            v is null ? null : Loc.Tf("номинал {0} МТ/с", v.Rated),
             string.Join(", ", parts));
 
         if (v is null)
         {
-            list.Add(new HwComponent("ram", "ОПЕРАТИВНАЯ ПАМЯТЬ", name, details, HwStatus.Info, [])
-            { Note = "Частоту модулей прочитать не удалось." });
+            list.Add(new HwComponent("ram", Loc.T("ОПЕРАТИВНАЯ ПАМЯТЬ"), name, details, HwStatus.Info, [])
+            { Note = Loc.T("Частоту модулей прочитать не удалось.") });
         }
         else if (v.BelowRated)
         {
-            var advice = $"Модули рассчитаны на {v.Rated} МТ/с, а работают на {v.Configured} МТ/с — скорее всего, в BIOS выключен профиль {profile}. " +
-                         "Включите его в BIOS/UEFI (раздел настроек памяти → профиль → сохранить и перезагрузить). " +
-                         "MONOLITH настройки BIOS не меняет; если система станет нестабильной, верните там значение «Auto».";
+            var advice = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с — скорее всего, в BIOS выключен профиль {2}. ", v.Rated, v.Configured, profile) +
+                         Loc.T("Включите его в BIOS/UEFI (раздел настроек памяти → профиль → сохранить и перезагрузить). " +
+                         "MONOLITH настройки BIOS не меняет; если система станет нестабильной, верните там значение «Auto».");
             if (s.IsLaptop)
-                list.Add(new HwComponent("ram", "ОПЕРАТИВНАЯ ПАМЯТЬ", name, details, HwStatus.Info, [])
-                { Note = advice + " На ноутбуках профиль часто недоступен — тогда это нормальная работа." });
+                list.Add(new HwComponent("ram", Loc.T("ОПЕРАТИВНАЯ ПАМЯТЬ"), name, details, HwStatus.Info, [])
+                { Note = Loc.Tf("{0} На ноутбуках профиль часто недоступен — тогда это нормальная работа.", advice) });
             else
-                list.Add(new HwComponent("ram", "ОПЕРАТИВНАЯ ПАМЯТЬ", name, details, HwStatus.ManualOnly,
+                list.Add(new HwComponent("ram", Loc.T("ОПЕРАТИВНАЯ ПАМЯТЬ"), name, details, HwStatus.ManualOnly,
                 [
-                    new HwAction("xmp", HwActionKind.Note, HwSource.Manual, $"Включить {profile} в BIOS", advice, "настройка BIOS"),
+                    new HwAction("xmp", HwActionKind.Note, HwSource.Manual, Loc.Tf("Включить {0} в BIOS", profile), advice, Loc.T("настройка BIOS")),
                 ]));
         }
         else
         {
-            list.Add(new HwComponent("ram", "ОПЕРАТИВНАЯ ПАМЯТЬ", name, details, HwStatus.Current, [])
-            { Note = "Память работает на частоте, на которую рассчитана (по маркировке модулей)." });
+            list.Add(new HwComponent("ram", Loc.T("ОПЕРАТИВНАЯ ПАМЯТЬ"), name, details, HwStatus.Current, [])
+            { Note = Loc.T("Память работает на частоте, на которую рассчитана (по маркировке модулей).") });
         }
-        return new HwGroup(HwGroupKind.Memory, "ПАМЯТЬ", list);
+        return new HwGroup(HwGroupKind.Memory, Loc.T("ПАМЯТЬ"), list);
     }
 
     // ───────────────────────────── 04 Storage ─────────────────────────────
@@ -651,31 +651,31 @@ internal static class HardwareAdvisor
         var i = 0;
         foreach (var d in s.Disks.OrderBy(d => d.IsUsb))
         {
-            var kind = d.IsUsb ? "ВНЕШНИЙ НАКОПИТЕЛЬ"
+            var kind = d.IsUsb ? Loc.T("ВНЕШНИЙ НАКОПИТЕЛЬ")
                 : d.BusType == "NVMe" ? "NVME SSD"
                 : d.IsSsd ? $"{d.BusType} SSD".Replace("— ", "")
-                : d.MediaType == "HDD" ? "ЖЁСТКИЙ ДИСК" : "НАКОПИТЕЛЬ";
+                : d.MediaType == "HDD" ? Loc.T("ЖЁСТКИЙ ДИСК") : Loc.T("НАКОПИТЕЛЬ");
             var details = Join(HardwareRules.DiskSize(d.SizeBytes), d.BusType != "—" ? d.BusType : null,
-                d.Firmware.Length > 0 ? $"прошивка {d.Firmware}" : null, "драйвер Windows");
+                d.Firmware.Length > 0 ? Loc.Tf("прошивка {0}", d.Firmware) : null, Loc.T("драйвер Windows"));
             var sw = HardwareRules.StorageSoftware(d);
             var actions = new List<HwAction>();
             var status = HwStatus.Info;
-            string? statusText = "ДРАЙВЕР WINDOWS";
-            string? note = d.IsUsb ? "Внешнему накопителю отдельные драйверы и программы не нужны." : null;
+            string? statusText = Loc.T("ДРАЙВЕР WINDOWS");
+            string? note = d.IsUsb ? Loc.T("Внешнему накопителю отдельные драйверы и программы не нужны.") : null;
             if (sw is not null)
             {
                 if (sw.IsInstalled(s.Apps))
                 {
                     status = HwStatus.Installed;
-                    statusText = "ПО УСТАНОВЛЕНО";
+                    statusText = Loc.T("ПО УСТАНОВЛЕНО");
                 }
                 // One tool per maker even with several drives of that brand.
-                if (offered.Add(sw.Name) && SoftwareAction(sw, s, "Прошивку SSD обновляет только утилита производителя.") is { } a)
+                if (offered.Add(sw.Name) && SoftwareAction(sw, s, Loc.T("Прошивку SSD обновляет только утилита производителя.")) is { } a)
                     actions.Add(a);
             }
             list.Add(new HwComponent($"disk:{i++}:{d.Model}", kind, d.Model, details, status, actions) { StatusText = statusText, Note = note });
         }
-        return new HwGroup(HwGroupKind.Storage, "НАКОПИТЕЛИ", list);
+        return new HwGroup(HwGroupKind.Storage, Loc.T("НАКОПИТЕЛИ"), list);
     }
 
     // ───────────────────────────── 05 Network ─────────────────────────────
@@ -697,19 +697,19 @@ internal static class HardwareAdvisor
             var actions = verdict.Actions;
 
             if (HardwareRules.IsIntelNetwork(a.PnpDeviceId) &&
-                SoftwareAction(HardwareCatalog.IntelDsa, s, "Свежие драйверы Wi-Fi, Bluetooth и сетевых карт Intel выходят у Intel раньше, чем в Windows Update.",
+                SoftwareAction(HardwareCatalog.IntelDsa, s, Loc.T("Свежие драйверы Wi-Fi, Bluetooth и сетевых карт Intel выходят у Intel раньше, чем в Windows Update."),
                     optional: verdict.Status != HwStatus.NotInstalled) is { } dsa)
                 actions.Add(dsa);
             else if (vid == "10EC" && !a.IsBluetooth && driver is { IsOem: false } && board is not null)
-                actions.Add(PageAction("realtek-net", "Драйвер Realtek с сайта платы", board.ShortName, board.SupportUrl,
-                    $"Сейчас работает встроенный драйвер Windows ({driver.Version}). Он рабочий; драйвер Realtek для вашей платы — в разделе поддержки {board.ShortName} " +
-                    "(или придёт через Windows Update).", optional: true, $"САЙТ {board.ShortName.ToUpperInvariant()}"));
+                actions.Add(PageAction("realtek-net", Loc.T("Драйвер Realtek с сайта платы"), board.ShortName, board.SupportUrl,
+                    Loc.Tf("Сейчас работает встроенный драйвер Windows ({0}). Он рабочий; драйвер Realtek для вашей платы — в разделе поддержки {1} ", driver.Version, board.ShortName) +
+                    Loc.T("(или придёт через Windows Update)."), optional: true, Loc.Tf("САЙТ {0}", board.ShortName.ToUpperInvariant())));
 
             var details = Join(vendorName, DriverText(driver), verdict.Status == HwStatus.NotInstalled ? null : WuDetail(wu));
-            list.Add(new HwComponent(key, kind, a.Name.Length > 0 ? a.Name : "Сетевой адаптер", details, verdict.Status, actions)
+            list.Add(new HwComponent(key, kind, a.Name.Length > 0 ? a.Name : Loc.T("Сетевой адаптер"), details, verdict.Status, actions)
             { StatusText = verdict.StatusText, Note = verdict.Note });
         }
-        return new HwGroup(HwGroupKind.Network, "СЕТЬ", list);
+        return new HwGroup(HwGroupKind.Network, Loc.T("СЕТЬ"), list);
     }
 
     // ───────────────────────────── 06 Audio ─────────────────────────────
@@ -728,32 +728,32 @@ internal static class HardwareAdvisor
             var codec = HardwareRules.RealtekCodecName(a.PnpDeviceId);
 
             var name = new[] { device?.Name, a.Name }.FirstOrDefault(n => !HardwareRules.IsGenericDeviceName(n) && !IsGenericAudioName(n))
-                       ?? codec ?? (a.Name.Length > 0 ? a.Name : "Звуковое устройство");
-            var kind = isUsb ? "USB-АУДИО" : isGpuAudio ? "ЗВУК HDMI / DP" : "ВСТРОЕННЫЙ ЗВУК";
+                       ?? codec ?? (a.Name.Length > 0 ? a.Name : Loc.T("Звуковое устройство"));
+            var kind = isUsb ? Loc.T("USB-АУДИО") : isGpuAudio ? Loc.T("ЗВУК HDMI / DP") : Loc.T("ВСТРОЕННЫЙ ЗВУК");
             var key = "audio:" + a.PnpDeviceId;
             var verdict = WuVerdict(key, device, a.PnpDeviceId, wu);
             var actions = verdict.Actions;
             var note = verdict.Note;
             if (note is null)
             {
-                if (isGpuAudio) note = "Звук через HDMI / DisplayPort обновляется вместе с драйвером видеокарты.";
-                else if (isUsb) note = "USB-аудио работает на стандартном драйвере Windows; программа производителя (если есть) — в разделе «Периферия».";
+                if (isGpuAudio) note = Loc.T("Звук через HDMI / DisplayPort обновляется вместе с драйвером видеокарты.");
+                else if (isUsb) note = Loc.T("USB-аудио работает на стандартном драйвере Windows; программа производителя (если есть) — в разделе «Периферия».");
             }
             if (codec is not null && driver is { IsOem: false } && board is not null)
-                actions.Add(PageAction("realtek-audio", "Драйвер Realtek Audio с сайта платы", board.ShortName, board.SupportUrl,
-                    "Сейчас работает стандартный драйвер Windows High Definition Audio: звук есть, но без панели Realtek (назначение гнёзд, эффекты). " +
-                    $"Драйвер для вашей платы — в разделе поддержки {board.ShortName}.", optional: true, $"САЙТ {board.ShortName.ToUpperInvariant()}"));
+                actions.Add(PageAction("realtek-audio", Loc.T("Драйвер Realtek Audio с сайта платы"), board.ShortName, board.SupportUrl,
+                    Loc.T("Сейчас работает стандартный драйвер Windows High Definition Audio: звук есть, но без панели Realtek (назначение гнёзд, эффекты). ") +
+                    Loc.Tf("Драйвер для вашей платы — в разделе поддержки {0}.", board.ShortName), optional: true, Loc.Tf("САЙТ {0}", board.ShortName.ToUpperInvariant())));
 
             var vendorName = isUsb ? HardwareCatalog.PeripheralByVid(HardwareRules.UsbId(a.PnpDeviceId)?.Vid)?.Name : DeviceNaming.VendorName(a.PnpDeviceId);
             var details = Join(vendorName ?? (a.Manufacturer.StartsWith('(') ? null : a.Manufacturer), DriverText(driver),
                 verdict.Status == HwStatus.NotInstalled ? null : WuDetail(wu));
             list.Add(new HwComponent(key, kind, name, details, verdict.Status, actions) { StatusText = verdict.StatusText, Note = note });
         }
-        return new HwGroup(HwGroupKind.Audio, "ЗВУК", list);
+        return new HwGroup(HwGroupKind.Audio, Loc.T("ЗВУК"), list);
     }
 
     private static bool IsGenericAudioName(string? n) =>
-        n is not null && (n.Contains("High Definition Audio", StringComparison.OrdinalIgnoreCase) || n.Contains("Аудио устройств", StringComparison.OrdinalIgnoreCase));
+        n is not null && (n.Contains("High Definition Audio", StringComparison.OrdinalIgnoreCase) || n.Contains(Loc.Keep("Аудио устройств"), StringComparison.OrdinalIgnoreCase));
 
     // ───────────────────────────── 07 Monitors ─────────────────────────────
 
@@ -776,22 +776,22 @@ internal static class HardwareAdvisor
             var device = candidates.Count == 1 ? candidates[0] : null;
             if (device is null)
             {
-                list.Add(new HwComponent(key, "МОНИТОР", d.Name, "драйвер Windows", HwStatus.Info, []) { StatusText = "ДРАЙВЕР WINDOWS" });
+                list.Add(new HwComponent(key, Loc.T("МОНИТОР"), d.Name, Loc.T("драйвер Windows"), HwStatus.Info, []) { StatusText = Loc.T("ДРАЙВЕР WINDOWS") });
                 continue;
             }
 
             var verdict = WuVerdict(key, device, device.DeviceId, wu);
             var driver = DriverOf(ctx, device.DeviceId);
-            var details = Join(DriverText(driver) is { Length: > 0 } text ? text : "драйвер Windows",
+            var details = Join(DriverText(driver) is { Length: > 0 } text ? text : Loc.T("драйвер Windows"),
                 verdict.Status == HwStatus.UpdateAvailable ? WuDetail(wu) : null);
             var plain = verdict.Status is HwStatus.Current or HwStatus.Unchecked && verdict.Note is null;
-            list.Add(new HwComponent(key, "МОНИТОР", d.Name, details, plain ? HwStatus.Info : verdict.Status, verdict.Actions)
+            list.Add(new HwComponent(key, Loc.T("МОНИТОР"), d.Name, details, plain ? HwStatus.Info : verdict.Status, verdict.Actions)
             {
-                StatusText = plain ? "ДРАЙВЕР WINDOWS" : verdict.StatusText,
+                StatusText = plain ? Loc.T("ДРАЙВЕР WINDOWS") : verdict.StatusText,
                 Note = verdict.Note,
             });
         }
-        return new HwGroup(HwGroupKind.Monitors, "МОНИТОРЫ", list);
+        return new HwGroup(HwGroupKind.Monitors, Loc.T("МОНИТОРЫ"), list);
     }
 
     // ───────────────────────────── 08 Peripherals ─────────────────────────────
@@ -846,8 +846,8 @@ internal static class HardwareAdvisor
             if (problem is not null)
             {
                 status = HwStatus.NotInstalled;
-                statusText = $"ОШИБКА · КОД {problem.ErrorCode}";
-                note = $"{problem.Name}: {DeviceProblemCodes.Describe(problem.ErrorCode).Title}. Подробности — на вкладке «Проблемные устройства».";
+                statusText = Loc.Tf("ОШИБКА · КОД {0}", problem.ErrorCode);
+                note = Loc.Tf("{0}: {1}. Подробности — на вкладке «Проблемные устройства».", problem.Name, DeviceProblemCodes.Describe(problem.ErrorCode).Title);
             }
             else if (wuMatches.Count > 0)
             {
@@ -857,29 +857,30 @@ internal static class HardwareAdvisor
             else if (anyInstalled)
             {
                 status = HwStatus.Installed;
-                statusText = "ПО УСТАНОВЛЕНО";
+                statusText = Loc.T("ПО УСТАНОВЛЕНО");
             }
             else
             {
                 status = HwStatus.Info;
-                statusText = "ДРАЙВЕР WINDOWS";
+                statusText = Loc.T("ДРАЙВЕР WINDOWS");
                 note = software.Count == 0
                     ? vendor.NoSoftwareNote
-                    : "Устройства уже работают на драйверах Windows. Программа производителя нужна только для настройки кнопок, подсветки и прошивок — ставьте её по желанию.";
+                    : Loc.T("Устройства уже работают на драйверах Windows. Программа производителя нужна только для настройки кнопок, подсветки и прошивок — ставьте её по желанию.");
             }
 
             var count = vendorGroup.Count();
-            var title = names.Count > 0 ? string.Join(" · ", names.Take(3)) : $"{count} {HardwareRules.Plural(count, "устройство", "устройства", "устройств")} {vendor.Name}";
+            var title = names.Count > 0 ? string.Join(" · ", names.Take(3)) : Loc.N(count, "{0} устройство", "{0} устройства", "{0} устройств") + " " + vendor.Name;
             list.Add(new HwComponent("periph:" + vendor.Vid, vendor.Name.ToUpperInvariant(), title,
-                Join("USB " + string.Join(", ", ids.Take(4)) + (ids.Count > 4 ? $" и ещё {ids.Count - 4}" : ""), "драйверы Windows (HID / USB-аудио)"),
+                Join("USB " + string.Join(", ", ids.Take(4)) + (ids.Count > 4 ? Loc.Tf(" и ещё {0}", ids.Count - 4) : ""), Loc.T("драйверы Windows (HID / USB-аудио)")),
                 status, actions)
             { StatusText = statusText, Note = note });
         }
 
         var footer = unknown.Count == 0 ? null
-            : $"Ещё {unknown.Count} {HardwareRules.Plural(unknown.Count, "устройство", "устройства", "устройств")} других производителей " +
-              $"{HardwareRules.Plural(unknown.Count, "работает", "работают", "работают")} на драйверах Windows — отдельные программы им не нужны.";
-        return new HwGroup(HwGroupKind.Peripherals, "ПЕРИФЕРИЯ", list) { Footer = footer };
+            : Loc.N(unknown.Count, "Ещё {0} устройство других производителей работает на драйверах Windows — отдельные программы ему не нужны.",
+                "Ещё {0} устройства других производителей работают на драйверах Windows — отдельные программы им не нужны.",
+                "Ещё {0} устройств других производителей работают на драйверах Windows — отдельные программы им не нужны.");
+        return new HwGroup(HwGroupKind.Peripherals, Loc.T("ПЕРИФЕРИЯ"), list) { Footer = footer };
     }
 
     // ───────────────────────────── 09 Game runtimes ─────────────────────────────
@@ -896,13 +897,13 @@ internal static class HardwareAdvisor
         // DirectX End-User Runtime (June 2010): a frozen runtime — installed means up to date.
         var dxEntry = HardwareCatalog.Runtime(HardwareCatalog.DirectX);
         list.Add(r.DirectX
-            ? new HwComponent("rt:dx", "DIRECTX 9–11", dxEntry?.Name ?? "DirectX End-User Runtime", "d3dx9_43.dll и xaudio2_7.dll на месте  ·  июнь 2010 — последняя версия",
+            ? new HwComponent("rt:dx", "DIRECTX 9–11", dxEntry?.Name ?? "DirectX End-User Runtime", Loc.T("d3dx9_43.dll и xaudio2_7.dll на месте  ·  июнь 2010 — последняя версия"),
                 HwStatus.Current, [])
-            : new HwComponent("rt:dx", "DIRECTX 9–11", dxEntry?.Name ?? "DirectX End-User Runtime", "нет d3dx9_43.dll / xaudio2_7.dll",
+            : new HwComponent("rt:dx", "DIRECTX 9–11", dxEntry?.Name ?? "DirectX End-User Runtime", Loc.T("нет d3dx9_43.dll / xaudio2_7.dll"),
                 HwStatus.NotInstalled,
                 [
                     RuntimeAction(HardwareCatalog.DirectX, s,
-                        "Старым играм на DirectX 9–11 нужны d3dx9, xinput 1.3 и XAudio 2.7 — в Windows их нет. Без них игра пишет «d3dx9_43.dll не найден».",
+                        Loc.T("Старым играм на DirectX 9–11 нужны d3dx9, xinput 1.3 и XAudio 2.7 — в Windows их нет. Без них игра пишет «d3dx9_43.dll не найден»."),
                         preselect: true, optional: false),
                 ]));
 
@@ -912,10 +913,10 @@ internal static class HardwareAdvisor
         var ltsId = HardwareCatalog.DesktopRuntimePrefix + lts;
         if (majors.Count == 0)
         {
-            list.Add(new HwComponent("rt:net", ".NET DESKTOP", $".NET Desktop Runtime {lts}", "не установлен ни один .NET Desktop Runtime",
+            list.Add(new HwComponent("rt:net", ".NET DESKTOP", $".NET Desktop Runtime {lts}", Loc.T("не установлен ни один .NET Desktop Runtime"),
                 HwStatus.NotInstalled,
                 [
-                    RuntimeAction(ltsId, s, "Нужен программам на .NET: лаунчерам модов, утилитам, части лаунчеров игр. Без него они просят скачать .NET при запуске.",
+                    RuntimeAction(ltsId, s, Loc.T("Нужен программам на .NET: лаунчерам модов, утилитам, части лаунчеров игр. Без него они просят скачать .NET при запуске."),
                         preselect: false, optional: false),
                 ]));
         }
@@ -923,13 +924,13 @@ internal static class HardwareAdvisor
         {
             var actions = new List<HwAction>();
             if (!r.DesktopRuntimes.ContainsKey(lts))
-                actions.Add(RuntimeAction(ltsId, s, $"Текущая версия с долгой поддержкой. Нужна, только если программа просит .NET {lts}: среды разных версий не заменяют друг друга.",
+                actions.Add(RuntimeAction(ltsId, s, Loc.Tf("Текущая версия с долгой поддержкой. Нужна, только если программа просит .NET {0}: среды разных версий не заменяют друг друга.", lts),
                     preselect: false, optional: true));
             list.Add(new HwComponent("rt:net", ".NET DESKTOP", ".NET Desktop Runtime",
-                "установлены: " + string.Join(", ", majors.Select(kv => kv.Value.Length > 0 ? kv.Value : kv.Key + ".x")),
+                Loc.Tf("установлены: {0}", string.Join(", ", majors.Select(kv => kv.Value.Length > 0 ? kv.Value : kv.Key + ".x"))),
                 HwStatus.Installed, actions));
         }
-        return new HwGroup(HwGroupKind.Runtimes, "БИБЛИОТЕКИ ДЛЯ ИГР", list);
+        return new HwGroup(HwGroupKind.Runtimes, Loc.T("БИБЛИОТЕКИ ДЛЯ ИГР"), list);
     }
 
     private static HwComponent VcComponent(HardwareSnapshot s, string id, string arch, string? version)
@@ -939,22 +940,22 @@ internal static class HardwareAdvisor
         var kind = $"VISUAL C++ {arch.ToUpperInvariant()}";
         if (version is null)
         {
-            return new HwComponent("rt:vc" + arch, kind, name, "не установлен", HwStatus.NotInstalled,
+            return new HwComponent("rt:vc" + arch, kind, name, Loc.T("не установлен"), HwStatus.NotInstalled,
             [
-                RuntimeAction(id, s, $"Без неё многие игры и лаунчеры не запускаются (ошибка «MSVCP140.dll / VCRUNTIME140.dll не найден»)." +
-                    (arch == "x86" ? " Версия x86 нужна 32-битным играм даже в 64-битной Windows." : ""), preselect: true, optional: false),
+                RuntimeAction(id, s, Loc.T("Без неё многие игры и лаунчеры не запускаются (ошибка «MSVCP140.dll / VCRUNTIME140.dll не найден»).") +
+                    (arch == "x86" ? Loc.T(" Версия x86 нужна 32-битным играм даже в 64-битной Windows.") : ""), preselect: true, optional: false),
             ]);
         }
         if (version.Length == 0)
-            return new HwComponent("rt:vc" + arch, kind, name, "установлен, версия неизвестна", HwStatus.Installed, []);
+            return new HwComponent("rt:vc" + arch, kind, name, Loc.T("установлен, версия неизвестна"), HwStatus.Installed, []);
         if (HardwareRules.VcIsOutdated(version))
         {
-            return new HwComponent("rt:vc" + arch, kind, name, $"версия {version}", HwStatus.UpdateAvailable,
+            return new HwComponent("rt:vc" + arch, kind, name, Loc.Tf("версия {0}", version), HwStatus.UpdateAvailable,
             [
-                RuntimeAction(id, s, $"Установлена {version}. Программы, собранные Visual Studio 2022 17.10 и новее, требуют {HardwareRules.VcMinimum.Major}.{HardwareRules.VcMinimum.Minor} или новее — со старой версией они могут вылетать при запуске. Обновление ставится поверх.",
+                RuntimeAction(id, s, Loc.Tf("Установлена {0}. Программы, собранные Visual Studio 2022 17.10 и новее, требуют {1}.{2} или новее — со старой версией они могут вылетать при запуске. Обновление ставится поверх.", version, HardwareRules.VcMinimum.Major, HardwareRules.VcMinimum.Minor),
                     preselect: false, optional: false),
             ]);
         }
-        return new HwComponent("rt:vc" + arch, kind, name, $"версия {version}", HwStatus.Installed, []);
+        return new HwComponent("rt:vc" + arch, kind, name, Loc.Tf("версия {0}", version), HwStatus.Installed, []);
     }
 }
