@@ -36,8 +36,8 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     public override string Key => PageKey;
     public override string Index => "07";
-    public override string Title => "УСТРОЙСТВА И СЕТЬ";
-    public override string Subtitle => "Мышь, клавиатура, мониторы, звук и сеть: автонастройка и ручные параметры.";
+    public override string Title => Loc.T("УСТРОЙСТВА И СЕТЬ");
+    public override string Subtitle => Loc.T("Мышь, клавиатура, мониторы, звук и сеть: автонастройка и ручные параметры.");
     public override string Glyph => Glyphs.Mouse;
 
     private readonly DeviceResultStore _results = new();
@@ -73,11 +73,11 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     /// <summary>The line in the sticky bar: what the button does, or why it waits (nothing ticked).</summary>
     public string PlanBarText => SelectedCount == 0
-        ? "Отметьте хотя бы одну строку плана — иначе нечего применять."
-        : "Исходные значения запишутся в журнал, перед изменением создаётся точка восстановления.";
+        ? Loc.T("Отметьте хотя бы одну строку плана — иначе нечего применять.")
+        : Loc.T("Исходные значения запишутся в журнал, перед изменением создаётся точка восстановления.");
 
-    public string PlanBarDetail => $"ИЗ {SelectableCount}";
-    public string ApplyPlanText => $"НАСТРОИТЬ АВТОМАТИЧЕСКИ · {SelectedCount}";
+    public string PlanBarDetail => Loc.Tf("ИЗ {0}", SelectableCount);
+    public string ApplyPlanText => Loc.Tf("НАСТРОИТЬ АВТОМАТИЧЕСКИ · {0}", SelectedCount);
 
     partial void OnSelectedTabChanged(string value)
     {
@@ -136,25 +136,25 @@ public sealed partial class DevicesViewModel : PageViewModel
     public bool ShowMeasureHeaderInPlan => ShowPlan && !ShowPlanHeader && MeasureItems.Count > 0;
     public string PlanEmptyText => (MeasureItems.Count > 0, OptionalItems.Count > 0) switch
     {
-        (true, true) => "Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым; ниже — только по желанию.",
-        (true, false) => "Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым.",
-        (false, true) => "Менять нечего: все настройки совпадают с рекомендуемыми; ниже — только по желанию.",
-        _ => "Все настройки устройств и сети совпадают с рекомендуемыми.",
+        (true, true) => Loc.T("Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым; ниже — только по желанию."),
+        (true, false) => Loc.T("Менять нечего: всё, что видно без замеров, совпадает с рекомендуемым."),
+        (false, true) => Loc.T("Менять нечего: все настройки совпадают с рекомендуемыми; ниже — только по желанию."),
+        _ => Loc.T("Все настройки устройств и сети совпадают с рекомендуемыми."),
     };
-    public string MeasureHeader => $"НУЖНО ИЗМЕРЕНИЕ · {MeasureItems.Count}";
+    public string MeasureHeader => Loc.Tf("НУЖНО ИЗМЕРЕНИЕ · {0}", MeasureItems.Count);
     public bool HasFindings => Findings.Count > 0;
     public bool HasOptional => OptionalItems.Count > 0;
     public bool HasMeasure => MeasureItems.Count > 0;
     public int OptionalCount => OptionalItems.Count;
     public int FindingCount => Findings.Count;
-    public string PlanHeader => $"РЕКОМЕНДУЕТСЯ ИЗМЕНИТЬ · {PlanCount}";
-    public string OptionalHeader => $"ЕЩЁ ПО ЖЕЛАНИЮ · {OptionalItems.Count}";
-    public string FindingsHeader => $"НАХОДКИ · {Findings.Count}";
-    public string SelectedText => $"Выбрано {SelectedCount} из {SelectableCount}";
+    public string PlanHeader => Loc.Tf("РЕКОМЕНДУЕТСЯ ИЗМЕНИТЬ · {0}", PlanCount);
+    public string OptionalHeader => Loc.Tf("ЕЩЁ ПО ЖЕЛАНИЮ · {0}", OptionalItems.Count);
+    public string FindingsHeader => Loc.Tf("НАХОДКИ · {0}", Findings.Count);
+    public string SelectedText => Loc.Tf("Выбрано {0} из {1}", SelectedCount, SelectableCount);
     /// <summary>Rows the user can actually tick (a per-user row for another account or a read-only row is shown, not counted).</summary>
     public int SelectableCount => PlanItems.Concat(OptionalItems).Count(i => i.Selectable);
-    public string ChangedText => $"Изменено на этой странице: {ChangedCount}. Откатить — кнопкой «ОТКАТИТЬ» во вкладке «Вручную» или в «Восстановлении».";
-    public string FoundHeader => $"НАЙДЕНО · {Cards.Count} · НАЖМИТЕ, ЧТОБЫ ОТКРЫТЬ ВО ВКЛАДКЕ ВРУЧНУЮ →";
+    public string ChangedText => Loc.Tf("Изменено на этой странице: {0}. Откатить — кнопкой «ОТКАТИТЬ» во вкладке «Вручную» или в «Восстановлении».", ChangedCount);
+    public string FoundHeader => Loc.Tf("НАЙДЕНО · {0} · НАЖМИТЕ, ЧТОБЫ ОТКРЫТЬ ВО ВКЛАДКЕ ВРУЧНУЮ →", Cards.Count);
 
     partial void OnSelectedCountChanged(int value)
     {
@@ -193,7 +193,7 @@ public sealed partial class DevicesViewModel : PageViewModel
             ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournalState);
         }
         ApplyFocus(Ui.TakeFocusRequest(Key));
-        await RunBusyAsync(OperationClass.Measure, "Поиск устройств…", () => ScanAsync());
+        await RunBusyAsync(OperationClass.Measure, Loc.T("Поиск устройств…"), () => ScanAsync());
         ApplyFocus(Ui.TakeFocusRequest(Key));
     }
 
@@ -257,13 +257,13 @@ public sealed partial class DevicesViewModel : PageViewModel
         var result = await DeviceScan.RunAsync(ctx);
         Merge(result.Cards);
         FailedText = result.Failed.Count == 0 ? null
-            : $"Не удалось прочитать: {string.Join(", ", result.Failed)}. Нажмите «ОБНОВИТЬ», чтобы попробовать ещё раз.";
+            : Loc.Tf("Не удалось прочитать: {0}. Нажмите «ОБНОВИТЬ», чтобы попробовать ещё раз.", string.Join(", ", result.Failed));
         AccountNote = interactive == true || !Cards.SelectMany(c => c.Settings).Any(DevicePlan.IsPerUser) ? null : accountProblem;
         HasScanned = true;
         MarkChecked();
         RefreshJournalState();
         RebuildPlan();
-        Log.Info($"Устройства и сеть: найдено {Cards.Count}, к изменению {PlanCount + OptionalItems.Count}.");
+        Log.Info("Устройства и сеть: найдено {0}, к изменению {1}.", Cards.Count, PlanCount + OptionalItems.Count);
         if (_pendingFocus is { } focus)
         {
             _pendingFocus = null;
@@ -446,7 +446,7 @@ public sealed partial class DevicesViewModel : PageViewModel
     private bool CanRefresh() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
-    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Поиск устройств…", () => ScanAsync());
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, Loc.T("Поиск устройств…"), () => ScanAsync());
 
     [RelayCommand]
     private void ShowTab(string? tab)
@@ -463,7 +463,7 @@ public sealed partial class DevicesViewModel : PageViewModel
         // Read-only: the ticked rows travel with the intent (packed keys), so the relaunched copy applies exactly what was ticked.
         var all = PlanItems.Concat(OptionalItems).ToList();
         var pack = selection ?? Monolith.Modules.Startup.IntentList.Pack(all.Where(i => i is { Selectable: true, IsSelected: true }).Select(i => i.Key));
-        if (!RequireAdmin("Настроить автоматически", "ApplyPlan", pack)) return;
+        if (!RequireAdmin(Loc.T("Настроить автоматически"), "ApplyPlan", pack)) return;
         if (selection is not null)
         {
             var keys = Monolith.Modules.Startup.IntentList.Unpack(selection).ToHashSet(StringComparer.Ordinal);
@@ -471,7 +471,7 @@ public sealed partial class DevicesViewModel : PageViewModel
         }
         var selected = PlanItems.Concat(OptionalItems).Where(i => i is { Selectable: true, IsSelected: true }).ToList();
         PlanApplyResult? result = null;
-        await RunBusyAsync(OperationClass.Disruptive, "Настройка устройств и сети…", async () =>
+        await RunBusyAsync(OperationClass.Disruptive, Loc.T("Настройка устройств и сети…"), async () =>
         {
             var progress = new Progress<string>(text => BusyText = text);
             result = await DeviceApply.ApplyPlanAsync(selected, progress, CancellationToken.None, AskWithoutLeaseAsync);
@@ -489,7 +489,7 @@ public sealed partial class DevicesViewModel : PageViewModel
             Ui.Toast(text, r.Applied > 0 ? ToastKind.Success : ToastKind.Info, "АВТОНАСТРОЙКА");
             return;
         }
-        await Ui.AlertAsync(r.Applied > 0 ? "Применено частично" : "Не применено", text + " Подробности — в консоли и журнале.", r.Errors);
+        await Ui.AlertAsync(r.Applied > 0 ? Loc.T("Применено частично") : Loc.T("Не применено"), text + Loc.T(" Подробности — в консоли и журнале."), r.Errors);
     }
 
     /// <summary>ПРИМЕНИТЬ of one row (only this setting; no restore point).</summary>
@@ -522,17 +522,17 @@ public sealed partial class DevicesViewModel : PageViewModel
                     Ui.Toast("Не подтверждено — возвращено прежнее значение.", ToastKind.Info, s.Title);
                     break;
                 case ApplyOutcome.Blocked:
-                    Ui.Toast(errors.Count > 0 ? string.Join("\n", errors) : "Сейчас это изменение недоступно.", ToastKind.Warning, s.Title);
+                    Ui.Toast(errors.Count > 0 ? string.Join("\n", errors) : Loc.T("Сейчас это изменение недоступно."), ToastKind.Warning, s.Title);
                     break;
                 default:
-                    Ui.Toast(errors.Count > 0 ? string.Join("\n", errors) : "Не применено.", ToastKind.Error, s.Title);
+                    Ui.Toast(errors.Count > 0 ? string.Join("\n", errors) : Loc.T("Не применено."), ToastKind.Error, s.Title);
                     break;
             }
             if (outcome is ApplyOutcome.Applied or ApplyOutcome.NoChange or ApplyOutcome.Declined) s.Staged = null;
         }
         catch (Exception ex)
         {
-            Log.Error($"{s.Title}: не применено", ex);
+            Log.Error("{0}: не применено", ex, s.Title);
             Ui.Toast(ex.Message, ToastKind.Error, s.Title);
         }
         finally
@@ -550,7 +550,7 @@ public sealed partial class DevicesViewModel : PageViewModel
         if (s is not null)
         {
             var card = Cards.FirstOrDefault(c => c.Settings.Contains(s));
-            if (!RequireAdmin($"Откат: {s.Title}", "RevertSetting", card is null ? null : $"{card.Key}|{s.Id}")) return;
+            if (!RequireAdmin(Loc.Tf("Откат: {0}", s.Title), "RevertSetting", card is null ? null : $"{card.Key}|{s.Id}")) return;
         }
         else if (parameter is string key && FindSetting(key) is { } found) s = found; // the replay after a relaunch with rights
         if (s is null) return;
@@ -612,7 +612,7 @@ public sealed partial class DevicesViewModel : PageViewModel
             }
             catch (Exception ex)
             {
-                Log.Warn($"{s.Title}: не удалось перечитать — {ex.Message}");
+                Log.Warn("{0}: не удалось перечитать — {1}", s.Title, ex.Message);
             }
         }
         await ScanAsync();
@@ -657,7 +657,7 @@ public sealed partial class DevicesViewModel : PageViewModel
         if (link is null) return;
         if (DeviceApply.ValidateLink(link) is { } problem)
         {
-            Log.Warn($"Ссылка «{link.Label}» отклонена: {problem}.");
+            Log.Warn("Ссылка «{0}» отклонена: {1}.", link.Label, problem);
             return;
         }
         switch (link.Kind)

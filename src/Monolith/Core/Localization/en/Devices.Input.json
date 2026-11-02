@@ -1,4 +1,4 @@
-{
+﻿{
   "area": "Devices.Input",
   "translated": true,
   "sources": [
@@ -26,7 +26,7 @@
     "≈ {0} мс": "≈ {0} ms",
     "≈ {0} в секунду": "≈ {0} per second",
     "≈{0}/с": "≈{0}/s",
-    "экран целиком": "a full screen",
+    "экран целиком": "one full screen",
     "{0} строка": "{0} line|{0} lines",
     "{0} символ": "{0} character|{0} characters",
     "выкл": "off",

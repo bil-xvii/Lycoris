@@ -1,0 +1,29 @@
+﻿{
+  "area": "Devices.View",
+  "translated": true,
+  "sources": [
+    "Modules/Devices/DevicesView.xaml",
+    "Modules/Devices/DevicesView.xaml.cs"
+  ],
+  "ignore": [],
+  "en": {
+    "С ПОДТВЕРЖДЕНИЕМ": "CONFIRMED",
+    "сейчас ": "now ",
+    "Применить только эту настройку (через журнал)": "Apply only this setting (recorded in the change log)",
+    "Вернуть значение, которое было до изменения в MONOLITH": "Restore the value from before MONOLITH changed it",
+    "Эта настройка — пункт раздела «Оптимизация»: откроется он, ничего не меняется": "This setting lives in Optimize: it opens there, nothing is changed",
+    "В ОПТИМИЗАЦИИ →": "IN OPTIMIZE →",
+    "значение не менялось": "value not changed",
+    "Дважды щёлкните здесь": "Double-click here",
+    "Зажмите здесь любую клавишу": "Hold down any key here",
+    "Включить в автонастройку": "Include in auto-tune",
+    "АВТОНАСТРОЙКА": "AUTO-TUNE",
+    "ВРУЧНУЮ": "MANUAL",
+    "Устройства не найдены": "No devices found",
+    "MONOLITH не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ».": "MONOLITH found no devices it can tune. Connect a device and click “REFRESH”.",
+    "Открыть во вкладке «Вручную»": "Open in the “Manual” tab",
+    "Применить отмеченные строки: исходные значения записываются в журнал, создаётся точка восстановления": "Apply the checked rows: original values are saved to the change log and a restore point is created",
+    "Двойной щелчок засчитан": "Double-click registered"
+  }
+}
+
