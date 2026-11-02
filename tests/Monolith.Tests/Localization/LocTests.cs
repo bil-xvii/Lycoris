@@ -235,7 +235,8 @@ public sealed class LocTests
     {
         using var _ = Loc.UseLanguage("en");
         LogEntry? seen = null;
-        void Handler(LogEntry e) => seen = e;
+        // Log.Written is global: tests running in parallel (e.g. the update tests) log too, so only this test's own line counts.
+        void Handler(LogEntry e) { if (e.Message.StartsWith("Тестовый выбор", StringComparison.Ordinal)) seen = e; }
         Log.Written += Handler;
         try { Log.Info("Тестовый выбор {0} из {1}", 3, 10); }
         finally { Log.Written -= Handler; }
