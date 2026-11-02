@@ -1,0 +1,18 @@
+{
+  "area": "Diagnostics",
+  "translated": true,
+  "sources": [],
+  "ignore": [],
+  "en": {
+    "СООБЩИТЬ О ПРОБЛЕМЕ": "REPORT A PROBLEM",
+    "Архив содержит обезличенные сведения о системе и настройках. Ничего не отправляется — файл сохранится на рабочем столе, отправьте его сами": "The archive contains anonymized system and settings information. Nothing is sent — the file is saved to your desktop; send it yourself.",
+    "СОЗДАТЬ АРХИВ": "CREATE ARCHIVE",
+    "Создание отчёта…": "Creating report…",
+    "{0} · до {1}": "{0} · up to {1}",
+    "1,5 МБ": "1.5 MB",
+    "1 КБ": "1 KB",
+    "Отчёт сохранён на рабочем столе.": "Report saved to the desktop.",
+    "ОТКРЫТЬ ПАПКУ": "OPEN FOLDER",
+    "Создать обезличенный архив диагностики на рабочем столе.": "Create an anonymized diagnostics archive on the desktop."
+  }
+}
