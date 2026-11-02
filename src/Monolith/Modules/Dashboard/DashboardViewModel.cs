@@ -18,6 +18,7 @@ public sealed partial class DashboardViewModel : PageViewModel
     private static readonly TimeSpan RecheckAfter = TimeSpan.FromMinutes(2);
 
     private readonly LiveMonitor _monitor = new();
+    private bool _firstSample;
     private DateTime _lastCheck = DateTime.MinValue;
     private bool _checking;
     private SystemRow? _uptimeRow;
@@ -122,6 +123,7 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     private void Apply(MonitorSample s)
     {
+        if (!_firstSample) { _firstSample = true; StartupTiming.Mark("dashboard first monitor sample"); }
         CpuText = DashFormat.Percent(s.CpuPercent);
         CpuLoad = s.CpuPercent ?? 0;
         CpuClockText = DashFormat.Clock(s.CpuMhz);
@@ -223,6 +225,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         CpuCoresText = CoresThreads(profile.CpuCores, profile.CpuThreads);
         GpuName = profile.PrimaryGpu?.Name ?? "";
 
+        StartupTiming.Mark("dashboard checks done");
         if (WarningCount > 0) Log.Info("Панель: оценка {0}/100, проблем: {1}.", Score, WarningCount);
         else Log.Success("Панель: оценка {0}/100, проблем не найдено.", Score);
     }
