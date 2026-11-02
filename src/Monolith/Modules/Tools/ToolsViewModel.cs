@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
+using Monolith.Modules.Tools.DpcLatency;
 using Monolith.Shell;
 using Monolith.Tweaks;
 using Monolith.UI;
@@ -151,6 +152,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             case ToolOp.EnergyReport: await RunEnergyReportAsync(); break;
             case ToolOp.SleepStudyReport: await RunPowerReportAsync(SleepStudyReport); break;
             case ToolOp.SystemSleepDiagnostics: await RunPowerReportAsync(SleepDiagnosticsReport); break;
+            case ToolOp.DpcLatencyTest: await RunDpcLatencyAsync(); break;
         }
     }
 
@@ -606,6 +608,93 @@ public sealed partial class ToolsViewModel : PageViewModel
         }
     }
 
+    // ═════════════════════════════ DPC/ISR latency (read-only) ═════════════════════════════
+
+    internal static readonly TimeSpan DpcDuration = TimeSpan.FromSeconds(60);
+    internal const string DpcCommandText = "ETW PerfInfo: DPC + ISR · 60 с";
+    internal const string DpcCardTitle = "ЗАДЕРЖКИ ДРАЙВЕРОВ (DPC/ISR)";
+
+    /// <summary>
+    /// 60-second private ETW kernel session (EtwSession): DPC/ISR durations per driver module. Read-only, admin only,
+    /// never during a game session — a game would both distort the result and suffer from the extra interrupt logging.
+    /// </summary>
+    private async Task RunDpcLatencyAsync()
+    {
+        if (GameBoostState.IsActive)
+        {
+            Ui.Toast("Дождитесь окончания игрового сеанса — измерение задержек драйверов во время игры не запускается.", ToastKind.Warning);
+            return;
+        }
+        if (!EtwSession.IsSupported)
+        {
+            Ui.Toast("Измерение доступно начиная с Windows 8.", ToastKind.Warning);
+            return;
+        }
+        if (!await Ui.ConfirmAsync(
+                "Измерить задержки драйверов?",
+                "60 секунд обычной работы: можно открыть браузер или видео, но не игру. MONOLITH откроет собственный сеанс трассировки ядра и посчитает, сколько времени каждый драйвер проводит в прерываниях (ISR) и отложенных вызовах (DPC).",
+                [
+                    "Длительность: ровно 60 секунд, можно прервать",
+                    "Ничего не меняет: трассировка только читает события ядра, файл не записывается",
+                    "Нагрузка небольшая, но не нулевая — не запускайте игры и тесты производительности во время измерения",
+                    "Результат: таблица драйверов с самыми долгими вызовами и подсказка, куда смотреть дальше",
+                ],
+                confirmText: "ИЗМЕРИТЬ", footnote: "Пороги (500 и 1000 мкс) — практика сообщества LatencyMon, не стандарт Microsoft."))
+            return;
+
+        await ExecuteAsync(DpcCardTitle, DpcCommandText, cancellable: true, "Измерение задержек драйверов…", async ct =>
+        {
+            try
+            {
+                return await MeasureDpcAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return ToolOutcome.Cancel(DpcCancelledText);
+            }
+        });
+    }
+
+    internal const string DpcCancelledText = "Измерение отменено — ничего не изменено, сеанс трассировки остановлен.";
+    internal const string DpcGameStoppedText =
+        "Измерение остановлено: начался игровой сеанс. Ничего не изменено; неполные данные не оцениваются — повторите после игры.";
+
+    private async Task<ToolOutcome> MeasureDpcAsync(CancellationToken ct)
+    {
+        var modules = await Task.Run(KernelModules.Load, ct);
+        Emit($"Модулей ядра: {modules.Modules.Count}{(modules.DebugPrivilege ? "" : " (без SeDebugPrivilege)")}.", ConsoleLineKind.Info);
+        if (modules.Note is not null) Emit(modules.Note, ConsoleLineKind.Info);
+
+        var aggregator = new DpcAggregator(new ModuleMap(modules.Modules));
+        var result = await Task.Run(() =>
+        {
+            var stale = EtwSession.StopStaleSessions();
+            if (stale > 0) _pending.Enqueue($"Остановлено незавершённых сеансов MONOLITH: {stale}.");
+            return EtwSession.Run(DpcDuration, aggregator.Add,
+                percent => _pending.Enqueue($"Измерение {percent}% завершено."), ct);
+        }, ct);
+
+        if (!result.Started) return ToolOutcome.Fail("Измерение не запущено: " + result.Error);
+        if (result.StoppedForGame) return ToolOutcome.Cancel(DpcGameStoppedText);
+        if (result.Cancelled) return ToolOutcome.Cancel(DpcCancelledText);
+        if (result.EventsLost > 0 || result.BuffersLost > 0)
+            Emit($"Потеряно событий: {result.EventsLost}, буферов: {result.BuffersLost} — результат может быть неполным.", ConsoleLineKind.Info);
+        if (result.Error is not null) Emit(result.Error, ConsoleLineKind.Info);
+
+        Emit("", ConsoleLineKind.Output);
+        foreach (var line in aggregator.FormatReport(result.Elapsed))
+            Emit(line, ConsoleLineKind.Output);
+        return ClassifyDpc(aggregator, result.Elapsed);
+    }
+
+    internal static ToolOutcome ClassifyDpc(DpcAggregator aggregator, TimeSpan elapsed)
+    {
+        if (aggregator.EventCount == 0) return ToolOutcome.Fail(aggregator.Summary(elapsed));
+        return aggregator.Verdict == DpcVerdict.Normal
+            ? ToolOutcome.Ok(aggregator.Summary(elapsed))
+            : ToolOutcome.Warn(aggregator.Summary(elapsed));
+    }
+
     // ═════════════════════════════ Runner ═════════════════════════════
 
     /// <summary>
@@ -851,6 +940,17 @@ public sealed partial class ToolsViewModel : PageViewModel
             RequiresAdmin = true,
             NeedsReboot = true,
             Actions = [new ToolCardAction { Op = ToolOp.MemoryDiagnostic, Label = "ОТКРЫТЬ", IsPrimary = true, RequiresAdmin = true }],
+        });
+        diagnostics.Add(new ToolCard
+        {
+            Glyph = Glyphs.Diagnostic,
+            Title = DpcCardTitle,
+            Command = DpcCommandText,
+            Description = "60 секунд измеряет, сколько времени драйверы проводят в прерываниях (ISR) и отложенных вызовах (DPC). Один драйвер с долгими DPC — частая причина треска звука, рывков ввода и периодических микрофризов. Это измерение вместо гаданий и «твиков».",
+            Note = "Измерение почти не нагружает систему, но не бесплатно: во время теста не играйте. Следующий шаг при высоких значениях — обновить этот драйвер в разделе «Драйверы»; исправление не гарантируется. Ничего не меняет.",
+            Duration = "60 С",
+            RequiresAdmin = true,
+            Actions = [new ToolCardAction { Op = ToolOp.DpcLatencyTest, Label = "ИЗМЕРИТЬ", IsPrimary = true, RequiresAdmin = true }],
         });
 
         return
