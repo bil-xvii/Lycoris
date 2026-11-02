@@ -66,6 +66,20 @@ public sealed partial class CleanerViewModel : PageViewModel
     [ObservableProperty] private string _freedUnit = "";
     [ObservableProperty] private string _freedCaption = "появится после очистки";
 
+    /// <summary>
+    /// What the main button would remove right now (checked rows, last analysis) — null before any analysis. The Dashboard
+    /// reads this cached number (no new scan); <see cref="FoundBytes"/> is everything the last analysis found.
+    /// </summary>
+    [ObservableProperty] private long? _junkBytes;
+    [ObservableProperty] private long? _foundBytes;
+    /// <summary>The header's one main button: «ОЧИСТИТЬ · 654,8 МБ» (just «ОЧИСТИТЬ» before the first analysis).</summary>
+    [ObservableProperty] private string _primaryText = "ОЧИСТИТЬ";
+    /// <summary>Rows that wait for admin rights exist (read-only mode) — the header offers «ПОЛУЧИТЬ ПРАВА» too.</summary>
+    [ObservableProperty] private bool _hasRightsRows;
+
+    /// <summary>«ОБНОВИТЬ»: a fresh read-only analysis (nothing is deleted).</summary>
+    public IAsyncRelayCommand RefreshCommand => AnalyzeCommand;
+
     [ObservableProperty] private string? _servicingText;
     [ObservableProperty] private string? _foreignUserText;
 
@@ -190,6 +204,13 @@ public sealed partial class CleanerViewModel : PageViewModel
         if (results.Count > 0) await ShowResultAsync(results);
         _ = RefreshDrivesAsync();
     }
+
+    /// <summary>
+    /// «ПОЛУЧИТЬ ПРАВА» on a row (or in the header): relaunches with admin rights and repeats «ОЧИСТИТЬ» there — the
+    /// confirmation with the exact list is shown again before anything is deleted.
+    /// </summary>
+    [RelayCommand]
+    private void GetRights() => RequireAdmin("Очистка системных папок", "Clean");
 
     [RelayCommand(CanExecute = nameof(CanCancelWork))]
     private void Cancel()
@@ -413,6 +434,7 @@ public sealed partial class CleanerViewModel : PageViewModel
                          "ничего не удалено. Отметьте пункты и нажмите «ОЧИСТИТЬ».";
             WorkProgress = 100;
             WorkPercent = "";
+            MarkChecked();
             Log.Info($"Очистка: анализ завершён — найдено {CleanFormat.Bytes(_items.Sum(i => i.FoundBytes))} в {places} местах.");
         }
         catch (OperationCanceledException)
@@ -637,6 +659,11 @@ public sealed partial class CleanerViewModel : PageViewModel
             (SelectedValue, SelectedUnit) = CleanFormat.Split(selected.Sum(i => i.CleanableBytes));
         else
             (SelectedValue, SelectedUnit) = ("—", "");
+        FoundBytes = analysed.Count == 0 ? null : analysed.Sum(i => i.FoundBytes);
+        JunkBytes = selected.Any(i => i.Analysis is not null) ? selected.Sum(i => i.CleanableBytes) : null;
+        HasRightsRows = _items.Any(i => i.NeedsRights);
+        PrimaryText = JunkBytes is > 0 ? $"ОЧИСТИТЬ · {SelectedValue} {SelectedUnit}" : "ОЧИСТИТЬ";
+        BadgeText = JunkBytes is > 0 ? BadgeFor(SelectedValue, SelectedUnit) : null;
         var dism = selected.Any(i => i.Definition.Method == CleanMethod.ComponentStore) ? " · + DISM" : "";
         SelectedCaption = $"{selected.Count} {CleanFormat.Plural(selected.Count, "пункт выбран", "пункта выбрано", "пунктов выбрано")}{dism}";
 
@@ -705,6 +732,14 @@ public sealed partial class CleanerViewModel : PageViewModel
         {
             Log.Warn($"Очистка: не удалось прочитать диски: {ex.Message}");
         }
+    }
+
+    /// <summary>The sidebar badge is short: «667 МБ», «4,7 ГБ» (no decimals once the integer part has two digits).</summary>
+    internal static string BadgeFor(string value, string unit)
+    {
+        var comma = value.IndexOf(',');
+        var shown = comma >= 2 ? value[..comma] : value;
+        return $"{shown} {unit}".Trim();
     }
 
     private static string Capitalize(string s) => s.Length == 0 ? s : char.ToUpper(s[0]) + s[1..];

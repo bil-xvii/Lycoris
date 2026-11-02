@@ -27,7 +27,19 @@ public sealed partial class DriversViewModel : PageViewModel
     private List<UninstallEntry> _apps = [];
     private readonly CancellationTokenSource _lifetime = new();
 
-    [ObservableProperty] private DriversTab _selectedTab = DriversTab.Hardware;
+    /// <summary>
+    /// The shown tab. The page has FOUR tabs — ПОДБОР (Hardware + Overview: the GPU cards are pinned first), ОБНОВЛЕНИЯ WINDOWS,
+    /// ПРОБЛЕМНЫЕ УСТРОЙСТВА, УСТАНОВЛЕННЫЕ (Installed + Backup). The old Overview / Backup values still work as links and
+    /// select the merged tab.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TabIsHardware), nameof(TabIsUpdates), nameof(TabIsProblems), nameof(TabIsInstalled), nameof(HasPrimary))]
+    private DriversTab _selectedTab = DriversTab.Hardware;
+
+    public bool TabIsHardware { get => SelectedTab is DriversTab.Hardware or DriversTab.Overview; set { if (value) SelectedTab = DriversTab.Hardware; } }
+    public bool TabIsUpdates { get => SelectedTab == DriversTab.Updates; set { if (value) SelectedTab = DriversTab.Updates; } }
+    public bool TabIsProblems { get => SelectedTab == DriversTab.Problems; set { if (value) SelectedTab = DriversTab.Problems; } }
+    public bool TabIsInstalled { get => SelectedTab is DriversTab.Installed or DriversTab.Backup; set { if (value) SelectedTab = DriversTab.Installed; } }
     [ObservableProperty] private bool _inventoryLoaded;
     [ObservableProperty] private string _inventoryTime = "";
 
@@ -49,14 +61,11 @@ public sealed partial class DriversViewModel : PageViewModel
     [ObservableProperty] private bool _chipsetIsAmd;
     [ObservableProperty] private bool _chipsetIsIntel;
     [ObservableProperty] private string _intelDsaButtonText = "УСТАНОВИТЬ INTEL DSA";
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IntelDsaEnabled))]
-    private bool _intelDsaInstalled;
+    [ObservableProperty] private bool _intelDsaInstalled;
     [ObservableProperty] private bool _gpusEmpty;
 
     /// <summary>Two GPU cards side by side at most.</summary>
     public int GpuColumns => Math.Clamp(Gpus.Count, 1, 2);
-    public bool IntelDsaEnabled => IntelDsaInstalled || Elevation.IsElevated;
 
     public string AmdDriversUrl => DriverSources.AmdDriversPage;
     public string IntelSupportUrl => DriverSources.IntelDetectPage;
@@ -84,10 +93,12 @@ public sealed partial class DriversViewModel : PageViewModel
         base.OnPropertyChanged(e);
         if (e.PropertyName is nameof(IsBusy) or nameof(IsInstalling) or nameof(IsBackupRunning) or nameof(IsDriverDownloadRunning))
             RefreshCommandStates();
+        if (e.PropertyName is nameof(IsInstalling) or nameof(IsHwInstalling)) RaisePrimary();
     }
 
     partial void OnSelectedTabChanged(DriversTab value)
     {
+        OnPropertyChanged(nameof(PrimaryText));
         if (value == DriversTab.Updates && UpdatesState == UpdatesState.NotSearched)
             _ = SearchUpdatesAsync();
     }
@@ -104,8 +115,11 @@ public sealed partial class DriversViewModel : PageViewModel
         DownloadDriverCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>One system-changing operation at a time: WU install, backup/restore, direct driver download.</summary>
-    private bool CanModify() => Elevation.IsElevated && !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
+    /// <summary>
+    /// One system-changing operation at a time: WU install, backup/restore, direct driver download. Read-only mode does NOT
+    /// disable the buttons — a click calls <c>RequireAdmin(action, command, parameter)</c> and the relaunched copy repeats it.
+    /// </summary>
+    private bool CanModify() => !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
 
     // ───────────────────────────── Inventory ─────────────────────────────
 
@@ -134,6 +148,7 @@ public sealed partial class DriversViewModel : PageViewModel
         ApplyInventory(profile, data);
         InventoryLoaded = true;
         InventoryTime = $"ДАННЫЕ ОТ {DateTime.Now:HH:mm}";
+        MarkChecked();
         _ = CheckNvidiaLatestAsync();
         _ = OfferAmdInstallerAsync();
     }
@@ -225,6 +240,8 @@ public sealed partial class DriversViewModel : PageViewModel
     /// <summary>Counts shown in the tab badges.</summary>
     private void UpdateStats()
     {
+        OnPropertyChanged(nameof(GpuTileText));
+        OnPropertyChanged(nameof(GpuUpdateAvailable));
         if (InventoryLoaded || _signedDrivers.Count > 0)
         {
             InstalledBadge = _signedDrivers.Count.ToString();
@@ -287,9 +304,18 @@ public sealed partial class DriversViewModel : PageViewModel
 
     // ───────────────────────────── Vendor tools ─────────────────────────────
 
-    [RelayCommand]
-    private async Task UseGpuToolAsync(GpuCardItem? card)
+    /// <summary>The card a command parameter names: the card itself (a click) or its PnP id as text (the admin-intent replay).</summary>
+    private GpuCardItem? CardFor(object? target) => target switch
     {
+        GpuCardItem card => card,
+        string key when key.Length > 0 => Gpus.FirstOrDefault(g => string.Equals(g.Gpu.PnpDeviceId, key, StringComparison.OrdinalIgnoreCase)),
+        _ => Gpus.FirstOrDefault(g => g.IsPrimary) ?? Gpus.FirstOrDefault(),
+    };
+
+    [RelayCommand]
+    private async Task UseGpuToolAsync(object? target)
+    {
+        var card = CardFor(target);
         if (card?.Tool is not { } tool) return;
         if (tool.WingetId is null)
         {
@@ -302,7 +328,7 @@ public sealed partial class DriversViewModel : PageViewModel
             else await OpenUrlAsync(tool.SiteUrl);
             return;
         }
-        if (await InstallToolAsync(tool))
+        if (await InstallToolAsync(tool, "UseGpuTool", card.Gpu.PnpDeviceId))
         {
             card.MarkToolInstalled(_apps);
             UpdateIntelDsaState();
@@ -317,7 +343,7 @@ public sealed partial class DriversViewModel : PageViewModel
             await OpenUrlAsync(DriverSources.IntelDsa.SiteUrl);
             return;
         }
-        if (await InstallToolAsync(DriverSources.IntelDsa))
+        if (await InstallToolAsync(DriverSources.IntelDsa, "UseIntelDsa", null))
         {
             UpdateIntelDsaState();
             foreach (var card in Gpus.Where(g => g.Vendor == GpuVendor.Intel)) card.MarkToolInstalled(_apps);
@@ -331,10 +357,10 @@ public sealed partial class DriversViewModel : PageViewModel
     }
 
     /// <summary>Installs an official vendor utility with winget after a confirmation that names publisher and source.</summary>
-    private async Task<bool> InstallToolAsync(VendorTool tool)
+    private async Task<bool> InstallToolAsync(VendorTool tool, string intentCommand, string? intentParameter)
     {
         if (tool.WingetId is not { } id || DriverSources.IsBlocked(id)) return false;
-        if (!RequireAdmin($"установка {tool.Name}")) return false;
+        if (!RequireAdmin($"установка {tool.Name}", intentCommand, intentParameter)) return false;
         if (IsBusy) return false;
 
         var store = tool.WingetSource == "msstore";

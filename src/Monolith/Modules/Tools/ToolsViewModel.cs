@@ -27,7 +27,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     public override string Key => "tools";
     public override string Index => "09";
-    public override string Title => "ИНСТРУМЕНТЫ";
+    public override string Title => "РЕМОНТ И ДИСКИ";
     public override string Subtitle => "Проверка и восстановление Windows, диски, сеть и системные утилиты.";
     public override string Glyph => Glyphs.Repair;
 
@@ -40,23 +40,31 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     // ── console state ──
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowNoCancelHint))]
-    [NotifyCanExecuteChangedFor(nameof(RunCommand), nameof(CancelRunCommand), nameof(ClearConsoleCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowConsole))]
+    [NotifyCanExecuteChangedFor(nameof(RunCommand), nameof(RunToolCommand), nameof(RepairWindowsCommand), nameof(RefreshCommand), nameof(CancelRunCommand), nameof(ClearConsoleCommand))]
     private bool _isRunning;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowNoCancelHint)), NotifyCanExecuteChangedFor(nameof(CancelRunCommand))]
     private bool _canCancelRun;
     public bool ShowNoCancelHint => IsRunning && !CanCancelRun;
+    /// <summary>The console takes the right column only while a tool runs (and until the user closes its result).</summary>
+    public bool ShowConsole => IsRunning || HasConsoleLines || HasResult;
     [ObservableProperty] private bool _cancelRequested;
     [ObservableProperty] private string _runTitle = "НЕТ АКТИВНОЙ ОПЕРАЦИИ";
     [ObservableProperty] private string _runCommandText = IdleCommandText;
-    [ObservableProperty] private string _runState = "ОЖИДАНИЕ";
-    [ObservableProperty] private bool _hasResult;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(RunStateIsActive), nameof(RunStateIsProblem), nameof(RunStateIsPlain))]
+    private string _runState = "ОЖИДАНИЕ";
+    /// <summary>Which status tag the console header shows (filled / hatched / muted — never white).</summary>
+    public bool RunStateIsActive => RunState is "ВЫПОЛНЯЕТСЯ" or "ГОТОВО";
+    public bool RunStateIsProblem => RunState is "ОШИБКА" or "ВНИМАНИЕ";
+    public bool RunStateIsPlain => !RunStateIsActive && !RunStateIsProblem;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowConsole))] private bool _hasResult;
     [ObservableProperty] private bool _resultIsProblem;
     [ObservableProperty] private string? _resultText;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _hasProgress;
     [ObservableProperty] private string _progressText = "—";
     [ObservableProperty] private string _elapsedText = "0:00";
-    [ObservableProperty] private bool _hasConsoleLines;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowConsole))] private bool _hasConsoleLines;
 
     // ── disks ──
     /// <summary>Fixed volumes for the defrag card (one button per drive; free space is shown on the cleaning tab).</summary>
@@ -89,12 +97,28 @@ public sealed partial class ToolsViewModel : PageViewModel
         _volumes = await volumesTask;
         Sections = BuildSections();
         await bootTask;
+        MarkChecked();
+    }
+
+    /// <summary>«ОБНОВИТЬ»: re-reads the drives and the boot-time check state.</summary>
+    [RelayCommand(CanExecute = nameof(CanRunPlain))]
+    private async Task Refresh()
+    {
+        await ReadBootCheckAsync();
+        var volumes = await VolumeScanner.ScanAsync();
+        if (!IsRunning && !SameVolumes(volumes, _volumes))
+        {
+            _volumes = volumes;
+            Sections = BuildSections();
+        }
+        MarkChecked();
     }
 
     protected override async Task OnReturnAsync()
     {
         if (IsRunning) return;
         await ReadBootCheckAsync();
+        MarkChecked();
         // Drives may have been attached or removed meanwhile; rebuild the cards only when the set changed.
         var volumes = await VolumeScanner.ScanAsync();
         if (IsRunning || SameVolumes(volumes, _volumes)) return;
@@ -122,14 +146,58 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     // ═════════════════════════════ Commands ═════════════════════════════
 
-    private bool CanRun(ToolCardAction? action) =>
-        action is not null && !IsRunning && (!action.RequiresAdmin || Elevation.IsElevated);
+    // Read-only mode does not disable the buttons: a click asks for rights and repeats the action after the relaunch.
+    private bool CanRun(ToolCardAction? action) => action is not null && !IsRunning;
+
+    /// <summary>The stable text id of a button (the admin intent carries it across the relaunch): «Sfc», «DefragVolume:C:».</summary>
+    internal static string ActionId(ToolCardAction action) =>
+        action.Op == ToolOp.DefragVolume && action.Volume is { } v ? $"{action.Op}:{v.Letter}" : action.Op.ToString();
+
+    private ToolCardAction? FindAction(string? id) =>
+        string.IsNullOrWhiteSpace(id) ? null : Sections.SelectMany(s => s.Cards).SelectMany(c => c.Actions)
+            .FirstOrDefault(a => string.Equals(ActionId(a), id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Runs a tool button by its text id — the command the admin-intent replay uses («RunTool»).</summary>
+    [RelayCommand(CanExecute = nameof(CanRunById))]
+    private Task RunTool(string? id) => FindAction(id) is { } action ? RunAsync(action) : Task.CompletedTask;
+
+    private bool CanRunById(string? id) => !IsRunning && FindAction(id) is not null;
+
+    /// <summary>The page's one main button: DISM restore, then SFC, with one confirmation listing both steps.</summary>
+    [RelayCommand(CanExecute = nameof(CanRunPlain))]
+    private async Task RepairWindows()
+    {
+        if (!RequireAdmin("Проверка и восстановление Windows", "RepairWindows")) return;
+        if (!await Ui.ConfirmAsync(
+                "Проверить и восстановить Windows?",
+                "MONOLITH выполнит два штатных шага Windows один за другим: DISM восстановит хранилище компонентов, затем SFC сверит и заменит повреждённые системные файлы.",
+                [
+                    "Шаг 1: DISM /Online /Cleanup-Image /RestoreHealth — 10–30 минут, нужен интернет (Центр обновления Windows)",
+                    "Шаг 2: sfc /scannow — 5–20 минут, на HDD дольше",
+                    "Личные файлы, программы и настройки не затрагиваются; заменяются только оригинальные файлы Microsoft",
+                    "Прерывать нельзя: дождитесь окончания. Если шаг 1 завершится с ошибкой, шаг 2 не запустится",
+                ],
+                confirmText: "ЗАПУСТИТЬ", footnote: "Журнал SFC: %WINDIR%\\Logs\\CBS\\CBS.log"))
+            return;
+        await RunDismAsync(ToolOutput.DismMode.RestoreHealth, confirmed: true);
+        if (_lastStatus is not ToolStatus.Success)
+        {
+            Ui.Toast("Шаг 1 не завершился успешно — проверка системных файлов не запущена.", ToastKind.Warning, "ПРОВЕРИТЬ И ВОССТАНОВИТЬ WINDOWS");
+            return;
+        }
+        await RunSfcAsync(confirmed: true);
+    }
+
+    private bool CanRunPlain() => !IsRunning;
+    // (RefreshCommand uses CanRunPlain too: notified together with the run commands.)
+
+    private ToolStatus? _lastStatus;
 
     [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task RunAsync(ToolCardAction? action)
     {
         if (action is null) return;
-        if (action.RequiresAdmin && !RequireAdmin(action.Label)) return;
+        if (action.RequiresAdmin && !RequireAdmin(action.Label, "RunTool", ActionId(action))) return;
         switch (action.Op)
         {
             case ToolOp.DismCheck: await RunDismAsync(ToolOutput.DismMode.CheckHealth); break;
@@ -206,7 +274,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     // ═════════════════════════════ Tools ═════════════════════════════
 
-    private async Task RunDismAsync(ToolOutput.DismMode mode)
+    private async Task RunDismAsync(ToolOutput.DismMode mode, bool confirmed = false)
     {
         var (arg, title, cancellable) = mode switch
         {
@@ -216,7 +284,7 @@ public sealed partial class ToolsViewModel : PageViewModel
         };
         var display = $"DISM /Online /Cleanup-Image {arg}";
 
-        if (mode == ToolOutput.DismMode.RestoreHealth && !await Ui.ConfirmAsync(
+        if (!confirmed && mode == ToolOutput.DismMode.RestoreHealth && !await Ui.ConfirmAsync(
                 "Восстановить образ Windows?",
                 "DISM сверит хранилище компонентов Windows с эталоном и заменит повреждённые компоненты исправными, скачав их через Центр обновления Windows.",
                 [
@@ -237,9 +305,9 @@ public sealed partial class ToolsViewModel : PageViewModel
         });
     }
 
-    private async Task RunSfcAsync()
+    private async Task RunSfcAsync(bool confirmed = false)
     {
-        if (!await Ui.ConfirmAsync(
+        if (!confirmed && !await Ui.ConfirmAsync(
                 "Проверить системные файлы?",
                 "SFC сверит все защищённые системные файлы Windows с эталонными копиями и заменит повреждённые.",
                 [
@@ -682,6 +750,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private void Finish(ToolOutcome outcome)
     {
+        _lastStatus = outcome.Status;
         RunState = ToolOutput.StatusText(outcome.Status);
         ResultText = outcome.Summary;
         ResultIsProblem = outcome.Status is ToolStatus.Failed or ToolStatus.Warning;
