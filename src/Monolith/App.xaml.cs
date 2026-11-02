@@ -84,6 +84,7 @@ public partial class App : Application
             return;
         }
 
+        if (ArgValue(e.Args, "--startup-timing") is { } timingFile) { StartupTiming.Enable(timingFile); StartupTiming.Mark("OnStartup"); }
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("Необработанная ошибка: {0}", ex.ExceptionObject);
@@ -112,7 +113,8 @@ public partial class App : Application
             return;
         }
         var snapshot = snapshotDir is not null || selfTestDir is not null;
-        var noElevate = snapshot || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
+        var timingRun = StartupTiming.Enabled; // QA: a read-only extra copy that ignores the instance lock
+        var noElevate = snapshot || timingRun || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
         if (selfTestDir is not null)
         {
             // Lock every system-changing API before anything else runs.
@@ -127,7 +129,7 @@ public partial class App : Application
 
         // Already running? Bring that window up instead of asking for admin rights again. A copy that is still
         // closing (or hangs without a window) is waited for / offered to be ended — never a silent exit.
-        if (!snapshot && !HasArg(args, "--elevated") && SingleInstanceMutexExists() && !HandOverToExistingInstance())
+        if (!snapshot && !timingRun && !HasArg(args, "--elevated") && SingleInstanceMutexExists() && !HandOverToExistingInstance())
         {
             Shutdown();
             return;
@@ -143,7 +145,7 @@ public partial class App : Application
             }
         }
 
-        if (!snapshot)
+        if (!snapshot && !timingRun)
         {
             // When relaunched with admin rights the previous (non-elevated) copy is still closing: wait for it.
             if (HasArg(args, "--elevated")) WaitForParentExit(ArgValue(args, "--parent"));
@@ -271,6 +273,8 @@ public partial class App : Application
             return;
         }
 
+        StartupTiming.Mark("before window.Show");
+        window.ContentRendered += (_, _) => { StartupTiming.Mark("first frame rendered"); };
         window.Show();
         _ = vm.RunStartupChecksAsync();
         UpdateController.Instance.ScheduleStartupCheck();
