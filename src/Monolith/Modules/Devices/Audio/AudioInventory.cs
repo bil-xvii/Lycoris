@@ -192,39 +192,37 @@ public static class AudioParsing
 
     // ───────────────────────────── Text ─────────────────────────────
 
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
-
     /// <summary>48000 → «48 кГц», 44100 → «44,1 кГц».</summary>
-    public static string RateText(int rate) => $"{(rate / 1000.0).ToString("0.#", Ru)} кГц";
+    public static string RateText(int rate) => Loc.Tf("{0} кГц", (rate / 1000.0).ToString("0.#", Loc.Culture));
 
     public static string ChannelsText(int channels) => channels switch
     {
-        1 => "моно",
-        2 => "стерео",
+        1 => Loc.T("моно"),
+        2 => Loc.T("стерео"),
         6 => "5.1",
         8 => "7.1",
-        _ => $"{channels} кан.",
+        _ => Loc.Tf("{0} кан.", channels),
     };
 
     /// <summary>«48 кГц · 16 бит · стерео».</summary>
     public static string FormatText(AudioFormat f) => $"{RateBitsText(f)} · {ChannelsText(f.Channels)}";
 
     /// <summary>«48 кГц · 16 бит» (the «Формат» row; the channels are a fact of the card).</summary>
-    public static string RateBitsText(AudioFormat f) => $"{RateText(f.SampleRate)} · {f.Bits} бит";
+    public static string RateBitsText(AudioFormat f) => Loc.Tf("{0} · {1} бит", RateText(f.SampleRate), f.Bits);
 
     /// <summary>«+5,6 дБ» / «−16 дБ» (typographic minus).</summary>
-    public static string DbText(double db) => SignedNumber(db, "0.#") + " дБ";
+    public static string DbText(double db) => Loc.Tf("{0} дБ", SignedNumber(db, "0.#"));
 
     /// <summary>A signed number with the typographic minus and a plus for positive values: «+15», «−9», «0».</summary>
     public static string SignedNumber(double value, string format)
     {
         var rounded = Math.Round(value, format.Contains('.') ? 1 : 0, MidpointRounding.AwayFromZero);
-        var text = Math.Abs(rounded).ToString(format, Ru);
+        var text = Math.Abs(rounded).ToString(format, Loc.Culture);
         return rounded > 0 ? "+" + text : rounded < 0 ? "\u2212" + text : text;
     }
 
     /// <summary>«−16…+15 дБ».</summary>
-    public static string RangeText(double min, double max) => $"{SignedNumber(min, "0.#")}…{SignedNumber(max, "0.#")} дБ";
+    public static string RangeText(double min, double max) => Loc.Tf("{0}…{1} дБ", SignedNumber(min, "0.#"), SignedNumber(max, "0.#"));
 
     /// <summary>A monitor endpoint «X27U W3 (NVIDIA High Definition Audio)» → «X27U W3» (the adapter is not the device).</summary>
     public static string DisplayName(string name)
@@ -240,7 +238,7 @@ public static class AudioParsing
         if (id is null) return null;
         if (id.StartsWith("USB", StringComparison.OrdinalIgnoreCase)) return "USB";
         if (id.StartsWith("BTH", StringComparison.OrdinalIgnoreCase)) return "Bluetooth";
-        if (id.StartsWith("HDAUDIO", StringComparison.OrdinalIgnoreCase)) return e.IsDisplayAudio ? "HDMI/DisplayPort" : "встроенный звук";
+        if (id.StartsWith("HDAUDIO", StringComparison.OrdinalIgnoreCase)) return e.IsDisplayAudio ? "HDMI/DisplayPort" : Loc.T("встроенный звук");
         return null;
     }
 }
@@ -289,7 +287,7 @@ public static class AudioInventory
             }
             catch (Exception ex)
             {
-                Log.Warn($"Звук: не удалось прочитать уровень — {ex.Message}");
+                Log.Warn("Звук: не удалось прочитать уровень — {0}", ex.Message);
                 return null;
             }
             finally
@@ -326,7 +324,7 @@ public static class AudioInventory
                         }
                         catch (Exception ex)
                         {
-                            Log.Warn($"Звук: устройство пропущено — {ex.Message}");
+                            Log.Warn("Звук: устройство пропущено — {0}", ex.Message);
                         }
                         finally
                         {
@@ -390,7 +388,7 @@ public static class AudioInventory
         {
             Id = id,
             Flow = flow,
-            Name = string.IsNullOrWhiteSpace(name) ? (flow == AudioFlow.Render ? "Устройство вывода" : "Микрофон") : name.Trim(),
+            Name = string.IsNullOrWhiteSpace(name) ? (flow == AudioFlow.Render ? Loc.T("Устройство вывода") : Loc.T("Микрофон")) : name.Trim(),
             FormFactor = formFactor,
             IsDefaultConsole = string.Equals(id, console, StringComparison.OrdinalIgnoreCase),
             IsDefaultMultimedia = string.Equals(id, multimedia, StringComparison.OrdinalIgnoreCase),

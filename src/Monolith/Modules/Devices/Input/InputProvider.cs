@@ -46,13 +46,13 @@ internal sealed class InputProvider : IDeviceProvider
     public const string PollingKey = "mouse:polling";
     public const string AccelerationTweak = "mouse-acceleration-off";
     public const string HotkeysTweak = "accessibility-hotkeys-off";
-    public const string PendingSignOut = "ОЖИДАЕТ ВЫХОДА ИЗ СИСТЕМЫ";
+    public static string PendingSignOut => Loc.T("ОЖИДАЕТ ВЫХОДА ИЗ СИСТЕМЫ");
 
     /// <summary>«ПРОВЕРИТЬ DPI» — scrolls to the DPI test (a plan row that needs the measurement).</summary>
-    public static readonly DeviceLink DpiToolLink = new(DeviceLinkKind.Tool, "ПРОВЕРИТЬ DPI", MouseCard, DpiTool);
+    public static readonly DeviceLink DpiToolLink = new(DeviceLinkKind.Tool, Loc.T("ПРОВЕРИТЬ DPI"), MouseCard, DpiTool);
 
     /// <summary>DPI and polling rate are changed only in the mouse's own program.</summary>
-    public static readonly DeviceLink MouseAppLink = new(DeviceLinkKind.VendorApp, "ОТКРЫТЬ ПРОГРАММУ МЫШИ", MouseCard);
+    public static readonly DeviceLink MouseAppLink = new(DeviceLinkKind.VendorApp, Loc.T("ОТКРЫТЬ ПРОГРАММУ МЫШИ"), MouseCard);
 
     private readonly Func<InputInventory> _devices;
     private readonly Func<InputSystemState> _system;
@@ -66,7 +66,7 @@ internal sealed class InputProvider : IDeviceProvider
         _system = system;
     }
 
-    public string Name => "мышь и клавиатура";
+    public string Name => Loc.T("мышь и клавиатура");
 
     public Task<IReadOnlyList<DeviceCard>> DetectAsync(DeviceScanContext ctx, CancellationToken ct) => Task.Run(() => Build(ctx), ct);
 
@@ -76,14 +76,14 @@ internal sealed class InputProvider : IDeviceProvider
         try { inventory = _devices(); }
         catch (Exception ex)
         {
-            Log.Warn($"Мышь и клавиатура: устройства не прочитаны — {ex.Message}");
+            Log.Warn("Мышь и клавиатура: устройства не прочитаны — {0}", ex.Message);
             inventory = InputInventory.Empty;
         }
         InputSystemState system;
         try { system = _system(); }
         catch (Exception ex)
         {
-            Log.Warn($"Мышь и клавиатура: состояние ввода не прочитано — {ex.Message}");
+            Log.Warn("Мышь и клавиатура: состояние ввода не прочитано — {0}", ex.Message);
             system = InputSystemState.Unknown;
         }
         var spi = DeviceWriters.Spi;
@@ -96,81 +96,81 @@ internal sealed class InputProvider : IDeviceProvider
     {
         var rows = new List<DeviceSetting>();
         var speed = SpiRow(ctx, spi, "mouse-speed", 10, SettingControl.Slider,
-            "Во сколько раз курсор быстрее руки; 10 — без пропуска пикселей. Игры с сырым вводом её не учитывают",
+            Loc.T("Во сколько раз курсор быстрее руки; 10 — без пропуска пикселей. Игры с сырым вводом её не учитывают"),
             min: 1, max: 20, @default: InputAdvice.NeutralSpeed, format: v => InputAdvice.SpeedText(v.Number),
             confirm: v => v <= InputAdvice.LowSpeedMax ? LowSpeedConfirm : null,
-            manualHint: "Вернуть вручную: Параметры → Bluetooth и устройства → Мышь → Скорость указателя мыши.");
+            manualHint: Loc.T("Вернуть вручную: Параметры → Bluetooth и устройства → Мышь → Скорость указателя мыши."));
         rows.Add(speed);
 
-        var epp = DeviceSetting.ForTweak(AccelerationTweak, "Повышенная точность указателя",
-            "Ускорение: при быстром движении курсор уходит дальше. Без него он движется строго пропорционально руке",
-            order: 20, format: v => v.Number != 0 ? "выкл" : "вкл");
+        var epp = DeviceSetting.ForTweak(AccelerationTweak, Loc.T("Повышенная точность указателя"),
+            Loc.T("Ускорение: при быстром движении курсор уходит дальше. Без него он движется строго пропорционально руке"),
+            order: 20, format: v => v.Number != 0 ? Loc.T("выкл") : Loc.T("вкл"));
         epp.StateTag = AccelerationPending(sys) ? PendingSignOut : null;
         rows.Add(epp);
 
         rows.Add(new DeviceSetting
         {
-            Id = DpiRow, Title = "DPI мыши", Order = 30, Control = SettingControl.Info,
-            Hint = "Сколько точек мышь сообщает на дюйм движения. Обычно удобно 800–1600 DPI; меняется в программе мыши",
+            Id = DpiRow, Title = Loc.T("DPI мыши"), Order = 30, Control = SettingControl.Info,
+            Hint = Loc.T("Сколько точек мышь сообщает на дюйм движения. Обычно удобно 800–1600 DPI; меняется в программе мыши"),
             Format = v => InputAdvice.DpiText(v.Number), Tool = InputTools.Dpi(),
         });
         rows.Add(new DeviceSetting
         {
-            Id = PollingRow, Title = "Частота опроса", Order = 40, Control = SettingControl.Info,
-            Hint = "Сколько раз в секунду мышь сообщает о движении. Обычно 1000 Гц; меняется в программе мыши",
-            Format = v => $"≈ {v.Number.ToString(CultureInfo.InvariantCulture)} Гц", Tool = InputTools.Polling(),
+            Id = PollingRow, Title = Loc.T("Частота опроса"), Order = 40, Control = SettingControl.Info,
+            Hint = Loc.T("Сколько раз в секунду мышь сообщает о движении. Обычно 1000 Гц; меняется в программе мыши"),
+            Format = v => Loc.Tf("≈ {0} Гц", v.Number.ToString(CultureInfo.InvariantCulture)), Tool = InputTools.Polling(),
         });
 
         rows.Add(SpiRow(ctx, spi, "wheel-lines", 50, SettingControl.Slider,
-            "На сколько строк прокручивает один щелчок колёсика. На игры не влияет",
+            Loc.T("На сколько строк прокручивает один щелчок колёсика. На игры не влияет"),
             min: 1, max: 100, @default: 3, format: v => InputAdvice.WheelLinesText(v.Number),
-            special: new DeviceOption(DeviceValue.Of(SpiCatalog.PageScroll), "экран целиком")));
+            special: new DeviceOption(DeviceValue.Of(SpiCatalog.PageScroll), Loc.T("экран целиком"))));
         if (sys.HorizontalWheel)
             rows.Add(SpiRow(ctx, spi, "wheel-chars", 55, SettingControl.Slider,
-                "На сколько символов сдвигает текст один наклон колёсика вбок",
+                Loc.T("На сколько символов сдвигает текст один наклон колёсика вбок"),
                 min: 1, max: 100, @default: 3, format: v => InputAdvice.WheelCharsText(v.Number)));
 
         var routing = SpiRow(ctx, spi, "wheel-routing", 60, SettingControl.Toggle,
-            "Колёсико прокручивает окно под курсором, даже неактивное — не нужно сначала щёлкать по нему",
+            Loc.T("Колёсико прокручивает окно под курсором, даже неактивное — не нужно сначала щёлкать по нему"),
             @default: 2, on: DeviceValue.Of(2), off: DeviceValue.Of(0));
         if (routing is { Apply: not null, Current.Number: 0 })
             routing.Recommended = new Recommendation(DeviceValue.Of(2),
-                "Колёсико прокручивает окно под курсором, не нужно сначала щёлкать по нему (так в Windows по умолчанию).", RecommendPolicy.Suggest);
+                Loc.T("Колёсико прокручивает окно под курсором, не нужно сначала щёлкать по нему (так в Windows по умолчанию)."), RecommendPolicy.Suggest);
         rows.Add(routing);
 
         rows.Add(SpiRow(ctx, spi, "double-click", 70, SettingControl.Slider,
-            "Сколько времени даётся на второй щелчок. Проверьте на поле ниже",
+            Loc.T("Сколько времени даётся на второй щелчок. Проверьте на поле ниже"),
             min: 200, max: 900, step: 10, @default: 500, test: SettingTest.DoubleClick,
-            format: v => $"{v.Number.ToString(CultureInfo.InvariantCulture)} мс"));
+            format: v => Loc.Tf("{0} мс", v.Number.ToString(CultureInfo.InvariantCulture))));
 
         rows.Add(SpiRow(ctx, spi, "swap-buttons", 80, SettingControl.Toggle,
-            "Для левшей. Подтвердите новой основной кнопкой за 15 с, иначе всё вернётся. Не дублируйте замену в программе мыши",
+            Loc.T("Для левшей. Подтвердите новой основной кнопкой за 15 с, иначе всё вернётся. Не дублируйте замену в программе мыши"),
             @default: 0, countdown: true, confirm: _ => SwapConfirm,
-            manualHint: "Вернуть вручную: Параметры → Bluetooth и устройства → Мышь → Основная кнопка мыши."));
+            manualHint: Loc.T("Вернуть вручную: Параметры → Bluetooth и устройства → Мышь → Основная кнопка мыши.")));
 
         var trails = SpiRow(ctx, spi, "mouse-trails", 90, SettingControl.Choice,
-            "Копии курсора тянутся за ним. Помогают найти курсор, но на быстром мониторе только мешают",
+            Loc.T("Копии курсора тянутся за ним. Помогают найти курсор, но на быстром мониторе только мешают"),
             @default: 0, format: v => InputAdvice.TrailsText(v.Number),
-            options: [new DeviceOption(DeviceValue.Of(0), "выкл"), .. Enumerable.Range(2, 6).Select(n => new DeviceOption(DeviceValue.Of(n), InputAdvice.TrailsText(n)))],
+            options: [new DeviceOption(DeviceValue.Of(0), Loc.T("выкл")), .. Enumerable.Range(2, 6).Select(n => new DeviceOption(DeviceValue.Of(n), InputAdvice.TrailsText(n)))],
             same: (a, b) => InputAdvice.NormalizeTrails(a.Number) == InputAdvice.NormalizeTrails(b.Number));
         if (trails is { Apply: not null, Current.Number: > 1 })
             trails.Recommended = new Recommendation(DeviceValue.Of(0),
-                "Шлейф нужен, чтобы находить курсор; на быстром мониторе он только мешает следить за ним.", RecommendPolicy.Suggest);
+                Loc.T("Шлейф нужен, чтобы находить курсор; на быстром мониторе он только мешает следить за ним."), RecommendPolicy.Suggest);
         rows.Add(trails);
 
         var sonar = SpiRow(ctx, spi, "mouse-sonar", 100, SettingControl.Toggle,
-            "Ctrl рисует круги вокруг курсора; в играх Ctrl нажимают часто", @default: 0);
+            Loc.T("Ctrl рисует круги вокруг курсора; в играх Ctrl нажимают часто"), @default: 0);
         if (sonar is { Apply: not null, Current.Number: 1 })
             sonar.Recommended = new Recommendation(DeviceValue.Of(0),
-                "Ctrl — частая клавиша в играх: после каждого отдельного нажатия вокруг курсора появляются круги.", RecommendPolicy.Suggest);
+                Loc.T("Ctrl — частая клавиша в играх: после каждого отдельного нажатия вокруг курсора появляются круги."), RecommendPolicy.Suggest);
         rows.Add(sonar);
 
         rows.Add(SpiRow(ctx, spi, "mouse-vanish", 110, SettingControl.Toggle,
-            "Курсор прячется, пока вы печатаете, и появляется снова при движении мыши", @default: 1));
+            Loc.T("Курсор прячется, пока вы печатаете, и появляется снова при движении мыши"), @default: 1));
 
         var card = new DeviceCard
         {
-            Key = MouseCard, Kind = DeviceKind.Mouse, Order = 10, Title = "Мышь",
+            Key = MouseCard, Kind = DeviceKind.Mouse, Order = 10, Title = Loc.T("Мышь"),
             Subtitle = inv.Mice.Count == 0 ? null : string.Join(", ", inv.Mice.Select(m => m.Label)),
             Hardware = inv.Mice.Select(m => m.ToHardwareRef()).ToList(),
             Settings = [.. rows],
@@ -238,42 +238,42 @@ internal sealed class InputProvider : IDeviceProvider
     {
         var filter = sys.FilterKeysOn
             ? sys.FilterDelayMs > 0
-                ? $"Сейчас задержку задаёт «Фильтрация ввода» ({sys.FilterDelayMs.ToString(CultureInfo.InvariantCulture)} мс)."
-                : "Сейчас задержку задаёт «Фильтрация ввода»."
+                ? Loc.Tf("Сейчас задержку задаёт «Фильтрация ввода» ({0} мс).", sys.FilterDelayMs.ToString(CultureInfo.InvariantCulture))
+                : Loc.T("Сейчас задержку задаёт «Фильтрация ввода».")
             : null;
 
         var delay = SpiRow(ctx, spi, "keyboard-delay", 10, SettingControl.Slider,
-            "Пауза перед повтором зажатой клавиши. 0 — быстрее навигация, но легче случайный повтор",
+            Loc.T("Пауза перед повтором зажатой клавиши. 0 — быстрее навигация, но легче случайный повтор"),
             min: 0, max: 3, @default: 1, test: SettingTest.KeyRepeat, format: v => InputAdvice.KeyboardDelayText(v.Number));
         if (filter is not null) delay.DisabledReason ??= filter;
 
         var rate = SpiRow(ctx, spi, "keyboard-speed", 20, SettingControl.Slider,
-            "Сколько раз в секунду повторяется зажатая клавиша. Быстрее всего — около 30 раз",
+            Loc.T("Сколько раз в секунду повторяется зажатая клавиша. Быстрее всего — около 30 раз"),
             min: 0, max: 31, @default: 31, format: v => InputAdvice.RepeatSpeedText(v.Number));
-        if (sys.FilterKeysOn) rate.DisabledReason ??= "Сейчас скорость повтора задаёт «Фильтрация ввода».";
+        if (sys.FilterKeysOn) rate.DisabledReason ??= Loc.T("Сейчас скорость повтора задаёт «Фильтрация ввода».");
         else if (rate is { Apply: not null, Current.Number: < 31 })
             rate.Recommended = new Recommendation(DeviceValue.Of(31),
-                $"Зажатая клавиша повторяется быстрее всего ({InputAdvice.RepeatRateText(31)}): удобнее стирать и листать. На игры не влияет.",
+                Loc.Tf("Зажатая клавиша повторяется быстрее всего ({0}): удобнее стирать и листать. На игры не влияет.", InputAdvice.RepeatRateText(31)),
                 RecommendPolicy.Suggest);
 
-        var hotkeys = DeviceSetting.ForTweak(HotkeysTweak, "Сочетания клавиш специальных возможностей",
-            "Пять нажатий Shift не откроют окно «Залипание клавиш» поверх игры; сами функции остаются",
-            order: 30, format: v => v.Number != 0 ? "выкл" : "вкл");
+        var hotkeys = DeviceSetting.ForTweak(HotkeysTweak, Loc.T("Сочетания клавиш специальных возможностей"),
+            Loc.T("Пять нажатий Shift не откроют окно «Залипание клавиш» поверх игры; сами функции остаются"),
+            order: 30, format: v => v.Number != 0 ? Loc.T("выкл") : Loc.T("вкл"));
 
         var notes = new List<DeviceNote>();
-        var link = new DeviceLink(DeviceLinkKind.Settings, "ОТКРЫТЬ ПАРАМЕТРЫ", "ms-settings:easeofaccess-keyboard");
+        var link = new DeviceLink(DeviceLinkKind.Settings, Loc.T("ОТКРЫТЬ ПАРАМЕТРЫ"), "ms-settings:easeofaccess-keyboard");
         if (sys.StickyKeysOn)
-            notes.Add(new DeviceNote("Включено «Залипание клавиш»: Shift, Ctrl и Alt остаются нажатыми после отпускания — в играх это мешает.", link));
+            notes.Add(new DeviceNote(Loc.T("Включено «Залипание клавиш»: Shift, Ctrl и Alt остаются нажатыми после отпускания — в играх это мешает."), link));
         if (sys.FilterKeysOn)
             notes.Add(new DeviceNote(sys.FilterWaitMs > 0
-                ? $"Включена «Фильтрация ввода»: нажатие засчитывается через {sys.FilterWaitMs.ToString(CultureInfo.InvariantCulture)} мс — в играх клавиши срабатывают с задержкой."
-                : "Включена «Фильтрация ввода»: быстрые и повторные нажатия могут теряться — в играх это мешает.", link));
+                ? Loc.Tf("Включена «Фильтрация ввода»: нажатие засчитывается через {0} мс — в играх клавиши срабатывают с задержкой.", sys.FilterWaitMs.ToString(CultureInfo.InvariantCulture))
+                : Loc.T("Включена «Фильтрация ввода»: быстрые и повторные нажатия могут теряться — в играх это мешает."), link));
 
         var named = inv.Keyboards.Count == 1 && inv.Keyboards[0].Name is { Length: > 0 } ? inv.Keyboards[0] : null;
         return new DeviceCard
         {
             Key = KeyboardCard, Kind = DeviceKind.Keyboard, Order = 20,
-            Title = named?.Name ?? "Клавиатура",
+            Title = named?.Name ?? Loc.T("Клавиатура"),
             Subtitle = named is not null ? named.IdText
                 : inv.Keyboards.Count == 0 ? null
                 : string.Join(", ", inv.Keyboards.Select(k => k.Label)),
@@ -285,12 +285,12 @@ internal sealed class InputProvider : IDeviceProvider
 
     // ───────────────────────────── One SPI row ─────────────────────────────
 
-    private static readonly CountdownRequest SwapConfirm = new("Оставить новое назначение кнопок?",
-        "Нажмите «ОСТАВИТЬ» той кнопкой мыши, которая теперь основная. Иначе через 15 с назначение вернётся.",
+    private static readonly CountdownRequest SwapConfirm = new(Loc.T("Оставить новое назначение кнопок?"),
+        Loc.T("Нажмите «ОСТАВИТЬ» той кнопкой мыши, которая теперь основная. Иначе через 15 с назначение вернётся."),
         15, CountdownRequest.Keep, CountdownRequest.Revert, null);
 
-    private static readonly CountdownRequest LowSpeedConfirm = new("Оставить эту скорость указателя?",
-        "Курсор стал очень медленным. Если им удобно пользоваться, нажмите «ОСТАВИТЬ» — иначе через 15 с вернётся прежняя скорость.",
+    private static readonly CountdownRequest LowSpeedConfirm = new(Loc.T("Оставить эту скорость указателя?"),
+        Loc.T("Курсор стал очень медленным. Если им удобно пользоваться, нажмите «ОСТАВИТЬ» — иначе через 15 с вернётся прежняя скорость."),
         15, CountdownRequest.Keep, CountdownRequest.Revert, null);
 
     /// <summary>
@@ -304,7 +304,7 @@ internal sealed class InputProvider : IDeviceProvider
         DeviceValue? on = null, DeviceValue? off = null, Func<DeviceValue, DeviceValue, bool>? same = null, bool countdown = false,
         Func<int, CountdownRequest?>? confirm = null, string? manualHint = null)
     {
-        var entry = SpiCatalog.Find(id) ?? throw new InvalidOperationException($"нет параметра «{id}» в каталоге");
+        var entry = SpiCatalog.Find(id) ?? throw new InvalidOperationException($"нет параметра «{id}» в каталоге"); // loc:ignore programmer error, never shown
         var writable = spi is not null;
         var current = Read(spi, entry);
         return new DeviceSetting
@@ -331,15 +331,15 @@ internal sealed class InputProvider : IDeviceProvider
         try { return spi.Get(entry) is { } v ? DeviceValue.Of(v) : null; }
         catch (Exception ex)
         {
-            Log.Warn($"{entry.Title}: не прочитано — {ex.Message}");
+            Log.Warn("{0}: не прочитано — {1}", entry.Title, ex.Message);
             return null;
         }
     }
 
     /// <summary>Per-user rows for another account (or an unknown one): one short reason; the page shows the full text once.</summary>
     internal static string AccountReason(DeviceScanContext ctx) => ctx.InteractiveUser == false
-        ? "Недоступно: MONOLITH запущен от другой учётной записи."
-        : "Недоступно: не удалось определить пользователя рабочего стола.";
+        ? Loc.T("Недоступно: MONOLITH запущен от другой учётной записи.")
+        : Loc.T("Недоступно: не удалось определить пользователя рабочего стола.");
 
     /// <summary>
     /// «ОЖИДАЕТ ВЫХОДА ИЗ СИСТЕМЫ» when the account's saved value differs from the live one (a registry-only change waits for
@@ -389,12 +389,12 @@ internal sealed class InputProvider : IDeviceProvider
             case DisplayApplyResult.Reverted: return ApplyOutcome.Declined;
             case DisplayApplyResult.Blocked: return ApplyOutcome.Blocked;
         }
-        var message = outcome.Message ?? "не применено";
+        var message = outcome.Message ?? Loc.T("не применено");
         if (!session.Errors.Any(e => e.Contains(message, StringComparison.Ordinal)))
         {
             // Applied, not confirmed, and the old value could not be put back by itself: say how to do it by hand.
-            session.Errors.Add($"{title}: {message}");
-            _ = Ui.AlertAsync($"{title}: прежнее значение не вернулось", message);
+            session.Errors.Add(Loc.Tf("{0}: {1}", title, message));
+            _ = Ui.AlertAsync(Loc.Tf("{0}: прежнее значение не вернулось", title), message);
         }
         return ApplyOutcome.Failed;
     }

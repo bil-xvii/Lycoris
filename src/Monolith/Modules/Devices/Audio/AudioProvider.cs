@@ -78,7 +78,7 @@ public sealed class AudioProvider : IDeviceProvider
     public const string DuckingTweakId = "audio-ducking";
     internal static readonly TimeSpan TestDuration = TimeSpan.FromSeconds(5);
 
-    public string Name => "звук";
+    public string Name => Loc.T("звук");
 
     // Seams (tests replace them; the defaults read the real devices, read-only).
     internal Func<AudioSnapshot> ReadSnapshot { get; init; } = AudioInventory.Read;
@@ -96,10 +96,10 @@ public sealed class AudioProvider : IDeviceProvider
     internal static string ToolId(string endpointId) => "mic-level:" + endpointId;
     internal static string CardKey(string endpointId) => "audio:" + endpointId;
 
-    private const string PrivacyDenyText = "Доступ к микрофону запрещён в параметрах конфиденциальности Windows — проверка недоступна.";
-    private const string AccountText = "Недоступно: MONOLITH запущен не от вашей учётной записи (или её не удалось определить).";
-    private const string TestStatus = "Говорите обычным голосом 5 секунд… (Windows покажет значок микрофона)";
-    private const string LevelChangedText = "Уровень изменён — проверьте ещё раз.";
+    private static string PrivacyDenyText => Loc.T("Доступ к микрофону запрещён в параметрах конфиденциальности Windows — проверка недоступна.");
+    private static string AccountText => Loc.T("Недоступно: MONOLITH запущен не от вашей учётной записи (или её не удалось определить).");
+    private static string TestStatus => Loc.T("Говорите обычным голосом 5 секунд… (Windows покажет значок микрофона)");
+    private static string LevelChangedText => Loc.T("Уровень изменён — проверьте ещё раз.");
 
     // ───────────────────────────── Cards ─────────────────────────────
 
@@ -152,18 +152,17 @@ public sealed class AudioProvider : IDeviceProvider
         var facts = new List<string>();
         if (AudioParsing.ConnectionText(e) is { } connection) facts.Add(connection);
         if (e.Format is { } format) facts.Add(AudioParsing.ChannelsText(format.Channels));
-        if (e.Scalar is { } volume) facts.Add($"громкость {Math.Round(volume * 100).ToString("0", CultureInfo.InvariantCulture)} %");
-        if (e.Mute == true) facts.Add("звук выключен");
+        if (e.Scalar is { } volume) facts.Add(Loc.Tf("громкость {0} %", Math.Round(volume * 100).ToString("0", CultureInfo.InvariantCulture)));
+        if (e.Mute == true) facts.Add(Loc.T("звук выключен"));
 
         var notes = new List<DeviceNote>();
         if (unusedDisplays.Count > 0)
             notes.Add(new DeviceNote(
-                $"Выходы мониторов не используются: {string.Join(", ", unusedDisplays.Select(d => AudioParsing.DisplayName(d.Name)))}. " +
-                "Убрать их из списка — «Не разрешать» в параметрах звука.",
-                new DeviceLink(DeviceLinkKind.Settings, "ПАРАМЕТРЫ ЗВУКА", "ms-settings:sound")));
+                Loc.Tf("Выходы мониторов не используются: {0}. Убрать их из списка — «Не разрешать» в параметрах звука.", string.Join(", ", unusedDisplays.Select(d => AudioParsing.DisplayName(d.Name)))),
+                new DeviceLink(DeviceLinkKind.Settings, Loc.T("ПАРАМЕТРЫ ЗВУКА"), "ms-settings:sound")));
         if (isMain && snap.MonoOn)
-            notes.Add(new DeviceNote("Включён монофонический звук: в играх пропадает направление звука. Нужен только при слухе на одно ухо.",
-                new DeviceLink(DeviceLinkKind.Settings, "ПАРАМЕТРЫ", "ms-settings:easeofaccess-audio")));
+            notes.Add(new DeviceNote(Loc.T("Включён монофонический звук: в играх пропадает направление звука. Нужен только при слухе на одно ухо."),
+                new DeviceLink(DeviceLinkKind.Settings, Loc.T("ПАРАМЕТРЫ"), "ms-settings:easeofaccess-audio")));
 
         return new DeviceCard
         {
@@ -185,12 +184,12 @@ public sealed class AudioProvider : IDeviceProvider
         var facts = new List<string>();
         if (AudioParsing.ConnectionText(e) is { } connection) facts.Add(connection);
         if (e.Format is { } format) facts.Add(AudioParsing.ChannelsText(format.Channels));
-        if (e.HardwareSupport is { } hw && (hw & CoreAudio.HardwareVolume) != 0) facts.Add("уровень меняется в самом микрофоне");
+        if (e.HardwareSupport is { } hw && (hw & CoreAudio.HardwareVolume) != 0) facts.Add(Loc.T("уровень меняется в самом микрофоне"));
 
         var notes = new List<DeviceNote>();
         if (deny && isMain)
-            notes.Add(new DeviceNote("Доступ к микрофону запрещён в параметрах Windows — Discord, игры и проверка уровня вас не слышат.",
-                new DeviceLink(DeviceLinkKind.Settings, "КОНФИДЕНЦИАЛЬНОСТЬ", "ms-settings:privacy-microphone")));
+            notes.Add(new DeviceNote(Loc.T("Доступ к микрофону запрещён в параметрах Windows — Discord, игры и проверка уровня вас не слышат."),
+                new DeviceLink(DeviceLinkKind.Settings, Loc.T("КОНФИДЕНЦИАЛЬНОСТЬ"), "ms-settings:privacy-microphone")));
 
         return new DeviceCard
         {
@@ -208,9 +207,9 @@ public sealed class AudioProvider : IDeviceProvider
     internal static string? RoleTags(EndpointInfo e)
     {
         var tags = new List<string>();
-        if (e.IsDefault) tags.Add("по умолчанию");
-        if (e.IsDefaultCommunications) tags.Add("связь");
-        return tags.Count == 0 ? null : string.Join(" · ", tags);
+        if (e.IsDefault) tags.Add(Loc.T("по умолчанию"));
+        if (e.IsDefaultCommunications) tags.Add(Loc.T("связь"));
+        return tags.Count == 0 ? null : string.Join(Loc.T(" · "), tags);
     }
 
     // ───────────────────────────── Info rows (INFO-ONLY: explained and linked, never written) ─────────────────────────────
@@ -226,38 +225,38 @@ public sealed class AudioProvider : IDeviceProvider
 
     private static DeviceLink? DeviceSettingsLink(EndpointInfo e) =>
         DeviceTargets.IsEndpointId(e.Id)
-            ? new DeviceLink(DeviceLinkKind.Settings, "ПАРАМЕТРЫ УСТРОЙСТВА", "ms-settings:sound-properties?endpointId=" + Uri.EscapeDataString(e.Id))
+            ? new DeviceLink(DeviceLinkKind.Settings, Loc.T("ПАРАМЕТРЫ УСТРОЙСТВА"), "ms-settings:sound-properties?endpointId=" + Uri.EscapeDataString(e.Id))
             : null;
 
     private static DeviceSetting DefaultRow(EndpointInfo e, IReadOnlyList<AudioIssue> issues)
     {
         var value = (e.IsDefault, e.IsDefaultCommunications) switch
         {
-            (true, true) => "да, и для связи",
-            (true, false) => "да",
-            (false, true) => "только для связи",
-            _ => "нет",
+            (true, true) => Loc.T("да, и для связи"),
+            (true, false) => Loc.T("да"),
+            (false, true) => Loc.T("только для связи"),
+            _ => Loc.T("нет"),
         };
         var issue = issues.FirstOrDefault(i => string.Equals(i.EndpointId, e.Id, StringComparison.OrdinalIgnoreCase));
         var hint = e.Flow == AudioFlow.Render
-            ? "Куда Windows выводит игры (по умолчанию) и голосовой чат (связь)"
-            : "С какого микрофона записывают игры (по умолчанию) и голосовой чат (связь)";
-        var link = issue is null ? null : new DeviceLink(DeviceLinkKind.SoundPanel, "ПАНЕЛЬ ЗВУКА", issue.SoundPanelTab.ToString(CultureInfo.InvariantCulture));
-        return Info("audio-default", "Устройство по умолчанию", hint, value, 30, issue?.Text, link);
+            ? Loc.T("Куда Windows выводит игры (по умолчанию) и голосовой чат (связь)")
+            : Loc.T("С какого микрофона записывают игры (по умолчанию) и голосовой чат (связь)");
+        var link = issue is null ? null : new DeviceLink(DeviceLinkKind.SoundPanel, Loc.T("ПАНЕЛЬ ЗВУКА"), issue.SoundPanelTab.ToString(CultureInfo.InvariantCulture));
+        return Info("audio-default", Loc.T("Устройство по умолчанию"), hint, value, 30, issue?.Text, link);
     }
 
     private static DeviceSetting FormatRow(EndpointInfo e) =>
-        Info("audio-format", "Формат", "Частота и разрядность, в которых Windows передаёт звук устройству",
-            e.Format is { } f ? AudioParsing.RateBitsText(f) : "—", 40, AudioAdvice.FormatAdvice(e.Format), null, DeviceSettingsLink(e));
+        Info("audio-format", Loc.T("Формат"), Loc.T("Частота и разрядность, в которых Windows передаёт звук устройству"),
+            e.Format is { } f ? AudioParsing.RateBitsText(f) : Loc.T("—"), 40, AudioAdvice.FormatAdvice(e.Format), null, DeviceSettingsLink(e));
 
     private static DeviceSetting? EnhancementsRow(EndpointInfo e)
     {
         if (e.EnhancementsOff is not { } off) return null; // no effects on this endpoint (or unreadable): nothing to show
         var advice = AudioAdvice.EnhancementsAdvice(e, AudioAdvice.HasVendorProcessing(e));
-        return Info("audio-enhancements", "Улучшения звука",
-            e.Flow == AudioFlow.Render ? "Эффекты Windows и драйвера: эквалайзер, объёмный звук"
-                                       : "Эффекты записи: шумоподавление, Voice Clarity и другие",
-            off ? "выкл" : "вкл", 50, advice, advice is null ? null : DeviceSettingsLink(e));
+        return Info("audio-enhancements", Loc.T("Улучшения звука"),
+            e.Flow == AudioFlow.Render ? Loc.T("Эффекты Windows и драйвера: эквалайзер, объёмный звук")
+                                       : Loc.T("Эффекты записи: шумоподавление, Voice Clarity и другие"),
+            off ? Loc.T("выкл") : Loc.T("вкл"), 50, advice, advice is null ? null : DeviceSettingsLink(e));
     }
 
     private static DeviceSetting? SpatialRow(EndpointInfo e)
@@ -266,11 +265,11 @@ public sealed class AudioProvider : IDeviceProvider
         var advice = AudioAdvice.SpatialAdvice(e, AudioAdvice.HasVendorProcessing(e));
         var value = state switch
         {
-            SpatialState.Off => "выкл",
+            SpatialState.Off => Loc.T("выкл"),
             SpatialState.WindowsSonic => "Windows Sonic",
-            _ => "другой формат",
+            _ => Loc.T("другой формат"),
         };
-        return Info("audio-spatial", "Пространственный звук", "Объёмный звук для наушников: Windows Sonic, Dolby Atmos, DTS",
+        return Info("audio-spatial", Loc.T("Пространственный звук"), Loc.T("Объёмный звук для наушников: Windows Sonic, Dolby Atmos, DTS"),
             value, 60, advice, advice is null ? null : DeviceSettingsLink(e));
     }
 
@@ -281,15 +280,15 @@ public sealed class AudioProvider : IDeviceProvider
     internal static DeviceSetting DuckingRow(int? preference) => new()
     {
         Id = "tweak:" + DuckingTweakId,
-        Title = "Приглушение во время звонков",
-        Hint = "Игровой звук не будет приглушаться, когда открыт голосовой чат",
+        Title = Loc.T("Приглушение во время звонков"),
+        Hint = Loc.T("Игровой звук не будет приглушаться, когда открыт голосовой чат"),
         Control = SettingControl.Info,
         TweakId = DuckingTweakId,
         TweakPolicy = AudioAdvice.DuckingPolicy,
         Order = 70,
         Format = v => v.Number != 0 ? AudioAdvice.DuckingShort(AudioAdvice.DuckingRecommended) : AudioAdvice.DuckingShort(preference),
-        AppliesWhen = "ВЫХОД ИЗ СИСТЕМЫ",
-        Link = new DeviceLink(DeviceLinkKind.SoundPanel, "ВКЛАДКА «СВЯЗЬ»", "3"),
+        AppliesWhen = Loc.T("ВЫХОД ИЗ СИСТЕМЫ"),
+        Link = new DeviceLink(DeviceLinkKind.SoundPanel, Loc.T("ВКЛАДКА «СВЯЗЬ»"), "3"),
     };
 
     // ───────────────────────────── Microphone: level, mute, level test ─────────────────────────────
@@ -318,11 +317,11 @@ public sealed class AudioProvider : IDeviceProvider
         var tool = new DeviceTool
         {
             Id = ToolId(e.Id),
-            Title = "Проверка уровня",
-            ButtonText = "ПРОВЕРИТЬ",
+            Title = Loc.T("Проверка уровня"),
+            ButtonText = Loc.T("ПРОВЕРИТЬ"),
             Description = privacyDeny
-                ? "Недоступно: доступ к микрофону запрещён в параметрах Windows"
-                : "5 секунд обычной речи: пики, перегруз и подходящий уровень. Ничего не меняет",
+                ? Loc.T("Недоступно: доступ к микрофону запрещён в параметрах Windows")
+                : Loc.T("5 секунд обычной речи: пики, перегруз и подходящий уровень. Ничего не меняет"),
             Run = (run, ct) => RunTestAsync(run, ct, e, level, isMain),
         };
         if (measurement is not null)
@@ -339,10 +338,10 @@ public sealed class AudioProvider : IDeviceProvider
         level = new DeviceSetting
         {
             Id = "mic-level",
-            Title = "Уровень микрофона",
+            Title = Loc.T("Уровень микрофона"),
             Hint = rangeText is null
-                ? "Чувствительность записи: подберите её по проверке уровня ниже"
-                : $"Чувствительность записи ({rangeText}): подберите по проверке ниже",
+                ? Loc.T("Чувствительность записи: подберите её по проверке уровня ниже")
+                : Loc.Tf("Чувствительность записи ({0}): подберите по проверке ниже", rangeText),
             Control = SettingControl.Slider,
             Min = 0,
             Max = 100,
@@ -355,11 +354,11 @@ public sealed class AudioProvider : IDeviceProvider
             Tool = tool,
             Current = live is null ? null : MicLevelValue.Of(live.Scalar, live.Db),
             Recommended = LevelRecommendation(live, measurement, isMain, stale, cardKey, tool.Id),
-            DisabledReason = accountProblem ?? (live is null ? "Windows не сообщает уровень этого микрофона." : null),
+            DisabledReason = accountProblem ?? (live is null ? Loc.T("Windows не сообщает уровень этого микрофона.") : null),
             ReadCurrent = () => ReadLevel(e.Id) is { } l ? MicLevelValue.Of(l.Scalar, l.Db) : null,
             Apply = (s, v, ct) =>
             {
-                var title = $"Уровень микрофона — {e.Name}";
+                var title = Loc.Tf("Уровень микрофона — {0}", e.Name);
                 var before = s.Applied;
                 var ok = MicLevelValue.TryDb(v, out var db)
                     ? s.SetAudioLevel(e.Id, e.Name, null, (float)db, null, DeviceTargets.Source, title)
@@ -381,19 +380,19 @@ public sealed class AudioProvider : IDeviceProvider
         var mute = new DeviceSetting
         {
             Id = "mic-mute",
-            Title = "Без звука",
-            Hint = "Выключает микрофон в Windows: вас не слышно ни в одной программе",
+            Title = Loc.T("Без звука"),
+            Hint = Loc.T("Выключает микрофон в Windows: вас не слышно ни в одной программе"),
             Control = SettingControl.Toggle,
             JournalTarget = DeviceTargets.AudioMute(e.Id),
             PerUser = true,
             Order = 20,
             Current = live is null ? null : DeviceValue.Of(live.Mute),
-            DisabledReason = accountProblem ?? (live is null ? "Windows не сообщает состояние этого микрофона." : null),
+            DisabledReason = accountProblem ?? (live is null ? Loc.T("Windows не сообщает состояние этого микрофона.") : null),
             ReadCurrent = () => ReadLevel(e.Id) is { } l ? DeviceValue.Of(l.Mute) : null,
             Apply = (s, v, ct) =>
             {
                 var before = s.Applied;
-                var ok = s.SetAudioLevel(e.Id, e.Name, null, null, v.Number != 0, DeviceTargets.Source, $"Отключение микрофона — {e.Name}");
+                var ok = s.SetAudioLevel(e.Id, e.Name, null, null, v.Number != 0, DeviceTargets.Source, Loc.Tf("Отключение микрофона — {0}", e.Name));
                 return Task.FromResult(!ok ? ApplyOutcome.Failed : s.Applied == before ? ApplyOutcome.NoChange : ApplyOutcome.Applied);
             },
         };
@@ -409,7 +408,7 @@ public sealed class AudioProvider : IDeviceProvider
 
     /// <summary>The main microphone asks for a measurement first: the plan says «НУЖНО ИЗМЕРЕНИЕ» and links the tool.</summary>
     private static Recommendation MeasureFirst(string reason, DeviceValue? current, string cardKey, string toolId) =>
-        new(current ?? DeviceValue.Of(0), reason, RecommendPolicy.Suggest, new DeviceLink(DeviceLinkKind.Tool, "К ПРОВЕРКЕ", cardKey, toolId))
+        new(current ?? DeviceValue.Of(0), reason, RecommendPolicy.Suggest, new DeviceLink(DeviceLinkKind.Tool, Loc.T("К ПРОВЕРКЕ"), cardKey, toolId))
         {
             NeedsMeasurement = true,
         };
@@ -424,20 +423,20 @@ public sealed class AudioProvider : IDeviceProvider
         var current = MicLevelValue.Of(live.Scalar, live.Db);
         if (m is null)
             return isMain
-                ? MeasureFirst(stale ? "Уровень изменён после проверки — проверьте ещё раз." : "Проверка уровня покажет, слышно ли вас без перегруза: 5 секунд речи.",
+                ? MeasureFirst(stale ? Loc.T("Уровень изменён после проверки — проверьте ещё раз.") : Loc.T("Проверка уровня покажет, слышно ли вас без перегруза: 5 секунд речи."),
                     current, cardKey, toolId)
                 : null;
 
         if (m.TargetDb is { } target && live.Db is { } db && live.DbMin is { } min && live.DbMax is { } max)
             return new Recommendation(
                 MicLevelValue.Target(target, MicLevelValue.EstimatePercent(target, db, current.Number, min, max)),
-                $"Пики речи будут около −9 дБFS, без перегруза: {AudioParsing.DbText(db)} → {AudioParsing.DbText(target)}.",
+                Loc.Tf("Пики речи будут около −9 дБFS, без перегруза: {0} → {1}.", AudioParsing.DbText(db), AudioParsing.DbText(target)),
                 RecommendPolicy.Suggest);
 
         return MicLevelAnalysis.Classify(m.Stats) switch
         {
-            MicLevelVerdict.Ok => new Recommendation(current, "По проверке уровень в норме.", RecommendPolicy.Suggest),
-            MicLevelVerdict.NoSpeech when isMain => MeasureFirst("В прошлой проверке было мало речи — проверьте ещё раз.", current, cardKey, toolId),
+            MicLevelVerdict.Ok => new Recommendation(current, Loc.T("По проверке уровень в норме."), RecommendPolicy.Suggest),
+            MicLevelVerdict.NoSpeech when isMain => MeasureFirst(Loc.T("В прошлой проверке было мало речи — проверьте ещё раз."), current, cardKey, toolId),
             _ => null, // the level is already at the end of its range: the tool's result says what to do instead
         };
     }
@@ -451,21 +450,20 @@ public sealed class AudioProvider : IDeviceProvider
         string? detail;
         if (target is { } t && at.Db is { } now)
         {
-            detail = $"Рекомендуемый уровень {AudioParsing.DbText(t)} (сейчас {AudioParsing.DbText(now)}) — ползунок уже на нём, нажмите «ПРИМЕНИТЬ». " +
-                     "Потом проверьте ещё раз.";
+            detail = Loc.Tf("Рекомендуемый уровень {0} (сейчас {1}) — ползунок уже на нём, нажмите «ПРИМЕНИТЬ». Потом проверьте ещё раз.", AudioParsing.DbText(t), AudioParsing.DbText(now));
             if (at.DbMax is { } top && t >= top - 0.01 && t - now < MicLevelAnalysis.TargetDbfs - stats.P95WindowPeakDbfs - 3)
-                detail += " Даже на максимуме будет тихо — придвиньте микрофон.";
+                detail += " " + Loc.T("Даже на максимуме будет тихо — придвиньте микрофон.");
         }
         else
         {
             detail = kind switch
             {
-                MicLevelVerdict.Ok => "Менять ничего не нужно.",
-                MicLevelVerdict.NoSpeech => "Проверьте ещё раз и говорите всё время, пока идёт проверка.",
-                MicLevelVerdict.Quiet => at.Db is null ? "Windows не сообщает уровень в децибелах — прибавьте уровень ползунком и проверьте ещё раз."
-                    : "Уровень уже максимальный — придвиньте микрофон.",
-                _ => at.Db is null ? "Windows не сообщает уровень в децибелах — убавьте уровень ползунком и проверьте ещё раз."
-                    : "Уровень уже минимальный — отодвиньте микрофон или говорите тише.",
+                MicLevelVerdict.Ok => Loc.T("Менять ничего не нужно."),
+                MicLevelVerdict.NoSpeech => Loc.T("Проверьте ещё раз и говорите всё время, пока идёт проверка."),
+                MicLevelVerdict.Quiet => at.Db is null ? Loc.T("Windows не сообщает уровень в децибелах — прибавьте уровень ползунком и проверьте ещё раз.")
+                    : Loc.T("Уровень уже максимальный — придвиньте микрофон."),
+                _ => at.Db is null ? Loc.T("Windows не сообщает уровень в децибелах — убавьте уровень ползунком и проверьте ещё раз.")
+                    : Loc.T("Уровень уже минимальный — отодвиньте микрофон или говорите тише."),
             };
         }
         return new MicMeasurement(at.Scalar, at.Db, stats, target, verdict, detail);
@@ -485,12 +483,12 @@ public sealed class AudioProvider : IDeviceProvider
         var before = await Task.Run(() => ReadLevel(e.Id), ct);
         if (before is null)
         {
-            run.Fail("Микрофон не найден или отключён — подключите его и нажмите «ОБНОВИТЬ».");
+            run.Fail(Loc.T("Микрофон не найден или отключён — подключите его и нажмите «ОБНОВИТЬ»."));
             return;
         }
         if (before.Mute)
         {
-            run.Fail("Микрофон выключен («Без звука») — включите его и проверьте снова.");
+            run.Fail(Loc.T("Микрофон выключен («Без звука») — включите его и проверьте снова."));
             return;
         }
 

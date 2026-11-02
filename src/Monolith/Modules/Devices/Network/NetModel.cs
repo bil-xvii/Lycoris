@@ -84,8 +84,8 @@ public sealed record WifiLink(int? RssiDbm, int? Channel, string? Error)
     public string Band => Channel switch
     {
         null => "—",
-        >= 1 and <= 14 => "2,4 ГГц",
-        _ => "5/6 ГГц",
+        >= 1 and <= 14 => Loc.T("2,4 ГГц"),
+        _ => Loc.T("5/6 ГГц"),
     };
 }
 

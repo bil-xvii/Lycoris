@@ -8,7 +8,8 @@ namespace Monolith.Modules.Devices.Input;
 /// </summary>
 internal static class InputAdvice
 {
-    public static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
+    /// <summary>Culture of the interface language (ru-RU or en-US) for shown numbers.</summary>
+    public static CultureInfo Ru => Loc.Culture;
 
     /// <summary>Pointer speed 10: one sensor count = one pixel (Windows default, EPP off).</summary>
     public const int NeutralSpeed = 10;
@@ -67,7 +68,7 @@ internal static class InputAdvice
         var cm = DesktopTravelCm(widthPx, dpi, multiplier);
         if (cm <= 0) return null;
         var text = cm < 10 ? cm.ToString("0.#", Ru) : cm.ToString("0", Ru);
-        return $"через экран {widthPx.ToString(CultureInfo.InvariantCulture)} px ≈ {text} см";
+        return Loc.Tf("через экран {0} px ≈ {1} см", widthPx.ToString(CultureInfo.InvariantCulture), text);
     }
 
     /// <summary>Below, inside or above 800–1600 DPI (with the measurement tolerance at both edges).</summary>
@@ -85,14 +86,14 @@ internal static class InputAdvice
     public static (string Text, bool OutsideRange) DpiAdvice(double? dpi, int widthPx)
     {
         if (dpi is not { } d || d <= 0)
-            return ("DPI ещё не измерено — нужна линейка или банковская карта.", false);
+            return (Loc.T("DPI ещё не измерено — нужна линейка или банковская карта."), false);
         var travel = TravelText(widthPx, d, 1);
         var head = travel is null ? DpiText(d) : $"{DpiText(d)}: {travel}";
         return DpiRangeSide(d) switch
         {
-            < 0 => ($"{head} — для рабочего стола медленно. Удобнее {DpiLow}–{DpiHigh} DPI в программе мыши.", true),
-            > 0 => ($"{head} — курсор дёрганый. Удобнее {DpiLow}–{DpiHigh} DPI в программе мыши.", true),
-            _ => ($"{head} — удобный диапазон для рабочего стола и игр.", false),
+            < 0 => (Loc.Tf("{0} — для рабочего стола медленно. Удобнее {1}–{2} DPI в программе мыши.", head, DpiLow, DpiHigh), true),
+            > 0 => (Loc.Tf("{0} — курсор дёрганый. Удобнее {1}–{2} DPI в программе мыши.", head, DpiLow, DpiHigh), true),
+            _ => (Loc.Tf("{0} — удобный диапазон для рабочего стола и игр.", head), false),
         };
     }
 
@@ -106,7 +107,7 @@ internal static class InputAdvice
         if (currentSpeed is not { } speed || speed == NeutralSpeed) return null;
         if (measuredDpi is not { } dpi || dpi <= 0)
             return new Recommendation(DeviceValue.Of(NeutralSpeed),
-                "Сначала проверьте DPI мыши — тогда MONOLITH скажет, какое DPI поставить, чтобы курсор не стал медленнее или быстрее.",
+                Loc.T("Сначала проверьте DPI мыши — тогда MONOLITH скажет, какое DPI поставить, чтобы курсор не стал медленнее или быстрее."),
                 RecommendPolicy.Suggest, toolLink) { NeedsMeasurement = true };
         return new Recommendation(DeviceValue.Of(NeutralSpeed), PointerSpeedReason(speed, dpi), RecommendPolicy.Suggest);
     }
@@ -115,12 +116,11 @@ internal static class InputAdvice
     public static string PointerSpeedReason(int currentSpeed, double dpi)
     {
         var target = CompensatedDpi((int)Math.Round(dpi), currentSpeed);
-        const string head = "Каждое движение мыши = 1 пиксель";
         return DpiRangeSide(target) switch
         {
-            > 0 => $"{head}. В программе мыши: ≈ {target} DPI — скорость как сейчас, или {DpiHigh} DPI — курсор станет медленнее.",
-            < 0 => $"{head}. В программе мыши: ≈ {target} DPI — скорость как сейчас, или {DpiLow} DPI — курсор станет быстрее.",
-            _ => $"{head}; чтобы скорость не изменилась, поставьте в программе мыши ≈ {target} DPI.",
+            > 0 => Loc.Tf("Каждое движение мыши = 1 пиксель. В программе мыши: ≈ {0} DPI — скорость как сейчас, или {1} DPI — курсор станет медленнее.", target, DpiHigh),
+            < 0 => Loc.Tf("Каждое движение мыши = 1 пиксель. В программе мыши: ≈ {0} DPI — скорость как сейчас, или {1} DPI — курсор станет быстрее.", target, DpiLow),
+            _ => Loc.Tf("Каждое движение мыши = 1 пиксель; чтобы скорость не изменилась, поставьте в программе мыши ≈ {0} DPI.", target),
         };
     }
 
@@ -129,12 +129,12 @@ internal static class InputAdvice
     /// <summary>Advice for a measured polling rate (research mouse-polling-advice).</summary>
     public static string PollingAdvice(int? hz) => hz switch
     {
-        null or <= 0 => "Обычно хватает 1000 Гц; 2000–4000 Гц — по желанию, 8000 Гц — только после проверки своих игр.",
-        < 1000 => $"{hz} Гц — меньше обычного: поставьте 1000 Гц в программе мыши, задержка станет меньше на " +
-                  $"{(1000.0 / hz.Value - 1).ToString("0.#", Ru)} мс.",
-        1000 => "1000 Гц — оптимально для любых игр. Многие беспроводные мыши по кабелю больше 1000 Гц не дают.",
-        < 8000 => $"{hz} Гц — по желанию: нужен сильный процессор и монитор от 240 Гц. Если игры подтормаживают, верните 1000 Гц.",
-        _ => $"{hz} Гц — только если вы проверили свои игры: процессор нагружается сильнее, старые игры могут подтормаживать. Иначе 2000–4000 Гц.",
+        null or <= 0 => Loc.T("Обычно хватает 1000 Гц; 2000–4000 Гц — по желанию, 8000 Гц — только после проверки своих игр."),
+        < 1000 => Loc.Tf("{0} Гц — меньше обычного: поставьте 1000 Гц в программе мыши, задержка станет меньше на {1} мс.",
+                  hz, (1000.0 / hz.Value - 1).ToString("0.#", Ru)),
+        1000 => Loc.T("1000 Гц — оптимально для любых игр. Многие беспроводные мыши по кабелю больше 1000 Гц не дают."),
+        < 8000 => Loc.Tf("{0} Гц — по желанию: нужен сильный процессор и монитор от 240 Гц. Если игры подтормаживают, верните 1000 Гц.", hz),
+        _ => Loc.Tf("{0} Гц — только если вы проверили свои игры: процессор нагружается сильнее, старые игры могут подтормаживать. Иначе 2000–4000 Гц.", hz),
     };
 
     /// <summary>A finding for the plan: below 1000 Hz or at 8000 Hz; null otherwise (1000–4000 Hz are fine, unknown is not advice).</summary>
@@ -143,16 +143,16 @@ internal static class InputAdvice
     // ───────────────────────────── Keyboard ─────────────────────────────
 
     /// <summary>0..3 → «≈ 250 мс» … «≈ 1000 мс» (hardware dependent).</summary>
-    public static string KeyboardDelayText(long v) => $"≈ {((Math.Clamp(v, 0, 3) + 1) * 250).ToString(CultureInfo.InvariantCulture)} мс";
+    public static string KeyboardDelayText(long v) => Loc.Tf("≈ {0} мс", ((Math.Clamp(v, 0, 3) + 1) * 250).ToString(CultureInfo.InvariantCulture));
 
     /// <summary>Repeats per second of keyboard speed 0..31: 2,5 + 27,5 × v / 31.</summary>
     public static double RepeatRate(long v) => 2.5 + 27.5 * Math.Clamp(v, 0, 31) / 31.0;
 
     /// <summary>«≈ 30,0 в секунду».</summary>
-    public static string RepeatRateText(long v) => $"≈ {RepeatRate(v).ToString("0.0", Ru)} в секунду";
+    public static string RepeatRateText(long v) => Loc.Tf("≈ {0} в секунду", RepeatRate(v).ToString("0.0", Ru));
 
     /// <summary>«≈30/с», «≈20,2/с» — the effect of the 0–31 value, compact for the slider column and the plan.</summary>
-    public static string RepeatSpeedText(long v) => $"≈{RepeatRate(v).ToString("0.#", Ru)}/с";
+    public static string RepeatSpeedText(long v) => Loc.Tf("≈{0}/с", RepeatRate(v).ToString("0.#", Ru));
 
     // ───────────────────────────── Russian formatting ─────────────────────────────
 
@@ -172,13 +172,13 @@ internal static class InputAdvice
 
     /// <summary>«3 строки» / «экран целиком».</summary>
     public static string WheelLinesText(long v) =>
-        v == Monolith.Core.Devices.SpiCatalog.PageScroll ? "экран целиком" : $"{v.ToString(CultureInfo.InvariantCulture)} {Plural(v, "строка", "строки", "строк")}";
+        v == Monolith.Core.Devices.SpiCatalog.PageScroll ? Loc.T("экран целиком") : Loc.N(v, "{0} строка", "{0} строки", "{0} строк");
 
     /// <summary>«3 символа».</summary>
-    public static string WheelCharsText(long v) => $"{v.ToString(CultureInfo.InvariantCulture)} {Plural(v, "символ", "символа", "символов")}";
+    public static string WheelCharsText(long v) => Loc.N(v, "{0} символ", "{0} символа", "{0} символов");
 
     /// <summary>Trails 0 and 1 both mean «off» in Windows.</summary>
     public static long NormalizeTrails(long v) => v <= 1 ? 0 : v;
 
-    public static string TrailsText(long v) => NormalizeTrails(v) == 0 ? "выкл" : $"длина {v.ToString(CultureInfo.InvariantCulture)}";
+    public static string TrailsText(long v) => NormalizeTrails(v) == 0 ? Loc.T("выкл") : Loc.Tf("длина {0}", v.ToString(CultureInfo.InvariantCulture));
 }

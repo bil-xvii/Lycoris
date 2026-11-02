@@ -30,7 +30,7 @@ internal sealed class DisplayWriter : IDisplayWriter
     /// <summary>How long after the settle time the new HDR state may take to read back.</summary>
     internal static TimeSpan HdrConfirmWait = TimeSpan.FromSeconds(4);
 
-    private const string What = "изменение параметров экрана";
+    private static string What => Loc.T("изменение параметров экрана");
 
     /// <summary>The CCD configuration before the last temporary apply per monitor: the last-resort revert.</summary>
     private readonly ConcurrentDictionary<string, (PATH_INFO[] Paths, MODE_INFO[] Modes)> _snapshots = new(StringComparer.OrdinalIgnoreCase);
@@ -66,9 +66,9 @@ internal sealed class DisplayWriter : IDisplayWriter
     {
         try
         {
-            if (GetSystemMetrics(SM_REMOTESESSION) != 0) return "удалённый сеанс: Windows не даёт менять параметры экрана";
+            if (GetSystemMetrics(SM_REMOTESESSION) != 0) return Loc.T("удалённый сеанс: Windows не даёт менять параметры экрана");
             if (SHQueryUserNotificationState(out var state) == 0 && state is QUNS_BUSY or QUNS_RUNNING_D3D_FULL_SCREEN or QUNS_PRESENTATION_MODE)
-                return "закройте полноэкранную игру или презентацию";
+                return Loc.T("закройте полноэкранную игру или презентацию");
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
         {
@@ -93,43 +93,43 @@ internal sealed class DisplayWriter : IDisplayWriter
     private static DisplayWriteResult Code(int rc, string what) => rc switch
     {
         DISP_CHANGE_SUCCESSFUL => DisplayWriteResult.Success,
-        DISP_CHANGE_RESTART => new(DisplayWriteStatus.NeedsRestart, "этот режим требует перезагрузки — не применён"),
-        -2 => new(DisplayWriteStatus.Failed, "драйвер видеокарты не поддерживает этот режим"),
-        _ => new(DisplayWriteStatus.Failed, $"{what}: Windows вернула код {rc.ToString(CultureInfo.InvariantCulture)}"),
+        DISP_CHANGE_RESTART => new(DisplayWriteStatus.NeedsRestart, Loc.T("этот режим требует перезагрузки — не применён")),
+        -2 => new(DisplayWriteStatus.Failed, Loc.T("драйвер видеокарты не поддерживает этот режим")),
+        _ => new(DisplayWriteStatus.Failed, Loc.Tf("{0}: Windows вернула код {1}", what, rc.ToString(CultureInfo.InvariantCulture))),
     };
 
     public DisplayWriteResult TestMode(string monitorPath, DisplayModeSpec mode)
     {
-        if (Ccd.Find(monitorPath) is not { GdiName: { } gdi }) return new(DisplayWriteStatus.NotFound, "монитор не найден");
+        if (Ccd.Find(monitorPath) is not { GdiName: { } gdi }) return new(DisplayWriteStatus.NotFound, Loc.T("монитор не найден"));
         var dm = ModeFor(mode);
-        return Code(ChangeDisplaySettingsExW(gdi, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero), "проверка режима");
+        return Code(ChangeDisplaySettingsExW(gdi, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero), Loc.T("проверка режима"));
     }
 
     public DisplayWriteResult ApplyTemporary(string monitorPath, DisplayModeSpec mode)
     {
         SafetyLock.ThrowIfLocked(What);
-        if (Ccd.Find(monitorPath) is not { GdiName: { } gdi }) return new(DisplayWriteStatus.NotFound, "монитор не найден");
+        if (Ccd.Find(monitorPath) is not { GdiName: { } gdi }) return new(DisplayWriteStatus.NotFound, Loc.T("монитор не найден"));
         if (Ccd.Query() is { } snapshot) _snapshots[monitorPath] = snapshot;
 
         var dm = ModeFor(mode);
-        var result = Code(ChangeDisplaySettingsExW(gdi, ref dm, IntPtr.Zero, 0, IntPtr.Zero), "смена режима");
+        var result = Code(ChangeDisplaySettingsExW(gdi, ref dm, IntPtr.Zero, 0, IntPtr.Zero), Loc.T("смена режима"));
         if (!result.Ok) return result;
         return WaitFor(monitorPath, mode, ApplyWait) ? DisplayWriteResult.Success
-            : new DisplayWriteResult(DisplayWriteStatus.Failed, "режим не появился за 5 с");
+            : new DisplayWriteResult(DisplayWriteStatus.Failed, Loc.T("режим не появился за 5 с"));
     }
 
     public DisplayWriteResult Persist(string monitorPath, DisplayModeSpec mode)
     {
         SafetyLock.ThrowIfLocked(What);
-        if (Ccd.Find(monitorPath) is not { GdiName: { } gdi }) return new(DisplayWriteStatus.NotFound, "монитор не найден");
+        if (Ccd.Find(monitorPath) is not { GdiName: { } gdi }) return new(DisplayWriteStatus.NotFound, Loc.T("монитор не найден"));
         var dm = ModeFor(mode);
-        var result = Code(ChangeDisplaySettingsExW(gdi, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY, IntPtr.Zero), "сохранение режима");
+        var result = Code(ChangeDisplaySettingsExW(gdi, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY, IntPtr.Zero), Loc.T("сохранение режима"));
         if (!result.Ok) return result;
         // Verified against the saved (registry) mode; a mode that cannot be read back is taken as Windows reported it.
         return ReadPersistedMode(monitorPath) is not { } saved
                || (saved.Width == mode.Width && saved.Height == mode.Height && (saved.SameMode(mode) || saved.Frequency <= 1))
             ? DisplayWriteResult.Success
-            : new DisplayWriteResult(DisplayWriteStatus.Failed, $"Windows сохранила другой режим ({saved.Describe()})");
+            : new DisplayWriteResult(DisplayWriteStatus.Failed, Loc.Tf("Windows сохранила другой режим ({0})", saved.Describe()));
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ internal sealed class DisplayWriter : IDisplayWriter
             if (rc == ERROR_SUCCESS && WaitFor(monitorPath, original, RevertWait)) return DisplayWriteResult.Success;
         }
         Log.Warn("Возврат режима экрана: прежний режим не подтвердился.");
-        return new DisplayWriteResult(DisplayWriteStatus.Failed, "прежний режим не вернулся");
+        return new DisplayWriteResult(DisplayWriteStatus.Failed, Loc.T("прежний режим не вернулся"));
     }
 
     /// <summary>Polls the live mode until it matches (CCD shows a modeset a moment after the call returns).</summary>
@@ -179,10 +179,10 @@ internal sealed class DisplayWriter : IDisplayWriter
 
     private static DisplayWriteResult SetHdrCore(string monitorPath, bool enable)
     {
-        if (Ccd.Find(monitorPath) is not { } p) return new(DisplayWriteStatus.NotFound, "монитор не найден");
+        if (Ccd.Find(monitorPath) is not { } p) return new(DisplayWriteStatus.NotFound, Loc.T("монитор не найден"));
         var color = Ccd.Color(p.TargetAdapter, p.TargetId, Build);
-        if (color is not { HdrSupported: true }) return new(DisplayWriteStatus.Failed, "монитор не поддерживает HDR");
-        if (color.LimitedByPolicy) return new(DisplayWriteStatus.Failed, "HDR запрещён политикой или драйвером");
+        if (color is not { HdrSupported: true }) return new(DisplayWriteStatus.Failed, Loc.T("монитор не поддерживает HDR"));
+        if (color.LimitedByPolicy) return new(DisplayWriteStatus.Failed, Loc.T("HDR запрещён политикой или драйвером"));
         if (color.HdrEnabled == enable) return DisplayWriteResult.Success;
 
         var state = new SET_STATE();
@@ -192,7 +192,7 @@ internal sealed class DisplayWriter : IDisplayWriter
         state.header.id = p.TargetId;
         state.value = enable ? 1u : 0u;
         var rc = DisplayConfigSetDeviceInfo(ref state);
-        if (rc != ERROR_SUCCESS) return new(DisplayWriteStatus.Failed, $"Windows не переключила HDR (код {rc.ToString(CultureInfo.InvariantCulture)})");
+        if (rc != ERROR_SUCCESS) return new(DisplayWriteStatus.Failed, Loc.Tf("Windows не переключила HDR (код {0})", rc.ToString(CultureInfo.InvariantCulture)));
 
         // The switch is a modeset: give the driver a moment, then wait (bounded) until the new state reads back, so a slow
         // driver is never reported as «failed» while it is still switching (that change would then have no record).
@@ -203,7 +203,7 @@ internal sealed class DisplayWriter : IDisplayWriter
             if (Ccd.Find(monitorPath) is { } again && Ccd.Color(again.TargetAdapter, again.TargetId, Build)?.HdrEnabled == enable)
                 return DisplayWriteResult.Success;
             if (DateTime.UtcNow >= until)
-                return new DisplayWriteResult(DisplayWriteStatus.Failed, "драйвер видеокарты вернул прежнее значение (настройка цвета в панели NVIDIA/AMD?)");
+                return new DisplayWriteResult(DisplayWriteStatus.Failed, Loc.T("драйвер видеокарты вернул прежнее значение (настройка цвета в панели NVIDIA/AMD?)"));
             Thread.Sleep(250);
         }
     }
@@ -225,23 +225,23 @@ internal sealed class DisplayWriter : IDisplayWriter
         {
             keep = new EventWaitHandle(false, EventResetMode.ManualReset, KeepEventName(recordId), out var keepNew);
             armed = new EventWaitHandle(false, EventResetMode.ManualReset, ArmedEventName(recordId), out var armedNew);
-            if (!keepNew || !armedNew) throw new InvalidOperationException("событие защитного процесса уже существует");
+            if (!keepNew || !armedNew) throw new InvalidOperationException(Loc.T("событие защитного процесса уже существует"));
 
             var psi = new ProcessStartInfo(AppPaths.ExecutablePath) { UseShellExecute = false, CreateNoWindow = true };
             foreach (var arg in BuildGuardArgs(recordId, deadlineUtc, Environment.ProcessId, action)) psi.ArgumentList.Add(arg);
-            process = Process.Start(psi) ?? throw new InvalidOperationException("процесс не запустился");
+            process = Process.Start(psi) ?? throw new InvalidOperationException(Loc.T("процесс не запустился"));
 
             var until = DateTime.UtcNow + ArmTimeout;
             while (!armed.WaitOne(100))
             {
-                if (process.HasExited) throw new InvalidOperationException($"защитный процесс завершился с кодом {process.ExitCode}");
-                if (DateTime.UtcNow >= until) throw new TimeoutException("защитный процесс не ответил за 5 с");
+                if (process.HasExited) throw new InvalidOperationException(Loc.Tf("защитный процесс завершился с кодом {0}", process.ExitCode));
+                if (DateTime.UtcNow >= until) throw new TimeoutException(Loc.T("защитный процесс не ответил за 5 с"));
             }
             return new Guard(keep, armed, process);
         }
         catch (Exception ex)
         {
-            Log.Warn($"Защитный процесс экрана не запущен: {ex.Message}");
+            Log.Warn("Защитный процесс экрана не запущен: {0}", ex.Message);
             try
             {
                 if (process is { HasExited: false }) process.Kill();
@@ -323,12 +323,13 @@ internal sealed class DisplayWriter : IDisplayWriter
                     else if (g.MonitorPath is { } path)
                     {
                         var back = SetHdrCore(path, g.OriginalHdr);
-                        Log.Warn($"Защитный процесс: изменение HDR не подтверждено — {(back.Ok ? "возвращено прежнее состояние" : "вернуть не удалось: " + back.Message)}.");
+                        if (back.Ok) Log.Warn("Защитный процесс: изменение HDR не подтверждено — возвращено прежнее состояние.");
+                        else Log.Warn("Защитный процесс: изменение HDR не подтверждено — вернуть не удалось: {0}.", back.Message);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn($"Защитный процесс: возврат не удался — {ex.Message}");
+                    Log.Warn("Защитный процесс: возврат не удался — {0}", ex.Message);
                 }
                 return 1;
             }

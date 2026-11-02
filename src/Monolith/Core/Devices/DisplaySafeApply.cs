@@ -18,10 +18,10 @@ internal static class DisplaySafeApply
     /// <summary>How often the countdown checks that the monitor is still there.</summary>
     internal static TimeSpan PollInterval = TimeSpan.FromSeconds(1);
 
-    private const string NoWriter = "эта версия MONOLITH не умеет менять параметры экрана";
-    private const string GameBlocked = "Во время игрового сеанса MONOLITH не меняет параметры экрана";
-    private const string GameBlockedUndo = "во время игрового сеанса MONOLITH не меняет параметры экрана — повторите откат после игры";
-    private const string KeepModeTitle = "ОСТАВИТЬ ЭТИ ПАРАМЕТРЫ ЭКРАНА?";
+    private static string NoWriter => Loc.T("эта версия MONOLITH не умеет менять параметры экрана");
+    private static string GameBlocked => Loc.T("Во время игрового сеанса MONOLITH не меняет параметры экрана");
+    private static string GameBlockedUndo => Loc.T("во время игрового сеанса MONOLITH не меняет параметры экрана — повторите откат после игры");
+    private static string KeepModeTitle => Loc.T("ОСТАВИТЬ ЭТИ ПАРАМЕТРЫ ЭКРАНА?");
 
     private static DisplayApplyOutcome Failed(string message) => new(DisplayApplyResult.Failed, message);
     private static DisplayApplyOutcome Blocked(string message) => new(DisplayApplyResult.Blocked, message);
@@ -42,33 +42,33 @@ internal static class DisplaySafeApply
         if (DeviceWriters.Display is not { } w) return Failed(NoWriter);
         if (GameBoostState.IsActive) return Blocked(GameBlocked);
         if (w.BlockReason() is { } why) return Blocked(why);
-        if (!DeviceTargets.IsMonitorPath(monitorPath)) return Failed("некорректный путь монитора");
-        if (!target.IsSaneTarget) return Failed("недопустимый режим экрана");
+        if (!DeviceTargets.IsMonitorPath(monitorPath)) return Failed(Loc.T("некорректный путь монитора"));
+        if (!target.IsSaneTarget) return Failed(Loc.T("недопустимый режим экрана"));
 
         var original = w.ReadCurrentMode(monitorPath);
-        if (original is null) return Failed("монитор не найден");
+        if (original is null) return Failed(Loc.T("монитор не найден"));
         if (original.SameMode(target)) return DisplayApplyOutcome.Unchanged;
-        if (!w.IsModeOffered(monitorPath, target)) return Failed("режим не поддерживается монитором");
-        if (w.TestMode(monitorPath, target) is { Ok: false } test) return Failed(test.Message ?? "драйвер видеокарты отклонил этот режим");
+        if (!w.IsModeOffered(monitorPath, target)) return Failed(Loc.T("режим не поддерживается монитором"));
+        if (w.TestMode(monitorPath, target) is { Ok: false } test) return Failed(test.Message ?? Loc.T("драйвер видеокарты отклонил этот режим"));
 
         var record = new ChangeRecord
         {
             BatchId = batch.Id, Source = source, Title = title, Kind = ChangeKind.DisplayMode, Target = DeviceTargets.DisplayMode(monitorPath),
-            OldValue = original.Describe(), NewValue = target.Describe() + " (не подтверждено)",
+            OldValue = original.Describe(), NewValue = target.Describe() + Loc.T(" (не подтверждено)"),
             DisplayMode = new DisplayModeSnapshot
             {
                 MonitorPath = monitorPath, MonitorName = monitorName, Original = original, Target = target, PendingConfirm = true,
             },
         };
-        if (JournalTrust.Check(record) is { } refusal) return Failed($"MONOLITH не смог бы откатить это изменение ({refusal})");
+        if (JournalTrust.Check(record) is { } refusal) return Failed(Loc.Tf("MONOLITH не смог бы откатить это изменение ({0})", refusal));
         var (added, isNew) = journal.Add(record); // throws when the journal cannot be written: nothing changed
-        if (!isNew || !ReferenceEquals(added, record)) return Failed("этот монитор уже меняется в этом пакете изменений");
+        if (!isNew || !ReferenceEquals(added, record)) return Failed(Loc.T("этот монитор уже меняется в этом пакете изменений"));
 
         using var guard = w.StartGuard(record.Id, GuardDeadline(), new DisplayGuardAction(DisplayGuardKind.Mode, monitorPath, false));
         if (guard is null)
         {
             journal.Remove(record);
-            return Failed("не удалось запустить защитный процесс — параметры не изменены");
+            return Failed(Loc.T("не удалось запустить защитный процесс — параметры не изменены"));
         }
 
         var persistAttempted = false;
@@ -80,7 +80,7 @@ internal static class DisplaySafeApply
                 w.RevertTemporary(monitorPath, original);
                 guard.Resolve();
                 journal.Remove(record);
-                return Failed(temp.Message ?? "режим не применился");
+                return Failed(temp.Message ?? Loc.T("режим не применился"));
             }
 
             var (keep, gone) = await CountdownWhilePresentAsync(Request(KeepModeTitle, $"{monitorName}: {target.Describe()}", w.GdiName(monitorPath)),
@@ -98,7 +98,7 @@ internal static class DisplaySafeApply
                     Log.Success($"{title}: {monitorName} — {live.Describe()}");
                     return new DisplayApplyOutcome(DisplayApplyResult.Kept);
                 }
-                Log.Warn($"{title}: режим не сохранился или не прошёл проверку ({persisted.Message ?? live?.Describe() ?? "монитор не отвечает"}) — возврат.");
+                Log.Warn("{0}: режим не сохранился или не прошёл проверку ({1}) — возврат.", title, persisted.Message ?? live?.Describe() ?? Loc.T("монитор не отвечает"));
             }
 
             return RevertNewMode(journal, w, guard, record, monitorPath, original, persistAttempted, gone);
@@ -106,11 +106,11 @@ internal static class DisplaySafeApply
         catch (Exception ex)
         {
             // Unknown state: try to go back; the guard is still armed and reverts at its deadline otherwise.
-            Log.Warn($"{title}: ошибка во время смены режима — возврат ({ex.Message}).");
+            Log.Warn("{0}: ошибка во время смены режима — возврат ({1}).", title, ex.Message);
             try { return RevertNewMode(journal, w, guard, record, monitorPath, original, persistAttempted, gone: false); }
             catch (Exception inner)
             {
-                Log.Warn($"{title}: возврат не удался ({inner.Message}); защитный процесс вернёт прежний режим.");
+                Log.Warn("{0}: возврат не удался ({1}); защитный процесс вернёт прежний режим.", title, inner.Message);
                 if (!persistAttempted) journal.Remove(record);
                 return Failed(ex.Message);
             }
@@ -132,12 +132,12 @@ internal static class DisplaySafeApply
             {
                 // The guard stays armed and reverts at its deadline; the temporary mode never survives a reboot either.
                 journal.Remove(record);
-                Log.Warn($"Не удалось сразу вернуть режим экрана ({back.Message}) — его вернёт защитный процесс.");
-                return Failed("не удалось сразу вернуть прежний режим — защитный процесс вернёт его в течение минуты");
+                Log.Warn("Не удалось сразу вернуть режим экрана ({0}) — его вернёт защитный процесс.", back.Message);
+                return Failed(Loc.T("не удалось сразу вернуть прежний режим — защитный процесс вернёт его в течение минуты"));
             }
             guard.Resolve();
             journal.Remove(record);
-            return new DisplayApplyOutcome(DisplayApplyResult.Reverted, gone ? "монитор пропал — возвращены прежние параметры" : "возвращены прежние параметры");
+            return new DisplayApplyOutcome(DisplayApplyResult.Reverted, gone ? Loc.T("монитор пропал — возвращены прежние параметры") : Loc.T("возвращены прежние параметры"));
         }
 
         var saved = w.Persist(monitorPath, original);
@@ -147,11 +147,11 @@ internal static class DisplaySafeApply
         if (saved.Ok && live is not null && live.SameMode(original) && (stored is null || stored.SameMode(original)))
         {
             journal.Remove(record);
-            return new DisplayApplyOutcome(DisplayApplyResult.Reverted, "возвращены прежние параметры");
+            return new DisplayApplyOutcome(DisplayApplyResult.Reverted, Loc.T("возвращены прежние параметры"));
         }
-        journal.ConfirmPending(record, (live?.Describe() ?? "неизвестно") + " (не прошло проверку)");
-        Log.Warn($"«{record.Title}»: прежний режим вернуть не удалось — запись оставлена в журнале для отката.");
-        return Failed("режим сохранился, но не прошёл проверку, а прежний вернуть не удалось — откатите запись в «Восстановлении»");
+        journal.ConfirmPending(record, (live?.Describe() ?? Loc.T("неизвестно")) + Loc.T(" (не прошло проверку)"));
+        Log.Warn("«{0}»: прежний режим вернуть не удалось — запись оставлена в журнале для отката.", record.Title);
+        return Failed(Loc.T("режим сохранился, но не прошёл проверку, а прежний вернуть не удалось — откатите запись в «Восстановлении»"));
     }
 
     // ───────────────────────────── New change: HDR ─────────────────────────────
@@ -162,30 +162,30 @@ internal static class DisplaySafeApply
         if (DeviceWriters.Display is not { } w) return Failed(NoWriter);
         if (GameBoostState.IsActive) return Blocked(GameBlocked);
         if (w.BlockReason() is { } why) return Blocked(why);
-        if (!DeviceTargets.IsMonitorPath(monitorPath)) return Failed("некорректный путь монитора");
+        if (!DeviceTargets.IsMonitorPath(monitorPath)) return Failed(Loc.T("некорректный путь монитора"));
 
-        if (w.ReadHdrEnabled(monitorPath) is not { } original) return Failed("HDR этого монитора недоступен");
+        if (w.ReadHdrEnabled(monitorPath) is not { } original) return Failed(Loc.T("HDR этого монитора недоступен"));
         if (original == enable) return DisplayApplyOutcome.Unchanged;
         var modeBefore = w.ReadCurrentMode(monitorPath);
         var record = new ChangeRecord
         {
             BatchId = batch.Id, Source = source, Title = title, Kind = ChangeKind.DisplayHdr, Target = DeviceTargets.DisplayHdr(monitorPath),
-            OldValue = DeviceTargets.DescribeHdr(original), NewValue = DeviceTargets.DescribeHdr(enable) + " (не подтверждено)",
+            OldValue = DeviceTargets.DescribeHdr(original), NewValue = DeviceTargets.DescribeHdr(enable) + Loc.T(" (не подтверждено)"),
             DisplayHdr = new DisplayHdrSnapshot
             {
                 MonitorPath = monitorPath, MonitorName = monitorName, OriginalEnabled = original, TargetEnabled = enable, PendingConfirm = true,
                 ModeBefore = modeBefore is { IsSane: true } ? modeBefore : null, AcmBefore = w.ReadAcmEnabled(monitorPath),
             },
         };
-        if (JournalTrust.Check(record) is { } refusal) return Failed($"MONOLITH не смог бы откатить это изменение ({refusal})");
+        if (JournalTrust.Check(record) is { } refusal) return Failed(Loc.Tf("MONOLITH не смог бы откатить это изменение ({0})", refusal));
         var (added, isNew) = journal.Add(record);
-        if (!isNew || !ReferenceEquals(added, record)) return Failed("HDR этого монитора уже меняется в этом пакете изменений");
+        if (!isNew || !ReferenceEquals(added, record)) return Failed(Loc.T("HDR этого монитора уже меняется в этом пакете изменений"));
 
         using var guard = w.StartGuard(record.Id, GuardDeadline(), new DisplayGuardAction(DisplayGuardKind.Hdr, monitorPath, original));
         if (guard is null)
         {
             journal.Remove(record);
-            return Failed("не удалось запустить защитный процесс — HDR не изменён");
+            return Failed(Loc.T("не удалось запустить защитный процесс — HDR не изменён"));
         }
 
         try
@@ -196,14 +196,14 @@ internal static class DisplaySafeApply
                 if (w.ReadHdrEnabled(monitorPath) != original) w.SetHdr(monitorPath, original);
                 guard.Resolve();
                 journal.Remove(record);
-                return Failed(set.Ok ? "драйвер видеокарты вернул прежнее состояние HDR" : set.Message ?? "HDR не переключился");
+                return Failed(set.Ok ? Loc.T("драйвер видеокарты вернул прежнее состояние HDR") : set.Message ?? Loc.T("HDR не переключился"));
             }
 
             var message = $"{monitorName}: {DeviceTargets.DescribeHdr(enable)}";
             if (modeBefore is not null && w.ReadCurrentMode(monitorPath) is { } after && !after.SameMode(modeBefore))
-                message += $". Частота изменилась: {modeBefore.HzText()} → {after.HzText()}";
+                message += Loc.Tf(". Частота изменилась: {0} → {1}", modeBefore.HzText(), after.HzText());
             var (keep, gone) = await CountdownWhilePresentAsync(
-                Request(enable ? "ОСТАВИТЬ HDR ВКЛЮЧЁННЫМ?" : "ОСТАВИТЬ HDR ВЫКЛЮЧЕННЫМ?", message, w.GdiName(monitorPath)),
+                Request(enable ? Loc.T("ОСТАВИТЬ HDR ВКЛЮЧЁННЫМ?") : Loc.T("ОСТАВИТЬ HDR ВЫКЛЮЧЕННЫМ?"), message, w.GdiName(monitorPath)),
                 () => w.ReadHdrEnabled(monitorPath) is not null, ct).ConfigureAwait(false);
 
             if (keep && !gone)
@@ -216,7 +216,7 @@ internal static class DisplaySafeApply
         }
         catch (Exception ex)
         {
-            Log.Warn($"{title}: ошибка во время переключения HDR — возврат ({ex.Message}).");
+            Log.Warn("{0}: ошибка во время переключения HDR — возврат ({1}).", title, ex.Message);
             try { return RevertNewHdr(journal, w, guard, record, monitorPath, original, gone: false); }
             catch { return Failed(ex.Message); }
         }
@@ -234,13 +234,13 @@ internal static class DisplaySafeApply
         {
             guard.Resolve();
             journal.Remove(record);
-            return new DisplayApplyOutcome(DisplayApplyResult.Reverted, gone ? "монитор пропал — HDR возвращён" : "возвращено прежнее состояние HDR");
+            return new DisplayApplyOutcome(DisplayApplyResult.Reverted, gone ? Loc.T("монитор пропал — HDR возвращён") : Loc.T("возвращено прежнее состояние HDR"));
         }
         // The guard stays armed and tries again at its deadline; the record stays so the change can be undone.
-        journal.ConfirmPending(record, DeviceTargets.DescribeHdr(!original) + " (не подтверждено)");
+        journal.ConfirmPending(record, DeviceTargets.DescribeHdr(!original) + Loc.T(" (не подтверждено)"));
         return Failed(gone
-            ? "монитор пропал, а HDR вернуть не удалось — защитный процесс попробует ещё раз; если не выйдет, откатите запись в «Восстановлении»"
-            : "не удалось вернуть HDR — защитный процесс попробует ещё раз; если не выйдет, откатите запись в «Восстановлении»");
+            ? Loc.T("монитор пропал, а HDR вернуть не удалось — защитный процесс попробует ещё раз; если не выйдет, откатите запись в «Восстановлении»")
+            : Loc.T("не удалось вернуть HDR — защитный процесс попробует ещё раз; если не выйдет, откатите запись в «Восстановлении»"));
     }
 
     // ───────────────────────────── Countdown ─────────────────────────────
@@ -283,13 +283,13 @@ internal static class DisplaySafeApply
     /// </summary>
     public static async Task<RevertOutcome> RestoreModeAsync(ChangeRecord r)
     {
-        var snap = r.DisplayMode ?? throw new InvalidOperationException("Запись журнала не содержит данных для отката.");
+        var snap = r.DisplayMode ?? throw new InvalidOperationException(Loc.T("Запись журнала не содержит данных для отката."));
         if (DeviceWriters.Display is not { } w) throw new InvalidOperationException(DeviceWriters.NoWriterRevert);
         if (GameBoostState.IsActive) throw new InvalidOperationException(GameBlockedUndo);
         if (w.BlockReason() is { } why) throw new InvalidOperationException(why);
         var path = snap.MonitorPath;
 
-        var live = w.ReadCurrentMode(path) ?? throw new InvalidOperationException("монитор не подключён — подключите его и повторите откат");
+        var live = w.ReadCurrentMode(path) ?? throw new InvalidOperationException(Loc.T("монитор не подключён — подключите его и повторите откат"));
         if (live.SameMode(snap.Original))
         {
             // Already back (e.g. never confirmed): make sure the saved mode is the original too.
@@ -298,22 +298,22 @@ internal static class DisplaySafeApply
             return RevertOutcome.Done;
         }
         if (!live.SameMode(snap.Target)
-            && !await DeviceConfirm.AskAsync("Вернуть прежние параметры экрана?",
-                $"{snap.MonitorName}: сейчас {live.Describe()}, а MONOLITH устанавливал {snap.Target.Describe()}. Вернуть {snap.Original.Describe()}?",
+            && !await DeviceConfirm.AskAsync(Loc.T("Вернуть прежние параметры экрана?"),
+                Loc.Tf("{0}: сейчас {1}, а MONOLITH устанавливал {2}. Вернуть {3}?", snap.MonitorName, live.Describe(), snap.Target.Describe(), snap.Original.Describe()),
                 []).ConfigureAwait(false))
-            throw new InvalidOperationException("откат отменён — оставлены текущие параметры");
+            throw new InvalidOperationException(Loc.T("откат отменён — оставлены текущие параметры"));
         if (!w.IsModeOffered(path, snap.Original) || !w.TestMode(path, snap.Original).Ok)
-            throw new InvalidOperationException($"прежний режим {snap.Original.Describe()} монитор больше не поддерживает");
+            throw new InvalidOperationException(Loc.Tf("прежний режим {0} монитор больше не поддерживает", snap.Original.Describe()));
 
         var revertTo = live; // where a decline, a timeout or the guard goes back to
         using var guard = w.StartGuard(r.Id, GuardDeadline(), new DisplayGuardAction(DisplayGuardKind.Mode, path, false))
-                          ?? throw new InvalidOperationException("не удалось запустить защитный процесс — параметры не изменены");
+                          ?? throw new InvalidOperationException(Loc.T("не удалось запустить защитный процесс — параметры не изменены"));
         var temp = w.ApplyTemporary(path, snap.Original);
         if (!temp.Ok)
         {
             w.RevertTemporary(path, revertTo);
             guard.Resolve();
-            throw new InvalidOperationException(temp.Message ?? "прежний режим не применился");
+            throw new InvalidOperationException(temp.Message ?? Loc.T("прежний режим не применился"));
         }
 
         var (keep, gone) = await CountdownWhilePresentAsync(Request(KeepModeTitle, $"{snap.MonitorName}: {snap.Original.Describe()}", w.GdiName(path)),
@@ -329,38 +329,38 @@ internal static class DisplaySafeApply
             // Could not save the original: go back to where the undo started (saved again) and keep the record.
             w.Persist(path, revertTo);
             guard.Resolve();
-            throw new InvalidOperationException("прежний режим не сохранился — оставлены текущие параметры");
+            throw new InvalidOperationException(Loc.T("прежний режим не сохранился — оставлены текущие параметры"));
         }
 
         w.RevertTemporary(path, revertTo);
         guard.Resolve();
-        throw new InvalidOperationException(gone ? "монитор пропал во время отката — оставлены текущие параметры" : "откат отменён — оставлены текущие параметры");
+        throw new InvalidOperationException(gone ? Loc.T("монитор пропал во время отката — оставлены текущие параметры") : Loc.T("откат отменён — оставлены текущие параметры"));
     }
 
     /// <summary>Undo of an HDR switch, with the same confirmation; a decline returns to the state from the start of the undo.</summary>
     public static async Task<RevertOutcome> RestoreHdrAsync(ChangeRecord r)
     {
-        var snap = r.DisplayHdr ?? throw new InvalidOperationException("Запись журнала не содержит данных для отката.");
+        var snap = r.DisplayHdr ?? throw new InvalidOperationException(Loc.T("Запись журнала не содержит данных для отката."));
         if (DeviceWriters.Display is not { } w) throw new InvalidOperationException(DeviceWriters.NoWriterRevert);
         if (GameBoostState.IsActive) throw new InvalidOperationException(GameBlockedUndo);
         if (w.BlockReason() is { } why) throw new InvalidOperationException(why);
         var path = snap.MonitorPath;
 
-        var live = w.ReadHdrEnabled(path) ?? throw new InvalidOperationException("монитор не подключён — подключите его и повторите откат");
+        var live = w.ReadHdrEnabled(path) ?? throw new InvalidOperationException(Loc.T("монитор не подключён — подключите его и повторите откат"));
         if (live == snap.OriginalEnabled) return SideEffectNote(w, snap);
 
         using var guard = w.StartGuard(r.Id, GuardDeadline(), new DisplayGuardAction(DisplayGuardKind.Hdr, path, live))
-                          ?? throw new InvalidOperationException("не удалось запустить защитный процесс — HDR не изменён");
+                          ?? throw new InvalidOperationException(Loc.T("не удалось запустить защитный процесс — HDR не изменён"));
         var set = w.SetHdr(path, snap.OriginalEnabled);
         if (!set.Ok || w.ReadHdrEnabled(path) != snap.OriginalEnabled)
         {
             w.SetHdr(path, live);
             guard.Resolve();
-            throw new InvalidOperationException(set.Message ?? "HDR не переключился");
+            throw new InvalidOperationException(set.Message ?? Loc.T("HDR не переключился"));
         }
 
         var (keep, gone) = await CountdownWhilePresentAsync(
-            Request(snap.OriginalEnabled ? "ОСТАВИТЬ HDR ВКЛЮЧЁННЫМ?" : "ОСТАВИТЬ HDR ВЫКЛЮЧЕННЫМ?",
+            Request(snap.OriginalEnabled ? Loc.T("ОСТАВИТЬ HDR ВКЛЮЧЁННЫМ?") : Loc.T("ОСТАВИТЬ HDR ВЫКЛЮЧЕННЫМ?"),
                 $"{snap.MonitorName}: {DeviceTargets.DescribeHdr(snap.OriginalEnabled)}", w.GdiName(path)),
             () => w.ReadHdrEnabled(path) is not null, CancellationToken.None).ConfigureAwait(false);
         if (keep && !gone)
@@ -370,7 +370,7 @@ internal static class DisplaySafeApply
         }
         w.SetHdr(path, live);
         guard.Resolve();
-        throw new InvalidOperationException("откат отменён — оставлено текущее состояние HDR");
+        throw new InvalidOperationException(Loc.T("откат отменён — оставлено текущее состояние HDR"));
     }
 
     /// <summary>After an HDR undo: did the mode or colour management come back too? A note says what to check (no extra write).</summary>
@@ -378,9 +378,9 @@ internal static class DisplaySafeApply
     {
         var notes = new List<string>();
         if (snap.ModeBefore is { } before && w.ReadCurrentMode(snap.MonitorPath) is { } now && !now.SameMode(before))
-            notes.Add($"Режим экрана не вернулся к {before.Describe()} (сейчас {now.Describe()}) — выберите его в «Устройствах и сети».");
+            notes.Add(Loc.Tf("Режим экрана не вернулся к {0} (сейчас {1}) — выберите его в «Устройствах и сети».", before.Describe(), now.Describe()));
         if (snap.AcmBefore is { } acm && w.ReadAcmEnabled(snap.MonitorPath) is { } acmNow && acmNow != acm)
-            notes.Add("Автоматическое управление цветом изменилось вместе с HDR — проверьте его в Параметрах → Дисплей.");
+            notes.Add(Loc.T("Автоматическое управление цветом изменилось вместе с HDR — проверьте его в Параметрах → Дисплей."));
         return notes.Count == 0 ? RevertOutcome.Done : new RevertOutcome(string.Join(" ", notes));
     }
 
@@ -400,14 +400,14 @@ internal static class DisplaySafeApply
         foreach (var r in all.Where(r => r.Spi is { PendingConfirm: true }))
         {
             try { await ReconcileSpiAsync(journal, r).ConfigureAwait(false); }
-            catch (Exception ex) { Log.Warn($"«{r.Title}»: незавершённое изменение параметра не проверено — {ex.Message}"); }
+            catch (Exception ex) { Log.Warn("«{0}»: незавершённое изменение параметра не проверено — {1}", r.Title, ex.Message); }
         }
         var pending = all.Where(r => r.DisplayMode is not null || r.DisplayHdr is not null).ToList();
         if (pending.Count == 0) return;
         await DisplayGuardProcess.WaitForGuardsAsync(ConfirmWindow + GuardSlack + TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         if (DeviceWriters.Display is not { } w)
         {
-            Log.Warn($"Незавершённые изменения экрана: {pending.Count} — эта версия MONOLITH не умеет их проверить.");
+            Log.Warn("Незавершённые изменения экрана: {0} — эта версия MONOLITH не умеет их проверить.", pending.Count);
             return;
         }
         foreach (var r in pending)
@@ -419,40 +419,40 @@ internal static class DisplaySafeApply
             }
             catch (Exception ex)
             {
-                Log.Warn($"«{r.Title}»: незавершённое изменение экрана не проверено — {ex.Message}");
+                Log.Warn("«{0}»: незавершённое изменение экрана не проверено — {1}", r.Title, ex.Message);
             }
         }
     }
 
-    private const string NotConfirmed = "Изменение не было подтверждено — прежние параметры на месте.";
+    private static string NotConfirmed => Loc.T("Изменение не было подтверждено — прежние параметры на месте.");
 
     /// <summary>An input parameter left pending by a crash: reverted (the journal's own undo, which re-validates the record and the account).</summary>
     internal static async Task ReconcileSpiAsync(ChangeJournal journal, ChangeRecord r)
     {
         if (JournalTrust.Check(r) is { } refusal)
         {
-            Log.Warn($"«{r.Title}»: незавершённое изменение параметра пропущено — {refusal}.");
+            Log.Warn("«{0}»: незавершённое изменение параметра пропущено — {1}.", r.Title, refusal);
             return;
         }
         var result = await journal.RevertAsync([r]).ConfigureAwait(false);
         if (result.Success && r.Reverted)
-            Log.Info($"«{r.Title}»: изменение не было подтверждено (MONOLITH закрылся во время обратного отсчёта) — возвращено прежнее значение.");
+            Log.Info("«{0}»: изменение не было подтверждено (MONOLITH закрылся во время обратного отсчёта) — возвращено прежнее значение.", r.Title);
         else
-            Log.Warn($"«{r.Title}»: неподтверждённое изменение вернуть не удалось ({string.Join("; ", result.Errors)}) — откатите запись в «Восстановлении».");
+            Log.Warn("«{0}»: неподтверждённое изменение вернуть не удалось ({1}) — откатите запись в «Восстановлении».", r.Title, string.Join("; ", result.Errors));
     }
 
     internal static void ReconcileMode(ChangeJournal journal, IDisplayWriter w, ChangeRecord r, DisplayModeSnapshot snap)
     {
         if (JournalTrust.Check(r) is { } refusal)
         {
-            Log.Warn($"«{r.Title}»: незавершённое изменение экрана пропущено — {refusal}.");
+            Log.Warn("«{0}»: незавершённое изменение экрана пропущено — {1}.", r.Title, refusal);
             return;
         }
         var live = w.ReadCurrentMode(snap.MonitorPath);
         var stored = w.ReadPersistedMode(snap.MonitorPath);
         if (live is null)
         {
-            Log.Warn($"«{r.Title}»: монитор не подключён — незавершённое изменение экрана проверим при следующем запуске.");
+            Log.Warn("«{0}»: монитор не подключён — незавершённое изменение экрана проверим при следующем запуске.", r.Title);
             return;
         }
         if (live.SameMode(snap.Original) && (stored is null || stored.SameMode(snap.Original)))
@@ -470,24 +470,24 @@ internal static class DisplaySafeApply
             // Still in the temporary, never confirmed mode: go back to the saved original.
             if (w.RevertTemporary(snap.MonitorPath, snap.Original).Ok && w.ReadCurrentMode(snap.MonitorPath) is { } back && back.SameMode(snap.Original))
             {
-                journal.ClosePending(r, "Изменение не было подтверждено — возвращены прежние параметры.");
+                journal.ClosePending(r, Loc.T("Изменение не было подтверждено — возвращены прежние параметры."));
                 return;
             }
         }
-        Log.Warn($"«{r.Title}»: состояние экрана после сбоя не совпадает ни с прежним, ни с новым — запись оставлена, откатите её в «Восстановлении».");
+        Log.Warn("«{0}»: состояние экрана после сбоя не совпадает ни с прежним, ни с новым — запись оставлена, откатите её в «Восстановлении».", r.Title);
     }
 
     private static async Task ReconcileHdrAsync(ChangeJournal journal, IDisplayWriter w, ChangeRecord r, DisplayHdrSnapshot snap)
     {
         if (JournalTrust.Check(r) is { } refusal)
         {
-            Log.Warn($"«{r.Title}»: незавершённое изменение HDR пропущено — {refusal}.");
+            Log.Warn("«{0}»: незавершённое изменение HDR пропущено — {1}.", r.Title, refusal);
             return;
         }
         var live = w.ReadHdrEnabled(snap.MonitorPath);
         if (live is null)
         {
-            Log.Warn($"«{r.Title}»: монитор не подключён — незавершённое изменение HDR проверим при следующем запуске.");
+            Log.Warn("«{0}»: монитор не подключён — незавершённое изменение HDR проверим при следующем запуске.", r.Title);
             return;
         }
         if (live == snap.OriginalEnabled)
@@ -497,8 +497,8 @@ internal static class DisplaySafeApply
         }
         // HDR is saved at once, so «on» does not mean «confirmed»: ask again, default back.
         var keep = await DeviceConfirm.CountdownAsync(
-            Request(snap.TargetEnabled ? "ОСТАВИТЬ HDR ВКЛЮЧЁННЫМ?" : "ОСТАВИТЬ HDR ВЫКЛЮЧЕННЫМ?",
-                $"{snap.MonitorName}: изменение HDR не было подтверждено перед сбоем. Оставить?", w.GdiName(snap.MonitorPath)),
+            Request(snap.TargetEnabled ? Loc.T("ОСТАВИТЬ HDR ВКЛЮЧЁННЫМ?") : Loc.T("ОСТАВИТЬ HDR ВЫКЛЮЧЕННЫМ?"),
+                Loc.Tf("{0}: изменение HDR не было подтверждено перед сбоем. Оставить?", snap.MonitorName), w.GdiName(snap.MonitorPath)),
             CancellationToken.None).ConfigureAwait(false);
         if (keep)
         {
@@ -506,9 +506,9 @@ internal static class DisplaySafeApply
             return;
         }
         if (w.SetHdr(snap.MonitorPath, snap.OriginalEnabled).Ok && w.ReadHdrEnabled(snap.MonitorPath) == snap.OriginalEnabled)
-            journal.ClosePending(r, "Изменение HDR не было подтверждено — возвращено прежнее состояние.");
+            journal.ClosePending(r, Loc.T("Изменение HDR не было подтверждено — возвращено прежнее состояние."));
         else
-            Log.Warn($"«{r.Title}»: не удалось вернуть HDR — запись оставлена, откатите её в «Восстановлении».");
+            Log.Warn("«{0}»: не удалось вернуть HDR — запись оставлена, откатите её в «Восстановлении».", r.Title);
     }
 }
 

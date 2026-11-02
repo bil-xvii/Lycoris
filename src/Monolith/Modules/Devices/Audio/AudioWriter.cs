@@ -28,7 +28,7 @@ internal sealed class AudioWriter : IAudioWriter
                 en = CoreAudio.CreateEnumerator();
                 var hr = en.GetDevice(endpointId, out dev);
                 if (hr == CoreAudio.E_NOTFOUND) return false;
-                if (hr < 0 || dev is null) throw new InvalidOperationException($"звуковое устройство не прочитано (0x{hr:X8}) — повторите позже");
+                if (hr < 0 || dev is null) throw new InvalidOperationException(Loc.Tf("звуковое устройство не прочитано (0x{0}) — повторите позже", hr.ToString("X8")));
                 return true;
             }
             finally
@@ -91,7 +91,7 @@ internal sealed class AudioWriter : IAudioWriter
         }
         catch (Exception ex)
         {
-            Log.Warn($"Звук: {ex.Message}");
+            Log.Warn("Звук: {0}", ex.Message);
             return fallback;
         }
         finally

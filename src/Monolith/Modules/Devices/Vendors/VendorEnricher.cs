@@ -11,7 +11,7 @@ namespace Monolith.Modules.Devices.Vendors;
 /// </summary>
 internal sealed class VendorEnricher : IDeviceEnricher
 {
-    public string Name => "программы производителей";
+    public string Name => Loc.T("программы производителей");
 
     public Task EnrichAsync(List<DeviceCard> cards, DeviceScanContext ctx, CancellationToken ct)
     {
@@ -24,29 +24,30 @@ internal sealed class VendorEnricher : IDeviceEnricher
         Enrich(cards, groups, apps,
             vid => history.TryGetValue(vid, out var h) ? h : history[vid] = DeviceInventory.ReadHistory(vid, InventoryKind.Mouse, present),
             VendorApps.LaunchAsync);
-        Log.Info($"Устройства: найдено физических устройств {groups.Count}; программы производителей: " +
-                 (apps.Installed.Any() ? string.Join(", ", apps.Installed.Select(a => a.Name)) : "нет") + ".");
+        Log.Info("Устройства: найдено физических устройств {0}; программы производителей: {1}.", groups.Count,
+            apps.Installed.Any() ? string.Join(", ", apps.Installed.Select(a => a.Name)) : Loc.T("нет"));
         return Task.CompletedTask;
     }
 
     // ───────────────────────────── Texts ─────────────────────────────
 
-    public const string OnboardMemoryNote =
-        "Чтобы DPI и частота опроса работали без G HUB, включите в G HUB режим встроенной памяти и сохраните профиль в мышь";
-    public const string InzoneNote = "Эквалайзер и пространственный звук — в INZONE Hub (работают при подключении через USB-адаптер)";
-    public const string RazerMicNote = "Частота дискретизации и микшер — в Razer Synapse";
+    public static string OnboardMemoryNote => Loc.T("Чтобы DPI и частота опроса работали без G HUB, включите в G HUB режим встроенной памяти и сохраните профиль в мышь");
+    public static string InzoneNote => Loc.T("Эквалайзер и пространственный звук — в INZONE Hub (работают при подключении через USB-адаптер)");
+    public static string RazerMicNote => Loc.T("Частота дискретизации и микшер — в Razer Synapse");
     public const string LightingSettings = "ms-settings:personalization-lighting";
 
-    public static string OpenFromStartNote(string app) => $"Откройте {app} из меню «Пуск»";
-    public static string NotInstalledNote(string app) => $"{app} не установлен — установка в разделе «Драйверы»";
+    public static string OpenFromStartNote(string app) => Loc.Tf("Откройте {0} из меню «Пуск»", app);
+    public static string NotInstalledNote(string app) => Loc.Tf("{0} не установлен — установка в разделе «Драйверы»", app);
     public static string DynamicLightingNote(string app) =>
-        $"Подсветку можно настраивать через Windows (Динамическое освещение) или {app} — выберите что-то одно";
+        Loc.Tf("Подсветку можно настраивать через Windows (Динамическое освещение) или {0} — выберите что-то одно", app);
     /// <summary>«OpenRGB и G HUB могут спорить за подсветку — пользуйтесь одной программой».</summary>
     public static string UnifierNote(IReadOnlyList<string> unifiers, IReadOnlyList<string> vendorApps) =>
-        $"{string.Join(", ", unifiers)} и {(vendorApps.Count == 1 ? vendorApps[0] : $"программы производителей ({string.Join(", ", vendorApps)})")} " +
-        "могут спорить за подсветку — пользуйтесь одной программой";
+        vendorApps.Count == 1
+            ? Loc.Tf("{0} и {1} могут спорить за подсветку — пользуйтесь одной программой", string.Join(", ", unifiers), vendorApps[0])
+            : Loc.Tf("{0} и программы производителей ({1}) могут спорить за подсветку — пользуйтесь одной программой", string.Join(", ", unifiers), string.Join(", ", vendorApps));
     public static string UnifierOwnsNote(string unifier, bool board) =>
-        $"Подсветкой {(board ? "платы" : "этого устройства")} уже может управлять {unifier} — откройте его из меню «Пуск»";
+        board ? Loc.Tf("Подсветкой платы уже может управлять {0} — откройте его из меню «Пуск»", unifier)
+              : Loc.Tf("Подсветкой этого устройства уже может управлять {0} — откройте его из меню «Пуск»", unifier);
 
     // ───────────────────────────── Enrichment (pure over its inputs) ─────────────────────────────
 
@@ -125,7 +126,7 @@ internal sealed class VendorEnricher : IDeviceEnricher
             try { past = history(vid); }
             catch (Exception ex)
             {
-                Log.Warn($"Устройства: история подключений не прочитана ({ex.Message}).");
+                Log.Warn("Устройства: история подключений не прочитана ({0}).", ex.Message);
                 past = [];
             }
             if (past.FirstOrDefault() is { } last) parts.Add(ReceiverHints.HistoryText(last.Name));
@@ -212,7 +213,7 @@ internal sealed class VendorEnricher : IDeviceEnricher
         OfferInstall = true,
         InstallFocusId = "periph:" + vid.ToUpperInvariant(),
         Note = NotInstalledNote(app.Name),
-        Tooltip = $"{NotInstalledNote(app.Name)} (по желанию). Устройство работает и без неё.",
+        Tooltip = Loc.Tf("{0} (по желанию). Устройство работает и без неё.", NotInstalledNote(app.Name)),
     };
 
     /// <summary>What the program configures for this kind of device (the keyboard's polling rate lives here, not in a note).</summary>
@@ -220,11 +221,11 @@ internal sealed class VendorEnricher : IDeviceEnricher
     {
         var what = kind switch
         {
-            DeviceKind.Mouse => $"DPI, частота опроса, кнопки и подсветка мыши настраиваются в {app.Name}.",
-            DeviceKind.Keyboard => $"Частота опроса, подсветка и макросы клавиатуры настраиваются в {app.Name}.",
-            _ => $"Настройки этого устройства — в {app.Name}.",
+            DeviceKind.Mouse => Loc.Tf("DPI, частота опроса, кнопки и подсветка мыши настраиваются в {0}.", app.Name),
+            DeviceKind.Keyboard => Loc.Tf("Частота опроса, подсветка и макросы клавиатуры настраиваются в {0}.", app.Name),
+            _ => Loc.Tf("Настройки этого устройства — в {0}.", app.Name),
         };
-        return what + (running ? " Программа уже запущена — откроется её окно." : " Запускается без прав администратора.");
+        return what + " " + (running ? Loc.T("Программа уже запущена — откроется её окно.") : Loc.T("Запускается без прав администратора."));
     }
 
     private static void AddLink(DeviceCard card, VendorAppLink link)
@@ -272,11 +273,11 @@ internal sealed class VendorEnricher : IDeviceEnricher
                 _ => DeviceKind.Peripheral,
             };
             var board = g.VidPid is "0DB0:0076";
-            var subtitle = board ? "подсветка материнской платы" : null;
+            var subtitle = board ? Loc.T("подсветка материнской платы") : null;
             if (kind == DeviceKind.Mouse && ReceiverHints.IsReceiver(g.Vid, g.Pid) && g.Vid is { } vid)
             {
                 try { subtitle = history(vid).FirstOrDefault() is { } last ? ReceiverHints.HistoryText(last.Name) : null; }
-                catch (Exception ex) { Log.Warn($"Устройства: история подключений не прочитана ({ex.Message})."); }
+                catch (Exception ex) { Log.Warn("Устройства: история подключений не прочитана ({0}).", ex.Message); }
             }
             var card = new DeviceCard
             {
@@ -317,8 +318,8 @@ internal sealed class VendorEnricher : IDeviceEnricher
         var group = lit.First(g => Claims(target, g));
         var app = VendorApps.All.FirstOrDefault(a => a.ControlsLighting && a.AppliesTo(group.Vid, [group.Name]) && apps.IsInstalled(a.Key))?.Name
                   ?? VendorApps.All.FirstOrDefault(a => a.ControlsLighting && a.AppliesTo(group.Vid, [group.Name]))?.Name
-                  ?? "программу производителя";
-        AddNote(target, new DeviceNote(DynamicLightingNote(app), new DeviceLink(DeviceLinkKind.Settings, "ПАРАМЕТРЫ", LightingSettings)));
+                  ?? Loc.T("программу производителя");
+        AddNote(target, new DeviceNote(DynamicLightingNote(app), new DeviceLink(DeviceLinkKind.Settings, Loc.T("ПАРАМЕТРЫ"), LightingSettings)));
     }
 
     /// <summary>OpenRGB / SignalRGB next to a vendor's own lighting program: one note, on the lighting card, else the keyboard card.</summary>
@@ -352,9 +353,9 @@ internal sealed class VendorEnricher : IDeviceEnricher
             card.Notes = card.Notes.Select(n => IsHdrCalibrationNote(n) && LinksToApps(n) ? n with { Link = null } : n).ToList();
             AddLink(card, new VendorAppLink
             {
-                AppName = "калибровку HDR",
+                AppName = Loc.T("калибровку HDR"),
                 IsInstalled = false,
-                Tooltip = "Приложение Microsoft «Калибровка HDR в Windows»: откроется его страница в Microsoft Store — установить или запустить.",
+                Tooltip = Loc.T("Приложение Microsoft «Калибровка HDR в Windows»: откроется его страница в Microsoft Store — установить или запустить."),
                 Launch = VendorApps.OpenHdrCalibrationAsync,
             });
         }
@@ -367,5 +368,5 @@ internal sealed class VendorEnricher : IDeviceEnricher
         (n.Link is { Kind: DeviceLinkKind.Navigate, Target: "apps" } link
          && (link.FocusId?.Contains(VendorApps.HdrCalibrationStoreId, StringComparison.OrdinalIgnoreCase) == true
              || link.FocusId?.Contains("hdr", StringComparison.OrdinalIgnoreCase) == true))
-        || (n.Text.Contains("HDR", StringComparison.OrdinalIgnoreCase) && n.Text.Contains("алибр", StringComparison.OrdinalIgnoreCase));
+        || (n.Text.Contains("HDR", StringComparison.OrdinalIgnoreCase) && (n.Text.Contains(Loc.Keep("алибр"), StringComparison.OrdinalIgnoreCase) || n.Text.Contains("alibrat", StringComparison.OrdinalIgnoreCase)));
 }

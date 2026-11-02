@@ -8,7 +8,7 @@ namespace Monolith.Modules.Devices.Network;
 /// </summary>
 internal sealed class NetworkProvider : IDeviceProvider
 {
-    public string Name => "сеть";
+    public string Name => Loc.T("сеть");
 
     public Task<IReadOnlyList<DeviceCard>> DetectAsync(DeviceScanContext ctx, CancellationToken ct)
     {

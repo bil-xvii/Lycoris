@@ -29,21 +29,20 @@ public static class AudioAdvice
         // The monitor finding is the more specific one: it replaces the «split» one when both apply.
         if (console is { IsDisplayAudio: true } && headphones is not null)
             issues.Add(new AudioIssue(headphones.Id,
-                $"По умолчанию звук идёт на монитор «{Short(console)}», хотя подключены «{Short(headphones)}».", 0));
+                Loc.Tf("По умолчанию звук идёт на монитор «{0}», хотя подключены «{1}».", Short(console), Short(headphones)), 0));
         else if (console is not null && comms is not null && !SameId(console, comms))
             issues.Add(new AudioIssue(console.Id,
-                $"Игры звучат через «{Short(console)}», а голосовой чат — через «{Short(comms)}». Если так не задумано, " +
-                "назначьте одно устройство и по умолчанию, и для связи.", 0));
+                Loc.Tf("Игры звучат через «{0}», а голосовой чат — через «{1}». Если так не задумано, назначьте одно устройство и по умолчанию, и для связи.", Short(console), Short(comms)), 0));
 
         if (console is { IsBluetoothHandsFree: true })
             issues.Add(new AudioIssue(console.Id,
-                "Гарнитура Bluetooth выбрана в режиме разговора — звук в низком качестве. Выберите по умолчанию её стереовыход.", 0));
+                Loc.T("Гарнитура Bluetooth выбрана в режиме разговора — звук в низком качестве. Выберите по умолчанию её стереовыход."), 0));
 
         var micConsole = capture.FirstOrDefault(e => e.IsDefaultConsole) ?? capture.FirstOrDefault(e => e.IsDefaultMultimedia);
         var micComms = capture.FirstOrDefault(e => e.IsDefaultCommunications);
         if (micConsole is not null && micComms is not null && !SameId(micConsole, micComms))
             issues.Add(new AudioIssue(micComms.Id,
-                $"Голосовой чат записывает с «{Short(micComms)}», а игры и другие программы — с «{Short(micConsole)}».", 1));
+                Loc.Tf("Голосовой чат записывает с «{0}», а игры и другие программы — с «{1}».", Short(micComms), Short(micConsole)), 1));
 
         return issues;
     }
@@ -60,8 +59,8 @@ public static class AudioAdvice
     {
         null => null,
         48000 => null,
-        44100 => "Игры и голосовые чаты работают в 48 кГц — выберите 48 кГц в свойствах устройства, чтобы звук не пересчитывался.",
-        > 48000 => "Игры и голосовые чаты выводят 48 кГц — более высокая частота ничего не добавляет. Достаточно 48 кГц.",
+        44100 => Loc.T("Игры и голосовые чаты работают в 48 кГц — выберите 48 кГц в свойствах устройства, чтобы звук не пересчитывался."),
+        > 48000 => Loc.T("Игры и голосовые чаты выводят 48 кГц — более высокая частота ничего не добавляет. Достаточно 48 кГц."),
         _ => null,
     };
 
@@ -76,13 +75,13 @@ public static class AudioAdvice
     /// <summary>Windows effects stacked on the vendor's own processing (output only; a microphone is left as the user likes it).</summary>
     public static string? EnhancementsAdvice(EndpointInfo e, bool vendorDsp) =>
         e.Flow == AudioFlow.Render && e.EnhancementsOff == false && vendorDsp
-            ? "Если эквалайзер или объёмный звук настроены в программе производителя, выключите улучшения Windows — иначе обработка двойная."
+            ? Loc.T("Если эквалайзер или объёмный звук настроены в программе производителя, выключите улучшения Windows — иначе обработка двойная.")
             : null;
 
     /// <summary>Windows spatial sound on top of the headset's own virtual surround: HRTF applied twice.</summary>
     public static string? SpatialAdvice(EndpointInfo e, bool hasVendorSpatial) =>
         e.Flow == AudioFlow.Render && e.Spatial is SpatialState.WindowsSonic or SpatialState.Other && hasVendorSpatial
-            ? "Пространственный звук Windows включён поверх объёмного звука гарнитуры — оставьте что-то одно, иначе направление искажается."
+            ? Loc.T("Пространственный звук Windows включён поверх объёмного звука гарнитуры — оставьте что-то одно, иначе направление искажается.")
             : null;
 
     // ───────────────────────────── Ducking (the Optimize tweak «audio-ducking») ─────────────────────────────
@@ -90,24 +89,24 @@ public static class AudioAdvice
     public const int DuckingDefault = 1;
     public const int DuckingRecommended = 3;
     public const RecommendPolicy DuckingPolicy = RecommendPolicy.Suggest;
-    public const string DuckingReason = "игровой звук не будет приглушаться, когда открыт голосовой чат";
+    public static string DuckingReason => Loc.T("игровой звук не будет приглушаться, когда открыт голосовой чат");
 
     /// <summary>The four choices of mmsys.cpl → «Связь», in the dialog's order (UserDuckingPreference 0–3).</summary>
     public static IReadOnlyList<DeviceOption> DuckingOptions { get; } =
     [
-        new(DeviceValue.Of(0), "Отключать все другие звуки"),
-        new(DeviceValue.Of(1), "Уменьшать громкость на 80 %"),
-        new(DeviceValue.Of(2), "Уменьшать громкость на 50 %"),
-        new(DeviceValue.Of(3), "Ничего не делать"),
+        new(DeviceValue.Of(0), Loc.T("Отключать все другие звуки")),
+        new(DeviceValue.Of(1), Loc.T("Уменьшать громкость на 80 %")),
+        new(DeviceValue.Of(2), Loc.T("Уменьшать громкость на 50 %")),
+        new(DeviceValue.Of(3), Loc.T("Ничего не делать")),
     ];
 
     /// <summary>The live preference in a few words («тише на 80 %»); absent = the Windows default.</summary>
     public static string DuckingShort(int? preference) => (preference ?? DuckingDefault) switch
     {
-        0 => "выключать другие звуки",
-        1 => "тише на 80 %",
-        2 => "тише на 50 %",
-        3 => "ничего не делать",
-        _ => "нестандартное значение",
+        0 => Loc.T("выключать другие звуки"),
+        1 => Loc.T("тише на 80 %"),
+        2 => Loc.T("тише на 50 %"),
+        3 => Loc.T("ничего не делать"),
+        _ => Loc.T("нестандартное значение"),
     };
 }
