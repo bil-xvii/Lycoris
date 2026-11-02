@@ -114,7 +114,17 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     public override void Deactivate() => _monitor.Stop();
 
-    private void StartMonitor()
+    // A minimized window shows nothing: stop PDH/D3DKMT polling until it is restored (a first load still running is not disturbed).
+    public override void SuspendForMinimize() => _monitor.Stop();
+
+    public override void ResumeFromMinimize()
+    {
+        if (IsLoaded) StartMonitor();
+    }
+
+    internal bool IsMonitorRunning => _monitor.IsRunning;
+
+    internal void StartMonitor()
     {
         var ms = Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000);
         IntervalText = Loc.Tf("ОПРОС {0} С", (ms / 1000d).ToString(ms % 1000 == 0 ? "0" : "0.0#", Loc.Culture));
