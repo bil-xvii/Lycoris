@@ -91,6 +91,34 @@ public sealed class ProblemReportTests
     }
 
     [Theory]
+    [InlineData("addr fe80::1%eth0 up", "fe80", "eth0")]
+    [InlineData("addr fe80::abcd:1%Ethernet 2 up", "abcd", "Ethernet")]
+    [InlineData("glued deadfe80::1234 x", "1234", "fe80")]
+    [InlineData("bad 2001:db8::zz::1 x", "2001", "db8")]
+    [InlineData("eui 00-11-22-33-44-55-66-77 x", "66-77", "00-11")]
+    [InlineData("eui 00:11:22:33:44:55:66:77 x", "66:77", "00:11")]
+    [InlineData("mac aabbccddeeff x", "aabbccddeeff", "aabbcc")]
+    [InlineData("mac 001a2b3c4d5e x", "001a2b3c4d5e", "3c4d5e")]
+    [InlineData("v6 2001:db8:aa:bb:cc:dd:ee:ff x", "2001", "ee:ff")]
+    [InlineData("v6 2001:db8:aa:bb:cc:dd:ee:ff x", "aa:bb", "dd:ee")]
+    [InlineData("zone fe80::1%12 x", "fe80", "%12")]
+    public void ExoticNetworkIdentifiersLeaveNoFragment(string input, string a, string b)
+    {
+        var r = ProblemReport.Anonymize(input, "zzq", "qqpc");
+        Assert.DoesNotContain(a, r, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(b, r, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void GuidTailsAndTimestampsAreNotTakenForMacs()
+    {
+        var r = ProblemReport.Anonymize("id {6F9619FF-8B86-D011-B42D-00C04FC964FF} t 202611030000 time 12:34:56", "zzq", "qqpc");
+        Assert.Contains("00C04FC964FF", r);
+        Assert.Contains("202611030000", r);
+        Assert.Contains("12:34:56", r);
+    }
+
+    [Theory]
     [InlineData("api_key=AbCdEf0123456789AbCdEf0123456789", "AbCdEf0123456789")]
     [InlineData("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9abcdefghijkl", "eyJhbGci")]
     [InlineData("password: hunter2", "hunter2")]
