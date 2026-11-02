@@ -157,7 +157,8 @@ public abstract partial class PageViewModel : ObservableObject
             }
             using (lease)
             {
-                OperationNote = null;
+                // A read-only refresh does not wipe the reason a user action was refused a moment ago.
+                if (kind is not (OperationClass.Measure or OperationClass.Background) || verdict == OperationVerdict.Queue) OperationNote = null;
                 BusyText = text;
                 using var scope = lease.Scope();
                 CurrentLease = lease;

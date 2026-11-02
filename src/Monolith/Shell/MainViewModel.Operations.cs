@@ -122,6 +122,23 @@ public sealed partial class MainViewModel
         return _coordinator.Snapshot().Any(o => o.IsListed && o.Owner is { } owner && owners.Contains(owner));
     }
 
+    /// <summary>
+    /// QA only ("--snapshot … --demo-tasks"): fills the task list with pretend operations (one running installer, two queued
+    /// ones) and opens it, so the status-bar button, the popup and the note strip can be looked at. Nothing is installed or
+    /// changed — the operations are only leases that are never used.
+    /// </summary>
+    internal async Task StartDemoTasksAsync()
+    {
+        var install = await _coordinator.AcquireAsync(new OperationRequest(OperationClass.Install, "Установка Steam") { Owner = "apps" });
+        _ = install; // held until the process ends
+        _ = Task.Run(() => _coordinator.AcquireAsync(new OperationRequest(OperationClass.JournalChange, "Применение изменений") { Owner = "optimize" }));
+        _ = Task.Run(() => _coordinator.AcquireAsync(new OperationRequest(OperationClass.Cleanup, "Очистка временных файлов") { Owner = "cleaner" }));
+        await Task.Delay(400);
+        RefreshOperations();
+        foreach (var page in Pages) page.OperationNote = "Сейчас идёт установка Steam — дождитесь окончания. Применение изменений и очистка ждут в очереди.";
+        TasksOpen = true;
+    }
+
     [RelayCommand]
     private void ToggleTasks() => TasksOpen = !TasksOpen;
 
