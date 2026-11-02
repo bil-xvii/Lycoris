@@ -70,7 +70,7 @@
                         ToolTip="Открыть папку файла, скопировать команду запуска">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="ЕЩЁ" VerticalAlignment="Center" />
-                        <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="10" VerticalAlignment="Center" Margin="6,1,0,0" />
+                        <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,1,0,0" />
                     </StackPanel>
                 </Button>
             </StackPanel>
