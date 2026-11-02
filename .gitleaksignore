@@ -1,0 +1,2 @@
+# Fake fixture string used to test redaction in ProblemReportTests (not a real key)
+3e82d4db5c5cddb03467b076e7fe096f2bc7434b:tests/Lycoris.Tests/Diagnostics/ProblemReportTests.cs:generic-api-key:67

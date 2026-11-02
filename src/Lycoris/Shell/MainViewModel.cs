@@ -420,6 +420,14 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     }
 
     [RelayCommand]
+    private async Task OpenToastFolder(ToastItem? item)
+    {
+        if (item?.OpenFolderPath is not { } path) return;
+        Toasts.Remove(item);
+        await UnelevatedShell.StartAsUserAsync(Environment.GetFolderPath(Environment.SpecialFolder.Windows) + "\\explorer.exe", $"\"{path}\"");
+    }
+
+    [RelayCommand]
     private void DismissToast(ToastItem? item)
     {
         if (item is not null) Toasts.Remove(item);

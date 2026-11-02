@@ -3,6 +3,7 @@ using Lycoris.Modules.Cleaner;
 using Lycoris.Modules.Maintenance;
 using Lycoris.Modules.Services;
 using Lycoris.Modules.Tools;
+using Lycoris.Core.Diagnostics;
 using Lycoris.Tweaks;
 
 namespace Lycoris.Shell;
@@ -204,7 +205,8 @@ public static class CommandPaletteIndex
 
     /// <summary>Everything static (no live scans): catalogs, Settings rows, Drivers tabs, Restore sections.</summary>
     public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries).Concat(ModeEntries).Append(
-        new Entry(PaletteKind.Setting, Loc.Key("Запустить мастер заново"), Loc.Key("Настроить цель компьютера и режим интерфейса."), Loc.Keep("мастер первого запуска настройка"), "settings", "wizard:open"));
+        new Entry(PaletteKind.Setting, Loc.Key("Запустить мастер заново"), Loc.Key("Настроить цель компьютера и режим интерфейса."), Loc.Keep("мастер первого запуска настройка"), "settings", "wizard:open"))
+        .Append(new Entry(PaletteKind.Setting, ProblemReportText.Button, ProblemReportText.PaletteDescription, Loc.Keep("отчёт проблема диагностика"), "settings", "action:problem-report"));
 
     private static readonly Entry[] ModeEntries =
     [

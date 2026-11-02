@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
+using Lycoris.Core.Diagnostics;
 using Lycoris.Modules.Restore;
 using Lycoris.Modules.Tools;
 using Lycoris.Shell;
@@ -29,6 +30,23 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     /// <summary>«О программе»: versions, release notes and the update buttons (Shell/UpdateController).</summary>
     public UpdateController Updates => UpdateController.Instance;
+
+    [RelayCommand]
+    public async Task CreateProblemReportAsync()
+    {
+        var files = new[] { "report.txt", "settings.json", "journal.txt", "README.txt", "logs/*" };
+        var details = files.Select(name => Loc.Tf(ProblemReportText.FileSize, name, name == "logs/*" ? ProblemReportText.LargeSize : ProblemReportText.SmallSize));
+        if (!await Ui.ConfirmAsync(ProblemReportText.Button, ProblemReportText.Confirmation,
+                details, confirmText: ProblemReportText.Create)) return;
+
+        string? folder = null;
+        await RunBusyAsync(OperationClass.Background, ProblemReportText.Busy, async () =>
+        {
+            // The folder is checked and the file created exclusively inside ProblemReport (never CreateDirectory, never overwrite).
+            folder = await Task.Run(() => ProblemReport.SaveToDesktop(ProblemReport.Create().Archive));
+        });
+        if (folder is not null) Ui.Toast(ProblemReportText.Saved, ToastKind.Success, openFolderPath: folder);
+    }
 
     public IReadOnlyList<IntervalOption> IntervalOptions { get; } = SettingsDefaults.IntervalChoices
         .Select(ms => new IntervalOption(ms, SettingsDefaults.FormatInterval(ms), ms switch

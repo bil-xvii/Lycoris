@@ -7,6 +7,7 @@
              xmlns:c="clr-namespace:Lycoris.UI.Controls"
              xmlns:ui="clr-namespace:Lycoris.UI"
              xmlns:local="clr-namespace:Lycoris.Modules.Settings"
+             xmlns:coreDiag="clr-namespace:Lycoris.Core.Diagnostics"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:SettingsViewModel}">
     <UserControl.Resources>
         <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H1}">
@@ -78,6 +79,7 @@
                                         <TextBlock Text="{loc:T ПРОВЕРИТЬ ОБНОВЛЕНИЯ}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
+                                <Button Style="{StaticResource Btn.Primary}" Content="{x:Static coreDiag:ProblemReportText.Button}" Command="{Binding DataContext.CreateProblemReportCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" Margin="0,0,8,0" />
                                 <Button Style="{StaticResource Btn.Ghost}" Command="{Binding RemindLaterCommand}" Margin="0,0,8,0"
                                         Visibility="{Binding ButtonVisible, Converter={StaticResource BoolToVis}}" Content="{loc:T НАПОМНИТЬ ПОЗЖЕ}" />
                                 <Button Style="{StaticResource Btn.Ghost}" Command="{Binding SkipVersionCommand}" Margin="0,0,8,0"

@@ -1,0 +1,21 @@
+{
+  "area": "Diagnostics",
+  "translated": true,
+  "sources": ["Core/Diagnostics/ProblemReportText.cs"],
+  "ignore": [],
+  "en": {
+    "СООБЩИТЬ О ПРОБЛЕМЕ": "REPORT A PROBLEM",
+    "Архив содержит сведения о системе, настройках и журналах работы; имя пользователя, компьютера, почта, адреса, серийные номера и похожие на секреты значения убираются автоматически, но очистка может быть неполной: в журналах могут остаться пути вне вашего профиля (например, на другом диске), названия сетей, программ и устройств. Откройте архив и просмотрите его перед отправкой. Ничего не отправляется — файл сохранится на рабочем столе; если рабочий стол синхронизируется с OneDrive, файл попадёт в облако": "The archive contains system, settings and work-log information. The user and computer names, e-mail addresses, network addresses, serial numbers and secret-looking values are removed automatically, but the cleaning may be incomplete: the logs can still hold paths outside your profile (for example on another drive) and names of networks, programs and devices. Open the archive and review it before sending. Nothing is sent — the file is saved to your desktop; if the desktop syncs with OneDrive, the file will be uploaded to the cloud.",
+    "Локальный диагностический архив Lycoris. Внутри: report.txt (сведения о системе), settings.json (безопасные настройки), journal.txt (число изменений по видам) и до трёх последних журналов работы. Имя пользователя и компьютера, почта, адреса, серийные номера и похожие на секреты значения убраны автоматически, но полнота очистки не гарантируется: в журналах могут остаться пути вне профиля (например, на другом диске), названия сетей, программ и устройств. Откройте файлы и просмотрите их перед отправкой. Архив не отправляется автоматически.": "Local Lycoris diagnostics archive. Inside: report.txt (system information), settings.json (safe settings), journal.txt (number of changes by kind) and up to three latest work logs. The user and computer names, e-mail addresses, network addresses, serial numbers and secret-looking values were removed automatically, but the cleaning is not guaranteed to be complete: the logs can still hold paths outside the profile (for example on another drive) and names of networks, programs and devices. Open the files and review them before sending. The archive is not sent automatically.",
+    "СОЗДАТЬ АРХИВ": "CREATE ARCHIVE",
+    "Создание отчёта…": "Creating report…",
+    "{0} · до {1}": "{0} · up to {1}",
+    "1,5 МБ": "1.5 MB",
+    "1 КБ": "1 KB",
+    "Отчёт не сохранён: рабочий стол не найден в вашей папке профиля, находится на сетевом диске или перенаправлен ссылкой. Ничего не записано.": "Report not saved: the desktop is not inside your profile folder, is on a network drive or is redirected by a link. Nothing was written.",
+    "Отчёт не сохранён: не удалось определить пользователя рабочего стола. Запустите Lycoris без прав администратора и повторите.": "Report not saved: the desktop user could not be determined. Start Lycoris without administrator rights and try again.",
+    "Отчёт сохранён на рабочем столе.": "Report saved to the desktop.",
+    "ОТКРЫТЬ ПАПКУ": "OPEN FOLDER",
+    "Создать обезличенный архив диагностики на рабочем столе.": "Create an anonymized diagnostics archive on the desktop."
+  }
+}
