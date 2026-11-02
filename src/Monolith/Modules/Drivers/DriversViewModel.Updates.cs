@@ -31,7 +31,7 @@ public sealed partial class DriversViewModel
     [ObservableProperty] private string? _installSummary;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(InstallButtonText))]
+    [NotifyPropertyChangedFor(nameof(InstallButtonText), nameof(PrimaryText), nameof(HasPrimary))]
     [NotifyCanExecuteChangedFor(nameof(InstallUpdatesCommand))]
     private int _selectedUpdatesCount;
 
@@ -177,12 +177,24 @@ public sealed partial class DriversViewModel
 
     // ───────────────────────────── Install ─────────────────────────────
 
-    private bool CanInstallUpdates() => CanModify() && UpdatesState != UpdatesState.Searching && SelectedUpdatesCount > 0;
+    // A replayed intent carries the ids of the checked drivers and waits for the Windows Update search to finish.
+    private bool CanInstallUpdates(string? packedIds) =>
+        CanModify() && (packedIds is not null || (UpdatesState != UpdatesState.Searching && SelectedUpdatesCount > 0));
 
     [RelayCommand(CanExecute = nameof(CanInstallUpdates))]
-    private async Task InstallUpdatesAsync()
+    private async Task InstallUpdatesAsync(string? packedIds)
     {
-        if (!RequireAdmin("установка драйверов")) return;
+        if (!RequireAdmin("установка драйверов", "InstallUpdates", Startup.IntentList.Pack(Updates.Where(u => u.IsSelected && u.CanSelect).Select(u => u.Id)))) return;
+        if (Startup.IntentList.Unpack(packedIds) is { Count: > 0 } replayed)
+        {
+            if (UpdatesState == UpdatesState.NotSearched) _ = SearchUpdatesAsync();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (UpdatesState is UpdatesState.Searching or UpdatesState.NotSearched && sw.Elapsed < TimeSpan.FromSeconds(180) && !_lifetime.IsCancellationRequested)
+                await Task.Delay(300);
+            var set = replayed.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var u in Updates) u.IsSelected = u.CanSelect && set.Contains(u.Id);
+            RecountSelection();
+        }
         var selected = Updates.Where(u => u.IsSelected && u.CanSelect).ToList();
         if (selected.Count == 0)
         {

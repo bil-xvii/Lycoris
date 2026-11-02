@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:Monolith.UI"
+             xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:local="clr-namespace:Monolith.Modules.Drivers"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DriversViewModel}">
     <UserControl.Resources>
@@ -13,36 +14,10 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style x:Key="Drv.Cell" TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
-            <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
             <Setter Property="VerticalAlignment" Value="Top" />
             <Setter Property="Margin" Value="0,2,0,0" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        </Style>
-        <Style x:Key="Drv.KindTag" TargetType="Border" BasedOn="{StaticResource Tag}">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsOptional}" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Line2}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsFirmware}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="Drv.ResultTag" TargetType="Border" BasedOn="{StaticResource Tag}">
-            <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-            <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
-            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding ResultOk}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource B.White}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
         <!-- Large centered state (searching / empty / error) -->
         <Style x:Key="Drv.StateTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H1}">
@@ -63,7 +38,22 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+
+        <!-- Sticky bar (outside the list's scroll): the count while drivers are checked; the install button is the page header's -->
+        <c:StickyBar Grid.Row="3" Margin="0,8,0,0" Count="{Binding SelectedUpdatesCount}"
+                     Text="Перед установкой: точка восстановления и копия заменяемых драйверов. Компьютер не перезагружается сам."
+                     Visibility="{Binding SelectedUpdatesCount, Converter={StaticResource NullToVis}}">
+            <c:StickyBar.Actions>
+                <Button Style="{StaticResource Btn.Ghost}" Command="{Binding ClearUpdateSelectionCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="СНЯТЬ ВЫБОР" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </c:StickyBar.Actions>
+        </c:StickyBar>
 
         <!-- ═══════════ Toolbar ═══════════ -->
         <Grid>
@@ -74,32 +64,24 @@
             <StackPanel VerticalAlignment="Center" Margin="0,0,15,0">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Драйверы из Windows Update" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding LastSearchText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text4}"
+                    <TextBlock Text="{Binding LastSearchText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                                VerticalAlignment="Center" Margin="10,2,0,0" />
                 </StackPanel>
                 <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Text="Официальный канал Microsoft: драйверы проверены и подписаны. Рекомендуемые Windows поставит и сама, необязательные ставьте только при проблеме с устройством." />
+                           Text="Официальный канал Microsoft: драйверы проверены и подписаны. Рекомендуемые Windows поставит и сама, необязательные ставьте только при проблеме с устройством. Отметьте драйверы — вверху появится кнопка «ЗАГРУЗИТЬ И УСТАНОВИТЬ»." />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Style="{StaticResource Btn.Ghost}" Command="{Binding OpenOptionalUpdatesCommand}"
                         ToolTip="Открыть «Параметры → Windows Update → Необязательные обновления»">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="ПАРАМЕТРЫ WINDOWS" VerticalAlignment="Center" />
-                        <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        <TextBlock Text="&#xE8A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                     </StackPanel>
                 </Button>
                 <Button Command="{Binding SearchUpdatesCommand}" Margin="8,0,0,0" ToolTip="Найти драйверы в Windows Update (работает и без прав администратора)">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock Text="НАЙТИ ОБНОВЛЕНИЯ" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-                <Button Style="{StaticResource Btn.Primary}" Command="{Binding InstallUpdatesCommand}" Margin="8,0,0,0"
-                        ToolTip="Точка восстановления → копия текущих драйверов → загрузка и установка через Windows Update"
-                        ToolTipService.ShowOnDisabled="True">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{Binding InstallButtonText}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -242,8 +224,8 @@
                 <!-- Nothing to install -->
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,25"
                             Visibility="{Binding HasUpdates, Converter={StaticResource InverseBoolToVis}}">
-                    <Border Width="64" Height="64" Background="{StaticResource B.White}" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
-                        <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="21" Foreground="{StaticResource B.Ink}" />
+                    <Border Width="64" Height="64" Background="{StaticResource B.Surface4}" CornerRadius="{StaticResource R.Lg}" HorizontalAlignment="Center">
+                        <TextBlock Text="&#xE73E;" Style="{StaticResource T.Icon}" FontSize="21" Foreground="{StaticResource B.Text}" />
                     </Border>
                     <TextBlock Text="Новых драйверов нет" Style="{StaticResource Drv.StateTitle}" />
                     <TextBlock Style="{StaticResource Drv.StateText}"
@@ -270,9 +252,9 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                     <TextBlock Text="ДРАЙВЕР" Style="{StaticResource Drv.Head}" />
-                                    <Button Style="{StaticResource Btn.Link}" Content="выбрать все" Margin="10,0,0,0" VerticalAlignment="Center"
+                                    <Button Content="ВЫБРАТЬ ВСЕ" Margin="12,0,0,0" VerticalAlignment="Center"
                                             Command="{Binding SelectAllUpdatesCommand}" />
-                                    <Button Style="{StaticResource Btn.Link}" Content="снять выбор" Margin="9,0,0,0" VerticalAlignment="Center"
+                                    <Button Content="СНЯТЬ ВЫБОР" Margin="8,0,0,0" VerticalAlignment="Center"
                                             Command="{Binding ClearUpdateSelectionCommand}" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="2" Text="КЛАСС" Style="{StaticResource Drv.Head}" />
@@ -303,7 +285,16 @@
                                                     <TextBlock Text="{Binding ModelText}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="NoWrap"
                                                                TextTrimming="CharacterEllipsis" Visibility="{Binding ModelText, Converter={StaticResource NullToVis}}" />
                                                     <WrapPanel Margin="0,8,0,0">
-                                                        <Border Style="{StaticResource Drv.KindTag}" Margin="0,0,6,0" ToolTip="{Binding KindHint}">
+                                                        <Border Style="{StaticResource Tag}" Margin="0,0,6,0" ToolTip="{Binding KindHint}"
+                                                                Visibility="{Binding KindIsRecommended, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding KindText}" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" ToolTip="{Binding KindHint}"
+                                                                Visibility="{Binding KindIsOptional, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding KindText}" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Tag.Hatch}" Margin="0,0,6,0" ToolTip="{Binding KindHint}"
+                                                                Visibility="{Binding KindIsFirmware, Converter={StaticResource BoolToVis}}">
                                                             <TextBlock Text="{Binding KindText}" />
                                                         </Border>
                                                         <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0"
@@ -323,7 +314,10 @@
                                                     </WrapPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                                                                 Visibility="{Binding ResultText, Converter={StaticResource NullToVis}}">
-                                                        <Border Style="{StaticResource Drv.ResultTag}">
+                                                        <Border Style="{StaticResource Tag.Solid}" Visibility="{Binding ResultOk, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding ResultText}" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Tag.Hatch}" Visibility="{Binding ResultOk, Converter={StaticResource InverseBoolToVis}}">
                                                             <TextBlock Text="{Binding ResultText}" />
                                                         </Border>
                                                         <TextBlock Text="{Binding ResultMessage}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
