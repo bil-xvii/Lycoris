@@ -62,11 +62,22 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     /// <summary><see cref="TabAuto"/> or <see cref="TabManual"/> (remembered between starts).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsManualMode), nameof(IsAutoMode))]
+    [NotifyPropertyChangedFor(nameof(IsManualMode), nameof(IsAutoMode), nameof(ShowPlanBar))]
     private string _selectedTab;
 
     public bool IsManualMode => SelectedTab == TabManual;
     public bool IsAutoMode => !IsManualMode;
+
+    /// <summary>The sticky «ВЫБРАНО N · НАСТРОИТЬ АВТОМАТИЧЕСКИ» bar: on the АВТОНАСТРОЙКА tab while there is a plan.</summary>
+    public bool ShowPlanBar => IsAutoMode && ShowPlan;
+
+    /// <summary>The line in the sticky bar: what the button does, or why it waits (nothing ticked).</summary>
+    public string PlanBarText => SelectedCount == 0
+        ? "Отметьте хотя бы одну строку плана — иначе нечего применять."
+        : "Исходные значения запишутся в журнал, перед изменением создаётся точка восстановления.";
+
+    public string PlanBarDetail => $"ИЗ {SelectableCount}";
+    public string ApplyPlanText => $"НАСТРОИТЬ АВТОМАТИЧЕСКИ · {SelectedCount}";
 
     partial void OnSelectedTabChanged(string value)
     {
@@ -147,6 +158,9 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     partial void OnSelectedCountChanged(int value)
     {
+        OnPropertyChanged(nameof(PlanBarText));
+        OnPropertyChanged(nameof(PlanBarDetail));
+        OnPropertyChanged(nameof(ApplyPlanText));
         OnPropertyChanged(nameof(SelectedText));
         ApplyPlanCommand.NotifyCanExecuteChanged();
     }
@@ -246,6 +260,7 @@ public sealed partial class DevicesViewModel : PageViewModel
             : $"Не удалось прочитать: {string.Join(", ", result.Failed)}. Нажмите «ОБНОВИТЬ», чтобы попробовать ещё раз.";
         AccountNote = interactive == true || !Cards.SelectMany(c => c.Settings).Any(DevicePlan.IsPerUser) ? null : accountProblem;
         HasScanned = true;
+        MarkChecked();
         RefreshJournalState();
         RebuildPlan();
         Log.Info($"Устройства и сеть: найдено {Cards.Count}, к изменению {PlanCount + OptionalItems.Count}.");
@@ -388,9 +403,11 @@ public sealed partial class DevicesViewModel : PageViewModel
         foreach (var item in PlanItems.Concat(OptionalItems)) item.PropertyChanged += OnPlanItemChanged;
 
         PlanCount = PlanItems.Count(i => i.Selectable); // the header and the tab count only what can be applied
+        BadgeText = PlanCount > 0 ? PlanCount.ToString() : null; // sidebar badge: what the plan would change
         UpdateSelectedCount();
         foreach (var name in new[]
                  {
+                     nameof(ShowPlanBar),
                      nameof(ShowPlan), nameof(IsPlanEmpty), nameof(ShowMeasureOnly), nameof(ShowPlanHeader), nameof(ShowMeasureHeaderInPlan), nameof(PlanEmptyText), nameof(MeasureHeader),
                      nameof(HasFindings), nameof(HasOptional), nameof(HasMeasure), nameof(OptionalCount),
                      nameof(FindingCount), nameof(OptionalHeader), nameof(FindingsHeader), nameof(SelectedText), nameof(SelectableCount),
@@ -443,7 +460,8 @@ public sealed partial class DevicesViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanApplyPlan))]
     private async Task ApplyPlanAsync()
     {
-        if (!RequireAdmin("Настроить автоматически")) return;
+        // Read-only: relaunch with rights and come back to this button (the checkboxes start from the recommended ones again).
+        if (!RequireAdmin("Настроить автоматически", "ApplyPlan")) return;
         var selected = PlanItems.Concat(OptionalItems).Where(i => i is { Selectable: true, IsSelected: true }).ToList();
         PlanApplyResult? result = null;
         await RunBusyAsync("Настройка устройств и сети…", async () =>
@@ -469,10 +487,18 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     /// <summary>ПРИМЕНИТЬ of one row (only this setting; no restore point).</summary>
     [RelayCommand]
-    private async Task ApplySettingAsync(DeviceSetting? s)
+    private async Task ApplySettingAsync(object? parameter)
     {
-        if (s is not { CanApply: true, Staged: { } value }) return;
-        if (!RequireAdmin(s.Title)) return;
+        // Read-only: the intent carries «card|setting|value» (text); the elevated copy validates the value against the row's own
+        // options before staging it, then applies it through this same command.
+        if (parameter is DeviceSetting clicked)
+        {
+            if (clicked is not { CanApply: true, Staged: { } }) return;
+            var card = Cards.FirstOrDefault(c => c.Settings.Contains(clicked));
+            if (!RequireAdmin(clicked.Title, "ApplySetting", card is null ? null : $"{card.Key}|{clicked.Id}|{clicked.StagedKey}")) return;
+        }
+        else if (!TryStageFromIntent(parameter as string, out parameter)) return;
+        if (parameter is not DeviceSetting { CanApply: true, Staged: { } value } s) return;
         s.IsApplying = true;
         try
         {
@@ -511,10 +537,16 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     /// <summary>ОТКАТИТЬ of one row: this page's own top layer of the setting, for this account, with admin rights.</summary>
     [RelayCommand]
-    private async Task RevertSettingAsync(DeviceSetting? s)
+    private async Task RevertSettingAsync(object? parameter)
     {
+        DeviceSetting? s = parameter as DeviceSetting;
+        if (s is not null)
+        {
+            var card = Cards.FirstOrDefault(c => c.Settings.Contains(s));
+            if (!RequireAdmin($"Откат: {s.Title}", "RevertSetting", card is null ? null : $"{card.Key}|{s.Id}")) return;
+        }
+        else if (parameter is string key && FindSetting(key) is { } found) s = found; // the replay after a relaunch with rights
         if (s is null) return;
-        if (!RequireAdmin($"Откат: {s.Title}")) return;
         s.IsApplying = true;
         try
         {
@@ -531,6 +563,30 @@ public sealed partial class DevicesViewModel : PageViewModel
             s.IsApplying = false;
         }
         await RereadAsync(s);
+    }
+
+    /// <summary>«card key|setting id» → the setting (the replay of a row command after a relaunch with admin rights).</summary>
+    private DeviceSetting? FindSetting(string key)
+    {
+        var parts = key.Split('|');
+        if (parts.Length < 2) return null;
+        return Cards.FirstOrDefault(c => string.Equals(c.Key, parts[0], StringComparison.OrdinalIgnoreCase))
+            ?.Settings.FirstOrDefault(x => x.Id == parts[1]);
+    }
+
+    /// <summary>
+    /// «card key|setting id|value» → the setting with that value staged — only a value the row itself offers
+    /// (<see cref="DeviceSetting.TryParseValue"/>). False when the row is gone or the value is not valid.
+    /// </summary>
+    internal bool TryStageFromIntent(string? text, out object? setting)
+    {
+        setting = null;
+        if (text is null) return false;
+        var parts = text.Split('|');
+        if (parts.Length != 3 || FindSetting(text) is not { } s || !s.TryParseValue(parts[2], out var value)) return false;
+        s.Staged = value;
+        setting = s;
+        return true;
     }
 
     /// <summary>After one row changed: re-read only that setting when it can, otherwise a quiet re-scan.</summary>
@@ -571,6 +627,22 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     [RelayCommand]
     private void CancelTool(DeviceTool? tool) => tool?.Cancel();
+
+    /// <summary>The router/internet ping measurement ("net-ping") of the connection card, or null before the first scan.</summary>
+    public DeviceTool? PingTool => AllTools().FirstOrDefault(t => t.Id == "net-ping");
+
+    /// <summary>
+    /// «ЗАМЕРИТЬ» of the Dashboard's ping tile: waits for the first scan, then runs the same measurement as the plan row
+    /// («Пинг до роутера и интернета»). A measurement only — nothing on the PC changes. The result is <see cref="PingTool"/>'s
+    /// ResultText / ResultDetail; a click while it runs cancels it.
+    /// </summary>
+    [RelayCommand]
+    private async Task RunPingAsync()
+    {
+        await EnsureLoadedAsync();
+        if (PingTool is { } tool) await RunToolAsync(tool);
+        else Ui.Toast("Подключение к интернету не найдено — измерять нечего.", ToastKind.Info, "ПИНГ");
+    }
 
     [RelayCommand]
     private async Task OpenLinkAsync(DeviceLink? link)

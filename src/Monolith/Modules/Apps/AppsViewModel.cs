@@ -55,14 +55,20 @@ public sealed partial class AppsViewModel : PageViewModel
             Groups.Add(new AppGroupViewModel(info, members));
         }
 
-        Categories.Add(new CategoryFilterViewModel(null, "ВСЕ") { IsSelected = true });
-        Categories.Add(new CategoryFilterViewModel(null, "РЕКОМЕНДУЕМ", isRecommended: true));
+        // «РЕКОМЕНДУЕМ» is the first tab and the one the page opens on: what this PC needs, before the whole catalog.
+        Categories.Add(new CategoryFilterViewModel(null, "РЕКОМЕНДУЕМ", isRecommended: true) { IsSelected = true });
+        Categories.Add(new CategoryFilterViewModel(null, "ВСЕ"));
         foreach (var g in Groups) Categories.Add(new CategoryFilterViewModel(g.Info.Category, g.Info.TabTitle));
         _selectedCategory = Categories[0];
 
         TotalCount = _items.Count;
         ApplyProfile(SystemProfile.Current);
         UpdateAdvice();
+        // A request that arrives while the page is already open (its own Load/Return ran earlier).
+        Ui.FocusRequested += r =>
+        {
+            if (r.PageKey == Key && IsLoaded) ApplyFocus(Ui.TakeFocusRequest(Key));
+        };
     }
 
     // ─────────────────────────── collections ───────────────────────────
@@ -138,7 +144,7 @@ public sealed partial class AppsViewModel : PageViewModel
         : HasDetection
             ? "Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ»."
             : WingetMissing
-                ? "Без winget MONOLITH не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Проверить снова»."
+                ? "Без winget MONOLITH не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Обновить»."
                 : "MONOLITH ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.";
 
     partial void OnHasDetectionChanged(bool value) => NotifyNoResultsText();
@@ -162,12 +168,25 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private void NotifyNoResultsText()
     {
+        OnPropertyChanged(nameof(ShowAllOffered));
         OnPropertyChanged(nameof(NoResultsTitle));
         OnPropertyChanged(nameof(NoResultsText));
     }
 
+    /// <summary>The sticky bar's line: what «УСТАНОВИТЬ ВЫБРАННОЕ» will do, or why it waits (nothing ticked).</summary>
+    public string StickyText => SelectedCount == 0
+        ? "Отметьте программы галочкой на карточках — они встанут в одну очередь; перед запуском покажем список."
+        : "Неустановленные программы будут установлены, установленные — обновлены. Перед запуском покажем список.";
+
+    public string InstallSelectedText => $"УСТАНОВИТЬ ВЫБРАННОЕ · {SelectedCount}";
+
+    /// <summary>«ПОКАЗАТЬ ВСЕ ПРОГРАММЫ» is offered when the empty list is the «РЕКОМЕНДУЕМ» tab.</summary>
+    public bool ShowAllOffered => EmptyRecommendedTab;
+
     partial void OnSelectedCountChanged(int value)
     {
+        OnPropertyChanged(nameof(StickyText));
+        OnPropertyChanged(nameof(InstallSelectedText));
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(SelectedText));
         InstallSelectedCommand.NotifyCanExecuteChanged();
@@ -208,8 +227,54 @@ public sealed partial class AppsViewModel : PageViewModel
 
     // ─────────────────────────── lifecycle ───────────────────────────
 
+    // ─────────────────────────── focus («app:<winget id>» from the palette / other pages) ───────────────────────────
+
+    /// <summary>Id of the card the view scrolls to after a focus request (one-shot, see AppsView).</summary>
+    [ObservableProperty] private string? _focusedAppId;
+
+    private System.Windows.Threading.DispatcherTimer? _highlightTimer;
+    private AppItemViewModel? _highlighted;
+
+    /// <summary>
+    /// «app:&lt;id&gt;»: shows the whole catalog without a search, outlines the card for a moment and asks the view to scroll to it.
+    /// Returns false for a request that is not for a program.
+    /// </summary>
+    private bool ApplyFocus(string? focusId)
+    {
+        const string prefix = CommandPaletteIndex.AppFocusPrefix;
+        if (focusId is null || !focusId.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        var id = focusId[prefix.Length..];
+        var item = _items.FirstOrDefault(i => i.Entry.AllIds.Contains(id, StringComparer.OrdinalIgnoreCase));
+        if (item is null) return false;
+
+        _tabChosen = true;
+        SearchText = "";
+        if (Categories.FirstOrDefault(c => c.Category is null && !c.IsRecommended) is { } all) ShowCategory(all);
+
+        if (_highlighted is not null) _highlighted.IsHighlighted = false;
+        _highlighted = item;
+        item.IsHighlighted = true;
+        _highlightTimer ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+        _highlightTimer.Tick -= OnHighlightTimer;
+        _highlightTimer.Tick += OnHighlightTimer;
+        _highlightTimer.Stop();
+        _highlightTimer.Start();
+
+        FocusedAppId = null; // re-raise even for the same card
+        FocusedAppId = item.Entry.Id;
+        return true;
+    }
+
+    private void OnHighlightTimer(object? sender, EventArgs e)
+    {
+        _highlightTimer?.Stop();
+        if (_highlighted is not null) _highlighted.IsHighlighted = false;
+        _highlighted = null;
+    }
+
     protected override async Task LoadAsync()
     {
+        ApplyFocus(Ui.TakeFocusRequest(Key));
         var cache = await Task.Run(InstalledDetector.LoadCache);
         if (cache is not null) ApplySnapshot(cache, partial: false);
         _ = LoadProfileAsync();
@@ -219,6 +284,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
     protected override async Task OnReturnAsync()
     {
+        ApplyFocus(Ui.TakeFocusRequest(Key));
         // The profile may have been incomplete on the first visit (slow WMI after a cold boot): read it again (cheap: cached).
         if (!_gpuKnown || _osUbr == 0) _ = LoadProfileAsync();
         if (IsQueueRunning || _detecting || WingetState == WingetState.Checking) return;
@@ -301,6 +367,14 @@ public sealed partial class AppsViewModel : PageViewModel
         KitToolTip = AppTexts.KitToolTip(kit, leftOut);
         UpdateKit();
         ApplyFilter();
+        BadgeText = BadgeFor(_items); // sidebar badge: programs this PC needs, from the advice just computed
+    }
+
+    /// <summary>The sidebar badge: how many catalog programs are recommended and not installed yet; null for none.</summary>
+    public static string? BadgeFor(IEnumerable<AppItemViewModel> items)
+    {
+        var n = items.Count(i => i.IsSuggested);
+        return n > 0 ? n.ToString() : null;
     }
 
     // ─────────────────────────── busy indicator ───────────────────────────
@@ -417,10 +491,12 @@ public sealed partial class AppsViewModel : PageViewModel
 
         if (!partial)
         {
+            CheckedAt = snapshot.CheckedAt; // the header's «проверено HH:MM» is the time of the data, also when it came from the cache
+            if (!snapshot.FromCache) LeaveEmptyRecommendedTab();
             _lastCheck = snapshot.FromCache ? DateTime.MinValue : snapshot.CheckedAt;
             DetectionText = snapshot.FromCache
                 ? $"По данным проверки {snapshot.CheckedAt:dd.MM HH:mm} · обновляется"
-                : $"Проверено в {snapshot.CheckedAt:HH:mm}";
+                : "";
         }
         RefreshCommandStates();
     }
@@ -442,10 +518,36 @@ public sealed partial class AppsViewModel : PageViewModel
     private void SelectCategory(CategoryFilterViewModel? filter)
     {
         if (filter is null) return;
+        _tabChosen = true; // the user picked a tab: the automatic switch from an empty «РЕКОМЕНДУЕМ» no longer applies
+        ShowCategory(filter);
+    }
+
+    private void ShowCategory(CategoryFilterViewModel filter)
+    {
         foreach (var c in Categories) c.IsSelected = ReferenceEquals(c, filter);
         SelectedCategory = filter;
         ApplyFilter();
     }
+
+    private bool _tabChosen;
+
+    /// <summary>The first complete check found nothing to recommend: open the whole catalog instead of an empty tab (once, unless the user already chose a tab).</summary>
+    private void LeaveEmptyRecommendedTab()
+    {
+        if (_tabChosen || HasSearch || SelectedCategory is not { IsRecommended: true } || VisibleCount > 0) return;
+        _tabChosen = true;
+        if (Categories.FirstOrDefault(c => c.Category is null && !c.IsRecommended) is { } all) ShowCategory(all);
+    }
+
+    /// <summary>«ПОКАЗАТЬ ВСЕ ПРОГРАММЫ» on the empty «РЕКОМЕНДУЕМ» tab.</summary>
+    [RelayCommand]
+    private void ShowAll()
+    {
+        ClearSearchCore();
+        if (Categories.FirstOrDefault(c => c.Category is null && !c.IsRecommended) is { } all) SelectCategory(all);
+    }
+
+    private void ClearSearchCore() => SearchText = "";
 
     [RelayCommand]
     private void ClearSearch() => SearchText = "";

@@ -39,6 +39,12 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private int _revertAllCount;
     /// <summary>Tooltip of «ОТКАТИТЬ ВСЁ»: the active records it leaves and why (null when it reverts every active record).</summary>
     [ObservableProperty] private string? _revertAllHint;
+    /// <summary>Why «ОТКАТИТЬ ВСЁ» is grey (shown as text next to it), or null when it is available.</summary>
+    [ObservableProperty] private string? _revertAllReason;
+    /// <summary>One caption next to «ОТКАТИТЬ ВСЁ»: the reason it is grey, else what it leaves out.</summary>
+    public string? RevertAllNote => RevertAllReason ?? RevertAllHint;
+    partial void OnRevertAllReasonChanged(string? value) => OnPropertyChanged(nameof(RevertAllNote));
+    partial void OnRevertAllHintChanged(string? value) => OnPropertyChanged(nameof(RevertAllNote));
     [ObservableProperty] private int _revertedCount;
     [ObservableProperty] private int _totalCount;
     [ObservableProperty] private bool _isFilterEmpty;
@@ -66,7 +72,14 @@ public sealed partial class RestoreViewModel : PageViewModel
     {
         PropertyChanged += OnSelfPropertyChanged;
         AppSettings.Current.PropertyChanged += OnSettingsChanged;
+        Ui.FocusRequested += r =>
+        {
+            if (r.PageKey == Key && IsLoaded) ApplyFocus(Ui.TakeFocusRequest(Key));
+        };
     }
+
+    /// <summary>Batches the user opened («ПОКАЗАТЬ ЗАПИСИ»): kept across rebuilds of the list.</summary>
+    private readonly HashSet<Guid> _expanded = [];
 
     protected override async Task LoadAsync()
     {
@@ -75,6 +88,8 @@ public sealed partial class RestoreViewModel : PageViewModel
         Rebuild();
         _ = RefreshDriftAsync();
         await RefreshProtectionAsync();
+        MarkChecked();
+        ApplyFocus(Ui.TakeFocusRequest(Key));
     }
 
     protected override async Task OnReturnAsync()
@@ -82,6 +97,39 @@ public sealed partial class RestoreViewModel : PageViewModel
         Rebuild();
         _ = RefreshDriftAsync();
         await RefreshProtectionAsync();
+        MarkChecked();
+        ApplyFocus(Ui.TakeFocusRequest(Key));
+    }
+
+    /// <summary>«ОБНОВИТЬ» in the header: re-reads the journal, the drift check and the System Restore state.</summary>
+    [RelayCommand]
+    private Task RefreshAsync() => RunBusyAsync("Обновление…", async () =>
+    {
+        Rebuild();
+        _ = RefreshDriftAsync();
+        await RefreshProtectionAsync();
+        MarkChecked();
+    });
+
+    // ═════════════════════════════ Focus («section:…» from the palette / other pages) ═════════════════════════════
+
+    /// <summary>Section the view scrolls to: last-batch, journal, restore-points, drift (one-shot, see RestoreView).</summary>
+    [ObservableProperty] private string? _focusedSection;
+
+    /// <summary>«section:&lt;name&gt;»: opens the part of the page (last batch expanded, drift filter) and asks the view to scroll to it.</summary>
+    private void ApplyFocus(string? focusId)
+    {
+        const string prefix = CommandPaletteIndex.RestoreSectionPrefix;
+        if (focusId is null || !focusId.StartsWith(prefix, StringComparison.Ordinal)) return;
+        var section = focusId[prefix.Length..];
+        if (section == "drift" && HasDrift) Filter = JournalFilter.Drifted;
+        else if (section == "last-batch")
+        {
+            if (Filter == JournalFilter.Drifted || Filter == JournalFilter.Reverted) Filter = JournalFilter.Active;
+            if (Batches.FirstOrDefault(b => b.CanRevert) is { } b) b.IsExpanded = true;
+        }
+        FocusedSection = null; // re-raise even for the same section
+        FocusedSection = section;
     }
 
     private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -146,6 +194,11 @@ public sealed partial class RestoreViewModel : PageViewModel
         var left = RestoreFormat.LeftText(records.Where(ChangeJournal.IsLeftByBulk), sid, UserScope.CachedAccountName);
         RevertAllHint = left.Length == 0 ? null : "Не входят в общий откат. " + left;
 
+        BadgeText = ActiveCount > 0 ? ActiveCount.ToString() : null; // sidebar badge: the active changes the journal already holds
+        RevertAllReason = RevertAllCount > 0 ? null
+            : ActiveCount > 0 ? "Нечего откатывать общим откатом: оставшиеся записи откатываются по одной в списке."
+            : "Нечего откатывать: активных изменений нет.";
+
         var covered = RestoreFormat.CoveredBy(records, sid);
         var titles = new Dictionary<Guid, string>();
         foreach (var r in records) titles.TryAdd(r.Id, r.Title);
@@ -157,7 +210,18 @@ public sealed partial class RestoreViewModel : PageViewModel
         var groups = RestoreFormat.Group(batches, records, Filter, _drift.Keys.ToHashSet(), ChangeJournal.IsBulkRevertible);
         // A long history (hundreds of batches) is drawn page by page: rendering it all at once froze the window for a second.
         Batches.Clear();
-        foreach (var g in groups.Take(_shownBatches)) Batches.Add(new BatchItem(g, Item));
+        foreach (var g in groups.Take(_shownBatches))
+        {
+            // Collapsed by default: the batch header carries the revert button; the records open with «ПОКАЗАТЬ».
+            var item = new BatchItem(g, Item) { IsExpanded = _expanded.Contains(g.Batch.Id) || Filter == JournalFilter.Drifted };
+            var id = g.Batch.Id;
+            item.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(BatchItem.IsExpanded)) return;
+                if (item.IsExpanded) _expanded.Add(id); else _expanded.Remove(id);
+            };
+            Batches.Add(item);
+        }
         var hidden = Math.Max(0, groups.Count - _shownBatches);
         HasMoreBatches = hidden > 0;
         ShowMoreText = $"ПОКАЗАТЬ ЕЩЁ ({Math.Min(hidden, BatchPage)} ИЗ {hidden})";
@@ -257,20 +321,61 @@ public sealed partial class RestoreViewModel : PageViewModel
         Ui.Navigate(page);
     }
 
-    private bool CanReapplyDrift(RecordItem? item) => item is { CanReapply: true } && CanAdmin();
+    /// <summary>
+    /// A row command's parameter is the row itself (a click) or its id as text (the replay after a relaunch with admin
+    /// rights, see <see cref="PageViewModel.RequireAdmin(string, string, string?)"/>): both resolve to the same record.
+    /// </summary>
+    private RecordItem? ResolveRecord(object? parameter)
+    {
+        if (parameter is RecordItem item) return item;
+        if (parameter is not string id || !Guid.TryParse(id, out var guid)) return null;
+        RecordItem? Find() => Batches.SelectMany(b => b.Records).FirstOrDefault(r => r.Record.Id == guid);
+        if (Find() is { } found) return found;
+        if (_shownBatches < int.MaxValue) { _shownBatches = int.MaxValue; Rebuild(); } // the record is in a batch not drawn yet
+        return Find();
+    }
+
+    private BatchItem? ResolveBatch(object? parameter)
+    {
+        if (parameter is BatchItem batch) return batch;
+        if (parameter is not string id || !Guid.TryParse(id, out var guid)) return null;
+        BatchItem? Find() => Batches.FirstOrDefault(b => b.Id == guid);
+        if (Find() is { } found) return found;
+        if (_shownBatches < int.MaxValue) { _shownBatches = int.MaxValue; Rebuild(); }
+        return Find();
+    }
+
+    // Read-only mode keeps every button clickable: the click asks for admin rights and remembers the action (RequireAdmin).
+    private bool CanReapplyDrift(object? parameter) => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanReapplyDrift))]
-    private Task ReapplyDriftAsync(RecordItem? item) =>
-        item?.Drift is { } d ? ReapplyAsync([d]) : Task.CompletedTask;
+    private async Task ReapplyDriftAsync(object? parameter)
+    {
+        if (!RequireAdmin("Повторное применение настроек", "ReapplyDrift", (parameter as RecordItem)?.Record.Id.ToString() ?? parameter as string)) return;
+        if (parameter is string) await EnsureDriftAsync(); // a replay right after the start: the live read may not be finished yet
+        if (ResolveRecord(parameter)?.Drift is { } d) await ReapplyAsync([d]);
+    }
 
-    private bool CanReapplyAllDrift() => HasReapplicableDrift && CanAdmin();
+    private bool CanReapplyAllDrift() => !IsBusy; // the button is shown only while there is something to re-apply
 
     [RelayCommand(CanExecute = nameof(CanReapplyAllDrift))]
-    private Task ReapplyAllDriftAsync() => ReapplyAsync(_drift.Values.Where(DriftReapply.CanReapply).ToList());
+    private async Task ReapplyAllDriftAsync()
+    {
+        if (!RequireAdmin("Повторное применение настроек", "ReapplyAllDrift")) return;
+        await EnsureDriftAsync();
+        await ReapplyAsync(_drift.Values.Where(DriftReapply.CanReapply).ToList());
+    }
+
+    /// <summary>Waits for the live «изменено вне MONOLITH» read (started at load) so a replayed command sees its result.</summary>
+    private async Task EnsureDriftAsync()
+    {
+        await RefreshDriftAsync();
+        for (var i = 0; i < 100 && _driftRunning; i++) await Task.Delay(100);
+    }
 
     private Task ReapplyAsync(IReadOnlyList<DriftItem> items) => RunBusyAsync("Повторное применение…", async () =>
     {
-        if (items.Count == 0 || !RequireAdmin("Повторное применение настроек")) return;
+        if (items.Count == 0) return;
         var lines = DriftReapply.DescribeForConfirm(items, id => Monolith.Tweaks.TweakCatalog.Find(id)?.Title);
         if (!await Ui.ConfirmAsync("ПРИМЕНИТЬ СНОВА?",
                 "MONOLITH снова запишет значения, которые он ставил раньше, отдельным пакетом. Откат этого пакета вернёт нынешние значения, а «ОТКАТИТЬ ВСЁ» — исходные (до MONOLITH).",
@@ -324,7 +429,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         {
             RestorePoints.Clear();
             PointsCountText = "";
-            PointsMessage = "Windows показывает список точек только администратору. Перезапустите MONOLITH с правами администратора, чтобы увидеть их здесь, или откройте «Восстановление системы».";
+            PointsMessage = "Windows показывает список точек только администратору. Кнопка ниже перезапустит MONOLITH с правами и откроет список здесь; можно и открыть «Восстановление системы».";
             return;
         }
 
@@ -345,12 +450,13 @@ public sealed partial class RestoreViewModel : PageViewModel
         }
     }
 
-    private bool CanAdmin() => Elevation.IsElevated && !IsBusy;
+    /// <summary>Buttons stay clickable in read-only mode (the click asks for rights, see RequireAdmin); only a running job blocks them.</summary>
+    private bool CanAdmin() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanAdmin))]
     private Task CreateRestorePointAsync() => RunBusyAsync("Создание точки восстановления…", async () =>
     {
-        if (!RequireAdmin("Создание точки восстановления")) return;
+        if (!RequireAdmin("Создание точки восстановления", "CreateRestorePoint")) return;
         if (ProtectionBlocked)
         {
             await Ui.AlertAsync("Защита системы запрещена", "Групповая политика запрещает точки восстановления на этом компьютере.");
@@ -380,12 +486,12 @@ public sealed partial class RestoreViewModel : PageViewModel
         await LoadPointsAsync();
     });
 
-    private bool CanEnable() => Elevation.IsElevated && !IsBusy && CanOfferEnable;
+    private bool CanEnable() => !IsBusy && CanOfferEnable;
 
     [RelayCommand(CanExecute = nameof(CanEnable))]
     private Task EnableProtectionAsync() => RunBusyAsync("Включение защиты системы…", async () =>
     {
-        if (!RequireAdmin("Включение защиты системы")) return;
+        if (!RequireAdmin("Включение защиты системы", "EnableProtection")) return;
         var drive = SystemProfile.SystemDrive.TrimEnd('\\');
         if (!await Ui.ConfirmAsync("Включить защиту системы?",
                 $"Windows начнёт создавать точки восстановления для диска {drive} — перед обновлениями, установкой драйверов и изменениями MONOLITH.",
@@ -415,6 +521,14 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     [RelayCommand]
     private Task RefreshPointsAsync() => RefreshProtectionAsync();
+
+    /// <summary>Windows lists restore points only to an administrator: the button next to that message relaunches with rights and reads the list.</summary>
+    [RelayCommand]
+    private async Task ShowPointsAsync()
+    {
+        if (!RequireAdmin("Список точек восстановления", "ShowPoints")) return;
+        await RefreshProtectionAsync();
+    }
 
     /// <summary>
     /// «Точка перед изменениями» (AppSettings.CreateRestorePoints, per user): turning it off asks first; turning it on is immediate.
@@ -470,12 +584,13 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     // ═════════════════════════════ Revert ═════════════════════════════
 
-    private bool CanRevertRecord(RecordItem? item) => item is { CanRevert: true } && CanAdmin();
+    private bool CanRevertRecord(object? parameter) => CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertRecord))]
-    private Task RevertRecordAsync(RecordItem? item) => RunBusyAsync("Откат изменения…", async () =>
+    private Task RevertRecordAsync(object? parameter) => RunBusyAsync("Откат изменения…", async () =>
     {
-        if (item is null || _journal is null || !RequireAdmin("Откат изменения")) return;
+        if (_journal is null || !RequireAdmin("Откат изменения", "RevertRecord", (parameter as RecordItem)?.Record.Id.ToString() ?? parameter as string)) return;
+        if (ResolveRecord(parameter) is not { CanRevert: true } item) return;
         var journal = _journal;
         var record = item.Record;
         // Research services.md §3.5: show the real current value and warn when it changed after MONOLITH.
@@ -522,12 +637,13 @@ public sealed partial class RestoreViewModel : PageViewModel
         await ReportAsync(result, newer is null ? "Изменение откачено." : $"Изменение откачено; значение остаётся за «{newer.Title}».");
     });
 
-    private bool CanRevertBatch(BatchItem? batch) => batch is { CanRevert: true } && CanAdmin();
+    private bool CanRevertBatch(object? parameter) => CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertBatch))]
-    private Task RevertBatchAsync(BatchItem? batch) => RunBusyAsync("Откат пакета…", async () =>
+    private Task RevertBatchAsync(object? parameter) => RunBusyAsync("Откат пакета…", async () =>
     {
-        if (batch is null || _journal is null || !RequireAdmin("Откат пакета")) return;
+        if (_journal is null || !RequireAdmin("Откат пакета", "RevertBatch", (parameter as BatchItem)?.Id.ToString() ?? parameter as string)) return;
+        if (ResolveBatch(parameter) is not { CanRevert: true } batch) return;
         var journal = _journal;
         var inBatch = journal.Records.Where(r => !r.Reverted && (batch.IsSynthetic
             ? journal.Batches.All(b => b.Id != r.BatchId)
@@ -566,14 +682,16 @@ public sealed partial class RestoreViewModel : PageViewModel
             return;
         }
         if (RevertBatchCommand.CanExecute(last)) await RevertBatchCommand.ExecuteAsync(last);
+        MarkChecked();
     }
 
+    // Grey only when there is nothing to revert — the reason is the text next to the button (RevertAllNote).
     private bool CanRevertAll() => RevertAllCount > 0 && CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertAll))]
     private Task RevertAllAsync() => RunBusyAsync("Откат всех изменений…", async () =>
     {
-        if (_journal is null || !RequireAdmin("Откат всех изменений")) return;
+        if (_journal is null || !RequireAdmin("Откат всех изменений", "RevertAll")) return;
         var journal = _journal;
         var active = journal.RevertAllCandidates().Reverse().ToList();
         if (active.Count == 0) return;
