@@ -29,8 +29,11 @@ public static partial class ProblemReport
     private static readonly Regex OneDriveRx = R(@"\bOneDrive +- +" + Seg);
     // \\server\share\… (also JSON-escaped): the whole network path goes, the server, the share and any profile folder below them.
     private static readonly Regex UncPathRx = R(@"(?<![\w:.])[\\/]{2,4}(?![\\/?.])[^\\/\s""'<>|:*?]+(?:[\\/]+" + Seg + ")+");
-    private static readonly Regex MacRx = R(@"(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])|(?<![0-9a-f])(?:[0-9a-f]{4}\.){2}[0-9a-f]{4}(?![0-9a-f])");
-    private static readonly Regex Ipv6Rx = R(@"(?<![0-9a-f:.])(?:[0-9a-f]{0,4}:){2,}[0-9a-f.:]*(?:%\w+)?");
+    // EUI-64 (8 bytes) and EUI-48 (6 bytes) with «:» or «-», Cisco «aabb.ccdd.eeff», and 12 unseparated hex digits that hold a letter (not a timestamp, not a GUID tail).
+    private static readonly Regex MacRx = R(@"(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){7}[0-9a-f]{2}(?![0-9a-f])|(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])|(?<![0-9a-f])(?:[0-9a-f]{4}\.){2}[0-9a-f]{4}(?![0-9a-f])|(?<![0-9a-f:-])(?=[0-9a-f]*[a-f])[0-9a-f]{12}(?![0-9a-f])(?!-[0-9a-f])");
+    private static readonly Regex MacExactRx = R(@"^(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}$|^(?:[0-9a-f]{2}[:-]){7}[0-9a-f]{2}$");
+    // No left boundary: an address glued to hex letters («deadfe80::1») is still found (the glued letters stay, the address does not).
+    private static readonly Regex Ipv6Rx = R(@"(?:[0-9a-f]{0,4}:){2,}[0-9a-f.:]*(?:%[\w.-]+)?");
     private static readonly Regex Ipv4Rx = R(@"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d])");
     private static readonly Regex EmailRx = R(@"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}");
     private static readonly Regex BasicAuthRx = R(@"\bbasic\s+[A-Za-z0-9+/]{8,}={0,2}");
@@ -103,8 +106,8 @@ public static partial class ProblemReport
         line = ProfilePathRx.Replace(line, "%USERPROFILE%");
         line = OneDriveRx.Replace(line, "OneDrive");
         if (namesRx is not null) line = namesRx.Replace(line, m => map.TryGetValue(m.Value, out var r) ? r : "<user>");
-        line = MacRx.Replace(line, "<mac>");
         line = Ipv6Rx.Replace(line, m => ReplaceIpv6(m.Value));
+        line = MacRx.Replace(line, "<mac>");
         line = Ipv4Rx.Replace(line, m => System.Net.IPAddress.TryParse(m.Value, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "<ip>" : m.Value);
         line = EmailRx.Replace(line, "<email>");
         line = BasicAuthRx.Replace(line, "Basic <redacted>");
@@ -119,12 +122,21 @@ public static partial class ProblemReport
 
     private static string ReplaceIpv6(string candidate)
     {
-        var core = candidate.TrimEnd(':', '.');
-        var tail = candidate[core.Length..];
-        if (core.Length > 0 && System.Net.IPAddress.TryParse(core, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) return "<ip>" + tail;
+        // The zone («%eth0», «%12») is cut before parsing and dropped: an adapter name is not diagnostics.
+        var zone = candidate.IndexOf('%');
+        var body = zone >= 0 ? candidate[..zone] : candidate;
+        var core = body.TrimEnd(':', '.');
+        var tail = zone >= 0 ? string.Empty : body[core.Length..];
+        if (MacExactRx.IsMatch(core)) return "<mac>" + tail;           // a MAC written with colons (EUI-48 / EUI-64)
+        if (core.Length > 0 && IsV6(core)) return "<ip>" + tail;
         // A trailing «:»/«.» can also belong to the address («fe80::1:»), try the whole text too.
-        return System.Net.IPAddress.TryParse(candidate, out ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? "<ip>" : candidate;
+        if (IsV6(body)) return "<ip>";
+        // Looks like an address but does not parse (typo, glued text): the whole candidate goes.
+        if (core.Contains("::") || core.Count(c => c == ':') >= 3) return "<ip>" + tail;
+        return candidate;
     }
+
+    private static bool IsV6(string text) => System.Net.IPAddress.TryParse(text, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
 
     /// <summary>Second pass over a finished line: anything that would still identify the user means the line is dropped.</summary>
     private static bool StillLooksPersonal(string line)
