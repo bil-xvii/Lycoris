@@ -108,7 +108,7 @@ public sealed partial class GamesViewModel : PageViewModel
     public const string CloseModeEcoQosCaption =
         "Режим эффективности: программа продолжает работать, но Windows переводит её на экономные частоты и E-ядра (то же, что «Режим " +
         "эффективности» в Диспетчере задач, без снижения приоритета). Заметнее на процессорах с P/E-ядрами и ноутбуках; на остальных эффект " +
-        "небольшой. Звук, голос, стрим, оверлеи и периферия не трогаются. Сбрасывается после игры.";
+        "небольшой. Программы, которые на старте сеанса играют звук, а также голос, стрим, оверлеи и периферия не трогаются. Сбрасывается после игры.";
     [ObservableProperty] private bool _hasStaleBoost;
     [ObservableProperty] private string _staleText = "";
     [ObservableProperty] private string _staleActionText = "ВЕРНУТЬ НАСТРОЙКИ";
@@ -167,9 +167,9 @@ public sealed partial class GamesViewModel : PageViewModel
         if (cache is not null) ApplyScan(cache);
 
         CheckStale();
+        await RecoverStaleEcoQosAsync(); // before the slow scan and dialogs, so a quick ИГРАТЬ cannot overwrite the marker
         await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync(), RefreshCloseModeAsync());
         await OfferStaleRestoreAsync();
-        await RecoverStaleEcoQosAsync();
     }
 
     private async Task RefreshCloseModeAsync()
