@@ -106,7 +106,7 @@
                                                 <Style.Triggers>
                                                     <!-- Severe = hatched (white is reserved for clickable things) -->
                                                     <DataTrigger Binding="{Binding IsSevere}" Value="True">
-                                                        <Setter Property="Background" Value="{StaticResource B.Hatch}" />
+                                                        <Setter Property="Background" Value="{StaticResource B.RedDeep}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>

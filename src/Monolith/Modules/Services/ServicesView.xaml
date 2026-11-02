@@ -254,7 +254,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Background="{StaticResource B.HatchStrong}" />
+                        <Border Background="{StaticResource B.Red}" />
                         <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Warning}" FontFamily="{StaticResource F.Icons}" FontSize="14"
                                    Foreground="{StaticResource B.Text}" VerticalAlignment="Top" Margin="10,9,0,0" />
                         <TextBlock Grid.Column="2" Text="{Binding Note}" Style="{StaticResource T.Body}" FontSize="12.5" Foreground="{StaticResource B.Text}"

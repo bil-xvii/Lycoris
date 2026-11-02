@@ -251,6 +251,7 @@
                     <Button Style="{StaticResource Btn.Danger}" Command="{Binding StopBoostCommand}"
                             Visibility="{Binding Boost.IsActive, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource Dot.Red}" Margin="0,0,9,0" />
                             <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="{loc:T 'СТОП СЕАНСА'}" VerticalAlignment="Center" />
                         </StackPanel>

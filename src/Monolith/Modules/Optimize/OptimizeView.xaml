@@ -141,17 +141,17 @@
 
         <!-- Expert items: a hatched band that says in words why they are expert (nothing is hidden behind a toggle) -->
         <DataTemplate DataType="{x:Type local:ExpertRow}">
-            <Border Margin="0,10,10,9" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
+            <Border Margin="0,10,10,9" Background="{StaticResource B.Base}" BorderBrush="{StaticResource B.Red}" BorderThickness="1"
                     CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True">
                 <Grid>
-                    <Border Background="{StaticResource B.HatchStrong}" Opacity="0.45" />
+                    <Border Background="{StaticResource B.RedDeep}" />
                     <Grid Margin="12,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{x:Static ui:Glyphs.Warning}" FontFamily="{StaticResource F.Icons}" FontSize="18" Foreground="{StaticResource B.Text}"
+                        <TextBlock Text="{x:Static ui:Glyphs.Warning}" FontFamily="{StaticResource F.Icons}" FontSize="18" Foreground="{StaticResource B.RedText}"
                                    VerticalAlignment="Center" Margin="0,0,12,0" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="{loc:T 'Экспертные настройки'}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
@@ -239,9 +239,9 @@
                                         <ColumnDefinition Width="8" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Background="{StaticResource B.HatchStrong}" />
+                                    <Border Background="{StaticResource B.Red}" />
                                     <StackPanel Grid.Column="1" Margin="9,8">
-                                        <TextBlock Text="{loc:T 'РИСК'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                        <TextBlock Text="{loc:T 'РИСК'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.RedText}" />
                                         <TextBlock Text="{Binding WarningText}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Grid>

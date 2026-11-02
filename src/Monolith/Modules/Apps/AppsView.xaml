@@ -394,7 +394,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Border Background="{StaticResource B.HatchStrong}" />
+                            <Border Background="{StaticResource B.Red}" />
                             <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Warning}" Style="{StaticResource T.Icon}" FontSize="18" Margin="11,0,10,0" />
                             <StackPanel Grid.Column="2" Margin="0,9,11,10">
                                 <TextBlock Text="{loc:T Устаревший winget}" Style="{StaticResource T.H3}" />
@@ -415,7 +415,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Border Background="{StaticResource B.HatchStrong}" />
+                            <Border Background="{StaticResource B.Red}" />
                             <StackPanel Grid.Column="1" Margin="17,15,15,16">
                                 <TextBlock Text="{loc:T WINGET · УСТАНОВЩИК ПРИЛОЖЕНИЙ}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{loc:T winget не найден}" Style="{StaticResource T.H1}" FontSize="22" Margin="0,6,0,0" />

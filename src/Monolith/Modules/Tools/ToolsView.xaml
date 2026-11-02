@@ -275,7 +275,7 @@
                                     <Setter Property="Fill" Value="{StaticResource B.Text2}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ResultIsProblem}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                                            <Setter Property="Fill" Value="{StaticResource B.Red}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
