@@ -30,18 +30,24 @@ public sealed partial class HomeViewModel : PageViewModel
     [ObservableProperty] private bool _hasJournalEntries;
     [ObservableProperty] private bool _showLaptopGoal;
     [ObservableProperty] private bool _expertMode = AppSettings.Current.ExpertMode;
-    [ObservableProperty] private string _doctorSeverity = "Ok";
-    [ObservableProperty] private string _doctorText = Loc.T("Доктор собирает сведения при первом открытии Панели.");
-    [ObservableProperty] private string? _doctorDetails;
+    [ObservableProperty] private bool _doctorHasData;
+    [ObservableProperty] private bool _doctorHasProblems;
+    [ObservableProperty] private string _doctorStatus = Loc.T("Нет данных");
+    [ObservableProperty] private string _doctorChecked = "";
+    public ObservableCollection<DoctorIssue> DoctorIssues { get; } = [];
     [ObservableProperty] private string? _gamingFact;
     [ObservableProperty] private string? _startupFact;
     [ObservableProperty] private string? _cleanupFact;
     [ObservableProperty] private string? _laptopFact;
     [ObservableProperty] private string? _driversFact;
 
-    public HomeViewModel(DashboardViewModel dashboard) => _dashboard = dashboard;
-    public string DoctorDotStyle => DoctorSeverity == "Warning" ? "Dot.Amber" : "Dot.Green";
+    private readonly Func<string, Task> _runDoctorCheck;
 
+    public HomeViewModel(DashboardViewModel dashboard, Func<string, Task>? runDoctorCheck = null)
+    {
+        _dashboard = dashboard;
+        _runDoctorCheck = runDoctorCheck ?? (id => dashboard.RunCheckCommand.ExecuteAsync(id));
+    }
     protected override async Task LoadAsync()
     {
         _dashboard.PropertyChanged += (_, _) => Ui.Post(RefreshDoctor);
@@ -53,6 +59,7 @@ public sealed partial class HomeViewModel : PageViewModel
         };
         try
         {
+            if (!_dashboard.HasResults) await _dashboard.RefreshChecksCommand.ExecuteAsync(null);
             var profile = await SystemProfile.LoadAsync();
             ShowLaptopGoal = ShouldShowLaptopGoal(profile.IsComplete, profile.IsLaptop, TweakCatalog.DefaultsFor(ProfileKind.Efficiency).Any());
         }
@@ -114,15 +121,67 @@ public sealed partial class HomeViewModel : PageViewModel
 
     private void RefreshDoctor()
     {
-        if (!_dashboard.HasResults) { DoctorText = Loc.T("Доктор собирает сведения при первом открытии Панели."); DoctorSeverity = "Ok"; DoctorDetails = null; return; }
-        var count = _dashboard.WarningCount + _dashboard.InfoCount;
-        DoctorSeverity = _dashboard.WarningCount > 0 ? "Warning" : "Ok";
-        DoctorText = count == 0 ? Loc.T("Доктор не нашёл проблем.") : Loc.N(count, "Доктор нашёл {0} проблему", "Доктор нашёл {0} проблемы", "Доктор нашёл {0} проблем");
-        DoctorDetails = string.Join(" · ", _dashboard.Issues.Take(2).Select(i => i.Title));
-        OnPropertyChanged(nameof(DoctorDotStyle));
+        DoctorIssues.Clear();
+        DoctorHasData = _dashboard.HasResults;
+        DoctorHasProblems = false;
+        if (!DoctorHasData) { DoctorStatus = Loc.T("Нет данных"); DoctorChecked = ""; return; }
+        var issues = BuildDoctorIssues(_dashboard.Issues);
+        foreach (var item in issues) DoctorIssues.Add(item);
+        DoctorHasProblems = issues.Count > 0;
+        DoctorStatus = DoctorHasProblems ? Loc.T("Что можно улучшить") : Loc.T("Проблем не найдено");
+        DoctorChecked = _dashboard.LastCheckText;
     }
 
+    internal static IReadOnlyList<DoctorIssue> BuildDoctorIssues(IEnumerable<CheckItemViewModel> source) => source
+        .Where(i => !i.IsOk)
+        .OrderByDescending(i => i.Severity)
+        .ThenByDescending(i => i.Result.Weight)
+        .Take(3)
+        .Select(item => new DoctorIssue(item.Result.Id, item.Title, DoctorReason(item.Result.Id, item.Detail), item.Detail,
+            item.Severity == Lycoris.Modules.Dashboard.Checks.CheckSeverity.Warning ? "Warning" : "Info",
+            item.Result.Weight >= 20 && item.Severity == Lycoris.Modules.Dashboard.Checks.CheckSeverity.Warning ? "Dot.Red" : "Dot.Amber",
+            DoctorActionLabel(item.Result.Action), item.Result.Action?.Kind == Lycoris.Modules.Dashboard.Checks.CheckActionKind.ApplyTweak ? Loc.T("БЕЗОПАСНО") : Loc.T("ПО ЖЕЛАНИЮ"), Loc.Tf("Правило: {0}", item.Result.Id), item.Result.Action is not null))
+        .ToArray();
+
+    internal static string DoctorReason(string ruleId, string detail) => ruleId switch
+    {
+        "pending-reboot" => Loc.T("До перезагрузки часть изменений не вступит в силу."),
+        "startup" => Loc.T("Программы в фоне могут замедлять вход в Windows."),
+        "power-plan" => Loc.T("Сбалансированный режим снижает нагрев и расход энергии в простое."),
+        _ => detail.Split('.', 2, StringSplitOptions.TrimEntries)[0] is { Length: > 0 } text ? text + "." : detail,
+    };
+
+    private static string DoctorActionLabel(Lycoris.Modules.Dashboard.Checks.CheckAction? action) => action?.Kind switch
+    {
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.ApplyTweak => action.Label,
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.FocusTweak => Loc.T("ПОСМОТРЕТЬ НАСТРОЙКУ"),
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.FocusDevice => Loc.T("ОТКРЫТЬ МОНИТОР"),
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "startup" => Loc.T("ОТКРЫТЬ АВТОЗАПУСК"),
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "restore" => Loc.T("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ"),
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "cleaner" => action.Label,
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "drivers" => Loc.T("ОТКРЫТЬ ДРАЙВЕРЫ"),
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "tools" => Loc.T("ОТКРЫТЬ ИНСТРУМЕНТЫ"),
+        _ => Loc.T("ОТКРЫТЬ ПАНЕЛЬ"),
+    };
+
+    [RelayCommand] private async Task RefreshDoctorAsync()
+    {
+        try { await _dashboard.RefreshChecksCommand.ExecuteAsync(null); }
+        catch { DoctorHasData = false; DoctorStatus = Loc.T("Нет данных"); }
+        RefreshDoctor();
+    }
     [RelayCommand] private void OpenDoctor() { Ui.RequestFocus("dashboard", "health:issues"); Ui.Navigate("dashboard"); }
+    [RelayCommand] private async Task RunDoctorActionAsync(DoctorIssue? issue)
+    {
+        if (issue is null) return;
+        if (!issue.HasAction)
+        {
+            Ui.RequestFocus("dashboard", "health:issues");
+            Ui.Navigate("dashboard");
+            return;
+        }
+        await _runDoctorCheck(issue.RuleId);
+    }
     [RelayCommand] private void OpenGoal(HomeGoal? goal)
     {
         if (goal is null) return;
@@ -143,6 +202,8 @@ public sealed partial class HomeViewModel : PageViewModel
 }
 
 public sealed record HomeGoal(string Id, string Glyph, string Title, string Description, string? Fact, string Risk, string Action, string ExpertDetail);
+
+public sealed record DoctorIssue(string RuleId, string Title, string Reason, string FullDetail, string Severity, string DotStyle, string Action, string Risk, string TechnicalDetail, bool HasAction = true);
 
 public sealed class HomeChangeItem(ChangeRecord record)
 {
