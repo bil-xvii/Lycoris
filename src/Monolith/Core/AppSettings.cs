@@ -105,7 +105,7 @@ public sealed partial class AppSettings : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Warn($"Настройки повреждены, используются значения по умолчанию: {ex.Message}");
+            Log.Warn("Настройки повреждены, используются значения по умолчанию: {0}", ex.Message);
             Current = new AppSettings();
         }
         Current.PropertyChanged += (_, _) => Current.Save();
@@ -122,7 +122,7 @@ public sealed partial class AppSettings : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось сохранить настройки: {ex.Message}");
+            Log.Warn("Не удалось сохранить настройки: {0}", ex.Message);
         }
     }
 }

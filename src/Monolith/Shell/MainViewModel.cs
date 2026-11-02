@@ -178,14 +178,14 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             Func<ChangeRecord, ChangeRecord?> newer = r => ChangeJournal.Instance.NewerLayer(r);
             var lines = Monolith.Modules.Games.GameBoostService.StaleLines(stale, newer);
             var ok = await Ui.ConfirmAsync("НЕЗАВЕРШЁННЫЙ ИГРОВОЙ СЕАНС", Monolith.Modules.Games.GameBoostService.StalePrompt(stale, newer),
-                lines, confirmText: Monolith.Modules.Games.GameBoostService.AllKept(stale, newer) ? "ЗАКРЫТЬ ЗАПИСЬ" : "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
+                lines, confirmText: Monolith.Modules.Games.GameBoostService.AllKept(stale, newer) ? Loc.T("ЗАКРЫТЬ ЗАПИСЬ") : Loc.T("ВЕРНУТЬ"), cancelText: "ПОЗЖЕ");
             if (ok)
             {
                 RevertResult result;
                 try
                 {
                     result = await _coordinator.RunAsync(
-                        new OperationRequest(OperationClass.JournalChange, "Возврат изменений игрового сеанса") { Owner = "games", QueueIfBusy = true },
+                        new OperationRequest(OperationClass.JournalChange, Loc.T("Возврат изменений игрового сеанса")) { Owner = "games", QueueIfBusy = true },
                         _ => Task.Run(() => ChangeJournal.Instance.RevertAsync(stale)));
                 }
                 catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)

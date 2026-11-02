@@ -143,9 +143,9 @@ public sealed class SystemProfile
         _collecting = work;
         var finished = await Task.WhenAny(work, Task.Delay(CollectLimit)).ConfigureAwait(false) == work;
         if (!finished)
-            Log.Warn($"Сбор сведений о системе не завершился за {CollectLimit.TotalSeconds:0} с — часть данных неизвестна: {string.Join(", ", p.MissingFacts)}.");
+            Log.Warn("Сбор сведений о системе не завершился за {0:0} с — часть данных неизвестна: {1}.", CollectLimit.TotalSeconds, string.Join(", ", p.MissingFacts));
         else if (!p.IsComplete)
-            Log.Warn($"Сбор сведений о системе: не удалось прочитать {string.Join(", ", p.MissingFacts)}.");
+            Log.Warn("Сбор сведений о системе: не удалось прочитать {0}.", string.Join(", ", p.MissingFacts));
         _loadedAtUtc = DateTime.UtcNow;
         // Keep the richer profile: a retry that got less than the previous one does not replace it.
         if (!Current.IsLoaded || p.MissingFacts.Count <= Current.MissingFacts.Count)
@@ -178,7 +178,7 @@ public sealed class SystemProfile
         foreach (var mo in Query("os", "SELECT Caption, LastBootUpTime FROM Win32_OperatingSystem"))
         {
             var caption = mo["Caption"]?.ToString() ?? "Windows";
-            caption = caption.Replace("Майкрософт ", "").Replace("Microsoft ", "");
+            caption = caption.Replace("Майкрософт ", "").Replace("Microsoft ", ""); // loc:ignore (Windows caption on a Russian OS)
             // Windows 11 still reports itself as "Windows 10" in some legacy fields.
             if (IsWindows11) caption = caption.Replace("Windows 10", "Windows 11");
             OsName = caption.Trim();
@@ -385,7 +385,7 @@ public sealed class SystemProfile
         catch (Exception ex)
         {
             _sections[section] = false;
-            Log.Warn($"Сбор сведений о системе: {ex.Message}");
+            Log.Warn("Сбор сведений о системе: {0}", ex.Message);
         }
     }
 

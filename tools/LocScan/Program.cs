@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Monolith.LocScan;
 
 // MONOLITH localization tool. Wrapper: tools/loc-scan.ps1.  Run `LocScan help` for the commands.
+Console.OutputEncoding = System.Text.Encoding.UTF8;
 var repo = FindRepo();
 var src = Path.Combine(repo, "src", "Monolith");
 var enDir = Path.Combine(src, "Core", "Localization", "en");

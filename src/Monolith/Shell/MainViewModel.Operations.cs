@@ -170,7 +170,7 @@ public sealed partial class MainViewModel
         var plan = ExitPlan.From(_coordinator.Snapshot());
         if (!plan.NeedsDialog) return true;
         var choice = await Ui.ChooseAsync("Задачи ещё выполняются", plan.Message, plan.Lines,
-            confirmText: "ВЫЙТИ КАК ЕСТЬ", extraText: plan.SafeToCancel > 0 ? "ОТМЕНИТЬ БЕЗОПАСНЫЕ И ВЫЙТИ" : null, cancelText: "ЖДАТЬ", danger: plan.NotCancellable > 0);
+            confirmText: "ВЫЙТИ КАК ЕСТЬ", extraText: plan.SafeToCancel > 0 ? Loc.T("ОТМЕНИТЬ БЕЗОПАСНЫЕ И ВЫЙТИ") : null, cancelText: "ЖДАТЬ", danger: plan.NotCancellable > 0);
         switch (choice)
         {
             case Ui.Choice.Confirm:
