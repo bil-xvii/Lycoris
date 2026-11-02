@@ -32,13 +32,13 @@ public static class SystemInspector
         var profile = await SystemProfile.LoadAsync().ConfigureAwait(false);
         var elevated = Elevation.IsElevated;
         var trimTask = ReadTrimDisabledAsync();
-        var bootTask = Probe.RunAsync("загрузка и TPM", () => FirmwareProbe.ReadAsync(elevated), TimeSpan.FromSeconds(25),
+        var bootTask = Probe.RunAsync("загрузка и TPM", () => FirmwareProbe.ReadAsync(elevated), TimeSpan.FromSeconds(25), // loc:ignore log-only probe name
             (FirmwareKind.Unknown, (bool?)null, TpmState.Unknown));
-        var kernelTask = Probe.RunAsync("защита ядра", () => KernelProtectionProbe.ReadAsync(elevated), TimeSpan.FromSeconds(20),
+        var kernelTask = Probe.RunAsync("защита ядра", () => KernelProtectionProbe.ReadAsync(elevated), TimeSpan.FromSeconds(20), // loc:ignore log-only probe name
             ((bool?)null, SmartAppControlState.Unknown));
-        var disksTask = Probe.RunAsync<IReadOnlyList<DiskHealth>?>(elevated ? "накопители (админ)" : "накопители",
+        var disksTask = Probe.RunAsync<IReadOnlyList<DiskHealth>?>(elevated ? "накопители (админ)" : "накопители", // loc:ignore log-only probe name
             () => DiskHealthProbe.Read(elevated), TimeSpan.FromSeconds(30), null, DiskHealthCacheFor);
-        var eventsTask = Probe.RunAsync("журнал событий", () => StabilityProbe.Read(DateTime.Now), TimeSpan.FromSeconds(20), null, EventsCacheFor);
+        var eventsTask = Probe.RunAsync("журнал событий", () => StabilityProbe.Read(DateTime.Now), TimeSpan.FromSeconds(20), null, EventsCacheFor); // loc:ignore log-only probe name
         var linkTask = profile.PrimaryGpu is { Vendor: GpuVendor.Nvidia } nv
             ? Probe.RunAsync("NVML", () => ReadGpuLink(nv.Name), TimeSpan.FromSeconds(10), null)
             : Task.FromResult<GpuLinkFacts?>(null);
@@ -48,7 +48,7 @@ public static class SystemInspector
         // and only with admin rights; cached, so repeated checks do not spawn it again, and with a short limit so a slow
         // provider cannot hold the whole dashboard (a late answer is still cached by the probe for the next check).
         var reservedTask = elevated && HealthRules.IsLowSpace(snapshot.SystemDriveFree, snapshot.SystemDriveTotal)
-            ? Probe.RunAsync("зарезервированное хранилище", ReadReservedStorageStateAsync, TimeSpan.FromSeconds(10), (string?)null, ReservedStorageCacheFor)
+            ? Probe.RunAsync("зарезервированное хранилище", ReadReservedStorageStateAsync, TimeSpan.FromSeconds(10), (string?)null, ReservedStorageCacheFor) // loc:ignore log-only probe name
             : Task.FromResult<string?>(null);
         var trim = await trimTask.ConfigureAwait(false);
         var (firmware, secureBoot, tpm) = await bootTask.ConfigureAwait(false);
@@ -121,7 +121,7 @@ public static class SystemInspector
         try { return read(); }
         catch (Exception ex)
         {
-            Log.Warn($"Проверка системы: {ex.Message}");
+            Log.Warn("Проверка системы: {0}", ex.Message);
             return fallback;
         }
     }
@@ -150,7 +150,7 @@ public static class SystemInspector
 
     private static IReadOnlyList<ProblemDevice> ReadProblemDevices() =>
         Query("SELECT Name, ConfigManagerErrorCode FROM Win32_PnPEntity WHERE ConfigManagerErrorCode <> 0")
-            .Select(mo => new ProblemDevice((mo["Name"]?.ToString() ?? "Неизвестное устройство").Trim(), ToInt(mo["ConfigManagerErrorCode"])))
+            .Select(mo => new ProblemDevice((mo["Name"]?.ToString() ?? Loc.T("Неизвестное устройство")).Trim(), ToInt(mo["ConfigManagerErrorCode"])))
             .ToList();
 
     private static VbsState ReadVbs()
@@ -238,9 +238,9 @@ public static class SystemInspector
     {
         var list = new List<string>();
         if (RegistryHelper.KeyExists(RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"))
-            list.Add("обслуживание компонентов Windows");
+            list.Add(Loc.T("обслуживание компонентов Windows"));
         if (RegistryHelper.KeyExists(RegHive.HKLM, @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"))
-            list.Add("Центр обновления Windows");
+            list.Add(Loc.T("Центр обновления Windows"));
         return list;
     }
 

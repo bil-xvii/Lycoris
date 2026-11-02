@@ -77,8 +77,8 @@ public static partial class HealthRules
         {
             if (!resolved.All(r => IsDiscreteCard(r.Gpu!))) return null;
             var list = string.Join("; ", resolved.Select(r => $"{r.Display.Name} — {r.Gpu!.Name}"));
-            return new("monitor-gpu", "МОНИТОР ПОДКЛЮЧЁН К ВИДЕОКАРТЕ",
-                list + ". Кадры выводятся напрямую, без копирования через встроенную графику.", CheckSeverity.Ok, 12);
+            return new("monitor-gpu", Loc.T("МОНИТОР ПОДКЛЮЧЁН К ВИДЕОКАРТЕ"),
+                Loc.Tf("{0}. Кадры выводятся напрямую, без копирования через встроенную графику.", list), CheckSeverity.Ok, 12);
         }
 
         // The cable can only go into a card that has display outputs (compute cards and hybrid mobile chips have none).
@@ -90,11 +90,12 @@ public static partial class HealthRules
         if (card is null) return null;
 
         var (display, igpu) = onboard[0];
-        return new("monitor-gpu", "МОНИТОР ПОДКЛЮЧЁН КО ВСТРОЕННОЙ ГРАФИКЕ",
-            $"{display.Name} подключён ко встроенной графике ({igpu!.Name}), а видеокарта {card.Name} простаивает или копирует " +
+        return new("monitor-gpu", Loc.T("МОНИТОР ПОДКЛЮЧЁН КО ВСТРОЕННОЙ ГРАФИКЕ"),
+            Loc.Tf("{0} подключён ко встроенной графике ({1}), а видеокарта {2} простаивает или копирует " +
             "кадры через неё — меньше FPS и больше задержка. Подключите кабель монитора к разъёму на видеокарте: это " +
             "горизонтальный ряд портов в нижней части задней панели, под разъёмами материнской платы. Встроенную графику " +
             "выключать не нужно, а второй монитор на ней — нормальная схема. MONOLITH здесь ничего не меняет.",
+            display.Name, igpu!.Name, card.Name),
             CheckSeverity.Warning, 12);
     }
 
@@ -127,28 +128,28 @@ public static partial class HealthRules
         var severe = false;
         if (d.Status == DiskHealthStatus.Unhealthy)
         {
-            problems.Add("Windows отмечает его как неисправный");
+            problems.Add(Loc.T("Windows отмечает его как неисправный"));
             severe = true;
         }
         else if (d.Status == DiskHealthStatus.Warning)
         {
-            problems.Add("Windows предупреждает о проблеме с ним");
+            problems.Add(Loc.T("Windows предупреждает о проблеме с ним"));
         }
         if (d.WearPercent is { } wear && wear >= 100)
         {
-            problems.Add($"ресурс записи исчерпан (износ {wear} %)");
+            problems.Add(Loc.Tf("ресурс записи исчерпан (износ {0} %)", wear));
             severe = true;
         }
         else if (d.WearPercent is { } w && w >= WearWarnPercent)
         {
-            problems.Add($"износ {w} %");
+            problems.Add(Loc.Tf("износ {0} %", w));
         }
         var errors = UncorrectedErrors(d);
         if (errors > 0)
-            problems.Add(DashFormat.Count((long)Math.Min(errors, long.MaxValue), "неисправленная ошибка", "неисправленные ошибки", "неисправленных ошибок") +
-                         " чтения или записи");
+            problems.Add(Loc.Tf("{0} чтения или записи",
+                Loc.N((long)Math.Min(errors, long.MaxValue), "{0} неисправленная ошибка", "{0} неисправленные ошибки", "{0} неисправленных ошибок")));
         var hot = IsDiskHot(d);
-        if (hot) problems.Add($"температура {d.TemperatureC} °C при пределе {d.TemperatureMaxC} °C");
+        if (hot) problems.Add(Loc.Tf("температура {0} °C при пределе {1} °C", d.TemperatureC, d.TemperatureMaxC));
         return new DiskVerdict(d, severe, hot, problems);
     }
 
@@ -156,17 +157,17 @@ public static partial class HealthRules
     public static string DiskSummary(DiskHealth d)
     {
         var parts = new List<string>();
-        if (d.WearPercent is { } w) parts.Add($"износ {w} %");
+        if (d.WearPercent is { } w) parts.Add(Loc.Tf("износ {0} %", w));
         if (d.TemperatureC is { } t) parts.Add($"{t} °C");
         if (d.ReadErrorsUncorrected is not null && d.WriteErrorsUncorrected is not null)
-            parts.Add(UncorrectedErrors(d) == 0 ? "ошибок нет" : $"неисправленных ошибок: {UncorrectedErrors(d)}");
+            parts.Add(UncorrectedErrors(d) == 0 ? Loc.T("ошибок нет") : Loc.Tf("неисправленных ошибок: {0}", UncorrectedErrors(d)));
         if (parts.Count == 0)
             parts.Add(d.Status switch
             {
-                DiskHealthStatus.Healthy => "исправен по данным Windows",
-                DiskHealthStatus.Warning => "Windows предупреждает о проблеме",
-                DiskHealthStatus.Unhealthy => "Windows отмечает его как неисправный",
-                _ => "состояние не сообщает",
+                DiskHealthStatus.Healthy => Loc.T("исправен по данным Windows"),
+                DiskHealthStatus.Warning => Loc.T("Windows предупреждает о проблеме"),
+                DiskHealthStatus.Unhealthy => Loc.T("Windows отмечает его как неисправный"),
+                _ => Loc.T("состояние не сообщает"),
             });
         return $"{d.Name}: {string.Join(", ", parts)}";
     }
@@ -181,21 +182,21 @@ public static partial class HealthRules
         {
             var detail = string.Join("; ", bad.Select(v => $"{v.Disk.Name}: {string.Join(", ", v.Problems)}")) + ".";
             if (bad.Any(v => !v.Hot || v.Problems.Count > 1))
-                detail += " Сделайте резервную копию важных файлов на другой диск или в облако: заранее сказать, когда накопитель " +
-                          "откажет, нельзя.";
+                detail += " " + Loc.T("Сделайте резервную копию важных файлов на другой диск или в облако: заранее сказать, когда накопитель " +
+                          "откажет, нельзя.");
             if (bad.Any(v => v.Hot))
-                detail += " Перегрев сокращает срок службы и замедляет запись: проверьте обдув корпуса и радиатор M.2.";
-            detail += " MONOLITH накопители не «ремонтирует» и ничего на них не меняет.";
-            return new("disk-health", bad.Count == 1 ? "НАКОПИТЕЛЬ ТРЕБУЕТ ВНИМАНИЯ" : "НАКОПИТЕЛИ ТРЕБУЮТ ВНИМАНИЯ",
+                detail += " " + Loc.T("Перегрев сокращает срок службы и замедляет запись: проверьте обдув корпуса и радиатор M.2.");
+            detail += " " + Loc.T("MONOLITH накопители не «ремонтирует» и ничего на них не меняет.");
+            return new("disk-health", bad.Count == 1 ? Loc.T("НАКОПИТЕЛЬ ТРЕБУЕТ ВНИМАНИЯ") : Loc.T("НАКОПИТЕЛИ ТРЕБУЮТ ВНИМАНИЯ"),
                 detail, CheckSeverity.Warning, bad.Any(v => v.Severe) ? 20 : 12);
         }
 
         var text = string.Join("; ", disks.Select(DiskSummary)) + ".";
         if (!s.Elevated)
-            text += " Износ, температура и счётчики ошибок доступны при запуске MONOLITH с правами администратора.";
+            text += " " + Loc.T("Износ, температура и счётчики ошибок доступны при запуске MONOLITH с правами администратора.");
         else if (disks.Any(d => !d.HasCounters))
-            text += " Часть накопителей не сообщает счётчики износа (так бывает с USB-адаптерами и RAID) — это не ошибка.";
-        return new("disk-health", "НАКОПИТЕЛИ: ПРОБЛЕМ НЕ НАЙДЕНО", text, CheckSeverity.Ok, 10);
+            text += " " + Loc.T("Часть накопителей не сообщает счётчики износа (так бывает с USB-адаптерами и RAID) — это не ошибка.");
+        return new("disk-health", Loc.T("НАКОПИТЕЛИ: ПРОБЛЕМ НЕ НАЙДЕНО"), text, CheckSeverity.Ok, 10);
     }
 
     // ───────────────────────────── Resizable BAR (NVIDIA) ─────────────────────────────
@@ -225,28 +226,29 @@ public static partial class HealthRules
         switch (ClassifyRebar(link.Bar1Total, link.VramTotal))
         {
             case RebarState.On:
-                return new("rebar", "RESIZABLE BAR ВКЛЮЧЁН",
-                    $"{link.GpuName}: процессору доступна вся видеопамять (окно BAR1 — {DashFormat.WholeGb(link.Bar1Total)}). " +
-                    "Драйвер NVIDIA использует это в тех играх, где оно даёт прирост.", CheckSeverity.Ok, 4);
+                return new("rebar", Loc.T("RESIZABLE BAR ВКЛЮЧЁН"),
+                    Loc.Tf("{0}: процессору доступна вся видеопамять (окно BAR1 — {1}). " +
+                    "Драйвер NVIDIA использует это в тех играх, где оно даёт прирост.", link.GpuName, DashFormat.WholeGb(link.Bar1Total)), CheckSeverity.Ok, 4);
             case RebarState.NotActive when NvidiaCardLacksRebar(link.GpuName):
                 return null; // the card itself has no Resizable BAR: no BIOS/CSM steps that cannot help
             case RebarState.NotActive:
                 var bios = s.Firmware switch
                 {
-                    FirmwareKind.Uefi => " Включите в BIOS/UEFI «Above 4G Decoding» и «Re-Size BAR Support»; если там включён CSM, " +
-                                         "выключите его — Windows на этом ПК уже загружается в режиме UEFI.",
-                    FirmwareKind.LegacyBios => " Resizable BAR работает только при загрузке в режиме UEFI, а Windows сейчас загружается " +
+                    FirmwareKind.Uefi => " " + Loc.T("Включите в BIOS/UEFI «Above 4G Decoding» и «Re-Size BAR Support»; если там включён CSM, " +
+                                         "выключите его — Windows на этом ПК уже загружается в режиме UEFI."),
+                    FirmwareKind.LegacyBios => " " + Loc.T("Resizable BAR работает только при загрузке в режиме UEFI, а Windows сейчас загружается " +
                                                "в режиме Legacy (CSM). Не выключайте CSM, пока системный диск размечен как MBR, — " +
-                                               "Windows перестанет загружаться.",
-                    _ => " Включите в BIOS/UEFI «Above 4G Decoding» и «Re-Size BAR Support».",
+                                               "Windows перестанет загружаться."),
+                    _ => " " + Loc.T("Включите в BIOS/UEFI «Above 4G Decoding» и «Re-Size BAR Support»."),
                 };
-                return new("rebar", "RESIZABLE BAR НЕ АКТИВЕН",
-                    $"{link.GpuName}: процессору доступно только окно 256 МБ видеопамяти. Resizable BAR ускоряет часть игр — " +
+                return new("rebar", Loc.T("RESIZABLE BAR НЕ АКТИВЕН"),
+                    Loc.Tf("{0}: процессору доступно только окно 256 МБ видеопамяти. Resizable BAR ускоряет часть игр — " +
                     "драйвер NVIDIA включает его только для игр из своего списка. Возможные причины: функция выключена в BIOS, " +
                     "видеокарта её не поддерживает (у NVIDIA — только RTX 30 и новее), у карты старая прошивка без поддержки " +
                     "(ранним RTX 30 нужно обновление VBIOS с сайта производителя карты), " +
-                    "платформа её не поддерживает" + (s.IsLaptop ? " (на ноутбуке это решает производитель)." : ".") + bios +
-                    " При включённом BitLocker сначала сохраните ключ восстановления. MONOLITH настройки BIOS не меняет.",
+                    "платформа её не поддерживает", link.GpuName) +
+                    (s.IsLaptop ? Loc.T(" (на ноутбуке это решает производитель).") : ".") + bios +
+                    " " + Loc.T("При включённом BitLocker сначала сохраните ключ восстановления. MONOLITH настройки BIOS не меняет."),
                     CheckSeverity.Info, 3);
             default:
                 return null;
@@ -271,29 +273,31 @@ public static partial class HealthRules
         if (s.GpuLink is not { MaxGen: { } maxGen, MaxWidth: { } maxWidth } link) return null;
         var genLowered = IsLinkGenLowered(link);
         if (IsLinkDegraded(link))
-            return new("pcie-link", "ЛИНИЯ PCIE ВИДЕОКАРТЫ СУЖЕНА",
-                $"{link.GpuName} под нагрузкой работает на PCIe {(genLowered ? $"{link.CurrentGen}.0 " : "")}×{link.CurrentWidth}, " +
-                $"хотя карта и слот поддерживают {(genLowered ? $"{maxGen}.0 " : "")}×{maxWidth}, — " +
+            return new("pcie-link", Loc.T("ЛИНИЯ PCIE ВИДЕОКАРТЫ СУЖЕНА"),
+                Loc.Tf("{0} под нагрузкой работает на PCIe {1}×{2}, " +
+                "хотя карта и слот поддерживают {3}×{4}, — " +
                 "линия работает ниже возможностей карты. Частые причины: карта не до конца вставлена в слот или перекошена, " +
                 "загрязнены контакты, некачественный райзер-кабель. Выключите ПК, отключите питание и переустановите карту до " +
-                "щелчка фиксатора. MONOLITH ничего не меняет.", CheckSeverity.Warning, 6);
+                "щелчка фиксатора. MONOLITH ничего не меняет.",
+                link.GpuName, genLowered ? $"{link.CurrentGen}.0 " : "", link.CurrentWidth, genLowered ? $"{maxGen}.0 " : "", maxWidth),
+                CheckSeverity.Warning, 6);
         if (genLowered)
-            return new("pcie-link", $"ЛИНИЯ PCIE ВИДЕОКАРТЫ: {link.CurrentGen}.0 ВМЕСТО {maxGen}.0",
-                $"{link.GpuName} под нагрузкой работает на PCIe {link.CurrentGen}.0 ×{link.CurrentWidth ?? maxWidth}, хотя карта и " +
-                $"слот поддерживают PCIe {maxGen}.0, — пропускная способность линии ниже возможной. Частые причины: райзер-кабель " +
+            return new("pcie-link", Loc.Tf("ЛИНИЯ PCIE ВИДЕОКАРТЫ: {0}.0 ВМЕСТО {1}.0", link.CurrentGen, maxGen),
+                Loc.Tf("{0} под нагрузкой работает на PCIe {1}.0 ×{2}, хотя карта и " +
+                "слот поддерживают PCIe {3}.0, — пропускная способность линии ниже возможной. Частые причины: райзер-кабель " +
                 "для более старой версии PCIe, плохой контакт в слоте, скорость линии, ограниченная вручную в BIOS. " +
-                "MONOLITH ничего не меняет.", CheckSeverity.Info, 4);
+                "MONOLITH ничего не меняет.", link.GpuName, link.CurrentGen, link.CurrentWidth ?? maxWidth, maxGen), CheckSeverity.Info, 4);
 
-        var text = $"{link.GpuName}: PCIe {maxGen}.0 ×{maxWidth}" + (!link.UnderLoad
-            ? " — столько поддерживают карта и слот; в простое скорость линии снижается для экономии энергии, это нормально."
+        var text = Loc.Tf("{0}: PCIe {1}.0 ×{2}", link.GpuName, maxGen, maxWidth) + (!link.UnderLoad
+            ? Loc.T(" — столько поддерживают карта и слот; в простое скорость линии снижается для экономии энергии, это нормально.")
             : link.CurrentGen is null
-                ? " — под нагрузкой линия работает на полную ширину."
-                : " — под нагрузкой линия работает полностью.");
+                ? Loc.T(" — под нагрузкой линия работает на полную ширину.")
+                : Loc.T(" — под нагрузкой линия работает полностью."));
         if (link.GpuMaxGen is { } cardGen && cardGen > maxGen)
-            text += $" Сама карта поддерживает PCIe {cardGen}.0 — это ограничение платы или слота, а не неисправность.";
+            text += " " + Loc.Tf("Сама карта поддерживает PCIe {0}.0 — это ограничение платы или слота, а не неисправность.", cardGen);
         if (maxWidth < 16)
-            text += " Если карта рассчитана на ×16 (это указано в её характеристиках), проверьте, что она стоит в верхнем " +
-                    "полноразмерном слоте: нижние слоты и линии, общие с M.2, часто дают только ×4 или ×8.";
-        return new("pcie-link", $"ЛИНИЯ PCIE ВИДЕОКАРТЫ: {maxGen}.0 ×{maxWidth}", text, CheckSeverity.Ok, 4);
+            text += " " + Loc.T("Если карта рассчитана на ×16 (это указано в её характеристиках), проверьте, что она стоит в верхнем " +
+                    "полноразмерном слоте: нижние слоты и линии, общие с M.2, часто дают только ×4 или ×8.");
+        return new("pcie-link", Loc.Tf("ЛИНИЯ PCIE ВИДЕОКАРТЫ: {0}.0 ×{1}", maxGen, maxWidth), text, CheckSeverity.Ok, 4);
     }
 }

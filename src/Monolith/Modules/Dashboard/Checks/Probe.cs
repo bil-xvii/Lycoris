@@ -30,7 +30,7 @@ internal static class Probe
             try { value = await read().ConfigureAwait(false); }
             catch (Exception ex)
             {
-                Log.Warn($"Проверка системы ({name}): {ex.Message}");
+                Log.Warn("Проверка системы ({0}): {1}", name, ex.Message);
                 return fallback;
             }
             // Cached here, not by the caller: a result that arrives after the limit is kept too, so a slow source is
@@ -41,7 +41,7 @@ internal static class Probe
         InFlight[name] = work;
         if (await Task.WhenAny(work, Task.Delay(limit)).ConfigureAwait(false) != work)
         {
-            Log.Warn($"Проверка системы: «{name}» не ответила за {limit.TotalSeconds:0} с — пропущено.");
+            Log.Warn("Проверка системы: «{0}» не ответила за {1} с — пропущено.", name, limit.TotalSeconds.ToString("0"));
             return fallback;
         }
         return await work.ConfigureAwait(false);

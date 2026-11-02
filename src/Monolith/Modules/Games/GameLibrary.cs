@@ -12,9 +12,9 @@ public sealed record SourceStatus(GamePlatform Platform, bool Installed, int Cou
 {
     [JsonIgnore] public string Name => GameText.SourceName(Platform);
     [JsonIgnore] public bool HasGames => Count > 0;
-    [JsonIgnore] public string StatusText => Error is not null ? "ОШИБКА ЧТЕНИЯ"
-        : !Installed ? "НЕ НАЙДЕН"
-        : $"{Count} {GameText.Plural(Count, "ИГРА", "ИГРЫ", "ИГР")}";
+    [JsonIgnore] public string StatusText => Error is not null ? Loc.T("ОШИБКА ЧТЕНИЯ")
+        : !Installed ? Loc.T("НЕ НАЙДЕН")
+        : Loc.N(Count, "{0} ИГРА", "{0} ИГРЫ", "{0} ИГР");
 }
 
 public sealed record LibraryScan(IReadOnlyList<GameEntry> Games, IReadOnlyList<SourceStatus> Sources, DateTime ScannedAt);
@@ -53,11 +53,11 @@ public static class GameLibrary
 
         IReadOnlyList<UninstallEntry> entries = [];
         try { entries = UninstallEntries.ReadAll(); }
-        catch (Exception ex) { Log.Warn($"Библиотека игр: список программ недоступен — {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Библиотека игр: список программ недоступен — {0}", ex.Message); }
 
         results.Add(Safe(GamePlatform.Ubisoft, () => LauncherSources.ScanUbisoft(entries)));
         try { results.AddRange(LauncherSources.ScanUninstallLaunchers(entries)); }
-        catch (Exception ex) { Log.Warn($"Библиотека игр: EA/Battle.net/Riot — {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Библиотека игр: EA/Battle.net/Riot — {0}", ex.Message); }
         results.Add(Safe(GamePlatform.Custom, () => ScanCustom(customExes)));
 
         var games = Deduplicate(results.SelectMany(r => r.Games));
@@ -67,7 +67,7 @@ public static class GameLibrary
             .ToList();
         var scan = new LibraryScan(games, sources, DateTime.Now);
         var parts = sources.Where(s => s.Count > 0).Select(s => $"{s.Name} {s.Count}").ToList();
-        Log.Info($"Библиотека игр: найдено {games.Count}" + (parts.Count > 0 ? $" ({string.Join(", ", parts)})" : ""));
+        Log.Info("Библиотека игр: найдено {0}{1}", games.Count, parts.Count > 0 ? $" ({string.Join(", ", parts)})" : "");
         return scan;
     }
 
@@ -155,7 +155,7 @@ public static class GameLibrary
         }
         catch (Exception ex)
         {
-            Log.Warn($"Кэш библиотеки игр повреждён и будет пересоздан: {ex.Message}");
+            Log.Warn("Кэш библиотеки игр повреждён и будет пересоздан: {0}", ex.Message);
             return null;
         }
     }
@@ -172,7 +172,7 @@ public static class GameLibrary
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось сохранить кэш библиотеки игр: {ex.Message}");
+            Log.Warn("Не удалось сохранить кэш библиотеки игр: {0}", ex.Message);
         }
     }
 
@@ -184,7 +184,7 @@ public static class GameLibrary
         }
         catch (Exception ex)
         {
-            Log.Warn($"{GameText.SourceName(platform)}: ошибка поиска игр — {ex.Message}");
+            Log.Warn("{0}: ошибка поиска игр — {1}", GameText.SourceName(platform), ex.Message);
             return new SourceResult(platform, false, [], ex.Message);
         }
     }

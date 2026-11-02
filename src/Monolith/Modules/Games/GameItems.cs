@@ -76,7 +76,7 @@ public sealed partial class PlatformFilterItem : ObservableObject
 
     public GamePlatform? Platform { get; }
     public int Count { get; }
-    public string Label => Platform is { } p ? GameText.PlatformLabel(p) : "ВСЕ";
+    public string Label => Platform is { } p ? GameText.PlatformLabel(p) : Loc.T("ВСЕ");
 
     [ObservableProperty] private bool _isSelected;
 
@@ -102,8 +102,8 @@ public sealed partial class RunningAppItem : ObservableObject
 
     public RunningApp App { get; }
     public string Name => App.Name;
-    public string Description => string.IsNullOrWhiteSpace(App.Description) ? "Без описания" : App.Description;
-    public string Meta => $"{App.Count} {GameText.Plural(App.Count, "ПРОЦЕСС", "ПРОЦЕССА", "ПРОЦЕССОВ")} · {SystemProfile.FormatBytes(App.MemoryBytes)}";
+    public string Description => string.IsNullOrWhiteSpace(App.Description) ? Loc.T("Без описания") : App.Description;
+    public string Meta => $"{Loc.N(App.Count, "{0} ПРОЦЕСС", "{0} ПРОЦЕССА", "{0} ПРОЦЕССОВ")} · {SystemProfile.FormatBytes(App.MemoryBytes)}";
     public bool HasWindow => App.HasWindow;
 
     [ObservableProperty] private bool _isInList;

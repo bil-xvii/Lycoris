@@ -74,22 +74,22 @@ public static partial class HealthRules
         if (!secureBootMissing && !tpmMissing)
         {
             if (s.SecureBootOn != true || s.Tpm != TpmState.V20) return null; // something unknown: no verdict
-            return new("boot-security", "SECURE BOOT И TPM 2.0 ВКЛЮЧЕНЫ",
-                "Windows загружается в режиме UEFI с Secure Boot, TPM 2.0 доступен — требования античитов Battlefield 6, " +
-                "Call of Duty и VALORANT выполнены.", CheckSeverity.Ok, 8);
+            return new("boot-security", Loc.T("SECURE BOOT И TPM 2.0 ВКЛЮЧЕНЫ"),
+                Loc.T("Windows загружается в режиме UEFI с Secure Boot, TPM 2.0 доступен — требования античитов Battlefield 6, " +
+                "Call of Duty и VALORANT выполнены."), CheckSeverity.Ok, 8);
         }
 
         var facts = new List<string>();
-        if (legacy) facts.Add("Windows загружается в режиме Legacy BIOS (CSM), а Secure Boot работает только в режиме UEFI");
-        else if (s.SecureBootOn == false) facts.Add("Secure Boot выключен");
-        else if (s.SecureBootOn == true) facts.Add("Secure Boot включён");
-        else facts.Add("состояние Secure Boot определить не удалось");
+        if (legacy) facts.Add(Loc.T("Windows загружается в режиме Legacy BIOS (CSM), а Secure Boot работает только в режиме UEFI"));
+        else if (s.SecureBootOn == false) facts.Add(Loc.T("Secure Boot выключен"));
+        else if (s.SecureBootOn == true) facts.Add(Loc.T("Secure Boot включён"));
+        else facts.Add(Loc.T("состояние Secure Boot определить не удалось"));
         facts.Add(s.Tpm switch
         {
-            TpmState.V20 => "TPM 2.0 доступен",
-            TpmState.V12 => "найден только TPM 1.2, а играм нужен TPM 2.0",
-            TpmState.NotFound => "TPM не найден или выключен в BIOS (fTPM/PTT)",
-            _ => "состояние TPM определить не удалось",
+            TpmState.V20 => Loc.T("TPM 2.0 доступен"),
+            TpmState.V12 => Loc.T("найден только TPM 1.2, а играм нужен TPM 2.0"),
+            TpmState.NotFound => Loc.T("TPM не найден или выключен в BIOS (fTPM/PTT)"),
+            _ => Loc.T("состояние TPM определить не удалось"),
         });
         var detail = Capitalize(string.Join("; ", facts)) + ". ";
 
@@ -97,30 +97,30 @@ public static partial class HealthRules
             .Where(g => (g.NeedsSecureBoot && secureBootMissing) || (g.NeedsTpm20 && tpmMissing))
             .ToList();
         detail += games.Count > 0
-            ? $"Без этого не запустятся игры из вашей библиотеки: {string.Join(", ", games.Select(g => $"{g.Title} ({g.AntiCheat})"))}. "
-            : "Это требование античитов Battlefield 6 (EA Javelin), Call of Duty: Black Ops 7 и Warzone (Ricochet), а также " +
-              "VALORANT на Windows 11 (Riot Vanguard). Если вы в такие игры не играете, менять ничего не нужно. ";
+            ? Loc.Tf("Без этого не запустятся игры из вашей библиотеки: {0}. ", string.Join(", ", games.Select(g => $"{g.Title} ({g.AntiCheat})")))
+            : Loc.T("Это требование античитов Battlefield 6 (EA Javelin), Call of Duty: Black Ops 7 и Warzone (Ricochet), а также " +
+              "VALORANT на Windows 11 (Riot Vanguard). Если вы в такие игры не играете, менять ничего не нужно. ");
 
         var steps = new List<string>();
         if (legacy)
-            steps.Add("Для Secure Boot нужен режим UEFI. Если системный диск размечен как MBR, после выключения CSM Windows не " +
+            steps.Add(Loc.T("Для Secure Boot нужен режим UEFI. Если системный диск размечен как MBR, после выключения CSM Windows не " +
                       "загрузится: сначала диск преобразуют в GPT средством Microsoft mbr2gpt (сначала проверка " +
-                      "«mbr2gpt /validate /allowFullOS»), заранее сделав резервную копию");
+                      "«mbr2gpt /validate /allowFullOS»), заранее сделав резервную копию"));
         else if (s.SecureBootOn == false)
-            steps.Add("Включите Secure Boot в BIOS/UEFI (раздел Boot или Security). Если плата спросит про ключи, выберите " +
-                      "установку заводских ключей («Install default keys»), а не «Clear keys» и не Setup Mode");
+            steps.Add(Loc.T("Включите Secure Boot в BIOS/UEFI (раздел Boot или Security). Если плата спросит про ключи, выберите " +
+                      "установку заводских ключей («Install default keys»), а не «Clear keys» и не Setup Mode"));
         if (tpmMissing)
-            steps.Add("Включите встроенный TPM в BIOS: на AMD — fTPM, на Intel — PTT (Platform Trust Technology). " +
-                      "Не выбирайте «Clear TPM» или «Reset TPM»");
-        steps.Add("Если включено шифрование BitLocker или шифрование устройства, сначала сохраните ключ восстановления " +
-                  "(aka.ms/myrecoverykey): после изменений в BIOS Windows может его запросить");
-        detail += string.Join(". ", steps) + ". MONOLITH прошивку и разметку дисков не меняет.";
+            steps.Add(Loc.T("Включите встроенный TPM в BIOS: на AMD — fTPM, на Intel — PTT (Platform Trust Technology). " +
+                      "Не выбирайте «Clear TPM» или «Reset TPM»"));
+        steps.Add(Loc.T("Если включено шифрование BitLocker или шифрование устройства, сначала сохраните ключ восстановления " +
+                  "(aka.ms/myrecoverykey): после изменений в BIOS Windows может его запросить"));
+        detail += string.Join(". ", steps) + ". " + Loc.T("MONOLITH прошивку и разметку дисков не меняет.");
 
         var title = (secureBootMissing, tpmMissing) switch
         {
-            (true, true) => "SECURE BOOT И TPM 2.0 НЕДОСТУПНЫ",
-            (true, false) => legacy ? "ЗАГРУЗКА В РЕЖИМЕ LEGACY BIOS" : "SECURE BOOT ВЫКЛЮЧЕН",
-            _ => "TPM 2.0 НЕДОСТУПЕН",
+            (true, true) => Loc.T("SECURE BOOT И TPM 2.0 НЕДОСТУПНЫ"),
+            (true, false) => legacy ? Loc.T("ЗАГРУЗКА В РЕЖИМЕ LEGACY BIOS") : Loc.T("SECURE BOOT ВЫКЛЮЧЕН"),
+            _ => Loc.T("TPM 2.0 НЕДОСТУПЕН"),
         };
         // No game in the library needs it: information only, no score penalty (nothing is wrong with the PC).
         return games.Count > 0
@@ -186,10 +186,10 @@ public static partial class HealthRules
 
     private static string SmartAppControlText(SmartAppControlState sac) => sac switch
     {
-        SmartAppControlState.On => " Интеллектуальное управление приложениями включено: Windows блокирует неподписанные и " +
-                                   "малоизвестные программы — иногда и утилиты или моды для игр.",
-        SmartAppControlState.Evaluation => " Интеллектуальное управление приложениями работает в режиме оценки: Windows " +
-                                           "наблюдает за программами и сама решит, включать ли его.",
+        SmartAppControlState.On => " " + Loc.T("Интеллектуальное управление приложениями включено: Windows блокирует неподписанные и " +
+                                   "малоизвестные программы — иногда и утилиты или моды для игр."),
+        SmartAppControlState.Evaluation => " " + Loc.T("Интеллектуальное управление приложениями работает в режиме оценки: Windows " +
+                                           "наблюдает за программами и сама решит, включать ли его."),
         _ => "",
     };
 
@@ -202,39 +202,39 @@ public static partial class HealthRules
         var sac = SmartAppControlText(s.SmartAppControl);
 
         if (!hvci && blocklist == false)
-            return new("vbs", "БЛОКИРОВКА УЯЗВИМЫХ ДРАЙВЕРОВ ВЫКЛЮЧЕНА",
-                "Целостность памяти выключена, и Windows не применяет список блокировки уязвимых драйверов Microsoft: через " +
+            return new("vbs", Loc.T("БЛОКИРОВКА УЯЗВИМЫХ ДРАЙВЕРОВ ВЫКЛЮЧЕНА"),
+                Loc.T("Целостность памяти выключена, и Windows не применяет список блокировки уязвимых драйверов Microsoft: через " +
                 "известные уязвимые драйверы вредоносные программы и читы получают доступ к ядру системы. Включите «Список " +
                 "блокировки уязвимых драйверов» в «Безопасность Windows → Безопасность устройства → Изоляция ядра» и " +
                 "перезагрузите ПК — на FPS это не влияет. Если после этого перестанет запускаться старая утилита (разгон, " +
-                "подсветка), её драйвер как раз из этого списка." + sac + " MONOLITH эту защиту не меняет.",
-                CheckSeverity.Warning, 8, new CheckAction(CheckActionKind.OpenUri, "ОТКРЫТЬ БЕЗОПАСНОСТЬ WINDOWS", WindowsSecurityUri));
+                "подсветка), её драйвер как раз из этого списка.") + sac + " " + Loc.T("MONOLITH эту защиту не меняет."),
+                CheckSeverity.Warning, 8, new CheckAction(CheckActionKind.OpenUri, Loc.T("ОТКРЫТЬ БЕЗОПАСНОСТЬ WINDOWS"), WindowsSecurityUri));
 
         switch (s.Vbs)
         {
             case VbsState.MemoryIntegrity:
-                return new("vbs", "ЦЕЛОСТНОСТЬ ПАМЯТИ ВКЛЮЧЕНА",
-                    "Изоляция ядра защищает Windows от вредоносных и уязвимых драйверов; список блокировки уязвимых драйверов " +
+                return new("vbs", Loc.T("ЦЕЛОСТНОСТЬ ПАМЯТИ ВКЛЮЧЕНА"),
+                    Loc.T("Изоляция ядра защищает Windows от вредоносных и уязвимых драйверов; список блокировки уязвимых драйверов " +
                     "при этом действует всегда. В части игр она стоит 0–10 % FPS (в среднем около 5 %), а античиты Riot Vanguard " +
                     "и FACEIT могут её требовать. MONOLITH не отключает её сам; отключение есть только как экспертный пункт в " +
                     "«Оптимизации» с отдельным предупреждением — это снижает безопасность и ломает часть античитов. Настройка — " +
-                    "«Безопасность Windows → Безопасность устройства → Изоляция ядра»." + sac,
+                    "«Безопасность Windows → Безопасность устройства → Изоляция ядра».") + sac,
                     CheckSeverity.Info, 0);
             case VbsState.VbsOnly:
-                return new("vbs", "ВИРТУАЛИЗАЦИЯ БЕЗОПАСНОСТИ АКТИВНА",
-                    "Windows изолирует часть ядра в защищённой виртуальной среде (VBS). Это защита от атак на учётные данные и ядро; " +
-                    "влияние на игры обычно небольшое. MONOLITH её не отключает." +
-                    (blocklist == true ? " Список блокировки уязвимых драйверов Microsoft действует." : "") + sac,
+                return new("vbs", Loc.T("ВИРТУАЛИЗАЦИЯ БЕЗОПАСНОСТИ АКТИВНА"),
+                    Loc.T("Windows изолирует часть ядра в защищённой виртуальной среде (VBS). Это защита от атак на учётные данные и ядро; " +
+                    "влияние на игры обычно небольшое. MONOLITH её не отключает.") +
+                    (blocklist == true ? " " + Loc.T("Список блокировки уязвимых драйверов Microsoft действует.") : "") + sac,
                     CheckSeverity.Info, 0);
             default:
-                return new("vbs", "ЦЕЛОСТНОСТЬ ПАМЯТИ ВЫКЛЮЧЕНА",
-                    "Изоляция ядра не используется" +
+                return new("vbs", Loc.T("ЦЕЛОСТНОСТЬ ПАМЯТИ ВЫКЛЮЧЕНА"),
+                    Loc.T("Изоляция ядра не используется") +
                     (blocklist == true
-                        ? ", но список блокировки уязвимых драйверов Microsoft действует — известные опасные драйверы не загрузятся. "
+                        ? Loc.T(", но список блокировки уязвимых драйверов Microsoft действует — известные опасные драйверы не загрузятся. ")
                         : ". ") +
-                    "Целостность памяти дополнительно защищает ядро от вредоносных драйверов; античиты Riot Vanguard (режим по " +
+                    Loc.T("Целостность памяти дополнительно защищает ядро от вредоносных драйверов; античиты Riot Vanguard (режим по " +
                     "требованию) и FACEIT могут её требовать. Включается в «Безопасность Windows → Безопасность устройства → " +
-                    "Изоляция ядра» (нужна перезагрузка; несовместимый старый драйвер может этому помешать)." + sac,
+                    "Изоляция ядра» (нужна перезагрузка; несовместимый старый драйвер может этому помешать).") + sac,
                     CheckSeverity.Info, 0);
         }
     }

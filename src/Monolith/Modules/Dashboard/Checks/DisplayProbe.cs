@@ -59,7 +59,7 @@ internal static class DisplayProbe
                 name = MonitorString(dd.DeviceName) ?? dd.DeviceString;
             }
             var primary = (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
-            list.Add(new DisplayInfo(string.IsNullOrWhiteSpace(name) ? "Монитор" : name.Trim(), width, height, hz, max, exact,
+            list.Add(new DisplayInfo(string.IsNullOrWhiteSpace(name) ? Loc.T("Монитор") : name.Trim(), width, height, hz, max, exact,
                 adapterKey, isInternal, primary));
         }
         return list;
@@ -129,7 +129,7 @@ internal static class DisplayProbe
                 var name = DisplayConfigGetDeviceInfo(ref target) == 0 ? target.monitorFriendlyDeviceName?.Trim() : null;
                 var isInternal = IsInternal(path.targetInfo.outputTechnology);
                 if (string.IsNullOrEmpty(name))
-                    name = isInternal ? "Встроенный дисплей" : "Монитор";
+                    name = isInternal ? Loc.T("Встроенный дисплей") : Loc.T("Монитор");
 
                 var rr = path.targetInfo.refreshRate;
                 double? hz = rr.Denominator > 0 && rr.Numerator > 0 ? (double)rr.Numerator / rr.Denominator : null;

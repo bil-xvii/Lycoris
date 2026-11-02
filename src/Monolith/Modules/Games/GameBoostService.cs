@@ -35,7 +35,8 @@ public sealed record BoostChange(string Title, string Detail, BoostChangeKind Ki
 public sealed partial class GameBoostService : ObservableObject
 {
     public const string Source = "gameboost";
-    private const string SessionTitle = "Игровой сеанс";
+    /// <summary>Journal batch title: stored in Russian (the on-disk schema is language-neutral), translated where shown.</summary>
+    private static readonly string SessionTitle = Loc.Key("Игровой сеанс");
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan DetectTimeout = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(8);
@@ -81,7 +82,7 @@ public sealed partial class GameBoostService : ObservableObject
 
     /// <summary>Journal target of the Windows 11 AC power mode (the same record the Optimize power-mode items write).</summary>
     public const string PowerModeTarget = "powermode:ac";
-    private const string PowerModeTitle = "Игровой сеанс: режим питания";
+    private static readonly string PowerModeTitle = Loc.Key("Игровой сеанс: режим питания");
 
     /// <summary>
     /// Decides the power action for this PC right now: the plan switch on desktops, else (laptop, Modern Standby, no High
@@ -90,7 +91,7 @@ public sealed partial class GameBoostService : ObservableObject
     public static (PowerPlanAction Action, string Text) DecidePower(SystemProfile sp, bool enabled)
     {
         var active = PowerSchemes.GetActive();
-        var activeName = active == Guid.Empty ? "текущая схема" : PowerSchemes.GetName(active);
+        var activeName = active == Guid.Empty ? Loc.T("текущая схема") : PowerSchemes.GetName(active);
         var ultimate = enabled ? PowerSchemes.FindUltimateCopy() : null;
         var alreadyFast = active == PowerSchemes.HighPerformance || (ultimate is { } u && u == active);
         var journaled = ChangeJournal.Instance.FindActive("power:active");
@@ -136,7 +137,7 @@ public sealed partial class GameBoostService : ObservableObject
         // No change without an undo the journal will accept later: probe the record shape before anything is promised.
         if (action == PowerPlanAction.SwitchPowerMode && currentMode is { } probe && PowerModeUntrusted(probe) is { } refusal)
         {
-            Log.Warn($"Игровой сеанс: журнал не принял бы отмену смены режима питания ({refusal}) — режим не меняется.");
+            Log.Warn("Игровой сеанс: журнал не принял бы отмену смены режима питания ({0}) — режим не меняется.", refusal);
             action = PowerPlanAction.SkipModeUntrusted;
         }
         var modeName = currentMode is { } m && TweakCatalog.IsDocumentedPowerMode(m) ? TweakCatalog.DescribePowerMode(m) : null;
@@ -152,11 +153,11 @@ public sealed partial class GameBoostService : ObservableObject
         PowerModeCommand(Guid current)
     {
         if (!TweakCatalog.IsDocumentedPowerMode(current))
-            throw new ArgumentException($"недокументированный режим питания: {current:D}", nameof(current));
+            throw new ArgumentException($"недокументированный режим питания: {current:D}", nameof(current)); // loc:ignore developer exception, never shown
         return (PowerModeTarget,
             TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(TweakCatalog.PowerModeBestPerformance)),
             TweakCatalog.PowerShellExe, TweakCatalog.PowerShellArgs(TweakCatalog.PowerModeScript(current)),
-            $"от сети: {TweakCatalog.DescribePowerMode(current)}", $"от сети: {TweakCatalog.DescribePowerMode(TweakCatalog.PowerModeBestPerformance)}",
+            $"от сети: {TweakCatalog.DescribePowerMode(current)}", $"от сети: {TweakCatalog.DescribePowerMode(TweakCatalog.PowerModeBestPerformance)}", // loc:ignore journal values are language-neutral data
             PowerModeTitle);
     }
 
@@ -249,12 +250,12 @@ public sealed partial class GameBoostService : ObservableObject
         try
         {
             return await OperationCoordinator.Instance.RunAsync(
-                new OperationRequest(OperationClass.Disruptive, game is null ? "Запуск игрового сеанса" : $"Запуск игрового сеанса: {game.Name}") { Owner = "games" },
+                new OperationRequest(OperationClass.Disruptive, game is null ? Loc.T("Запуск игрового сеанса") : Loc.Tf("Запуск игрового сеанса: {0}", game.Name)) { Owner = "games" },
                 _ => StartCoreAsync(game, plan));
         }
         catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
         {
-            Log.Warn("Игровой сеанс не начат: " + ex.Message);
+            Log.Warn("Игровой сеанс не начат: {0}", ex.Message);
             Ui.Toast(ex.Message, ToastKind.Warning, "ИГРОВОЙ СЕАНС");
             return false;
         }
@@ -263,7 +264,7 @@ public sealed partial class GameBoostService : ObservableObject
     private async Task<bool> StartCoreAsync(GameEntry? game, BoostPlan plan)
     {
         if (IsActive || IsTransitioning) return false;
-        Elevation.Demand("Игровой сеанс");
+        Elevation.Demand(Loc.Key("Игровой сеанс"));
         IsTransitioning = true;
         _sessionOpen = true;
         Changes.Clear();
@@ -271,14 +272,14 @@ public sealed partial class GameBoostService : ObservableObject
         _throttledApps.Clear();
         _powerTarget = null;
         HasGame = game is not null;
-        GameName = game?.Name ?? "Без привязки к игре";
+        GameName = game?.Name ?? Loc.T("Без привязки к игре");
         ProcessText = null;
-        PhaseText = "ЗАПУСК";
+        PhaseText = Loc.T("ЗАПУСК");
         try
         {
             if (plan.PowerAction == PowerPlanAction.Switch) await SwitchPowerPlanAsync();
             else if (plan.PowerAction == PowerPlanAction.SwitchPowerMode) await SwitchPowerModeAsync();
-            else Changes.Add(new BoostChange("План питания не изменён", plan.PowerText.Replace(BoostPolicy.SkipPrefix, ""), BoostChangeKind.Skipped));
+            else Changes.Add(new BoostChange(Loc.T("План питания не изменён"), plan.PowerText.Replace(BoostPolicy.SkipPrefix, ""), BoostChangeKind.Skipped));
 
             if (plan.AppsToClose.Count > 0)
             {
@@ -290,11 +291,12 @@ public sealed partial class GameBoostService : ObservableObject
 
             IsActive = true;
             StartedAt = DateTime.Now;
-            Log.Success($"Игровой сеанс начат{(game is null ? "" : $" для «{game.Name}»")}.");
+            if (game is null) Log.Success("Игровой сеанс начат.");
+            else Log.Success("Игровой сеанс начат для «{0}».", game.Name);
 
             if (game is null)
             {
-                PhaseText = "АКТИВЕН";
+                PhaseText = Loc.T("АКТИВЕН");
                 return true;
             }
 
@@ -305,13 +307,13 @@ public sealed partial class GameBoostService : ObservableObject
             }
             catch (Exception ex)
             {
-                Log.Error($"Не удалось запустить «{game.Name}»", ex);
-                await StopCoreAsync($"«{game.Name}» не запустилась: {ex.Message}", ToastKind.Error);
+                Log.Error("Не удалось запустить «{0}»", ex, game.Name);
+                await StopCoreAsync(Loc.Tf("«{0}» не запустилась: {1}", game.Name, ex.Message), ToastKind.Error);
                 return false;
             }
 
-            PhaseText = "ОЖИДАНИЕ ИГРЫ";
-            Changes.Add(new BoostChange("Игра запущена", "Ожидание процесса игры (до 3 минут) — затем приоритет и слежение за выходом.", BoostChangeKind.Info));
+            PhaseText = Loc.T("ОЖИДАНИЕ ИГРЫ");
+            Changes.Add(new BoostChange(Loc.T("Игра запущена"), Loc.T("Ожидание процесса игры (до 3 минут) — затем приоритет и слежение за выходом."), BoostChangeKind.Info));
             _watchCts = new CancellationTokenSource();
             _ = WatchAsync(game, pid, _watchCts.Token);
             return true;
@@ -321,7 +323,7 @@ public sealed partial class GameBoostService : ObservableObject
             Log.Error("Игровой сеанс: ошибка запуска", ex);
             Ui.Toast(ex.Message, ToastKind.Error, "ИГРОВОЙ СЕАНС");
             if (IsActive || ChangeJournal.Instance.HasActiveSource(Source) || HasThrottled())
-                await StopCoreAsync("Запуск игрового сеанса прерван — изменения отменены.", ToastKind.Warning);
+                await StopCoreAsync(Loc.T("Запуск игрового сеанса прерван — изменения отменены."), ToastKind.Warning);
             return false;
         }
         finally
@@ -338,7 +340,7 @@ public sealed partial class GameBoostService : ObservableObject
         {
             var fromName = PowerSchemes.GetName(PowerSchemes.GetActive());
             var session = await ChangeSession.BeginAsync(SessionTitle, createRestorePoint: false).ConfigureAwait(false);
-            var r = session.SetPowerScheme(PowerSchemes.HighPerformance, Source, "Игровой сеанс: план питания");
+            var r = session.SetPowerScheme(PowerSchemes.HighPerformance, Source, Loc.Key("Игровой сеанс: план питания"));
             session.Complete();
             return (r, fromName, PowerSchemes.GetName(PowerSchemes.HighPerformance), session.Errors.FirstOrDefault());
         });
@@ -346,8 +348,8 @@ public sealed partial class GameBoostService : ObservableObject
         var (ok, from, to, error) = await work;
         if (ok) _powerTarget = "power:active";
         Changes.Add(ok
-            ? new BoostChange("План питания", $"«{from}» → «{to}». Вернётся после игры.", BoostChangeKind.Changed)
-            : new BoostChange("План питания не изменён", error ?? "Windows отклонила смену схемы.", BoostChangeKind.Skipped));
+            ? new BoostChange(Loc.T("План питания"), Loc.Tf("«{0}» → «{1}». Вернётся после игры.", from, to), BoostChangeKind.Changed)
+            : new BoostChange(Loc.T("План питания не изменён"), error ?? Loc.T("Windows отклонила смену схемы."), BoostChangeKind.Skipped));
     }
 
     /// <summary>
@@ -362,11 +364,11 @@ public sealed partial class GameBoostService : ObservableObject
             // The plan was decided from a snapshot: re-check everything the record depends on right before writing.
             var current = TweakCatalog.ReadAcPowerMode();
             if (current is not { } from || !TweakCatalog.IsDocumentedPowerMode(from))
-                return (false, "", "Windows сообщила неизвестный режим питания — MONOLITH его не меняет.");
+                return (false, "", Loc.T("Windows сообщила неизвестный режим питания — MONOLITH его не меняет."));
             if (from == TweakCatalog.PowerModeBestPerformance)
-                return (false, TweakCatalog.DescribePowerMode(from), "режим питания от сети уже «Максимальная производительность» — ничего не изменено.");
+                return (false, TweakCatalog.DescribePowerMode(from), Loc.T("режим питания от сети уже «Максимальная производительность» — ничего не изменено."));
             if (PowerModeUntrusted(from) is { } refusal)
-                return (false, "", $"журнал не принял бы отмену такого изменения ({refusal}) — ничего не изменено.");
+                return (false, "", Loc.Tf("журнал не принял бы отмену такого изменения ({0}) — ничего не изменено.", refusal));
             var cmd = PowerModeCommand(from);
             var session = await ChangeSession.BeginAsync(SessionTitle, createRestorePoint: false).ConfigureAwait(false);
             var ok = await session.RunCommandAsync(cmd.Target, cmd.File, cmd.Args, cmd.RevertFile, cmd.RevertArgs,
@@ -378,8 +380,8 @@ public sealed partial class GameBoostService : ObservableObject
         var (ok, from, error) = await work;
         if (ok) _powerTarget = "cmd:" + PowerModeTarget;
         Changes.Add(ok
-            ? new BoostChange("Режим питания от сети",$"«{Cap(from)}» → «Максимальная производительность». Схема питания не меняется; вернётся после игры.", BoostChangeKind.Changed)
-            : new BoostChange("Режим питания не изменён", error ?? "Windows отклонила смену режима питания.", BoostChangeKind.Skipped));
+            ? new BoostChange(Loc.T("Режим питания от сети"), Loc.Tf("«{0}» → «Максимальная производительность». Схема питания не меняется; вернётся после игры.", Cap(from)), BoostChangeKind.Changed)
+            : new BoostChange(Loc.T("Режим питания не изменён"), error ?? Loc.T("Windows отклонила смену режима питания."), BoostChangeKind.Skipped));
     }
 
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
@@ -393,7 +395,7 @@ public sealed partial class GameBoostService : ObservableObject
         {
             if (targets.Count == 0)
             {
-                Changes.Add(new BoostChange("Приложения", "Приложения из списка уже закрыты.", BoostChangeKind.Info));
+                Changes.Add(new BoostChange(Loc.T("Приложения"), Loc.T("Приложения из списка уже закрыты."), BoostChangeKind.Info));
                 return;
             }
 
@@ -415,7 +417,7 @@ public sealed partial class GameBoostService : ObservableObject
             if (remaining.Count > 0)
             {
                 var details = remaining.GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.Count() > 1 ? $"{g.Key} — процессов: {g.Count()}" : g.Key).ToList();
+                    .Select(g => g.Count() > 1 ? Loc.Tf("{0} — процессов: {1}", g.Key, g.Count()) : g.Key).ToList();
                 var kill = await Ui.ConfirmAsync("ЗАВЕРШИТЬ ПРИНУДИТЕЛЬНО?",
                     "Эти приложения не закрылись за 8 секунд — многие программы при закрытии окна сворачиваются в трей. " +
                     "Завершить их принудительно? Несохранённые данные в них будут потеряны.",
@@ -428,7 +430,7 @@ public sealed partial class GameBoostService : ObservableObject
                         foreach (var (p, name) in remaining)
                         {
                             try { if (!p.HasExited) p.Kill(); }
-                            catch (Exception ex) { Log.Warn($"Не удалось завершить {name}: {ex.Message}"); }
+                            catch (Exception ex) { Log.Warn("Не удалось завершить {0}: {1}", name, ex.Message); }
                         }
                     });
                     var killDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
@@ -443,11 +445,11 @@ public sealed partial class GameBoostService : ObservableObject
             _closedApps.AddRange(closed);
             if (closed.Count > 0)
             {
-                Changes.Add(new BoostChange("Закрыто приложений: " + closed.Count, string.Join(", ", closed) + ". После игры MONOLITH их не открывает.", BoostChangeKind.Changed));
-                Log.Info("Игровой сеанс: закрыты " + string.Join(", ", closed));
+                Changes.Add(new BoostChange(Loc.Tf("Закрыто приложений: {0}", closed.Count), Loc.Tf("{0}. После игры MONOLITH их не открывает.", string.Join(", ", closed)), BoostChangeKind.Changed));
+                Log.Info("Игровой сеанс: закрыты {0}", string.Join(", ", closed));
             }
             if (open.Count > 0)
-                Changes.Add(new BoostChange("Остались открыты", string.Join(", ", open), BoostChangeKind.Skipped));
+                Changes.Add(new BoostChange(Loc.T("Остались открыты"), string.Join(", ", open), BoostChangeKind.Skipped));
         }
         finally
         {
@@ -471,31 +473,31 @@ public sealed partial class GameBoostService : ObservableObject
             if (!HasThrottled())
             {
                 try { recovered = RecoverStaleEcoQos(); }
-                catch (Exception ex) { Log.Warn($"Игровой сеанс: не удалось снять режим эффективности прошлого сеанса — {ex.Message}"); }
+                catch (Exception ex) { Log.Warn("Игровой сеанс: не удалось снять режим эффективности прошлого сеанса — {0}", ex.Message); }
             }
             return ThrottleProcesses(names, game?.InstallDir);
         });
         _pendingChange = work;
         var (tagged, skipped) = await work;
         if (recovered is not null)
-            Changes.Add(new BoostChange("Режим эффективности прошлого сеанса", recovered, BoostChangeKind.Info));
+            Changes.Add(new BoostChange(Loc.T("Режим эффективности прошлого сеанса"), recovered, BoostChangeKind.Info));
 
         if (tagged.Count == 0 && skipped.Count == 0)
         {
-            Changes.Add(new BoostChange("Режим эффективности", "Приложения из списка уже закрыты — назначать режим некому.", BoostChangeKind.Info));
+            Changes.Add(new BoostChange(Loc.T("Режим эффективности"), Loc.T("Приложения из списка уже закрыты — назначать режим некому."), BoostChangeKind.Info));
             return;
         }
         foreach (var g in tagged.GroupBy(n => n, StringComparer.OrdinalIgnoreCase))
         {
             _throttledApps.Add(g.Key);
-            Changes.Add(new BoostChange($"{g.Key}: режим эффективности",
-                (g.Count() > 1 ? $"Процессов: {g.Count()}. " : "") + "Программа работает дальше на экономных частотах; после игры вернётся прежнее состояние.",
+            Changes.Add(new BoostChange(Loc.Tf("{0}: режим эффективности", g.Key),
+                (g.Count() > 1 ? Loc.Tf("Процессов: {0}. ", g.Count()) : "") + Loc.T("Программа работает дальше на экономных частотах; после игры вернётся прежнее состояние."),
                 BoostChangeKind.Changed));
         }
         foreach (var (name, reason) in skipped.Distinct())
-            Changes.Add(new BoostChange($"{name}: пропущено — {reason}", "Программа работает как обычно.", BoostChangeKind.Skipped));
+            Changes.Add(new BoostChange(Loc.Tf("{0}: пропущено — {1}", name, reason), Loc.T("Программа работает как обычно."), BoostChangeKind.Skipped));
         if (tagged.Count > 0)
-            Log.Info("Игровой сеанс: режим эффективности для " + string.Join(", ", tagged.Distinct(StringComparer.OrdinalIgnoreCase)));
+            Log.Info("Игровой сеанс: режим эффективности для {0}", string.Join(", ", tagged.Distinct(StringComparer.OrdinalIgnoreCase)));
     }
 
     /// <summary>Blocking part of <see cref="ThrottleAppsAsync"/>. Returns the tagged names (one per process) and the skipped (name, reason) pairs.</summary>
@@ -525,7 +527,7 @@ public sealed partial class GameBoostService : ObservableObject
                 {
                     var err = Marshal.GetLastWin32Error();
                     h.Dispose();
-                    skipped.Add((name, err == 5 ? "процесс защищён от изменений" : $"процесс недоступен (код {err})"));
+                    skipped.Add((name, err == 5 ? Loc.T("процесс защищён от изменений") : Loc.Tf("процесс недоступен (код {0})", err)));
                     continue;
                 }
                 var original = EcoQos.ReadState(h);
@@ -533,20 +535,20 @@ public sealed partial class GameBoostService : ObservableObject
                 if (original is not { } orig || start is not { } startUtc)
                 {
                     h.Dispose();
-                    skipped.Add((name, "Windows не сообщила текущее состояние — без него нет точного возврата"));
+                    skipped.Add((name, Loc.T("Windows не сообщила текущее состояние — без него нет точного возврата")));
                     continue;
                 }
                 if (EcoQos.IsSelfManaged(orig))
                 {
                     h.Dispose();
-                    skipped.Add((name, EcoQos.IsEco(orig) ? "уже управляет режимом сам (режим эффективности включён)" : "уже управляет режимом сам"));
+                    skipped.Add((name, EcoQos.IsEco(orig) ? Loc.T("уже управляет режимом сам (режим эффективности включён)") : Loc.T("уже управляет режимом сам")));
                     continue;
                 }
                 if (!EcoQos.WriteState(h, EcoQos.PlanApply(orig)))
                 {
                     var err = Marshal.GetLastWin32Error();
                     h.Dispose();
-                    skipped.Add((name, err == 5 ? "процесс защищён от изменений" : $"Windows отклонила изменение (код {err})"));
+                    skipped.Add((name, err == 5 ? Loc.T("процесс защищён от изменений") : Loc.Tf("Windows отклонила изменение (код {0})", err)));
                     continue;
                 }
                 List<EcoQosMarkerEntry> marker;
@@ -600,14 +602,14 @@ public sealed partial class GameBoostService : ObservableObject
                     if (EcoQos.ReadState(handle) is { } now && now != EcoQos.PlanApply(original))
                     {
                         changed++;
-                        Log.Info($"Игровой сеанс: {name} сама сменила режим — не трогаем.");
+                        Log.Info("Игровой сеанс: {0} сама сменила режим — не трогаем.", name);
                         continue;
                     }
                     if (EcoQos.WriteState(handle, EcoQos.PlanRestore(original))) restored++;
                     else
                     {
                         failed++;
-                        Log.Warn($"Игровой сеанс: не удалось вернуть режим {name} (код {Marshal.GetLastWin32Error()}).");
+                        Log.Warn("Игровой сеанс: не удалось вернуть режим {0} (код {1}).", name, Marshal.GetLastWin32Error());
                     }
                 }
             }
@@ -625,13 +627,13 @@ public sealed partial class GameBoostService : ObservableObject
         if (ok)
         {
             Log.Info("Игровой сеанс: список ожидания памяти очищен.");
-            Changes.Add(new BoostChange("Память: список ожидания очищен",
-                "Однократно. Свободной памяти стало больше, но «доступной» — столько же: Windows и так отдаёт её играм.", BoostChangeKind.Changed));
+            Changes.Add(new BoostChange(Loc.T("Память: список ожидания очищен"),
+                Loc.T("Однократно. Свободной памяти стало больше, но «доступной» — столько же: Windows и так отдаёт её играм."), BoostChangeKind.Changed));
         }
         else
         {
-            Log.Warn($"Игровой сеанс: очистка списка ожидания не выполнена — {message}");
-            Changes.Add(new BoostChange("Очистка памяти не выполнена", message, BoostChangeKind.Skipped));
+            Log.Warn("Игровой сеанс: очистка списка ожидания не выполнена — {0}", message);
+            Changes.Add(new BoostChange(Loc.T("Очистка памяти не выполнена"), message, BoostChangeKind.Skipped));
         }
     }
 
@@ -659,7 +661,7 @@ public sealed partial class GameBoostService : ObservableObject
                     }
                     else if (DateTime.UtcNow - started > DetectTimeout)
                     {
-                        await StopAsync($"«{game.Name}» не запустилась за 3 минуты — игровой сеанс завершён, изменения отменены.", ToastKind.Warning);
+                        await StopAsync(Loc.Tf("«{0}» не запустилась за 3 минуты — игровой сеанс завершён, изменения отменены.", game.Name), ToastKind.Warning);
                         return;
                     }
                     continue;
@@ -669,7 +671,7 @@ public sealed partial class GameBoostService : ObservableObject
                 {
                     if (++missing >= 2)
                     {
-                        await StopAsync($"«{game.Name}» закрыта — игровой сеанс завершён, изменения отменены.", ToastKind.Success);
+                        await StopAsync(Loc.Tf("«{0}» закрыта — игровой сеанс завершён, изменения отменены.", game.Name), ToastKind.Success);
                         return;
                     }
                     continue;
@@ -693,15 +695,15 @@ public sealed partial class GameBoostService : ObservableObject
             Log.Error("Игровой сеанс: ошибка слежения за игрой", ex);
             // Nobody would notice the game closing any more: end the session now instead of leaving its changes behind.
             if (!ct.IsCancellationRequested)
-                await StopAsync("Слежение за игрой прервалось из-за ошибки — игровой сеанс завершён, изменения отменены.", ToastKind.Warning);
+                await StopAsync(Loc.T("Слежение за игрой прервалось из-за ошибки — игровой сеанс завершён, изменения отменены."), ToastKind.Warning);
         }
     }
 
     private async Task OnGameDetectedAsync(GameProcess gp, CancellationToken ct)
     {
-        PhaseText = "ИГРА ЗАПУЩЕНА";
+        PhaseText = Loc.T("ИГРА ЗАПУЩЕНА");
         ProcessText = $"{GameProcessFinder.ExeName(gp)} · PID {gp.Pid}";
-        Log.Info($"Игровой сеанс: процесс игры {GameProcessFinder.ExeName(gp)} (PID {gp.Pid})");
+        Log.Info("Игровой сеанс: процесс игры {0} (PID {1})", GameProcessFinder.ExeName(gp), gp.Pid);
         if (!AppSettings.Current.GameBoostPriority) return;
         lock (_raisedLock)
             if (_raised.ContainsKey(gp.Pid)) return;
@@ -713,14 +715,14 @@ public sealed partial class GameBoostService : ObservableObject
         if (ct.IsCancellationRequested) return;
         if (r.Handle is not null)
         {
-            Changes.Add(new BoostChange("Приоритет игры",
-                $"{GameProcessFinder.ExeName(gp)}: {GamesNative.PriorityName(r.Original)} → Высокий. Сбросится вместе с игрой.", BoostChangeKind.Changed));
-            Log.Info($"Игровой сеанс: приоритет {GameProcessFinder.ExeName(gp)} → Высокий");
+            Changes.Add(new BoostChange(Loc.T("Приоритет игры"),
+                Loc.Tf("{0}: {1} → Высокий. Сбросится вместе с игрой.", GameProcessFinder.ExeName(gp), GamesNative.PriorityName(r.Original)), BoostChangeKind.Changed));
+            Log.Info("Игровой сеанс: приоритет {0} → Высокий", GameProcessFinder.ExeName(gp));
         }
         else
         {
-            Changes.Add(new BoostChange("Приоритет игры не изменён", r.Message, BoostChangeKind.Skipped));
-            Log.Warn($"Игровой сеанс: приоритет {GameProcessFinder.ExeName(gp)} не изменён — {r.Message}");
+            Changes.Add(new BoostChange(Loc.T("Приоритет игры не изменён"), r.Message, BoostChangeKind.Skipped));
+            Log.Warn("Игровой сеанс: приоритет {0} не изменён — {1}", GameProcessFinder.ExeName(gp), r.Message);
         }
     }
 
@@ -732,30 +734,30 @@ public sealed partial class GameBoostService : ObservableObject
     /// </summary>
     private (SafeProcessHandle? Handle, uint Original, string Message) RaisePriority(int pid, CancellationToken ct)
     {
-        if (ct.IsCancellationRequested) return (null, 0, "Игровой сеанс уже завершён.");
+        if (ct.IsCancellationRequested) return (null, 0, Loc.T("Игровой сеанс уже завершён."));
         var h = GamesNative.Open(pid, GamesNative.PROCESS_SET_INFORMATION | GamesNative.PROCESS_QUERY_LIMITED_INFORMATION);
         if (h.IsInvalid)
         {
             var err = Marshal.GetLastWin32Error();
             h.Dispose();
-            return (null, 0, err == 5 ? "Игра или её античит запрещают менять приоритет — игра работает как обычно." : $"Процесс недоступен (код {err}).");
+            return (null, 0, err == 5 ? Loc.T("Игра или её античит запрещают менять приоритет — игра работает как обычно.") : Loc.Tf("Процесс недоступен (код {0}).", err));
         }
         var original = GamesNative.GetPriorityClass(h);
         if (original == 0)
         {
             h.Dispose();
-            return (null, 0, "Не удалось прочитать текущий приоритет.");
+            return (null, 0, Loc.T("Не удалось прочитать текущий приоритет."));
         }
         if (original is GamesNative.HIGH_PRIORITY_CLASS or GamesNative.REALTIME_PRIORITY_CLASS)
         {
             h.Dispose();
-            return (null, original, $"Приоритет уже «{GamesNative.PriorityName(original)}».");
+            return (null, original, Loc.Tf("Приоритет уже «{0}».", GamesNative.PriorityName(original)));
         }
         if (!GamesNative.SetPriorityClass(h, GamesNative.HIGH_PRIORITY_CLASS))
         {
             var err = Marshal.GetLastWin32Error();
             h.Dispose();
-            return (null, original, err == 5 ? "Игра или её античит запрещают менять приоритет — игра работает как обычно." : $"Windows отклонила изменение (код {err}).");
+            return (null, original, err == 5 ? Loc.T("Игра или её античит запрещают менять приоритет — игра работает как обычно.") : Loc.Tf("Windows отклонила изменение (код {0}).", err));
         }
         lock (_raisedLock)
         {
@@ -767,7 +769,7 @@ public sealed partial class GameBoostService : ObservableObject
         }
         // Stopped while raising: undo at once.
         using (h) RestoreOne(h, original);
-        return (null, original, "Игровой сеанс уже завершён — приоритет возвращён.");
+        return (null, original, Loc.T("Игровой сеанс уже завершён — приоритет возвращён."));
     }
 
     // ───────────────────────────── Stop ─────────────────────────────
@@ -782,13 +784,13 @@ public sealed partial class GameBoostService : ObservableObject
         try
         {
             await OperationCoordinator.Instance.RunAsync(
-                new OperationRequest(OperationClass.Disruptive, "Остановка игрового сеанса") { Owner = "games", QueueIfBusy = true, QueueTimeout = TimeSpan.FromHours(4) },
+                new OperationRequest(OperationClass.Disruptive, Loc.T("Остановка игрового сеанса")) { Owner = "games", QueueIfBusy = true, QueueTimeout = TimeSpan.FromHours(4) },
                 _ => StopGatedAsync(reason, kind));
         }
         catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
         {
             // The window is closing or the queue never moved: the stale-session check offers the undo at the next start.
-            Log.Warn("Игровой сеанс не остановлен сразу: " + ex.Message);
+            Log.Warn("Игровой сеанс не остановлен сразу: {0}", ex.Message);
             Ui.Toast(ex.Message, ToastKind.Warning, "ИГРОВОЙ СЕАНС");
         }
     }
@@ -811,7 +813,7 @@ public sealed partial class GameBoostService : ObservableObject
     {
         _watchCts?.Cancel();
         _watchCts = null;
-        PhaseText = "ОСТАНОВКА";
+        PhaseText = Loc.T("ОСТАНОВКА");
 
         var raised = TakeRaised();
         var throttled = TakeThrottled();
@@ -837,25 +839,25 @@ public sealed partial class GameBoostService : ObservableObject
 
         var msg = reason;
         if (KeptPlanNote(result, planNow) is { } kept) msg += " " + kept;
-        if (restoredPriority > 0) msg += " Приоритет игры возвращён.";
+        if (restoredPriority > 0) msg += " " + Loc.T("Приоритет игры возвращён.");
         if (throttled.Count > 0)
         {
             if (restoredEco.Restored == throttled.Count)
-                msg += $" Режим эффективности снят ({string.Join(", ", _throttledApps)}).";
+                msg += " " + Loc.Tf("Режим эффективности снят ({0}).", string.Join(", ", _throttledApps));
             else
             {
-                msg += $" Режим эффективности снят с работающих программ: {restoredEco.Restored} из {throttled.Count}";
+                msg += " " + Loc.Tf("Режим эффективности снят с работающих программ: {0} из {1}", restoredEco.Restored, throttled.Count);
                 var rest = new List<string>();
-                if (restoredEco.Exited > 0) rest.Add($"уже закрыты: {restoredEco.Exited}");
-                if (restoredEco.Changed > 0) rest.Add($"программа сама сменила режим: {restoredEco.Changed}");
-                if (restoredEco.Failed > 0) rest.Add($"не удалось вернуть: {restoredEco.Failed} — перезапустите программу");
+                if (restoredEco.Exited > 0) rest.Add(Loc.Tf("уже закрыты: {0}", restoredEco.Exited));
+                if (restoredEco.Changed > 0) rest.Add(Loc.Tf("программа сама сменила режим: {0}", restoredEco.Changed));
+                if (restoredEco.Failed > 0) rest.Add(Loc.Tf("не удалось вернуть: {0} — перезапустите программу", restoredEco.Failed));
                 msg += rest.Count > 0 ? $" ({string.Join("; ", rest)})." : ".";
             }
         }
-        if (result.Failed > 0) msg += $" Не удалось отменить изменений: {result.Failed} — откройте раздел «Восстановление».";
+        if (result.Failed > 0) msg += " " + Loc.Tf("Не удалось отменить изменений: {0} — откройте раздел «Восстановление».", result.Failed);
         if (_closedApps.Count > 0)
-            msg += $" Закрытые приложения ({string.Join(", ", _closedApps)}) MONOLITH не перезапускает — откройте их сами, если нужны.";
-        Log.Info("Игровой сеанс завершён. " + msg);
+            msg += " " + Loc.Tf("Закрытые приложения ({0}) MONOLITH не перезапускает — откройте их сами, если нужны.", string.Join(", ", _closedApps));
+        Log.Info("Игровой сеанс завершён. {0}", msg);
         Ui.Toast(msg, result.Failed > 0 ? ToastKind.Warning : kind, "ИГРОВОЙ СЕАНС ЗАВЕРШЁН");
         Ended?.Invoke();
     }
@@ -986,9 +988,10 @@ public sealed partial class GameBoostService : ObservableObject
             Log.Info("Игровой сеанс: отметка режима эффективности прошлого сеанса закрыта — программы уже перезапущены или сами вернули режим.");
             return null;
         }
-        var text = $"Прошлый игровой сеанс не завершился: режим эффективности снят с {string.Join(", ", reset.Distinct(StringComparer.OrdinalIgnoreCase))} " +
-                   "(частотами снова управляет Windows: точное исходное состояние после аварийного закрытия неизвестно).";
-        Log.Warn("Игровой сеанс: " + text + (gone > 0 ? $" Уже закрыты или перезапущены: {gone}." : ""));
+        var text = Loc.Tf("Прошлый игровой сеанс не завершился: режим эффективности снят с {0} " +
+                   "(частотами снова управляет Windows: точное исходное состояние после аварийного закрытия неизвестно).",
+                   string.Join(", ", reset.Distinct(StringComparer.OrdinalIgnoreCase)));
+        Log.Warn("Игровой сеанс: {0}", text + (gone > 0 ? " " + Loc.Tf("Уже закрыты или перезапущены: {0}.", gone) : ""));
         return text;
     }
 
@@ -1024,50 +1027,50 @@ public sealed partial class GameBoostService : ObservableObject
     /// <summary>One line per leftover session record for the stale-session prompts: what undoing it will do.</summary>
     public static IReadOnlyList<string> StaleLines(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer) =>
         records.Select(r => Keeper(r, records, newerLayer) is { } keeper
-            ? $"{r.Title}: останется «{keeper.NewValue}» — его позже выбрал «{keeper.Title}»"
+            ? Loc.Tf("{0}: останется «{1}» — его позже выбрал «{2}»", Loc.Sink(r.Title), keeper.NewValue, Loc.Sink(keeper.Title))
             // Records of older builds could carry a tweak merged into the session's record: say that it goes too.
-            : $"{r.Title}: {r.NewValue} → {r.OldValue}" + (r.IsLegacyMerged
-                ? $" (также откатит: {string.Join(", ", r.AlsoSources.Distinct().Select(Monolith.Modules.Restore.RestoreFormat.SourceTitle))})"
+            : Loc.Sink(r.Title) + ": " + r.NewValue + " → " + r.OldValue + (r.IsLegacyMerged
+                ? " " + Loc.Tf("(также откатит: {0})", string.Join(", ", r.AlsoSources.Distinct().Select(Monolith.Modules.Restore.RestoreFormat.SourceTitle)))
                 : "")).ToList();
 
     /// <summary>The Games page banner about leftover session records.</summary>
     public static string StaleBanner(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer)
     {
         if (records.Count == 0) return "";
-        var text = "Прошлый игровой сеанс не завершился (MONOLITH был закрыт аварийно).";
+        var text = Loc.T("Прошлый игровой сеанс не завершился (MONOLITH был закрыт аварийно).");
         var live = records.Where(r => Keeper(r, records, newerLayer) is null).ToList();
         if (live.Count > 0)
-            text += " Всё ещё действует: " + string.Join("; ", live.Select(r => $"{ShortTitle(r.Title)} — «{r.NewValue}» вместо «{r.OldValue}»")) + ".";
+            text += " " + Loc.Tf("Всё ещё действует: {0}.", string.Join("; ", live.Select(r => Loc.Tf("{0} — «{1}» вместо «{2}»", ShortTitle(r.Title), r.NewValue, r.OldValue))));
         foreach (var r in records)
         {
             if (Keeper(r, records, newerLayer) is not { } keeper) continue;
             var what = ShortTitle(r.Title);
             if (what.Length > 0) what = char.ToUpperInvariant(what[0]) + what[1..];
-            text += $" {what}: останется «{keeper.NewValue}» — его позже выбрал «{keeper.Title}».";
+            text += " " + Loc.Tf("{0}: останется «{1}» — его позже выбрал «{2}».", what, keeper.NewValue, Loc.Sink(keeper.Title));
         }
-        if (live.Count == 0) text += " Возврат только закроет запись сеанса, система не изменится.";
+        if (live.Count == 0) text += " " + Loc.T("Возврат только закроет запись сеанса, система не изменится.");
         return text;
     }
 
     /// <summary>The question of the stale-session dialog.</summary>
     public static string StalePrompt(IReadOnlyList<ChangeRecord> records, Func<ChangeRecord, ChangeRecord?> newerLayer)
     {
-        const string head = "Прошлый игровой сеанс не завершился — MONOLITH был закрыт аварийно. ";
+        var head = Loc.T("Прошлый игровой сеанс не завершился — MONOLITH был закрыт аварийно.") + " ";
         var kept = records.Count(r => Keeper(r, records, newerLayer) is not null);
-        return kept == 0 ? head + "Эти временные изменения всё ещё действуют. Вернуть исходные значения?"
-            : kept == records.Count ? head + "Его изменения уже заменены более поздними, они останутся. Закрыть запись сеанса?"
-            : head + "Часть временных изменений всё ещё действует, остальные заменены более поздними — те останутся. Вернуть исходные значения?";
+        return kept == 0 ? head + Loc.T("Эти временные изменения всё ещё действуют. Вернуть исходные значения?")
+            : kept == records.Count ? head + Loc.T("Его изменения уже заменены более поздними, они останутся. Закрыть запись сеанса?")
+            : head + Loc.T("Часть временных изменений всё ещё действует, остальные заменены более поздними — те останутся. Вернуть исходные значения?");
     }
 
     /// <summary>The toast after the session's records were undone: what came back and what a later change keeps.</summary>
     public static string StaleRevertedText(RevertResult r)
     {
         var restored = r.Reverted - r.HandedOver;
-        if (r.HandedOver == 0) return $"Исходные настройки возвращены (изменений: {restored}).";
-        const string kept = "настройку питания задаёт более позднее изменение, оно остаётся";
+        if (r.HandedOver == 0) return Loc.Tf("Исходные настройки возвращены (изменений: {0}).", restored);
+        var kept = Loc.T("настройку питания задаёт более позднее изменение, оно остаётся");
         return restored == 0
-            ? $"Запись игрового сеанса закрыта, система не изменена: {kept}."
-            : $"Исходные настройки возвращены (изменений: {restored}); {kept}.";
+            ? Loc.Tf("Запись игрового сеанса закрыта, система не изменена: {0}.", kept)
+            : Loc.Tf("Исходные настройки возвращены (изменений: {0}); {1}.", restored, kept);
     }
 
     /// <summary>
@@ -1076,18 +1079,18 @@ public sealed partial class GameBoostService : ObservableObject
     /// </summary>
     public static string? KeptPlanNote(RevertResult r, ChangeRecord? planNow) =>
         r.HandedOver > 0 && planNow is not null
-            ? $"{PowerSubject(planNow)} остаётся «{planNow.NewValue}» — его выбрали во время сеанса («{planNow.Title}»)."
+            ? Loc.Tf("{0} остаётся «{1}» — его выбрали во время сеанса («{2}»).", PowerSubject(planNow), planNow.NewValue, Loc.Sink(planNow.Title))
             : null;
 
     /// <summary>"План питания" for a plan record, "Режим питания" for a power-mode record.</summary>
     private static string PowerSubject(ChangeRecord r) =>
-        r.Target == "cmd:" + PowerModeTarget ? "Режим питания" : "План питания";
+        r.Target == "cmd:" + PowerModeTarget ? Loc.T("Режим питания") : Loc.T("План питания");
 
     /// <summary>"Игровой сеанс: план питания" → "план питания".</summary>
     private static string ShortTitle(string title)
     {
-        var t = title.Replace("Игровой сеанс: ", "").Replace("Игровой режим: ", "");
-        return t.Length == 0 ? title : t;
+        var t = title.Replace("Игровой сеанс: ", "").Replace("Игровой режим: ", ""); // loc:ignore matches the stored Russian journal titles
+        return Loc.Sink(t.Length == 0 ? title : t);
     }
 
     // ───────────────────────────── Helpers ─────────────────────────────

@@ -44,7 +44,7 @@ public sealed partial class DashboardViewModel
                 Ui.Navigate(page);
                 break;
             case CheckActionKind.OpenUri when action.Target is { } uri:
-                await OpenShellAsync(uri, null, "параметры Windows");
+                await OpenShellAsync(uri, null, Loc.T("параметры Windows"));
                 break;
             case CheckActionKind.FocusTweak when action.Target is { } tweakId:
                 _lastCheck = DateTime.MinValue;
@@ -72,8 +72,8 @@ public sealed partial class DashboardViewModel
         }
         catch (Exception ex)
         {
-            Log.Error($"Не удалось открыть {what}", ex);
-            Ui.Toast($"Не удалось открыть {what}: {ex.Message}", ToastKind.Error);
+            Log.Error("Не удалось открыть {0}", ex, what);
+            Ui.Toast(Loc.Tf("Не удалось открыть {0}: {1}", what, ex.Message), ToastKind.Error);
         }
     });
 
@@ -95,7 +95,7 @@ public sealed partial class DashboardViewModel
         var profile = await SystemProfile.LoadAsync();
         var applies = TweakEngine.Applicability(tweak, profile);
         if (applies is null)
-            return new(null, "Не удалось определить характеристики компьютера — настройку пока нельзя проверить. Попробуйте позже.", ToastKind.Warning, false);
+            return new(null, Loc.T("Не удалось определить характеристики компьютера — настройку пока нельзя проверить. Попробуйте позже."), ToastKind.Warning, false);
         if (applies is true) return new(tweak, null, ToastKind.Info, false);
 
         var sibling = id switch
@@ -106,19 +106,19 @@ public sealed partial class DashboardViewModel
         };
         if (sibling is not null && sibling.Risk != TweakRisk.Advanced && TweakEngine.Applicability(sibling, profile) == true)
             return new(sibling, null, ToastKind.Info, false);
-        return new(null, tweak.NotApplicableReason ?? "Эта настройка не подходит для этого компьютера.", ToastKind.Warning, true);
+        return new(null, tweak.NotApplicableReason ?? Loc.T("Эта настройка не подходит для этого компьютера."), ToastKind.Warning, true);
     }
 
     private static List<string> ConfirmDetails(Tweak tweak)
     {
         var details = new List<string> { $"{tweak.Title}: {tweak.Description}" };
-        if (tweak.Restart != RestartRequirement.None) details.Add($"Вступит в силу {tweak.RestartWhen}");
+        if (tweak.Restart != RestartRequirement.None) details.Add(Loc.Tf("Вступит в силу {0}", tweak.RestartWhen));
         return details;
     }
 
     private static string RestorePointLine() => AppSettings.Current.CreateRestorePoints
-        ? "Перед изменением будет создана точка восстановления (если защита системы включена)"
-        : "Точка восстановления не создаётся — это выключено в разделе «Восстановление»";
+        ? Loc.T("Перед изменением будет создана точка восстановления (если защита системы включена)")
+        : Loc.T("Точка восстановления не создаётся — это выключено в разделе «Восстановление»");
 
     private async Task ApplyTweakAsync(string id, string checkId)
     {
@@ -143,23 +143,23 @@ public sealed partial class DashboardViewModel
 
         var details = ConfirmDetails(tweak);
         details.Add(RestorePointLine());
-        details.Add("Исходное значение сохраняется в журнале — отменить можно в разделе «Восстановление»");
+        details.Add(Loc.T("Исходное значение сохраняется в журнале — отменить можно в разделе «Восстановление»"));
 
         var confirmed = await Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",
-            $"MONOLITH применит настройку «{tweak.Title}» через журнал изменений. Будет сделано следующее:",
+            Loc.Tf("MONOLITH применит настройку «{0}» через журнал изменений. Будет сделано следующее:", tweak.Title),
             details, footnote: "Изменение обратимо.");
         if (!confirmed) return;
 
         TweakRunResult? result = null;
-        await RunBusyAsync(OperationClass.JournalChange, $"Применение: {tweak.Title}…", async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
+        await RunBusyAsync(OperationClass.JournalChange, Loc.Tf("Применение: {0}…", tweak.Title), async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
         if (result is { } r)
         {
             if (r.Errors.Count > 0)
                 Ui.Toast(string.Join(Environment.NewLine, r.Errors), ToastKind.Error, "Не удалось применить");
             else if (r.Applied > 0)
                 Ui.Toast(r.Restart == RestartRequirement.None
-                        ? "Готово. Отменить можно в разделе «Восстановление»."
-                        : $"Готово. Изменение вступит в силу {tweak.RestartWhen}.",
+                        ? Loc.T("Готово. Отменить можно в разделе «Восстановление».")
+                        : Loc.Tf("Готово. Изменение вступит в силу {0}.", tweak.RestartWhen),
                     ToastKind.Success, tweak.Title);
             else
                 Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
@@ -185,7 +185,7 @@ public sealed partial class DashboardViewModel
             Ui.Toast("Дождитесь окончания текущей операции.", ToastKind.Info);
             return;
         }
-        if (!RequireAdmin("Исправить всё безопасное", "FixSafe")) return;
+        if (!RequireAdmin(Loc.Key("Исправить всё безопасное"), "FixSafe")) return;
 
         var tweaks = new List<Tweak>();
         var skipped = new List<string>();
@@ -195,13 +195,13 @@ public sealed partial class DashboardViewModel
             var found = TweakCatalog.Find(id);
             if (found is null || found.Risk == TweakRisk.Advanced)
             {
-                skipped.Add($"{item.Title}: настройка находится в разделе «Оптимизация»");
+                skipped.Add(Loc.Tf("{0}: настройка находится в разделе «Оптимизация»", item.Title));
                 continue;
             }
             var plan = await ResolveFixAsync(found, id);
             if (plan.Tweak is not { } fix)
             {
-                skipped.Add($"{item.Title}: {plan.Message}");
+                skipped.Add(Loc.Tf("{0}: {1}", item.Title, plan.Message));
                 continue;
             }
             if (tweaks.All(t => t.Id != fix.Id)) tweaks.Add(fix);
@@ -213,25 +213,25 @@ public sealed partial class DashboardViewModel
         }
 
         var details = tweaks.Select(t => string.Join(" · ", ConfirmDetails(t))).ToList();
-        details.AddRange(skipped.Select(s => "Будет пропущено: " + s));
+        details.AddRange(skipped.Select(s => Loc.Tf("Будет пропущено: {0}", s)));
         details.Add(RestorePointLine());
-        details.Add("Исходные значения сохраняются в журнале — отменить можно одной кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ» или в разделе «Восстановление»");
-        var title = $"ПРИМЕНИТЬ {DashFormat.Count(tweaks.Count, "ИСПРАВЛЕНИЕ", "ИСПРАВЛЕНИЯ", "ИСПРАВЛЕНИЙ")}?";
+        details.Add(Loc.T("Исходные значения сохраняются в журнале — отменить можно одной кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ» или в разделе «Восстановление»"));
+        var title = Loc.Tf("ПРИМЕНИТЬ {0}?", Loc.N(tweaks.Count, "{0} ИСПРАВЛЕНИЕ", "{0} ИСПРАВЛЕНИЯ", "{0} ИСПРАВЛЕНИЙ"));
         var ok = await Ui.ConfirmAsync(title,
             "MONOLITH применит только перечисленные безопасные настройки через журнал изменений. Будет сделано следующее:",
             details, footnote: "Изменения обратимы.");
         if (!ok) return;
 
         TweakRunResult? result = null;
-        await RunBusyAsync(OperationClass.JournalChange, "Исправление безопасных пунктов…", async () => result = await TweakEngine.ApplyAsync(tweaks, "Панель: безопасные исправления"));
+        await RunBusyAsync(OperationClass.JournalChange, Loc.Key("Исправление безопасных пунктов…"), async () => result = await TweakEngine.ApplyAsync(tweaks, Loc.Key("Панель: безопасные исправления")));
         if (result is { } r)
         {
             if (r.Errors.Count > 0)
                 Ui.Toast(string.Join(Environment.NewLine, r.Errors), ToastKind.Error, "Не удалось применить");
             else if (r.Applied > 0)
                 Ui.Toast(r.Restart == RestartRequirement.None
-                        ? "Готово. Отменить можно кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ»."
-                        : "Готово. Часть изменений вступит в силу после перезапуска. Отменить можно кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ».",
+                        ? Loc.T("Готово. Отменить можно кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ».")
+                        : Loc.T("Готово. Часть изменений вступит в силу после перезапуска. Отменить можно кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ»."),
                     ToastKind.Success, "ПАНЕЛЬ");
             else
                 Ui.Toast("Всё уже применено — менять нечего.", ToastKind.Info, "ПАНЕЛЬ");

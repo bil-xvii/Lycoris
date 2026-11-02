@@ -111,7 +111,7 @@ public static class SteamSource
         }
         catch (Exception ex)
         {
-            Log.Warn($"Steam: не удалось прочитать libraryfolders.vdf — {ex.Message}");
+            Log.Warn("Steam: не удалось прочитать libraryfolders.vdf — {0}", ex.Message);
         }
 
         foreach (var lib in ParseLibraryFolders(vdf, steam))
@@ -125,7 +125,7 @@ public static class SteamSource
             }
             catch (Exception ex)
             {
-                Log.Warn($"Steam: библиотека {lib} недоступна — {ex.Message}");
+                Log.Warn("Steam: библиотека {0} недоступна — {1}", lib, ex.Message);
                 continue;
             }
 
@@ -149,7 +149,7 @@ public static class SteamSource
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn($"Steam: пропущен {Path.GetFileName(file)} — {ex.Message}");
+                    Log.Warn("Steam: пропущен {0} — {1}", Path.GetFileName(file), ex.Message);
                 }
             }
         }

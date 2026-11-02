@@ -73,7 +73,7 @@ public static class GameText
         GamePlatform.Ea => "EA APP",
         GamePlatform.BattleNet => "BATTLE.NET",
         GamePlatform.Riot => "RIOT",
-        _ => "СВОИ",
+        _ => Loc.T("СВОИ"),
     };
 
     public static string SourceName(GamePlatform p) => p switch
@@ -85,7 +85,7 @@ public static class GameText
         GamePlatform.Ea => "EA app",
         GamePlatform.BattleNet => "Battle.net",
         GamePlatform.Riot => "Riot Client",
-        _ => "Добавлены вручную",
+        _ => Loc.T("Добавлены вручную"),
     };
 
     /// <summary>Russian plural: 1 игра, 2 игры, 5 игр.</summary>
