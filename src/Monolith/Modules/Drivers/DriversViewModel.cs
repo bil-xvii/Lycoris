@@ -251,7 +251,7 @@ public sealed partial class DriversViewModel : PageViewModel
 
         UpdatesBadge = UpdatesState switch
         {
-            UpdatesState.Searching => "…",
+            UpdatesState.Searching => "",
             UpdatesState.Error => "!",
             UpdatesState.Ready when Updates.Count > 0 => Updates.Count.ToString(),
             _ => "",

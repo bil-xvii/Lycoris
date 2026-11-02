@@ -78,7 +78,7 @@
     "Проверяем…": "Checking...",
     "Установлена последняя версия Lycoris.": "You have the latest Lycoris version.",
     "Не удалось проверить обновления.": "Could not check for updates.",
-    "Напомним об обновлении через сутки. Кнопка «ОБНОВИТЬ СЕЙЧАС» остаётся в «Настройки → О программе».": "We will remind you about the update in a day. The \"UPDATE NOW\" button stays in Settings > About.",
+    "Напомним об обновлении через сутки. Кнопка «ОБНОВИТЬ СЕЙЧАС» остаётся в «Настройки → Обновления».": "We will remind you about the update in a day. The \"UPDATE NOW\" button stays in Settings > Updates.",
     "Сейчас выполняется задача «{0}». Обновление перезапускает Lycoris и не должно прерывать её — дождитесь окончания (список «ЗАДАЧИ» внизу окна).": "The task \"{0}\" is running. The update restarts Lycoris and must not interrupt it - wait until it finishes (the \"TASKS\" list at the bottom of the window).",
     "Идёт игровой сеанс (игровой режим Lycoris). Обновление перезапускает программу — остановите игровой сеанс на странице «Игры» и повторите.": "A game session is running (Lycoris game mode). The update restarts the program - stop the game session on the Games page and try again.",
     "ДЕМО-РЕЖИМ": "DEMO MODE",

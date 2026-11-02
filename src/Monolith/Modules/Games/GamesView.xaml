@@ -567,14 +567,14 @@
                                         <TextBlock Text="{Binding CloseListSummary}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
                                         <!-- Windows 11 only: close the listed apps, or keep them running in efficiency mode (EcoQoS) -->
                                         <StackPanel Visibility="{Binding ShowCloseModeChoice, Converter={StaticResource BoolToVis}}">
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="11.5" Padding="0,0,12,0"
+                                        <Border Style="{StaticResource SegmentBar}" Margin="0,6,0,0"><StackPanel Orientation="Horizontal">
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
                                                          Content="{loc:T 'ЗАКРЫТЬ'}" IsChecked="{Binding CloseModeIsClose}"
                                                          ToolTip="{loc:T 'Программы из списка закрываются перед игрой: сначала обычная команда «закрыть окно», принудительно — только после отдельного вопроса.'}" />
-                                            <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="11.5" Padding="12,0"
+                                            <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
                                                          Content="{loc:T 'РЕЖИМ ЭФФЕКТИВНОСТИ'}" IsChecked="{Binding CloseModeIsEcoQos}"
                                                          ToolTip="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" />
-                                        </StackPanel>
+                                        </StackPanel></Border>
                                         <TextBlock Text="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" LineHeight="16"
                                                    TextWrapping="Wrap" Visibility="{Binding CloseModeIsEcoQos, Converter={StaticResource BoolToVis}}" />
                                         </StackPanel>
