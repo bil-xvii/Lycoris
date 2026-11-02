@@ -22,10 +22,13 @@ From the repository root in PowerShell, the equivalent checks are:
 dotnet build Lycoris.slnx -c Release --warnaserror
 dotnet test tests/Lycoris.Tests/Lycoris.Tests.csproj -c Release --no-build --blame-hang --blame-hang-timeout 180s
 $exe = 'src/Lycoris/bin/Release/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe'
-& $exe --selftest (Join-Path $env:TEMP 'lycoris-selftest-ru') --no-elevate
-if ($LASTEXITCODE -ne 0) { throw "Russian self-test failed: $LASTEXITCODE" }
-& $exe --selftest (Join-Path $env:TEMP 'lycoris-selftest-en') --lang en --no-elevate
-if ($LASTEXITCODE -ne 0) { throw "English self-test failed: $LASTEXITCODE" }
+$exe = (Resolve-Path $exe).Path
+$ru = Join-Path $env:TEMP 'lycoris-selftest-ru'
+$process = Start-Process -FilePath $exe -ArgumentList @('--selftest', $ru, '--no-elevate') -Wait -PassThru -WindowStyle Hidden
+if ($process.ExitCode -ne 0) { throw "Russian self-test failed: $($process.ExitCode)" }
+$en = Join-Path $env:TEMP 'lycoris-selftest-en'
+$process = Start-Process -FilePath $exe -ArgumentList @('--selftest', $en, '--lang', 'en', '--no-elevate') -Wait -PassThru -WindowStyle Hidden
+if ($process.ExitCode -ne 0) { throw "English self-test failed: $($process.ExitCode)" }
 ```
 
 Run the manual workflow in GitHub from **Actions → CI → Run workflow**, selecting the branch to check.
