@@ -6,7 +6,7 @@
         WindowStartupLocation="Manual" Left="-32000" Top="-32000"
         Background="{StaticResource B.Surface2}" Foreground="{StaticResource B.Text}" FontFamily="{StaticResource F.Body}"
         UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display"
-        Icon="pack://application:,,,/Assets/monolith.ico">
+        Icon="pack://application:,,,/Assets/lycoris.ico">
     <!-- Built like the in-app dialog: white band, sentence-case title, message, buttons right. The window corners are the
          Windows 11 rounded frame (DWMWCP_ROUND, set in code-behind). -->
     <Border Width="500" BorderBrush="{StaticResource B.Line3}" BorderThickness="1">

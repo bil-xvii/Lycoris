@@ -16,7 +16,7 @@
     <AssemblyName>MONOLITH</AssemblyName>
     <RootNamespace>Monolith</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Assets\monolith.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\lycoris.ico</ApplicationIcon>
 
     <Product>MONOLITH</Product>
     <Company>MONOLITH</Company>
@@ -56,7 +56,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\**\*.png" />
-    <Resource Include="Assets\monolith.ico" />
+    <Resource Include="Assets\lycoris.ico" />
     <Content Include="Data\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
