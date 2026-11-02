@@ -19,7 +19,7 @@ public sealed class UpdateDownloadTests : IDisposable
     private static SignatureInfo Unsigned => new("NotSigned", "", "");
 
     private UpdateDownloader Make(FakeHandler h, Func<string, SignatureInfo>? sig = null, UpdatePolicy? policy = null) =>
-        new(new HttpClient(h), policy ?? Kit.SmallPolicy, p => Task.FromResult((sig ?? (_ => Unsigned))(p)), @"C:\Apps\Lycoris.exe");
+        new(new HttpClient(h), policy ?? Kit.SmallPolicy, p => Task.FromResult((sig ?? (_ => Unsigned))(p)), @"C:\Apps\Lycoris.exe", pinnedKey: "", currentVersion: () => new SemVer(1, 0, 0, 0, ""));
 
     /// <summary>Serves the exe and the sha file; optional redirect through objects.githubusercontent.com like github.com does.</summary>
     private FakeHandler Serve(byte[]? exe = null, string? shaText = null, bool redirect = true)

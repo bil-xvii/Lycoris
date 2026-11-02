@@ -16,7 +16,7 @@ public static class ReleaseSignature
     /// see docs/security-audit.md «Update channel requirements». While empty, <see cref="IsPinned"/> is false and an updater must
     /// treat the channel as unauthenticated (hash = integrity only) and say so.
     /// </summary>
-    public const string PinnedPublicKey = "";
+    public const string PinnedPublicKey = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEU9AUI9JPuQR9KmGphVMJ7E8bvwzV2LFFs284DhuQLPhFN4LtbK6qQ7K/4han+3jVMksNIVLYMtpVHoRW2MMzuA==";
 
     public static bool IsPinned => PinnedPublicKey.Length > 0;
 
