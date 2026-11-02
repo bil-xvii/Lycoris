@@ -1,5 +1,6 @@
 using System.ServiceProcess;
 using Lycoris.Core;
+using Lycoris.Core.Security;
 using Lycoris.Modules.Services;
 using Lycoris.Tweaks;
 
@@ -279,6 +280,22 @@ public sealed class ServicesTests
 
     [Fact]
     public void Services_expert_mode_is_off_by_default() => Assert.False(new AppSettings().ServicesExpertMode);
+
+    [Fact]
+    public void Global_expert_mode_defaults_to_simple_and_migrates_previous_services_expert_preference()
+    {
+        var fresh = new AppSettings();
+        Assert.False(fresh.ExpertMode);
+        Assert.Equal(0, SettingsValidator.Sanitize(fresh));
+        fresh.ServicesExpertMode = true;
+        AppSettings.MigrateLegacyPreferences(fresh, hasExpertMode: false);
+        Assert.True(fresh.ExpertMode);
+        Assert.Equal(0, SettingsValidator.Sanitize(fresh));
+
+        var explicitSimple = new AppSettings { ServicesExpertMode = true, ExpertMode = false };
+        AppSettings.MigrateLegacyPreferences(explicitSimple, hasExpertMode: true);
+        Assert.False(explicitSimple.ExpertMode);
+    }
 
     [Fact]
     public void DiagTrack_has_one_place_optimize()

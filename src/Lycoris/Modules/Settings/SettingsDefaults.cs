@@ -20,6 +20,7 @@ public static class SettingsDefaults
         target.CreateRestorePoints = d.CreateRestorePoints;
         target.ConfirmBeforeApply = d.ConfirmBeforeApply;
         target.ServicesExpertMode = d.ServicesExpertMode;
+        target.ExpertMode = d.ExpertMode;
         target.ShowConsole = d.ShowConsole;
         target.AutoCheckUpdates = d.AutoCheckUpdates;
         target.MonitorIntervalMs = d.MonitorIntervalMs;
@@ -38,6 +39,7 @@ public static class SettingsDefaults
             Loc.Tf("Точка восстановления перед изменениями — {0}", OnOff(d.CreateRestorePoints)),
             Loc.Tf("Подтверждение перед применением — {0}", OnOff(d.ConfirmBeforeApply)),
             Loc.Tf("Экспертный режим служб — {0}", OnOff(d.ServicesExpertMode)),
+            Loc.Tf("Режим подробностей интерфейса — {0}", d.ExpertMode ? Loc.T("экспертный") : Loc.T("простой")),
             Loc.Tf("Консоль операций — {0}", d.ShowConsole ? Loc.T("показана") : Loc.T("скрыта")),
             Loc.Tf("Автоматическая проверка обновлений — {0}", OnOff(d.AutoCheckUpdates)),
             Loc.Tf("Интервал обновления мониторинга — {0}", FormatInterval(d.MonitorIntervalMs)),
