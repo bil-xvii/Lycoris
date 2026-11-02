@@ -79,4 +79,21 @@ public sealed class ProblemReportTests
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
+
+    [Fact]
+    public void JournalSummaryHasNoTitlesTargetsOrValues()
+    {
+        var records = new[]
+        {
+            new Lycoris.Core.ChangeRecord { Title = "Заголовок alice SECRET-TITLE", Target = @"reg:HKCU\Software\SECRET-TARGET", OldValue = "OLD-SECRET", NewValue = "NEW-SECRET", Source = "tweak:SECRET-SRC", Kind = Lycoris.Core.ChangeKind.Registry },
+            new Lycoris.Core.ChangeRecord { Title = "Другой", Kind = Lycoris.Core.ChangeKind.Registry },
+            new Lycoris.Core.ChangeRecord { Title = "Служба", Kind = Lycoris.Core.ChangeKind.Service },
+        };
+        var json = ProblemReport.SummarizeJournal(records);
+        Assert.DoesNotContain("SECRET", json);
+        Assert.DoesNotContain("Заголовок", json);
+        Assert.DoesNotContain("Другой", json);
+        Assert.Contains("\"Registry\"", json);
+        Assert.Contains("\"Changes\": 2", json);
+    }
 }
