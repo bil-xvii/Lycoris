@@ -142,8 +142,9 @@ public sealed class PowerDcTweakTests
             Assert.NotNull(t);
             Assert.Equal(TweakCategory.Power, t!.Category);
             Assert.Equal(TweakRisk.Optional, t.Risk);
-            Assert.Equal(ProfileSet.None, t.DefaultIn);
-            foreach (var kind in Enum.GetValues<ProfileKind>())
+            // Wave 3: only the Efficiency scenario may pre-check the DC items (laptop battery); never another scenario.
+            Assert.True(t.DefaultIn is ProfileSet.None or ProfileSet.Efficiency, $"{id}: {t.DefaultIn}");
+            foreach (var kind in Enum.GetValues<ProfileKind>().Where(k => k != ProfileKind.Efficiency))
                 Assert.DoesNotContain(TweakCatalog.DefaultsFor(kind), d => d.Id == id);
         }
         Assert.Equal(TweakGroups.PowerModeDc, TweakCatalog.Find("power-mode-best-efficiency-dc")!.ExclusiveGroup);
