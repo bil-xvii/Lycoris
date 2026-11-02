@@ -109,10 +109,10 @@ public sealed class SystemProfile
         get
         {
             var bytes = RamInstalledBytes > 0 ? RamInstalledBytes : RamTotalBytes;
-            return bytes == 0 ? "—" : $"{Math.Round(bytes / 1024d / 1024 / 1024)} ГБ";
+            return bytes == 0 ? "—" : Loc.Tf("{0} ГБ", Math.Round(bytes / 1024d / 1024 / 1024));
         }
     }
-    public string OsText => $"{OsName} {OsDisplayVersion} (сборка {OsBuild}{(OsUbr > 0 ? "." + OsUbr : "")})".Trim();
+    public string OsText => Loc.Tf("{0} {1} (сборка {2}{3})", OsName, OsDisplayVersion, OsBuild, OsUbr > 0 ? "." + OsUbr : "").Trim();
 
     /// <summary>
     /// Collects the profile once and caches it. A failed, timed-out or incomplete collection is retried on a
@@ -143,9 +143,9 @@ public sealed class SystemProfile
         _collecting = work;
         var finished = await Task.WhenAny(work, Task.Delay(CollectLimit)).ConfigureAwait(false) == work;
         if (!finished)
-            Log.Warn($"Сбор сведений о системе не завершился за {CollectLimit.TotalSeconds:0} с — часть данных неизвестна: {string.Join(", ", p.MissingFacts)}.");
+            Log.Warn("Сбор сведений о системе не завершился за {0:0} с — часть данных неизвестна: {1}.", CollectLimit.TotalSeconds, string.Join(", ", p.MissingFacts));
         else if (!p.IsComplete)
-            Log.Warn($"Сбор сведений о системе: не удалось прочитать {string.Join(", ", p.MissingFacts)}.");
+            Log.Warn("Сбор сведений о системе: не удалось прочитать {0}.", string.Join(", ", p.MissingFacts));
         _loadedAtUtc = DateTime.UtcNow;
         // Keep the richer profile: a retry that got less than the previous one does not replace it.
         if (!Current.IsLoaded || p.MissingFacts.Count <= Current.MissingFacts.Count)
@@ -178,7 +178,7 @@ public sealed class SystemProfile
         foreach (var mo in Query("os", "SELECT Caption, LastBootUpTime FROM Win32_OperatingSystem"))
         {
             var caption = mo["Caption"]?.ToString() ?? "Windows";
-            caption = caption.Replace("Майкрософт ", "").Replace("Microsoft ", "");
+            caption = caption.Replace("Майкрософт ", "").Replace("Microsoft ", ""); // loc:ignore (Windows caption on a Russian OS)
             // Windows 11 still reports itself as "Windows 10" in some legacy fields.
             if (IsWindows11) caption = caption.Replace("Windows 10", "Windows 11");
             OsName = caption.Trim();
@@ -289,7 +289,7 @@ public sealed class SystemProfile
                         17 => "NVMe", 11 => "SATA", 7 => "USB", 8 => "RAID", 10 => "SAS", 3 => "ATA", _ => "—",
                     };
                     if (bus == "NVMe" && media == "—") media = "SSD";
-                    list.Add(new DiskInfo(mo["FriendlyName"]?.ToString() ?? "Диск", media, Convert.ToUInt64(mo["Size"] ?? 0UL), bus));
+                    list.Add(new DiskInfo(mo["FriendlyName"]?.ToString() ?? Loc.T("Диск"), media, Convert.ToUInt64(mo["Size"] ?? 0UL), bus));
                 }
             }
         }
@@ -385,13 +385,13 @@ public sealed class SystemProfile
         catch (Exception ex)
         {
             _sections[section] = false;
-            Log.Warn($"Сбор сведений о системе: {ex.Message}");
+            Log.Warn("Сбор сведений о системе: {0}", ex.Message);
         }
     }
 
     public static string FormatBytes(double bytes)
     {
-        string[] units = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
+        string[] units = [Loc.T("Б"), Loc.T("КБ"), Loc.T("МБ"), Loc.T("ГБ"), Loc.T("ТБ")];
         var i = 0;
         while (bytes >= 1024 && i < units.Length - 1) { bytes /= 1024; i++; }
         return i == 0 ? $"{bytes:0} {units[i]}" : $"{bytes:0.#} {units[i]}";

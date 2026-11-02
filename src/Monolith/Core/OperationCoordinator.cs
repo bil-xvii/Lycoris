@@ -239,13 +239,13 @@ public sealed class OperationCoordinator
 
     public static string ClassLabel(OperationClass c) => c switch
     {
-        OperationClass.Install => "УСТАНОВКА",
-        OperationClass.SystemRepair => "РЕМОНТ",
-        OperationClass.JournalChange => "ИЗМЕНЕНИЯ",
-        OperationClass.Disruptive => "СИСТЕМА",
-        OperationClass.Cleanup => "ОЧИСТКА",
-        OperationClass.Measure => "ЗАМЕР",
-        _ => "ФОН",
+        OperationClass.Install => Loc.T("УСТАНОВКА"),
+        OperationClass.SystemRepair => Loc.T("РЕМОНТ"),
+        OperationClass.JournalChange => Loc.T("ИЗМЕНЕНИЯ"),
+        OperationClass.Disruptive => Loc.T("СИСТЕМА"),
+        OperationClass.Cleanup => Loc.T("ОЧИСТКА"),
+        OperationClass.Measure => Loc.T("ЗАМЕР"),
+        _ => Loc.T("ФОН"),
     };
 
     /// <summary>Default longest wait in the queue for a class.</summary>
@@ -272,10 +272,10 @@ public sealed class OperationCoordinator
 
     private static string RefusalText(Op blocker, bool queuedBlocker) =>
         queuedBlocker
-            ? $"Сначала дождитесь очереди: «{blocker.Request.Name}» ждёт своего времени."
+            ? Loc.Tf("Сначала дождитесь очереди: «{0}» ждёт своего времени.", blocker.Request.Name)
             : blocker.Request.Quiet || blocker.Request.Class == OperationClass.Measure
-                ? $"Сейчас идёт {Lower1(blocker.Request.Name)} — повторите, когда оно закончится."
-                : $"Сейчас идёт {Lower1(blocker.Request.Name)} — дождитесь окончания.";
+                ? Loc.Tf("Сейчас идёт {0} — повторите, когда оно закончится.", Lower1(blocker.Request.Name))
+                : Loc.Tf("Сейчас идёт {0} — дождитесь окончания.", Lower1(blocker.Request.Name));
 
     // ───────────────────────────── Admission ─────────────────────────────
 
@@ -322,10 +322,10 @@ public sealed class OperationCoordinator
         var probe = new Op { Id = -1, Request = request, Order = long.MaxValue };
         lock (_lock)
         {
-            if (_closing && !IsLow(request.Class)) return (OperationVerdict.Refuse, "MONOLITH закрывается — новые задачи не запускаются.");
+            if (_closing && !IsLow(request.Class)) return (OperationVerdict.Refuse, Loc.T("MONOLITH закрывается — новые задачи не запускаются."));
             var blocker = FindBlocker(probe, out var queuedBlocker, out var cap);
             if (blocker is null && !cap) return (OperationVerdict.Start, null);
-            if (Queues(request) || cap) return (OperationVerdict.Queue, blocker is null ? null : $"ждёт: {blocker.Request.Name}");
+            if (Queues(request) || cap) return (OperationVerdict.Queue, blocker is null ? null : Loc.Tf("ждёт: {0}", blocker.Request.Name));
             return (OperationVerdict.Refuse, RefusalText(blocker!, queuedBlocker));
         }
     }
@@ -355,7 +355,7 @@ public sealed class OperationCoordinator
         {
             op.Order = op.Id;
             if (_closing && !IsLow(request.Class))
-                refusal = "MONOLITH закрывается — новые задачи не запускаются.";
+                refusal = Loc.T("MONOLITH закрывается — новые задачи не запускаются.");
             else
             {
                 var blocker = FindBlocker(op, out var queuedBlocker, out var cap);
@@ -419,15 +419,15 @@ public sealed class OperationCoordinator
                 string? blocker;
                 lock (_lock) blocker = _running.FirstOrDefault(r => Conflicts(r, op))?.Request.Name;
                 throw new OperationTimeoutException(
-                    $"«{op.Request.Name}» не дождалась очереди за {FormatSpan(limit)}" +
-                    (blocker is null ? "." : $": всё ещё идёт {Lower1(blocker)}.") + " Задача не запущена — повторите позже.");
+                    Loc.Tf("«{0}» не дождалась очереди за {1}", op.Request.Name, FormatSpan(limit)) +
+                    (blocker is null ? "." : Loc.Tf(": всё ещё идёт {0}.", Lower1(blocker))) + Loc.T(" Задача не запущена — повторите позже."));
             }
             throw;
         }
     }
 
     private static string FormatSpan(TimeSpan t) =>
-        t.TotalHours >= 1 ? $"{(int)t.TotalHours} ч {t.Minutes} мин" : t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes} мин" : $"{(int)t.TotalSeconds} с";
+        t.TotalHours >= 1 ? Loc.Tf("{0} ч {1} мин", (int)t.TotalHours, t.Minutes) : t.TotalMinutes >= 1 ? Loc.Tf("{0} мин", (int)t.TotalMinutes) : Loc.Tf("{0} с", (int)t.TotalSeconds);
 
     /// <summary>A queued operation gave up (cancelled or timed out): leaves the queue, the others move on.</summary>
     private void AbandonQueued(Op op)
@@ -557,7 +557,7 @@ public sealed class OperationCoordinator
 
     private static OperationInfo ToInfo(Op o) => new(
         o.Id, o.Request.Name, o.Request.Class, o.State, o.Request.Owner,
-        o.State == OperationState.Queued && o.Blocker is { } b ? $"ждёт: {b.Request.Name}" : null,
+        o.State == OperationState.Queued && o.Blocker is { } b ? Loc.Tf("ждёт: {0}", b.Request.Name) : null,
         o.Detail, CanCancelOp(o), o.Since);
 
     private static bool CanCancelOp(Op o) =>
@@ -600,7 +600,7 @@ public sealed class OperationCoordinator
         catch (ObjectDisposedException) { /* finished meanwhile */ }
         catch (Exception ex)
         {
-            Log.Warn($"Отмена «{op.Request.Name}»: {ex.Message}");
+            Log.Warn("Отмена «{0}»: {1}", op.Request.Name, ex.Message);
         }
         RaiseChanged();
         return true;
@@ -652,12 +652,12 @@ public sealed record ExitPlan(IReadOnlyList<OperationInfo> Blocking, int SafeToC
     }
 
     public string Message =>
-        $"Сейчас выполняется: {Blocking.Count(o => o.State != OperationState.Queued)}, в очереди: {Blocking.Count(o => o.State == OperationState.Queued)}. " +
+        Loc.Tf("Сейчас выполняется: {0}, в очереди: {1}. ", Blocking.Count(o => o.State != OperationState.Queued), Blocking.Count(o => o.State == OperationState.Queued)) +
         (NotCancellable == 0
-            ? "Все задачи можно отменить без вреда."
-            : "Установщики и инструменты ремонта MONOLITH не обрывает: при выходе они продолжат работу сами, но их результат в MONOLITH уже не появится.");
+            ? Loc.T("Все задачи можно отменить без вреда.")
+            : Loc.T("Установщики и инструменты ремонта MONOLITH не обрывает: при выходе они продолжат работу сами, но их результат в MONOLITH уже не появится."));
 
     public IEnumerable<string> Lines =>
-        Blocking.Select(o => $"{o.ClassText} · {o.Name} — {(o.State == OperationState.Queued ? "в очереди" : "идёт")}" +
-                             (o.CanCancel ? "" : " (прервать нельзя)"));
+        Blocking.Select(o => Loc.Tf("{0} · {1} — {2}", o.ClassText, Loc.Sink(o.Name), o.State == OperationState.Queued ? Loc.T("в очереди") : Loc.T("идёт")) +
+                             (o.CanCancel ? "" : Loc.T(" (прервать нельзя)")));
 }

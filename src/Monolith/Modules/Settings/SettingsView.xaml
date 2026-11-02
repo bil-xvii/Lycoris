@@ -1,6 +1,7 @@
 <UserControl x:Class="Monolith.Modules.Settings.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
@@ -45,19 +46,54 @@
                         <ColumnDefinition Width="250" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Поведение" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
+                    <TextBlock Text="{loc:T Поведение}" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
                         <StackPanel>
-                            <Border x:Name="Row_elevate" Style="{StaticResource SettingRow}" BorderThickness="0">
+                            <!-- Language: a visible segmented choice (docs/localization.md). The labels РУССКИЙ / ENGLISH are the languages' own names and are never translated. -->
+                            <Border x:Name="Row_language" Style="{StaticResource SettingRow}" BorderThickness="0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,17,0">
-                                        <TextBlock Text="Запускать сразу с правами администратора" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="{loc:T Язык / Language}" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="Включено: запрос UAC при каждом запуске, и все кнопки работают сразу. Выключено: MONOLITH открывается без UAC в режиме просмотра, а права запросит при первом изменении и продолжит действие сам. Действует со следующего запуска." />
+                                                   Text="{loc:T 'АВТО — язык Windows. Выбранный язык применяется после перезапуска MONOLITH.'}" />
+                                        <TextBlock Style="{StaticResource T.BodyStrong}" Margin="0,6,0,0" Text="{Binding LanguageNote}"
+                                                   Visibility="{Binding LanguageNote, Converter={StaticResource NullToVis}}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <Border Style="{StaticResource SegmentBar}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Style="{StaticResource Segment}" GroupName="UiLanguage" MinWidth="86"
+                                                             IsChecked="{Binding LanguageChoice, Converter={StaticResource Equals}, ConverterParameter=auto}" Content="{loc:T АВТО}" />
+                                                <RadioButton Style="{StaticResource Segment}" GroupName="UiLanguage" MinWidth="86"
+                                                             IsChecked="{Binding LanguageChoice, Converter={StaticResource Equals}, ConverterParameter=ru}" Content="РУССКИЙ" /> <!-- loc:ignore -->
+                                                <RadioButton Style="{StaticResource Segment}" GroupName="UiLanguage" MinWidth="86"
+                                                             IsChecked="{Binding LanguageChoice, Converter={StaticResource Equals}, ConverterParameter=en}" Content="ENGLISH" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Button Margin="0,8,0,0" HorizontalAlignment="Right" Command="{Binding RestartForLanguageCommand}"
+                                                Visibility="{Binding LanguagePending, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                <TextBlock Text="{loc:T ПЕРЕЗАПУСТИТЬ СЕЙЧАС}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Row_elevate" Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,17,0">
+                                        <TextBlock Text="{loc:T Запускать сразу с правами администратора}" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="{loc:T 'Включено: запрос UAC при каждом запуске, и все кнопки работают сразу. Выключено: MONOLITH открывается без UAC в режиме просмотра, а права запросит при первом изменении и продолжит действие сам. Действует со следующего запуска.'}" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ElevateAtStartup}" />
                                 </Grid>
@@ -69,9 +105,9 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,17,0">
-                                        <TextBlock Text="Подтверждение перед применением" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="{loc:T Подтверждение перед применением}" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="Перед применением показывается точный список изменений. Если выключить, твики применяются сразу; удаление, установка драйверов и другие необратимые действия всё равно спрашивают подтверждение." />
+                                                   Text="{loc:T 'Перед применением показывается точный список изменений. Если выключить, твики применяются сразу; удаление, установка драйверов и другие необратимые действия всё равно спрашивают подтверждение.'}" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ConfirmBeforeApply}" />
                                 </Grid>
@@ -83,9 +119,9 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,17,0">
-                                        <TextBlock Text="Интервал обновления мониторинга" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="{loc:T Интервал обновления мониторинга}" Style="{StaticResource RowTitle}" />
                                         <TextBlock Style="{StaticResource RowText}"
-                                                   Text="Как часто «Панель» опрашивает загрузку процессора, видеокарты, памяти и дисков. Реже — меньше нагрузка от самого MONOLITH." />
+                                                   Text="{loc:T 'Как часто «Панель» опрашивает загрузку процессора, видеокарты, памяти и дисков. Реже — меньше нагрузка от самого MONOLITH.'}" />
                                     </StackPanel>
                                     <ComboBox Grid.Column="1" Width="200" VerticalAlignment="Center" ItemsSource="{Binding IntervalOptions}"
                                               SelectedItem="{Binding SelectedInterval}">
@@ -113,8 +149,8 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,17,0">
-                        <TextBlock Text="Данные" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Style="{StaticResource SectionCaption}" Text="Всё хранится на этом компьютере, ничего не отправляется в сеть." />
+                        <TextBlock Text="{loc:T Данные}" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SectionCaption}" Text="{loc:T 'Всё хранится на этом компьютере, ничего не отправляется в сеть.'}" />
                     </StackPanel>
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                         <StackPanel x:Name="Row_data">
@@ -142,7 +178,7 @@
                                                         CommandParameter="{Binding}">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                        <TextBlock Text="ОТКРЫТЬ" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{loc:T ОТКРЫТЬ}" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Button>
                                             </Grid>
@@ -159,11 +195,11 @@
                                 </Grid.ColumnDefinitions>
                                 <Rectangle Fill="{StaticResource B.Hatch}" />
                                 <StackPanel Grid.Column="1" Margin="10,11,15,11">
-                                    <TextBlock Text="Сброс настроек" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="{loc:T Сброс настроек}" Style="{StaticResource RowTitle}" />
                                     <TextBlock Style="{StaticResource RowText}"
-                                               Text="Возвращает параметры MONOLITH к значениям по умолчанию. Изменения системы, журнал отката и папки с играми не затрагиваются." />
+                                               Text="{loc:T 'Возвращает параметры MONOLITH к значениям по умолчанию. Изменения системы, журнал отката и папки с играми не затрагиваются.'}" />
                                 </StackPanel>
-                                <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Content="СБРОСИТЬ НАСТРОЙКИ" Margin="0,0,14,0" VerticalAlignment="Center"
+                                <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Content="{loc:T СБРОСИТЬ НАСТРОЙКИ}" Margin="0,0,14,0" VerticalAlignment="Center"
                                         Command="{Binding ResetSettingsCommand}" />
                             </Grid>
                         </StackPanel>
@@ -178,7 +214,7 @@
                         <ColumnDefinition Width="250" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="О программе" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
+                    <TextBlock Text="{loc:T О программе}" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
 
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding VersionLine}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,10,0,0"
@@ -187,7 +223,7 @@
                         <!-- Principles (collapsed) -->
                         <Expander Margin="0,14,0,0">
                             <Expander.Header>
-                                <TextBlock Text="КАК MONOLITH ЗАЩИЩАЕТ СИСТЕМУ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T КАК MONOLITH ЗАЩИЩАЕТ СИСТЕМУ}" Style="{StaticResource T.Label}" />
                             </Expander.Header>
                             <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0" ui:RoundClip.Content="True">
                                 <ItemsControl ItemsSource="{Binding Principles}" Focusable="False" Margin="0,0,0,-1">
@@ -208,7 +244,7 @@
                         <!-- Rejected tweaks (collapsed): what MONOLITH does not do and why; rows come from Tweaks/RejectedTweaks.cs -->
                         <Expander Margin="0,10,0,0" IsExpanded="{Binding ExpandRejected}">
                             <Expander.Header>
-                                <TextBlock Text="ЧТО MONOLITH НЕ ДЕЛАЕТ И ПОЧЕМУ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T ЧТО MONOLITH НЕ ДЕЛАЕТ И ПОЧЕМУ}" Style="{StaticResource T.Label}" />
                             </Expander.Header>
                             <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0" ui:RoundClip.Content="True">
                                 <ItemsControl x:Name="RejectedList" ItemsSource="{Binding Rejected}" Focusable="False" Margin="0,0,0,-1">
@@ -220,15 +256,15 @@
                                                     <Border x:Name="Bar" HorizontalAlignment="Left" Width="3" Background="{StaticResource B.White}"
                                                             Margin="0,6" CornerRadius="{StaticResource R.Xs}" Visibility="Collapsed" />
                                                     <StackPanel Margin="12,9">
-                                                        <TextBlock Text="{Binding Tweak.Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" />
+                                                        <TextBlock Text="{Binding Title}" Style="{StaticResource T.H3}" />
                                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" LineHeight="17">
-                                                            <Run Text="Что делают другие · " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Tweak.WhatOthersDo, Mode=OneWay}" />
+                                                            <Run Text="{loc:T 'Что делают другие · '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding WhatOthersDo, Mode=OneWay}" />
                                                         </TextBlock>
                                                         <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0" LineHeight="17">
-                                                            <Run Text="Почему нет · " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Tweak.WhyNot, Mode=OneWay}" />
+                                                            <Run Text="{loc:T 'Почему нет · '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding WhyNot, Mode=OneWay}" />
                                                         </TextBlock>
                                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="17">
-                                                            <Run Text="Вместо этого · " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Tweak.Alternative, Mode=OneWay}" />
+                                                            <Run Text="{loc:T 'Вместо этого · '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Alternative, Mode=OneWay}" />
                                                         </TextBlock>
                                                     </StackPanel>
                                                 </Grid>
@@ -247,7 +283,7 @@
                         <!-- Licenses (collapsed) -->
                         <Expander x:Name="Row_licenses" Margin="0,10,0,0">
                             <Expander.Header>
-                                <TextBlock Text="КОМПОНЕНТЫ И ЛИЦЕНЗИИ" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T КОМПОНЕНТЫ И ЛИЦЕНЗИИ}" Style="{StaticResource T.Label}" />
                             </Expander.Header>
                             <Border Style="{StaticResource Card.Flush}" Margin="0,4,0,0">
                                 <StackPanel>
@@ -283,9 +319,9 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,10,0">
-                                        <TextBlock Text="Шрифты" Style="{StaticResource T.BodyStrong}" />
+                                        <TextBlock Text="{loc:T Шрифты}" Style="{StaticResource T.BodyStrong}" />
                                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,2,0,0"
-                                                   Text="Bahnschrift, Segoe UI Variable, Cascadia Mono / Consolas, Segoe Fluent Icons — системные шрифты Windows. В составе MONOLITH не распространяются." />
+                                                   Text="{loc:T 'Bahnschrift, Segoe UI Variable, Cascadia Mono / Consolas, Segoe Fluent Icons — системные шрифты Windows. В составе MONOLITH не распространяются.'}" />
                                     </StackPanel>
                                     <Border Grid.Column="1" Style="{StaticResource Tag.Muted}" VerticalAlignment="Center">
                                         <TextBlock Text="WINDOWS" />

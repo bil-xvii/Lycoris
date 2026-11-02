@@ -20,8 +20,10 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
 {
     /// <summary>Kept so existing page bindings stay valid; the index is no longer displayed.</summary>
     public static readonly DependencyProperty IndexProperty = DependencyProperty.Register(nameof(Index), typeof(string), typeof(PageHeader), new("00"));
-    public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(PageHeader), new(""));
-    public static readonly DependencyProperty SubtitleProperty = DependencyProperty.Register(nameof(Subtitle), typeof(string), typeof(PageHeader), new(""));
+    public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(nameof(Title), typeof(string), typeof(PageHeader),
+        new PropertyMetadata("", null, (_, v) => Loc.Sink(v as string))); // safety net: a page title the tables know is shown translated
+    public static readonly DependencyProperty SubtitleProperty = DependencyProperty.Register(nameof(Subtitle), typeof(string), typeof(PageHeader),
+        new PropertyMetadata("", null, (_, v) => Loc.Sink(v as string)));
     public static readonly DependencyProperty ActionsProperty = DependencyProperty.Register(nameof(Actions), typeof(object), typeof(PageHeader), new(null));
     public static readonly DependencyProperty PrimaryProperty = DependencyProperty.Register(nameof(Primary), typeof(object), typeof(PageHeader),
         new(null, (d, _) => ((PageHeader)d).Raise(nameof(HasPrimary))));
@@ -29,7 +31,7 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
         new(null, (d, _) => ((PageHeader)d).Raise(nameof(HasChecked))));
     public static readonly DependencyProperty RefreshCommandProperty = DependencyProperty.Register(nameof(RefreshCommand), typeof(ICommand), typeof(PageHeader),
         new(null, (d, _) => ((PageHeader)d).Raise(nameof(HasRefresh))));
-    public static readonly DependencyProperty RefreshTextProperty = DependencyProperty.Register(nameof(RefreshText), typeof(string), typeof(PageHeader), new("ОБНОВИТЬ"));
+    public static readonly DependencyProperty RefreshTextProperty = DependencyProperty.Register(nameof(RefreshText), typeof(string), typeof(PageHeader), new(Loc.T("ОБНОВИТЬ")));
 
     /// <summary>
     /// Inherited: set on a host element (e.g. the maintenance page's tab content) to hide the title and subtitle of
@@ -60,7 +62,7 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
     public bool HasRefresh => RefreshCommand is not null;
 
     /// <summary>«проверено HH:MM» for <see cref="Checked"/>, or null before the first read.</summary>
-    public static string? CheckedText(DateTime? time) => time is { } t ? $"проверено {t:HH:mm}" : null;
+    public static string? CheckedText(DateTime? time) => time is { } t ? Loc.Tf("проверено {0:HH:mm}", t) : null;
 
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     private void Raise(string name) => PropertyChanged?.Invoke(this, new(name));

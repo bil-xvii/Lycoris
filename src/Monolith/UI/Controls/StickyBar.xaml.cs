@@ -16,7 +16,7 @@ namespace Monolith.UI.Controls;
 public partial class StickyBar : UserControl
 {
     public static readonly DependencyProperty CountProperty = DependencyProperty.Register(nameof(Count), typeof(int), typeof(StickyBar), new(0));
-    public static readonly DependencyProperty CountLabelProperty = DependencyProperty.Register(nameof(CountLabel), typeof(string), typeof(StickyBar), new("ВЫБРАНО"));
+    public static readonly DependencyProperty CountLabelProperty = DependencyProperty.Register(nameof(CountLabel), typeof(string), typeof(StickyBar), new(Loc.T("ВЫБРАНО")));
     public static readonly DependencyProperty DetailProperty = DependencyProperty.Register(nameof(Detail), typeof(string), typeof(StickyBar), new(null));
     public static readonly DependencyProperty TextProperty = DependencyProperty.Register(nameof(Text), typeof(string), typeof(StickyBar), new(""));
     public static readonly DependencyProperty ActionsProperty = DependencyProperty.Register(nameof(Actions), typeof(object), typeof(StickyBar), new(null));

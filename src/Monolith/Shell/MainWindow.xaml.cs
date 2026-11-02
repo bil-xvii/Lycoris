@@ -9,6 +9,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Monolith.Modules.Maintenance;
+using Monolith.UI;
 
 namespace Monolith.Shell;
 
@@ -82,7 +83,7 @@ public partial class MainWindow : Window
         try { leave = await _vm.ConfirmExitAsync(); }
         catch (Exception ex)
         {
-            Monolith.Core.Log.Warn("Диалог выхода не показан: " + ex.Message);
+            Monolith.Core.Log.Warn("Диалог выхода не показан: {0}", ex.Message);
             leave = true;
         }
         if (!leave) return;
@@ -116,14 +117,14 @@ public partial class MainWindow : Window
             RootBorder.Margin = new Thickness(t.Left + 4, t.Top + 4, t.Right + 4, t.Bottom + 4);
             RootBorder.BorderThickness = new Thickness(0);
             MaxButton.Content = "";
-            MaxButton.ToolTip = "Восстановить";
+            MaxButton.ToolTip = Loc.T("Восстановить");
         }
         else
         {
             RootBorder.Margin = new Thickness(0);
             RootBorder.BorderThickness = new Thickness(1);
             MaxButton.Content = "";
-            MaxButton.ToolTip = "Развернуть";
+            MaxButton.ToolTip = Loc.T("Развернуть");
         }
     }
 
@@ -258,6 +259,64 @@ public partial class MainWindow : Window
                     SaveVisual(content, Path.ChangeExtension(file, null) + "-full.png");
             }
         }
+    }
+
+    /// <summary>
+    /// QA helper ("--snapshot … --demo-shell"): renders the shell's own surfaces that no page shows — toasts, the command palette,
+    /// the confirmation / three-button / elevation dialogs, the task list — so their layout can be checked in each language
+    /// (add "--lang en"). Nothing is applied: the dialogs are answered «cancel».
+    /// </summary>
+    public async Task ShellDemoShotsAsync(string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        _vm.NavigateTo("dashboard");
+        await Task.Delay(1500);
+
+        Ui.Toast("Начат новый журнал изменений.", ToastKind.Success);
+        Ui.Toast("Эта страница уже выполняет задачу — повтор действия не нужен. Проверьте список «ЗАДАЧИ».", ToastKind.Info, "ПРОДОЛЖИТЬ", navigateTo: "restore");
+        Ui.Toast("Старые файлы журнала не удалось отложить. Подробности — в консоли MONOLITH.", ToastKind.Error, "НЕ УДАЛОСЬ НАЧАТЬ НОВЫЙ ЖУРНАЛ");
+        await Task.Delay(700);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-1-toasts.png"));
+        _vm.Toasts.Clear();
+
+        OpenPalette();
+        await Task.Delay(500);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-2-palette-empty.png"));
+        _palette.Query = "set";
+        await Task.Delay(500);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-3-palette-set.png"));
+        _palette.Query = "диск"; // loc:ignore (a Russian query must keep working in the English UI)
+        await Task.Delay(500);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-4-palette-russian-query.png"));
+        ClosePalette();
+
+        var reset = Ui.ConfirmAsync("Сбросить настройки?", "Параметры MONOLITH вернутся к значениям по умолчанию.",
+            Monolith.Modules.Settings.SettingsDefaults.Describe(), confirmText: "СБРОСИТЬ");
+        await Task.Delay(600);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-5-dialog-confirm.png"));
+        _vm.Dialog?.CancelCommand.Execute(null);
+        await reset;
+
+        var rights = Ui.ConfirmOptionAsync("Нужны права администратора", PageViewModel.ElevationPromptText(Loc.T("Применение оптимизаций"), true),
+            PageViewModel.ElevationAlwaysOption, confirmText: "ПЕРЕЗАПУСТИТЬ С ПРАВАМИ", cancelText: "НЕ СЕЙЧАС");
+        await Task.Delay(600);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-6-dialog-admin.png"));
+        _vm.Dialog?.CancelCommand.Execute(null);
+        await rights;
+
+        await _vm.StartDemoTasksAsync();
+        await Task.Delay(500);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-7-tasks.png"));
+        var exit = _vm.ConfirmExitAsync();
+        await Task.Delay(600);
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-8-dialog-exit.png"));
+        _vm.Dialog?.CancelCommand.Execute(null);
+        await exit;
+
+        await Ui.AlertAsync("ЖУРНАЛ НЕДОСТУПЕН", "Старые файлы журнала не удалось отложить. Подробности — в консоли MONOLITH.")
+            .WaitAsync(TimeSpan.FromMilliseconds(700)).ContinueWith(_ => { });
+        SaveVisual(RootBorder, Path.Combine(outDir, "shell-9-dialog-alert.png"));
+        _vm.Dialog?.ConfirmCommand.Execute(null);
     }
 
     /// <summary>The content of the visible ScrollViewer that hides the most (the page's main list), or null when nothing scrolls.</summary>
