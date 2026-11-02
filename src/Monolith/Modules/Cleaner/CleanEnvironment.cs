@@ -129,10 +129,10 @@ public sealed record ServicingState(bool RebootRequired, bool CbsRebootPending, 
     public string Describe()
     {
         var parts = new List<string>();
-        if (RebootRequired || CbsRebootPending) parts.Add("Windows ждёт перезагрузки после установки обновлений");
-        else if (PendingRenames) parts.Add("Windows ждёт перезагрузки, чтобы заменить файлы");
-        if (MsiRunning) parts.Add("идёт установка программы (Windows Installer)");
-        if (TrustedInstallerBusy) parts.Add("работает установщик модулей Windows (TrustedInstaller)");
+        if (RebootRequired || CbsRebootPending) parts.Add(Loc.T("Windows ждёт перезагрузки после установки обновлений"));
+        else if (PendingRenames) parts.Add(Loc.T("Windows ждёт перезагрузки, чтобы заменить файлы"));
+        if (MsiRunning) parts.Add(Loc.T("идёт установка программы (Windows Installer)"));
+        if (TrustedInstallerBusy) parts.Add(Loc.T("работает установщик модулей Windows (TrustedInstaller)"));
         return parts.Count == 0 ? "" : string.Join("; ", parts);
     }
 }

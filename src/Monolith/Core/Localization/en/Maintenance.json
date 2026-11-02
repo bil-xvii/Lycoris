@@ -1,0 +1,9 @@
+{
+  "area": "Maintenance",
+  "translated": true,
+  "sources": [
+    "Modules/Maintenance/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

@@ -27,7 +27,7 @@ public static partial class ToolOutput
     [GeneratedRegex(@"^\s*\[[=\-\s]*(\d{1,3}(?:[.,]\d+)?)\s?%[=\-\s]*\]\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex DismBarRegex();
 
-    [GeneratedRegex(@"(?:Ошибка|Error)\s*:?\s*(0x[0-9A-Fa-f]{8}|\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?:Ошибка|Error)\s*:?\s*(0x[0-9A-Fa-f]{8}|\d+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)] // loc:ignore Windows output pattern
     private static partial Regex ErrorCodeRegex();
 
     /// <summary>
@@ -48,7 +48,7 @@ public static partial class ToolOutput
     }
 
     private static readonly string[] ProgressWords =
-        ["заверш", "выполн", "обработ", "ход выполнения", "complete", "progress", "done"];
+        ["заверш", "выполн", "обработ", "ход выполнения", "complete", "progress", "done"]; // loc:ignore Windows output patterns
 
     /// <summary>
     /// True for lines that only report progress ("Проверка 45% завершена.", DISM "[===  10.0%  ]",
@@ -102,21 +102,21 @@ public static partial class ToolOutput
     public static ToolOutcome ClassifySfc(int exitCode, string output)
     {
         output ??= "";
-        if (Has(output, "требуется перезагрузка", "requires reboot", "repair pending", "ожидает восстановления"))
-            return ToolOutcome.Warn("Windows ждёт завершения предыдущего восстановления. Перезагрузите компьютер и запустите проверку снова.");
-        if (Has(output, "не обнаружила нарушений", "не обнаружила нарушения", "did not find any integrity violations"))
-            return ToolOutcome.Ok("Нарушений целостности не обнаружено. Системные файлы в порядке.");
-        if (Has(output, "не может восстановить", "не удалось восстановить", "unable to fix"))
-            return ToolOutcome.Fail("Часть повреждённых файлов восстановить не удалось. Выполните «Восстановление образа» (DISM /RestoreHealth), затем повторите проверку.");
-        if (Has(output, "успешно их восстановила", "успешно восстановила", "successfully repaired"))
-            return ToolOutcome.Ok("Найдены повреждённые файлы — все успешно восстановлены. Перезагрузите компьютер.");
-        if (Has(output, "не удалось выполнить запрошенную операцию", "could not perform the requested operation"))
-            return ToolOutcome.Fail("Проверка не выполнена. Запустите её ещё раз после перезагрузки или используйте DISM /RestoreHealth.");
-        if (Has(output, "должны быть администратором", "must be an administrator"))
-            return ToolOutcome.Fail("Для проверки нужны права администратора.");
+        if (Has(output, "требуется перезагрузка", "requires reboot", "repair pending", "ожидает восстановления")) // loc:ignore Windows output patterns
+            return ToolOutcome.Warn(Loc.T("Windows ждёт завершения предыдущего восстановления. Перезагрузите компьютер и запустите проверку снова."));
+        if (Has(output, "не обнаружила нарушений", "не обнаружила нарушения", "did not find any integrity violations")) // loc:ignore Windows output patterns
+            return ToolOutcome.Ok(Loc.T("Нарушений целостности не обнаружено. Системные файлы в порядке."));
+        if (Has(output, "не может восстановить", "не удалось восстановить", "unable to fix")) // loc:ignore Windows output patterns
+            return ToolOutcome.Fail(Loc.T("Часть повреждённых файлов восстановить не удалось. Выполните «Восстановление образа» (DISM /RestoreHealth), затем повторите проверку."));
+        if (Has(output, "успешно их восстановила", "успешно восстановила", "successfully repaired")) // loc:ignore Windows output patterns
+            return ToolOutcome.Ok(Loc.T("Найдены повреждённые файлы — все успешно восстановлены. Перезагрузите компьютер."));
+        if (Has(output, "не удалось выполнить запрошенную операцию", "could not perform the requested operation")) // loc:ignore Windows output patterns
+            return ToolOutcome.Fail(Loc.T("Проверка не выполнена. Запустите её ещё раз после перезагрузки или используйте DISM /RestoreHealth."));
+        if (Has(output, "должны быть администратором", "must be an administrator")) // loc:ignore Windows output patterns
+            return ToolOutcome.Fail(Loc.T("Для проверки нужны права администратора."));
         return exitCode == 0
-            ? ToolOutcome.Ok("Проверка завершена.")
-            : ToolOutcome.Fail($"Проверка завершилась с кодом {exitCode}. Подробности — в выводе выше и в %WINDIR%\\Logs\\CBS\\CBS.log.");
+            ? ToolOutcome.Ok(Loc.T("Проверка завершена."))
+            : ToolOutcome.Fail(Loc.Tf("Проверка завершилась с кодом {0}. Подробности — в выводе выше и в %WINDIR%\\Logs\\CBS\\CBS.log.", exitCode));
     }
 
     // ─────────────────────────── DISM ───────────────────────────
@@ -126,29 +126,29 @@ public static partial class ToolOutput
     public static ToolOutcome ClassifyDism(DismMode mode, int exitCode, string output)
     {
         output ??= "";
-        if (exitCode == 740 || Has(output, "Ошибка: 740", "Error: 740"))
-            return ToolOutcome.Fail("DISM требует прав администратора (код 740).");
+        if (exitCode == 740 || Has(output, "Ошибка: 740", "Error: 740")) // loc:ignore Windows output patterns
+            return ToolOutcome.Fail(Loc.T("DISM требует прав администратора (код 740)."));
 
         if (exitCode != 0)
         {
             var code = FindErrorCode(output) ?? exitCode.ToString(CultureInfo.InvariantCulture);
             if (code.Equals("0x800f081f", StringComparison.OrdinalIgnoreCase) || code.Equals("0x800f0906", StringComparison.OrdinalIgnoreCase))
-                return ToolOutcome.Fail($"Не найдены исходные файлы для восстановления (ошибка {code}). Проверьте подключение к интернету и Центр обновления Windows.");
-            return ToolOutcome.Fail($"DISM завершился с ошибкой {code}. Журнал: %WINDIR%\\Logs\\DISM\\dism.log.");
+                return ToolOutcome.Fail(Loc.Tf("Не найдены исходные файлы для восстановления (ошибка {0}). Проверьте подключение к интернету и Центр обновления Windows.", code));
+            return ToolOutcome.Fail(Loc.Tf("DISM завершился с ошибкой {0}. Журнал: %WINDIR%\\Logs\\DISM\\dism.log.", code));
         }
 
         if (mode == DismMode.RestoreHealth)
-            return ToolOutcome.Ok("Образ Windows восстановлен. Теперь запустите проверку системных файлов (sfc /scannow).");
+            return ToolOutcome.Ok(Loc.T("Образ Windows восстановлен. Теперь запустите проверку системных файлов (sfc /scannow)."));
 
-        if (Has(output, "не может быть восстановлено", "не подлежит восстановлению", "cannot be repaired"))
-            return ToolOutcome.Fail("Хранилище компонентов не подлежит восстановлению средствами DISM. Поможет переустановка Windows поверх текущей с сохранением файлов.");
-        if (Has(output, "подлежит восстановлению", "is repairable"))
-            return ToolOutcome.Warn("Хранилище компонентов повреждено, но подлежит восстановлению. Запустите «ВОССТАНОВИТЬ» (/RestoreHealth).");
-        if (Has(output, "не обнаружено", "no component store corruption"))
-            return ToolOutcome.Ok("Повреждений хранилища компонентов не обнаружено.");
+        if (Has(output, "не может быть восстановлено", "не подлежит восстановлению", "cannot be repaired")) // loc:ignore Windows output patterns
+            return ToolOutcome.Fail(Loc.T("Хранилище компонентов не подлежит восстановлению средствами DISM. Поможет переустановка Windows поверх текущей с сохранением файлов."));
+        if (Has(output, "подлежит восстановлению", "is repairable")) // loc:ignore Windows output patterns
+            return ToolOutcome.Warn(Loc.T("Хранилище компонентов повреждено, но подлежит восстановлению. Запустите «ВОССТАНОВИТЬ» (/RestoreHealth)."));
+        if (Has(output, "не обнаружено", "no component store corruption")) // loc:ignore Windows output patterns
+            return ToolOutcome.Ok(Loc.T("Повреждений хранилища компонентов не обнаружено."));
         return mode == DismMode.CheckHealth
-            ? ToolOutcome.Ok("Быстрая проверка завершена.")
-            : ToolOutcome.Ok("Сканирование завершено.");
+            ? ToolOutcome.Ok(Loc.T("Быстрая проверка завершена."))
+            : ToolOutcome.Ok(Loc.T("Сканирование завершено."));
     }
 
     // ─────────────────────────── chkdsk /scan ───────────────────────────
@@ -156,12 +156,12 @@ public static partial class ToolOutput
     /// <summary>chkdsk exit codes: 0 no errors, 1 errors fixed, 2 cleanup, 3 errors found that need an offline fix.</summary>
     public static ToolOutcome ClassifyChkdsk(int exitCode, string output) => exitCode switch
     {
-        0 => ToolOutcome.Ok("Проблем в файловой системе не найдено."),
-        1 => ToolOutcome.Ok("Найденные ошибки исправлены в фоновом режиме."),
-        2 => ToolOutcome.Ok("Проверка завершена, выполнена служебная очистка файловой системы."),
-        3 => ToolOutcome.Warn("Найдены ошибки, которые исправляются только при загрузке. Запланируйте полную проверку (см. инструкцию ниже)."),
-        _ when Has(output ?? "", "отказано в доступе", "access denied") => ToolOutcome.Fail("Нет доступа к диску — нужны права администратора."),
-        _ => ToolOutcome.Fail($"Проверка завершилась с кодом {exitCode}."),
+        0 => ToolOutcome.Ok(Loc.T("Проблем в файловой системе не найдено.")),
+        1 => ToolOutcome.Ok(Loc.T("Найденные ошибки исправлены в фоновом режиме.")),
+        2 => ToolOutcome.Ok(Loc.T("Проверка завершена, выполнена служебная очистка файловой системы.")),
+        3 => ToolOutcome.Warn(Loc.T("Найдены ошибки, которые исправляются только при загрузке. Запланируйте полную проверку (см. инструкцию ниже).")),
+        _ when Has(output ?? "", "отказано в доступе", "access denied") => ToolOutcome.Fail(Loc.T("Нет доступа к диску — нужны права администратора.")), // loc:ignore Windows output patterns
+        _ => ToolOutcome.Fail(Loc.Tf("Проверка завершилась с кодом {0}.", exitCode)),
     };
 
     // ─────────────────────────── chkntfs <drive> ───────────────────────────
@@ -170,13 +170,13 @@ public static partial class ToolOutput
     public static ToolOutcome ClassifyChkntfs(int exitCode, string output, string drive)
     {
         output ??= "";
-        if (Has(output, "не загрязнен", "is not dirty"))
-            return ToolOutcome.Ok($"Диск {drive} в порядке: проверка при загрузке не запланирована.");
-        if (Has(output, "загрязнен", "is dirty"))
-            return ToolOutcome.Warn($"Диск {drive} помечен для проверки: Windows проверит его при следующей загрузке.");
-        if (Has(output, "cannot query", "не удается", "не удалось"))
-            return ToolOutcome.Fail($"Не удалось получить состояние диска {drive} — нужны права администратора.");
-        return exitCode == 0 ? ToolOutcome.Ok("Состояние получено.") : ToolOutcome.Fail($"chkntfs завершился с кодом {exitCode}.");
+        if (Has(output, "не загрязнен", "is not dirty")) // loc:ignore Windows output patterns
+            return ToolOutcome.Ok(Loc.Tf("Диск {0} в порядке: проверка при загрузке не запланирована.", drive));
+        if (Has(output, "загрязнен", "is dirty")) // loc:ignore Windows output patterns
+            return ToolOutcome.Warn(Loc.Tf("Диск {0} помечен для проверки: Windows проверит его при следующей загрузке.", drive));
+        if (Has(output, "cannot query", "не удается", "не удалось")) // loc:ignore Windows output patterns
+            return ToolOutcome.Fail(Loc.Tf("Не удалось получить состояние диска {0} — нужны права администратора.", drive));
+        return exitCode == 0 ? ToolOutcome.Ok(Loc.T("Состояние получено.")) : ToolOutcome.Fail(Loc.Tf("chkntfs завершился с кодом {0}.", exitCode));
     }
 
     /// <summary>True when the BootExecute value asks autochk to check something beyond the default "autocheck autochk *".</summary>
@@ -197,14 +197,14 @@ public static partial class ToolOutput
     // ─────────────────────────── generic ───────────────────────────
 
     public static ToolOutcome ClassifyExit(int exitCode, string success, string failurePrefix) =>
-        exitCode == 0 ? ToolOutcome.Ok(success) : ToolOutcome.Fail($"{failurePrefix} (код {exitCode}).");
+        exitCode == 0 ? ToolOutcome.Ok(success) : ToolOutcome.Fail(Loc.Tf("{0} (код {1}).", failurePrefix, exitCode));
 
-    /// <summary>Status tag text for the console header.</summary>
+    /// <summary>Status tag text for the console header (a Russian KEY: <see cref="ToolsViewModel.RunState"/> is compared with it; the view translates it).</summary>
     public static string StatusText(ToolStatus status) => status switch
     {
-        ToolStatus.Success => "ГОТОВО",
-        ToolStatus.Warning => "ВНИМАНИЕ",
-        ToolStatus.Cancelled => "ОТМЕНЕНО",
-        _ => "ОШИБКА",
+        ToolStatus.Success => Loc.Key("ГОТОВО"),
+        ToolStatus.Warning => Loc.Key("ВНИМАНИЕ"),
+        ToolStatus.Cancelled => Loc.Key("ОТМЕНЕНО"),
+        _ => Loc.Key("ОШИБКА"),
     };
 }
