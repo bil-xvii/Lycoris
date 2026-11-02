@@ -8,452 +8,389 @@
              xmlns:local="clr-namespace:Monolith.Modules.Dashboard"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DashboardViewModel}">
 
+    <!--
+        «Панель» = the launchpad (Obvious UI, option A):
+          header (title · проверено · ОБНОВИТЬ · LIVE)
+          score strip   100 · Отлично · [ВНИМАНИЕ n] [СОВЕТЫ n] [В НОРМЕ n]            [ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ · N]
+          six tiles     ИГРОВОЙ СЕАНС · ОПТИМИЗАЦИЯ · ОЧИСТКА · ВИДЕОКАРТА · ОТКАТ · ПИНГ — live value + ONE labelled button each
+          list (the only ScrollViewer)   problems with verb buttons  |  monitor in 4 rows + «ВСЕ СВЕДЕНИЯ ▾»
+    -->
     <UserControl.Resources>
-        <!-- Card title: big condensed uppercase -->
         <Style x:Key="Dash.CardTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H2}">
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="FontStretch" Value="Condensed" />
+            <Setter Property="FontSize" Value="18" />
+        </Style>
+
+        <Style x:Key="Dash.TileValue" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontStretch" Value="Condensed" />
             <Setter Property="FontSize" Value="19" />
+            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,9,0,0" />
         </Style>
 
-        <Style x:Key="Dash.TileLabel" TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <Style x:Key="Dash.TileStat" TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
-            <Setter Property="FontSize" Value="30" />
-            <Setter Property="LineHeight" Value="36" />
+        <Style x:Key="Dash.TileDetail" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="MaxHeight" Value="32" />
+            <Setter Property="LineHeight" Value="16" />
             <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
         </Style>
 
-        <Style x:Key="Dash.TileUnit" TargetType="TextBlock" BasedOn="{StaticResource T.StatUnit}">
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="Margin" Value="5,0,0,6" />
-        </Style>
-
-        <Style x:Key="Dash.TileLine" TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
-            <Setter Property="FontSize" Value="12.5" />
+        <!-- Monitor row -->
+        <Style x:Key="Dash.MonValue" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="19" />
             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="Dash.TileCaption" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
-            <Setter Property="TextWrapping" Value="NoWrap" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="Margin" Value="0,4,0,0" />
-        </Style>
-
-        <Style x:Key="Dash.TileIcon" TargetType="TextBlock" BasedOn="{StaticResource T.Icon}">
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
-            <Setter Property="HorizontalAlignment" Value="Right" />
-        </Style>
-
-        <!-- Check row: severity marker -->
-        <Style x:Key="Dash.Marker" TargetType="Border">
-            <Setter Property="Width" Value="28" />
-            <Setter Property="Height" Value="28" />
-            <Setter Property="CornerRadius" Value="{StaticResource R.Sm}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
-            <Setter Property="Background" Value="Transparent" />
+        <!-- Severity = a status tag (never white, never an outline capsule) -->
+        <Style x:Key="Dash.SeverityTag" TargetType="Border" BasedOn="{StaticResource Tag}">
             <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="Background" Value="{StaticResource B.Surface2}" />
             <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text3}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Severity}" Value="Warning">
-                    <Setter Property="Background" Value="{StaticResource B.White}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Severity}" Value="Info">
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="Dash.CheckTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H3}">
-            <Setter Property="FontStretch" Value="SemiCondensed" />
-            <Setter Property="FontSize" Value="14.5" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Severity}" Value="Ok">
-                    <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="Dash.CheckDetail" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
-            <Setter Property="FontSize" Value="12.5" />
-            <Setter Property="LineHeight" Value="18" />
-            <Setter Property="Margin" Value="0,4,0,0" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Severity}" Value="Ok">
-                    <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="Dash.SeverityTag" TargetType="Border" BasedOn="{StaticResource Tag.Muted}">
-            <Setter Property="VerticalAlignment" Value="Top" />
-            <Setter Property="Margin" Value="0,5,0,0" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Severity}" Value="Warning">
                     <Setter Property="Background" Value="{StaticResource B.Hatch}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Outline}" />
+                    <Setter Property="BorderThickness" Value="1" />
                     <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Severity}" Value="Info">
-                    <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
-                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
+                    <Setter Property="Background" Value="{StaticResource B.Surface4}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <DataTemplate x:Key="Dash.ButtonContent">
+            <TextBlock Text="{Binding}" />
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+        <!-- ═══════════════ Header ═══════════════ -->
+        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}"
+                      RefreshCommand="{Binding RefreshChecksCommand}">
             <c:PageHeader.Actions>
-                <StackPanel Orientation="Horizontal">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,11,0">
-                        <Border Width="7" Height="7" Background="{StaticResource B.White}" CornerRadius="{StaticResource R.Xs}" VerticalAlignment="Center" />
-                        <TextBlock Text="LIVE" Style="{StaticResource T.Mono}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource B.Text}"
-                                   Margin="8,0,0,0" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding IntervalText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
-                                   Margin="8,0,0,0" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <Button Command="{Binding RefreshChecksCommand}" IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}"
-                            ToolTip="Заново выполнить все проверки (только чтение, ничего не меняет)">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
-                            <TextBlock Text="ПРОВЕРИТЬ СНОВА" Margin="9,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="7" Height="7" Background="{StaticResource B.Text2}" CornerRadius="{StaticResource R.Xs}" VerticalAlignment="Center" />
+                    <TextBlock Text="LIVE" Style="{StaticResource T.Mono}" FontWeight="Bold" Foreground="{StaticResource B.Text2}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding IntervalText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" Margin="7,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
             </c:PageHeader.Actions>
         </c:PageHeader>
 
-        <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-            <StackPanel Margin="0,0,10,8">
+        <!-- ═══════════════ Score strip ═══════════════ -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                <!-- ═══════════════ Live tiles ═══════════════ -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding ScoreText}" Style="{StaticResource T.Stat}" FontSize="40" LineHeight="44" LineStackingStrategy="BlockLineHeight"
+                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Margin="16,0,16,0" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource T.H3}" TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding Verdict, Converter={StaticResource Sentence}, Mode=OneWay}" /><Run Text=" · оценка " Foreground="{StaticResource B.Text2}" /><Run Text="{Binding ScoreText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text=" из 100" Foreground="{StaticResource B.Text2}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding VerdictSummary}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding VerdictSummary}" />
+                </StackPanel>
 
-                    <!-- CPU -->
-                    <Border Style="{StaticResource Card}" Padding="12,11,12,10">
-                        <StackPanel>
-                            <Grid>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="ЦП" Style="{StaticResource Dash.TileLabel}" />
-                                </StackPanel>
-                                <TextBlock Text="{x:Static ui:Glyphs.Processing}" Style="{StaticResource Dash.TileIcon}" />
-                            </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding CpuText}" Style="{StaticResource Dash.TileStat}" />
-                                <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
-                            </StackPanel>
-                            <TextBlock Style="{StaticResource Dash.TileLine}">
-                                <Run Text="ЧАСТОТА " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding CpuClockText, Mode=OneWay}" />
-                            </TextBlock>
-                            <TextBlock Text="{Binding CpuCoresText}" Style="{StaticResource Dash.TileCaption}" />
-                            <c:Meter Value="{Binding CpuLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="90" />
-                            <c:Sparkline Values="{Binding CpuHistory}" AreaFill="{StaticResource B.ChartFill}" Height="30" Margin="0,8,0,0" />
+                <!-- Chips = the filter of the list below -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0"
+                            Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                    <RadioButton Style="{StaticResource Chip}" GroupName="DashFilter" IsChecked="{Binding ShowWarnings, Mode=TwoWay}"
+                                 AutomationProperties.Name="Показать проблемы">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ВНИМАНИЕ" VerticalAlignment="Center" />
+                            <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding WarningCount}" /></Border>
                         </StackPanel>
-                    </Border>
-
-                    <!-- GPU -->
-                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="12,11,12,10">
-                        <StackPanel>
-                            <Grid>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="ГРАФИКА" Style="{StaticResource Dash.TileLabel}" />
-                                </StackPanel>
-                                <TextBlock Text="{x:Static ui:Glyphs.Monitor}" Style="{StaticResource Dash.TileIcon}" />
-                            </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding GpuText}" Style="{StaticResource Dash.TileStat}" />
-                                <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
-                            </StackPanel>
-                            <TextBlock Style="{StaticResource Dash.TileLine}">
-                                <Run Text="{Binding GpuTempText, Mode=OneWay}" /><Run Text=" · VRAM " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding GpuVramText, Mode=OneWay}" />
-                            </TextBlock>
-                            <TextBlock Text="{Binding GpuName}" Style="{StaticResource Dash.TileCaption}" ToolTip="{Binding GpuName}" />
-                            <c:Meter Value="{Binding GpuLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="95" />
-                            <c:Sparkline Values="{Binding GpuHistory}" AreaFill="{StaticResource B.ChartFill}" Height="30" Margin="0,8,0,0" />
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource Chip}" GroupName="DashFilter" IsChecked="{Binding ShowInfos, Mode=TwoWay}"
+                                 AutomationProperties.Name="Показать советы">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="СОВЕТЫ" VerticalAlignment="Center" />
+                            <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding InfoCount}" /></Border>
                         </StackPanel>
-                    </Border>
-
-                    <!-- RAM -->
-                    <Border Grid.Column="4" Style="{StaticResource Card}" Padding="12,11,12,10">
-                        <StackPanel>
-                            <Grid>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="ПАМЯТЬ" Style="{StaticResource Dash.TileLabel}" />
-                                </StackPanel>
-                                <TextBlock Text="{x:Static ui:Glyphs.Memory}" Style="{StaticResource Dash.TileIcon}" />
-                            </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding RamText}" Style="{StaticResource Dash.TileStat}" />
-                                <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
-                            </StackPanel>
-                            <TextBlock Style="{StaticResource Dash.TileLine}">
-                                <Run Text="ЗАНЯТО " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding RamUsedText, Mode=OneWay}" />
-                            </TextBlock>
-                            <TextBlock Style="{StaticResource Dash.TileCaption}">
-                                <Run Text="Доступно" /> <Run Text="{Binding RamFreeText, Mode=OneWay}" />
-                            </TextBlock>
-                            <c:Meter Value="{Binding RamLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="90" />
-                            <c:Sparkline Values="{Binding RamHistory}" AreaFill="{StaticResource B.ChartFill}" Height="30" Margin="0,8,0,0" />
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource Chip}" GroupName="DashFilter" IsChecked="{Binding ShowOk, Mode=TwoWay}" Margin="0"
+                                 AutomationProperties.Name="Показать проверки в норме">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="В НОРМЕ" VerticalAlignment="Center" />
+                            <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding OkCount}" /></Border>
                         </StackPanel>
-                    </Border>
+                    </RadioButton>
+                </StackPanel>
 
-                    <!-- DISK + NET -->
-                    <Border Grid.Column="6" Style="{StaticResource Card}" Padding="12,11,12,10">
-                        <StackPanel>
-                            <Grid>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="ДИСК + СЕТЬ" Style="{StaticResource Dash.TileLabel}" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <Rectangle Width="10" Height="2" Fill="{StaticResource B.White}" VerticalAlignment="Center" />
-                                    <TextBlock Text="ДИСК" Style="{StaticResource T.Label}" FontSize="9.5" Margin="5,0,10,0" VerticalAlignment="Center" />
-                                    <Rectangle Width="10" Height="2" Fill="{StaticResource B.Text3}" VerticalAlignment="Center" />
-                                    <TextBlock Text="СЕТЬ" Style="{StaticResource T.Label}" FontSize="9.5" Margin="5,0,0,0" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Grid>
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <TextBlock Text="{Binding DiskText}" Style="{StaticResource Dash.TileStat}" />
-                                <TextBlock Text="%" Style="{StaticResource Dash.TileUnit}" />
-                            </StackPanel>
-                            <TextBlock Style="{StaticResource Dash.TileLine}">
-                                <Run Text="↓ " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding NetDownText, Mode=OneWay}" /><Run Text="   ↑ " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding NetUpText, Mode=OneWay}" />
-                            </TextBlock>
-                            <TextBlock Text="{Binding DiskIoText}" Style="{StaticResource Dash.TileCaption}" />
-                            <c:Meter Value="{Binding DiskLoad}" Segments="30" Height="6" Margin="0,10,0,0" HotThreshold="90" />
-                            <Grid Height="30" Margin="0,8,0,0">
-                                <c:Sparkline Values="{Binding DiskHistory}" AreaFill="{StaticResource B.ChartFill}" />
-                                <c:Sparkline Values="{Binding NetHistory}" Maximum="{Binding NetMax}" Stroke="{StaticResource B.Text3}" ShowGrid="False" />
-                            </Grid>
+                <!-- ONE primary action: white only while it has something to do -->
+                <Grid Grid.Column="3" VerticalAlignment="Center">
+                    <Button Style="{StaticResource Btn.Primary}" Command="{Binding FixSafeCommand}" Visibility="{Binding HasSafeFixes, Converter={StaticResource BoolToVis}}"
+                            ToolTip="Включает безопасные настройки одним пакетом: один список, одно подтверждение, откат одной кнопкой">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding FixSafeText}" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Border>
+                    </Button>
+                    <Button Style="{StaticResource Btn}" Command="{Binding FixSafeCommand}" Visibility="{Binding HasSafeFixes, Converter={StaticResource InverseBoolToVis}}"
+                            ToolTip="Безопасных исправлений сейчас нет">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding FixSafeText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
+            </Grid>
+        </Border>
 
-                <!-- ═══════════════ Health + system ═══════════════ -->
-                <Grid Margin="0,10,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1.45*" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- СОСТОЯНИЕ СИСТЕМЫ -->
-                    <Border Style="{StaticResource Card.Flush}" VerticalAlignment="Top" ui:RoundClip.Content="True">
+        <!-- ═══════════════ Six tiles: live value + ONE labelled button ═══════════════ -->
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding Tiles}" Margin="0,10,0,0" Focusable="False">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="1" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:LaunchTile}">
+                    <Border Style="{StaticResource Card}" Margin="0,0,10,0" Padding="12,11,12,12">
                         <StackPanel>
-                            <Grid Margin="15,12,15,0">
-                                <TextBlock Text="Состояние системы" Style="{StaticResource Dash.CardTitle}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding LastCheckText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
-                            </Grid>
-
-                            <Grid Margin="15,11,15,14">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="28" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-
-                                <!-- Gauge -->
-                                <Grid Width="132" Height="132" VerticalAlignment="Top">
-                                    <c:ArcGauge Value="{Binding Score}" Ticks="44" TickLength="10" />
-                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,4,0,0">
-                                        <TextBlock Text="{Binding ScoreText}" Style="{StaticResource T.Stat}" FontSize="34" HorizontalAlignment="Center"
-                                                   LineHeight="40" LineStackingStrategy="BlockLineHeight" />
-                                        <TextBlock Text="ИЗ 100" Style="{StaticResource T.Label}" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text2}"
+                                           VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{Binding Label}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Value}" Style="{StaticResource Dash.TileValue}" ToolTip="{Binding Value}" />
+                            <TextBlock Text="{Binding Detail}" Style="{StaticResource Dash.TileDetail}" ToolTip="{Binding Detail}" />
+                            <Grid Margin="0,9,0,0">
+                                <Button Style="{StaticResource Btn.Primary}" Command="{Binding Command}" Height="Auto" MinHeight="30" Padding="6,4"
+                                        Visibility="{Binding IsPrimary, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding ButtonGlyph}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="{Binding ButtonText}" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="120" />
                                     </StackPanel>
-                                </Grid>
+                                </Button>
+                                <Button Style="{StaticResource Btn}" Command="{Binding Command}" Height="Auto" MinHeight="30" Padding="6,4"
+                                        Visibility="{Binding IsSecondary, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding ButtonGlyph}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="{Binding ButtonText}" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="120" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
-                                <!-- Verdict + counters -->
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                    <TextBlock Text="ОЦЕНКА СИСТЕМЫ" Style="{StaticResource T.Label}" />
-                                    <TextBlock Text="{Binding Verdict, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" FontSize="25" Margin="0,4,0,0" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding VerdictSummary}" Style="{StaticResource T.Body}" Margin="0,6,0,0" />
+        <!-- ═══════════════ List (the only ScrollViewer): problems | monitor + system ═══════════════ -->
+        <ScrollViewer Grid.Row="3" Margin="0,2,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <Grid Margin="0,8,10,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.6*" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="*" MinWidth="300" MaxWidth="440" />
+                </Grid.ColumnDefinitions>
 
-                                    <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,1,0,1" Margin="0,11,0,0"
-                                            Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                <!-- Problems and advice -->
+                <Border Style="{StaticResource Card.Flush}" VerticalAlignment="Top">
+                    <StackPanel>
+                        <Grid Margin="16,12,16,10">
+                            <TextBlock Text="{Binding ListTitle}" Style="{StaticResource Dash.CardTitle}" VerticalAlignment="Center" />
+                        </Grid>
+                        <Rectangle Style="{StaticResource Divider}" />
+
+                        <ItemsControl ItemsSource="{Binding Visible}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:CheckItemViewModel}">
+                                    <Border Style="{StaticResource Row}" Padding="16,11,16,11">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="82" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel Margin="0,10,10,10">
-                                                <TextBlock Text="{Binding WarningCount}" Style="{StaticResource T.Stat}" FontSize="21" />
-                                                <TextBlock Text="ВНИМАНИЕ" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
+                                            <Border Style="{StaticResource Dash.SeverityTag}">
+                                                <TextBlock Text="{Binding SeverityText}" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                                                <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" FontSize="12.5"
+                                                           LineHeight="18" Margin="0,4,0,0" TextWrapping="Wrap" />
                                             </StackPanel>
-                                            <Rectangle Grid.Column="1" Style="{StaticResource DividerV}" Fill="{StaticResource B.Line2}" Margin="0,10" />
-                                            <StackPanel Grid.Column="2" Margin="10,10,10,10">
-                                                <TextBlock Text="{Binding InfoCount}" Style="{StaticResource T.Stat}" FontSize="21" />
-                                                <TextBlock Text="СОВЕТЫ" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
-                                            </StackPanel>
-                                            <Rectangle Grid.Column="3" Style="{StaticResource DividerV}" Fill="{StaticResource B.Line2}" Margin="0,10" />
-                                            <StackPanel Grid.Column="4" Margin="10,10,0,10">
-                                                <TextBlock Text="{Binding PassedText}" Style="{StaticResource T.Stat}" FontSize="21" />
-                                                <TextBlock Text="В НОРМЕ" Style="{StaticResource T.Label}" Margin="0,2,0,0" />
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Top" HorizontalAlignment="Right">
+                                                <Button MinWidth="150" HorizontalAlignment="Stretch" Command="{Binding RunCommand}"
+                                                        ToolTip="{Binding ActionTooltip}" Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="12"
+                                                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                                                   Visibility="{Binding ShowAdminHint, Converter={StaticResource BoolToVis}}" />
+                                                        <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <!-- Optional second lever (it only shows the setting; the change is made there) -->
+                                                <Button Margin="0,6,0,0" MinWidth="150" HorizontalAlignment="Stretch"
+                                                        Command="{Binding DataContext.RunSecondaryActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет"
+                                                        Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
+                                                    <TextBlock Text="{Binding SecondaryActionText}" VerticalAlignment="Center" />
+                                                </Button>
                                             </StackPanel>
                                         </Grid>
                                     </Border>
-                                </StackPanel>
-                            </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                            <!-- Section: needs attention -->
-                            <Grid Margin="15,0,15,0" Height="34" Visibility="{Binding HasIssues, Converter={StaticResource BoolToVis}}">
+                        <!-- Empty list: says what it means -->
+                        <TextBlock Text="{Binding EmptyText}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" Margin="16,14,16,16" TextWrapping="Wrap"
+                                   Visibility="{Binding EmptyText, Converter={StaticResource NullToVis}}" />
+
+                        <!-- Loading -->
+                        <StackPanel Margin="16,14,16,16" Visibility="{Binding HasResults, Converter={StaticResource InverseBoolToVis}}">
+                            <ProgressBar IsIndeterminate="{Binding IsChecking}" Height="2" />
+                            <TextBlock Text="Проверки выполняются в фоне и только читают систему." Style="{StaticResource T.Caption}" Margin="0,9,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Right column: monitor in four rows + the system facts behind ВСЕ СВЕДЕНИЯ -->
+                <StackPanel Grid.Column="2">
+                    <Border Style="{StaticResource Card}" Padding="16,12,16,6">
+                        <StackPanel>
+                            <TextBlock Text="Монитор" Style="{StaticResource Dash.CardTitle}" />
+
+                            <!-- ЦП -->
+                            <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="72" />
+                                    <ColumnDefinition Width="64" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="ПРОБЛЕМЫ И СОВЕТЫ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
-                                <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="9,0,0,0" />
-                            </Grid>
-                            <Rectangle Style="{StaticResource Divider}" Visibility="{Binding HasIssues, Converter={StaticResource InverseBoolToVis}}" />
-
-                            <!-- Checklist: problems and advice -->
-                            <ItemsControl ItemsSource="{Binding Issues}" Focusable="False">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type local:CheckItemViewModel}">
-                                        <Border Style="{StaticResource Row}" Padding="15,10,15,10">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="16" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <Border Style="{StaticResource Dash.Marker}">
-                                                    <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                </Border>
-                                                <StackPanel Grid.Column="2" Margin="0,4,0,0">
-                                                    <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource Dash.CheckTitle}" />
-                                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Dash.CheckDetail}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Right">
-                                                    <Border Style="{StaticResource Dash.SeverityTag}" HorizontalAlignment="Right">
-                                                        <TextBlock Text="{Binding SeverityText}" />
-                                                    </Border>
-                                                    <Button Margin="0,9,0,0" Height="30" MinWidth="128" FontSize="11.5" HorizontalAlignment="Right"
-                                                            Command="{Binding RunCommand}" IsEnabled="{Binding ActionAvailable}"
-                                                            ToolTip="{Binding ActionTooltip}" ToolTipService.ShowOnDisabled="True"
-                                                            Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="11"
-                                                                       VerticalAlignment="Center" Margin="0,0,8,0"
-                                                                       Visibility="{Binding ShowAdminHint, Converter={StaticResource BoolToVis}}" />
-                                                            <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <!-- Optional second lever (FocusTweak / Navigate / OpenUri only: it changes nothing by itself) -->
-                                                    <Button Margin="0,6,0,0" Height="30" MinWidth="128" FontSize="11.5" HorizontalAlignment="Right"
-                                                            Command="{Binding DataContext.RunSecondaryActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                            CommandParameter="{Binding}"
-                                                            ToolTip="Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет"
-                                                            Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
-                                                        <TextBlock Text="{Binding Result.SecondaryAction.Label}" VerticalAlignment="Center" />
-                                                    </Button>
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- Section: passed (collapsed by default) -->
-                            <Expander Margin="15,10,15,11" Visibility="{Binding Passed.Count, Converter={StaticResource NullToVis}}">
-                                <Expander.Header>
-                                    <TextBlock Style="{StaticResource T.Label}" VerticalAlignment="Center">
-                                        <Run Text="В НОРМЕ" /><Run Text="  ·  " Foreground="{StaticResource B.Text4}" /><Run Text="{Binding OkCount, Mode=OneWay}" />
+                                <TextBlock Text="ЦП" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding CpuText}" Style="{StaticResource Dash.MonValue}" />
+                                    <TextBlock Text=" %" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
+                                        <Run Text="{Binding CpuClockText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding CpuCoresText, Mode=OneWay}" />
                                     </TextBlock>
-                                </Expander.Header>
-                                <ItemsControl ItemsSource="{Binding Passed}" Focusable="False" Margin="-11,0,0,0">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <UniformGrid Columns="2" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type local:CheckItemViewModel}">
-                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="0,11,10,11" Background="Transparent"
-                                                    ToolTip="{Binding Detail}">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="12" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Border Width="18" Height="18" BorderBrush="{StaticResource B.Line3}" BorderThickness="1" VerticalAlignment="Top" Margin="0,1,0,0"
-                                                            CornerRadius="{StaticResource R.Xs}">
-                                                        <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="9.5" Foreground="{StaticResource B.Text2}"
-                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                    </Border>
-                                                    <StackPanel Grid.Column="2">
-                                                        <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontStretch="SemiCondensed" FontSize="13"
-                                                                   Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
-                                                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Expander>
+                                    <c:Meter Value="{Binding CpuLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="90" />
+                                </StackPanel>
+                            </Grid>
+                            <Rectangle Style="{StaticResource Divider}" Margin="0,10,0,0" />
 
-                            <!-- Loading state -->
-                            <StackPanel Margin="15,14,15,16" Visibility="{Binding HasResults, Converter={StaticResource InverseBoolToVis}}">
-                                <ProgressBar IsIndeterminate="{Binding IsChecking}" Height="2" />
-                                <TextBlock Text="Проверки выполняются в фоне и только читают систему." Style="{StaticResource T.Caption}" Margin="0,9,0,0" />
-                            </StackPanel>
+                            <!-- ГРАФИКА -->
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="72" />
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="ГРАФИКА" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding GpuText}" Style="{StaticResource Dash.MonValue}" />
+                                    <TextBlock Text=" %" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
+                                        <Run Text="{Binding GpuTempText, Mode=OneWay}" /><Run Text=" · VRAM " /><Run Text="{Binding GpuVramText, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <c:Meter Value="{Binding GpuLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="95" />
+                                </StackPanel>
+                            </Grid>
+                            <Rectangle Style="{StaticResource Divider}" Margin="0,10,0,0" />
+
+                            <!-- ПАМЯТЬ -->
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="72" />
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="ПАМЯТЬ" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding RamText}" Style="{StaticResource Dash.MonValue}" />
+                                    <TextBlock Text=" %" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
+                                        <Run Text="{Binding RamUsedText, Mode=OneWay}" /><Run Text=" занято" />
+                                    </TextBlock>
+                                    <c:Meter Value="{Binding RamLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="90" />
+                                </StackPanel>
+                            </Grid>
+                            <Rectangle Style="{StaticResource Divider}" Margin="0,10,0,0" />
+
+                            <!-- ДИСК + СЕТЬ -->
+                            <Grid Margin="0,10,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="72" />
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="ДИСК · СЕТЬ" Style="{StaticResource T.Label}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DiskText}" Style="{StaticResource Dash.MonValue}" />
+                                    <TextBlock Text=" %" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource T.Caption}" TextWrapping="Wrap">
+                                        <Run Text="↓ " /><Run Text="{Binding NetDownText, Mode=OneWay}" /><Run Text="   ↑ " /><Run Text="{Binding NetUpText, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <c:Meter Value="{Binding DiskLoad}" Segments="24" Height="5" Margin="0,5,0,0" HotThreshold="90" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
-                    <!-- Right column -->
-                    <StackPanel Grid.Column="2">
-
-                        <!-- СИСТЕМА -->
-                        <Border Style="{StaticResource Card}" Padding="15,12,15,10">
-                            <StackPanel>
-                                <TextBlock Text="Система" Style="{StaticResource Dash.CardTitle}" />
-                                <ItemsControl ItemsSource="{Binding SystemRows}" Margin="0,10,0,0" Focusable="False">
+                    <!-- Система: one line, the rest behind ВСЕ СВЕДЕНИЯ -->
+                    <Border Style="{StaticResource Card}" Margin="0,10,0,0" Padding="16,12,16,14">
+                        <StackPanel>
+                            <TextBlock Text="Система" Style="{StaticResource Dash.CardTitle}" />
+                            <TextBlock Text="{Binding SystemSummary}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" Margin="0,8,0,10" TextWrapping="Wrap"
+                                       Visibility="{Binding SystemSummary, Converter={StaticResource NullToVis}}" />
+                            <StackPanel Margin="0,0,0,10" Visibility="{Binding SystemRows.Count, Converter={StaticResource NullToVis}, ConverterParameter=invert}">
+                                <ProgressBar IsIndeterminate="{Binding IsChecking}" Height="2" />
+                                <TextBlock Text="Сбор сведений о компьютере…" Style="{StaticResource T.Caption}" Margin="0,8,0,0" />
+                            </StackPanel>
+                            <Expander Header="ВСЕ СВЕДЕНИЯ" Visibility="{Binding SystemRows.Count, Converter={StaticResource NullToVis}}">
+                                <ItemsControl ItemsSource="{Binding SystemRows}" Focusable="False">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type local:SystemRow}">
-                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,11,0,11">
+                                            <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,9,0,9">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="112" />
+                                                        <ColumnDefinition Width="104" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Label}" Style="{StaticResource T.Label}" Margin="0,2,9,0" TextWrapping="Wrap" />
                                                     <StackPanel Grid.Column="1">
-                                                        <TextBlock Text="{Binding Value}" Style="{StaticResource T.BodyStrong}" FontSize="13" TextWrapping="Wrap" />
-                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}" Margin="0,2,0,0"
+                                                        <TextBlock Text="{Binding Value}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
                                                                    Visibility="{Binding Detail, Converter={StaticResource NullToVis}}" />
                                                     </StackPanel>
                                                 </Grid>
@@ -461,15 +398,11 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <StackPanel Margin="0,8,0,9" Visibility="{Binding SystemRows.Count, Converter={StaticResource NullToVis}, ConverterParameter=invert}">
-                                    <ProgressBar IsIndeterminate="{Binding IsChecking}" Height="2" />
-                                    <TextBlock Text="Сбор сведений о компьютере…" Style="{StaticResource T.Caption}" Margin="0,10,0,0" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </Grid>
-            </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
         </ScrollViewer>
     </Grid>
 </UserControl>
