@@ -394,7 +394,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Border Background="{StaticResource B.Red}" />
+                            <Border Background="{StaticResource B.Warning}" />
                             <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Warning}" Style="{StaticResource T.Icon}" FontSize="18" Margin="11,0,10,0" />
                             <StackPanel Grid.Column="2" Margin="0,9,11,10">
                                 <TextBlock Text="{loc:T Устаревший winget}" Style="{StaticResource T.H3}" />

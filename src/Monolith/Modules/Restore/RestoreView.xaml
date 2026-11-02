@@ -257,7 +257,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Rectangle Fill="{StaticResource B.Red}" />
+                <Rectangle Fill="{StaticResource B.Warning}" />
                 <TextBlock Grid.Column="1" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="11,9,10,9"
                            Text="{Binding DriftCount, StringFormat={loc:T 'ИЗМЕНЕНО ВНЕ LYCORIS · {0}'}}" />
                 <TextBlock Grid.Column="2" Text="{Binding DriftLine}" Style="{StaticResource T.Body}" VerticalAlignment="Center" TextWrapping="Wrap"
@@ -392,7 +392,7 @@
                                             <Setter Property="StrokeThickness" Value="1" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding ProtectionEnabled}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                                    <Setter Property="Fill" Value="{StaticResource B.Success}" />
                                                     <Setter Property="Stroke" Value="{x:Null}" />
                                                 </DataTrigger>
                                             </Style.Triggers>

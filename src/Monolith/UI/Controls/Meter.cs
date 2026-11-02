@@ -4,7 +4,7 @@ using System.Windows.Media;
 namespace Monolith.UI.Controls;
 
 /// <summary>
-/// Segmented horizontal load meter (0–100). Lit segments are white, the rest are dark.
+/// Segmented horizontal load meter (0–100). Lit segments are steel blue (amber above WarnThreshold, red above HotThreshold), the rest are dark.
 /// The industrial "LED bar" look of the dashboard.
 /// </summary>
 public sealed class Meter : FrameworkElement
@@ -19,7 +19,7 @@ public sealed class Meter : FrameworkElement
         nameof(Gap), typeof(double), typeof(Meter), new FrameworkPropertyMetadata(2d, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty FillProperty = DependencyProperty.Register(
-        nameof(Fill), typeof(Brush), typeof(Meter), new FrameworkPropertyMetadata(Brushes.White, FrameworkPropertyMetadataOptions.AffectsRender));
+        nameof(Fill), typeof(Brush), typeof(Meter), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty TrackProperty = DependencyProperty.Register(
         nameof(Track), typeof(Brush), typeof(Meter),
@@ -32,18 +32,17 @@ public sealed class Meter : FrameworkElement
     public double Value { get => (double)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
     public int Segments { get => (int)GetValue(SegmentsProperty); set => SetValue(SegmentsProperty, value); }
     public double Gap { get => (double)GetValue(GapProperty); set => SetValue(GapProperty, value); }
-    public Brush Fill { get => (Brush)GetValue(FillProperty); set => SetValue(FillProperty, value); }
+    public Brush? Fill { get => (Brush?)GetValue(FillProperty); set => SetValue(FillProperty, value); }
     public Brush Track { get => (Brush)GetValue(TrackProperty); set => SetValue(TrackProperty, value); }
     public double HotThreshold { get => (double)GetValue(HotThresholdProperty); set => SetValue(HotThresholdProperty, value); }
 
-    private static readonly Pen HotPen = CreateHotPen();
+    /// <summary>Above this value the lit segments turn amber (default: never).</summary>
+    public static readonly DependencyProperty WarnThresholdProperty = DependencyProperty.Register(
+        nameof(WarnThreshold), typeof(double), typeof(Meter), new FrameworkPropertyMetadata(101d, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    private static Pen CreateHotPen()
-    {
-        var p = new Pen(Brushes.White, 1);
-        p.Freeze();
-        return p;
-    }
+    public double WarnThreshold { get => (double)GetValue(WarnThresholdProperty); set => SetValue(WarnThresholdProperty, value); }
+
+    private Brush Resource(string key, Brush fallback) => TryFindResource(key) as Brush ?? fallback;
 
     public Meter()
     {
@@ -62,6 +61,10 @@ public sealed class Meter : FrameworkElement
         if (segW < 1) segW = 1;
         var lit = (int)Math.Round(Math.Clamp(Value, 0, 100) / 100d * n);
         var hot = Value >= HotThreshold;
+        // Steel blue = normal, amber = busy, red = hot (the number beside the bar always says the value).
+        var litBrush = hot ? Resource("B.Red", Brushes.Red)
+            : Value >= WarnThreshold ? Resource("B.Warning", Brushes.Orange)
+            : Fill ?? Resource("B.Info", Brushes.SteelBlue);
 
         // Segments are rounded with the R.Xs token, but never past a quarter of their short side:
         // small cells stay rounded cells instead of turning into dots.
@@ -75,15 +78,7 @@ public sealed class Meter : FrameworkElement
             var rect = new Rect(x, 0, segWidth, h);
             if (i < lit)
             {
-                if (hot)
-                {
-                    var inner = Math.Max(0, r - 0.5);
-                    dc.DrawRoundedRectangle(null, HotPen, new Rect(rect.X + 0.5, rect.Y + 0.5, rect.Width - 1, rect.Height - 1), inner, inner);
-                }
-                else
-                {
-                    dc.DrawRoundedRectangle(Fill, null, rect, r, r);
-                }
+                dc.DrawRoundedRectangle(litBrush, null, rect, r, r);
             }
             else
             {

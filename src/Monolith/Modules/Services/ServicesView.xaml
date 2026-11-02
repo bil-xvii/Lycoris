@@ -95,11 +95,11 @@
         <!-- One state vocabulary: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО · ИЗМЕНЕНО LYCORIS · НЕПРИМЕНИМО (the theme's Tag styles) -->
         <DataTemplate x:Key="RowBadge">
             <Grid HorizontalAlignment="Right">
-                <Border Style="{StaticResource Tag.Solid}" HorizontalAlignment="Right"
+                <Border Style="{StaticResource Tag.Ok}" HorizontalAlignment="Right"
                         Visibility="{Binding Badge, Converter={StaticResource EqualsToVis}, ConverterParameter=Done}">
                     <TextBlock Text="{loc:T ПРИМЕНЕНО}" />
                 </Border>
-                <Border Style="{StaticResource Tag.Solid}" HorizontalAlignment="Right"
+                <Border Style="{StaticResource Tag.Ok}" HorizontalAlignment="Right"
                         Visibility="{Binding Badge, Converter={StaticResource EqualsToVis}, ConverterParameter=AlreadyManual}">
                     <TextBlock Text="{loc:T ПРИМЕНЕНО}" />
                 </Border>
@@ -254,7 +254,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Background="{StaticResource B.Red}" />
+                        <Border Background="{StaticResource B.Warning}" />
                         <TextBlock Grid.Column="1" Text="{x:Static ui:Glyphs.Warning}" FontFamily="{StaticResource F.Icons}" FontSize="14"
                                    Foreground="{StaticResource B.Text}" VerticalAlignment="Top" Margin="10,9,0,0" />
                         <TextBlock Grid.Column="2" Text="{Binding Note}" Style="{StaticResource T.Body}" FontSize="12.5" Foreground="{StaticResource B.Text}"

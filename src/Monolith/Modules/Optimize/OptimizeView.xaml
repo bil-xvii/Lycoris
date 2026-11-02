@@ -76,12 +76,12 @@
             <Setter Property="StrokeThickness" Value="1" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding StateKey}" Value="Applied">
-                    <Setter Property="Fill" Value="{StaticResource B.White}" />
-                    <Setter Property="Stroke" Value="{StaticResource B.White}" />
+                    <Setter Property="Fill" Value="{StaticResource B.Success}" />
+                    <Setter Property="Stroke" Value="{StaticResource B.Success}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StateKey}" Value="Partial">
                     <Setter Property="Fill" Value="{StaticResource B.HatchStrong}" />
-                    <Setter Property="Stroke" Value="{StaticResource B.Text2}" />
+                    <Setter Property="Stroke" Value="{StaticResource B.Warning}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StateKey}" Value="NotApplicable">
                     <Setter Property="Stroke" Value="{StaticResource B.Text4}" />
@@ -105,10 +105,10 @@
             <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding StateKey}" Value="Applied">
-                    <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                    <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StateKey}" Value="Partial">
-                    <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                    <Setter Property="Foreground" Value="{StaticResource B.WarningText}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StateKey}" Value="NotApplicable">
                     <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
@@ -248,11 +248,11 @@
                             </Border>
 
                             <WrapPanel Margin="0,7,0,0">
-                                <Border Style="{StaticResource Tag}" Margin="0,0,6,0"
+                                <Border Style="{StaticResource Tag.Ok}" Margin="0,0,6,0"
                                         Visibility="{Binding RiskKey, Converter={StaticResource EqualsToVis}, ConverterParameter=Safe}">
                                     <TextBlock Text="{Binding RiskText}" />
                                 </Border>
-                                <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0"
+                                <Border Style="{StaticResource Tag.Info}" Margin="0,0,6,0"
                                         Visibility="{Binding RiskKey, Converter={StaticResource EqualsToVis}, ConverterParameter=Optional}">
                                     <TextBlock Text="{Binding RiskText}" />
                                 </Border>
@@ -311,7 +311,7 @@
                                 <Rectangle Style="{StaticResource Opt.StateMark}" />
                                 <TextBlock Text="{Binding StateText}" Style="{StaticResource Opt.StateText}" Margin="9,0,0,0" />
                             </StackPanel>
-                            <Border Style="{StaticResource Tag.Solid}" Margin="0,9,0,0" Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
+                            <Border Style="{StaticResource Tag.Info}" Margin="0,9,0,0" Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{loc:T 'ИЗМЕНИТСЯ'}" />
                             </Border>
                         </StackPanel>
@@ -393,6 +393,17 @@
                             BorderThickness="1" CornerRadius="{StaticResource R.Lg}" SnapsToDevicePixels="True" ToolTip="{Binding Hint}"
                             ToolTipService.ShowDuration="30000">
                         <StackPanel>
+                            <!-- Thin top line: green = the recommended profile, steel blue = the other scenarios (the selected tile also gets the white frame) -->
+                            <Border Height="2" Margin="-11,-10,-11,8" CornerRadius="11,11,0,0">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource B.Info}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Accent}" Value="Success"><Setter Property="Background" Value="{StaticResource B.Success}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
                             <!-- Up to six scenario tiles share one row: the title wraps between words, the badge drops under it. -->
                             <WrapPanel>
                                 <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}" FontWeight="Bold"

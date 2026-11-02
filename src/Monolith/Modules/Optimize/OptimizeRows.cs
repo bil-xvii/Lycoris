@@ -40,6 +40,8 @@ public sealed partial class ProfileTileViewModel : ObservableObject
     [ObservableProperty] private string _description = "";
 
     public OptimizeProfile Kind { get; }
+    /// <summary>Hue of the tile's thin top line: Success for the recommended profile, Info for the other scenarios.</summary>
+    public string Accent => Kind == OptimizeProfile.Recommended ? "Success" : "Info";
     public string Index { get; }
     /// <summary>Optional small mark next to the title ("ПО УМОЛЧАНИЮ").</summary>
     public string? Badge { get; }

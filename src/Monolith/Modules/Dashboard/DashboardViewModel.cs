@@ -79,6 +79,8 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     [ObservableProperty] private int _score;
     [ObservableProperty] private string _scoreText = DashFormat.Missing;
+    /// <summary>Colour tier of the score for the view: None / Good (>= 90) / Fair (>= 70) / Poor (>= 50) / Bad. The words beside the number say the same.</summary>
+    [ObservableProperty] private string _scoreTier = "None";
     [ObservableProperty] private string _verdict = Loc.T("ПРОВЕРКА…");
     [ObservableProperty] private string _verdictSummary = Loc.T("Собираем сведения о системе. Это займёт несколько секунд.");
     [ObservableProperty] private string _passedText = "";
@@ -199,6 +201,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         OkCount = results.Count(r => r.Severity == CheckSeverity.Ok);
         Score = HealthScore.Calculate(results);
         ScoreText = Score.ToString();
+        ScoreTier = results.Count == 0 ? "None" : Score >= 90 ? "Good" : Score >= 70 ? "Fair" : Score >= 50 ? "Poor" : "Bad";
         Verdict = results.Count == 0 ? Loc.T("НЕТ ДАННЫХ") : HealthScore.Verdict(Score);
         VerdictSummary = results.Count == 0
             ? Loc.T("Не удалось прочитать сведения о системе. Подробности — в консоли.")
