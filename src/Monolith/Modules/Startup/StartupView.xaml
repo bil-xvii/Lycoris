@@ -136,7 +136,19 @@
                              ToolTip="{loc:T 'Программы, которые Windows записала в журнал как замедлившие последнюю загрузки'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{loc:T ЗАМЕДЛЯЕТ ЗАГРУЗКУ}" VerticalAlignment="Center" />
-                        <Border Style="{StaticResource TabBadge.Alert}"><TextBlock Text="{Binding SlowCount}" /></Border>
+                        <Border>
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource TabBadge.Alert}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SlowCount}" Value="0">
+                                            <Setter Property="Background" Value="{StaticResource B.Surface4}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding SlowCount}" />
+                        </Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"

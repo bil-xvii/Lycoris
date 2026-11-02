@@ -443,7 +443,7 @@
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=auto}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{loc:T 'АВТОНАСТРОЙКА'}" />
-                        <Border Style="{StaticResource TabBadge.Alert}"><TextBlock Text="{Binding PlanCount}" /></Border>
+                        <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding PlanCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" GroupName="DevicesTabs"

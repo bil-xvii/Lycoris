@@ -103,9 +103,9 @@ is replaced by this one. The audit with evidence: `docs/ux/ux-audit.md`; the app
 2. **Every action is a visible, labelled button**: icon + text, ≥ 30 px, outlined with `B.Outline` (`Btn`), or the ONE
    white main button of the page (`Btn.Primary` / `Btn.Hero`). Never icon-only (`Btn.Icon` is for the window caption and
    nothing else), never hover-only, never only in a ContextMenu, Ctrl+K or a tooltip. `Btn.Ghost` only next to a labelled
-   main button; `Btn.Link` = an outlined jump to another page («ОТКРЫТЬ В ОПТИМИЗАЦИИ →»); `Btn.Danger` is hatched at rest.
+   main button; `Btn.Link` = an outlined jump to another page («ОТКРЫТЬ В ОПТИМИЗАЦИИ →»); `Btn.Danger` = red outline + red text, lightly hatched at rest.
 3. **White fill = clickable, and only that.** Tags are status, never white and never an outlined capsule (`Tag`,
-   `Tag.Solid`, `Tag.Muted`, `Tag.Hatch` — filled R.Xs blocks). One state vocabulary everywhere: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО ·
+   `Tag.Solid`, `Tag.Muted`, `Tag.Hatch`/`Tag.Risk` (red) — filled R.Xs blocks). One state vocabulary everywhere: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО ·
    ИЗМЕНЕНО LYCORIS (+ ОТКАТИТЬ) · НЕПРИМЕНИМО; risk БЕЗОПАСНО / ПО ЖЕЛАНИЮ / ЭКСПЕРТ. No local tag styles in modules.
 4. **Contrast and sizes.** Text ≥ 4.5:1 (`B.Text`, `B.Text2`, `B.Text3` #8A8A8A for captions), `B.Text4` #6B6B6B only
    for disabled; outlines ≥ 3:1 (`B.Outline` #606060 for Btn / CheckBox / Toggle / Chip / TextBox borders, `Line*` only
@@ -231,17 +231,29 @@ XAML `{loc:T Применить}` with `xmlns:loc="clr-namespace:Monolith.UI"`).
   journal / settings / backups stay language-neutral (on-disk schema unchanged, texts are localized at display time); log FILES stay Russian, the console line is translated;
   tests keep Russian by default, English only inside `using var _ = Loc.UseLanguage("en");`.
 
-## Design system (black & white, adult, aggressive, modern)
+## Design system (black & white + one restrained red accent)
 
-Strict monochrome — no hue anywhere. Hierarchy via luminance, weight, inversion (white blocks), hatching.
+Strictly black and white, adult, aggressive, modern. Hierarchy via luminance, weight, inversion (white blocks), hatching.
+**Red is the only hue** (owner, 02.11.2026: «добавь немного красного… Красный акцент Dark») and only as a precise accent: the brand
+(spider lily), attention/risk, dangerous actions and live states. Never a theme recolour, never body text, never large fills or gradients,
+no green/amber/blue anywhere; success stays neutral (shape + label), only the bad is red. `ThemeContrastTests` enforces the contrast and «no other hue».
+- Red tokens (`Theme/Colors.xaml`, `C.*` + `B.*`): `Red` #B3121F (borders, bars, dots, logo mark, small badge fill — white on it 6:1),
+  `RedHover` #D11A29 (hover edge of a danger outline), `RedText` #EA5B63 (red text/glyphs; ≥ 4.5:1 on Base, Surface, Surface2, Surface3 and RedDeep),
+  `RedDeep` #45080E (tint behind a risk tag/strip, always with a `Red` outline).
+- Where red goes: the logo mark and the selected sidebar marker; `Tag.Risk` (= `Tag.Hatch`: ЭКСПЕРТ / problem / ВНИМАНИЕ — RedDeep + Red outline + RedText);
+  `Callout.Risk`; `TabBadge.Alert` (problem counters; neutral at 0); `Btn.Danger` (red outline + RedText: ОТКАТИТЬ ВСЁ, СТОП, and the confirm button of
+  `Ui.ConfirmAsync(danger: true)` instead of the white main button); `Dot.Red` (LIVE, update button, active game session); warning bands in `B.Red`
+  (not the hatched band) only where the text is really bad (failed, drift, risk, outdated winget); error toasts (red edge + glyph); thin progress bars.
+  Ordinary buttons, informational callouts, «ПРИМЕНЕНО» and success stay black and white. White still = clickable only.
 - Brushes: `B.Base` (window), `B.Surface/2/3/4` (raised layers), `B.Line/2/3` (hairlines),
-  `B.Text/2/3/4` (text levels), `B.White`, `B.Ink` (text on white), `B.Hatch`, `B.HatchStrong`, `B.DotGrid`, `B.ChartFill`.
+  `B.Text/2/3/4` (text levels), `B.White`, `B.Ink` (text on white), `B.Hatch`, `B.HatchStrong`, `B.DotGrid`, `B.ChartFill`,
+  `B.Red`, `B.RedHover`, `B.RedText`, `B.RedDeep`.
 - Fonts: `F.Display` (Bahnschrift — use Bold + Condensed for headings), `F.Body` (Segoe UI Variable),
   `F.Mono` (Cascadia Mono / Consolas — numbers, ids, logs), `F.Icons` (Segoe Fluent Icons; codes in `UI/Glyphs.cs`).
 - Text styles: `T.Display`, `T.H1`, `T.H2`, `T.H3`, `T.Label` (small caps-like labels), `T.Body`, `T.BodyStrong`,
   `T.Caption`, `T.Mono`, `T.Stat` + `T.StatUnit` (big numbers), `T.Icon`.
 - Buttons (all outlined `B.Outline`, 30 px, icon + text): default `Btn`, `Btn.Primary` (white block — the ONE main
-  action), `Btn.Hero` (big primary, sticky bar), `Btn.Ghost` (outlined, muted text; secondary only), `Btn.Danger` (hatched
+  action), `Btn.Hero` (big primary, sticky bar), `Btn.Ghost` (outlined, muted text; secondary only), `Btn.Danger` (red outline, hatched
   at rest), `Btn.Link` (outlined jump to another page), `Btn.Icon` (glyph only — window caption ONLY), `Btn.Caption`.
 - Inputs: CheckBox (R.Xs box, Outline border), `Toggle` (CheckBox style, R.Md rounded-rect switch with R.Xs knob),
   `SegmentBar` + `Segment` (framed segmented tabs, selected = white block), `Chip` / `Chip.Toggle` (filters next to the
