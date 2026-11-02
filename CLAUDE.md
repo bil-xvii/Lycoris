@@ -231,23 +231,39 @@ XAML `{loc:T Применить}` with `xmlns:loc="clr-namespace:Monolith.UI"`).
   journal / settings / backups stay language-neutral (on-disk schema unchanged, texts are localized at display time); log FILES stay Russian, the console line is translated;
   tests keep Russian by default, English only inside `using var _ = Loc.UseLanguage("en");`.
 
-## Design system (black & white + one restrained red accent)
+## Design system (black & white + red accent + three muted semantic hues)
 
-Strictly black and white, adult, aggressive, modern. Hierarchy via luminance, weight, inversion (white blocks), hatching.
-**Red is the only hue** (owner, 02.11.2026: «добавь немного красного… Красный акцент Dark») and only as a precise accent: the brand
-(spider lily), attention/risk, dangerous actions and live states. Never a theme recolour, never body text, never large fills or gradients,
-no green/amber/blue anywhere; success stays neutral (shape + label), only the bad is red. `ThemeContrastTests` enforces the contrast and «no other hue».
+Black and white structure, adult, aggressive, modern. Hierarchy via luminance, weight, inversion (white blocks), hatching.
+Colour only MARKS MEANING (owner, 02.11.2026: «немножечко добавить цвета, но не терять профессионализм»; research and sources:
+`docs/ux/color-research.md`). Four hues, nothing else: **red** = brand, danger, failure, live (owner: «Красный акцент Dark»);
+**green (Success)** = applied / OK / done / safe / recommended / toggle ON; **amber (Warning)** = needs attention, partial, pending, busy
+(NOT danger); **steel blue (Info)** = information, optional, neutral progress and charts, measuring. Rules: colour is never the only carrier
+(a label, glyph or shape always sits next to it); at most ONE hue per component; hue lives in small things (dot, 1 px outline, text, thin top
+line, progress/meter fill) and in very dark tints (`*Deep`) with a hue outline — never a saturated large fill, never body text, never a theme
+recolour, never a gradient, no neon, no rainbow; white fill still = clickable only (primary button stays white, ordinary buttons neutral).
+Never put red, amber and green side by side at the same weight (traffic-light look): the risk vocabulary is БЕЗОПАСНО green · ПО ЖЕЛАНИЮ steel ·
+ЭКСПЕРТ red. `ThemeContrastTests` enforces ≥ 4.5:1 for every hue's text on Base/Surface/Surface2/Surface3/its Deep, ≥ 3:1 for fills, hue families,
+very dark Deep tints, muted (not neon) saturation, and pure-grey neutrals.
+- Semantic tokens (`Theme/Colors.xaml`, `C.*` + `B.*`), each hue = Fill / Text / Deep: `Success` #2F8F5B / `SuccessText` #58BE86 / `SuccessDeep` #0B2016;
+  `Warning` #B8893A / `WarningText` #E0AA4A / `WarningDeep` #2A1E08; `Info` #4F7FB0 / `InfoText` #78A6D6 / `InfoDeep` #0C1926. Styles: `Tag.Ok` / `Tag.Warn` /
+  `Tag.Info` (Deep + 1 px Fill outline + Text), `Callout.Ok/Warn/Info`, `Dot.Green/Amber/Info`, `TabBadge.Alert` (amber block, ink text; neutral at 0), `Toggle` ON = green
+  track + white knob, `ProgressBar` = steel blue, `c:Meter` = steel blue → amber (`WarnThreshold`) → red (`HotThreshold`; the value is printed beside it), toasts: Success green /
+  Info blue / Warning amber / Error red edge + glyph. Applied: Dashboard (score number + 10-segment bar by tier ≥90 green / ≥70 amber / <50 red, thin top lines on the six tiles:
+  game red, optimize+undo green, others blue; severity tags ВНИМАНИЕ amber / СОВЕТ blue / В НОРМЕ green), Optimize (state mark+text ПРИМЕНЕНО green, partial amber, ИЗМЕНИТСЯ blue,
+  profile tiles' top line green for «Рекомендуемый» / blue for scenarios), Services/Autostart ПРИМЕНЕНО, Cleaner risk tags and the servicing band, Restore (drift band amber, protection
+  on = green), Drivers status tags/glyphs, Devices safe tag. Deliberately NEUTRAL: ordinary buttons, segmented tabs (selected = white), nav (red marker only), chips, counters at 0,
+  НЕ ПРИМЕНЕНО / НЕПРИМЕНИМО text, hatched bands, body text, tags `Tag.Muted/Solid`.
 - Red tokens (`Theme/Colors.xaml`, `C.*` + `B.*`): `Red` #B3121F (borders, bars, dots, logo mark, small badge fill — white on it 6:1),
   `RedHover` #D11A29 (hover edge of a danger outline), `RedText` #EA5B63 (red text/glyphs; ≥ 4.5:1 on Base, Surface, Surface2, Surface3 and RedDeep),
   `RedDeep` #45080E (tint behind a risk tag/strip, always with a `Red` outline).
 - Where red goes: the logo mark and the selected sidebar marker; `Tag.Risk` (= `Tag.Hatch`: ЭКСПЕРТ / problem / ВНИМАНИЕ — RedDeep + Red outline + RedText);
-  `Callout.Risk`; `TabBadge.Alert` (problem counters; neutral at 0); `Btn.Danger` (red outline + RedText: ОТКАТИТЬ ВСЁ, СТОП, and the confirm button of
+  `Callout.Risk`; `Btn.Danger` (red outline + RedText: ОТКАТИТЬ ВСЁ, СТОП, and the confirm button of
   `Ui.ConfirmAsync(danger: true)` instead of the white main button); `Dot.Red` (LIVE, update button, active game session); warning bands in `B.Red`
-  (not the hatched band) only where the text is really bad (failed, drift, risk, outdated winget); error toasts (red edge + glyph); thin progress bars.
-  Ordinary buttons, informational callouts, «ПРИМЕНЕНО» and success stay black and white. White still = clickable only.
+  (not the hatched band) only where the text is really bad (failed, blocked, risk); error toasts (red edge + glyph). Red is no longer used for progress bars,
+  «needs attention» counters or drift/outdated notices — those are amber/blue.
 - Brushes: `B.Base` (window), `B.Surface/2/3/4` (raised layers), `B.Line/2/3` (hairlines),
   `B.Text/2/3/4` (text levels), `B.White`, `B.Ink` (text on white), `B.Hatch`, `B.HatchStrong`, `B.DotGrid`, `B.ChartFill`,
-  `B.Red`, `B.RedHover`, `B.RedText`, `B.RedDeep`.
+  `B.Red`, `B.RedHover`, `B.RedText`, `B.RedDeep`, `B.Success/SuccessText/SuccessDeep`, `B.Warning/WarningText/WarningDeep`, `B.Info/InfoText/InfoDeep`.
 - Fonts: `F.Display` (Bahnschrift — use Bold + Condensed for headings), `F.Body` (Segoe UI Variable),
   `F.Mono` (Cascadia Mono / Consolas — numbers, ids, logs), `F.Icons` (Segoe Fluent Icons; codes in `UI/Glyphs.cs`).
 - Text styles: `T.Display`, `T.H1`, `T.H2`, `T.H3`, `T.Label` (small caps-like labels), `T.Body`, `T.BodyStrong`,

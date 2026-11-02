@@ -37,10 +37,10 @@
         <!-- Component status tag (the theme's Tag styles; never white): update = filled, missing = hatched, rest muted/plain -->
         <DataTemplate x:Key="Hw.StatusTag">
             <Grid VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,1,0,0">
-                <Border Style="{StaticResource Tag}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=ok}">
+                <Border Style="{StaticResource Tag.Ok}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=ok}">
                     <TextBlock Text="{Binding StatusText}" />
                 </Border>
-                <Border Style="{StaticResource Tag.Solid}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=update}">
+                <Border Style="{StaticResource Tag.Info}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=update}">
                     <TextBlock Text="{Binding StatusText}" />
                 </Border>
                 <Border Style="{StaticResource Tag.Hatch}" Visibility="{Binding StatusKey, Converter={StaticResource EqualsToVis}, ConverterParameter=missing}">
@@ -211,13 +211,15 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource F.Icons}" FontSize="15" Margin="0,0,9,0" Foreground="{StaticResource B.Text}">
+                                <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource F.Icons}" FontSize="15" Margin="0,0,9,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="&#xE73E;" />
+                                            <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding UpdateAvailable}" Value="True">
                                                     <Setter Property="Text" Value="&#xE896;" />
+                                                    <Setter Property="Foreground" Value="{StaticResource B.InfoText}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -273,13 +275,15 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Top" Margin="0,2,8,0" Foreground="{StaticResource B.Text}">
+                                <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Top" Margin="0,2,8,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="&#xE7BA;" />
+                                            <Setter Property="Foreground" Value="{StaticResource B.WarningText}" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding DownloadResultOk}" Value="True">
                                                     <Setter Property="Text" Value="&#xE73E;" />
+                                                    <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -477,13 +481,15 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0" Foreground="{StaticResource B.Text}">
+                                            <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Top" Margin="0,3,0,0">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Text" Value="&#xE7BA;" />
+                                                        <Setter Property="Foreground" Value="{StaticResource B.WarningText}" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsOk}" Value="True">
                                                                 <Setter Property="Text" Value="&#xE73E;" />
+                                                                <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
