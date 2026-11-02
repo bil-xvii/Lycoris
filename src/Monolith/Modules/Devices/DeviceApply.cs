@@ -32,16 +32,19 @@ public static class DeviceApply
     /// Asks, then applies the selected rows in one batch with a restore point: Optimize tweaks through TweakEngine (their own
     /// sources), then device settings, then the ones with an on-screen confirmation, one at a time. Null = cancelled.
     /// </summary>
-    public static async Task<PlanApplyResult?> ApplyPlanAsync(IReadOnlyList<PlanItem> selected, IProgress<string>? progress, CancellationToken ct)
+    public static async Task<PlanApplyResult?> ApplyPlanAsync(IReadOnlyList<PlanItem> selected, IProgress<string>? progress, CancellationToken ct,
+        Func<Func<Task<bool>>, Task<bool>>? ask = null)
     {
         if (!Elevation.IsElevated) return null;
         var items = selected.Where(i => i is { Selectable: true, IsSelected: true, HasChange: true }).ToList();
         if (items.Count == 0) return null;
 
-        var confirmed = await Ui.ConfirmAsync("Настроить автоматически?",
+        // The question is asked without holding the operation lease (the caller passes 'ask' to release it meanwhile).
+        Func<Func<Task<bool>>, Task<bool>> asker = ask ?? (f => f());
+        var confirmed = await asker(() => Ui.ConfirmAsync("Настроить автоматически?",
             "MONOLITH изменит выбранные настройки. Перед изменением исходные значения записываются в журнал:",
             PlanLines(items), confirmText: "НАСТРОИТЬ",
-            footnote: "Каждое изменение откатывается по одному — в «Вручную» или в «Восстановлении».");
+            footnote: "Каждое изменение откатывается по одному — в «Вручную» или в «Восстановлении»."));
         if (!confirmed) return null;
 
         var session = await Task.Run(() => ChangeSession.BeginAsync(PlanTitle, createRestorePoint: true, progress), CancellationToken.None);
@@ -134,6 +137,20 @@ public static class DeviceApply
     /// </summary>
     public static async Task<(ApplyOutcome Outcome, IReadOnlyList<string> Errors)> ApplyOneAsync(DeviceSetting s, DeviceValue value, CancellationToken ct)
     {
+        try
+        {
+            return await OperationCoordinator.Instance.RunAsync(
+                new OperationRequest(OperationClass.Disruptive, $"Настройка: {s.Title}") { Owner = "devices" },
+                _ => ApplyOneCoreAsync(s, value, ct), ct);
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            return (ApplyOutcome.Blocked, [ex.Message]);
+        }
+    }
+
+    private static async Task<(ApplyOutcome Outcome, IReadOnlyList<string> Errors)> ApplyOneCoreAsync(DeviceSetting s, DeviceValue value, CancellationToken ct)
+    {
         if (!Elevation.IsElevated) return (ApplyOutcome.Blocked, ["Нужны права администратора."]);
         if (s.IsReadOnly) return (ApplyOutcome.Failed, ["Эту настройку здесь не меняют."]);
         if (s.PerUser && await Task.Run(() => Elevation.InteractiveUserProblem) is { } account) return (ApplyOutcome.Blocked, [account]);
@@ -161,6 +178,20 @@ public static class DeviceApply
 
     /// <summary>ОТКАТИТЬ of one row (the caller checked admin rights). Null when there is nothing to revert.</summary>
     public static async Task<RevertResult?> RevertOneAsync(DeviceSetting s)
+    {
+        try
+        {
+            return await OperationCoordinator.Instance.RunAsync(
+                new OperationRequest(OperationClass.Disruptive, $"Откат: {s.Title}") { Owner = "devices", QueueIfBusy = true },
+                _ => RevertOneCoreAsync(s));
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            return new RevertResult(0, 1, [ex.Message]);
+        }
+    }
+
+    private static async Task<RevertResult?> RevertOneCoreAsync(DeviceSetting s)
     {
         if (!Elevation.IsElevated) return null;
         if (RevertTarget(s) is not { } record) return null;

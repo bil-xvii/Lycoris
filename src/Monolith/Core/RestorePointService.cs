@@ -99,6 +99,23 @@ public static class RestorePointService
     /// </summary>
     public static async Task<RestorePointResult> CreateAsync(string description)
     {
+        // Creating a restore point is disruptive (VSS freezes volumes, Windows allows one per 24 h): never two at once, never
+        // next to an installer or another disruptive change. Inside an operation of the same flow this costs nothing (nested).
+        try
+        {
+            return await OperationCoordinator.Instance.RunAsync(
+                new OperationRequest(OperationClass.Disruptive, "Создание точки восстановления") { QueueIfBusy = true },
+                _ => CreateGatedAsync(description)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationTimeoutException or OperationRefusedException or OperationCanceledException)
+        {
+            Log.Warn("Точка восстановления не создана: " + ex.Message);
+            return new(RestorePointOutcome.Failed, "Точка восстановления не создана: " + ex.Message);
+        }
+    }
+
+    private static async Task<RestorePointResult> CreateGatedAsync(string description)
+    {
         if (!Elevation.IsElevated)
             return new(RestorePointOutcome.Skipped, "Нет прав администратора — точка восстановления не создана.");
         if (!IsEnabled())

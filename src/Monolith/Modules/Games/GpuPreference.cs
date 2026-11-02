@@ -311,6 +311,21 @@ public static class GpuPreferenceStore
     public static async Task<GpuChangeOutcome> SetAsync(IReadOnlyList<string> exes, bool enableHigh, string gameName,
         ChangeJournal? journal = null)
     {
+        try
+        {
+            return await OperationCoordinator.Instance.RunAsync(
+                new OperationRequest(OperationClass.JournalChange, $"Видеокарта для игры «{gameName}»") { Owner = "games" },
+                _ => SetCoreAsync(exes, enableHigh, gameName, journal));
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            return new GpuChangeOutcome(0, [ex.Message]);
+        }
+    }
+
+    private static async Task<GpuChangeOutcome> SetCoreAsync(IReadOnlyList<string> exes, bool enableHigh, string gameName,
+        ChangeJournal? journal)
+    {
         journal ??= ChangeJournal.Instance;
         var errors = new List<string>();
         var applied = 0;

@@ -54,6 +54,42 @@ public partial class MainWindow : Window
         };
     }
 
+    private bool _exitConfirmed;
+
+    /// <summary>
+    /// Closing with operations running (an install, a repair, a queued change): one dialog lists them — wait / cancel the safe
+    /// ones and exit / exit anyway. Nothing is killed: installers and repair tools keep running on their own, the journal is
+    /// saved by App.OnExit and the exit watchdog still ends this process 20 s after the window is gone.
+    /// </summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_exitConfirmed && !Dispatcher.HasShutdownStarted && Monolith.UI.Ui.AutoAnswer is null)
+        {
+            var plan = Monolith.Core.ExitPlan.From(Monolith.Core.OperationCoordinator.Instance.Snapshot());
+            if (plan.NeedsDialog)
+            {
+                e.Cancel = true;
+                _ = ConfirmExitAndCloseAsync();
+                return;
+            }
+        }
+        base.OnClosing(e);
+    }
+
+    private async Task ConfirmExitAndCloseAsync()
+    {
+        bool leave;
+        try { leave = await _vm.ConfirmExitAsync(); }
+        catch (Exception ex)
+        {
+            Monolith.Core.Log.Warn("Диалог выхода не показан: " + ex.Message);
+            leave = true;
+        }
+        if (!leave) return;
+        _exitConfirmed = true;
+        Close();
+    }
+
     /// <summary>Laptops with 125–150 % scaling have ~1536×816 usable: never open larger than the screen.</summary>
     private void FitToWorkArea()
     {

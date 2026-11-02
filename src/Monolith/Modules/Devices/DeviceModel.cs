@@ -461,6 +461,17 @@ public sealed partial class DeviceTool : ObservableObject
 
     private CancellationTokenSource? _cts;
 
+    /// <summary>
+    /// What the coordinator makes of this tool: the load test downloads and uploads at full speed (classed Disruptive: never next
+    /// to an installer or an adapter restart); ping / DNS / Valve regions need a quiet network; the rest only read local devices.
+    /// </summary>
+    internal OperationRequest CoordinatorRequest() => Id switch
+    {
+        "net-load" => new OperationRequest(OperationClass.Disruptive, Title) { Owner = "devices", Cancellable = true },
+        "net-ping" or "net-dns" or "net-valve" => new OperationRequest(OperationClass.Measure, Title) { Owner = "devices", Quiet = true },
+        _ => new OperationRequest(OperationClass.Measure, Title) { Owner = "devices" },
+    };
+
     public void Cancel()
     {
         try { _cts?.Cancel(); }
@@ -482,7 +493,16 @@ public sealed partial class DeviceTool : ObservableObject
         var run = new DeviceToolRun(this, card, results, cts.Token);
         try
         {
-            await Run(run, cts.Token);
+            await OperationCoordinator.Instance.RunAsync(CoordinatorRequest(), lease =>
+            {
+                lease.SetCancelHandler(Cancel);
+                return Run(run, cts.Token);
+            }, cts.Token);
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            // Not started: a plain reason instead of a result (an installer, a repair or an adapter change is running).
+            DeviceUi.Post(() => StatusText = ex.Message);
         }
         catch (OperationCanceledException)
         {

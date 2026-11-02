@@ -151,7 +151,7 @@ public sealed partial class DashboardViewModel
         if (!confirmed) return;
 
         TweakRunResult? result = null;
-        await RunBusyAsync($"Применение: {tweak.Title}…", async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
+        await RunBusyAsync(OperationClass.JournalChange, $"Применение: {tweak.Title}…", async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
         if (result is { } r)
         {
             if (r.Errors.Count > 0)
@@ -223,7 +223,7 @@ public sealed partial class DashboardViewModel
         if (!ok) return;
 
         TweakRunResult? result = null;
-        await RunBusyAsync("Исправление безопасных пунктов…", async () => result = await TweakEngine.ApplyAsync(tweaks, "Панель: безопасные исправления"));
+        await RunBusyAsync(OperationClass.JournalChange, "Исправление безопасных пунктов…", async () => result = await TweakEngine.ApplyAsync(tweaks, "Панель: безопасные исправления"));
         if (result is { } r)
         {
             if (r.Errors.Count > 0)

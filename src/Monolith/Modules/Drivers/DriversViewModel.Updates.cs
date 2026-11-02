@@ -239,7 +239,7 @@ public sealed partial class DriversViewModel
         }
 
         var attempted = false;
-        await RunBusyAsync("Установка драйверов…", async () =>
+        await RunBusyAsync(OperationClass.Install, "Установка драйверов…", async () =>
         {
             _installCts?.Dispose();
             _installCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -296,7 +296,7 @@ public sealed partial class DriversViewModel
         });
 
         // Installed drivers changed — refresh the inventory (problems, installed list, GPU versions).
-        if (attempted) await RunBusyAsync("Обновление сведений о драйверах…", LoadInventoryAsync);
+        if (attempted) await RunBusyAsync(OperationClass.Measure, "Обновление сведений о драйверах…", LoadInventoryAsync);
     }
 
     [RelayCommand(CanExecute = nameof(IsInstalling))]

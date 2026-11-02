@@ -170,7 +170,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         IsChecking = true;
         try
         {
-            if (showBusy) await RunBusyAsync("Проверка системы…", CheckCoreAsync);
+            if (showBusy) await RunBusyAsync(OperationClass.Measure, "Проверка системы…", CheckCoreAsync);
             else
             {
                 try { await CheckCoreAsync(); }

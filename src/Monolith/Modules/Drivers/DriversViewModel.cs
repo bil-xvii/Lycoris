@@ -82,7 +82,7 @@ public sealed partial class DriversViewModel : PageViewModel
         // The Windows Update search (and the hardware-analysis hook, hidden tab) run on their own and do not block the page.
         _ = StartHardwareScanAsync();
         _ = SearchUpdatesAsync();
-        await RunBusyAsync("Сбор сведений о драйверах…", LoadInventoryAsync);
+        await RunBusyAsync(OperationClass.Measure, "Сбор сведений о драйверах…", LoadInventoryAsync);
     }
 
     /// <summary>Implemented in DriversViewModel.Hardware.cs.</summary>
@@ -136,7 +136,7 @@ public sealed partial class DriversViewModel : PageViewModel
         List<(GpuInfo Gpu, GpuRegistryInfo? Reg)> GpuRegs);
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
-    private Task RefreshAsync() => RunBusyAsync("Обновление сведений о драйверах…", LoadInventoryAsync);
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Обновление сведений о драйверах…", LoadInventoryAsync);
 
     /// <summary>A refresh rebuilds the GPU cards, so it waits while a card is downloading a driver.</summary>
     private bool CanRefresh() => !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
@@ -382,7 +382,7 @@ public sealed partial class DriversViewModel : PageViewModel
         if (!confirmed) return false;
 
         var success = false;
-        await RunBusyAsync($"Установка {tool.Name}…", async () =>
+        await RunBusyAsync(OperationClass.Install, $"Установка {tool.Name}…", async () =>
         {
             Log.Info($"Установка {tool.Name} ({id}, источник {tool.WingetSource})");
             var r = await WingetClient.InstallAsync(id, tool.WingetSource, line => Log.Info("winget: " + line));
@@ -401,7 +401,7 @@ public sealed partial class DriversViewModel : PageViewModel
     }
 
     /// <summary>Creates a restore point; when Windows does not create one, the user decides whether to continue.</summary>
-    private static async Task<bool> EnsureRestorePointAsync(string description)
+    private async Task<bool> EnsureRestorePointAsync(string description)
     {
         var rp = await RestorePointService.CreateAsync(description);
         if (rp.Created)
@@ -410,9 +410,9 @@ public sealed partial class DriversViewModel : PageViewModel
             return true;
         }
         Log.Warn(rp.Message);
-        return await Ui.ConfirmAsync(
+        return await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
             "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
             $"{rp.Message} Без неё откатить драйверы можно будет только через диспетчер устройств или резервную копию драйверов. Продолжить?",
-            confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true);
+            confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true));
     }
 }

@@ -242,7 +242,25 @@ public sealed partial class GameBoostService : ObservableObject
 
     // ───────────────────────────── Start ─────────────────────────────
 
+    /// <summary>Starts the session as one disruptive operation (not next to an installer, a repair or another disruptive change).</summary>
     public async Task<bool> StartAsync(GameEntry? game, BoostPlan plan)
+    {
+        if (IsActive || IsTransitioning) return false;
+        try
+        {
+            return await OperationCoordinator.Instance.RunAsync(
+                new OperationRequest(OperationClass.Disruptive, game is null ? "Запуск игрового сеанса" : $"Запуск игрового сеанса: {game.Name}") { Owner = "games" },
+                _ => StartCoreAsync(game, plan));
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            Log.Warn("Игровой сеанс не начат: " + ex.Message);
+            Ui.Toast(ex.Message, ToastKind.Warning, "ИГРОВОЙ СЕАНС");
+            return false;
+        }
+    }
+
+    private async Task<bool> StartCoreAsync(GameEntry? game, BoostPlan plan)
     {
         if (IsActive || IsTransitioning) return false;
         Elevation.Demand("Игровой сеанс");
@@ -754,7 +772,28 @@ public sealed partial class GameBoostService : ObservableObject
 
     // ───────────────────────────── Stop ─────────────────────────────
 
+    /// <summary>
+    /// Stops the session and puts everything back. Never refused: when something else is running (an installer) the stop
+    /// waits in the visible queue — dropping it would leave the game tweaks switched on.
+    /// </summary>
     public async Task StopAsync(string reason, ToastKind kind = ToastKind.Success)
+    {
+        if (!IsActive || IsTransitioning) return;
+        try
+        {
+            await OperationCoordinator.Instance.RunAsync(
+                new OperationRequest(OperationClass.Disruptive, "Остановка игрового сеанса") { Owner = "games", QueueIfBusy = true, QueueTimeout = TimeSpan.FromHours(4) },
+                _ => StopGatedAsync(reason, kind));
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            // The window is closing or the queue never moved: the stale-session check offers the undo at the next start.
+            Log.Warn("Игровой сеанс не остановлен сразу: " + ex.Message);
+            Ui.Toast(ex.Message, ToastKind.Warning, "ИГРОВОЙ СЕАНС");
+        }
+    }
+
+    private async Task StopGatedAsync(string reason, ToastKind kind)
     {
         if (!IsActive || IsTransitioning) return;
         IsTransitioning = true;

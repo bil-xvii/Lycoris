@@ -27,6 +27,7 @@ namespace Monolith;
 ///                          «{Name}Command» once, with its usual confirmation. Only honoured together with --elevated.
 ///  --snapshot &lt;dir&gt;       render every page to PNG and exit (QA); tabbed pages once per tab ("devices-auto", "devices-manual")
 ///  --pages a,b,c --wait ms limit / tune --snapshot (a page key shoots all its tabs, "devices-manual" only that tab)
+///  --demo-tasks            with --snapshot (QA only): pretend operations fill the «ЗАДАЧИ» list and it is shown open
 ///  --full                  with --snapshot: also "&lt;page&gt;-full.png" — the page's whole scrolled list, not only the window
 ///  --selftest &lt;dir&gt;       exercise every page with all system writes locked; report.md + exit code = failed pages
 ///  --display-guard …       INTERNAL: the guard of a display change (Core/Devices/DisplaySafeApply). Started by MONOLITH
@@ -213,6 +214,7 @@ public partial class App : Application
                 try
                 {
                     await Task.Delay(800);
+                    if (HasArg(args, "--demo-tasks")) await vm.StartDemoTasksAsync();
                     await window.SnapshotPagesAsync(Path.GetFullPath(snapshotDir!), only, wait, HasArg(args, "--full"));
                 }
                 catch (Exception ex)

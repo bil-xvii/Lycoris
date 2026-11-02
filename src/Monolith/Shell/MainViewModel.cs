@@ -107,6 +107,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         };
 
         ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournalCount);
+        HookOperations();
         RefreshJournalCount();
     }
 
@@ -119,7 +120,11 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         //    unconfirmed change is put back — after any running guard process finished its own job.
         if (Elevation.IsElevated && ChangeJournal.Instance is { IsUnavailable: false } journal && journal.PendingDisplayRecords().Count > 0)
         {
-            try { await Task.Run(() => DisplaySafeApply.ReconcileAsync(journal)); }
+            try
+            {
+                await _coordinator.RunAsync(new OperationRequest(OperationClass.Disruptive, "Возврат незавершённых изменений экрана") { QueueIfBusy = true },
+                    _ => Task.Run(() => DisplaySafeApply.ReconcileAsync(journal)));
+            }
             catch (Exception ex) { Log.Warn($"Незавершённые изменения экрана не проверены: {ex.Message}"); }
         }
 
@@ -173,7 +178,17 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                 lines, confirmText: Monolith.Modules.Games.GameBoostService.AllKept(stale, newer) ? "ЗАКРЫТЬ ЗАПИСЬ" : "ВЕРНУТЬ", cancelText: "ПОЗЖЕ");
             if (ok)
             {
-                var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(stale));
+                RevertResult result;
+                try
+                {
+                    result = await _coordinator.RunAsync(
+                        new OperationRequest(OperationClass.JournalChange, "Возврат изменений игрового сеанса") { Owner = "games", QueueIfBusy = true },
+                        _ => Task.Run(() => ChangeJournal.Instance.RevertAsync(stale)));
+                }
+                catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+                {
+                    result = new RevertResult(0, 1, [ex.Message]);
+                }
                 Ui.Toast(result.Success ? Monolith.Modules.Games.GameBoostService.StaleRevertedText(result) : string.Join("\n", result.Errors),
                     result.Success ? ToastKind.Success : ToastKind.Error);
             }
@@ -244,10 +259,22 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             await Task.Delay(250);
             var target = intent.FindCommand(page) is not null ? (object)page : this;
             // A busy page (a background refresh, the cleaner warm-up) is waited for: poll up to ~10 s instead of losing the click.
+            // The user may have pressed the same button by hand while the relaunch was settling: never run it a second time.
+            if (UserOperationRunningFor(page.Key))
+            {
+                Log.Info($"Действие «{intent}» не повторено: эта страница уже выполняет задачу.");
+                Ui.Toast("Эта страница уже выполняет задачу — повтор действия не нужен. Проверьте список «ЗАДАЧИ».", ToastKind.Info, "ПРОДОЛЖИТЬ");
+                return false;
+            }
             var executed = intent.TryExecuteOn(target);
             for (var waited = 0; !executed && waited < 50 && intent.FindCommand(target) is not null; waited++)
             {
                 await Task.Delay(200);
+                if (UserOperationRunningFor(page.Key))
+                {
+                    Log.Info($"Действие «{intent}» не повторено: страница занялась задачей.");
+                    return false;
+                }
                 executed = intent.TryExecuteOn(target);
             }
             if (executed)
