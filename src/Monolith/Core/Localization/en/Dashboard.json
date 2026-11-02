@@ -430,7 +430,7 @@
     "Нечего откатывать": "Nothing to undo",
     "Последний пакет": "Latest batch",
     "{0} изм.": "{0} change|{0} changes",
-    "{0} · всего {1}": "{0} · {1} in total",
+    "{0} · всего {1}": "{0} · {1}",
     "ОТКАТИТЬ ПОСЛЕДНЕЕ": "UNDO LAST",
     "не измерен": "not measured",
     "Роутер · интернет · DNS": "Router · internet · DNS",
