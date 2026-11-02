@@ -10,11 +10,21 @@ namespace Monolith.Modules.Dashboard;
 public sealed partial class CheckItemViewModel : ObservableObject
 {
     private readonly Func<CheckItemViewModel, Task> _run;
+    private readonly Func<CheckAction, string?>? _label;
 
-    public CheckItemViewModel(HealthCheckResult result, Func<CheckItemViewModel, Task> run)
+    /// <param name="label">Optional live text of an action button («ОЧИСТИТЬ 654,8 МБ» instead of «ОЧИСТИТЬ ДИСК»); null = the action's own label.</param>
+    public CheckItemViewModel(HealthCheckResult result, Func<CheckItemViewModel, Task> run, Func<CheckAction, string?>? label = null)
     {
         Result = result;
         _run = run;
+        _label = label;
+    }
+
+    /// <summary>Re-reads the live button texts (the cleanup size arrives after the row was built).</summary>
+    public void RefreshLabels()
+    {
+        OnPropertyChanged(nameof(ActionText));
+        OnPropertyChanged(nameof(SecondaryActionText));
     }
 
     public HealthCheckResult Result { get; }
@@ -28,7 +38,7 @@ public sealed partial class CheckItemViewModel : ObservableObject
     public string SeverityText => Severity switch
     {
         CheckSeverity.Warning => "ВНИМАНИЕ",
-        CheckSeverity.Info => "ИНФО",
+        CheckSeverity.Info => "СОВЕТ",
         _ => "НОРМА",
     };
 
@@ -40,9 +50,11 @@ public sealed partial class CheckItemViewModel : ObservableObject
     };
 
     public bool HasAction => Result.Action is not null;
-    public string ActionText => Result.Action?.Label ?? "";
+    public string ActionText => Result.Action is { } a ? _label?.Invoke(a) ?? a.Label : "";
+    public string SecondaryActionText => Result.SecondaryAction is { } b ? _label?.Invoke(b) ?? b.Label : "";
     public bool ActionNeedsAdmin => Result.Action?.RequiresAdmin == true;
-    public bool ActionAvailable => HasAction && (!ActionNeedsAdmin || Elevation.IsElevated);
+    /// <summary>A button is never disabled for missing rights: the click offers the relaunch with admin rights and continues by itself.</summary>
+    public bool ActionAvailable => HasAction;
     public bool ShowAdminHint => ActionNeedsAdmin && !Elevation.IsElevated;
 
     public string ActionTooltip => Result.Action?.Kind switch
@@ -51,7 +63,7 @@ public sealed partial class CheckItemViewModel : ObservableObject
         CheckActionKind.OpenUri => "Открыть параметры Windows — сама по себе кнопка ничего не меняет",
         CheckActionKind.FocusTweak => "Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет",
         CheckActionKind.FocusDevice => "Показать монитор в разделе «Устройства и сеть» — сама по себе кнопка ничего не меняет",
-        _ when ShowAdminHint => "Нужны права администратора",
+        _ when ShowAdminHint => "Нужны права администратора: MONOLITH предложит перезапуск и продолжит действие сам",
         _ => "Перед изменением MONOLITH покажет, что именно будет сделано",
     };
 
