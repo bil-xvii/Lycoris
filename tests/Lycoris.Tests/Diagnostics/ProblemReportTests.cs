@@ -31,6 +31,70 @@ public sealed class ProblemReportTests
             t => t == typeof(HttpClient) || t == typeof(Socket) || t.Name == "WebClient");
     }
 
+    [Theory]
+    [InlineData(@"open C:\Users\bob\Desktop\a.txt", "bob")]
+    [InlineData(@"open D:\Users\Мария Иванова\Documents", "Мария")]
+    [InlineData(@"{""p"":""C:\\Users\\carol\\x""}", "carol")]
+    [InlineData("open C:/Users/dave/x", "dave")]
+    [InlineData("open /home/erin/.cfg", "erin")]
+    [InlineData("open /Users/frank/Library", "frank")]
+    [InlineData("open C\uFF1A\uFF3CUsers\uFF3Cgrace\uFF3Cx", "grace")]
+    public void AnyProfilePathIsReplaced(string input, string name)
+    {
+        var r = ProblemReport.Anonymize(input, "someoneelse", "pc");
+        Assert.DoesNotContain(name, r);
+    }
+
+    [Fact]
+    public void InvisibleCharactersAndFullwidthDoNotHideTheUserName()
+    {
+        var r = ProblemReport.Anonymize("al\u200Bice \uFF41\uFF4C\uFF49\uFF43\uFF45 Alice", "alice", "pc");
+        Assert.DoesNotContain("ali", r, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\uFF41", r);
+    }
+
+    [Fact]
+    public void NetworkIdentifiersAreValidatedAndReplaced()
+    {
+        var r = ProblemReport.Anonymize("a 10.20.30.40 b 2001:db8:0:0:0:0:0:1 c ::1 d fe80::1%12 e 00:1A:2B:3C:4D:5E f 001A.2B3C.4D5E g 999.1.1.1 h 12:34:56 i 2001:db8::1.", "zzq", "qqpc");
+        foreach (var leak in new[] { "10.20.30.40", "2001:db8:0:0:0:0:0:1", "fe80::1", "00:1A:2B:3C:4D:5E", "001A.2B3C.4D5E", "2001:db8::1" })
+            Assert.DoesNotContain(leak, r, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("12:34:56", r);   // a time is not an address: kept
+        Assert.Contains("999.1.1.1", r);  // not an IPv4: kept
+    }
+
+    [Theory]
+    [InlineData("api_key=AbCdEf0123456789AbCdEf0123456789", "AbCdEf0123456789")]
+    [InlineData("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9abcdefghijkl", "eyJhbGci")]
+    [InlineData("password: hunter2", "hunter2")]
+    [InlineData("пароль=Секрет123", "Секрет123")]
+    [InlineData("token \"deadbeefdeadbeefdeadbeefdeadbeef\"", "deadbeef")]
+    [InlineData("mail bob@example.test now", "bob@")]
+    [InlineData("Serial Number: ABC-123-XYZ", "ABC-123")]
+    [InlineData("serial=SN99887766", "SN99887766")]
+    public void SecretsEmailAndSerialsAreRemoved(string input, string leak)
+    {
+        Assert.DoesNotContain(leak, ProblemReport.Anonymize(input, "zzq", "qqpc"));
+    }
+
+    [Fact]
+    public void UncleanableLinesAreDroppedAndOtherLinesKept()
+    {
+        var r = ProblemReport.Anonymize("keep me\n" + new string('a', 9000) + "\nsecond ok", "zzq", "qqpc");
+        Assert.Contains("keep me", r);
+        Assert.Contains("second ok", r);
+        Assert.DoesNotContain(new string('a', 100), r);
+    }
+
+    [Fact]
+    public void PathologicalInputFinishesQuickly()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = ProblemReport.Anonymize(string.Join("\n", Enumerable.Repeat(new string(':', 3000) + "a" + new string('1', 3000), 20)), "zzq", "qqpc");
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(20));
+        Assert.NotNull(r);
+    }
+
     private static string TempDir()
     {
         var d = Path.Combine(Path.GetTempPath(), "lyc-pr-" + Guid.NewGuid().ToString("N"));
