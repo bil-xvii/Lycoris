@@ -30,11 +30,19 @@ public sealed record ToolCommand(string File, string Arguments, string Display, 
 public sealed class CleanDefinition
 {
     public required string Id { get; init; }
-    public required string Name { get; init; }
+    // Name / Description / Effect are Russian KEYS (Loc.Key in the catalog); the getters translate where the text is read.
+    private readonly string _name = "", _description = "", _effect = "";
+    public required string Name { get => Loc.T(_name); init => _name = value; }
     /// <summary>What it is.</summary>
-    public required string Description { get; init; }
+    public required string Description { get => Loc.T(_description); init => _description = value; }
     /// <summary>What happens after cleaning (side effects, risk) — shown under the description.</summary>
-    public required string Effect { get; init; }
+    public required string Effect
+    {
+        get => EffectArgs.Length == 0 ? Loc.T(_effect) : Loc.Tf(_effect, EffectArgs.Select(a => a is string s ? (object)Loc.T(s) : a).ToArray());
+        init => _effect = value;
+    }
+    /// <summary>Values for the {0}… placeholders of <see cref="Effect"/> (the Russian format is the key).</summary>
+    public object[] EffectArgs { get; init; } = [];
     public required CleanCategory Category { get; init; }
     public required CleanTier Tier { get; init; }
     public bool DefaultChecked { get; init; }
@@ -93,34 +101,34 @@ public static partial class CleanCatalog
 
     public static string CategoryTitle(CleanCategory c) => c switch
     {
-        CleanCategory.System => "СИСТЕМА",
-        CleanCategory.Browsers => "БРАУЗЕРЫ",
-        CleanCategory.Games => "ИГРЫ И ЛАУНЧЕРЫ",
-        CleanCategory.Apps => "ПРИЛОЖЕНИЯ",
-        _ => "ДОПОЛНИТЕЛЬНО",
+CleanCategory.System => Loc.T("СИСТЕМА"),
+CleanCategory.Browsers => Loc.T("БРАУЗЕРЫ"),
+CleanCategory.Games => Loc.T("ИГРЫ И ЛАУНЧЕРЫ"),
+CleanCategory.Apps => Loc.T("ПРИЛОЖЕНИЯ"),
+_ => Loc.T("ДОПОЛНИТЕЛЬНО"),
     };
 
     public static string CategoryHint(CleanCategory c) => c switch
     {
-        CleanCategory.System => "Временные файлы, отчёты и кэши Windows",
-        CleanCategory.Browsers => "Только кэш — пароли, cookies, история и вкладки не затрагиваются",
-        CleanCategory.Games => "Кэши шейдеров и лаунчеров — по желанию, после удаления возможны статтеры",
-        CleanCategory.Apps => "Кэши мессенджеров, Office и инструментов разработчика",
-        _ => "Корзина, журналы, дампы сбоев и обслуживание Windows — осознанно и по одному",
+CleanCategory.System => Loc.T("Временные файлы, отчёты и кэши Windows"),
+CleanCategory.Browsers => Loc.T("Только кэш — пароли, cookies, история и вкладки не затрагиваются"),
+CleanCategory.Games => Loc.T("Кэши шейдеров и лаунчеров — по желанию, после удаления возможны статтеры"),
+CleanCategory.Apps => Loc.T("Кэши мессенджеров, Office и инструментов разработчика"),
+_ => Loc.T("Корзина, журналы, дампы сбоев и обслуживание Windows — осознанно и по одному"),
     };
 
     // ───────────────────────────── Shared blockers ─────────────────────────────
 
     private static string? ServicingBlocker(CleanEnvironment env) =>
-        env.Servicing.Any ? $"Отложено: {env.Servicing.Describe()}. Перезагрузите ПК или повторите позже." : null;
+        env.Servicing.Any ? Loc.Tf("Отложено: {0}. Перезагрузите ПК или повторите позже.", env.Servicing.Describe()) : null;
 
     private static string? MsiBlocker(CleanEnvironment env) =>
-        env.Servicing.MsiRunning ? "Отложено: идёт установка программы (Windows Installer). Повторите после её завершения." : null;
+        env.Servicing.MsiRunning ? Loc.T("Отложено: идёт установка программы (Windows Installer). Повторите после её завершения.") : null;
 
     private static string? WindowsUpdateBlocker(CleanEnvironment env)
     {
         if (env.WindowsUpdateRunning)
-            return "Центр обновления сейчас активен — повторите позже. MONOLITH не останавливает его службы.";
+            return Loc.T("Центр обновления сейчас активен — повторите позже. MONOLITH не останавливает его службы.");
         return ServicingBlocker(env);
     }
 
@@ -133,37 +141,37 @@ public static partial class CleanCatalog
             // ═══════════════ СИСТЕМА ═══════════════
             new()
             {
-                Id = "temp.user", Name = "Временные файлы пользователя", Category = CleanCategory.System, Tier = CleanTier.Safe,
+                Id = "temp.user", Name = Loc.Key("Временные файлы пользователя"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true, AlwaysShow = true,
-                Description = "Папка TEMP вашей учётной записи: распакованные установщики, временные копии документов, остатки обновлений программ. Удаляются только файлы старше 24 часов.",
-                Effect = "Незавершённая установка не сможет продолжиться с места остановки. Занятые файлы и файлы, которых ждёт отложенная установка, пропускаются.",
+                Description = Loc.Key("Папка TEMP вашей учётной записи: распакованные установщики, временные копии документов, остатки обновлений программ. Удаляются только файлы старше 24 часов."),
+                Effect = Loc.Key("Незавершённая установка не сможет продолжиться с места остановки. Занятые файлы и файлы, которых ждёт отложенная установка, пропускаются."),
                 Blocker = MsiBlocker,
                 Targets = env => [new CleanTarget { Base = env.Temp, Label = "TEMP", MinAge = Day, Exclude = env.TempReferences.ToList() }],
             },
             new()
             {
-                Id = "temp.windows", Name = "Временные файлы Windows", Category = CleanCategory.System, Tier = CleanTier.Safe,
+                Id = "temp.windows", Name = Loc.Key("Временные файлы Windows"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true, RequiresAdmin = true, AlwaysShow = true,
-                Description = "Общая временная папка Windows (Windows\\Temp): остатки установщиков, драйверов и системных служб старше 24 часов.",
-                Effect = "Без побочных эффектов. Пункт пропускается, пока Windows устанавливает обновления или ждёт перезагрузки.",
+                Description = Loc.Key("Общая временная папка Windows (Windows\\Temp): остатки установщиков, драйверов и системных служб старше 24 часов."),
+                Effect = Loc.Key("Без побочных эффектов. Пункт пропускается, пока Windows устанавливает обновления или ждёт перезагрузки."),
                 Blocker = ServicingBlocker,
                 Targets = env => [new CleanTarget { Base = Path.Combine(env.Windows, "Temp"), Label = "Windows\\Temp", MinAge = Day, RequiresAdmin = true, Exclude = env.WindowsTempReferences.ToList() }],
             },
             new()
             {
-                Id = "temp.systemtemp", Name = "Временная папка системы (SystemTemp)", Category = CleanCategory.System, Tier = CleanTier.Safe,
+                Id = "temp.systemtemp", Name = Loc.Key("Временная папка системы (SystemTemp)"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true, RequiresAdmin = true,
-                Description = "Временные файлы служб, работающих от имени SYSTEM (Windows 11 и обновлённая Windows 10). Удаляются файлы старше 7 дней.",
-                Effect = "Без побочных эффектов. Защищённые файлы, к которым нет доступа, пропускаются — права на них MONOLITH не меняет.",
+                Description = Loc.Key("Временные файлы служб, работающих от имени SYSTEM (Windows 11 и обновлённая Windows 10). Удаляются файлы старше 7 дней."),
+                Effect = Loc.Key("Без побочных эффектов. Защищённые файлы, к которым нет доступа, пропускаются — права на них MONOLITH не меняет."),
                 Blocker = ServicingBlocker,
                 Targets = env => [new CleanTarget { Base = Path.Combine(env.Windows, "SystemTemp"), Label = "Windows\\SystemTemp", MinAge = 7 * Day, RequiresAdmin = true }],
             },
             new()
             {
-                Id = "wer.user", Name = "Отчёты об ошибках (пользователь)", Category = CleanCategory.System, Tier = CleanTier.Safe,
+                Id = "wer.user", Name = Loc.Key("Отчёты об ошибках (пользователь)"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true,
-                Description = "Отчёты о сбоях программ, которые Windows собрала для вашей учётной записи. Удаляются отчёты старше 7 дней.",
-                Effect = "В «Мониторе стабильности системы» пропадут технические подробности старых сбоев.",
+                Description = Loc.Key("Отчёты о сбоях программ, которые Windows собрала для вашей учётной записи. Удаляются отчёты старше 7 дней."),
+                Effect = Loc.Key("В «Мониторе стабильности системы» пропадут технические подробности старых сбоев."),
                 Targets = env =>
                 [
                     new CleanTarget { Base = Path.Combine(env.LocalAppData, @"Microsoft\Windows\WER\ReportArchive"), Label = "WER · ReportArchive", MinAge = 7 * Day },
@@ -172,10 +180,10 @@ public static partial class CleanCatalog
             },
             new()
             {
-                Id = "wer.machine", Name = "Отчёты об ошибках (система)", Category = CleanCategory.System, Tier = CleanTier.Safe,
+                Id = "wer.machine", Name = Loc.Key("Отчёты об ошибках (система)"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true, RequiresAdmin = true,
-                Description = "Отправленные и неотправленные отчёты о сбоях системы и служб старше 7 дней.",
-                Effect = "Отправленные отчёты больше не нужны, а неотправленные Windows со временем удаляет сама.",
+                Description = Loc.Key("Отправленные и неотправленные отчёты о сбоях системы и служб старше 7 дней."),
+                Effect = Loc.Key("Отправленные отчёты больше не нужны, а неотправленные Windows со временем удаляет сама."),
                 Targets = env =>
                 [
                     new CleanTarget { Base = Path.Combine(env.ProgramData, @"Microsoft\Windows\WER\ReportArchive"), Label = "WER · ReportArchive", MinAge = 7 * Day, RequiresAdmin = true },
@@ -185,25 +193,25 @@ public static partial class CleanCatalog
             },
             new()
             {
-                Id = "shell.inetcache", Name = "Кэш интернета Windows (WinINet)", Category = CleanCategory.System, Tier = CleanTier.Safe,
+                Id = "shell.inetcache", Name = Loc.Key("Кэш интернета Windows (WinINet)"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true,
-                Description = "Кэш встроенного веб-движка Windows: справка, виджеты, режим Internet Explorer в Edge и старые программы. Удаляются файлы старше 7 дней.",
-                Effect = "Такие страницы один раз загрузятся заново. Открытые вложения Outlook (Content.Outlook) не затрагиваются.",
+                Description = Loc.Key("Кэш встроенного веб-движка Windows: справка, виджеты, режим Internet Explorer в Edge и старые программы. Удаляются файлы старше 7 дней."),
+                Effect = Loc.Key("Такие страницы один раз загрузятся заново. Открытые вложения Outlook (Content.Outlook) не затрагиваются."),
                 Targets = env => [new CleanTarget { Base = Path.Combine(env.LocalAppData, @"Microsoft\Windows\INetCache"), Label = "INetCache", MinAge = 7 * Day, Exclude = ["Content.Outlook"] }],
             },
             new()
             {
-                Id = "do.cache", Name = "Кэш оптимизации доставки", Category = CleanCategory.System, Tier = CleanTier.Safe,
+                Id = "do.cache", Name = Loc.Key("Кэш оптимизации доставки"), Category = CleanCategory.System, Tier = CleanTier.Safe,
                 DefaultChecked = true, RequiresAdmin = true, AlwaysShow = true, Method = CleanMethod.DeliveryOptimization,
-                Description = "Копии скачанных обновлений Windows и приложений Store, которые служба оптимизации доставки хранит для раздачи другим ПК. Удаляется штатной командой Delete-DeliveryOptimizationCache.",
-                Effect = "Другие компьютеры в сети не смогут получить эти файлы с вашего ПК. Закреплённые файлы сохраняются.",
+                Description = Loc.Key("Копии скачанных обновлений Windows и приложений Store, которые служба оптимизации доставки хранит для раздачи другим ПК. Удаляется штатной командой Delete-DeliveryOptimizationCache."),
+                Effect = Loc.Key("Другие компьютеры в сети не смогут получить эти файлы с вашего ПК. Закреплённые файлы сохраняются."),
             },
             new()
             {
-                Id = "wu.download", Name = "Загрузки Центра обновления", Category = CleanCategory.System, Tier = CleanTier.Optional,
+                Id = "wu.download", Name = Loc.Key("Загрузки Центра обновления"), Category = CleanCategory.System, Tier = CleanTier.Optional,
                 RequiresAdmin = true, AlwaysShow = true,
-                Description = "Пакеты, которые скачал Центр обновления Windows. Удаляются файлы старше 10 дней и только пока служба обновления остановлена.",
-                Effect = "Если обновление ещё не установлено, Windows скачает его заново. Службы обновления MONOLITH не останавливает.",
+                Description = Loc.Key("Пакеты, которые скачал Центр обновления Windows. Удаляются файлы старше 10 дней и только пока служба обновления остановлена."),
+                Effect = Loc.Key("Если обновление ещё не установлено, Windows скачает его заново. Службы обновления MONOLITH не останавливает."),
                 Blocker = WindowsUpdateBlocker,
                 Targets = env => [new CleanTarget { Base = Path.Combine(env.Windows, @"SoftwareDistribution\Download"), Label = "SoftwareDistribution\\Download", MinAge = 10 * Day, RequiresAdmin = true }],
             },
@@ -230,7 +238,7 @@ public static partial class CleanCatalog
         new("browser.opera", "Opera", "opera", [@"Opera Software\Opera Stable"], @"Opera Software\Opera Stable", PathExcludes: @"\Opera GX\"),
         new("browser.operagx", "Opera GX", "opera", [@"Opera Software\Opera GX Stable"], @"Opera Software\Opera GX Stable", PathContains: @"\Opera GX\"),
         new("browser.vivaldi", "Vivaldi", "vivaldi", [@"Vivaldi\User Data"]),
-        new("browser.yandex", "Яндекс Браузер", "browser", [@"Yandex\YandexBrowser\User Data"], PathContains: @"\Yandex\"),
+        new("browser.yandex", Loc.Key("Яндекс Браузер"), "browser", [@"Yandex\YandexBrowser\User Data"], PathContains: @"\Yandex\"),
     ];
 
     /// <summary>Per-profile cache folders (T0). Everything else in a profile is never touched.</summary>
@@ -245,9 +253,9 @@ public static partial class CleanCatalog
         {
             list.Add(new CleanDefinition
             {
-                Id = b.Id, Name = b.Name, Category = CleanCategory.Browsers, Tier = CleanTier.Safe, DefaultChecked = true, ProductName = b.Name,
-                Description = "Кэш страниц, скриптов и графики во всех профилях браузера. Пароли, cookies, история, вкладки, закладки и расширения не затрагиваются.",
-                Effect = $"Сайты один раз загрузятся чуть медленнее. {b.Name} должен быть закрыт, включая фоновый режим, — иначе пункт пропускается.",
+                Id = b.Id, Name = b.Name, Category = CleanCategory.Browsers, Tier = CleanTier.Safe, DefaultChecked = true, ProductName = Loc.T(b.Name),
+                Description = Loc.Key("Кэш страниц, скриптов и графики во всех профилях браузера. Пароли, cookies, история, вкладки, закладки и расширения не затрагиваются."),
+                Effect = Loc.Key("Сайты один раз загрузятся чуть медленнее. {0} должен быть закрыт, включая фоновый режим, — иначе пункт пропускается."), EffectArgs = [b.Name],
                 Targets = env => ChromiumTargets(env, b, serviceWorker: false),
             });
         }
@@ -256,17 +264,17 @@ public static partial class CleanCatalog
         {
             Id = "browser.firefox", Name = "Mozilla Firefox", Category = CleanCategory.Browsers, Tier = CleanTier.Safe, DefaultChecked = true,
             ProductName = "Mozilla Firefox",
-            Description = "Кэш страниц (cache2), кэш запуска и миниатюры во всех профилях Firefox. Пароли, cookies, история и сессии не затрагиваются.",
-            Effect = "Сайты один раз загрузятся чуть медленнее. Firefox должен быть закрыт — иначе пункт пропускается.",
+            Description = Loc.Key("Кэш страниц (cache2), кэш запуска и миниатюры во всех профилях Firefox. Пароли, cookies, история и сессии не затрагиваются."),
+            Effect = Loc.Key("Сайты один раз загрузятся чуть медленнее. Firefox должен быть закрыт — иначе пункт пропускается."),
             Targets = FirefoxTargets,
         });
 
         list.Add(new CleanDefinition
         {
-            Id = "browser.serviceworker", Name = "Офлайн-данные сайтов и отчёты о сбоях браузеров", Category = CleanCategory.Browsers,
+            Id = "browser.serviceworker", Name = Loc.Key("Офлайн-данные сайтов и отчёты о сбоях браузеров"), Category = CleanCategory.Browsers,
             Tier = CleanTier.Optional,
-            Description = "Кэш Service Worker (CacheStorage, ScriptCache) — офлайн-копии сайтов и веб-приложений — и отчёты о сбоях браузеров на Chromium.",
-            Effect = "Установленные веб-приложения и сайты, работающие офлайн, загрузятся заново и могут попросить войти ещё раз.",
+            Description = Loc.Key("Кэш Service Worker (CacheStorage, ScriptCache) — офлайн-копии сайтов и веб-приложений — и отчёты о сбоях браузеров на Chromium."),
+            Effect = Loc.Key("Установленные веб-приложения и сайты, работающие офлайн, загрузятся заново и могут попросить войти ещё раз."),
             Targets = env => ChromiumBrowsers.SelectMany(b => ChromiumTargets(env, b, serviceWorker: true)).ToList(),
         });
     }
@@ -286,7 +294,7 @@ public static partial class CleanCatalog
             var lockRoot = roaming ?? root;
             var owner = new AppOwner
             {
-                Name = b.Name, Processes = [b.Process], PathContains = b.PathContains, PathExcludes = b.PathExcludes,
+                Name = Loc.T(b.Name), Processes = [b.Process], PathContains = b.PathContains, PathExcludes = b.PathExcludes,
                 LockFiles = [Path.Combine(lockRoot, "lockfile")],
             };
 
@@ -307,7 +315,7 @@ public static partial class CleanCatalog
                     {
                         var dir = Path.Combine(profileDir, sub);
                         if (!Directory.Exists(dir)) continue;
-                        targets.Add(new CleanTarget { Base = dir, Label = $"{b.Name} · {(profile.Length == 0 ? "профиль" : profile)} · {sub}", Owner = owner });
+                        targets.Add(new CleanTarget { Base = dir, Label = Loc.Tf("{0} · {1} · {2}", Loc.T(b.Name), profile.Length == 0 ? Loc.T("профиль") : profile, sub), Owner = owner });
                     }
                 }
 
@@ -316,7 +324,7 @@ public static partial class CleanCatalog
                 {
                     var dir = Path.Combine(r, sub);
                     if (!Directory.Exists(dir)) continue;
-                    targets.Add(new CleanTarget { Base = dir, Label = $"{b.Name} · {sub}", Owner = owner });
+                    targets.Add(new CleanTarget { Base = dir, Label = Loc.Tf("{0} · {1}", Loc.T(b.Name), sub), Owner = owner });
                 }
             }
         }
@@ -373,8 +381,8 @@ public static partial class CleanCatalog
 
     // ═══════════════ ИГРЫ И ЛАУНЧЕРЫ ═══════════════
 
-    private const string ShaderStutter =
-        "Игры заново скомпилируют шейдеры: при первом запуске и в первые часы возможны фризы и статтеры (особенно DX12 и Unreal Engine). Имеет смысл только после обновления драйвера или при графических артефактах.";
+    private static readonly string ShaderStutter =
+        Loc.Key("Игры заново скомпилируют шейдеры: при первом запуске и в первые часы возможны фризы и статтеры (особенно DX12 и Unreal Engine). Имеет смысл только после обновления драйвера или при графических артефактах.");
 
     private static AppOwner SteamOwner() => new() { Name = "Steam", Processes = ["steam", "steamwebhelper"] };
 
@@ -382,16 +390,16 @@ public static partial class CleanCatalog
     {
         list.Add(new CleanDefinition
         {
-            Id = "gpu.d3d", Name = "Кэш шейдеров DirectX", Category = CleanCategory.Games, Tier = CleanTier.Optional,
-            Description = "Скомпилированные шейдеры игр и программ на DirectX (D3DSCache). Драйвер сам ограничивает размер этого кэша — это не мусор.",
+            Id = "gpu.d3d", Name = Loc.Key("Кэш шейдеров DirectX"), Category = CleanCategory.Games, Tier = CleanTier.Optional,
+            Description = Loc.Key("Скомпилированные шейдеры игр и программ на DirectX (D3DSCache). Драйвер сам ограничивает размер этого кэша — это не мусор."),
             Effect = ShaderStutter,
             Targets = env => [new CleanTarget { Base = Path.Combine(env.LocalAppData, "D3DSCache"), Label = "D3DSCache" }],
         });
         list.Add(new CleanDefinition
         {
-            Id = "gpu.nvidia", Name = "Кэш шейдеров NVIDIA", Category = CleanCategory.Games, Tier = CleanTier.Optional, ProductName = "NVIDIA",
-            Description = "Кэши шейдеров DirectX, OpenGL и CUDA драйвера NVIDIA (DXCache, GLCache, ComputeCache).",
-            Effect = ShaderStutter + " Размер кэша можно ограничить в панели управления NVIDIA или NVIDIA App.",
+            Id = "gpu.nvidia", Name = Loc.Key("Кэш шейдеров NVIDIA"), Category = CleanCategory.Games, Tier = CleanTier.Optional, ProductName = "NVIDIA",
+            Description = Loc.Key("Кэши шейдеров DirectX, OpenGL и CUDA драйвера NVIDIA (DXCache, GLCache, ComputeCache)."),
+            Effect = Loc.Key("Игры заново скомпилируют шейдеры: при первом запуске и в первые часы возможны фризы и статтеры (особенно DX12 и Unreal Engine). Имеет смысл только после обновления драйвера или при графических артефактах. Размер кэша можно ограничить в панели управления NVIDIA или NVIDIA App."),
             Targets = env =>
             [
                 new CleanTarget { Base = Path.Combine(env.LocalAppData, @"NVIDIA\DXCache"), Label = "NVIDIA · DXCache" },
@@ -405,9 +413,9 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "gpu.amd", Name = "Кэш шейдеров AMD", Category = CleanCategory.Games, Tier = CleanTier.Optional, ProductName = "AMD",
-            Description = "Кэши шейдеров DirectX, OpenGL и Vulkan драйвера AMD (DxCache, DxcCache, GLCache, VkCache).",
-            Effect = ShaderStutter + " Предпочтительный способ — AMD Adrenalin → Настройки → Графика → «Сбросить кэш шейдеров».",
+            Id = "gpu.amd", Name = Loc.Key("Кэш шейдеров AMD"), Category = CleanCategory.Games, Tier = CleanTier.Optional, ProductName = "AMD",
+            Description = Loc.Key("Кэши шейдеров DirectX, OpenGL и Vulkan драйвера AMD (DxCache, DxcCache, GLCache, VkCache)."),
+            Effect = Loc.Key("Игры заново скомпилируют шейдеры: при первом запуске и в первые часы возможны фризы и статтеры (особенно DX12 и Unreal Engine). Имеет смысл только после обновления драйвера или при графических артефактах. Предпочтительный способ — AMD Adrenalin → Настройки → Графика → «Сбросить кэш шейдеров»."),
             Targets = env => new[] { "DxCache", "DxcCache", "GLCache", "VkCache" }
                 .Select(d => new CleanTarget { Base = Path.Combine(env.LocalAppData, "AMD", d), Label = $"AMD · {d}" })
                 .ToList(),
@@ -415,10 +423,10 @@ public static partial class CleanCatalog
 
         list.Add(new CleanDefinition
         {
-            Id = "steam.htmlcache", Name = "Steam: кэш встроенного браузера", Category = CleanCategory.Games, Tier = CleanTier.Optional,
+            Id = "steam.htmlcache", Name = Loc.Key("Steam: кэш встроенного браузера"), Category = CleanCategory.Games, Tier = CleanTier.Optional,
             ProductName = "Steam",
-            Description = "Кэш магазина, сообщества и оверлея Steam — то же, что «Удалить данные веб-браузера» в настройках Steam.",
-            Effect = "Страницы магазина загрузятся заново; в магазине и оверлее может понадобиться войти ещё раз. Steam должен быть закрыт.",
+            Description = Loc.Key("Кэш магазина, сообщества и оверлея Steam — то же, что «Удалить данные веб-браузера» в настройках Steam."),
+            Effect = Loc.Key("Страницы магазина загрузятся заново; в магазине и оверлее может понадобиться войти ещё раз. Steam должен быть закрыт."),
             Targets = env =>
             {
                 var owner = SteamOwner();
@@ -429,10 +437,10 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "steam.misc", Name = "Steam: HTTP-кэш, журналы и дампы", Category = CleanCategory.Games, Tier = CleanTier.Optional,
+            Id = "steam.misc", Name = Loc.Key("Steam: HTTP-кэш, журналы и дампы"), Category = CleanCategory.Games, Tier = CleanTier.Optional,
             IsAvailable = env => env.SteamPath is not null,
-            Description = "Кэш загрузок клиента (appcache\\httpcache), журналы Steam и дампы его сбоев старше 30 дней. Обложки библиотеки (librarycache) не трогаются.",
-            Effect = "Steam один раз заново загрузит служебные данные. Steam должен быть закрыт.",
+            Description = Loc.Key("Кэш загрузок клиента (appcache\\httpcache), журналы Steam и дампы его сбоев старше 30 дней. Обложки библиотеки (librarycache) не трогаются."),
+            Effect = Loc.Key("Steam один раз заново загрузит служебные данные. Steam должен быть закрыт."),
             Targets = env =>
             {
                 if (env.SteamPath is not { } sp) return [];
@@ -447,10 +455,10 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "steam.shader.orphan", Name = "Steam: шейдеры удалённых игр", Category = CleanCategory.Games, Tier = CleanTier.Optional,
+            Id = "steam.shader.orphan", Name = Loc.Key("Steam: шейдеры удалённых игр"), Category = CleanCategory.Games, Tier = CleanTier.Optional,
             IsAvailable = env => env.SteamPath is not null,
-            Description = "Папки shadercache игр, которых больше нет в библиотеке Steam (нет файла appmanifest). Кэш установленных игр не трогается.",
-            Effect = "Побочных эффектов нет: если игру установить снова, Steam заново загрузит или соберёт её шейдеры. Steam должен быть закрыт.",
+            Description = Loc.Key("Папки shadercache игр, которых больше нет в библиотеке Steam (нет файла appmanifest). Кэш установленных игр не трогается."),
+            Effect = Loc.Key("Побочных эффектов нет: если игру установить снова, Steam заново загрузит или соберёт её шейдеры. Steam должен быть закрыт."),
             Targets = env =>
             {
                 if (env.SteamPath is not { } sp) return [];
@@ -474,10 +482,10 @@ public static partial class CleanCatalog
     {
         list.Add(new CleanDefinition
         {
-            Id = "discord.cache", Name = "Discord: кэш", Category = CleanCategory.Apps, Tier = CleanTier.Safe, DefaultChecked = true,
+            Id = "discord.cache", Name = Loc.Key("Discord: кэш"), Category = CleanCategory.Apps, Tier = CleanTier.Safe, DefaultChecked = true,
             ProductName = "Discord",
-            Description = "Кэш картинок, скриптов и графики Discord (обычная версия, PTB и Canary). Данные входа (Local Storage) и настройки не затрагиваются.",
-            Effect = "Аватары и вложения загрузятся заново. Discord должен быть закрыт, в том числе в области уведомлений, — иначе пункт пропускается.",
+            Description = Loc.Key("Кэш картинок, скриптов и графики Discord (обычная версия, PTB и Canary). Данные входа (Local Storage) и настройки не затрагиваются."),
+            Effect = Loc.Key("Аватары и вложения загрузятся заново. Discord должен быть закрыт, в том числе в области уведомлений, — иначе пункт пропускается."),
             Targets = env =>
             {
                 var t = new List<CleanTarget>();
@@ -492,10 +500,10 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "teams.cache", Name = "Microsoft Teams: кэш", Category = CleanCategory.Apps, Tier = CleanTier.Optional,
+            Id = "teams.cache", Name = Loc.Key("Microsoft Teams: кэш"), Category = CleanCategory.Apps, Tier = CleanTier.Optional,
             ProductName = "Microsoft Teams",
-            Description = "Кэш веб-интерфейса нового и классического Teams. Удаляются только папки кэша — настройки и вход сохраняются.",
-            Effect = "Первый запуск Teams после очистки будет медленнее. Teams должен быть закрыт.",
+            Description = Loc.Key("Кэш веб-интерфейса нового и классического Teams. Удаляются только папки кэша — настройки и вход сохраняются."),
+            Effect = Loc.Key("Первый запуск Teams после очистки будет медленнее. Teams должен быть закрыт."),
             Targets = env =>
             {
                 var t = new List<CleanTarget>();
@@ -512,18 +520,18 @@ public static partial class CleanCatalog
                         }
                 }
                 catch { }
-                var classicOwner = new AppOwner { Name = "Microsoft Teams (классический)", Processes = ["Teams"] };
+                var classicOwner = new AppOwner { Name = Loc.T("Microsoft Teams (классический)"), Processes = ["Teams"] };
                 foreach (var sub in new[] { "Cache", "GPUCache", "Code Cache" })
-                    t.Add(new CleanTarget { Base = Path.Combine(env.RoamingAppData, @"Microsoft\Teams", sub), Label = $"Teams (классический) · {sub}", Owner = classicOwner });
+                    t.Add(new CleanTarget { Base = Path.Combine(env.RoamingAppData, @"Microsoft\Teams", sub), Label = Loc.Tf("Teams (классический) · {0}", sub), Owner = classicOwner });
                 return t;
             },
         });
         list.Add(new CleanDefinition
         {
-            Id = "office.wef", Name = "Microsoft Office: кэш надстроек", Category = CleanCategory.Apps, Tier = CleanTier.Optional,
+            Id = "office.wef", Name = Loc.Key("Microsoft Office: кэш надстроек"), Category = CleanCategory.Apps, Tier = CleanTier.Optional,
             ProductName = "Microsoft Office",
-            Description = "Кэш веб-надстроек Office (Wef). Помогает, если надстройка не загружается или устарела. Кэш документов (OfficeFileCache) не затрагивается.",
-            Effect = "Надстройки загрузятся заново при следующем открытии Word, Excel или Outlook. Приложения Office должны быть закрыты.",
+            Description = Loc.Key("Кэш веб-надстроек Office (Wef). Помогает, если надстройка не загружается или устарела. Кэш документов (OfficeFileCache) не затрагивается."),
+            Effect = Loc.Key("Надстройки загрузятся заново при следующем открытии Word, Excel или Outlook. Приложения Office должны быть закрыты."),
             Targets = env =>
             [
                 new CleanTarget
@@ -535,15 +543,15 @@ public static partial class CleanCatalog
         });
 
         // Developer caches: hidden unless the tool exists; cleaned only by the tool's own command.
-        var buildOwner = new AppOwner { Name = "сборка .NET (dotnet / MSBuild)", Processes = ["dotnet", "MSBuild"] };
+        var buildOwner = new AppOwner { Name = Loc.T("сборка .NET (dotnet / MSBuild)"), Processes = ["dotnet", "MSBuild"] };
         var nodeOwner = new AppOwner { Name = "Node.js", Processes = ["node"] };
 
         list.Add(new CleanDefinition
         {
-            Id = "dev.nuget", Name = "NuGet: HTTP-кэш", Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
+            Id = "dev.nuget", Name = Loc.Key("NuGet: HTTP-кэш"), Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
             IsAvailable = env => env.DotnetPath is not null,
-            Description = "Кэш загрузок пакетов NuGet (v3-cache) и его временные файлы. Очищается штатной командой dotnet nuget locals.",
-            Effect = "Следующая сборка заново скачает метаданные пакетов. Глобальная папка пакетов (.nuget\\packages) не затрагивается. Во время сборки пункт пропускается.",
+            Description = Loc.Key("Кэш загрузок пакетов NuGet (v3-cache) и его временные файлы. Очищается штатной командой dotnet nuget locals."),
+            Effect = Loc.Key("Следующая сборка заново скачает метаданные пакетов. Глобальная папка пакетов (.nuget\\packages) не затрагивается. Во время сборки пункт пропускается."),
             ToolOwners = [buildOwner],
             Targets = env =>
             {
@@ -558,10 +566,10 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "dev.npm", Name = "npm: проверка кэша", Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
+            Id = "dev.npm", Name = Loc.Key("npm: проверка кэша"), Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
             IsAvailable = env => env.NpmPath is not null,
-            Description = "Кэш пакетов npm (_cacache). Команда npm cache verify удаляет повреждённые и ненужные данные, рабочий кэш остаётся.",
-            Effect = "Без побочных эффектов: что удалить, решает сам npm. Пока запущен Node.js, пункт пропускается.",
+            Description = Loc.Key("Кэш пакетов npm (_cacache). Команда npm cache verify удаляет повреждённые и ненужные данные, рабочий кэш остаётся."),
+            Effect = Loc.Key("Без побочных эффектов: что удалить, решает сам npm. Пока запущен Node.js, пункт пропускается."),
             ToolOwners = [nodeOwner],
             Targets = env =>
             {
@@ -576,10 +584,10 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "dev.yarn", Name = "Yarn: кэш пакетов", Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
+            Id = "dev.yarn", Name = Loc.Key("Yarn: кэш пакетов"), Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
             IsAvailable = env => env.YarnPath is not null,
-            Description = "Кэш скачанных пакетов Yarn. Очищается командой yarn cache clean.",
-            Effect = "Следующая установка зависимостей скачает пакеты заново. Пока запущен Node.js, пункт пропускается.",
+            Description = Loc.Key("Кэш скачанных пакетов Yarn. Очищается командой yarn cache clean."),
+            Effect = Loc.Key("Следующая установка зависимостей скачает пакеты заново. Пока запущен Node.js, пункт пропускается."),
             ToolOwners = [nodeOwner],
             Targets = env => [new CleanTarget { Base = Path.Combine(env.LocalAppData, @"Yarn\Cache"), Label = "Yarn · Cache" }],
             Commands = env => env.YarnPath is not { } yarn ? [] :
@@ -589,10 +597,10 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "dev.pip", Name = "pip: кэш пакетов Python", Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
+            Id = "dev.pip", Name = Loc.Key("pip: кэш пакетов Python"), Category = CleanCategory.Apps, Tier = CleanTier.Optional, Method = CleanMethod.Tools,
             IsAvailable = env => env.Pip is not null,
-            Description = "Кэш скачанных пакетов Python. Очищается командой pip cache purge.",
-            Effect = "Повторная установка пакетов скачает их заново.",
+            Description = Loc.Key("Кэш скачанных пакетов Python. Очищается командой pip cache purge."),
+            Effect = Loc.Key("Повторная установка пакетов скачает их заново."),
             ToolOwners = [new AppOwner { Name = "pip", Processes = ["pip", "pip3"] }],
             Targets = env =>
             {
@@ -618,16 +626,16 @@ public static partial class CleanCatalog
     {
         list.Add(new CleanDefinition
         {
-            Id = "recyclebin", Name = "Корзина", Category = CleanCategory.Extra, Tier = CleanTier.Optional, AlwaysShow = true,
+            Id = "recyclebin", Name = Loc.Key("Корзина"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, AlwaysShow = true,
             Method = CleanMethod.RecycleBin,
-            Description = "Файлы, которые вы удалили в корзину, на всех дисках.",
-            Effect = "После очистки вернуть эти файлы будет нельзя. Перед удалением MONOLITH покажет число объектов и их размер.",
+            Description = Loc.Key("Файлы, которые вы удалили в корзину, на всех дисках."),
+            Effect = Loc.Key("После очистки вернуть эти файлы будет нельзя. Перед удалением MONOLITH покажет число объектов и их размер."),
         });
         list.Add(new CleanDefinition
         {
-            Id = "logs.cbs", Name = "Архивы журналов CBS и DISM", Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
-            Description = "Старые архивы журналов обслуживания Windows (CbsPersist_*) и журнал DISM, если он больше 50 МБ. Текущий CBS.log не трогается.",
-            Effect = "Пропадёт история проверок SFC и DISM старше 30 дней.",
+            Id = "logs.cbs", Name = Loc.Key("Архивы журналов CBS и DISM"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
+            Description = Loc.Key("Старые архивы журналов обслуживания Windows (CbsPersist_*) и журнал DISM, если он больше 50 МБ. Текущий CBS.log не трогается."),
+            Effect = Loc.Key("Пропадёт история проверок SFC и DISM старше 30 дней."),
             Blocker = ServicingBlocker,
             Targets = env =>
             [
@@ -637,9 +645,9 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "logs.windows", Name = "Журналы установки и обновления Windows", Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
-            Description = "Журналы сетевой настройки (NetSetup), установки обновлений (MoSetup, WindowsUpdate) и службы восстановления Центра обновления старше 30 дней. MeasuredBoot и WinREAgent не трогаются.",
-            Effect = "Сложнее будет разобраться в давней ошибке установки обновлений.",
+            Id = "logs.windows", Name = Loc.Key("Журналы установки и обновления Windows"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
+            Description = Loc.Key("Журналы сетевой настройки (NetSetup), установки обновлений (MoSetup, WindowsUpdate) и службы восстановления Центра обновления старше 30 дней. MeasuredBoot и WinREAgent не трогаются."),
+            Effect = Loc.Key("Сложнее будет разобраться в давней ошибке установки обновлений."),
             Blocker = ServicingBlocker,
             Targets = env =>
             [
@@ -651,9 +659,9 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "logs.setupapi", Name = "Архивы журналов SetupAPI", Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
-            Description = "Старые ротированные архивы журнала установки устройств (setupapi.*.ГГГГММДД_ЧЧММСС.log). Текущие журналы остаются.",
-            Effect = "Пропадёт история установки драйверов старше 30 дней.",
+            Id = "logs.setupapi", Name = Loc.Key("Архивы журналов SetupAPI"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
+            Description = Loc.Key("Старые ротированные архивы журнала установки устройств (setupapi.*.ГГГГММДД_ЧЧММСС.log). Текущие журналы остаются."),
+            Effect = Loc.Key("Пропадёт история установки драйверов старше 30 дней."),
             Blocker = ServicingBlocker,
             Targets = env =>
             [
@@ -662,9 +670,9 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "dump.memory", Name = "Полный дамп памяти (MEMORY.DMP)", Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
-            Description = "Файл, который Windows записывает при синем экране (BSOD). Может занимать несколько гигабайт и содержит данные из оперативной памяти. Удаляется, только если ему больше 14 дней.",
-            Effect = "Причину того синего экрана больше нельзя будет проанализировать.",
+            Id = "dump.memory", Name = Loc.Key("Полный дамп памяти (MEMORY.DMP)"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
+            Description = Loc.Key("Файл, который Windows записывает при синем экране (BSOD). Может занимать несколько гигабайт и содержит данные из оперативной памяти. Удаляется, только если ему больше 14 дней."),
+            Effect = Loc.Key("Причину того синего экрана больше нельзя будет проанализировать."),
             Targets = env =>
             {
                 var file = PathGuard.Normalize(env.MemoryDumpFile);
@@ -674,16 +682,16 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "dump.mini", Name = "Мини-дампы синих экранов", Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
-            Description = "Небольшие дампы ошибок BSOD старше 30 дней. Пять самых новых сохраняются всегда.",
-            Effect = "Пропадут доказательства старых сбоев — если вы разбираетесь с синими экранами, не удаляйте.",
+            Id = "dump.mini", Name = Loc.Key("Мини-дампы синих экранов"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
+            Description = Loc.Key("Небольшие дампы ошибок BSOD старше 30 дней. Пять самых новых сохраняются всегда."),
+            Effect = Loc.Key("Пропадут доказательства старых сбоев — если вы разбираетесь с синими экранами, не удаляйте."),
             Targets = env => [new CleanTarget { Base = env.MinidumpDir, Label = "Minidump", Patterns = ["*.dmp"], Recurse = false, MinAge = 30 * Day, KeepNewest = 5, RequiresAdmin = true }],
         });
         list.Add(new CleanDefinition
         {
-            Id = "dump.livekernel", Name = "Отчёты ядра (LiveKernelReports)", Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
-            Description = "Дампы зависаний драйверов старше 30 дней: WATCHDOG — сбросы видеодрайвера (TDR), USBHUB3, NDIS. Часто занимают гигабайты.",
-            Effect = "Это главное доказательство проблем видеокарты, в том числе вылетов драйвера на RTX 50. Если вы разбираетесь со сбоями GPU — не удаляйте.",
+            Id = "dump.livekernel", Name = Loc.Key("Отчёты ядра (LiveKernelReports)"), Category = CleanCategory.Extra, Tier = CleanTier.Optional, RequiresAdmin = true,
+            Description = Loc.Key("Дампы зависаний драйверов старше 30 дней: WATCHDOG — сбросы видеодрайвера (TDR), USBHUB3, NDIS. Часто занимают гигабайты."),
+            Effect = Loc.Key("Это главное доказательство проблем видеокарты, в том числе вылетов драйвера на RTX 50. Если вы разбираетесь со сбоями GPU — не удаляйте."),
             Targets = env =>
             [
                 new CleanTarget { Base = Path.Combine(env.Windows, "LiveKernelReports"), Label = "LiveKernelReports", Patterns = ["*.dmp"], MinAge = 30 * Day, RequiresAdmin = true },
@@ -692,17 +700,17 @@ public static partial class CleanCatalog
         });
         list.Add(new CleanDefinition
         {
-            Id = "dump.user", Name = "Дампы сбоев приложений", Category = CleanCategory.Extra, Tier = CleanTier.Optional,
-            Description = "Дампы памяти упавших программ старше 30 дней, которые сохраняет служба отчётов об ошибках Windows.",
-            Effect = "Разработчики программ не смогут разобрать старые сбои по этим файлам.",
+            Id = "dump.user", Name = Loc.Key("Дампы сбоев приложений"), Category = CleanCategory.Extra, Tier = CleanTier.Optional,
+            Description = Loc.Key("Дампы памяти упавших программ старше 30 дней, которые сохраняет служба отчётов об ошибках Windows."),
+            Effect = Loc.Key("Разработчики программ не смогут разобрать старые сбои по этим файлам."),
             Targets = env => [new CleanTarget { Base = Path.Combine(env.LocalAppData, "CrashDumps"), Label = "CrashDumps", Patterns = ["*.dmp"], Recurse = false, MinAge = 30 * Day }],
         });
         list.Add(new CleanDefinition
         {
-            Id = "wu.cbs", Name = "Очистка хранилища компонентов (WinSxS)", Category = CleanCategory.Extra, Tier = CleanTier.Expert,
+            Id = "wu.cbs", Name = Loc.Key("Очистка хранилища компонентов (WinSxS)"), Category = CleanCategory.Extra, Tier = CleanTier.Expert,
             RequiresAdmin = true, IsLong = true, AlwaysShow = true, Method = CleanMethod.ComponentStore,
-            Description = "Штатная очистка DISM: сначала /AnalyzeComponentStore проверяет, нужна ли она, затем /StartComponentCleanup удаляет версии компонентов, заменённые обновлениями. Режим /ResetBase не используется.",
-            Effect = "Безопасно, но необратимо: старые версии удаляются сразу, без 30-дневного ожидания. Занимает от нескольких минут до часа и сильно нагружает диск — не запускайте во время игры.",
+            Description = Loc.Key("Штатная очистка DISM: сначала /AnalyzeComponentStore проверяет, нужна ли она, затем /StartComponentCleanup удаляет версии компонентов, заменённые обновлениями. Режим /ResetBase не используется."),
+            Effect = Loc.Key("Безопасно, но необратимо: старые версии удаляются сразу, без 30-дневного ожидания. Занимает от нескольких минут до часа и сильно нагружает диск — не запускайте во время игры."),
             Blocker = ServicingBlocker,
         });
     }

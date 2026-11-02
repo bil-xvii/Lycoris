@@ -23,8 +23,8 @@ public sealed partial class MaintenanceViewModel : PageViewModel
 
     public override string Key => "maintenance";
     public override string Index => "05";
-    public override string Title => "ОБСЛУЖИВАНИЕ";
-    public override string Subtitle => "Очистка диска, проверка и восстановление Windows.";
+    public override string Title => Loc.T("ОБСЛУЖИВАНИЕ");
+    public override string Subtitle => Loc.T("Очистка диска, проверка и восстановление Windows.");
     public override string Glyph => Glyphs.Repair;
 
     public CleanerViewModel Cleaner { get; }

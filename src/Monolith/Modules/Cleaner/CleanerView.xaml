@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:ui="clr-namespace:Monolith.UI"
+             xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Cleaner"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:CleanerViewModel}">
     <UserControl.Resources>
@@ -52,7 +53,7 @@
                         </Grid.ColumnDefinitions>
 
                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Top"
-                                  Margin="0,1,12,0" ToolTip="Включить в очистку" />
+                                  Margin="0,1,12,0" ToolTip="{loc:T 'Включить в очистку'}" />
 
                         <StackPanel Grid.Column="1" MaxWidth="820" HorizontalAlignment="Left">
                             <WrapPanel Orientation="Horizontal">
@@ -72,7 +73,7 @@
                                     <TextBlock Text="{Binding CloseAppTag}" />
                                 </Border>
                                 <Border Style="{StaticResource Tag.Muted}" Margin="0,2,6,2" Visibility="{Binding IsLong, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="ДОЛГО" />
+                                    <TextBlock Text="{loc:T ДОЛГО}" />
                                 </Border>
                             </WrapPanel>
                             <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,7,0,0" />
@@ -111,10 +112,10 @@
                             <Button Style="{StaticResource Btn}" Margin="0,8,0,0" HorizontalAlignment="Right"
                                     Command="{Binding DataContext.GetRightsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     Visibility="{Binding NeedsRights, Converter={StaticResource BoolToVis}}"
-                                    ToolTip="MONOLITH перезапустится с правами администратора и продолжит очистку — перед удалением снова покажет список.">
+                                    ToolTip="{loc:T 'MONOLITH перезапустится с правами администратора и продолжит очистку — перед удалением снова покажет список.'}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Admin}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="ПОЛУЧИТЬ ПРАВА" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'ПОЛУЧИТЬ ПРАВА'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -144,21 +145,21 @@
                             Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="ОТМЕНА" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T ОТМЕНА}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Margin="0,0,0,0" Command="{Binding ResetSelectionCommand}"
-                            ToolTip="Вернуть рекомендуемый набор пунктов">
+                            ToolTip="{loc:T 'Вернуть рекомендуемый набор пунктов'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="РЕКОМЕНДУЕМЫЙ НАБОР" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T 'РЕКОМЕНДУЕМЫЙ НАБОР'}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
             </c:PageHeader.Actions>
             <c:PageHeader.Primary>
                 <Button Style="{StaticResource Btn.Primary}" Command="{Binding CleanCommand}"
-                        ToolTip="Удалить отмеченное — после подтверждения со списком. Если анализ устарел, он выполнится заново.">
+                        ToolTip="{loc:T 'Удалить отмеченное — после подтверждения со списком. Если анализ устарел, он выполнится заново.'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
                         <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
@@ -181,7 +182,7 @@
                             </Grid.ColumnDefinitions>
                             <Border Padding="16,14,14,12" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
                                 <StackPanel>
-                                    <TextBlock Text="НАЙДЕНО" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T НАЙДЕНО}" Style="{StaticResource T.Label}" />
                                     <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                         <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" />
                                         <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
@@ -192,7 +193,7 @@
                             <!-- Emphasis without white fill (white = clickable only): a raised plate with a white edge -->
                             <Border Grid.Column="1" Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.White}" BorderThickness="0,2,0,0" Padding="16,12,14,12">
                                 <StackPanel>
-                                    <TextBlock Text="К ОЧИСТКЕ" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                    <TextBlock Text="{loc:T 'К ОЧИСТКЕ'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                     <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                         <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" />
                                         <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
@@ -203,7 +204,7 @@
                             </Border>
                             <Border Grid.Column="2" Padding="16,14,14,12" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
                                 <StackPanel>
-                                    <TextBlock Text="ОСВОБОЖДЕНО" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T ОСВОБОЖДЕНО}" Style="{StaticResource T.Label}" />
                                     <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                         <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" />
                                         <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
@@ -264,7 +265,7 @@
                         <DataTemplate DataType="{x:Type local:DriveCard}">
                             <Border Style="{StaticResource Card}" Padding="14,10,14,11" Margin="0,0,10,0">
                                 <StackPanel>
-                                    <TextBlock Text="СВОБОДНОЕ МЕСТО" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T 'СВОБОДНОЕ МЕСТО'}" Style="{StaticResource T.Label}" />
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -302,7 +303,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Sync}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center"
                                            Foreground="{StaticResource B.Text}" Margin="0,0,10,0" />
-                                <TextBlock Text="Windows выполняет обслуживание" Style="{StaticResource T.H3}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T 'Windows выполняет обслуживание'}" Style="{StaticResource T.H3}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Text="{Binding ServicingText}" Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,6,0,0" />
                         </StackPanel>
@@ -344,7 +345,7 @@
                 <!-- ═══════════════ Bottom: what is never deleted (secondary text only) ═══════════════ -->
                 <Expander Margin="0,22,0,0">
                     <Expander.Header>
-                        <TextBlock Text="ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{loc:T 'ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ'}" Style="{StaticResource T.Label}" />
                     </Expander.Header>
                     <ItemsControl ItemsSource="{Binding NeverTouched}" Focusable="False">
                         <ItemsControl.ItemsPanel>

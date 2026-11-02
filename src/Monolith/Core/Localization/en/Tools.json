@@ -1,0 +1,9 @@
+{
+  "area": "Tools",
+  "translated": false,
+  "sources": [
+    "Modules/Tools/**"
+  ],
+  "ignore": [],
+  "en": {}
+}

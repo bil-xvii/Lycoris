@@ -220,17 +220,17 @@ public sealed class PathGuard
 
     public static string Describe(GuardVerdict verdict) => verdict switch
     {
-        GuardVerdict.Ok => "ок",
-        GuardVerdict.Empty => "путь не задан",
-        GuardVerdict.NotAbsolute => "путь не абсолютный",
-        GuardVerdict.Network => "сетевой путь",
-        GuardVerdict.DriveRoot => "корень диска",
-        GuardVerdict.ProtectedFolder => "защищённая папка",
-        GuardVerdict.NoTouchArea => "защищённая область",
-        GuardVerdict.Missing => "папка не найдена",
-        GuardVerdict.NotDirectory => "это не папка",
-        GuardVerdict.ReparsePoint => "путь проходит через ссылку (junction / symlink)",
-        GuardVerdict.Inaccessible => "нет доступа",
+        GuardVerdict.Ok => Loc.T("ок"),
+        GuardVerdict.Empty => Loc.T("путь не задан"),
+        GuardVerdict.NotAbsolute => Loc.T("путь не абсолютный"),
+        GuardVerdict.Network => Loc.T("сетевой путь"),
+        GuardVerdict.DriveRoot => Loc.T("корень диска"),
+        GuardVerdict.ProtectedFolder => Loc.T("защищённая папка"),
+        GuardVerdict.NoTouchArea => Loc.T("защищённая область"),
+        GuardVerdict.Missing => Loc.T("папка не найдена"),
+        GuardVerdict.NotDirectory => Loc.T("это не папка"),
+        GuardVerdict.ReparsePoint => Loc.T("путь проходит через ссылку (junction / symlink)"),
+        GuardVerdict.Inaccessible => Loc.T("нет доступа"),
         _ => verdict.ToString(),
     };
 
