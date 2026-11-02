@@ -18,6 +18,7 @@ public sealed partial class DashboardViewModel : PageViewModel
     private static readonly TimeSpan RecheckAfter = TimeSpan.FromMinutes(2);
 
     private readonly LiveMonitor _monitor = new();
+    private bool _firstSample;
     private DateTime _lastCheck = DateTime.MinValue;
     private bool _checking;
     private SystemRow? _uptimeRow;
@@ -113,7 +114,17 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     public override void Deactivate() => _monitor.Stop();
 
-    private void StartMonitor()
+    // A minimized window shows nothing: stop PDH/D3DKMT polling until it is restored (a first load still running is not disturbed).
+    public override void SuspendForMinimize() => _monitor.Stop();
+
+    public override void ResumeFromMinimize()
+    {
+        if (IsLoaded) StartMonitor();
+    }
+
+    internal bool IsMonitorRunning => _monitor.IsRunning;
+
+    internal void StartMonitor()
     {
         var ms = Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000);
         IntervalText = Loc.Tf("ОПРОС {0} С", (ms / 1000d).ToString(ms % 1000 == 0 ? "0" : "0.0#", Loc.Culture));
@@ -122,6 +133,7 @@ public sealed partial class DashboardViewModel : PageViewModel
 
     private void Apply(MonitorSample s)
     {
+        if (!_firstSample) { _firstSample = true; StartupTiming.Mark("dashboard first monitor sample"); }
         CpuText = DashFormat.Percent(s.CpuPercent);
         CpuLoad = s.CpuPercent ?? 0;
         CpuClockText = DashFormat.Clock(s.CpuMhz);
@@ -223,6 +235,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         CpuCoresText = CoresThreads(profile.CpuCores, profile.CpuThreads);
         GpuName = profile.PrimaryGpu?.Name ?? "";
 
+        StartupTiming.Mark("dashboard checks done");
         if (WarningCount > 0) Log.Info("Панель: оценка {0}/100, проблем: {1}.", Score, WarningCount);
         else Log.Success("Панель: оценка {0}/100, проблем не найдено.", Score);
     }

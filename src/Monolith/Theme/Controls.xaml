@@ -778,21 +778,26 @@
                         </Grid>
                     </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsIndeterminate" Value="True">
+                        <!-- The slide animation runs only while the bar is really visible: a collapsed indeterminate bar kept the WPF render loop at full frame rate (perf-2026-11) -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsIndeterminate" Value="True" />
+                                <Condition Property="IsVisible" Value="True" />
+                            </MultiTrigger.Conditions>
                             <Setter TargetName="Fill" Property="Visibility" Value="Collapsed" />
                             <Setter TargetName="Animation" Property="Visibility" Value="Visible" />
                             <Setter TargetName="PART_Indicator" Property="HorizontalAlignment" Value="Stretch" />
-                            <Trigger.EnterActions>
+                            <MultiTrigger.EnterActions>
                                 <BeginStoryboard x:Name="Run">
                                     <Storyboard RepeatBehavior="Forever">
                                         <DoubleAnimation Storyboard.TargetName="Slide" Storyboard.TargetProperty="X" From="-120" To="1400" Duration="0:0:1.4" />
                                     </Storyboard>
                                 </BeginStoryboard>
-                            </Trigger.EnterActions>
-                            <Trigger.ExitActions>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
                                 <StopStoryboard BeginStoryboardName="Run" />
-                            </Trigger.ExitActions>
-                        </Trigger>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

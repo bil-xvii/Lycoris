@@ -56,6 +56,7 @@ public partial class MainWindow : Window
         };
     }
 
+    private bool _wasMinimized;
     private bool _exitConfirmed;
 
     /// <summary>
@@ -111,6 +112,10 @@ public partial class MainWindow : Window
 
     private void ApplyWindowState()
     {
+        // Minimized: stop live polling of the current page; restored: start it again.
+        if (WindowState == WindowState.Minimized) _vm.CurrentPage?.SuspendForMinimize();
+        else if (_wasMinimized) _vm.CurrentPage?.ResumeFromMinimize();
+        _wasMinimized = WindowState == WindowState.Minimized;
         if (WindowState == WindowState.Maximized)
         {
             // A chrome-less window overflows the screen by the resize border when maximized.
