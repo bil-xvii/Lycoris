@@ -3,6 +3,7 @@ using System.ServiceProcess;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Monolith.Core;
+using Monolith.Modules.Startup;
 using Monolith.UI;
 
 namespace Monolith.Modules.Services;
@@ -141,12 +142,29 @@ public sealed partial class ServicesViewModel
         SelectedRecommendationCount = items.Count(i => i.IsSelected && i.IsSelectable);
     }
 
-    private bool CanApplyRecommendations() => !IsBusy && CanModify && SelectedRecommendationCount > 0;
+    // A replayed intent carries the checked service names (IntentList) — they are re-checked before the confirmation.
+    private bool CanApplyRecommendations(string? names) => !IsBusy && CanModify && (names is not null || SelectedRecommendationCount > 0);
+
+    private string? SelectedRecommendationNames() => IntentList.Pack(_recByName.Values.Where(i => i.IsSelected && i.CanSelect).Select(i => i.Name));
 
     [RelayCommand(CanExecute = nameof(CanApplyRecommendations))]
-    private async Task ApplyRecommendationsAsync()
+    private async Task ApplyRecommendationsAsync(string? names)
     {
-        if (!RequireAdmin("изменение служб")) return;
+        if (!RequireAdmin("изменение служб", "ApplyRecommendations", SelectedRecommendationNames())) return;
+        if (IntentList.Unpack(names) is { Count: > 0 } replayed)
+        {
+            var set = replayed.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            _bulkSelect = true;
+            try
+            {
+                foreach (var i in _recByName.Values) i.IsSelected = set.Contains(i.Name) && i.IsSelectable;
+            }
+            finally
+            {
+                _bulkSelect = false;
+            }
+            UpdateRecommendationStats();
+        }
         var selected = _recByName.Values.Where(i => i.IsSelected && i.CanSelect).ToList();
         if (selected.Count == 0) return;
 
@@ -213,7 +231,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanRowAction))]
     private async Task RevertServiceAsync(string? name)
     {
-        if (string.IsNullOrEmpty(name) || !RequireAdmin("откат изменения службы")) return;
+        if (string.IsNullOrEmpty(name) || !RequireAdmin("откат изменения службы", "RevertService", name)) return;
         // The row means «back to how it was before MONOLITH»: every active change of this service, newest first.
         var layers = ChangeJournal.Instance.ActiveLayers("svc:" + name);
         var record = layers.LastOrDefault();
