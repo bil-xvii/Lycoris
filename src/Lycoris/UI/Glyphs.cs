@@ -4,6 +4,7 @@ namespace Lycoris.UI;
 public static class Glyphs
 {
     public const string Home = "";
+    public const string Battery = "";
     public const string Bolt = "";
     public const string Game = "";
     public const string Delete = "";
