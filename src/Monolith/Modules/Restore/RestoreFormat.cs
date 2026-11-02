@@ -18,22 +18,21 @@ public sealed record JournalGroup(ChangeBatch Batch, IReadOnlyList<ChangeRecord>
 /// <summary>Pure helpers for the undo center: grouping, filtering and Russian labels.</summary>
 public static class RestoreFormat
 {
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
-
+    
     public static string KindLabel(ChangeKind kind) => kind switch
     {
-        ChangeKind.Registry => "РЕЕСТР",
-        ChangeKind.Service => "СЛУЖБА",
-        ChangeKind.PowerScheme => "ПИТАНИЕ",
-        ChangeKind.ScheduledTask => "ЗАДАЧА",
-        ChangeKind.Command => "КОМАНДА",
-        ChangeKind.UserParameter => "ПАРАМЕТР",
-        ChangeKind.DisplayMode => "ЭКРАН",
+        ChangeKind.Registry => Loc.T("РЕЕСТР"),
+        ChangeKind.Service => Loc.T("СЛУЖБА"),
+        ChangeKind.PowerScheme => Loc.T("ПИТАНИЕ"),
+        ChangeKind.ScheduledTask => Loc.T("ЗАДАЧА"),
+        ChangeKind.Command => Loc.T("КОМАНДА"),
+        ChangeKind.UserParameter => Loc.T("ПАРАМЕТР"),
+        ChangeKind.DisplayMode => Loc.T("ЭКРАН"),
         ChangeKind.DisplayHdr => "HDR",
-        ChangeKind.MonitorSetting => "МОНИТОР",
-        ChangeKind.AudioLevel => "ЗВУК",
-        ChangeKind.NicProperty => "СЕТЬ",
-        _ => "ИЗМЕНЕНИЕ",
+        ChangeKind.MonitorSetting => Loc.T("МОНИТОР"),
+        ChangeKind.AudioLevel => Loc.T("ЗВУК"),
+        ChangeKind.NicProperty => Loc.T("СЕТЬ"),
+        _ => Loc.T("ИЗМЕНЕНИЕ"),
     };
 
     /// <summary>"reg:HKCU\…\Name" → "HKCU\…\Name", "svc:DiagTrack" → "DiagTrack", "power:active" → "Активная схема питания".</summary>
@@ -48,8 +47,8 @@ public static class RestoreFormat
         return prefix switch
         {
             "reg" or "svc" or "task" or "cmd" => rest.Length == 0 ? target : rest,
-            "power" when rest.Equals("active", StringComparison.OrdinalIgnoreCase) => "Активная схема питания",
-            "power" => "Схема питания " + rest,
+            "power" when rest.Equals("active", StringComparison.OrdinalIgnoreCase) => Loc.T("Активная схема питания"),
+            "power" => Loc.Tf("Схема питания {0}", rest),
             _ => target,
         };
     }
@@ -59,28 +58,29 @@ public static class RestoreFormat
 
     public static string StatusText(ChangeRecord r) => StateOf(r) switch
     {
-        RecordState.Reverted => r.RevertedUtc is { } t ? $"ОТКАЧЕНО {t.ToLocalTime().ToString("dd.MM HH:mm", Ru)}" : "ОТКАЧЕНО",
-        RecordState.Failed => "ОШИБКА ОТКАТА",
-        _ => "ИЗМЕНЕНО MONOLITH",
+        RecordState.Reverted => r.RevertedUtc is { } t ? Loc.Tf("ОТКАЧЕНО {0}", Loc.IsEnglish ? t.ToLocalTime().ToString("MMM d HH:mm", Loc.Culture) : t.ToLocalTime().ToString("dd.MM HH:mm", Loc.Culture)) : Loc.T("ОТКАЧЕНО"),
+        RecordState.Failed => Loc.T("ОШИБКА ОТКАТА"),
+        _ => Loc.T("ИЗМЕНЕНО MONOLITH"),
     };
 
     /// <summary>Core writes exactly "Точка восстановления создана (…)." on success and other wording otherwise.</summary>
     public static bool IsRestorePointCreated(string? message) =>
-        message?.TrimStart().StartsWith("Точка восстановления создана", StringComparison.OrdinalIgnoreCase) == true;
+        message?.TrimStart().StartsWith("Точка восстановления создана", StringComparison.OrdinalIgnoreCase) == true // loc:ignore text written by Core
+        || message?.TrimStart().StartsWith("Restore point created", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>SystemRestore.RestorePointType (SRRESTOREPTAPI) → short Russian label.</summary>
     public static string RestorePointTypeLabel(uint type) => type switch
     {
-        0 => "УСТАНОВКА ПРОГРАММЫ",
-        1 => "УДАЛЕНИЕ ПРОГРАММЫ",
-        6 => "ВОССТАНОВЛЕНИЕ",
-        7 => "СИСТЕМНАЯ",
-        10 => "УСТАНОВКА ДРАЙВЕРА",
-        12 => "ИЗМЕНЕНИЕ НАСТРОЕК",
-        13 => "ОТМЕНЁННАЯ ОПЕРАЦИЯ",
-        14 => "РЕЗЕРВНОЕ КОПИРОВАНИЕ",
-        18 => "ОБНОВЛЕНИЕ WINDOWS",
-        _ => $"ТИП {type}",
+        0 => Loc.T("УСТАНОВКА ПРОГРАММЫ"),
+        1 => Loc.T("УДАЛЕНИЕ ПРОГРАММЫ"),
+        6 => Loc.T("ВОССТАНОВЛЕНИЕ"),
+        7 => Loc.T("СИСТЕМНАЯ"),
+        10 => Loc.T("УСТАНОВКА ДРАЙВЕРА"),
+        12 => Loc.T("ИЗМЕНЕНИЕ НАСТРОЕК"),
+        13 => Loc.T("ОТМЕНЁННАЯ ОПЕРАЦИЯ"),
+        14 => Loc.T("РЕЗЕРВНОЕ КОПИРОВАНИЕ"),
+        18 => Loc.T("ОБНОВЛЕНИЕ WINDOWS"),
+        _ => Loc.Tf("ТИП {0}", type),
     };
 
     public static bool IsMonolithPoint(string? description) =>
@@ -102,7 +102,7 @@ public static class RestoreFormat
                              .ToDictionary(g => g.Key, g => g.OrderBy(r => r.TimestampUtc).ToList());
 
         if (byBatch.TryGetValue(Guid.Empty, out var orphans) && orphans.Count > 0)
-            batchList.Add(new ChangeBatch { Id = Guid.Empty, Title = "Изменения без пакета", TimestampUtc = orphans.Max(r => r.TimestampUtc) });
+            batchList.Add(new ChangeBatch { Id = Guid.Empty, Title = Loc.T("Изменения без пакета"), TimestampUtc = orphans.Max(r => r.TimestampUtc) });
 
         var result = new List<JournalGroup>();
         foreach (var b in batchList.OrderByDescending(b => b.TimestampUtc))
@@ -150,8 +150,8 @@ public static class RestoreFormat
     /// What a revert put back: «Возвращено значений: N.», plus the records handed over to a later change, which left the
     /// system as it was (<see cref="RevertResult.HandedOver"/>).
     /// </summary>
-    public static string RevertCounts(RevertResult r, string returned = "Возвращено значений") =>
-        $"{returned}: {r.Restored}." + (r.HandedOver > 0 ? $" Оставлено действующим более позднее изменение: {r.HandedOver}." : "");
+    public static string RevertCounts(RevertResult r, string? returned = null) =>
+        Loc.Tf("{0}: {1}.", returned ?? Loc.T("Возвращено значений"), r.Restored) + (r.HandedOver > 0 ? Loc.Tf(" Оставлено действующим более позднее изменение: {0}.", r.HandedOver) : "");
 
     /// <summary>
     /// Why a revert left records active on purpose (<see cref="RevertResult.Left"/>, or the records a bulk revert skips),
@@ -165,14 +165,14 @@ public static class RestoreFormat
         var others = list.Where(r => ChangeJournal.IsOtherUser(r, currentSid)).ToList();
         var legacy = list.Count(r => !ChangeJournal.IsOtherUser(r, currentSid) && r.IsLegacyPerUser);
         if (legacy > 0)
-            parts.Add($"{legacy} {Plural(legacy, "изменение сделано", "изменения сделаны", "изменений сделано")} старой версией MONOLITH " +
-                      $"для неизвестной учётной записи — откатите {(legacy == 1 ? "его" : "их")} по одной в журнале, войдя под той учётной записью.");
+            parts.Add(Loc.Tf("{0} {1} старой версией MONOLITH " +
+                      "для неизвестной учётной записи — откатите {2} по одной в журнале, войдя под той учётной записью.", legacy, Loc.Plural(legacy, "изменение сделано", "изменения сделаны", "изменений сделано"), (legacy == 1 ? Loc.T("его") : Loc.T("их"))));
         if (others.Count > 0)
         {
             var names = others.Select(r => accountName(r.UserSid!)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            parts.Add($"{others.Count} {Plural(others.Count, "изменение сделано", "изменения сделаны", "изменений сделано")} " +
-                      $"для {(names.Count == 1 ? "учётной записи" : "учётных записей")} {string.Join(", ", names)} — " +
-                      $"{(others.Count == 1 ? "его" : "их")} можно откатить, только войдя под {(names.Count == 1 ? "ней" : "ними")}.");
+            parts.Add(Loc.Tf("{0} {1} " +
+                      "для {2} {3} — " +
+                      "{4} можно откатить, только войдя под {5}.", others.Count, Loc.Plural(others.Count, "изменение сделано", "изменения сделаны", "изменений сделано"), (names.Count == 1 ? Loc.T("учётной записи") : Loc.T("учётных записей")), string.Join(", ", names), (others.Count == 1 ? Loc.T("его") : Loc.T("их")), (names.Count == 1 ? Loc.T("ней") : Loc.T("ними"))));
         }
         return string.Join(" ", parts);
     }
@@ -183,7 +183,7 @@ public static class RestoreFormat
         const string prefix = "tweak:";
         if (source.StartsWith(prefix, StringComparison.Ordinal))
             return Tweaks.TweakCatalog.Find(source[prefix.Length..])?.Title is { } t ? $"«{t}»" : $"«{source[prefix.Length..]}»";
-        return $"изменение раздела «{Optimize.OptimizeLogic.SourceLabel(source)}»";
+        return Loc.Tf("изменение раздела «{0}»", Optimize.OptimizeLogic.SourceLabel(source));
     }
 
     /// <summary>
@@ -198,27 +198,27 @@ public static class RestoreFormat
         if (!r.Reverted)
         {
             if (ChangeJournal.IsOtherUser(r, currentSid))
-                parts.Add($"Изменение сделано для учётной записи {accountName(r.UserSid!)}; войдите под ней, чтобы отменить.");
+                parts.Add(Loc.Tf("Изменение сделано для учётной записи {0}; войдите под ней, чтобы отменить.", accountName(r.UserSid!)));
             else if (r.IsLegacyPerUser)
-                parts.Add("Записано старой версией MONOLITH без учётной записи: откат запишет исходное значение в профиль текущей " +
-                          "учётной записи, поэтому откатывайте под той, где применяли. «ОТКАТИТЬ ВСЁ» и откат пакета эту запись пропускают.");
+                parts.Add(Loc.T("Записано старой версией MONOLITH без учётной записи: откат запишет исходное значение в профиль текущей " +
+                          "учётной записи, поэтому откатывайте под той, где применяли. «ОТКАТИТЬ ВСЁ» и откат пакета эту запись пропускают."));
             if (coveredBy is not null)
                 parts.Add(r.IsLegacyPerUser && coveredBy.UserSid is not null // the account's own change, not a newer old-build layer
-                    ? $"Сейчас значение в профиле этой учётной записи задаёт более позднее изменение «{coveredBy.Title}» — сначала откатите его."
-                    : $"Сейчас значение задаёт более позднее изменение «{coveredBy.Title}»: откат этой записи систему не изменит, " +
-                      "а исходное значение перейдёт к нему.");
+                    ? Loc.Tf("Сейчас значение в профиле этой учётной записи задаёт более позднее изменение «{0}» — сначала откатите его.", Loc.Sink(coveredBy.Title))
+                    : Loc.Tf("Сейчас значение задаёт более позднее изменение «{0}»: откат этой записи систему не изменит, " +
+                      "а исходное значение перейдёт к нему.", Loc.Sink(coveredBy.Title)));
             if (r.IsLegacyMerged)
-                parts.Add($"Запись старой версии: откат вернёт значение до MONOLITH и отменит также {string.Join(", ", r.AlsoSources.Distinct().Select(SourceTitle))}.");
+                parts.Add(Loc.Tf("Запись старой версии: откат вернёт значение до MONOLITH и отменит также {0}.", string.Join(", ", r.AlsoSources.Distinct().Select(SourceTitle))));
             return string.Join(" ", parts);
         }
 
         if (r.HandedTo is not null)
             parts.Add(handedToTitle is null
-                ? "Откат передан более позднему изменению той же настройки: система не менялась, его откат вернёт исходное значение."
-                : $"Откат передан: значение задаёт более позднее изменение «{handedToTitle}», его откат вернёт исходное значение.");
+                ? Loc.T("Откат передан более позднему изменению той же настройки: система не менялась, его откат вернёт исходное значение.")
+                : Loc.Tf("Откат передан: значение задаёт более позднее изменение «{0}», его откат вернёт исходное значение.", handedToTitle));
         if (!string.IsNullOrWhiteSpace(r.RevertNote)) parts.Add(r.RevertNote!);
-        if (r.RevertMismatch is { } mismatch) parts.Add($"Не совпадает: {mismatch}.");
-        else if (r.RevertVerifiedUtc is not null) parts.Add("Откат подтверждён: значение совпадает с исходным.");
+        if (r.RevertMismatch is { } mismatch) parts.Add(Loc.Tf("Не совпадает: {0}.", mismatch));
+        else if (r.RevertVerifiedUtc is not null) parts.Add(Loc.T("Откат подтверждён: значение совпадает с исходным."));
         return string.Join(" ", parts);
     }
 
@@ -231,5 +231,6 @@ public static class RestoreFormat
         return n10 switch { 1 => one, >= 2 and <= 4 => few, _ => many };
     }
 
-    public static string FormatDate(DateTime local) => local.ToString("dd.MM.yyyy · HH:mm", Ru);
+    public static string FormatDate(DateTime local) =>
+        Loc.IsEnglish ? local.ToString("MMM d, yyyy · HH:mm", Loc.Culture) : local.ToString("dd.MM.yyyy · HH:mm", Loc.Culture);
 }

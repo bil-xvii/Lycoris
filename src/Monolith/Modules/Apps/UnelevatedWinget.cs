@@ -55,7 +55,7 @@ public static partial class UnelevatedWinget
     private static async Task<UnelevatedResult> RunCoreAsync(IReadOnlyList<string> wingetArgs, Action<string>? output, CancellationToken ct)
     {
         if (SafetyLock.IsLocked && WingetClient.IsModifying(wingetArgs))
-            return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, "Установка программ заблокирована: режим самопроверки.");
+            return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, Loc.T("Установка программ заблокирована: режим самопроверки."));
         var token = Guid.NewGuid().ToString("N");
         var logName = $"{FilePrefix}{token}.log";
         var exitName = $"{FilePrefix}{token}.exit";
@@ -104,8 +104,8 @@ public static partial class UnelevatedWinget
                 {
                     await Task.Delay(150, CancellationToken.None).ConfigureAwait(false);
                     tail.Pump(final: true);
-                    if (code == 0 || WingetClient.IsBenign(code)) Log.Success($"winget {wingetArgs.FirstOrDefault()} (без прав администратора): {WingetClient.Describe(code)}");
-                    else Log.Warn($"winget {wingetArgs.FirstOrDefault()} (без прав администратора): {WingetClient.Describe(code)}");
+                    if (code == 0 || WingetClient.IsBenign(code)) Log.Success("winget {0} (без прав администратора): {1}", wingetArgs.FirstOrDefault(), WingetClient.Describe(code));
+                    else Log.Warn("winget {0} (без прав администратора): {1}", wingetArgs.FirstOrDefault(), WingetClient.Describe(code));
                     return new UnelevatedResult(UnelevatedOutcome.Completed, code, all.ToString());
                 }
 
@@ -150,15 +150,15 @@ public static partial class UnelevatedWinget
     public static string BuildCommandLine(string wingetExe, IReadOnlyList<string> wingetArgs, string logFileName, string exitFileName)
     {
         if (string.IsNullOrWhiteSpace(wingetExe) || wingetExe.IndexOfAny(['"', '%', '!', '^', '\r', '\n']) >= 0)
-            throw new ArgumentException("Недопустимый путь к winget.");
+            throw new ArgumentException(Loc.T("Недопустимый путь к winget."));
         for (var i = 0; i < wingetArgs.Count; i++)
         {
             var a = wingetArgs[i];
             var ok = IsLocationValue(wingetArgs, i) ? WingetClient.IsValidLocationTemplate(a) : IsSafeToken(a);
-            if (!ok) throw new ArgumentException($"Недопустимый аргумент winget: «{a}»");
+            if (!ok) throw new ArgumentException(Loc.Tf("Недопустимый аргумент winget: «{0}»", a));
         }
         foreach (var f in new[] { logFileName, exitFileName })
-            if (!IsSafeToken(f)) throw new ArgumentException($"Недопустимое имя файла: «{f}»");
+            if (!IsSafeToken(f)) throw new ArgumentException(Loc.Tf("Недопустимое имя файла: «{0}»", f));
 
         var sb = new StringBuilder("/d /v:on /s /c \"");
         sb.Append('"').Append(wingetExe).Append('"');
@@ -237,7 +237,7 @@ public static partial class UnelevatedWinget
             }
             catch (Exception ex)
             {
-                Log.Warn($"Не удалось прервать winget: {ex.Message}");
+                Log.Warn("Не удалось прервать winget: {0}", ex.Message);
             }
         }).ConfigureAwait(false);
     }

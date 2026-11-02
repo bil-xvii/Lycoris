@@ -38,8 +38,8 @@ public sealed partial class AppsViewModel : PageViewModel
 
     public override string Key => "apps";
     public override string Index => "08";
-    public override string Title => "ПРИЛОЖЕНИЯ";
-    public override string Subtitle => "Установка и обновление программ через winget и Microsoft Store.";
+    public override string Title => Loc.T("ПРИЛОЖЕНИЯ");
+    public override string Subtitle => Loc.T("Установка и обновление программ через winget и Microsoft Store.");
     public override string Glyph => Glyphs.Download;
 
     public AppsViewModel()
@@ -56,8 +56,8 @@ public sealed partial class AppsViewModel : PageViewModel
         }
 
         // «РЕКОМЕНДУЕМ» is the first tab and the one the page opens on: what this PC needs, before the whole catalog.
-        Categories.Add(new CategoryFilterViewModel(null, "РЕКОМЕНДУЕМ", isRecommended: true) { IsSelected = true });
-        Categories.Add(new CategoryFilterViewModel(null, "ВСЕ"));
+        Categories.Add(new CategoryFilterViewModel(null, Loc.T("РЕКОМЕНДУЕМ"), isRecommended: true) { IsSelected = true });
+        Categories.Add(new CategoryFilterViewModel(null, Loc.T("ВСЕ")));
         foreach (var g in Groups) Categories.Add(new CategoryFilterViewModel(g.Info.Category, g.Info.TabTitle));
         _selectedCategory = Categories[0];
 
@@ -99,7 +99,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
     [ObservableProperty] private string _wingetVersionText = "—";
     [ObservableProperty] private bool _wingetOutdated;
-    [ObservableProperty] private string _detectionText = "Проверка ещё не выполнялась";
+    [ObservableProperty] private string _detectionText = Loc.T("Проверка ещё не выполнялась");
     [ObservableProperty] private bool _hasDetection;
 
     [ObservableProperty] private int _kitInstalled;
@@ -107,7 +107,7 @@ public sealed partial class AppsViewModel : PageViewModel
     [ObservableProperty] private string _kitToolTip = AppTexts.KitToolTip([], []);
     [ObservableProperty] private bool _kitComplete;
     [ObservableProperty] private string _kitStatusText = "";
-    [ObservableProperty] private string _kitButtonText = "УСТАНОВИТЬ НАБОР";
+    [ObservableProperty] private string _kitButtonText = Loc.T("УСТАНОВИТЬ НАБОР");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanStartQueue), nameof(CanCloseQueue))]
@@ -134,22 +134,22 @@ public sealed partial class AppsViewModel : PageViewModel
     /// </summary>
     private bool EmptyRecommendedTab => SelectedCategory is { IsRecommended: true } && !HasSearch;
 
-    public string NoResultsTitle => !EmptyRecommendedTab ? "Ничего не найдено"
-        : HasDetection ? "Всё рекомендуемое уже установлено"
-        : WingetMissing ? "Советов пока нет"
-        : "Советы появятся после проверки";
+    public string NoResultsTitle => !EmptyRecommendedTab ? Loc.T("Ничего не найдено")
+        : HasDetection ? Loc.T("Всё рекомендуемое уже установлено")
+        : WingetMissing ? Loc.T("Советов пока нет")
+        : Loc.T("Советы появятся после проверки");
 
     public string NoResultsText => !EmptyRecommendedTab
-        ? "Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store."
+        ? Loc.T("Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store.")
         : HasDetection
-            ? "Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ»."
+            ? Loc.T("Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ».")
             : WingetMissing
-                ? "Без winget MONOLITH не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Обновить»."
-                : "MONOLITH ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.";
+                ? Loc.T("Без winget MONOLITH не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Обновить».")
+                : Loc.T("MONOLITH ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.");
 
     partial void OnHasDetectionChanged(bool value) => NotifyNoResultsText();
-    public string VisibleText => VisibleCount == TotalCount ? AppTexts.Programs(TotalCount) : $"{VisibleCount} из {TotalCount}";
-    public string SelectedText => SelectedCount == 0 ? "НИЧЕГО НЕ ВЫБРАНО" : $"ВЫБРАНО: {SelectedCount}";
+    public string VisibleText => VisibleCount == TotalCount ? AppTexts.Programs(TotalCount) : Loc.Tf("{0} из {1}", VisibleCount, TotalCount);
+    public string SelectedText => SelectedCount == 0 ? Loc.T("НИЧЕГО НЕ ВЫБРАНО") : Loc.Tf("ВЫБРАНО: {0}", SelectedCount);
 
     partial void OnSearchTextChanged(string value)
     {
@@ -175,10 +175,10 @@ public sealed partial class AppsViewModel : PageViewModel
 
     /// <summary>The sticky bar's line: what «УСТАНОВИТЬ ВЫБРАННОЕ» will do, or why it waits (nothing ticked).</summary>
     public string StickyText => SelectedCount == 0
-        ? "Отметьте программы галочкой на карточках — они встанут в одну очередь; перед запуском покажем список."
-        : "Неустановленные программы будут установлены, установленные — обновлены. Перед запуском покажем список.";
+        ? Loc.T("Отметьте программы галочкой на карточках — они встанут в одну очередь; перед запуском покажем список.")
+        : Loc.T("Неустановленные программы будут установлены, установленные — обновлены. Перед запуском покажем список.");
 
-    public string InstallSelectedText => $"УСТАНОВИТЬ ВЫБРАННОЕ · {SelectedCount}";
+    public string InstallSelectedText => Loc.Tf("УСТАНОВИТЬ ВЫБРАННОЕ · {0}", SelectedCount);
 
     /// <summary>«ПОКАЗАТЬ ВСЕ ПРОГРАММЫ» is offered when the empty list is the «РЕКОМЕНДУЕМ» tab.</summary>
     public bool ShowAllOffered => EmptyRecommendedTab;
@@ -311,7 +311,7 @@ public sealed partial class AppsViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"Приложения: не удалось определить видеокарту и сборку Windows ({ex.Message})");
+            Log.Warn("Приложения: не удалось определить видеокарту и сборку Windows ({0})", ex.Message);
         }
     }
 
@@ -407,7 +407,7 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         if (_detecting) return;
         _detecting = true;
-        BeginBusy("Проверка winget…");
+        BeginBusy(Loc.T("Проверка winget…"));
         try
         {
             // A re-check keeps the current state (and the user's selection) until the answer is known.
@@ -415,23 +415,23 @@ public sealed partial class AppsViewModel : PageViewModel
             if (version is null)
             {
                 WingetState = WingetState.Missing;
-                WingetVersionText = "winget не найден";
-                DetectionText = "winget не найден — установка недоступна";
+                WingetVersionText = Loc.T("winget не найден");
+                DetectionText = Loc.T("winget не найден — установка недоступна");
                 Log.Warn("Приложения: winget (Установщик приложений) не найден.");
                 return;
             }
 
-            WingetVersionText = $"winget v{version} · источники winget и msstore";
+            WingetVersionText = Loc.Tf("winget v{0} · источники winget и msstore", version);
             WingetOutdated = WingetClient.IsClientOutdated(version);
             WingetState = WingetState.Available;
 
-            SetBusyText("Проверка установленных программ…");
+            SetBusyText(Loc.T("Проверка установленных программ…"));
             await DetectCoreAsync();
         }
         catch (Exception ex)
         {
             Log.Error("Приложения: проверка winget", ex);
-            Ui.Toast(ex.Message, ToastKind.Error, "Проверка установленных программ");
+            Ui.Toast(ex.Message, ToastKind.Error, Loc.T("Проверка установленных программ"));
             if (WingetState == WingetState.Checking) WingetState = WingetState.Missing;
         }
         finally
@@ -444,7 +444,7 @@ public sealed partial class AppsViewModel : PageViewModel
     /// <summary>Re-reads installed packages (used after the queue and by CheckWingetAndDetectAsync).</summary>
     private async Task DetectCoreAsync()
     {
-        DetectionText = "Проверяем установленные программы…";
+        DetectionText = Loc.T("Проверяем установленные программы…");
         try
         {
             var catalog = _items.Select(i => i.Entry).ToList();
@@ -455,8 +455,8 @@ public sealed partial class AppsViewModel : PageViewModel
         catch (Exception ex)
         {
             Log.Error("Приложения: проверка установленных программ", ex);
-            DetectionText = "Не удалось проверить установленные программы";
-            Ui.Toast(ex.Message, ToastKind.Error, "Проверка установленных программ");
+            DetectionText = Loc.T("Не удалось проверить установленные программы");
+            Ui.Toast(ex.Message, ToastKind.Error, Loc.T("Проверка установленных программ"));
         }
     }
 
@@ -497,7 +497,7 @@ public sealed partial class AppsViewModel : PageViewModel
             if (!snapshot.FromCache) LeaveEmptyRecommendedTab();
             _lastCheck = snapshot.FromCache ? DateTime.MinValue : snapshot.CheckedAt;
             DetectionText = snapshot.FromCache
-                ? $"По данным проверки {snapshot.CheckedAt:dd.MM HH:mm} · обновляется"
+                ? Loc.Tf("По данным проверки {0:dd.MM HH:mm} · обновляется", snapshot.CheckedAt)
                 : "";
         }
         RefreshCommandStates();
@@ -509,8 +509,8 @@ public sealed partial class AppsViewModel : PageViewModel
         KitInstalled = KitItems.Count(i => i.IsInstalled);
         KitComplete = KitTotal > 0 && KitInstalled == KitTotal;
         var left = KitTotal - KitInstalled;
-        KitStatusText = KitComplete ? "Все библиотеки на месте" : $"Не хватает: {AppTexts.Packages(left)}";
-        KitButtonText = KitComplete ? "НАБОР УСТАНОВЛЕН" : $"УСТАНОВИТЬ НАБОР · {left}";
+        KitStatusText = KitComplete ? Loc.T("Все библиотеки на месте") : Loc.Tf("Не хватает: {0}", AppTexts.Packages(left));
+        KitButtonText = KitComplete ? Loc.T("НАБОР УСТАНОВЛЕН") : Loc.Tf("УСТАНОВИТЬ НАБОР · {0}", left);
         InstallKitCommand.NotifyCanExecuteChanged();
     }
 
@@ -636,7 +636,7 @@ public sealed partial class AppsViewModel : PageViewModel
         var missing = KitItems.Where(i => !i.IsInstalled && i.Entry.CanInstall).Select(i => (i, QueueOperation.Install)).ToList();
         if (missing.Count == 0)
         {
-            Ui.Toast("Все библиотеки набора уже установлены.", ToastKind.Success, "НАБОР ГЕЙМЕРА");
+            Ui.Toast("Все библиотеки набора уже установлены.", ToastKind.Success, Loc.T("НАБОР ГЕЙМЕРА"));
             return;
         }
         await StartQueueAsync(missing, QueueKind.Kit);
@@ -655,7 +655,7 @@ public sealed partial class AppsViewModel : PageViewModel
             .ToList();
         if (candidates.Count == 0)
         {
-            Ui.Toast("Из каталога не установлено ни одной программы, которую можно обновить через winget.", ToastKind.Info, "ОБНОВИТЬ ВСЁ");
+            Ui.Toast("Из каталога не установлено ни одной программы, которую можно обновить через winget.", ToastKind.Info, Loc.T("ОБНОВИТЬ ВСЁ"));
             return;
         }
         await StartQueueAsync(candidates, QueueKind.UpdateAll);
@@ -664,7 +664,7 @@ public sealed partial class AppsViewModel : PageViewModel
     private bool CanUpdateAll() => WingetReady && !IsQueueRunning && HasDetection;
 
     /// <summary>«ОБНОВИТЬ ПРОГРАММЫ · N»: N = installed catalog programs winget can update (a number, so it is not a twin of «ОБНОВИТЬ»).</summary>
-    public string UpdateAllText => $"ОБНОВИТЬ ПРОГРАММЫ · {_items.Count(i => i.CanUpgrade && !string.Equals(i.PackageId, AppCatalog.AppInstallerId, StringComparison.OrdinalIgnoreCase))}";
+    public string UpdateAllText => Loc.Tf("ОБНОВИТЬ ПРОГРАММЫ · {0}", _items.Count(i => i.CanUpgrade && !string.Equals(i.PackageId, AppCatalog.AppInstallerId, StringComparison.OrdinalIgnoreCase)));
 
     [RelayCommand]
     private async Task OpenSite(AppItemViewModel? item)
@@ -682,12 +682,12 @@ public sealed partial class AppsViewModel : PageViewModel
         try
         {
             Clipboard.SetText(link);
-            Ui.Toast($"Не удалось открыть ссылку без прав администратора. Адрес скопирован в буфер обмена: {link}", ToastKind.Warning);
+            Ui.Toast(Loc.Tf("Не удалось открыть ссылку без прав администратора. Адрес скопирован в буфер обмена: {0}", link), ToastKind.Warning);
         }
         catch (Exception ex)
         {
-            Log.Warn($"Буфер обмена недоступен: {ex.Message}");
-            Ui.Toast($"Не удалось открыть ссылку: {link}", ToastKind.Warning);
+            Log.Warn("Буфер обмена недоступен: {0}", ex.Message);
+            Ui.Toast(Loc.Tf("Не удалось открыть ссылку: {0}", link), ToastKind.Warning);
         }
     }
 
@@ -701,8 +701,8 @@ public sealed partial class AppsViewModel : PageViewModel
         if (IsQueueRunning || IsVendorDownloadRunning || _installWaiting)
         {
             Ui.Toast(IsVendorDownloadRunning
-                ? "Дождитесь окончания загрузки установщика у производителя."
-                : "Дождитесь окончания текущей очереди установки.", ToastKind.Warning);
+                ? Loc.T("Дождитесь окончания загрузки установщика у производителя.")
+                : Loc.T("Дождитесь окончания текущей очереди установки."), ToastKind.Warning);
             return;
         }
         if (!WingetReady)
@@ -726,16 +726,16 @@ public sealed partial class AppsViewModel : PageViewModel
         HasQueue = true;
         QueueTitle = kind switch
         {
-            QueueKind.Kit => "НАБОР ГЕЙМЕРА",
-            QueueKind.UpdateAll => "ОБНОВЛЕНИЕ ВСЕГО",
-            _ => plan.All(p => p.Op == QueueOperation.Upgrade) ? "ОБНОВЛЕНИЕ" : "УСТАНОВКА",
+            QueueKind.Kit => Loc.T("НАБОР ГЕЙМЕРА"),
+            QueueKind.UpdateAll => Loc.T("ОБНОВЛЕНИЕ ВСЕГО"),
+            _ => plan.All(p => p.Op == QueueOperation.Upgrade) ? Loc.T("ОБНОВЛЕНИЕ") : Loc.T("УСТАНОВКА"),
         };
         // One installer at a time across the whole app (winget, drivers, Windows Update): a second one waits in the visible queue.
         var lease = await AcquireInstallAsync(QueueTitle, () => Ui.Post(StopQueue));
         if (lease is null)
         {
             CancelRemaining();
-            AppendLog("Очередь не запущена: " + (OperationNote ?? "задача снята из очереди."));
+            AppendLog(Loc.T("Очередь не запущена: ") + (OperationNote ?? Loc.T("задача снята из очереди.")));
             return;
         }
         using (lease)
@@ -762,8 +762,8 @@ public sealed partial class AppsViewModel : PageViewModel
         _installWaiting = true;
         if (queued)
         {
-            BeginBusy($"В очереди: {request.Name}");
-            OperationNote = $"В очереди: «{request.Name}» — начнётся, когда закончится установка, идущая сейчас. Отменить можно в списке «ЗАДАЧИ».";
+            BeginBusy(Loc.Tf("В очереди: {0}", request.Name));
+            OperationNote = Loc.Tf("В очереди: «{0}» — начнётся, когда закончится установка, идущая сейчас. Отменить можно в списке «ЗАДАЧИ».", request.Name);
         }
         try
         {
@@ -802,37 +802,37 @@ public sealed partial class AppsViewModel : PageViewModel
         var upgradeOnly = plan.All(p => p.Op == QueueOperation.Upgrade);
         var title = kind switch
         {
-            QueueKind.Kit => "НАБОР ГЕЙМЕРА",
-            QueueKind.UpdateAll => "ОБНОВИТЬ ВСЁ",
-            _ => upgradeOnly ? "ОБНОВЛЕНИЕ ПРОГРАММ" : "УСТАНОВКА ПРОГРАММ",
+            QueueKind.Kit => Loc.T("НАБОР ГЕЙМЕРА"),
+            QueueKind.UpdateAll => Loc.T("ОБНОВИТЬ ВСЁ"),
+            _ => upgradeOnly ? Loc.T("ОБНОВЛЕНИЕ ПРОГРАММ") : Loc.T("УСТАНОВКА ПРОГРАММ"),
         };
 
         var lead = kind switch
         {
-            QueueKind.Kit => $"Будут установлены недостающие библиотеки ({AppTexts.Packages(plan.Count)}). Уже установленные пропускаются. ",
-            QueueKind.UpdateAll => $"winget проверит обновления установленных программ из каталога ({plan.Count}) и поставит новые версии. " +
+            QueueKind.Kit => Loc.Tf("Будут установлены недостающие библиотеки ({0}). Уже установленные пропускаются. ", AppTexts.Packages(plan.Count)),
+            QueueKind.UpdateAll => Loc.Tf("winget проверит обновления установленных программ из каталога ({0}) и поставит новые версии. " +
                                    "Программы, которые обновляются сами (Discord, игры Riot, Edge, WebView2), компоненты, поставленные не через winget " +
-                                   "(например, среда .NET из .NET SDK), и «Установщик приложений» MONOLITH не трогает. ",
-            _ => $"По очереди будет обработано: {AppTexts.Packages(plan.Count)}. ",
+                                   "(например, среда .NET из .NET SDK), и «Установщик приложений» MONOLITH не трогает. ", plan.Count),
+            _ => Loc.Tf("По очереди будет обработано: {0}. ", AppTexts.Packages(plan.Count)),
         };
         var how = AppTexts.VerificationText(plan.Select(p => p.Item.Entry)) + " ";
         var elevation = Elevation.IsElevated
-            ? "Программы для всех пользователей ставятся с правами администратора, пакеты для текущего пользователя и из Microsoft Store — без них. "
-            : "MONOLITH работает без прав администратора: установщик каждой программы для всех пользователей сам покажет запрос UAC. ";
-        var undo = "Удалить программу можно в «Параметры → Приложения».";
+            ? Loc.T("Программы для всех пользователей ставятся с правами администратора, пакеты для текущего пользователя и из Microsoft Store — без них. ")
+            : Loc.T("MONOLITH работает без прав администратора: установщик каждой программы для всех пользователей сам покажет запрос UAC. ");
+        var undo = Loc.T("Удалить программу можно в «Параметры → Приложения».");
 
         string footnote;
-        if (!Elevation.IsElevated) footnote = "Без прав администратора точка восстановления не создаётся.";
-        else if (!AppSettings.Current.CreateRestorePoints) footnote = "Точки восстановления перед изменениями выключены (раздел «Восстановление»).";
+        if (!Elevation.IsElevated) footnote = Loc.T("Без прав администратора точка восстановления не создаётся.");
+        else if (!AppSettings.Current.CreateRestorePoints) footnote = Loc.T("Точки восстановления перед изменениями выключены (раздел «Восстановление»).");
         else if (!await Task.Run(RestorePointService.IsEnabled))
-            footnote = "Защита системы отключена — точка восстановления создана не будет.";
-        else footnote = "Перед началом будет создана точка восстановления.";
+            footnote = Loc.T("Защита системы отключена — точка восстановления создана не будет.");
+        else footnote = Loc.T("Перед началом будет создана точка восстановления.");
 
         var danger = plan.Any(p => AppTexts.IsRisky(p.Item.Entry));
-        var confirm = upgradeOnly ? "ОБНОВИТЬ" : "УСТАНОВИТЬ";
+        var confirm = upgradeOnly ? Loc.T("ОБНОВИТЬ") : Loc.T("УСТАНОВИТЬ");
         // winget gets --accept-package-agreements / --accept-source-agreements: say so before the user agrees.
-        var license = " " + AppTexts.LicenseText(plan.Select(p => p.Item.Entry), upgradeOnly ? "Обновить" : "Установить");
-        return await Ui.ConfirmAsync(title, AppTexts.AdviceLead(notes.Count) + lead + how + elevation + undo + license, details, confirm, "ОТМЕНА",
+        var license = " " + AppTexts.LicenseText(plan.Select(p => p.Item.Entry), upgradeOnly ? Loc.T("Обновить") : Loc.T("Установить"));
+        return await Ui.ConfirmAsync(title, AppTexts.AdviceLead(notes.Count) + lead + how + elevation + undo + license, details, confirm, Loc.T("ОТМЕНА"),
             danger, footnote);
     }
 
@@ -843,22 +843,22 @@ public sealed partial class AppsViewModel : PageViewModel
         QueueProgress = 0;
         _queueCts = new CancellationTokenSource();
         var ct = _queueCts.Token;
-        BeginBusy($"{QueueTitle}: подготовка…");
+        BeginBusy(Loc.Tf("{0}: подготовка…", QueueTitle));
         var total = Queue.Count;
         try
         {
             if (Elevation.IsElevated && AppSettings.Current.CreateRestorePoints)
             {
-                AppendLog("Создание точки восстановления…");
-                SetBusyText("Создание точки восстановления…");
+                AppendLog(Loc.T("Создание точки восстановления…"));
+                SetBusyText(Loc.T("Создание точки восстановления…"));
                 var rp = await RestorePointService.CreateAsync($"MONOLITH: {QueueTitle.ToLowerInvariant()}");
                 AppendLog(rp.Message);
                 if (rp.Outcome == RestorePointOutcome.Failed && !await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
                         "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
-                        $"{rp.Message} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?",
-                        confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true)))
+                        Loc.Tf("{0} Без неё откатить установку можно будет только удалением программы в «Параметры → Приложения». Продолжить?", rp.Message),
+                        confirmText: Loc.T("ПРОДОЛЖИТЬ"), cancelText: Loc.T("ОТМЕНИТЬ"), danger: true)))
                 {
-                    AppendLog("Очередь отменена: точка восстановления не создана.");
+                    AppendLog(Loc.T("Очередь отменена: точка восстановления не создана."));
                     CancelRemaining();
                     return;
                 }
@@ -874,10 +874,10 @@ public sealed partial class AppsViewModel : PageViewModel
                 }
 
                 QueueCounter = $"{i + 1} / {total}";
-                var verb = job.Operation == QueueOperation.Install ? "УСТАНОВКА" : "ОБНОВЛЕНИЕ";
+                var verb = job.Operation == QueueOperation.Install ? Loc.T("УСТАНОВКА") : Loc.T("ОБНОВЛЕНИЕ");
                 job.State = QueueState.Running;
                 job.StatusText = $"{verb}…";
-                SetBusyText($"{(job.Operation == QueueOperation.Install ? "Установка" : "Обновление")} {i + 1}/{total}: {job.Name}");
+                SetBusyText(Loc.Tf("{0} {1}/{2}: {3}", (job.Operation == QueueOperation.Install ? Loc.T("Установка") : Loc.T("Обновление")), i + 1, total, job.Name));
                 AppendLog("");
                 AppendLog($"▌ {job.Name} · {job.PackageId} · {job.SourceName}");
 
@@ -889,8 +889,8 @@ public sealed partial class AppsViewModel : PageViewModel
         catch (Exception ex)
         {
             Log.Error("Приложения: очередь установки", ex);
-            AppendLog("Ошибка очереди: " + ex.Message);
-            Ui.Toast(ex.Message, ToastKind.Error, "Очередь установки");
+            AppendLog(Loc.T("Ошибка очереди: ") + ex.Message);
+            Ui.Toast(ex.Message, ToastKind.Error, Loc.T("Очередь установки"));
             CancelRemaining();
         }
         finally
@@ -904,8 +904,8 @@ public sealed partial class AppsViewModel : PageViewModel
         }
 
         AppendLog("");
-        AppendLog("Проверка установленных программ…");
-        BeginBusy("Проверка установленных программ…");
+        AppendLog(Loc.T("Проверка установленных программ…"));
+        BeginBusy(Loc.T("Проверка установленных программ…"));
         try
         {
             await DetectCoreAsync();
@@ -923,7 +923,7 @@ public sealed partial class AppsViewModel : PageViewModel
         foreach (var q in Queue.Where(q => q.State == QueueState.Queued))
         {
             q.State = QueueState.Cancelled;
-            q.StatusText = "ОТМЕНЕНО";
+            q.StatusText = Loc.T("ОТМЕНЕНО");
         }
     }
 
@@ -943,7 +943,7 @@ public sealed partial class AppsViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Error($"Приложения: {job.Name} ({job.PackageId})", ex);
+            Log.Error("Приложения: {0} ({1})", ex, job.Name, job.PackageId);
             return new RunOutcome(UnelevatedOutcome.LaunchFailed, new WingetResult(-1, ex.Message), ex.Message);
         }
     }
@@ -957,7 +957,7 @@ public sealed partial class AppsViewModel : PageViewModel
             // The program was installed into another folder: the standard one would put a second copy next to it.
             request = request with { Location = null };
         }
-        if (WingetClient.ExpandLocation(request.Location) is { } folder) AppendLog($"Папка установки: {folder}");
+        if (WingetClient.ExpandLocation(request.Location) is { } folder) AppendLog(Loc.Tf("Папка установки: {0}", folder));
 
         var outcome = await RunWingetAsync(job, request, ct);
 
@@ -970,8 +970,8 @@ public sealed partial class AppsViewModel : PageViewModel
             var shown = Elevation.IsElevated && entry.RunsUnelevated
                 ? retry.Location!
                 : WingetClient.ExpandLocation(retry.Location) ?? retry.Location!;
-            AppendLog($"Установщик требует папку установки — повтор с папкой «{shown}».");
-            Log.Info($"winget install {job.PackageId}: пакет требует папку установки (0x8A15005F) — повтор с --location «{shown}».");
+            AppendLog(Loc.Tf("Установщик требует папку установки — повтор с папкой «{0}».", shown));
+            Log.Info("winget install {0}: пакет требует папку установки (0x8A15005F) — повтор с --location «{1}».", job.PackageId, shown);
             outcome = await RunWingetAsync(job, retry, ct);
         }
         return outcome;
@@ -989,7 +989,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
         if (Elevation.IsElevated && entry.RunsUnelevated)
         {
-            AppendLog("Запуск без прав администратора — пакет ставится в профиль текущего пользователя.");
+            AppendLog(Loc.T("Запуск без прав администратора — пакет ставится в профиль текущего пользователя."));
             return await RunUnelevatedAsync(request, install, Output, ct);
         }
 
@@ -999,7 +999,7 @@ public sealed partial class AppsViewModel : PageViewModel
 
         if (result.ExitCode == WingetClient.ElevationProhibited && Elevation.IsElevated && !ct.IsCancellationRequested)
         {
-            AppendLog("Установщик запрещает запуск от администратора — повтор без прав администратора…");
+            AppendLog(Loc.T("Установщик запрещает запуск от администратора — повтор без прав администратора…"));
             return await RunUnelevatedAsync(request, install, Output, ct);
         }
         return new RunOutcome(result.Cancelled ? UnelevatedOutcome.Cancelled
@@ -1023,46 +1023,46 @@ public sealed partial class AppsViewModel : PageViewModel
         {
             case UnelevatedOutcome.LaunchFailed when outcome.Error is not null:
                 job.State = QueueState.Failed;
-                job.StatusText = "ОШИБКА: MONOLITH не смог запустить winget";
-                job.Detail = $"{outcome.Error} Повторите установку; если ошибка повторяется — установите программу с официального сайта.";
+                job.StatusText = Loc.T("ОШИБКА: MONOLITH не смог запустить winget");
+                job.Detail = Loc.Tf("{0} Повторите установку; если ошибка повторяется — установите программу с официального сайта.", outcome.Error);
                 job.Fallback = QueueFallback.Website;
                 AppendLog(job.Detail);
                 return;
             case UnelevatedOutcome.LaunchFailed:
                 job.State = QueueState.Failed;
-                job.StatusText = "ОШИБКА: не удалось запустить без прав администратора";
-                job.Detail = "Рабочий стол Windows недоступен для запуска. Откройте сайт программы (кнопка «ОТКРЫТЬ САЙТ») " +
-                             "или запустите MONOLITH без прав администратора и повторите.";
+                job.StatusText = Loc.T("ОШИБКА: не удалось запустить без прав администратора");
+                job.Detail = Loc.T("Рабочий стол Windows недоступен для запуска. Откройте сайт программы (кнопка «ОТКРЫТЬ САЙТ») " +
+                             "или запустите MONOLITH без прав администратора и повторите.");
                 job.Fallback = QueueFallback.Website;
                 AppendLog(job.Detail);
                 return;
             case UnelevatedOutcome.Untracked when outcome.Result.StillRunning:
                 job.State = QueueState.Unknown;
-                job.StatusText = "ЕЩЁ ИДЁТ: результат проверим заново";
-                job.Detail = "Установка идёт дольше 30 минут. MONOLITH перестал ждать, но не прерывал её, чтобы программа не осталась " +
+                job.StatusText = Loc.T("ЕЩЁ ИДЁТ: результат проверим заново");
+                job.Detail = Loc.T("Установка идёт дольше 30 минут. MONOLITH перестал ждать, но не прерывал её, чтобы программа не осталась " +
                              "установленной наполовину. Список установленного будет перечитан после очереди; если программа не появится, " +
-                             "проверьте её позже или установите заново.";
+                             "проверьте её позже или установите заново.");
                 AppendLog(job.Detail);
                 if (Queue.Any(q => q.State == QueueState.Queued))
                 {
                     // Starting the next installer while this one still runs would make them collide.
                     StopRequested = true;
                     CancelRemaining();
-                    AppendLog("Остальные пакеты отменены, чтобы не запускать установки одновременно. Повторите их позже.");
+                    AppendLog(Loc.T("Остальные пакеты отменены, чтобы не запускать установки одновременно. Повторите их позже."));
                 }
                 return;
             case UnelevatedOutcome.Untracked:
                 job.State = QueueState.Unknown;
-                job.StatusText = "ЗАПУЩЕНО: результат проверим заново";
-                job.Detail = "winget запущен отдельно, но его ход отследить не удалось. Список установленного будет перечитан после очереди.";
+                job.StatusText = Loc.T("ЗАПУЩЕНО: результат проверим заново");
+                job.Detail = Loc.T("winget запущен отдельно, но его ход отследить не удалось. Список установленного будет перечитан после очереди.");
                 AppendLog(job.Detail);
                 return;
             case UnelevatedOutcome.Cancelled:
-                job.Detail = "Установка прервана вами. Программа могла остаться установленной не полностью — повторите установку " +
-                             "или удалите её в «Параметры → Приложения».";
+                job.Detail = Loc.T("Установка прервана вами. Программа могла остаться установленной не полностью — повторите установку " +
+                             "или удалите её в «Параметры → Приложения».");
                 job.State = QueueState.Cancelled;
-                job.StatusText = "ПРЕРВАНО";
-                AppendLog("Прервано пользователем.");
+                job.StatusText = Loc.T("ПРЕРВАНО");
+                AppendLog(Loc.T("Прервано пользователем."));
                 return;
         }
 
@@ -1077,7 +1077,7 @@ public sealed partial class AppsViewModel : PageViewModel
         job.State = state;
         job.StatusText = text;
         job.NeedsReboot = reboot || (state == QueueState.Done && job.Operation == QueueOperation.Install && job.App.Entry.Has(AppFlags.Reboot));
-        AppendLog(state == QueueState.Done ? $"Готово: {WingetClient.Describe(code)}." : $"Итог: {WingetClient.Describe(code)}.");
+        AppendLog(state == QueueState.Done ? Loc.Tf("Готово: {0}.", WingetClient.Describe(code)) : Loc.Tf("Итог: {0}.", WingetClient.Describe(code)));
         if (state != QueueState.Done && job.Detail is { } detail) AppendLog(detail);
     }
 
@@ -1089,11 +1089,11 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         var job = Queue.FirstOrDefault(q => q.App.Entry.Has(AppFlags.ForceExe) && q.State == QueueState.Done);
         if (job is null || job.App.IsInstalled) return;
-        job.Detail = "winget сообщил об успехе, но классических файлов DirectX (d3dx9_43.dll, xaudio2_7.dll) нет. " +
-                     "Скачайте установщик с сайта Microsoft (кнопка «ОТКРЫТЬ САЙТ»).";
+        job.Detail = Loc.T("winget сообщил об успехе, но классических файлов DirectX (d3dx9_43.dll, xaudio2_7.dll) нет. " +
+                     "Скачайте установщик с сайта Microsoft (кнопка «ОТКРЫТЬ САЙТ»).");
         job.Fallback = QueueFallback.Website;
         job.State = QueueState.Failed;
-        job.StatusText = "ОШИБКА: библиотеки D3DX9 не появились";
+        job.StatusText = Loc.T("ОШИБКА: библиотеки D3DX9 не появились");
         AppendLog(job.Detail);
     }
 
@@ -1106,14 +1106,14 @@ public sealed partial class AppsViewModel : PageViewModel
         var unknown = Queue.Count(q => q.State == QueueState.Unknown);
         var reboot = Queue.Any(q => q.NeedsReboot);
 
-        var parts = new List<string> { $"готово: {done}" };
-        if (failed > 0) parts.Add($"ошибок: {failed}");
-        if (skipped > 0) parts.Add($"пропущено: {skipped}");
-        if (cancelled > 0) parts.Add($"отменено: {cancelled}");
-        if (unknown > 0) parts.Add($"без отчёта: {unknown}");
-        var message = string.Join(" · ", parts) + (reboot ? ". Для завершения нужна перезагрузка." : ".");
+        var parts = new List<string> { Loc.Tf("готово: {0}", done) };
+        if (failed > 0) parts.Add(Loc.Tf("ошибок: {0}", failed));
+        if (skipped > 0) parts.Add(Loc.Tf("пропущено: {0}", skipped));
+        if (cancelled > 0) parts.Add(Loc.Tf("отменено: {0}", cancelled));
+        if (unknown > 0) parts.Add(Loc.Tf("без отчёта: {0}", unknown));
+        var message = string.Join(" · ", parts) + (reboot ? Loc.T(". Для завершения нужна перезагрузка.") : ".");
         AppendLog(message);
-        Ui.Toast(message, failed > 0 ? ToastKind.Warning : ToastKind.Success, $"{QueueTitle}: ОЧЕРЕДЬ ЗАВЕРШЕНА");
+        Ui.Toast(message, failed > 0 ? ToastKind.Warning : ToastKind.Success, Loc.Tf("{0}: ОЧЕРЕДЬ ЗАВЕРШЕНА", QueueTitle));
     }
 
     [RelayCommand]
@@ -1122,7 +1122,7 @@ public sealed partial class AppsViewModel : PageViewModel
         if (!IsQueueRunning || StopRequested) return;
         StopRequested = true;
         CancelRemaining();
-        AppendLog("Остановка: текущий пакет будет доведён до конца, остальные отменены.");
+        AppendLog(Loc.T("Остановка: текущий пакет будет доведён до конца, остальные отменены."));
     }
 
     [RelayCommand]
@@ -1130,13 +1130,13 @@ public sealed partial class AppsViewModel : PageViewModel
     {
         if (!IsQueueRunning || _queueCts is null) return;
         var ok = await Ui.ConfirmAsync("ПРЕРВАТЬ СЕЙЧАС?",
-            "Процесс winget и запущенный им установщик будут принудительно завершены. Программа может остаться " +
-            "установленной не полностью — тогда установите её заново или удалите в «Параметры → Приложения».",
-            null, "ПРЕРВАТЬ", "ПРОДОЛЖИТЬ УСТАНОВКУ", danger: true);
+            Loc.T("Процесс winget и запущенный им установщик будут принудительно завершены. Программа может остаться " +
+            "установленной не полностью — тогда установите её заново или удалите в «Параметры → Приложения»."),
+            null, Loc.T("ПРЕРВАТЬ"), Loc.T("ПРОДОЛЖИТЬ УСТАНОВКУ"), danger: true);
         if (!ok || _queueCts is null) return;
         StopRequested = true;
         CancelRemaining();
-        AppendLog("Прерывание текущей установки…");
+        AppendLog(Loc.T("Прерывание текущей установки…"));
         _queueCts.Cancel();
     }
 

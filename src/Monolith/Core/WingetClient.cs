@@ -12,7 +12,7 @@ public sealed record WingetResult(int ExitCode, string Output, bool Cancelled = 
     /// </summary>
     public bool StillRunning { get; init; }
     public bool Success => !StillRunning && (ExitCode is 0 || WingetClient.IsBenign(ExitCode));
-    public string Message => Cancelled ? "Отменено" : StillRunning ? "ещё выполняется — результат проверим заново" : WingetClient.Describe(ExitCode);
+    public string Message => Cancelled ? Loc.T("Отменено") : StillRunning ? Loc.T("ещё выполняется — результат проверим заново") : WingetClient.Describe(ExitCode);
 }
 
 /// <summary>One package to install or upgrade, plus the optional installer filters.</summary>
@@ -179,7 +179,7 @@ public static partial class WingetClient
             args.Add("--location");
             args.Add(keepLocationTemplate
                 ? request.Location
-                : ExpandLocation(request.Location) ?? throw new ArgumentException($"Недопустимая папка установки: «{request.Location}»"));
+                : ExpandLocation(request.Location) ?? throw new ArgumentException(Loc.Tf("Недопустимая папка установки: «{0}»", request.Location)));
         }
     }
 
@@ -242,11 +242,11 @@ public static partial class WingetClient
 
     private static void Validate(WingetPackageRequest request)
     {
-        if (!IsValidPackageId(request.Id)) throw new ArgumentException($"Недопустимый идентификатор пакета: «{request.Id}»");
-        if (!KnownSources.Contains(request.Source)) throw new ArgumentException($"Неизвестный источник winget: «{request.Source}»");
-        if (request.Architecture is { Length: > 0 } a && !KnownArchitectures.Contains(a)) throw new ArgumentException($"Неизвестная архитектура: «{a}»");
-        if (request.InstallerType is { Length: > 0 } t && !KnownInstallerTypes.Contains(t)) throw new ArgumentException($"Неизвестный тип установщика: «{t}»");
-        if (request.Location is { Length: > 0 } l && !IsValidLocationTemplate(l)) throw new ArgumentException($"Недопустимая папка установки: «{l}»");
+        if (!IsValidPackageId(request.Id)) throw new ArgumentException(Loc.Tf("Недопустимый идентификатор пакета: «{0}»", request.Id));
+        if (!KnownSources.Contains(request.Source)) throw new ArgumentException(Loc.Tf("Неизвестный источник winget: «{0}»", request.Source));
+        if (request.Architecture is { Length: > 0 } a && !KnownArchitectures.Contains(a)) throw new ArgumentException(Loc.Tf("Неизвестная архитектура: «{0}»", a));
+        if (request.InstallerType is { Length: > 0 } t && !KnownInstallerTypes.Contains(t)) throw new ArgumentException(Loc.Tf("Неизвестный тип установщика: «{0}»", t));
+        if (request.Location is { Length: > 0 } l && !IsValidLocationTemplate(l)) throw new ArgumentException(Loc.Tf("Недопустимая папка установки: «{0}»", l));
     }
 
     /// <summary>
@@ -320,7 +320,7 @@ public static partial class WingetClient
         }
         catch (JsonException ex)
         {
-            Log.Warn($"winget export: повреждённый JSON ({ex.Message})");
+            Log.Warn("winget export: повреждённый JSON ({0})", ex.Message);
         }
         return result;
     }
@@ -351,10 +351,10 @@ public static partial class WingetClient
     public static async Task<WingetResult> RunAsync(IEnumerable<string> args, Action<string>? output, CancellationToken ct, bool log = true)
     {
         var exe = ExePath;
-        if (exe is null) return new WingetResult(-1, "winget не найден. Установите «Установщик приложений» из Microsoft Store.");
+        if (exe is null) return new WingetResult(-1, Loc.T("winget не найден. Установите «Установщик приложений» из Microsoft Store."));
         var list = args.ToList();
         if (SafetyLock.IsLocked && IsModifying(list))
-            return new WingetResult(-1, "Установка программ заблокирована: режим самопроверки.");
+            return new WingetResult(-1, Loc.T("Установка программ заблокирована: режим самопроверки."));
 
         // Killing winget mid-install would kill the installer it started and can leave a half-installed program:
         // a modifying run that exceeds the timeout is left running and reported as "still running".
@@ -381,7 +381,7 @@ public static partial class WingetClient
                 if (r.Cancelled) return new WingetResult(r.ExitCode, text, Cancelled: true);
                 if (r.StillRunning)
                 {
-                    Log.Warn($"winget {list.FirstOrDefault()} {ArgId(list)}: идёт дольше 30 минут — MONOLITH перестал ждать, процесс не прерывался.");
+                    Log.Warn("winget {0} {1}: идёт дольше 30 минут — MONOLITH перестал ждать, процесс не прерывался.", list.FirstOrDefault(), ArgId(list));
                     return new WingetResult(-1, text) { StillRunning = true };
                 }
                 if (r.ExitCode == InternalError && attempt == 0)
@@ -442,57 +442,57 @@ public static partial class WingetClient
 
     public static string Describe(int code) => code switch
     {
-        0 => "готово",
-        UpdateNotApplicable => "уже последняя версия",
-        AlreadyInstalled => "уже установлено",
-        _ when code == unchecked((int)0x8A15010D) => "установлена другая версия",
-        _ when code == unchecked((int)0x8A15010E) => "установлена более новая версия",
-        NoApplicationsFound => "пакет не найден",
-        _ when code == unchecked((int)0x8A150016) => "найдено несколько пакетов",
-        NoApplicableInstaller => "нет подходящего установщика для этой системы",
-        ElevationProhibited => "установщик запрещает запуск от администратора",
-        _ when code == unchecked((int)0x8A150019) => "нужны права администратора",
-        _ when code == unchecked((int)0x8A150006) => "установщик завершился с ошибкой",
-        DownloadFailed or NoNetwork => "ошибка загрузки — проверьте интернет",
-        InstallerHashMismatch => "хэш установщика не совпал с каталогом winget — установка заблокирована ради безопасности",
-        InstallLocationRequired => "нужно указать папку установки",
-        HttpNotFound => "файл установщика не найден на сервере (ошибка 404)",
-        _ when IsHttpStatus(code) => $"сервер установщика ответил ошибкой HTTP {code & 0xFFFF}",
-        _ when code == unchecked((int)0x8A150049) => "установщик MSI завершился с ошибкой",
-        _ when code == unchecked((int)0x8A150052) => "не удалось установить портативный пакет",
-        _ when code == unchecked((int)0x8A15005E) => "сертификат сервера не совпал — соединение перехвачено",
-        _ when code == unchecked((int)0x8A150060) => "архив не прошёл проверку антивирусом",
-        _ when code == unchecked((int)0x8A150104) => "в системе не хватает зависимости пакета",
-        _ when code == unchecked((int)0x8A150106) => "не хватает оперативной памяти",
-        _ when code == unchecked((int)0x8A150108) => "установщик завершился с ошибкой и просит обратиться к производителю",
-        _ when code == unchecked((int)0x8A150110) => "не удалось установить зависимости пакета",
-        _ when code == unchecked((int)0x8A150112) => "установщик не принял параметры",
-        _ when code == unchecked((int)0x8A150114) => "установщик не умеет обновлять установленную версию",
-        _ when code == unchecked((int)0x8A150115) => "установщик завершился с собственной ошибкой",
-        _ when code == unchecked((int)0x8A15004B) => "не удалось открыть источники winget",
-        _ when code == unchecked((int)0x8A150002) => "winget не принял параметры команды",
-        _ when code == unchecked((int)0x8A150005) || code == unchecked((int)0x8A15006A) => "winget прерван",
-        _ when code == unchecked((int)0x8A150041) => "не приняты условия пакета",
-        _ when code == unchecked((int)0x8A150046) => "не приняты условия источника",
-        _ when code == unchecked((int)0x8A150045) => "не удалось открыть источник winget",
-        _ when code == unchecked((int)0x8A150007) => "нужно обновить «Установщик приложений»",
-        UpgradeVersionNotNewer => "доступная версия не новее установленной",
-        UpgradeVersionUnknown => "версия установленной программы неизвестна — обновление пропущено",
-        PackageIsPinned => "пакет закреплён — обновление пропущено",
-        _ when code == unchecked((int)0x8A150101) || code == unchecked((int)0x8A150103) || code == unchecked((int)0x8A150111) => "программа сейчас запущена — закройте её",
-        _ when code == unchecked((int)0x8A150102) => "уже идёт другая установка",
-        RebootRequiredToFinish => "готово, нужна перезагрузка",
-        RebootRequiredToInstall => "нужна перезагрузка перед установкой",
-        RebootInitiated => "установщик начал перезагрузку",
-        _ when code == unchecked((int)0x8A15010C) => "отменено пользователем",
-        _ when code == unchecked((int)0x8A15010F) || code == unchecked((int)0x8A15003A) => "заблокировано политикой",
-        _ when code == unchecked((int)0x8A15001B) => "Microsoft Store заблокирован политикой",
-        _ when code == unchecked((int)0x8A15001C) => "приложение Microsoft Store заблокировано политикой",
-        _ when code == unchecked((int)0x8A150083) => "не удалось получить лицензию Microsoft Store",
-        _ when code == unchecked((int)0x8A150105) => "недостаточно места на диске",
-        _ when code == unchecked((int)0x8A150113) => "система не поддерживается",
-        InternalError => "внутренняя ошибка winget",
-        -1 => "winget недоступен",
-        _ => $"код {code} (0x{unchecked((uint)code):X8})",
+        0 => Loc.T("готово"),
+        UpdateNotApplicable => Loc.T("уже последняя версия"),
+        AlreadyInstalled => Loc.T("уже установлено"),
+        _ when code == unchecked((int)0x8A15010D) => Loc.T("установлена другая версия"),
+        _ when code == unchecked((int)0x8A15010E) => Loc.T("установлена более новая версия"),
+        NoApplicationsFound => Loc.T("пакет не найден"),
+        _ when code == unchecked((int)0x8A150016) => Loc.T("найдено несколько пакетов"),
+        NoApplicableInstaller => Loc.T("нет подходящего установщика для этой системы"),
+        ElevationProhibited => Loc.T("установщик запрещает запуск от администратора"),
+        _ when code == unchecked((int)0x8A150019) => Loc.T("нужны права администратора"),
+        _ when code == unchecked((int)0x8A150006) => Loc.T("установщик завершился с ошибкой"),
+        DownloadFailed or NoNetwork => Loc.T("ошибка загрузки — проверьте интернет"),
+        InstallerHashMismatch => Loc.T("хэш установщика не совпал с каталогом winget — установка заблокирована ради безопасности"),
+        InstallLocationRequired => Loc.T("нужно указать папку установки"),
+        HttpNotFound => Loc.T("файл установщика не найден на сервере (ошибка 404)"),
+        _ when IsHttpStatus(code) => Loc.Tf("сервер установщика ответил ошибкой HTTP {0}", code & 0xFFFF),
+        _ when code == unchecked((int)0x8A150049) => Loc.T("установщик MSI завершился с ошибкой"),
+        _ when code == unchecked((int)0x8A150052) => Loc.T("не удалось установить портативный пакет"),
+        _ when code == unchecked((int)0x8A15005E) => Loc.T("сертификат сервера не совпал — соединение перехвачено"),
+        _ when code == unchecked((int)0x8A150060) => Loc.T("архив не прошёл проверку антивирусом"),
+        _ when code == unchecked((int)0x8A150104) => Loc.T("в системе не хватает зависимости пакета"),
+        _ when code == unchecked((int)0x8A150106) => Loc.T("не хватает оперативной памяти"),
+        _ when code == unchecked((int)0x8A150108) => Loc.T("установщик завершился с ошибкой и просит обратиться к производителю"),
+        _ when code == unchecked((int)0x8A150110) => Loc.T("не удалось установить зависимости пакета"),
+        _ when code == unchecked((int)0x8A150112) => Loc.T("установщик не принял параметры"),
+        _ when code == unchecked((int)0x8A150114) => Loc.T("установщик не умеет обновлять установленную версию"),
+        _ when code == unchecked((int)0x8A150115) => Loc.T("установщик завершился с собственной ошибкой"),
+        _ when code == unchecked((int)0x8A15004B) => Loc.T("не удалось открыть источники winget"),
+        _ when code == unchecked((int)0x8A150002) => Loc.T("winget не принял параметры команды"),
+        _ when code == unchecked((int)0x8A150005) || code == unchecked((int)0x8A15006A) => Loc.T("winget прерван"),
+        _ when code == unchecked((int)0x8A150041) => Loc.T("не приняты условия пакета"),
+        _ when code == unchecked((int)0x8A150046) => Loc.T("не приняты условия источника"),
+        _ when code == unchecked((int)0x8A150045) => Loc.T("не удалось открыть источник winget"),
+        _ when code == unchecked((int)0x8A150007) => Loc.T("нужно обновить «Установщик приложений»"),
+        UpgradeVersionNotNewer => Loc.T("доступная версия не новее установленной"),
+        UpgradeVersionUnknown => Loc.T("версия установленной программы неизвестна — обновление пропущено"),
+        PackageIsPinned => Loc.T("пакет закреплён — обновление пропущено"),
+        _ when code == unchecked((int)0x8A150101) || code == unchecked((int)0x8A150103) || code == unchecked((int)0x8A150111) => Loc.T("программа сейчас запущена — закройте её"),
+        _ when code == unchecked((int)0x8A150102) => Loc.T("уже идёт другая установка"),
+        RebootRequiredToFinish => Loc.T("готово, нужна перезагрузка"),
+        RebootRequiredToInstall => Loc.T("нужна перезагрузка перед установкой"),
+        RebootInitiated => Loc.T("установщик начал перезагрузку"),
+        _ when code == unchecked((int)0x8A15010C) => Loc.T("отменено пользователем"),
+        _ when code == unchecked((int)0x8A15010F) || code == unchecked((int)0x8A15003A) => Loc.T("заблокировано политикой"),
+        _ when code == unchecked((int)0x8A15001B) => Loc.T("Microsoft Store заблокирован политикой"),
+        _ when code == unchecked((int)0x8A15001C) => Loc.T("приложение Microsoft Store заблокировано политикой"),
+        _ when code == unchecked((int)0x8A150083) => Loc.T("не удалось получить лицензию Microsoft Store"),
+        _ when code == unchecked((int)0x8A150105) => Loc.T("недостаточно места на диске"),
+        _ when code == unchecked((int)0x8A150113) => Loc.T("система не поддерживается"),
+        InternalError => Loc.T("внутренняя ошибка winget"),
+        -1 => Loc.T("winget недоступен"),
+        _ => Loc.Tf("код {0} (0x{1:X8})", code, unchecked((uint)code)),
     };
 }

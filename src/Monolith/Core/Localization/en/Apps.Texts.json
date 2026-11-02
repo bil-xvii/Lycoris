@@ -1,0 +1,10 @@
+{
+  "area": "Apps.Texts",
+  "translated": false,
+  "sources": [
+    "Modules/Apps/AppTexts.cs",
+    "Modules/Apps/AppAdvisor.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

@@ -133,13 +133,13 @@ public sealed partial class AppItemViewModel : ObservableObject
         {
             var list = new List<AppTagInfo>(Tags.Count + 1);
             if (IsChecking)
-                list.Add(new("ПРОВЕРКА…", TagKind.Muted, "Проверяем, установлена ли программа."));
+                list.Add(new(Loc.T("ПРОВЕРКА…"), TagKind.Muted, Loc.T("Проверяем, установлена ли программа.")));
             else if (IsInstalled)
                 list.Add(new(InstalledText, TagKind.Solid, Entry.Id == "Microsoft.DirectX"
-                    ? "Найдены классические библиотеки DirectX: d3dx9_43.dll и xaudio2_7.dll."
+                    ? Loc.T("Найдены классические библиотеки DirectX: d3dx9_43.dll и xaudio2_7.dll.")
                     : IsUnmanaged
                         ? AppTexts.UnmanagedExplanation
-                        : "Программа найдена среди установленных (winget export или системные записи Windows)."));
+                        : Loc.T("Программа найдена среди установленных (winget export или системные записи Windows).")));
             else if (ShownAdvice is { } advice)
                 list.Add(AppTexts.AdviceTag(advice));
             list.AddRange(Tags);
@@ -150,7 +150,7 @@ public sealed partial class AppItemViewModel : ObservableObject
     public bool HasActiveJob => Job is { IsActive: true };
     public bool HasVariantPicker => HasVariants && !IsInstalled;
 
-    public string InstalledText => string.IsNullOrEmpty(InstalledVersion) ? "УСТАНОВЛЕНО" : $"УСТАНОВЛЕНО {InstalledVersion}";
+    public string InstalledText => string.IsNullOrEmpty(InstalledVersion) ? Loc.T("УСТАНОВЛЕНО") : Loc.Tf("УСТАНОВЛЕНО {0}", InstalledVersion);
 
     public AppAction Action
     {
@@ -165,13 +165,13 @@ public sealed partial class AppItemViewModel : ObservableObject
 
     public string ActionText => Action switch
     {
-        AppAction.Install => "УСТАНОВИТЬ",
-        AppAction.Upgrade => "ОБНОВИТЬ",
-        AppAction.SystemComponent => "ВСТРОЕН В WINDOWS",
-        AppAction.Website => "СКАЧАТЬ С САЙТА",
+        AppAction.Install => Loc.T("УСТАНОВИТЬ"),
+        AppAction.Upgrade => Loc.T("ОБНОВИТЬ"),
+        AppAction.SystemComponent => Loc.T("ВСТРОЕН В WINDOWS"),
+        AppAction.Website => Loc.T("СКАЧАТЬ С САЙТА"),
         // Without admin rights the verified copy cannot be kept safe: the button opens the official site instead.
-        AppAction.VendorDownload => Elevation.IsElevated ? "СКАЧАТЬ НАПРЯМУЮ" : "СКАЧАТЬ С САЙТА",
-        _ => "УСТАНОВЛЕНО",
+        AppAction.VendorDownload => Elevation.IsElevated ? Loc.T("СКАЧАТЬ НАПРЯМУЮ") : Loc.T("СКАЧАТЬ С САЙТА"),
+        _ => Loc.T("УСТАНОВЛЕНО"),
     };
 
     public bool IsPrimaryAction => Action is AppAction.Install or AppAction.Website or AppAction.VendorDownload;
@@ -191,7 +191,7 @@ public sealed partial class AppItemViewModel : ObservableObject
     };
 
     /// <summary>The state line shown instead of a button when there is no action.</summary>
-    public string StateCaption => Action == AppAction.SystemComponent ? "ВСТРОЕН В WINDOWS" : "";
+    public string StateCaption => Action == AppAction.SystemComponent ? Loc.T("ВСТРОЕН В WINDOWS") : "";
 
     /// <summary>The separate "САЙТ" link is redundant when the main button already opens the download page.</summary>
     public bool ShowSiteButton => Action != AppAction.Website;
@@ -279,13 +279,13 @@ public sealed partial class QueueItemViewModel : ObservableObject
     public string PackageId { get; }
     public string Name => App.Name;
     public string SourceName => App.Entry.SourceName;
-    public string OperationText => Operation == QueueOperation.Install ? "установка" : "обновление";
+    public string OperationText => Operation == QueueOperation.Install ? Loc.T("установка") : Loc.T("обновление");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsActive), nameof(IsRunning), nameof(IsFinished))]
     private QueueState _state = QueueState.Queued;
 
-    [ObservableProperty] private string _statusText = "В ОЧЕРЕДИ";
+    [ObservableProperty] private string _statusText = Loc.T("В ОЧЕРЕДИ");
 
     /// <summary>For a finished row: what happened and what the user can do, in plain Russian (shown under the status).</summary>
     [ObservableProperty]
@@ -308,15 +308,15 @@ public sealed partial class QueueItemViewModel : ObservableObject
     public bool ShowDetail => !string.IsNullOrWhiteSpace(Detail) && (IsFinished || IsDownloading);
     public bool HasFallback => IsDownloading || (Fallback != QueueFallback.None && IsFinished);
 
-    public string FallbackText => IsDownloading ? "ОТМЕНИТЬ ЗАГРУЗКУ"
-        : Fallback == QueueFallback.VendorDownload ? "СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ"
-        : "ОТКРЫТЬ САЙТ";
+    public string FallbackText => IsDownloading ? Loc.T("ОТМЕНИТЬ ЗАГРУЗКУ")
+        : Fallback == QueueFallback.VendorDownload ? Loc.T("СКАЧАТЬ У ПРОИЗВОДИТЕЛЯ")
+        : Loc.T("ОТКРЫТЬ САЙТ");
 
     public string FallbackToolTip => IsDownloading
-        ? "Прервать загрузку. Недокачанный файл будет удалён."
+        ? Loc.T("Прервать загрузку. Недокачанный файл будет удалён.")
         : Fallback == QueueFallback.VendorDownload
             ? AppTexts.VendorDownloadToolTip(App.Entry)
-            : $"Открыть официальную страницу загрузки: {App.Entry.Website}";
+            : Loc.Tf("Открыть официальную страницу загрузки: {0}", App.Entry.Website);
 
     partial void OnStateChanged(QueueState value)
     {

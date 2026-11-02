@@ -1,0 +1,9 @@
+{
+  "area": "Apps.Catalog",
+  "translated": false,
+  "sources": [
+    "Modules/Apps/AppCatalog.cs"
+  ],
+  "ignore": [],
+  "en": {}
+}

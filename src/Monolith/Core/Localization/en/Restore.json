@@ -1,0 +1,9 @@
+{
+  "area": "Restore",
+  "translated": false,
+  "sources": [
+    "Modules/Restore/**"
+  ],
+  "ignore": [],
+  "en": {}
+}
