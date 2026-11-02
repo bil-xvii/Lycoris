@@ -69,7 +69,7 @@ public static class ServiceScanner
         }
         catch (Exception ex)
         {
-            Log.Warn($"Службы: не удалось определить членство в домене — {ex.Message}");
+            Log.Warn("Службы: не удалось определить членство в домене — {0}", ex.Message);
         }
         return false;
     }
@@ -92,7 +92,7 @@ public static class ServiceScanner
         }
         catch (Exception ex)
         {
-            Log.Warn($"Службы: не удалось проверить регистрацию MDM — {ex.Message}");
+            Log.Warn("Службы: не удалось проверить регистрацию MDM — {0}", ex.Message);
         }
         return false;
     }
@@ -111,7 +111,7 @@ public static class ServiceScanner
         }
         catch (Exception ex)
         {
-            Log.Warn($"Службы: не удалось проверить наличие Bluetooth — {ex.Message}");
+            Log.Warn("Службы: не удалось проверить наличие Bluetooth — {0}", ex.Message);
             return true;
         }
     }
@@ -192,7 +192,7 @@ public static class ServiceScanner
                     }
                     catch (Exception ex)
                     {
-                        Log.Warn($"Службы: пропущена {name} — {ex.Message}");
+                        Log.Warn("Службы: пропущена {0} — {1}", name, ex.Message);
                     }
                 }
             }
@@ -273,9 +273,9 @@ public static class ServiceScanner
 
         var lockReason = ServiceGuard.GetLockReason(name, type, start ?? 3, errorControl, launchProtected, imagePath);
         if (lockReason is null && !registryReadable)
-            lockReason = "Windows не даёт прочитать настройки этой службы, поэтому MONOLITH не может проверить её безопасность и не меняет её.";
+            lockReason = Loc.T("Windows не даёт прочитать настройки этой службы, поэтому MONOLITH не может проверить её безопасность и не меняет её.");
         if (lockReason is null && scm != IntPtr.Zero && !CanChangeConfig(scm, name))
-            lockReason = "Windows запрещает менять настройки этой службы даже администратору (права доступа службы).";
+            lockReason = Loc.T("Windows запрещает менять настройки этой службы даже администратору (права доступа службы).");
 
         return new ServiceInfo
         {
@@ -315,7 +315,7 @@ public static class ServiceScanner
         }
         catch (Exception ex)
         {
-            Log.Warn($"Службы: не удалось получить состояние служб — {ex.Message}");
+            Log.Warn("Службы: не удалось получить состояние служб — {0}", ex.Message);
         }
 
         var result = new Dictionary<string, ServiceLiveState>(StringComparer.OrdinalIgnoreCase);

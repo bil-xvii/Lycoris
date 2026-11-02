@@ -65,7 +65,7 @@ public static class TaskScanner
         catch (Exception ex)
         {
             // Root-folder tasks are not visible without admin rights; that's expected.
-            if (Elevation.IsElevated) Log.Warn($"Задачи: не удалось перечислить {folder} — {ex.Message}");
+            if (Elevation.IsElevated) Log.Warn("Задачи: не удалось перечислить {0} — {1}", folder, ex.Message);
         }
         finally
         {

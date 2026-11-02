@@ -8,23 +8,23 @@ namespace Monolith.Modules.Services;
 /// </summary>
 public static class ServiceGuard
 {
-    private const string Core = "Ядро Windows (RPC/COM): от неё зависит вся система.";
-    private const string Session = "Вход в систему, профили, UAC и учётные записи.";
-    private const string Platform = "Платформа Windows: WMI, журналы, планировщик, устройства, питание.";
-    private const string Shell = "Оболочка, Microsoft Store, ввод текста, буфер обмена и уведомления.";
-    private const string Network = "Сеть, VPN или брандмауэр: без неё пропадёт подключение или защита.";
-    private const string Security = "Безопасность Windows: отключение ослабляет защиту.";
-    private const string Servicing = "Обновления, активация или восстановление системы (на них опирается и MONOLITH).";
-    private const string Media = "Звук, камеры или устройства ввода.";
-    private const string Virtualization = "Виртуализация и VBS: WSL2, песочница, защита памяти.";
-    private const string Diagnostics = "Диагностика, нужная самой Windows (средства устранения неполадок).";
-    private const string ThirdParty = "Античит, игровой лаунчер или служба драйвера: игры и функции драйвера перестанут работать.";
-    private const string Updater = "Обновление браузера и WebView2: без него остаются незакрытые уязвимости.";
-    private const string Debated = "Спорная настройка: отключение чаще вредит, чем помогает.";
-    private const string Identity = "Смарт-карты, токены ЭЦП (Рутокен, JaCarta) и Windows Hello.";
-    private const string NetAuth = "Вход в корпоративные сети (802.1X, WPA2/3-Enterprise, eduroam) и DirectAccess: без неё пропадёт подключение.";
-    private const string Radio = "Управление радиомодулями: без неё не работают режим «в самолёте» и переключатели Wi-Fi/Bluetooth.";
-    private const string Time = "Синхронизация времени и часового пояса: неверное время ломает вход, сертификаты HTTPS и обновления.";
+    private static readonly string Core = Loc.T("Ядро Windows (RPC/COM): от неё зависит вся система.");
+    private static readonly string Session = Loc.T("Вход в систему, профили, UAC и учётные записи.");
+    private static readonly string Platform = Loc.T("Платформа Windows: WMI, журналы, планировщик, устройства, питание.");
+    private static readonly string Shell = Loc.T("Оболочка, Microsoft Store, ввод текста, буфер обмена и уведомления.");
+    private static readonly string Network = Loc.T("Сеть, VPN или брандмауэр: без неё пропадёт подключение или защита.");
+    private static readonly string Security = Loc.T("Безопасность Windows: отключение ослабляет защиту.");
+    private static readonly string Servicing = Loc.T("Обновления, активация или восстановление системы (на них опирается и MONOLITH).");
+    private static readonly string Media = Loc.T("Звук, камеры или устройства ввода.");
+    private static readonly string Virtualization = Loc.T("Виртуализация и VBS: WSL2, песочница, защита памяти.");
+    private static readonly string Diagnostics = Loc.T("Диагностика, нужная самой Windows (средства устранения неполадок).");
+    private static readonly string ThirdParty = Loc.T("Античит, игровой лаунчер или служба драйвера: игры и функции драйвера перестанут работать.");
+    private static readonly string Updater = Loc.T("Обновление браузера и WebView2: без него остаются незакрытые уязвимости.");
+    private static readonly string Debated = Loc.T("Спорная настройка: отключение чаще вредит, чем помогает.");
+    private static readonly string Identity = Loc.T("Смарт-карты, токены ЭЦП (Рутокен, JaCarta) и Windows Hello.");
+    private static readonly string NetAuth = Loc.T("Вход в корпоративные сети (802.1X, WPA2/3-Enterprise, eduroam) и DirectAccess: без неё пропадёт подключение.");
+    private static readonly string Radio = Loc.T("Управление радиомодулями: без неё не работают режим «в самолёте» и переключатели Wi-Fi/Bluetooth.");
+    private static readonly string Time = Loc.T("Синхронизация времени и часового пояса: неверное время ломает вход, сертификаты HTTPS и обновления.");
 
     /// <summary>Research §2A HARD-BLOCK list plus "never / do not offer" services from §1.</summary>
     private static readonly Dictionary<string, string> HardBlock = Build(
@@ -103,24 +103,24 @@ public static class ServiceGuard
     public static string? GetLockReason(string name, int serviceType, int start, int errorControl, int launchProtected, string imagePath)
     {
         if (ServiceControl.IsProtected(name))
-            return "Критическая служба Windows: её изменение может оставить систему без сети, обновлений, звука или загрузки.";
+            return Loc.T("Критическая служба Windows: её изменение может оставить систему без сети, обновлений, звука или загрузки.");
         if (IsPerUser(name, serviceType))
         {
             var template = ServiceControl.BaseName(name);
-            return $"Пользовательская служба (шаблон «{template}»). Windows создаёт её копию при каждом входе; изменение шаблона " +
+            return Loc.Tf("Пользовательская служба (шаблон «{0}»). Windows создаёт её копию при каждом входе; изменение шаблона " +
                    "действует на всех пользователей, а отключение ломает буфер обмена Win+V, уведомления и «Связь с телефоном». " +
-                   "MONOLITH такие службы не меняет.";
+                   "MONOLITH такие службы не меняет.", template);
         }
         if (HardBlockReason(name) is { } reason)
             return reason;
         if ((serviceType & 0x0B) != 0 || start is 0 or 1)
-            return "Драйвер или служба ранней загрузки: ошибка в настройке может помешать Windows загрузиться.";
+            return Loc.T("Драйвер или служба ранней загрузки: ошибка в настройке может помешать Windows загрузиться.");
         if (launchProtected != 0)
-            return "Защищённая служба (PPL): Windows запрещает менять её настройки даже администратору.";
+            return Loc.T("Защищённая служба (PPL): Windows запрещает менять её настройки даже администратору.");
         if (errorControl == 3)
-            return "Служба помечена как критичная для загрузки (ErrorControl = 3).";
+            return Loc.T("Служба помечена как критичная для загрузки (ErrorControl = 3).");
         if (IsDriverStorePath(imagePath))
-            return "Служба из пакета драйвера производителя: без неё перестанут работать функции драйвера.";
+            return Loc.T("Служба из пакета драйвера производителя: без неё перестанут работать функции драйвера.");
         return null;
     }
 
@@ -139,7 +139,7 @@ public static class ServiceGuard
     /// <summary>Lock reason for a service owned by an Optimize tweak (applies in expert mode too), or null.</summary>
     public static string? OptimizeOwnedLockReason(string name) => OptimizeTweakFor(name) is null
         ? null
-        : "Эта служба настраивается только в разделе «Оптимизация» — там объяснён риск и там же откат.";
+        : Loc.T("Эта служба настраивается только в разделе «Оптимизация» — там объяснён риск и там же откат.");
 
     /// <summary>
     /// Research §0.4/§2B "not in the curated allowlist": outside expert mode (ЭКСПЕРТНЫЙ РЕЖИМ on the ВСЕ СЛУЖБЫ tab)
@@ -150,10 +150,10 @@ public static class ServiceGuard
     {
         if (expertMode || ServiceCatalog.IsCurated(name)) return null;
         var what = isThirdParty
-            ? "Служба стороннего производителя: MONOLITH не знает, какие функции её программы от неё зависят."
-            : "Этой службы нет в проверенном списке MONOLITH: последствия её изменения не изучены.";
-        return what + " Здесь она только для просмотра. Менять такие службы на свой риск можно после включения " +
-               "«Экспертного режима служб» над списком.";
+            ? Loc.T("Служба стороннего производителя: MONOLITH не знает, какие функции её программы от неё зависят.")
+            : Loc.T("Этой службы нет в проверенном списке MONOLITH: последствия её изменения не изучены.");
+        return what + Loc.T(" Здесь она только для просмотра. Менять такие службы на свой риск можно после включения " +
+               "«Экспертного режима служб» над списком.");
     }
 
     public static bool IsDriverStorePath(string? imagePath) =>

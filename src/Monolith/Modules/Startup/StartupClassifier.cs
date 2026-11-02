@@ -49,7 +49,7 @@ public static class StartupClassifier
         "Waves Audio", "Conexant", "Cirrus Logic", "Alps", "Qualcomm", "MediaTek", "Creative Technology",
     ];
 
-    private static readonly string[] MicrosoftNames = ["Microsoft", "Майкрософт"];
+    private static readonly string[] MicrosoftNames = ["Microsoft", Loc.Keep("Майкрософт")];
 
     /// <summary>Risk of a Run / Startup-folder entry.</summary>
     public static StartupRisk ClassifyEntry(string? targetPath, string? publisher)
@@ -124,7 +124,7 @@ public static class StartupClassifier
 
     private static bool IsUpdater(string? text) =>
         !string.IsNullOrEmpty(text) &&
-        (text.Contains("update", StringComparison.OrdinalIgnoreCase) || text.Contains("обновл", StringComparison.OrdinalIgnoreCase));
+        (text.Contains("update", StringComparison.OrdinalIgnoreCase) || text.Contains(Loc.Keep("обновл"), StringComparison.OrdinalIgnoreCase));
 
     private static string? FileName(string? path)
     {

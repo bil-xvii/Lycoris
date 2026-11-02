@@ -166,7 +166,7 @@ public sealed partial class ServicesViewModel
         var item = SelectedService;
         var option = item?.PendingStart;
         if (item is null || option is null || item.IsLocked) return;
-        if (!RequireAdmin("изменение типа запуска", "ApplyStartType", StartSpec(item.Name, option.Mode, option.Delayed))) return;
+        if (!RequireAdmin(Loc.T("изменение типа запуска"), "ApplyStartType", StartSpec(item.Name, option.Mode, option.Delayed))) return;
         if (item.MustStayDisabled && option.Mode != ServiceStartMode.Disabled) return;
 
         var (live, dependents) = await Task.Run(() =>
@@ -174,7 +174,7 @@ public sealed partial class ServicesViewModel
              option.Mode == ServiceStartMode.Disabled ? ServiceScanner.GetDependents(item.Name) : (IReadOnlyList<DependentInfo>)[]));
         if (live is null)
         {
-            Ui.Toast($"Служба {item.Name} не найдена — список устарел. Нажмите «Обновить».", ToastKind.Warning);
+            Ui.Toast(Loc.Tf("Служба {0} не найдена — список устарел. Нажмите «Обновить».", item.Name), ToastKind.Warning);
             return;
         }
         if (live.StartMode == option.Mode && live.DelayedAutoStart == option.Delayed)
@@ -187,37 +187,37 @@ public sealed partial class ServicesViewModel
         var details = new List<string>
         {
             $"{item.DisplayName} ({item.Name}): {live.Describe()} → {newText}",
-            "Перед изменением создаётся точка восстановления, исходный тип запуска сохраняется в журнале.",
-            "Служба сейчас не останавливается и не запускается — новый тип запуска сработает при следующем старте Windows.",
+            Loc.T("Перед изменением создаётся точка восстановления, исходный тип запуска сохраняется в журнале."),
+            Loc.T("Служба сейчас не останавливается и не запускается — новый тип запуска сработает при следующем старте Windows."),
         };
         if (option.Mode == ServiceStartMode.Disabled)
-            details.Add("Отключённую службу Windows не запустит даже по требованию: всё, что от неё зависит, перестанет работать.");
+            details.Add(Loc.T("Отключённую службу Windows не запустит даже по требованию: всё, что от неё зависит, перестанет работать."));
         if (dependents.Count > 0)
-            details.Add($"От неё зависят: {string.Join(", ", dependents.Select(d => d.DisplayName))}.");
+            details.Add(Loc.Tf("От неё зависят: {0}.", string.Join(", ", dependents.Select(d => d.DisplayName))));
         if (item.IsThirdParty)
-            details.Add($"Служба стороннего производителя ({item.Publisher}): её программа может перестать работать.");
+            details.Add(Loc.Tf("Служба стороннего производителя ({0}): её программа может перестать работать.", item.Publisher));
         if (!item.IsCurated)
-            details.Add("Этой службы нет в списке рекомендаций MONOLITH — вы меняете её на свой риск.");
+            details.Add(Loc.T("Этой службы нет в списке рекомендаций MONOLITH — вы меняете её на свой риск."));
 
         var disabling = option.Mode == ServiceStartMode.Disabled;
-        if (!await Ui.ConfirmAsync(disabling ? "ОТКЛЮЧИТЬ СЛУЖБУ?" : "ИЗМЕНИТЬ ТИП ЗАПУСКА?",
+        if (!await Ui.ConfirmAsync(disabling ? Loc.T("ОТКЛЮЧИТЬ СЛУЖБУ?") : Loc.T("ИЗМЕНИТЬ ТИП ЗАПУСКА?"),
                 disabling
-                    ? "Вы собираетесь отключить службу. Проверьте, что она вам не нужна: ошибка может сломать функции Windows или программ."
-                    : "Изменится тип запуска службы. Изменение записывается в журнал и откатывается.",
-                details, disabling ? "ОТКЛЮЧИТЬ" : "ПРИМЕНИТЬ", danger: disabling,
+                    ? Loc.T("Вы собираетесь отключить службу. Проверьте, что она вам не нужна: ошибка может сломать функции Windows или программ.")
+                    : Loc.T("Изменится тип запуска службы. Изменение записывается в журнал и откатывается."),
+                details, disabling ? Loc.T("ОТКЛЮЧИТЬ") : Loc.T("ПРИМЕНИТЬ"), danger: disabling,
                 footnote: "Откат: кнопка ОТКАТИТЬ в карточке службы или раздел «Восстановление»."))
             return;
 
-        await RunBusyAsync(OperationClass.JournalChange, "Изменение типа запуска…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Изменение типа запуска…"), async () =>
         {
-            var session = await BeginSessionAsync($"Службы: {item.DisplayName} → {newText}");
+            var session = await BeginSessionAsync(string.Format(Loc.Keep("Службы: {0} → {1}"), item.DisplayName, newText), Loc.Tf("Службы: {0} → {1}", item.DisplayName, newText));
             if (session is null) return;
             await Task.Run(() =>
             {
-                session.SetServiceStart(item.Name, option.Mode, ServiceSource, $"Служба «{item.DisplayName}»", option.Delayed);
+                session.SetServiceStart(item.Name, option.Mode, ServiceSource, string.Format(Loc.Keep("Служба «{0}»"), item.DisplayName), option.Delayed);
                 session.Complete();
             });
-            await ReportSessionAsync(session, $"«{item.DisplayName}»: {newText}. Сработает при следующем запуске Windows.");
+            await ReportSessionAsync(session, Loc.Tf("«{0}»: {1}. Сработает при следующем запуске Windows.", item.DisplayName, newText));
             await RefreshServiceAsync(item);
         });
     }
@@ -236,25 +236,25 @@ public sealed partial class ServicesViewModel
     {
         var item = SelectForReplay(name);
         if (item is null || item.IsLocked || item.MustStayDisabled) return;
-        if (!RequireAdmin("запуск службы", "StartService", item.Name)) return;
+        if (!RequireAdmin(Loc.T("запуск службы"), "StartService", item.Name)) return;
         if (!await Ui.ConfirmAsync("ЗАПУСТИТЬ СЛУЖБУ?",
-                $"«{item.DisplayName}» будет запущена сейчас. Тип запуска не меняется.",
-                [$"{item.DisplayName} ({item.Name}): {item.StatusText} → Работает",
-                 "Запуск не записывается в журнал изменений: после перезагрузки служба поведёт себя согласно своему типу запуска."],
+                Loc.Tf("«{0}» будет запущена сейчас. Тип запуска не меняется.", item.DisplayName),
+                [Loc.Tf("{0} ({1}): {2} → Работает", item.DisplayName, item.Name, item.StatusText),
+                 Loc.T("Запуск не записывается в журнал изменений: после перезагрузки служба поведёт себя согласно своему типу запуска.")],
                 "ЗАПУСТИТЬ"))
             return;
 
-        await RunBusyAsync(OperationClass.JournalChange, "Запуск службы…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Запуск службы…"), async () =>
         {
             var ok = await Task.Run(() => ServiceControl.StartAsync(item.Name, TimeSpan.FromSeconds(30)));
             if (ok)
             {
-                Log.Success($"Служба запущена: {item.DisplayName} ({item.Name})");
-                Ui.Toast($"«{item.DisplayName}» запущена.", ToastKind.Success);
+                Log.Success("Служба запущена: {0} ({1})", item.DisplayName, item.Name);
+                Ui.Toast(Loc.Tf("«{0}» запущена.", item.DisplayName), ToastKind.Success);
             }
             else
             {
-                Ui.Toast($"Не удалось запустить «{item.DisplayName}». Подробности — в консоли.", ToastKind.Error);
+                Ui.Toast(Loc.Tf("Не удалось запустить «{0}». Подробности — в консоли.", item.DisplayName), ToastKind.Error);
             }
             await RefreshServiceAsync(item);
         });
@@ -267,37 +267,37 @@ public sealed partial class ServicesViewModel
     {
         var item = SelectForReplay(name);
         if (item is null || item.IsLocked) return;
-        if (!RequireAdmin("остановка службы", "StopService", item.Name)) return;
+        if (!RequireAdmin(Loc.T("остановка службы"), "StopService", item.Name)) return;
 
         var dependents = await Task.Run(() => ServiceScanner.GetDependents(item.Name));
         var running = dependents.Where(d => d.IsRunning).ToList();
         if (running.Count > 0)
         {
             await Ui.AlertAsync("НЕЛЬЗЯ ОСТАНОВИТЬ",
-                $"От «{item.DisplayName}» зависят работающие службы. MONOLITH не останавливает службы каскадом — это может нарушить работу Windows.",
+                Loc.Tf("От «{0}» зависят работающие службы. MONOLITH не останавливает службы каскадом — это может нарушить работу Windows.", item.DisplayName),
                 running.Select(d => $"{d.DisplayName} ({d.Name})"));
             return;
         }
 
         if (!await Ui.ConfirmAsync("ОСТАНОВИТЬ СЛУЖБУ?",
-                $"«{item.DisplayName}» будет остановлена сейчас. Программы, которые её используют, могут перестать работать.",
-                [$"{item.DisplayName} ({item.Name}): Работает → Остановлена",
-                 "Остановка не записывается в журнал изменений. Служба снова запустится по требованию, по триггеру или после перезагрузки (если не отключена).",
-                 "Вернуть сразу — кнопка ЗАПУСТИТЬ."],
+                Loc.Tf("«{0}» будет остановлена сейчас. Программы, которые её используют, могут перестать работать.", item.DisplayName),
+                [Loc.Tf("{0} ({1}): Работает → Остановлена", item.DisplayName, item.Name),
+                 Loc.T("Остановка не записывается в журнал изменений. Служба снова запустится по требованию, по триггеру или после перезагрузки (если не отключена)."),
+                 Loc.T("Вернуть сразу — кнопка ЗАПУСТИТЬ.")],
                 "ОСТАНОВИТЬ", danger: true))
             return;
 
-        await RunBusyAsync(OperationClass.JournalChange, "Остановка службы…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Остановка службы…"), async () =>
         {
             var ok = await Task.Run(() => ServiceControl.StopAsync(item.Name, TimeSpan.FromSeconds(30)));
             if (ok)
             {
-                Log.Success($"Служба остановлена: {item.DisplayName} ({item.Name})");
-                Ui.Toast($"«{item.DisplayName}» остановлена.", ToastKind.Success);
+                Log.Success("Служба остановлена: {0} ({1})", item.DisplayName, item.Name);
+                Ui.Toast(Loc.Tf("«{0}» остановлена.", item.DisplayName), ToastKind.Success);
             }
             else
             {
-                Ui.Toast($"Не удалось остановить «{item.DisplayName}». Подробности — в консоли.", ToastKind.Error);
+                Ui.Toast(Loc.Tf("Не удалось остановить «{0}». Подробности — в консоли.", item.DisplayName), ToastKind.Error);
             }
             await RefreshServiceAsync(item);
         });

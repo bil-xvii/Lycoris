@@ -22,14 +22,14 @@ public static class StartupChanges
     public const string EntrySource = "startup";
     public const string TaskSource = "startup-tasks";
 
-    public static string EntryRecordTitle(StartupEntry e) => $"Автозапуск: {e.DisplayName}";
+    public static string EntryRecordTitle(StartupEntry e) => string.Format(Loc.Keep("Автозапуск: {0}"), e.DisplayName); // journal data: always Russian
 
-    public static string TaskRecordTitle(LogonTask t) => $"Автозапуск: задача «{t.Name}»";
+    public static string TaskRecordTitle(LogonTask t) => string.Format(Loc.Keep("Автозапуск: задача «{0}»"), t.Name);
 
     public static string BatchTitle(IReadOnlyList<string> names, bool enable)
     {
-        var verb = enable ? "включение" : "отключение";
-        return names.Count == 1 ? $"Автозапуск: {verb} «{names[0]}»" : $"Автозапуск: {verb} ({names.Count} шт.)";
+        var verb = enable ? Loc.Keep("включение") : Loc.Keep("отключение");
+        return names.Count == 1 ? string.Format(Loc.Keep("Автозапуск: {0} «{1}»"), verb, names[0]) : string.Format(Loc.Keep("Автозапуск: {0} ({1} шт.)"), verb, names.Count);
     }
 
     public static async Task<StartupChangeOutcome> SetEntriesAsync(IReadOnlyList<StartupEntry> entries, bool enable,
@@ -68,7 +68,7 @@ public static class StartupChanges
                 createRestorePoint, progress).ConfigureAwait(false);
             foreach (var e in write)
             {
-                progress?.Report($"{(enable ? "Включение" : "Отключение")}: {e.DisplayName}");
+                progress?.Report(enable ? Loc.Tf("Включение: {0}", e.DisplayName) : Loc.Tf("Отключение: {0}", e.DisplayName));
                 if (StartupLocations.IsPackaged(e.Source))
                     // Re-check the live state inside the journal gate: the app may have been removed or put under policy.
                     session.Exclusive(() =>
@@ -88,7 +88,7 @@ public static class StartupChanges
 
         if (revert.Count > 0)
         {
-            progress?.Report("Возврат исходного состояния…");
+            progress?.Report(Loc.T("Возврат исходного состояния…"));
             var r = await journal.RevertAsync(revert).ConfigureAwait(false);
             applied += r.Reverted;
             errors.AddRange(r.Errors);
@@ -119,7 +119,7 @@ public static class StartupChanges
                 createRestorePoint, progress).ConfigureAwait(false);
             foreach (var t in write)
             {
-                progress?.Report($"{(enable ? "Включение" : "Отключение")} задачи: {t.Name}");
+                progress?.Report(enable ? Loc.Tf("Включение задачи: {0}", t.Name) : Loc.Tf("Отключение задачи: {0}", t.Name));
                 session.SetTaskEnabled(t.Path, enable, TaskSource, TaskRecordTitle(t));
             }
             session.Complete();
@@ -129,7 +129,7 @@ public static class StartupChanges
 
         if (revert.Count > 0)
         {
-            progress?.Report("Возврат исходного состояния…");
+            progress?.Report(Loc.T("Возврат исходного состояния…"));
             var r = await journal.RevertAsync(revert).ConfigureAwait(false);
             applied += r.Reverted;
             errors.AddRange(r.Errors);
@@ -142,7 +142,7 @@ public static class StartupChanges
     internal static string? PackagedWriteRefusal(StartupEntry e)
     {
         if (!PackagedStartup.IsJournalSafe(e.PackageFamilyName, e.Name))
-            return "нестандартное имя пакета или задачи — такую запись MONOLITH не смог бы откатить, поэтому не меняет";
+            return Loc.T("нестандартное имя пакета или задачи — такую запись MONOLITH не смог бы откатить, поэтому не меняет");
         return PackagedStartup.WriteRefusal(PackagedStartup.ReadState(e.PackageFamilyName!, e.Name));
     }
 
