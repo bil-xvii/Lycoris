@@ -135,6 +135,11 @@ Comments and `///` docs are ignored.
 * Keep brand and tech names: G HUB, NVIDIA, GeForce, winget, DirectX, UAC, SSD, DNS, DDC/CI. Windows terms use the English Windows names (Task Manager, Startup apps, Restore point).
 * «Ты/вы» → no pronoun games: imperative or neutral («Repeat the action», «Wait until it finishes»).
 * Quotes: “…” for UI names and quoted words. Em dash with spaces ` — `.
+* Apostrophes are straight (`'`: `Couldn't`, `MONOLITH's`), never `’`; double quotes are curly “…”.
+* On/off vocabulary (one for the whole app): `ВКЛЮЧИТЬ`/`ВЫКЛЮЧИТЬ`/`ОТКЛЮЧИТЬ` = ENABLE / DISABLE / DISABLE; states `Включена/Включено/Включён` = Enabled, `Выключена/Выключено/Отключена` = Disabled. Short inline words in running text may stay on/off.
+* Other fixed words: `ЗАПУСТИТЬ` = START, `ПРОЦЕССОР` = CPU, `ЗВУК` = AUDIO, `НАСТРОИТЬ` = SET UP, `ПРЕРВАНО` = INTERRUPTED, `нужна перезагрузка` = restart required, `Не удалось …` = Couldn't …, the change log is never called «journal» in English.
+* Terms shared by several areas live in `Common.json` (the conflict test fails otherwise); if one context needs different wording give it a distinct Russian text, not a second translation of the same key.
+* QA: `MONOLITH.exe --selftest <dir> --lang en` also writes `<dir>/missing-keys.txt` (Russian texts that were requested but have no English entry).
 * Numbers/dates: `Loc.Culture` (en-US: `1,234.5`, `Nov 2, 2026`, 24-hour `15:40`). Bytes: `SystemProfile.FormatBytes` → `MB/GB`.
 
 ### Glossary (fixed translations — use exactly these)

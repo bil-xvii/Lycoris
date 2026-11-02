@@ -285,7 +285,6 @@
     "Сеть: адаптер не прочитан — {0}": "Network: adapter could not be read — {0}",
     "сетевой адаптер не прочитан (WMI): {0} — повторите позже": "network adapter could not be read (WMI): {0} — try again later",
     "Сеть: {0} = {1} — {2}": "Network: {0} = {1} — {2}",
-    "не указан сетевой адаптер": "no network adapter specified",
     "свойство «{0}» MONOLITH не меняет": "MONOLITH does not change the property “{0}”",
     "значение свойства должно быть числом": "the property value must be a number"
   }

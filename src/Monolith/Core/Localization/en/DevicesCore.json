@@ -8,7 +8,6 @@
   "en": {
     "Вопрос «{0}» не показан: {1}": "Prompt “{0}” was not shown: {1}",
     "частота по умолчанию": "default refresh rate",
-    "Запись журнала не содержит данных для отката.": "The log record has no data to undo.",
     "неизвестный параметр «{0}»": "unknown setting “{0}”",
     "откат параметра Windows": "undoing a Windows setting",
     "параметр «{0}» не вернулся к значению {1}": "setting “{0}” did not go back to {1}",

@@ -360,7 +360,7 @@ public static partial class VendorDownloads
             var org = fields.TryGetValue("O", out var o) ? o : fields.TryGetValue("CN", out var cn) ? cn : "";
             var display = org.Length > 0 ? org : subject.Length > 0 ? subject : Loc.T("без подписи");
             if (!status.Equals("Valid", StringComparison.OrdinalIgnoreCase))
-                return (false, Loc.Tf("статус «{0}», подписант «{1}»", status.Length > 0 ? status : Loc.T("нет"), display));
+                return (false, Loc.Tf("статус «{0}», подписант «{1}»", status.Length > 0 ? status : Loc.T("отсутствует"), display));
 
             var matches = expectedSigners.Any(expected =>
                 (fields.TryGetValue("O", out var org2) && SignerMatches(org2, expected)) ||
