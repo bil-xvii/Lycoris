@@ -187,7 +187,7 @@ public static class AppAdvisor
     private static AppAdvice NotNow(string reason) => new(AdviceLevel.NotNow, reason);
     private static AppAdvice NotNeeded(string reason) => new(AdviceLevel.NotNeeded, reason);
 
-    public static string FormatDate(DateOnly d) => d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+    public static string FormatDate(DateOnly d) => Loc.DateText(d.ToDateTime(TimeOnly.MinValue));
 
     /// <summary>Another program with the same job is already installed.</summary>
     private static AppAdvice? Duplicate(CatalogEntry e, AdviceContext ctx)

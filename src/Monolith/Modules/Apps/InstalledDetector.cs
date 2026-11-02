@@ -204,7 +204,7 @@ public static class InstalledDetector
         }
         catch (Exception ex)
         {
-            Log.Warn($"Приложения: кэш установленных программ не прочитан ({ex.Message})");
+            Log.Warn("Приложения: кэш установленных программ не прочитан ({0})", ex.Message);
             return null;
         }
     }
@@ -226,7 +226,7 @@ public static class InstalledDetector
         }
         catch (Exception ex)
         {
-            Log.Warn($"Приложения: не удалось сохранить кэш ({ex.Message})");
+            Log.Warn("Приложения: не удалось сохранить кэш ({0})", ex.Message);
         }
     }
 

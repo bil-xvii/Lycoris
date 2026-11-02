@@ -166,7 +166,7 @@ public sealed partial class AppItemViewModel : ObservableObject
     public string ActionText => Action switch
     {
         AppAction.Install => Loc.T("УСТАНОВИТЬ"),
-        AppAction.Upgrade => Loc.T("ОБНОВИТЬ"),
+        AppAction.Upgrade => Loc.Tf("ОБНОВИТЬ{0}", ""), // «ОБНОВИТЬ» alone is REFRESH in Common: the {0} makes this action label its own key
         AppAction.SystemComponent => Loc.T("ВСТРОЕН В WINDOWS"),
         AppAction.Website => Loc.T("СКАЧАТЬ С САЙТА"),
         // Without admin rights the verified copy cannot be kept safe: the button opens the official site instead.
