@@ -21,6 +21,7 @@ public static class SettingsValidator
         if (interval != s.MonitorIntervalMs) { s.MonitorIntervalMs = interval; fixes++; }
 
         fixes += OneOf(s.Language, ["auto", "ru", "en"], "auto", v => s.Language = v);
+        if (!Enum.IsDefined(s.UserGoal)) { s.UserGoal = UserGoal.Recommended; fixes++; }
         fixes += OneOf(s.DevicesTab, ["auto", "manual"], "auto", v => s.DevicesTab = v);
         fixes += OneOf(s.GameBoostCloseMode, [AppSettings.CloseModeClose, AppSettings.CloseModeEcoQos], AppSettings.CloseModeClose, v => s.GameBoostCloseMode = v);
 

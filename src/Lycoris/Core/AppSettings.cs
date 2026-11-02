@@ -5,6 +5,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Lycoris.Core;
 
+public enum UserGoal { Recommended, Games, Work, LaptopBattery, Quiet }
+
 /// <summary>User preferences, stored in %LocalAppData%\Lycoris\settings.json.</summary>
 public sealed partial class AppSettings : ObservableObject
 {
@@ -30,6 +32,8 @@ public sealed partial class AppSettings : ObservableObject
 
     /// <summary>Global detail mode; simple mode is the default for new installations.</summary>
     [ObservableProperty] private bool _expertMode;
+
+    [ObservableProperty] private UserGoal _userGoal = UserGoal.Recommended;
 
     /// <summary>Show the operations console at the bottom of the window (collapsed by default to leave room for content).</summary>
     [ObservableProperty] private bool _showConsole;
