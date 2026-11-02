@@ -87,7 +87,7 @@ Severity = realistic impact for the attacker model above. Status: **fixed** (cod
 `Hardening` (DLL search, image-load policy, module initializer), `EnvironmentGuard`, `PsText`, `SafeIo`, `SafeXml`, `SettingsValidator`,
 `Authenticode` (WinVerifyTrust), `ReleaseSignature` (ECDSA verify/sign, statement, rollback rule), `SecurityCorpus` (hostile inputs).
 Wired into `Elevation`, `ProcessRunner`, `AppSettings`, `WingetClient`, `CleanRunner`, `VendorDownloads`, `AdminIntent`, `App`, `DisplayWriter`,
-`ChangeJournal`, `Core/Updates/*`. Tests: `tests/Monolith.Tests/Security/*` (≈ 150 cases). Self-test stage «БЕЗОПАСНОСТЬ» (`Shell/SelfTest.cs`).
+`ChangeJournal`, `Core/Updates/*`. Tests: `tests/Monolith.Tests/Security/*` (122 cases + ~100 checks of the corpus). Self-test stage «БЕЗОПАСНОСТЬ» (`Shell/SelfTest.cs`).
 Diagnostics: at start the log gets the exe SHA-256, signature state, writable-folder warning, DLL-hardening result and injecting environment variables.
 
 ## 5. Update channel requirements (for `Core/Updates`; items 1–8 are implemented, 9–12 are open)
