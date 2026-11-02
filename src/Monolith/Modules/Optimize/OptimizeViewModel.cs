@@ -344,6 +344,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
         foreach (var t in _allTiles) t.RetitleEfficiency(_laptop);
         UpdateCounts();
         if (Profile == OptimizeProfile.Efficiency && !IsEfficiencyTileVisible) SelectProfile(OptimizeProfile.Recommended);
+        // A saved scenario is checked before the hardware is known: on a laptop the AC mode is not part of it.
+        if (Profile == OptimizeProfile.Efficiency && _laptop && FindItem(EfficiencyAcId) is { IsChecked: true } ac) ac.SetChecked(false);
+        UpdateTileSelection();
         OnPropertyChanged(nameof(ApplyButtonText));
     }
 
@@ -390,8 +393,15 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateCounts();
     }
 
-    private IReadOnlySet<string> DefaultsOf(OptimizeProfile profile) =>
-        _profileDefaults.TryGetValue(profile, out var ids) ? ids : new HashSet<string>();
+    private IReadOnlySet<string> DefaultsOf(OptimizeProfile profile)
+    {
+        if (!_profileDefaults.TryGetValue(profile, out var ids)) return new HashSet<string>();
+        // «Ноутбук: автономность» only suggests the efficient AC mode (a plugged-in laptop is not slowed down by the scenario).
+        return profile == OptimizeProfile.Efficiency && _laptop && ids.Contains(EfficiencyAcId)
+            ? ids.Where(i => i != EfficiencyAcId).ToHashSet(StringComparer.Ordinal) : ids;
+    }
+
+    private const string EfficiencyAcId = "power-mode-best-efficiency-ac";
 
     /// <summary>
     /// Checks exactly the given ids (not-applicable never — unless a tweak it requires is checked and pending in the same
@@ -494,7 +504,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     private void UpdateTileSelection()
     {
-        foreach (var t in Profiles) t.IsSelected = t.Kind == Profile;
+        foreach (var t in _allTiles) t.IsSelected = t.Kind == Profile;
     }
 
     /// <summary>Called after the user changed the selection by hand: the set becomes "СВОЙ НАБОР".</summary>

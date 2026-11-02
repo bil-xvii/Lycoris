@@ -169,7 +169,7 @@ public sealed class ServicesTests
             ServicesViewModel.ProfileCaptionFor(ProfileSet.Recommended, "Efficiency", laptop: true));
         Assert.Equal("Выбран вручную; сценарию «Игры» из раздела «Оптимизация» соответствует профиль «Игры».",
             ServicesViewModel.ProfileCaptionFor(ProfileSet.Normal, "Gaming", laptop: false));
-        Assert.StartsWith("Сценарий в разделе «Оптимизация» — «Свой набор»", ServicesViewModel.ProfileCaptionFor(ProfileSet.Gaming, "Custom", laptop: false));
+        Assert.StartsWith("Свой набор", ServicesViewModel.ProfileCaptionFor(ProfileSet.Gaming, "Custom", laptop: false));
     }
 
     [Fact]

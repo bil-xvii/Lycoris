@@ -191,7 +191,7 @@
                                          (WrapWithOverflow: «Рекомендуемый» is never split into «Рекомендуем/ый»). -->
                                     <WrapPanel Margin="0,0,9,0">
                                         <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}" FontWeight="Bold"
-                                                   FontSize="13" Foreground="{StaticResource B.Text}" TextWrapping="WrapWithOverflow" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                                   FontSize="13" Foreground="{StaticResource B.Text}" TextWrapping="WrapWithOverflow" TextTrimming="CharacterEllipsis" Margin="0,0,7,0" VerticalAlignment="Center" />
                                         <Border Style="{StaticResource Tag.Muted}" Margin="0,1,7,1" Padding="5,0,5,1" VerticalAlignment="Center"
                                                 Visibility="{Binding Badge, Converter={StaticResource NullToVis}}">
                                             <TextBlock Text="{Binding Badge}" FontSize="9.5" />

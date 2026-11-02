@@ -395,7 +395,7 @@ Efficiency / Custom → Recommended).
 | `mouse-acceleration-off`, `accessibility-hotkeys-off`, `audio-ducking` («ничего не делать») | — | ✓ | — |
 | `explorer-home-private` (SAFE-OPTIONAL pre-check: recent files never go on air) | **—** (productivity feature) | ✓ | — |
 | `hags` | — | **—** (OBS KB /kb/hags: capture problems; `hags-off` is a troubleshooting row, named in the tooltip) | — |
-| `power-mode-best-efficiency-ac` (Windows 11, Balanced personality) | — | — | ✓ desktop and laptop |
+| `power-mode-best-efficiency-ac` (Windows 11, Balanced personality) | — | — | ✓ desktop only (laptop: by choice, named in the tooltip) |
 | `power-mode-best-efficiency-dc`, `battery-screen-off-3min`, `battery-sleep-10min`, `search-index-on-battery-off` (DC items, SAFE-OPTIONAL pre-checks) | — | — | ✓ laptops only (AppliesTo) |
 
 Rules:
