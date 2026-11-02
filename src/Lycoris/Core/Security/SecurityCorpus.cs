@@ -2,6 +2,7 @@ using System.Text;
 using Lycoris.Modules.Games;
 using Lycoris.Modules.Optimize;
 using Lycoris.Shell;
+using Lycoris.Core.Diagnostics;
 
 namespace Lycoris.Core.Security;
 
@@ -31,6 +32,14 @@ public static class SecurityCorpus
                 failures.Add($"{name} — exception {ex.GetType().Name}: {ex.Message}");
             }
         }
+
+        Expect("diagnostics redacts hostile mixed identity and secret", () =>
+        {
+            var value = ProblemReport.Anonymize("alice 2001:db8::1 aa:bb:cc:dd:ee:ff alice@host.test api_token=do-not-leak Привет", "alice", "pc");
+            return !value.Contains("alice", StringComparison.OrdinalIgnoreCase) && !value.Contains("2001:db8::1", StringComparison.Ordinal)
+                && !value.Contains("aa:bb:cc:dd:ee:ff", StringComparison.Ordinal) && !value.Contains("alice@host.test", StringComparison.Ordinal)
+                && !value.Contains("do-not-leak", StringComparison.Ordinal) && value.Contains("Привет", StringComparison.Ordinal);
+        });
 
         // ── Replay arguments of the elevated copy (--replay-page / --replay-command / --replay-param) ──
         string[] badCommands = ["Format", "Delete", "Apply;calc", "Apply calc", "Apply\n", "..\\Apply", "Apply()", "Apply.Execute", "041D04350442", "", new string('A', 65), "ApplyCommand", "apply"];
