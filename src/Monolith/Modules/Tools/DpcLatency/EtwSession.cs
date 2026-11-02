@@ -70,11 +70,11 @@ public static class EtwSession
     /// <summary>Plain-language text for a failed StartTrace.</summary>
     internal static string DescribeStartError(int code) => code switch
     {
-        ERROR_ACCESS_DENIED => "нет доступа к трассировке ядра — нужны права администратора (код 5).",
-        ERROR_ALREADY_EXISTS => "сеанс трассировки с таким именем уже существует — повторите попытку (код 183).",
-        ERROR_NO_SYSTEM_RESOURCES => "достигнут предел системных сеансов трассировки Windows (не более 8) — закройте LatencyMon, xperf/WPR или другие профилировщики и повторите (код 1450).",
-        ERROR_BAD_LENGTH or ERROR_INVALID_PARAMETER => $"Windows отклонила параметры сеанса трассировки (код {code}).",
-        _ => $"не удалось запустить сеанс трассировки (код {code}).",
+        ERROR_ACCESS_DENIED => Loc.T("нет доступа к трассировке ядра — нужны права администратора (код 5)."),
+        ERROR_ALREADY_EXISTS => Loc.T("сеанс трассировки с таким именем уже существует — повторите попытку (код 183)."),
+        ERROR_NO_SYSTEM_RESOURCES => Loc.T("достигнут предел системных сеансов трассировки Windows (не более 8) — закройте LatencyMon, xperf/WPR или другие профилировщики и повторите (код 1450)."),
+        ERROR_BAD_LENGTH or ERROR_INVALID_PARAMETER => Loc.Tf("Windows отклонила параметры сеанса трассировки (код {0}).", code),
+        _ => Loc.Tf("не удалось запустить сеанс трассировки (код {0}).", code),
     };
 
     /// <summary>
@@ -94,7 +94,7 @@ public static class EtwSession
             var rc = QueryAllTracesW(buffers, (uint)buffers.Length, out var count);
             if (rc != 0 && rc != ERROR_MORE_DATA)
             {
-                Log.Warn($"DPC/ISR: QueryAllTraces вернула код {rc} — проверка старых сеансов пропущена.");
+                Log.Warn("DPC/ISR: QueryAllTraces вернула код {0} — проверка старых сеансов пропущена.", rc);
                 return 0;
             }
             var stopped = 0;
@@ -106,9 +106,9 @@ public static class EtwSession
                 if (stopRc == 0 || stopRc == ERROR_WMI_INSTANCE_NOT_FOUND)
                 {
                     stopped++;
-                    Log.Info($"DPC/ISR: остановлен оставшийся сеанс {name}.");
+                    Log.Info("DPC/ISR: остановлен оставшийся сеанс {0}.", name);
                 }
-                else Log.Warn($"DPC/ISR: сеанс {name} не остановлен (код {stopRc}).");
+                else Log.Warn("DPC/ISR: сеанс {0} не остановлен (код {1}).", name, stopRc);
             }
             return stopped;
         }
@@ -160,7 +160,7 @@ public static class EtwSession
                 return new Result(false, DescribeStartError((int)rc), 0, 0, sw.Elapsed, false);
             }
             // From here on the session exists: every exit goes through finally, which stops it.
-            Log.Info($"DPC/ISR: сеанс {loggerName} запущен (DPC + INTERRUPT, {duration.TotalSeconds:0} с).");
+            Log.Info("DPC/ISR: сеанс {0} запущен (DPC + INTERRUPT, {1} с).", loggerName, duration.TotalSeconds.ToString("0"));
 
             state = new Consumer(onEvent);
             var logfile = new EVENT_TRACE_LOGFILEW
@@ -173,7 +173,7 @@ public static class EtwSession
             if (trace == ulong.MaxValue)
             {
                 var err = Marshal.GetLastWin32Error();
-                result = new Result(false, $"не удалось подключиться к сеансу трассировки (код {err}).", 0, 0, sw.Elapsed, false);
+                result = new Result(false, Loc.Tf("не удалось подключиться к сеансу трассировки (код {0}).", err), 0, 0, sw.Elapsed, false);
                 return result;
             }
 
@@ -198,7 +198,7 @@ public static class EtwSession
             result = stoppedForGame
                 ? new Result(true, null, 0, 0, sw.Elapsed, false, StoppedForGame: true)
                 : !consumer.IsAlive && !cancelled && sw.Elapsed < duration
-                ? new Result(true, $"сеанс трассировки завершился раньше срока (код {processRc}) — возможно, его остановила другая программа.", 0, 0, sw.Elapsed, false)
+                ? new Result(true, Loc.Tf("сеанс трассировки завершился раньше срока (код {0}) — возможно, его остановила другая программа.", processRc), 0, 0, sw.Elapsed, false)
                 : new Result(true, null, 0, 0, sw.Elapsed, cancelled);
         }
         finally
@@ -213,13 +213,13 @@ public static class EtwSession
                     eventsLost = stats.EventsLost;
                     buffersLost = stats.RealTimeBuffersLost + stats.LogBuffersLost;
                     if (eventsLost > 0 || buffersLost > 0)
-                        Log.Warn($"DPC/ISR: потеряно событий {eventsLost}, буферов {buffersLost}.");
+                        Log.Warn("DPC/ISR: потеряно событий {0}, буферов {1}.", eventsLost, buffersLost);
                 }
                 else if (stopRc != ERROR_WMI_INSTANCE_NOT_FOUND)
-                    Log.Warn($"DPC/ISR: остановка сеанса вернула код {stopRc}; повторная остановка по имени.");
+                    Log.Warn("DPC/ISR: остановка сеанса вернула код {0}; повторная остановка по имени.", stopRc);
                 if (stopRc != 0 && stopRc != ERROR_WMI_INSTANCE_NOT_FOUND)
                     ControlTraceW(0, loggerName, props, EVENT_TRACE_CONTROL_STOP);
-                Log.Info($"DPC/ISR: сеанс {loggerName} остановлен.");
+                Log.Info("DPC/ISR: сеанс {0} остановлен.", loggerName);
             }
             if (consumer is not null && !consumer.Join(TimeSpan.FromSeconds(10)))
                 Log.Warn("DPC/ISR: поток обработки событий не завершился за 10 с — трассировка закрывается принудительно.");
