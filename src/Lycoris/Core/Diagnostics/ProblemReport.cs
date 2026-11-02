@@ -29,7 +29,7 @@ public static partial class ProblemReport
         Add("report.txt", BuildReport);
         Add("settings.json", ReadSettings);
         Add("journal.txt", ReadJournal);
-        Add("README.txt", () => "Локальный диагностический архив. Содержит report.txt, до трёх последних журналов работы, безопасные настройки и краткую сводку журнала изменений. Значения реестра, пользовательские пути и секреты не включены. Архив не отправляется автоматически." );
+        entries["README.txt"] = Utf8(ProblemReportText.Readme);   // our own fixed text: not run through the anonymizer (it would mangle «серийные номера»)
         foreach (var (name, data) in CollectLogs(AppPaths.LogsDir)) entries[name] = data;
 
         var items = entries.Select(e => new Item(e.Key, e.Value.LongLength)).ToArray();
