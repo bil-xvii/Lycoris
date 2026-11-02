@@ -1,6 +1,7 @@
 <UserControl x:Class="Monolith.UI.Controls.PageHeader"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              x:Name="Root">
     <!--

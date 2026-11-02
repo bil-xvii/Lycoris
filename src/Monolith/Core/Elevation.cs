@@ -60,13 +60,40 @@ public static class Elevation
     }
 
     /// <summary>
+    /// Starts a new copy with the SAME rights as this one (an elevated process starts an elevated child without a new UAC
+    /// prompt; a read-only one starts a read-only child) — used to apply a setting that is read at startup (the language).
+    /// The copy waits for this process to close (same hand-over as <see cref="TryRelaunchElevated"/>). False if it did not start.
+    /// </summary>
+    public static bool TryRelaunchSameRights(IEnumerable<string>? extraArgs = null)
+    {
+        var args = RelaunchArguments(Environment.GetCommandLineArgs().Skip(1), extraArgs, Environment.ProcessId);
+        var psi = new ProcessStartInfo
+        {
+            FileName = AppPaths.ExecutablePath,
+            UseShellExecute = false,
+            WorkingDirectory = AppContext.BaseDirectory,
+        };
+        foreach (var a in args) psi.ArgumentList.Add(a);
+        try
+        {
+            Process.Start(psi)?.Dispose();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Не удалось перезапустить MONOLITH", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Arguments of this run that describe only this run and must not be carried over to a relaunched copy: the page
     /// and tab it was opened on and a remembered action («--replay-…», see Shell/AdminIntent). Each takes one value.
     /// The relaunch passes its own fresh values instead.
     /// </summary>
     public static readonly IReadOnlySet<string> PerRunArgs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "--page", "--tab", "--replay-page", "--replay-command", "--replay-param", "--parent",
+        "--page", "--tab", "--replay-page", "--replay-command", "--replay-param", "--parent", "--lang",
     };
 
     /// <summary>
@@ -128,10 +155,10 @@ public static class Elevation
     /// </summary>
     public static bool IsInteractiveUser => InteractiveUserState == true;
 
-    public const string OtherAccountText =
-        "MONOLITH запущен от имени другой учётной записи администратора — эти настройки применились бы к ней, а не к вам. " +
-        "Запустите MONOLITH из своей учётной записи.";
-    public const string UnknownAccountText = "Не удалось определить пользователя рабочего стола — пользовательские настройки пока не меняются.";
+    public static string OtherAccountText =>
+        Loc.T("MONOLITH запущен от имени другой учётной записи администратора — эти настройки применились бы к ней, а не к вам. " +
+              "Запустите MONOLITH из своей учётной записи.");
+    public static string UnknownAccountText => Loc.T("Не удалось определить пользователя рабочего стола — пользовательские настройки пока не меняются.");
 
     /// <summary>Why per-user settings cannot be written now, or null when they can.</summary>
     public static string? InteractiveUserProblem => InteractiveUserState switch
@@ -238,6 +265,6 @@ public static class Elevation
     public static void Demand(string action)
     {
         if (!IsElevated)
-            throw new UnauthorizedAccessException($"Для действия «{action}» нужны права администратора. Перезапустите MONOLITH от имени администратора.");
+            throw new UnauthorizedAccessException(Loc.Tf("Для действия «{0}» нужны права администратора. Перезапустите MONOLITH от имени администратора.", Loc.Sink(action)));
     }
 }

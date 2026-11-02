@@ -25,10 +25,10 @@ public partial class CountdownWindow : Window
     {
         _request = request;
         InitializeComponent();
-        TitleText.Text = SentenceCaseConverter.Apply(request.Title);
-        MessageText.Text = request.Message;
-        KeepButton.Content = request.KeepText;
-        RevertButton.Content = request.RevertText;
+        TitleText.Text = SentenceCaseConverter.Apply(Loc.Sink(request.Title));
+        MessageText.Text = Loc.Sink(request.Message);
+        KeepButton.Content = Loc.Sink(request.KeepText);
+        RevertButton.Content = Loc.Sink(request.RevertText);
         _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(250) };
         _timer.Tick += (_, _) => Tick();
         Tick();
@@ -47,7 +47,7 @@ public partial class CountdownWindow : Window
         var total = _request.Duration;
         var left = total - (DateTime.UtcNow - _startUtc);
         var seconds = Math.Max(0, (int)Math.Ceiling(left.TotalSeconds));
-        CountdownText.Text = $"Возврат к прежним параметрам через {seconds} с";
+        CountdownText.Text = Loc.Tf("Возврат к прежним параметрам через {0} с", seconds);
         Remaining.Value = total.TotalMilliseconds <= 0 ? 0 : Math.Clamp(left.TotalMilliseconds / total.TotalMilliseconds, 0, 1);
         // DeviceConfirm closes it at the deadline; this is only a fallback when nobody does.
         if (left < TimeSpan.FromSeconds(-2)) CloseAsRevert();
@@ -107,7 +107,7 @@ public partial class CountdownWindow : Window
         }
         catch (Exception ex)
         {
-            Core.Log.Warn($"Окно подтверждения: не удалось выбрать монитор ({ex.Message}).");
+            Core.Log.Warn("Окно подтверждения: не удалось выбрать монитор ({0}).", ex.Message);
             Left = SystemParameters.WorkArea.Left + (SystemParameters.WorkArea.Width - ActualWidth) / 2;
             Top = SystemParameters.WorkArea.Top + (SystemParameters.WorkArea.Height - ActualHeight) / 2;
         }

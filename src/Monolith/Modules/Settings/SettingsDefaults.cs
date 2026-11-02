@@ -34,15 +34,16 @@ public static class SettingsDefaults
         var d = new AppSettings();
         return
         [
-            $"Точка восстановления перед изменениями — {OnOff(d.CreateRestorePoints)}",
-            $"Подтверждение перед применением — {OnOff(d.ConfirmBeforeApply)}",
-            $"Экспертный режим служб — {OnOff(d.ServicesExpertMode)}",
-            $"Консоль операций — {(d.ShowConsole ? "показана" : "скрыта")}",
-            $"Интервал обновления мониторинга — {FormatInterval(d.MonitorIntervalMs)}",
-            $"Игровой сеанс: план питания — {OnOff(d.GameBoostPowerPlan)}, приоритет игры — {OnOff(d.GameBoostPriority)}, очистка памяти ожидания — {OnOff(d.GameBoostPurgeStandby)}",
-            "Последний выбранный профиль оптимизации — «Рекомендуемый»",
-            "Сохраняются: добавленные папки с играми и список программ для игрового режима",
-            "Изменения системы и журнал отката не затрагиваются",
+            Loc.Tf("Точка восстановления перед изменениями — {0}", OnOff(d.CreateRestorePoints)),
+            Loc.Tf("Подтверждение перед применением — {0}", OnOff(d.ConfirmBeforeApply)),
+            Loc.Tf("Экспертный режим служб — {0}", OnOff(d.ServicesExpertMode)),
+            Loc.Tf("Консоль операций — {0}", d.ShowConsole ? Loc.T("показана") : Loc.T("скрыта")),
+            Loc.Tf("Интервал обновления мониторинга — {0}", FormatInterval(d.MonitorIntervalMs)),
+            Loc.Tf("Игровой сеанс: план питания — {0}, приоритет игры — {1}, очистка памяти ожидания — {2}", OnOff(d.GameBoostPowerPlan), OnOff(d.GameBoostPriority), OnOff(d.GameBoostPurgeStandby)),
+            Loc.T("Последний выбранный профиль оптимизации — «Рекомендуемый»"),
+            Loc.T("Сохраняются: добавленные папки с играми и список программ для игрового режима"),
+            Loc.T("Язык интерфейса не меняется"),
+            Loc.T("Изменения системы и журнал отката не затрагиваются"),
         ];
     }
 
@@ -50,10 +51,9 @@ public static class SettingsDefaults
     public static int NearestInterval(int ms) =>
         IntervalChoices.OrderBy(c => Math.Abs(c - ms)).ThenBy(c => c).First();
 
-    public static string FormatInterval(int ms) =>
-        (ms / 1000d).ToString("0.#", CultureInfo.GetCultureInfo("ru-RU")) + " с";
+    public static string FormatInterval(int ms) => Loc.SecondsText(ms / 1000d);
 
-    private static string OnOff(bool v) => v ? "включено" : "выключено";
+    private static string OnOff(bool v) => v ? Loc.T("включено") : Loc.T("выключено");
 
     /// <summary>"8.4.2+5b4c…" → "8.4.2", "8.4.2.1" → "8.4.2" (package versions have three parts).</summary>
     public static string CleanVersion(string? informational, Version? fallback)
