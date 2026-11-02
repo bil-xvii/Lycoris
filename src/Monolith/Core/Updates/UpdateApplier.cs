@@ -211,12 +211,16 @@ public sealed class SystemUpdateEnvironment : IUpdateEnvironment
     public void Delete(string path) => File.Delete(path);
     public void Delay(TimeSpan time) => Thread.Sleep(time);
 
+    /// <summary>The product name stamped into our exes: Lycoris since 1.0.1, MONOLITH before the rename (an old copy may be updated).</summary>
+    public static bool IsProductName(string? name) =>
+        string.Equals(name, "Lycoris", StringComparison.Ordinal) || string.Equals(name, "MONOLITH", StringComparison.Ordinal);
+
     public bool IsMonolithExe(string path)
     {
         try
         {
             var info = FileVersionInfo.GetVersionInfo(path);
-            return string.Equals(info.ProductName, "MONOLITH", StringComparison.Ordinal) && new FileInfo(path).Length > (1 << 20);
+            return IsProductName(info.ProductName) && new FileInfo(path).Length > (1 << 20);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
