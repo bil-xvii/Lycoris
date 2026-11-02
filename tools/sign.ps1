@@ -1,4 +1,4 @@
-# Signs Lycoris.exe with Authenticode (SHA-256 + RFC 3161 timestamp), so Windows shows a publisher name instead of
+﻿# Signs Lycoris.exe with Authenticode (SHA-256 + RFC 3161 timestamp), so Windows shows a publisher name instead of
 # «Издатель: неизвестно». Certificate sources, first match wins:
 #   -PfxPath <file>      a purchased certificate in a .pfx file (asks for its password)
 #   -Thumbprint <hex>    a certificate in Cert:\CurrentUser\My or Cert:\LocalMachine\My (also hardware tokens / cloud HSM
