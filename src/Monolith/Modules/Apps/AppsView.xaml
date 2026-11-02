@@ -333,7 +333,7 @@
             <Button Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Top" Command="{Binding ClearSearchCommand}"
                     Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="10" VerticalAlignment="Center" Margin="0,0,7,0" />
+                    <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                     <TextBlock Text="СБРОСИТЬ" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
