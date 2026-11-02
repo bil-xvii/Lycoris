@@ -6,15 +6,41 @@
             <Button Style="{StaticResource Btn}" Content="{loc:T Хотите пройти мастер?}" Command="{Binding OpenWizardCommand}" HorizontalAlignment="Left" Margin="0,0,0,12"
                     Visibility="{Binding ShowWizardPrompt, Converter={StaticResource BoolToVis}}" />
             <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="12" Margin="0,0,0,12">
-                <Grid>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <Ellipse Width="9" Height="9" Margin="2,0,10,0" VerticalAlignment="Center"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{StaticResource B.SuccessText}"/><Style.Triggers><DataTrigger Binding="{Binding DoctorSeverity}" Value="Warning"><Setter Property="Fill" Value="{StaticResource B.WarningText}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding DoctorText}" Foreground="{StaticResource B.Text}" FontSize="14" FontWeight="SemiBold"/>
-                        <TextBlock Text="{Binding DoctorDetails}" Foreground="{StaticResource B.Text2}" Margin="0,3,8,0" TextWrapping="Wrap"/>
-                    </StackPanel>
-                    <Button Grid.Column="2" Style="{StaticResource Btn}" Content="{loc:T ОТКРЫТЬ ПАНЕЛЬ}" Command="{Binding OpenDoctorCommand}"/>
-                </Grid>
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <Ellipse Width="9" Height="9" HorizontalAlignment="Left" Margin="1,0,0,4"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{StaticResource B.SuccessText}"/><Style.Triggers><DataTrigger Binding="{Binding DoctorHasProblems}" Value="True"><Setter Property="Fill" Value="{StaticResource B.WarningText}"/></DataTrigger><DataTrigger Binding="{Binding DoctorHasData}" Value="False"><Setter Property="Fill" Value="{StaticResource B.Text3}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse>
+                            <TextBlock Text="{Binding DoctorStatus}" Foreground="{StaticResource B.Text}" FontSize="16" FontWeight="Bold"/>
+                            <TextBlock Text="{Binding DoctorChecked}" Foreground="{StaticResource B.Text2}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{StaticResource Btn}" Content="{loc:T ПРОВЕРИТЬ СНОВА}" Command="{Binding RefreshDoctorCommand}" Visibility="{Binding DoctorHasProblems, Converter={StaticResource InverseBoolToVis}}"/>
+                    </Grid>
+                    <TextBlock Text="{loc:T Пока не удалось получить результаты проверки.}" Foreground="{StaticResource B.Text2}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="{Binding DoctorHasData, Converter={StaticResource InverseBoolToVis}}"/>
+                    <ItemsControl ItemsSource="{Binding DoctorIssues}" Margin="0,4,0,0" Visibility="{Binding DoctorHasProblems, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,1,0,0" Padding="0,9,0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <Ellipse Width="9" Height="9" Margin="2,5,10,0" VerticalAlignment="Top"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{StaticResource B.WarningText}"/><Style.Triggers><DataTrigger Binding="{Binding DotStyle}" Value="Dot.Red"><Setter Property="Fill" Value="{StaticResource B.Red}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Title}" Foreground="{StaticResource B.Text}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Reason}" Foreground="{StaticResource B.Text2}" Margin="0,3,8,3" TextWrapping="Wrap"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Style="{StaticResource Tag.Info}" Margin="0,0,6,0"><TextBlock Text="{Binding Risk}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.InfoText}"/></Border>
+                                        </StackPanel>
+                                        <Expander Header="{loc:T ПОДРОБНЕЕ}" Margin="0,3,0,0">
+                                            <TextBlock Text="{Binding FullDetail}" Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                        </Expander>
+                                        <TextBlock Text="{Binding TechnicalDetail}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" TextWrapping="Wrap" Visibility="{Binding DataContext.ExpertMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Style="{StaticResource Btn}" Content="{Binding Action}" Command="{Binding DataContext.RunDoctorActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Margin="8,0,0,0" VerticalAlignment="Top"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Style="{StaticResource Btn.Link}" Content="{loc:T ВСЕ ПРОБЛЕМЫ}" Command="{Binding OpenDoctorCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="{Binding DoctorHasProblems, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
             </Border>
             <ItemsControl ItemsSource="{Binding Goals}">
                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
