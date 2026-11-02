@@ -39,7 +39,7 @@ public static class SecurityCorpus
         string[] badPages = ["..\\x", "Optimize", "opt imize", "opti\nmize", "", "a/b", "-x", new string('a', 33), "043E043F04420438043C04380437043004460438044F"];
         foreach (var p in badPages)
             Expect($"replay page refused: «{p}»", () => AdminIntent.Parse(["--replay-page", p, "--replay-command", "Apply"]) is null);
-        string[] badParams = ["a\nb", "a\0b", "a\rb", "\u001b[31m", new string('x', 201)];
+        string[] badParams = ["a\nb", "a\0b", "a\rb", "\u001b[31m", new string('x', AdminIntent.MaxParameterLength + 1)];
         foreach (var p in badParams)
             Expect($"replay parameter refused (len {p.Length})", () => AdminIntent.Parse(["--replay-page", "optimize", "--replay-command", "Apply", "--replay-param", p]) is null);
         Expect("replay: a valid intent still parses", () => AdminIntent.Parse(["--replay-page", "restore", "--replay-command", "RevertBatch", "--replay-param", "3f2504e0-4f89-11d3-9a0c-0305e82c3301"]) is not null);

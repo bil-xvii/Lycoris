@@ -348,7 +348,7 @@ environment, and can start Lycoris.exe with any arguments). The elevated MONOLIT
    typographic quotes U+2018/2019/201A/201B) or is refused. Never `cmd /c` with a user string.
 4. **Starting Lycoris.exe again with rights** (`Elevation.TryRelaunchElevated/SameRights`, display guard, updater) must pass `SelfIntegrity.CheckBeforeElevation()`
    (hash re-check, hostile location, signature, unpacked natives). UAC binds to the exe path, not to its bytes. New self-starts: same gate.
-5. **Launch arguments are attacker input.** `--replay-*` only for allow-listed commands (`AdminIntent.Replayable`) with a plain page key and a ≤ 200-char printable
+5. **Launch arguments are attacker input.** `--replay-*` only for allow-listed commands (`AdminIntent.Replayable`) with a plain page key and a ≤ 4096-char printable
    parameter; a new replayable command must have its own confirmation dialog. `--e2e` only in Debug or with `MONOLITH_E2E=1`. `--apply-update` validates its
    target/pid/hash (exit 13). Add no argument that changes the system without a confirmation.
 6. **Process hardening** is applied by `Hardening` (module initializer, before any other code): DLL search = System32 + the runtime's native folders, image-load policy.

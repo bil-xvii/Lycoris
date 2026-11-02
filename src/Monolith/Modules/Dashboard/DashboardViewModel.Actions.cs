@@ -62,10 +62,18 @@ public sealed partial class DashboardViewModel
         }
     }
 
-    private static Task OpenShellAsync(string target, string? args, string what) => Task.Run(() =>
+    private static Task OpenShellAsync(string target, string? args, string what) => Task.Run(async () =>
     {
         try
         {
+            // A protocol handler (ms-settings:) lives in HKCU, which any program of the user can rewrite: never hand it to
+            // ShellExecute with Lycoris's administrator token — open it as the desktop user.
+            if (Elevation.IsElevated)
+            {
+                if (!await UnelevatedShell.StartAsUserAsync(target, args ?? ""))
+                    Ui.Toast(Loc.Tf("Не удалось открыть {0}", what), ToastKind.Warning);
+                return;
+            }
             var psi = new ProcessStartInfo(target) { UseShellExecute = true };
             if (args is not null) psi.Arguments = args;
             Process.Start(psi);

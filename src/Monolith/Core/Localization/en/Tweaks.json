@@ -45,6 +45,7 @@
     "после перезапуска Проводника": "after Explorer restarts",
     "после выхода из системы": "after sign-out",
     "после перезагрузки": "after restart",
-    "сразу": "immediately"
+    "сразу": "immediately",
+    "{0} — пропущено: правило применимости не отработало ({1}).": "{0} — skipped: the applicability rule failed ({1})."
   }
 }

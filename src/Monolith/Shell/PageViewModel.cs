@@ -54,8 +54,19 @@ public abstract partial class PageViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string? _busyText;
 
+    /// <summary>Counts the visits that ended: an activation that was waiting for a slow first load must not start work for a page the user already left.</summary>
+    private int _leftCount;
+
+    /// <summary>The user leaves the page: marks the visit as over and calls <see cref="Deactivate"/>.</summary>
+    public void Leave()
+    {
+        Interlocked.Increment(ref _leftCount);
+        Deactivate();
+    }
+
     public async Task ActivateAsync()
     {
+        var left = Volatile.Read(ref _leftCount);
         try
         {
             if (_loadTask is null) await EnsureLoadedAsync();
@@ -77,6 +88,8 @@ public abstract partial class PageViewModel : ObservableObject
                     await EnsureLoadedAsync();
                     return;
                 }
+                // Left while the first load was still running (Deactivate already ran): do not start timers/monitors now.
+                if (Volatile.Read(ref _leftCount) != left) return;
                 await OnReturnAsync();
             }
         }
@@ -259,7 +272,8 @@ public abstract partial class PageViewModel : ObservableObject
     /// («Apply», «RevertBatch»); the parameter is text only (an id, a tab key).
     /// </summary>
     protected bool RequireAdmin(string action, string command, string? parameter = null) =>
-        RequireAdmin(action, new AdminIntent(Key, command, parameter));
+        // A parameter the relaunched copy would refuse (too long) must not promise «the action continues by itself».
+        RequireAdmin(action, !string.IsNullOrEmpty(parameter) && !AdminIntent.IsParameter(parameter) ? null : new AdminIntent(Key, command, parameter));
 
     private static int _writableFolderWarned;
 

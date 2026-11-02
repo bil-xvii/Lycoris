@@ -129,7 +129,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     {
         if (GameBoostState.IsActive)
         {
-            Ui.Toast(Loc.T("Идёт игровая сессия — очистка запустится после выхода из игры, чтобы не мешать ей."), ToastKind.Warning);
+            Ui.Toast(Loc.T("Идёт игровая сессия — очистка не запущена, чтобы не мешать игре. Повторите после выхода из игры."), ToastKind.Warning);
             return;
         }
         var selected = _items.Where(i => i.IsChecked && i.IsSelectable).ToList();
@@ -480,6 +480,12 @@ public sealed partial class CleanerViewModel : PageViewModel
     {
         var results = new List<(CleanItem, ItemCleanResult)>();
         if (_guard is not { } guard) return results;
+        // The first check ran before the re-analysis and the confirmation dialog: a game session may have started since.
+        if (GameBoostState.IsActive)
+        {
+            Ui.Toast(Loc.T("Идёт игровая сессия — очистка не запущена, чтобы не мешать игре. Повторите после выхода из игры."), ToastKind.Warning);
+            return results;
+        }
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;

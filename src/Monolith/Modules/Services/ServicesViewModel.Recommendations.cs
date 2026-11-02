@@ -317,11 +317,11 @@ public sealed partial class ServicesViewModel
         }
 
         var current = live.Describe();
-        var drift = !string.Equals(current, record.NewValue, StringComparison.Ordinal);
+        var drift = !string.Equals(live.DescribeNeutral(), ServiceControl.NormalizeStart(record.NewValue), StringComparison.Ordinal);
         var message = drift
-            ? Loc.Tf("Тип запуска уже изменён без Lycoris (обновлением Windows, политикой или вручную): сейчас «{0}», Lycoris ставил «{1}». Всё равно вернуть исходное значение?", current, record.NewValue)
+            ? Loc.Tf("Тип запуска уже изменён без Lycoris (обновлением Windows, политикой или вручную): сейчас «{0}», Lycoris ставил «{1}». Всё равно вернуть исходное значение?", current, Loc.T(ServiceControl.NormalizeStart(record.NewValue)))
             : Loc.T("Служба вернётся к исходному типу запуска из журнала. Работающая служба не останавливается.");
-        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
+        if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {Loc.T(ServiceControl.NormalizeStart(original))}"], "ОТКАТИТЬ", danger: drift))
             return;
 
         await RunBusyAsync(OperationClass.JournalChange, Loc.T("Откат изменения службы…"), async () =>

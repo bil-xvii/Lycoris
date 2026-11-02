@@ -117,7 +117,7 @@
     "запустите анализ": "run the analysis",
     "появится после очистки": "appears after cleaning",
     "Анализ мусора…": "Analyzing junk…",
-    "Идёт игровая сессия — очистка запустится после выхода из игры, чтобы не мешать ей.": "A game session is on — cleaning will run after you leave the game, so it does not interfere.",
+    "Идёт игровая сессия — очистка не запущена, чтобы не мешать игре. Повторите после выхода из игры.": "A game session is on — cleaning was not started, so it does not interfere. Try again after you leave the game.",
     "Отметьте хотя бы один пункт для очистки.": "Select at least one item to clean.",
     "НЕЧЕГО УДАЛЯТЬ": "NOTHING TO DELETE",
     "В выбранных пунктах сейчас нет файлов, которые можно удалить.": "The selected items have no files that can be deleted right now.",

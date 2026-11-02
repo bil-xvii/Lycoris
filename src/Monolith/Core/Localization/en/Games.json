@@ -406,6 +406,7 @@
     "Steam: не удалось прочитать libraryfolders.vdf — {0}": "Steam: couldn't read libraryfolders.vdf — {0}",
     "Steam: библиотека {0} недоступна — {1}": "Steam: library {0} is unavailable — {1}",
     "Steam: пропущен {0} — {1}": "Steam: skipped {0} — {1}",
-    "Не удалось получить список процессов: {0}": "Couldn't get the process list: {0}"
+    "Не удалось получить список процессов: {0}": "Couldn't get the process list: {0}",
+    "не удалось записать отметку сеанса — без неё режим не возвращается после сбоя": "could not write the session marker — without it the mode would not be restored after a crash"
   }
 }
