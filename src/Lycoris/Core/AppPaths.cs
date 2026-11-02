@@ -46,14 +46,55 @@ public static class AppPaths
 
     internal static void MigrateDirectory(string legacy, string current)
     {
-        if (Directory.Exists(current) || !Directory.Exists(legacy)) return;
-        if ((File.GetAttributes(legacy) & FileAttributes.ReparsePoint) != 0)
-            throw new IOException("Legacy data folder is a reparse point.");
-        try { Directory.Move(legacy, current); }
-        catch (Exception moveError)
+        try
         {
-            try { CopyDirectory(legacy, current); }
-            catch (Exception copyError) { throw new IOException($"Move failed ({moveError.Message}); copy failed ({copyError.Message}).", copyError); }
+            if (!Directory.Exists(legacy)) return;
+            if ((File.GetAttributes(legacy) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("Legacy data folder is a reparse point.");
+
+            if (Directory.Exists(current))
+            {
+                var marker = Path.Combine(current, ".migrated-from-monolith");
+                if (File.Exists(marker)) return;
+                MergeMissingEntries(legacy, current);
+                try { File.WriteAllText(marker, "User data merged from MONOLITH."); }
+                catch (Exception ex) { Log.Warn("Could not write migration marker {0}: {1}", marker, ex.Message); }
+                return;
+            }
+
+            try { Directory.Move(legacy, current); }
+            catch (Exception moveError)
+            {
+                try { CopyDirectory(legacy, current); }
+                catch (Exception copyError) { Log.Warn("Could not move user data ({0}); copy also failed: {1}", moveError.Message, copyError.Message); }
+            }
+        }
+        catch (Exception ex) { Log.Warn("User data migration failed; legacy data remains available: {0}", ex.Message); }
+    }
+
+    private static void MergeMissingEntries(string source, string destination)
+    {
+        foreach (var file in Directory.EnumerateFiles(source))
+        {
+            try
+            {
+                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) continue;
+                var target = Path.Combine(destination, Path.GetFileName(file));
+                if (!File.Exists(target) && !Directory.Exists(target)) File.Copy(file, target, false);
+            }
+            catch (Exception ex) { Log.Warn("Could not merge file {0}: {1}", file, ex.Message); }
+        }
+        foreach (var dir in Directory.EnumerateDirectories(source))
+        {
+            try
+            {
+                if ((File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0) continue;
+                var target = Path.Combine(destination, Path.GetFileName(dir));
+                if (File.Exists(target)) continue;
+                if (!Directory.Exists(target)) Directory.CreateDirectory(target);
+                MergeMissingEntries(dir, target);
+            }
+            catch (Exception ex) { Log.Warn("Could not merge directory {0}: {1}", dir, ex.Message); }
         }
     }
 
