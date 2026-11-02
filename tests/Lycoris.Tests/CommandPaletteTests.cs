@@ -177,6 +177,15 @@ public sealed class CommandPaletteTests
         Assert.Contains(CommandPaletteSearch.Search(index, "game-mode"), e => e.FocusId == "game-mode");
     }
 
+    [Fact]
+    public void Home_and_expert_mode_switches_are_searchable()
+    {
+        var index = CommandPaletteIndex.Build([("home", "Главная", "")], [], [], [], [], extra: CommandPaletteIndex.StaticExtras);
+        Assert.Contains(index, e => e.Kind == PaletteKind.Page && e.PageKey == "home");
+        Assert.Contains(index, e => e.FocusId == "mode:simple");
+        Assert.Contains(index, e => e.FocusId == "mode:expert");
+    }
+
     // ───────────── Obvious UI: the search knows programs, cleanup items, autostart, Settings rows, Drivers tabs, Restore ─────────────
 
     private static IReadOnlyList<PaletteEntry> ExtendedIndex(IEnumerable<CommandPaletteIndex.Entry>? extra = null) =>
