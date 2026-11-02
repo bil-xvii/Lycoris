@@ -60,7 +60,7 @@ not from riskier changes.
 src/Monolith/
   App.xaml(.cs)          startup, optional UAC relaunch, single instance, --snapshot QA mode
   Core/                  system layer (no UI): AppPaths, Log, Elevation, ProcessRunner, RegistryHelper,
-                         ChangeJournal, ChangeSession, ServiceControl, PowerSchemes, ScheduledTasks,
+                         ChangeJournal, ChangeSession, OperationCoordinator, ServiceControl, PowerSchemes, ScheduledTasks,
                          RestorePointService, SystemProfile, AppSettings, WingetClient, VendorDownloads;
                          Core/Devices: device journal targets, writer interfaces, safe display apply, undo of device records
   Tweaks/                Tweak model (RegistryTweak, ServiceTweak, ScheduledTaskTweak, CustomTweak),
@@ -160,12 +160,43 @@ command that cannot run gives a toast «повторите действие». T
 Pages: pass a command name for every action that needs rights (`RequireAdmin("Применение оптимизаций", "Apply")`,
 `RequireAdmin("Откат пакета", "RevertBatch", batch.Id.ToString())` with a text-parameter-taking command).
 
+## Concurrency (many tasks at once must never break the system)
+
+Owner: «чтобы при выполнении много задач одновременно это не рушило систему и продолжала работать». Audit with evidence:
+`docs/research/concurrency_audit.md`. **Every long or system-changing operation goes through `Core/OperationCoordinator`**
+— never a private flag only. It decides what may run together and tells the user plainly what waits.
+
+- **Classes** (`OperationClass`): `Install` (winget / vendor / driver / WU installers, driver backup+restore) and `Cleanup` (delete
+  files) and `JournalChange` (apply/revert tweaks, services, tasks, startup, SPI…) → conflicting second operation **waits in the
+  visible FIFO queue** («в очереди: …», cancellable). `SystemRepair` (DISM/SFC/chkdsk/defrag/network reset) and `Disruptive` (NIC
+  restart, display, Game Boost start/stop, restore point, load test, Explorer restart) → **refused at once** with «Сейчас идёт
+  установка Steam — дождитесь окончания» (`QueueIfBusy = true` for actions that must not be dropped: stopping a game session).
+  `Measure` (read-only; `Quiet` for ping/DPC/energy: not beside install/repair/disruptive) and `Background` never block anything and
+  run at most 3 at a time. Matrix: `OperationCoordinator.ClassesConflict` (tests: `OperationCoordinatorTests`).
+- **Register a new long operation:** page work → `await RunBusyAsync(OperationClass.X, "Текст…", async () => …)` (or the overload
+  that also gets the `OperationLease`: `lease.SetCancelHandler(...)` only for a SAFE stop, `lease.Report(...)`); call
+  `CanStartNow(kind, name)` BEFORE the confirmation dialog for refusable classes. Own progress UI (queue panel): `AcquireLeaseAsync`
+  + `using lease` + `lease.Scope()`. A service called from several places wraps itself with `OperationCoordinator.Instance.RunAsync`
+  (nested calls of the same flow pass without waiting). Children started below a lease are nested automatically (async-local).
+- **Rules:** never hold a lease across a dialog — ask with `AskWithoutLeaseAsync` / `lease.WhileUserDecidesAsync` (only before
+  anything changed); never kill an installer or a repair tool (cancel only through a safe handler; otherwise the list says «прервать
+  нельзя»); leases are released in `finally` (use `using` / `RunAsync`); a refusal is shown as text (`PageViewModel.OperationNote` →
+  the strip under the title bar, plus a toast), never only a tooltip; short child processes (timeout ≤ 90 s) are capped at
+  `ProcessRunner.MaxParallelProbes`; never add a second `RunBusyAsync` overload without a class.
+- **Shell:** status-bar «ЗАДАЧИ · N» → list with ОТМЕНИТЬ; closing with operations running → `MainWindow.OnClosing` →
+  `MainViewModel.ConfirmExitAsync` (ЖДАТЬ / ОТМЕНИТЬ БЕЗОПАСНЫЕ И ВЫЙТИ / ВЫЙТИ КАК ЕСТЬ; the exit watchdog and the journal save in
+  `App.OnExit` stay). Admin-intent replay aborts when the page already has an operation (`UserOperationRunningFor`).
+- **Checklist for a new long operation:** (1) class chosen and documented in the audit table; (2) goes through `RunBusyAsync` /
+  `RunAsync`; (3) refusal/queue text is in Russian and names the blocker; (4) cancel only where safe; (5) no dialog under the lease;
+  (6) a unit test with a fake clock or `PageOperationTests`-style fake page; (7) `--selftest` stays all OK (it fires read-only commands
+  from every page at once in the stage «ОДНОВРЕМЕННЫЕ ЗАДАЧИ»); (8) `--snapshot … --demo-tasks` to look at the «ЗАДАЧИ» list.
+
 ## Conventions
 
 - **MVVM** with CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`, `partial` classes).
   Each page VM derives from `Shell/PageViewModel`: override `LoadAsync` (first visit) / `OnReturnAsync`,
-  `Deactivate` (stop timers). Long work: `await RunBusyAsync("Текст…", async () => …)` — shows the global
-  progress bar, logs and toasts errors.
+  `Deactivate` (stop timers). Long work: `await RunBusyAsync(OperationClass.X, "Текст…", async () => …)` — the class is
+  mandatory (see «Concurrency»); shows the global progress bar, logs and toasts errors.
 - **Threading:** never block the UI thread. WMI, registry scans, `ChangeSession` calls, file IO → `Task.Run`.
   Update bound collections on the UI thread (`Ui.Post` or await back on the dispatcher).
 - **Text:** all UI text in Russian. Page titles, section headings and item titles in sentence case («Временные файлы
