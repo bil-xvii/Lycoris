@@ -113,7 +113,7 @@ public static class AppPaths
                 if (childFailures > 0)
                 {
                     // journal.json / .bak or a planted link could not be fixed: refuse to trust the folder this run.
-                    Log.Error($"Не удалось исправить права для {childFailures} файлов в папке данных MONOLITH — журнал изменений не будет использоваться.");
+                    Log.Error("Не удалось исправить права для {0} файлов в папке данных MONOLITH — журнал изменений не будет использоваться.", childFailures);
                     return;
                 }
                 _secured = true;
@@ -130,7 +130,7 @@ public static class AppPaths
                         }
                         catch (Exception ex)
                         {
-                            Log.Warn($"Не удалось отложить {sub}: {ex.Message}");
+                            Log.Warn("Не удалось отложить {0}: {1}", sub, ex.Message);
                         }
                     }
                 }
@@ -216,7 +216,7 @@ public static class AppPaths
             }
             catch (Exception ex)
             {
-                Log.Warn($"Права {entry.FullName}: {ex.Message}");
+                Log.Warn("Права {0}: {1}", entry.FullName, ex.Message);
                 if (isLink || (depth == 0 && entry is FileInfo)) failures++;
             }
         }

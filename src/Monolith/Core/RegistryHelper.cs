@@ -29,9 +29,9 @@ public sealed class RegistryValueSnapshot
     /// </summary>
     public string? CreatedKeyRoot { get; init; }
 
-    public string FullName => $"{Hive}\\{Path}\\{(Name.Length == 0 ? "(По умолчанию)" : Name)}";
+    public string FullName => $"{Hive}\\{Path}\\{(Name.Length == 0 ? Loc.T("(По умолчанию)") : Name)}";
 
-    public string Describe() => !ValueExisted ? "отсутствовало" : $"{Kind}: {Data}";
+    public string Describe() => !ValueExisted ? Loc.Keep("отсутствовало") : $"{Kind}: {Data}";
 
     /// <summary>The same snapshot with another created-key root.</summary>
     public RegistryValueSnapshot WithCreatedKeyRoot(string? root) => new()
@@ -134,16 +134,16 @@ public static class RegistryHelper
 
     public static void Write(RegHive hive, string path, string name, RegistryValueKind kind, object value)
     {
-        if (Redirect is null) SafetyLock.ThrowIfLocked("запись в реестр");
+        if (Redirect is null) SafetyLock.ThrowIfLocked(Loc.T("запись в реестр"));
         Map(ref hive, ref path);
         using var b = OpenBase(hive);
-        using var k = b.CreateSubKey(path, true) ?? throw new IOException($"Не удалось открыть {hive}\\{path}");
+        using var k = b.CreateSubKey(path, true) ?? throw new IOException(Loc.Tf("Не удалось открыть {0}\\{1}", hive, path));
         k.SetValue(name, Normalize(kind, value), kind);
     }
 
     public static void DeleteValue(RegHive hive, string path, string name)
     {
-        if (Redirect is null) SafetyLock.ThrowIfLocked("удаление из реестра");
+        if (Redirect is null) SafetyLock.ThrowIfLocked(Loc.T("удаление из реестра"));
         Map(ref hive, ref path);
         using var b = OpenBase(hive);
         using var k = b.OpenSubKey(path, true);
@@ -205,7 +205,7 @@ public static class RegistryHelper
     /// <summary>Deletes the empty keys from <paramref name="path"/> up to and including <paramref name="root"/> (logical paths).</summary>
     private static void DeleteEmptyKeys(RegHive hive, string path, string root)
     {
-        if (Redirect is null) SafetyLock.ThrowIfLocked("удаление раздела реестра");
+        if (Redirect is null) SafetyLock.ThrowIfLocked(Loc.T("удаление раздела реестра"));
         try
         {
             DeleteEmptyChain(path, root,
@@ -227,7 +227,7 @@ public static class RegistryHelper
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось удалить пустой раздел реестра {hive}\\{path}: {ex.Message}");
+            Log.Warn("Не удалось удалить пустой раздел реестра {0}\\{1}: {2}", hive, path, ex.Message);
         }
     }
 

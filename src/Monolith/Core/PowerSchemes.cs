@@ -30,9 +30,9 @@ public static class PowerSchemes
 
     public static void SetActive(Guid scheme)
     {
-        SafetyLock.ThrowIfLocked("смена плана питания");
+        SafetyLock.ThrowIfLocked(Loc.T("смена плана питания"));
         var rc = PowerSetActiveScheme(IntPtr.Zero, ref scheme);
-        if (rc != 0) throw new InvalidOperationException($"Не удалось включить план питания {scheme} (код {rc}).");
+        if (rc != 0) throw new InvalidOperationException(Loc.Tf("Не удалось включить план питания {0} (код {1}).", scheme, rc));
     }
 
     public static IReadOnlyList<PowerScheme> List()
@@ -97,11 +97,11 @@ public static class PowerSchemes
     /// <summary>Copies a scheme (e.g. the hidden Ultimate Performance template). Returns the new scheme id.</summary>
     public static Guid Duplicate(Guid source)
     {
-        SafetyLock.ThrowIfLocked("создание плана питания");
+        SafetyLock.ThrowIfLocked(Loc.T("создание плана питания"));
         var dest = IntPtr.Zero;
         var rc = PowerDuplicateScheme(IntPtr.Zero, ref source, ref dest);
         if (rc != 0 || dest == IntPtr.Zero)
-            throw new InvalidOperationException($"Не удалось создать план питания (код {rc}).");
+            throw new InvalidOperationException(Loc.Tf("Не удалось создать план питания (код {0}).", rc));
         try { return Marshal.PtrToStructure<Guid>(dest); }
         finally { LocalFree(dest); }
     }
@@ -109,7 +109,7 @@ public static class PowerSchemes
     public static void Delete(Guid scheme)
     {
         if (IsBuiltIn(scheme) || scheme == Guid.Empty) return; // never delete built-ins (or the template)
-        SafetyLock.ThrowIfLocked("удаление плана питания");
+        SafetyLock.ThrowIfLocked(Loc.T("удаление плана питания"));
         if (GetActive() == scheme) return;
         PowerDeleteScheme(IntPtr.Zero, ref scheme);
     }

@@ -65,7 +65,7 @@ public static class UnelevatedShell
             }
             catch (Exception ex)
             {
-                Log.Warn($"Запуск без прав администратора через оболочку не удался: {ex.Message}");
+                Log.Warn("Запуск без прав администратора через оболочку не удался: {0}", ex.Message);
                 return false;
             }
             finally
@@ -84,7 +84,7 @@ public static class UnelevatedShell
     {
         if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || uri.Scheme is not ("https" or "ms-windows-store"))
         {
-            Log.Warn($"Отклонена ссылка: {target}");
+            Log.Warn("Отклонена ссылка: {0}", target);
             return false;
         }
         if (Elevation.IsElevated && await ShellExecuteAsync(uri.AbsoluteUri, "", "", SwShowNormal).ConfigureAwait(false))
@@ -92,7 +92,7 @@ public static class UnelevatedShell
         if (Elevation.IsElevated)
         {
             // Never hand a URL to a browser that would run as administrator.
-            Log.Warn($"Не удалось открыть ссылку без прав администратора: {uri.AbsoluteUri}");
+            Log.Warn("Не удалось открыть ссылку без прав администратора: {0}", uri.AbsoluteUri);
             return false;
         }
         try
@@ -102,7 +102,7 @@ public static class UnelevatedShell
         }
         catch (Exception ex)
         {
-            Log.Error($"Не удалось открыть {uri.AbsoluteUri}", ex);
+            Log.Error("Не удалось открыть {0}", ex, uri.AbsoluteUri);
             return false;
         }
     }
@@ -138,7 +138,7 @@ public static class UnelevatedShell
     {
         if (!IsAllowedLocalReport(path, AppPaths.LogsDir) || !File.Exists(path))
         {
-            Log.Warn($"Отклонено открытие файла: {path}");
+            Log.Warn("Отклонено открытие файла: {0}", path);
             return false;
         }
         var full = Path.GetFullPath(path);
@@ -146,7 +146,7 @@ public static class UnelevatedShell
         {
             if (await ShellExecuteAsync(full, "", Path.GetDirectoryName(full) ?? "", SwShowNormal).ConfigureAwait(false))
                 return true;
-            Log.Warn($"Не удалось открыть файл без прав администратора: {full}");
+            Log.Warn("Не удалось открыть файл без прав администратора: {0}", full);
             return false;
         }
         try
@@ -156,7 +156,7 @@ public static class UnelevatedShell
         }
         catch (Exception ex)
         {
-            Log.Error($"Не удалось открыть {full}", ex);
+            Log.Error("Не удалось открыть {0}", ex, full);
             return false;
         }
     }
@@ -172,7 +172,7 @@ public static class UnelevatedShell
         {
             if (await ShellExecuteAsync(fileOrUri, arguments, directory ?? "", SwShowNormal).ConfigureAwait(false))
                 return true;
-            Log.Warn($"Не удалось запустить без прав администратора: {fileOrUri}");
+            Log.Warn("Не удалось запустить без прав администратора: {0}", fileOrUri);
             return false;
         }
         try
@@ -185,12 +185,12 @@ public static class UnelevatedShell
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
             // The program asked for admin rights and the user said no in the UAC window: not an error.
-            Log.Warn($"Запуск отменён в окне контроля учётных записей: {fileOrUri}");
+            Log.Warn("Запуск отменён в окне контроля учётных записей: {0}", fileOrUri);
             return false;
         }
         catch (Exception ex)
         {
-            Log.Error($"Не удалось запустить {fileOrUri}", ex);
+            Log.Error("Не удалось запустить {0}", ex, fileOrUri);
             return false;
         }
     }

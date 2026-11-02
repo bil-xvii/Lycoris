@@ -43,7 +43,7 @@ public static class RestorePointService
     {
         try
         {
-            Elevation.Demand("включение защиты системы");
+            Elevation.Demand(Loc.T("включение защиты системы"));
             var drive = Environment.GetEnvironmentVariable("SystemDrive") + "\\";
             using var cls = new ManagementClass(new ManagementScope(@"\\.\root\default"), new ManagementPath("SystemRestore"), null);
             using var inParams = cls.GetMethodParameters("Enable");
@@ -52,10 +52,10 @@ public static class RestorePointService
             var rc = Convert.ToUInt32(outParams?["ReturnValue"] ?? 1u);
             if (rc == 0)
             {
-                Log.Success($"Защита системы включена для {drive}");
+                Log.Success("Защита системы включена для {0}", drive);
                 return true;
             }
-            Log.Warn($"Не удалось включить защиту системы (код {rc}).");
+            Log.Warn("Не удалось включить защиту системы (код {0}).", rc);
             return false;
         }
         catch (Exception ex)
@@ -88,7 +88,7 @@ public static class RestorePointService
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось получить список точек восстановления: {ex.Message}");
+            Log.Warn("Не удалось получить список точек восстановления: {0}", ex.Message);
         }
         return list.OrderByDescending(p => p.Created).ToList();
     });
@@ -104,23 +104,23 @@ public static class RestorePointService
         try
         {
             return await OperationCoordinator.Instance.RunAsync(
-                new OperationRequest(OperationClass.Disruptive, "Создание точки восстановления") { QueueIfBusy = true },
+                new OperationRequest(OperationClass.Disruptive, Loc.T("Создание точки восстановления")) { QueueIfBusy = true },
                 _ => CreateGatedAsync(description)).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is OperationTimeoutException or OperationRefusedException or OperationCanceledException)
         {
-            Log.Warn("Точка восстановления не создана: " + ex.Message);
-            return new(RestorePointOutcome.Failed, "Точка восстановления не создана: " + ex.Message);
+            Log.Warn(Loc.T("Точка восстановления не создана: ") + ex.Message);
+            return new(RestorePointOutcome.Failed, Loc.T("Точка восстановления не создана: ") + ex.Message);
         }
     }
 
     private static async Task<RestorePointResult> CreateGatedAsync(string description)
     {
         if (!Elevation.IsElevated)
-            return new(RestorePointOutcome.Skipped, "Нет прав администратора — точка восстановления не создана.");
+            return new(RestorePointOutcome.Skipped, Loc.T("Нет прав администратора — точка восстановления не создана."));
         if (!IsEnabled())
             return new(RestorePointOutcome.Disabled,
-                "Защита системы отключена — точка восстановления не создана. Включите её в «Восстановлении».");
+                Loc.T("Защита системы отключена — точка восстановления не создана. Включите её в «Восстановлении»."));
 
         await Gate.WaitAsync().ConfigureAwait(false);
         try
@@ -129,7 +129,7 @@ public static class RestorePointService
             // do not start a second one, it would snapshot the lifted value as the "original".
             if (_inFlight is { IsCompleted: false })
                 return new(RestorePointOutcome.Failed,
-                    "Предыдущее создание точки восстановления ещё не завершилось — новая точка не создана.");
+                    Loc.T("Предыдущее создание точки восстановления ещё не завершилось — новая точка не создана."));
             var work = Task.Run(() => CreateCore(description));
             _inFlight = work;
             try
@@ -140,7 +140,7 @@ public static class RestorePointService
             {
                 // The worker keeps running on its own and puts the limit back in its finally when WMI returns.
                 Log.Warn("Создание точки восстановления не завершилось вовремя — продолжаем без неё.");
-                return new(RestorePointOutcome.Failed, "Windows слишком долго создаёт точку восстановления — операция прервана по времени.");
+                return new(RestorePointOutcome.Failed, Loc.T("Windows слишком долго создаёт точку восстановления — операция прервана по времени."));
             }
         }
         finally
@@ -167,7 +167,7 @@ public static class RestorePointService
             catch (Exception ex)
             {
                 // Keep the pending file: the next elevated start retries (RecoverPendingFrequency).
-                Log.Warn($"Не удалось вернуть ограничение частоты точек восстановления: {ex.Message}");
+                Log.Warn("Не удалось вернуть ограничение частоты точек восстановления: {0}", ex.Message);
             }
         }
     }
@@ -195,7 +195,7 @@ public static class RestorePointService
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось восстановить ограничение частоты точек восстановления: {ex.Message}");
+            Log.Warn("Не удалось восстановить ограничение частоты точек восстановления: {0}", ex.Message);
         }
     }
 
@@ -235,18 +235,18 @@ public static class RestorePointService
             var after = MaxSequence();
             if (rc == 0 && after > before)
             {
-                Log.Success($"Точка восстановления создана: {description}");
-                return new(RestorePointOutcome.Created, $"Точка восстановления создана ({DateTime.Now:dd.MM HH:mm}).");
+                Log.Success("Точка восстановления создана: {0}", description);
+                return new(RestorePointOutcome.Created, Loc.Tf("Точка восстановления создана ({0:dd.MM HH:mm}).", DateTime.Now));
             }
             if (rc == 0)
-                return new(RestorePointOutcome.Skipped, "Windows не создала новую точку (недавно уже была создана).");
-            Log.Warn($"Точка восстановления не создана, код {rc}");
-            return new(RestorePointOutcome.Failed, $"Точка восстановления не создана (код {rc}).");
+                return new(RestorePointOutcome.Skipped, Loc.T("Windows не создала новую точку (недавно уже была создана)."));
+            Log.Warn("Точка восстановления не создана, код {0}", rc);
+            return new(RestorePointOutcome.Failed, Loc.Tf("Точка восстановления не создана (код {0}).", rc));
         }
         catch (Exception ex)
         {
             Log.Error("Ошибка создания точки восстановления", ex);
-            return new(RestorePointOutcome.Failed, "Ошибка создания точки восстановления: " + ex.Message);
+            return new(RestorePointOutcome.Failed, Loc.T("Ошибка создания точки восстановления: ") + ex.Message);
         }
         finally
         {
