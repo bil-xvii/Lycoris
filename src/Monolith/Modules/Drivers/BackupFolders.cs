@@ -31,7 +31,7 @@ internal static partial class BackupFolders
             var candidate = $"{baseName}-{i}";
             if (!exists(candidate)) return candidate;
         }
-        throw new IOException("Слишком много резервных копий за одну минуту.");
+        throw new IOException(Loc.T("Слишком много резервных копий за одну минуту."));
     }
 
     /// <summary>Parses a backup folder name. Returns false for folders MONOLITH did not create.</summary>

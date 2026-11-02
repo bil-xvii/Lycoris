@@ -31,17 +31,17 @@ internal static class VendorInstallerRunner
     /// <summary>Runs the installer interactively and returns its exit code, or null when the wait was cancelled.</summary>
     public static async Task<int?> RunAndWaitAsync(string path, CancellationToken ct)
     {
-        SafetyLock.ThrowIfLocked("запуск установщика драйвера");
-        if (!Elevation.IsElevated) throw new InvalidOperationException("Для установки драйвера нужны права администратора.");
+        SafetyLock.ThrowIfLocked(Loc.T("запуск установщика драйвера"));
+        if (!Elevation.IsElevated) throw new InvalidOperationException(Loc.T("Для установки драйвера нужны права администратора."));
         if (!IsInDownloadsFolder(path, DriverDownloads.DownloadsDir) || !File.Exists(path))
-            throw new InvalidOperationException("Установщик не найден в папке проверенных загрузок — запуск отменён.");
+            throw new InvalidOperationException(Loc.T("Установщик не найден в папке проверенных загрузок — запуск отменён."));
 
         using var process = Process.Start(new ProcessStartInfo(path)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(path)!,
-        }) ?? throw new InvalidOperationException("Windows не запустила установщик.");
-        Log.Info($"Запущен официальный установщик: {Path.GetFileName(path)} — ожидание его завершения.");
+        }) ?? throw new InvalidOperationException(Loc.T("Windows не запустила установщик."));
+        Log.Info("Запущен официальный установщик: {0} — ожидание его завершения.", Path.GetFileName(path));
         try
         {
             await process.WaitForExitAsync(ct).ConfigureAwait(false);
@@ -49,7 +49,7 @@ internal static class VendorInstallerRunner
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            Log.Warn($"Ожидание установщика {Path.GetFileName(path)} прекращено; сам установщик продолжает работу.");
+            Log.Warn("Ожидание установщика {0} прекращено; сам установщик продолжает работу.", Path.GetFileName(path));
             return null;
         }
     }

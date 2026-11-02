@@ -38,27 +38,27 @@ public sealed partial class HwGroupItem : ObservableObject
         Index = index.ToString("00");
         Footer = g.Footer;
         WuExtraText = g.WuExtra > 0
-            ? $"Windows Update предлагает ещё {g.WuExtra} {HardwareRules.Plural(g.WuExtra, "драйвер", "драйвера", "драйверов")} для устройств этого типа."
+            ? Loc.N(g.WuExtra, "Windows Update предлагает ещё {0} драйвер для устройств этого типа.", "Windows Update предлагает ещё {0} драйвера для устройств этого типа.", "Windows Update предлагает ещё {0} драйверов для устройств этого типа.")
             : null;
         HwItemSync.Sync(Components, g.Components, c => c.Key, c => c.Key,
             c => new HwComponentItem(c, _onSelection), (item, c) => item.Update(c));
 
         var attention = g.Components.Count(c => HardwareRules.NeedsAttention(c.Status));
-        var checking = g.Components.Any(c => c.Status == HwStatus.Unchecked && c.StatusText is "ИДЁТ ПОИСК" or "ПРОВЕРКА ВЕРСИИ");
+        var checking = g.Components.Any(c => c.Status == HwStatus.Unchecked && (c.StatusText == Loc.T("ИДЁТ ПОИСК") || c.StatusText == Loc.T("ПРОВЕРКА ВЕРСИИ")));
         if (attention > 0)
         {
-            SummaryText = $"{attention} {HardwareRules.Plural(attention, "РЕКОМЕНДАЦИЯ", "РЕКОМЕНДАЦИИ", "РЕКОМЕНДАЦИЙ")}";
+            SummaryText = Loc.N(attention, "{0} РЕКОМЕНДАЦИЯ", "{0} РЕКОМЕНДАЦИИ", "{0} РЕКОМЕНДАЦИЙ");
             SummaryKey = "attention";
         }
         else if (checking)
         {
-            SummaryText = "ПРОВЕРКА…";
+            SummaryText = Loc.T("ПРОВЕРКА…");
             SummaryKey = "muted";
         }
         else
         {
             var n = g.Components.Count;
-            SummaryText = $"{n} {HardwareRules.Plural(n, "КОМПОНЕНТ", "КОМПОНЕНТА", "КОМПОНЕНТОВ")}";
+            SummaryText = Loc.N(n, "{0} КОМПОНЕНТ", "{0} КОМПОНЕНТА", "{0} КОМПОНЕНТОВ");
             SummaryKey = "muted";
         }
     }
@@ -169,7 +169,7 @@ public sealed partial class HwActionItem : ObservableObject
         Title = a.Title;
         Reason = a.Reason;
         Publisher = a.Publisher;
-        SourceText = a.AlreadyInstalled ? "УСТАНОВЛЕНО" : HardwareRules.SourceText(a.Source);
+        SourceText = a.AlreadyInstalled ? Loc.T("УСТАНОВЛЕНО") : HardwareRules.SourceText(a.Source);
         IsOptional = a.Optional && !a.AlreadyInstalled;
         AlreadyInstalled = a.AlreadyInstalled;
         ButtonText = a.ButtonText;

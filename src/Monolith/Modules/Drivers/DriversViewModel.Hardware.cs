@@ -40,16 +40,16 @@ public sealed partial class DriversViewModel
 
     [ObservableProperty] private string _hardwareScanStage = "";
     [ObservableProperty] private string _hardwareScanTime = "—";
-    [ObservableProperty] private string _hardwareScanCaption = "анализ ещё не выполнялся";
+    [ObservableProperty] private string _hardwareScanCaption = Loc.T("анализ ещё не выполнялся");
     [ObservableProperty] private bool _hardwareScanned;
 
     [ObservableProperty] private string _hwComponentsStat = "—";
-    [ObservableProperty] private string _hwComponentsCaption = "идёт анализ";
+    [ObservableProperty] private string _hwComponentsCaption = Loc.T("идёт анализ");
     [ObservableProperty] private string _hwRecommendationsStat = "—";
-    [ObservableProperty] private string _hwRecommendationsCaption = "идёт анализ";
+    [ObservableProperty] private string _hwRecommendationsCaption = Loc.T("идёт анализ");
     [ObservableProperty] private bool _hwHasRecommendations;
     [ObservableProperty] private string _hwCurrentStat = "—";
-    [ObservableProperty] private string _hwCurrentCaption = "идёт анализ";
+    [ObservableProperty] private string _hwCurrentCaption = Loc.T("идёт анализ");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HwInstallButtonText), nameof(PrimaryText), nameof(HasPrimary))]
@@ -64,7 +64,7 @@ public sealed partial class DriversViewModel
     /// <summary>ПОДБОР: «УСТАНОВИТЬ РЕКОМЕНДОВАННОЕ · N» / «УСТАНОВИТЬ ВЫБРАННОЕ · N»; ОБНОВЛЕНИЯ WINDOWS: «ЗАГРУЗИТЬ И УСТАНОВИТЬ · N».</summary>
     public string PrimaryText => SelectedTab switch
     {
-        DriversTab.Hardware or DriversTab.Overview => $"{(HwSelectionIsRecommended ? "УСТАНОВИТЬ РЕКОМЕНДОВАННОЕ" : "УСТАНОВИТЬ ВЫБРАННОЕ")} · {HwSelectedCount}",
+        DriversTab.Hardware or DriversTab.Overview => $"{(HwSelectionIsRecommended ? Loc.T("УСТАНОВИТЬ РЕКОМЕНДОВАННОЕ") : Loc.T("УСТАНОВИТЬ ВЫБРАННОЕ"))} · {HwSelectedCount}",
         DriversTab.Updates => InstallButtonText,
         _ => "",
     };
@@ -127,7 +127,7 @@ public sealed partial class DriversViewModel
     /// <summary>A filter is on and no component matches it (the list says so in text).</summary>
     public bool HwNothingShown => HwFilter != "all" && HardwareGroups.Count > 0 && HardwareGroups.All(g => !g.HasShown);
 
-    [ObservableProperty] private string _hwSelectionText = "Отметьте компоненты, которые нужно установить.";
+    [ObservableProperty] private string _hwSelectionText = Loc.T("Отметьте компоненты, которые нужно установить.");
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(InstallHardwareCommand), nameof(CancelHardwareInstallCommand), nameof(RescanHardwareCommand))]
@@ -139,7 +139,7 @@ public sealed partial class DriversViewModel
     [ObservableProperty] private bool _hwInstallIndeterminate;
     [ObservableProperty] private string? _hwResultsSummary;
 
-    public string HwInstallButtonText => HwSelectedCount > 0 ? $"УСТАНОВИТЬ ВЫБРАННОЕ · {HwSelectedCount}" : "УСТАНОВИТЬ ВЫБРАННОЕ";
+    public string HwInstallButtonText => HwSelectedCount > 0 ? Loc.Tf("УСТАНОВИТЬ ВЫБРАННОЕ · {0}", HwSelectedCount) : Loc.T("УСТАНОВИТЬ ВЫБРАННОЕ");
     public bool HasHardwareResults => HardwareResults.Count > 0;
 
     /// <summary>Called from LoadAsync (fire-and-forget): scans the hardware and builds the recommendations.</summary>
@@ -199,8 +199,8 @@ public sealed partial class DriversViewModel
         _hwScanCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         var ct = _hwScanCts.Token;
         IsHardwareScanning = true;
-        HardwareScanStage = "Сбор сведений о железе…";
-        HardwareScanCaption = "идёт анализ";
+        HardwareScanStage = Loc.T("Сбор сведений о железе…");
+        HardwareScanCaption = Loc.T("идёт анализ");
         var sw = Stopwatch.StartNew();
         try
         {
@@ -208,7 +208,7 @@ public sealed partial class DriversViewModel
             IProgress<string> stage = new Progress<string>(t => HardwareScanStage = t);
             var snapshot = await Task.Run(() => HardwareScanner.Scan(profile, stage.Report), ct);
 
-            HardwareScanStage = "Ожидание списка драйверов…";
+            HardwareScanStage = Loc.T("Ожидание списка драйверов…");
             await WaitForInventoryAsync(ct);
 
             _hwSnapshot = snapshot;
@@ -217,23 +217,23 @@ public sealed partial class DriversViewModel
             HardwareScanned = true;
             HardwareScanTime = snapshot.When.ToString("HH:mm");
 
-            HardwareScanStage = "Проверка версий у производителей…";
+            HardwareScanStage = Loc.T("Проверка версий у производителей…");
             _hwOnline = await CheckHardwareOnlineAsync(snapshot, ct);
             RebuildHardware();
 
-            HardwareScanCaption = $"анализ занял {Math.Max(1, (int)Math.Round(sw.Elapsed.TotalSeconds))} с";
+            HardwareScanCaption = Loc.Tf("анализ занял {0} с", Math.Max(1, (int)Math.Round(sw.Elapsed.TotalSeconds)));
             var report = LastReport;
-            Log.Info($"Подбор для ПК: компонентов {report?.ComponentCount ?? 0}, рекомендаций {report?.RecommendationCount ?? 0}.");
+            Log.Info("Подбор для ПК: компонентов {0}, рекомендаций {1}.", report?.ComponentCount ?? 0, report?.RecommendationCount ?? 0);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            HardwareScanCaption = "анализ прерван";
+            HardwareScanCaption = Loc.T("анализ прерван");
         }
         catch (Exception ex)
         {
             Log.Error("Анализ железа", ex);
-            HardwareScanCaption = "анализ не выполнен";
-            Ui.Toast($"Анализ железа не выполнен: {ex.Message}", ToastKind.Error);
+            HardwareScanCaption = Loc.T("анализ не выполнен");
+            Ui.Toast(Loc.Tf("Анализ железа не выполнен: {0}", ex.Message), ToastKind.Error);
         }
         finally
         {
@@ -330,21 +330,21 @@ public sealed partial class DriversViewModel
 
         var components = report.ComponentCount;
         HwComponentsStat = components.ToString();
-        HwComponentsCaption = $"{report.Groups.Count} {DriverFormat.Plural(report.Groups.Count, "группа", "группы", "групп")} устройств и библиотек";
+        HwComponentsCaption = Loc.N(report.Groups.Count, "{0} группа устройств и библиотек", "{0} группы устройств и библиотек", "{0} групп устройств и библиотек");
 
         var recommendations = report.RecommendationCount;
         var installable = AllHardwareActions().Count(a => a.IsInstallable && !a.IsOptional);
         HwRecommendationsStat = recommendations.ToString();
         HwHasRecommendations = recommendations > 0;
         HwRecommendationsCaption = recommendations == 0
-            ? "действий не требуется"
-            : installable > 0 ? $"установить здесь: {installable}" : "только вручную или через Windows Update";
+            ? Loc.T("действий не требуется")
+            : installable > 0 ? Loc.Tf("установить здесь: {0}", installable) : Loc.T("только вручную или через Windows Update");
 
         HwCurrentStat = report.CurrentCount.ToString();
         var rest = new List<string>();
-        if (report.InstalledCount > 0) rest.Add($"установлено: {report.InstalledCount}");
-        if (report.UncheckedCount > 0) rest.Add($"не проверено: {report.UncheckedCount}");
-        HwCurrentCaption = rest.Count > 0 ? string.Join(" · ", rest) : "проверено у производителей";
+        if (report.InstalledCount > 0) rest.Add(Loc.Tf("установлено: {0}", report.InstalledCount));
+        if (report.UncheckedCount > 0) rest.Add(Loc.Tf("не проверено: {0}", report.UncheckedCount));
+        HwCurrentCaption = rest.Count > 0 ? string.Join(" · ", rest) : Loc.T("проверено у производителей");
 
         RecountHardwareSelection();
         ApplyHwFilter();
@@ -434,8 +434,8 @@ public sealed partial class DriversViewModel
         HwSelectionIsRecommended = recommended.SetEquals(selected.Select(a => a.Key));
         HwSelectedCount = selected.Count;
         HwSelectionText = selected.Count == 0
-            ? "Отметьте компоненты, которые нужно установить."
-            : string.Join(", ", selected.Take(3).Select(a => a.Title)) + (selected.Count > 3 ? $" и ещё {selected.Count - 3}" : "");
+            ? Loc.T("Отметьте компоненты, которые нужно установить.")
+            : string.Join(", ", selected.Take(3).Select(a => a.Title)) + (selected.Count > 3 ? Loc.Tf(" и ещё {0}", selected.Count - 3) : "");
     }
 
     // ───────────────────────────── Buttons of single actions ─────────────────────────────
@@ -463,7 +463,7 @@ public sealed partial class DriversViewModel
             default:
                 // Web pages and Store links: never with MONOLITH's administrator token.
                 if (!await UnelevatedShell.OpenAsync(target))
-                    Ui.Toast($"Не удалось открыть страницу без прав администратора. Адрес: {target}", ToastKind.Warning, "ССЫЛКА НЕ ОТКРЫТА");
+                    Ui.Toast(Loc.Tf("Не удалось открыть страницу без прав администратора. Адрес: {0}", target), ToastKind.Warning, Loc.T("ССЫЛКА НЕ ОТКРЫТА"));
                 return;
         }
     }
@@ -492,7 +492,7 @@ public sealed partial class DriversViewModel
     [RelayCommand(CanExecute = nameof(CanInstallHardware))]
     private async Task InstallHardwareAsync(string? keys)
     {
-        if (!RequireAdmin("установка компонентов", "InstallHardware", SelectedHardwareKeys())) return;
+        if (!RequireAdmin(Loc.T("установка компонентов"), "InstallHardware", SelectedHardwareKeys())) return;
         if (IsBusy || IsHwInstalling) return;
         if (Startup.IntentList.Unpack(keys) is { Count: > 0 } replayed)
         {
@@ -513,32 +513,32 @@ public sealed partial class DriversViewModel
 
         var hasDrivers = selected.Any(a => a.Action.Kind == HwActionKind.DriverPackage);
         var details = selected.Select(DescribeForConfirm).ToList();
-        details.Add("Сначала: точка восстановления системы");
+        details.Add(Loc.T("Сначала: точка восстановления системы"));
         if (hasDrivers)
         {
-            details.Add("Перед драйвером видеокарты: копия её текущего драйвера (pnputil) в папку резервных копий MONOLITH");
-            details.Add("Установщики драйверов открываются по одному — пройдите их шаги; MONOLITH ждёт завершения каждого. Экран может мигнуть");
+            details.Add(Loc.T("Перед драйвером видеокарты: копия её текущего драйвера (pnputil) в папку резервных копий MONOLITH"));
+            details.Add(Loc.T("Установщики драйверов открываются по одному — пройдите их шаги; MONOLITH ждёт завершения каждого. Экран может мигнуть"));
         }
         if (selected.Any(a => a.Action.Kind == HwActionKind.Winget))
-            details.Add("Программы через winget ставятся по очереди без вопросов (--silent), без --force и без перезагрузки");
-        details.Add("Компьютер не будет перезагружен автоматически");
+            details.Add(Loc.T("Программы через winget ставятся по очереди без вопросов (--silent), без --force и без перезагрузки"));
+        details.Add(Loc.T("Компьютер не будет перезагружен автоматически"));
 
         var n = selected.Count;
         var confirmed = await Ui.ConfirmAsync(
-            $"УСТАНОВИТЬ {n} {DriverFormat.Plural(n, "КОМПОНЕНТ", "КОМПОНЕНТА", "КОМПОНЕНТОВ")}?",
-            "Всё загружается только из официальных источников и устанавливается по очереди. Нажимая «Установить», вы принимаете лицензии издателей этих программ и драйверов.",
+            Loc.N(n, "УСТАНОВИТЬ {0} КОМПОНЕНТ?", "УСТАНОВИТЬ {0} КОМПОНЕНТА?", "УСТАНОВИТЬ {0} КОМПОНЕНТОВ?"),
+            Loc.T("Всё загружается только из официальных источников и устанавливается по очереди. Нажимая «Установить», вы принимаете лицензии издателей этих программ и драйверов."),
             details,
-            confirmText: "УСТАНОВИТЬ",
-            footnote: "Откат: точка восстановления; драйвер — «Откатить» в диспетчере устройств или резервная копия на вкладке «Резервная копия»; программы — «Параметры → Приложения».");
+            confirmText: Loc.T("УСТАНОВИТЬ"),
+            footnote: Loc.T("Откат: точка восстановления; драйвер — «Откатить» в диспетчере устройств или резервная копия на вкладке «Резервная копия»; программы — «Параметры → Приложения»."));
         if (!confirmed) return;
 
         foreach (var a in AllHardwareActions()) a.IsLocked = true;
-        foreach (var a in selected) a.SetJob(HwJobState.Queued, "В ОЧЕРЕДИ");
+        foreach (var a in selected) a.SetJob(HwJobState.Queued, Loc.T("В ОЧЕРЕДИ"));
         HardwareResults.Clear();
         HwResultsSummary = null;
 
         var attempted = false;
-        await RunBusyAsync(OperationClass.Install, "Установка компонентов…", async () =>
+        await RunBusyAsync(OperationClass.Install, Loc.T("Установка компонентов…"), async () =>
         {
             _hwInstallCts?.Dispose();
             _hwInstallCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -548,11 +548,11 @@ public sealed partial class DriversViewModel
             HwInstallIndeterminate = true;
             try
             {
-                HwInstallStage = "ТОЧКА ВОССТАНОВЛЕНИЯ";
-                HwInstallDetail = "Создание точки восстановления системы…";
+                HwInstallStage = Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ");
+                HwInstallDetail = Loc.T("Создание точки восстановления системы…");
                 if (!await CreateHardwareRestorePointAsync())
                 {
-                    foreach (var a in selected) a.SetJob(HwJobState.Skipped, "ОТМЕНЕНО: НЕТ ТОЧКИ ВОССТАНОВЛЕНИЯ");
+                    foreach (var a in selected) a.SetJob(HwJobState.Skipped, Loc.T("ОТМЕНЕНО: НЕТ ТОЧКИ ВОССТАНОВЛЕНИЯ"));
                     Log.Info("Установка компонентов отменена: нет точки восстановления.");
                     return;
                 }
@@ -564,11 +564,11 @@ public sealed partial class DriversViewModel
                     var item = selected[i];
                     if (ct.IsCancellationRequested)
                     {
-                        item.SetJob(HwJobState.Skipped, "ОТМЕНЕНО");
-                        HardwareResults.Add(new HwResultItem(item.Title, "ОТМЕНЕНО", false));
+                        item.SetJob(HwJobState.Skipped, Loc.T("ОТМЕНЕНО"));
+                        HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОТМЕНЕНО"), false));
                         continue;
                     }
-                    HwInstallStage = $"{i + 1} ИЗ {selected.Count} · {item.Title.ToUpperInvariant()}";
+                    HwInstallStage = Loc.Tf("{0} ИЗ {1} · {2}", i + 1, selected.Count, item.Title.ToUpperInvariant());
                     HwInstallPercent = 0;
                     HwInstallIndeterminate = true;
                     await RunHardwareItemAsync(item, backedUp, ct);
@@ -584,9 +584,9 @@ public sealed partial class DriversViewModel
 
         var ok = HardwareResults.Count(r => r.IsOk);
         var failed = HardwareResults.Count - ok;
-        HwResultsSummary = HardwareResults.Count == 0 ? null : failed == 0 ? $"Готово: {ok} из {HardwareResults.Count}." : $"Успешно: {ok}, с ошибками или отменено: {failed}.";
+        HwResultsSummary = HardwareResults.Count == 0 ? null : failed == 0 ? Loc.Tf("Готово: {0} из {1}.", ok, HardwareResults.Count) : Loc.Tf("Успешно: {0}, с ошибками или отменено: {1}.", ok, failed);
         if (HwResultsSummary is not null)
-            Ui.Toast(HwResultsSummary, failed == 0 ? ToastKind.Success : ToastKind.Warning, "ПОДБОР ДЛЯ ПК");
+            Ui.Toast(HwResultsSummary, failed == 0 ? ToastKind.Success : ToastKind.Warning, Loc.T("ПОДБОР ДЛЯ ПК"));
 
         if (!attempted)
         {
@@ -596,7 +596,7 @@ public sealed partial class DriversViewModel
         }
         // Drivers and programs changed: re-read the driver list, then the hardware, and check the driver versions.
         _hwRebuildAfterInstall = false;
-        await RunBusyAsync(OperationClass.Measure, "Обновление сведений о драйверах…", LoadInventoryAsync);
+        await RunBusyAsync(OperationClass.Measure, Loc.T("Обновление сведений о драйверах…"), LoadInventoryAsync);
         await ScanHardwareAsync();
         VerifyDriverResults();
     }
@@ -604,32 +604,31 @@ public sealed partial class DriversViewModel
     private static string DescribeForConfirm(HwActionItem item)
     {
         var a = item.Action;
-        var optional = a.Optional ? " · по желанию" : "";
+        var optional = a.Optional ? Loc.T(" · по желанию") : "";
         return a.Kind switch
         {
             HwActionKind.DriverPackage when a.Package is { } p =>
-                $"{a.Title} — {a.Publisher} · официальный сервер {p.Url.Host}{(string.IsNullOrWhiteSpace(a.SizeText) ? "" : $" ({a.SizeText})")}, " +
-                $"подпись «{p.Signer}» проверяется, затем откроется установщик производителя",
+                Loc.Tf("{0} — {1} · официальный сервер {2}{3}, подпись «{4}» проверяется, затем откроется установщик производителя", a.Title, a.Publisher, p.Url.Host, string.IsNullOrWhiteSpace(a.SizeText) ? "" : " (" + a.SizeText + ")", p.Signer),
             HwActionKind.Winget when a.Winget is { } w =>
-                $"{a.Title} — {a.Publisher} · winget, пакет {w.Id}{optional}",
+                Loc.Tf("{0} — {1} · winget, пакет {2}{3}", a.Title, a.Publisher, w.Id, optional),
             _ => $"{a.Title} — {a.Publisher}",
         };
     }
 
     private async Task<bool> CreateHardwareRestorePointAsync()
     {
-        var rp = await RestorePointService.CreateAsync("MONOLITH: драйверы и компоненты для ПК");
-        HardwareResults.Add(new HwResultItem("Точка восстановления", rp.Created ? "СОЗДАНА" : "НЕ СОЗДАНА", rp.Created, rp.Message));
+        var rp = await RestorePointService.CreateAsync(Loc.T("MONOLITH: драйверы и компоненты для ПК"));
+        HardwareResults.Add(new HwResultItem(Loc.T("Точка восстановления"), rp.Created ? Loc.T("СОЗДАНА") : Loc.T("НЕ СОЗДАНА"), rp.Created, rp.Message));
         if (rp.Created)
         {
-            Ui.Toast(rp.Message, ToastKind.Success, "ТОЧКА ВОССТАНОВЛЕНИЯ");
+            Ui.Toast(rp.Message, ToastKind.Success, Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ"));
             return true;
         }
         Log.Warn(rp.Message);
         return await Ui.ConfirmAsync(
             "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
-            $"{rp.Message} Без неё откатить драйвер можно будет только через диспетчер устройств или резервную копию драйверов, а программы — удалением. Продолжить?",
-            confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true);
+            Loc.Tf("{0} Без неё откатить драйвер можно будет только через диспетчер устройств или резервную копию драйверов, а программы — удалением. Продолжить?", rp.Message),
+            confirmText: Loc.T("ПРОДОЛЖИТЬ"), cancelText: Loc.T("ОТМЕНИТЬ"), danger: true);
     }
 
     private async Task RunHardwareItemAsync(HwActionItem item, HashSet<string> backedUp, CancellationToken ct)
@@ -646,54 +645,54 @@ public sealed partial class DriversViewModel
                     await RunDriverItemAsync(item, package, backedUp, ct);
                     break;
                 default:
-                    item.SetJob(HwJobState.Skipped, "ПРОПУЩЕНО");
+                    item.SetJob(HwJobState.Skipped, Loc.T("ПРОПУЩЕНО"));
                     break;
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            item.SetJob(HwJobState.Skipped, "ОТМЕНЕНО");
-            HardwareResults.Add(new HwResultItem(item.Title, "ОТМЕНЕНО", false));
+            item.SetJob(HwJobState.Skipped, Loc.T("ОТМЕНЕНО"));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОТМЕНЕНО"), false));
         }
         catch (Exception ex)
         {
-            Log.Error($"Установка «{item.Title}»", ex);
-            item.SetJob(HwJobState.Failed, "ОШИБКА: " + ex.Message);
-            HardwareResults.Add(new HwResultItem(item.Title, "ОШИБКА", false, ex.Message));
+            Log.Error("Установка «{0}»", ex, item.Title);
+            item.SetJob(HwJobState.Failed, Loc.Tf("ОШИБКА: {0}", ex.Message));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОШИБКА"), false, ex.Message));
         }
     }
 
     private async Task RunWingetItemAsync(HwActionItem item, WingetPackageRequest request, CancellationToken ct)
     {
-        item.SetJob(HwJobState.Running, "УСТАНОВКА");
+        item.SetJob(HwJobState.Running, Loc.T("УСТАНОВКА"));
         HwInstallDetail = $"winget install {request.Id}";
-        Log.Info($"Установка {item.Title} ({request.Id}, источник {request.Source})");
+        Log.Info("Установка {0} ({1}, источник {2})", item.Title, request.Id, request.Source);
         var r = await WingetClient.InstallPackageAsync(request, line => Ui.Post(() => HwInstallDetail = line), ct);
         if (r.Cancelled)
         {
-            item.SetJob(HwJobState.Skipped, "ОТМЕНЕНО");
-            HardwareResults.Add(new HwResultItem(item.Title, "ОТМЕНЕНО", false));
+            item.SetJob(HwJobState.Skipped, Loc.T("ОТМЕНЕНО"));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОТМЕНЕНО"), false));
             return;
         }
         if (!r.Success)
         {
-            item.SetJob(HwJobState.Failed, "ОШИБКА: " + r.Message);
-            HardwareResults.Add(new HwResultItem(item.Title, "ОШИБКА", false, r.Message));
+            item.SetJob(HwJobState.Failed, Loc.Tf("ОШИБКА: {0}", r.Message));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОШИБКА"), false, r.Message));
             return;
         }
         // winget may match the MSIX "DirectXRuntime" framework: the classic DLLs decide (Apps research §4).
         if (string.Equals(request.Id, HardwareCatalog.DirectX, StringComparison.OrdinalIgnoreCase) &&
             !await Task.Run(InstalledDetector.HasLegacyDirectX))
         {
-            const string msg = "winget сообщил об успехе, но файлов d3dx9_43.dll и xaudio2_7.dll нет — скачайте установщик на сайте Microsoft";
-            item.SetJob(HwJobState.Failed, "ОШИБКА: файлы DirectX не появились");
-            HardwareResults.Add(new HwResultItem(item.Title, "ОШИБКА", false, msg));
+            var msg = Loc.T("winget сообщил об успехе, но файлов d3dx9_43.dll и xaudio2_7.dll нет — скачайте установщик на сайте Microsoft");
+            item.SetJob(HwJobState.Failed, Loc.T("ОШИБКА: файлы DirectX не появились"));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОШИБКА"), false, msg));
             Log.Warn("DirectX: " + msg);
             return;
         }
         var reboot = WingetClient.IsRebootRequired(r.ExitCode);
-        item.SetJob(HwJobState.Done, reboot ? "ГОТОВО · НУЖНА ПЕРЕЗАГРУЗКА" : "ГОТОВО");
-        HardwareResults.Add(new HwResultItem(item.Title, reboot ? "ГОТОВО, НУЖНА ПЕРЕЗАГРУЗКА" : "ГОТОВО", true, r.Message));
+        item.SetJob(HwJobState.Done, reboot ? Loc.T("ГОТОВО · НУЖНА ПЕРЕЗАГРУЗКА") : Loc.T("ГОТОВО"));
+        HardwareResults.Add(new HwResultItem(item.Title, reboot ? Loc.T("ГОТОВО, НУЖНА ПЕРЕЗАГРУЗКА") : Loc.T("ГОТОВО"), true, r.Message));
     }
 
     private async Task RunDriverItemAsync(HwActionItem item, DriverPackage package, HashSet<string> backedUp, CancellationToken ct)
@@ -702,23 +701,23 @@ public sealed partial class DriversViewModel
         if (item.Action.GpuPnpId is { } pnp && backedUp.Add(pnp) &&
             _signedDrivers.FirstOrDefault(d => string.Equals(d.DeviceId, pnp, StringComparison.OrdinalIgnoreCase)) is { IsOem: true } current)
         {
-            item.SetJob(HwJobState.Running, "КОПИЯ ТЕКУЩЕГО ДРАЙВЕРА");
-            HwInstallDetail = $"Сохранение {current.InfName} ({current.Version})…";
+            item.SetJob(HwJobState.Running, Loc.T("КОПИЯ ТЕКУЩЕГО ДРАЙВЕРА"));
+            HwInstallDetail = Loc.Tf("Сохранение {0} ({1})…", current.InfName, current.Version);
             try
             {
-                var (count, folder) = await DriverBackupService.ExportPackagesAsync([current.InfName], $"Перед установкой: {item.Title}", ct);
-                if (folder is not null) Log.Success($"Текущий драйвер видеокарты сохранён ({count}): {folder}");
+                var (count, folder) = await DriverBackupService.ExportPackagesAsync([current.InfName], Loc.Tf("Перед установкой: {0}", item.Title), ct);
+                if (folder is not null) Log.Success("Текущий драйвер видеокарты сохранён ({0}): {1}", count, folder);
                 _ = ReloadBackupsAsync();
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                Log.Warn($"Не удалось сохранить текущий драйвер видеокарты: {ex.Message}");
+                Log.Warn("Не удалось сохранить текущий драйвер видеокарты: {0}", ex.Message);
             }
         }
 
         // 2. Download from the vendor's server + Authenticode check (DriverDownloads).
-        item.SetJob(HwJobState.Running, "ЗАГРУЗКА 0%");
+        item.SetJob(HwJobState.Running, Loc.T("ЗАГРУЗКА 0%"));
         HwInstallIndeterminate = false;
         var progress = new Progress<DownloadProgress>(p =>
         {
@@ -726,24 +725,24 @@ public sealed partial class DriversViewModel
             HwInstallIndeterminate = p.Total is not > 0;
             HwInstallPercent = p.Percent;
             item.JobText = p.Total is > 0 && p.Done >= p.Total
-                ? "ПРОВЕРКА ПОДПИСИ"
-                : p.Total is > 0 ? $"ЗАГРУЗКА {p.Percent:0}%" : $"ЗАГРУЗКА · {SystemProfile.FormatBytes(p.Done)}";
+                ? Loc.T("ПРОВЕРКА ПОДПИСИ")
+                : p.Total is > 0 ? Loc.Tf("ЗАГРУЗКА {0:0}%", p.Percent) : Loc.Tf("ЗАГРУЗКА · {0}", SystemProfile.FormatBytes(p.Done));
         });
         var path = await DriverDownloads.DownloadAsync(package, progress, ct);
 
         // 3. The vendor's own installer, interactively; wait until the user finishes it.
-        item.SetJob(HwJobState.Running, "УСТАНОВКА · ОКНО УСТАНОВЩИКА");
+        item.SetJob(HwJobState.Running, Loc.T("УСТАНОВКА · ОКНО УСТАНОВЩИКА"));
         HwInstallIndeterminate = true;
-        HwInstallDetail = "Пройдите шаги установщика производителя. MONOLITH ждёт его завершения.";
+        HwInstallDetail = Loc.T("Пройдите шаги установщика производителя. MONOLITH ждёт его завершения.");
         var code = await VendorInstallerRunner.RunAndWaitAsync(path, ct);
         if (code is null)
         {
-            item.SetJob(HwJobState.Skipped, "ОЖИДАНИЕ ПРЕКРАЩЕНО");
-            HardwareResults.Add(new HwResultItem(item.Title, "НЕ ДОЖДАЛИСЬ", false, "Установщик продолжает работу — дождитесь его окончания."));
+            item.SetJob(HwJobState.Skipped, Loc.T("ОЖИДАНИЕ ПРЕКРАЩЕНО"));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("НЕ ДОЖДАЛИСЬ"), false, Loc.T("Установщик продолжает работу — дождитесь его окончания.")));
             return;
         }
-        item.SetJob(HwJobState.Done, $"УСТАНОВЩИК ЗАВЕРШЁН · КОД {code}");
-        HardwareResults.Add(new HwResultItem(item.Title, "УСТАНОВЩИК ЗАВЕРШЁН", true, $"Код завершения {code}. Версия драйвера проверяется повторным анализом.")
+        item.SetJob(HwJobState.Done, Loc.Tf("УСТАНОВЩИК ЗАВЕРШЁН · КОД {0}", code));
+        HardwareResults.Add(new HwResultItem(item.Title, Loc.T("УСТАНОВЩИК ЗАВЕРШЁН"), true, Loc.Tf("Код завершения {0}. Версия драйвера проверяется повторным анализом.", code))
         {
             ExpectedVersion = package.Version,
             GpuPnpId = item.Action.GpuPnpId,
@@ -766,28 +765,28 @@ public sealed partial class DriversViewModel
                 : HardwareRules.CompareVersions(now, r.ExpectedVersion);
             if (cmp >= 0)
             {
-                r.ResultText = "ДРАЙВЕР ОБНОВЛЁН";
+                r.ResultText = Loc.T("ДРАЙВЕР ОБНОВЛЁН");
                 r.IsOk = true;
-                r.Detail = $"Сейчас установлен {now}.";
+                r.Detail = Loc.Tf("Сейчас установлен {0}.", now);
             }
             else
             {
-                r.ResultText = "ВЕРСИЯ НЕ ИЗМЕНИЛАСЬ";
+                r.ResultText = Loc.T("ВЕРСИЯ НЕ ИЗМЕНИЛАСЬ");
                 r.IsOk = false;
-                r.Detail = $"Сейчас {now}, ожидалась {r.ExpectedVersion}: установку отменили, или нужна перезагрузка.";
+                r.Detail = Loc.Tf("Сейчас {0}, ожидалась {1}: установку отменили, или нужна перезагрузка.", now, r.ExpectedVersion);
             }
         }
         var ok = HardwareResults.Count(r => r.IsOk);
         var failed = HardwareResults.Count - ok;
         if (HardwareResults.Count > 0)
-            HwResultsSummary = failed == 0 ? $"Готово: {ok} из {HardwareResults.Count}." : $"Успешно: {ok}, с ошибками или отменено: {failed}.";
+            HwResultsSummary = failed == 0 ? Loc.Tf("Готово: {0} из {1}.", ok, HardwareResults.Count) : Loc.Tf("Успешно: {0}, с ошибками или отменено: {1}.", ok, failed);
     }
 
     [RelayCommand(CanExecute = nameof(IsHwInstalling))]
     private void CancelHardwareInstall()
     {
         if (_hwInstallCts is null || _hwInstallCts.IsCancellationRequested) return;
-        HwInstallDetail = "Отмена… Текущий шаг завершается; уже открытый установщик драйвера не прерывается.";
+        HwInstallDetail = Loc.T("Отмена… Текущий шаг завершается; уже открытый установщик драйвера не прерывается.");
         _hwInstallCts.Cancel();
     }
 }

@@ -131,7 +131,7 @@ internal static partial class NvidiaLookup
             var product = FindProduct(xml, gpuName);
             if (product is null)
             {
-                Log.Info($"NVIDIA: «{gpuName}» нет в справочнике nvidia.com — проверка версии пропущена.");
+                Log.Info("NVIDIA: «{0}» нет в справочнике nvidia.com — проверка версии пропущена.", gpuName);
                 return null;
             }
             var url = string.Format(CultureInfo.InvariantCulture, DriverUrlFormat, product.Psid, product.Pfid);
@@ -140,7 +140,7 @@ internal static partial class NvidiaLookup
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            Log.Info($"NVIDIA: не удалось узнать последнюю версию драйвера ({ex.GetType().Name}).");
+            Log.Info("NVIDIA: не удалось узнать последнюю версию драйвера ({0}).", ex.GetType().Name);
             return null;
         }
     }

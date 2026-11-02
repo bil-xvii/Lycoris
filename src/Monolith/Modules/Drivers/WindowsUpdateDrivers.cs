@@ -148,7 +148,7 @@ internal static class WindowsUpdateDrivers
         // for the real result, so drivers installed before the abort and the reboot flag are reported.
         RunOnMtaThread("WUA install", SearchTimeout + DownloadTimeout + InstallTimeout + TimeSpan.FromMinutes(10), ct, observeCancellation: false, token =>
         {
-            Elevation.Demand("установка драйверов из Windows Update");
+            Elevation.Demand(Loc.T("установка драйверов из Windows Update"));
             var wanted = new HashSet<string>(updateIds, StringComparer.OrdinalIgnoreCase);
             var results = new Dictionary<string, WuItemResult>(StringComparer.OrdinalIgnoreCase);
             var titles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -170,7 +170,7 @@ internal static class WindowsUpdateDrivers
                 if (WuText.IsFirmware(Try(() => (string)u.DriverClass)))
                 {
                     results[id] = new WuItemResult(id, title, WuText.OrcAborted, 0, false,
-                        "Прошивка — устанавливается через параметры Windows Update или утилиту производителя.");
+                        Loc.T("Прошивка — устанавливается через параметры Windows Update или утилиту производителя."));
                     continue;
                 }
                 if (!(bool)u.EulaAccepted)
@@ -188,7 +188,7 @@ internal static class WindowsUpdateDrivers
             }
             foreach (var id in wanted.Where(id => !titles.ContainsKey(id)))
                 results[id] = new WuItemResult(id, id, WuText.OrcAborted, 0, false,
-                    "Windows Update больше не предлагает это обновление — возможно, оно уже установлено.");
+                    Loc.T("Windows Update больше не предлагает это обновление — возможно, оно уже установлено."));
 
             if (order.Count == 0) return new WuInstallResult(results.Values.ToList(), false, false);
 
@@ -223,8 +223,8 @@ internal static class WindowsUpdateDrivers
                 else
                 {
                     results[id] = new WuItemResult(id, titles[id], rc == WuText.OrcSucceeded ? WuText.OrcFailed : rc, hr, false,
-                        dlCancelled ? "Загрузка отменена." : dlTimedOut ? "Загрузка не завершилась за отведённое время."
-                            : "Не удалось загрузить: " + (hr != 0 ? WuText.DescribeHResult(hr) : WuText.ResultText(rc).ToLowerInvariant()));
+                        dlCancelled ? Loc.T("Загрузка отменена.") : dlTimedOut ? Loc.T("Загрузка не завершилась за отведённое время.")
+                            : Loc.Tf("Не удалось загрузить: {0}", hr != 0 ? WuText.DescribeHResult(hr) : WuText.ResultText(rc).ToLowerInvariant()));
                 }
             }
             if (dlCancelled || toInstall.Count == 0)
@@ -237,7 +237,7 @@ internal static class WindowsUpdateDrivers
             if ((bool)installer.IsBusy)
                 throw new WuException(WuText.OperationInProgress, WuText.DescribeHResult(WuText.OperationInProgress));
             if ((bool)installer.RebootRequiredBeforeInstallation)
-                throw new InvalidOperationException("Windows ожидает перезагрузки перед установкой. Перезагрузите компьютер и повторите.");
+                throw new InvalidOperationException(Loc.T("Windows ожидает перезагрузки перед установкой. Перезагрузите компьютер и повторите."));
             installer.AllowSourcePrompts = false;
             installer.Updates = installColl;
             progress.Report(new WuProgress(WuStage.Installing, 0, 1, toInstall.Count));
@@ -257,10 +257,10 @@ internal static class WindowsUpdateDrivers
                 int hr = r is null ? 0 : Try(() => (int)((dynamic)r).HResult);
                 bool reboot = r is not null && Try(() => (bool)((dynamic)r).RebootRequired);
                 string message = WuText.IsSuccess(rc)
-                    ? reboot ? "Установлено. Требуется перезагрузка." : "Установлено."
-                    : inCancelled ? "Установка отменена."
-                    : inTimedOut ? "Установка не завершилась за отведённое время."
-                    : "Не установлено: " + (hr != 0 ? WuText.DescribeHResult(hr) : WuText.ResultText(rc).ToLowerInvariant());
+                    ? reboot ? Loc.T("Установлено. Требуется перезагрузка.") : Loc.T("Установлено.")
+                    : inCancelled ? Loc.T("Установка отменена.")
+                    : inTimedOut ? Loc.T("Установка не завершилась за отведённое время.")
+                    : Loc.Tf("Не установлено: {0}", hr != 0 ? WuText.DescribeHResult(hr) : WuText.ResultText(rc).ToLowerInvariant());
                 results[id] = new WuItemResult(id, titles[id], rc, hr, reboot, message);
             }
             bool rebootAll = Try(() => (bool)ires.RebootRequired) || results.Values.Any(r => r.RebootRequired);
@@ -302,10 +302,10 @@ internal static class WindowsUpdateDrivers
             SearchTimeout, ct, null);
 
         if (cancelled) throw new OperationCanceledException(ct);
-        if (timedOut) throw new TimeoutException("Windows Update не ответил за 5 минут.");
+        if (timedOut) throw new TimeoutException(Loc.T("Windows Update не ответил за 5 минут."));
         int rc = result.ResultCode;
         if (!WuText.IsSuccess(rc))
-            throw new WuException(0, $"Windows Update не смог выполнить поиск ({WuText.ResultText(rc).ToLowerInvariant()}).");
+            throw new WuException(0, Loc.Tf("Windows Update не смог выполнить поиск ({0}).", WuText.ResultText(rc).ToLowerInvariant()));
         return result.Updates;
     }
 
@@ -326,7 +326,7 @@ internal static class WindowsUpdateDrivers
         }
         catch (Exception ex) when (IsCallbackFailure(ex))
         {
-            Log.Info($"Windows Update: асинхронный вызов недоступен ({ex.GetType().Name}) — используется синхронный.");
+            Log.Info("Windows Update: асинхронный вызов недоступен ({0}) — используется синхронный.", ex.GetType().Name);
             return (sync(), false, false);
         }
 
@@ -340,7 +340,7 @@ internal static class WindowsUpdateDrivers
             if (!cb.Completed.Wait(AbortGrace))
             {
                 if (cancelled) throw new OperationCanceledException(ct);
-                throw new TimeoutException("Windows Update не ответил вовремя.");
+                throw new TimeoutException(Loc.T("Windows Update не ответил вовремя."));
             }
         }
 
@@ -350,7 +350,7 @@ internal static class WindowsUpdateDrivers
         }
         catch (COMException ex) when (cancelled || timedOut || ex.HResult == WuText.OperationCancelled)
         {
-            if (timedOut) throw new TimeoutException("Windows Update не ответил вовремя.");
+            if (timedOut) throw new TimeoutException(Loc.T("Windows Update не ответил вовремя."));
             throw new OperationCanceledException(ct);
         }
         finally
@@ -410,7 +410,7 @@ internal static class WindowsUpdateDrivers
         }
         catch (Exception ex)
         {
-            Log.Warn($"Windows Update: не удалось прочитать обновление: {ex.Message}");
+            Log.Warn("Windows Update: не удалось прочитать обновление: {0}", ex.Message);
             return null;
         }
     }

@@ -17,8 +17,8 @@ public sealed partial class DriversViewModel : PageViewModel
 {
     public override string Key => "drivers";
     public override string Index => "05";
-    public override string Title => "ДРАЙВЕРЫ";
-    public override string Subtitle => "Драйверы и утилиты производителей — только из официальных источников.";
+    public override string Title => Loc.T("ДРАЙВЕРЫ");
+    public override string Subtitle => Loc.T("Драйверы и утилиты производителей — только из официальных источников.");
     public override string Glyph => Glyphs.Devices;
 
     private const string Source = "drivers";
@@ -60,7 +60,7 @@ public sealed partial class DriversViewModel : PageViewModel
     [ObservableProperty] private string? _chipsetPackage;
     [ObservableProperty] private bool _chipsetIsAmd;
     [ObservableProperty] private bool _chipsetIsIntel;
-    [ObservableProperty] private string _intelDsaButtonText = "УСТАНОВИТЬ INTEL DSA";
+    [ObservableProperty] private string _intelDsaButtonText = Loc.T("УСТАНОВИТЬ INTEL DSA");
     [ObservableProperty] private bool _intelDsaInstalled;
     [ObservableProperty] private bool _gpusEmpty;
 
@@ -82,7 +82,7 @@ public sealed partial class DriversViewModel : PageViewModel
         // The Windows Update search (and the hardware-analysis hook, hidden tab) run on their own and do not block the page.
         _ = StartHardwareScanAsync();
         _ = SearchUpdatesAsync();
-        await RunBusyAsync(OperationClass.Measure, "Сбор сведений о драйверах…", LoadInventoryAsync);
+        await RunBusyAsync(OperationClass.Measure, Loc.T("Сбор сведений о драйверах…"), LoadInventoryAsync);
     }
 
     /// <summary>Implemented in DriversViewModel.Hardware.cs.</summary>
@@ -136,7 +136,7 @@ public sealed partial class DriversViewModel : PageViewModel
         List<(GpuInfo Gpu, GpuRegistryInfo? Reg)> GpuRegs);
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
-    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Обновление сведений о драйверах…", LoadInventoryAsync);
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, Loc.T("Обновление сведений о драйверах…"), LoadInventoryAsync);
 
     /// <summary>A refresh rebuilds the GPU cards, so it waits while a card is downloading a driver.</summary>
     private bool CanRefresh() => !IsBusy && !IsInstalling && !IsBackupRunning && !IsDriverDownloadRunning;
@@ -147,7 +147,7 @@ public sealed partial class DriversViewModel : PageViewModel
         var data = await Task.Run(() => Collect(profile));
         ApplyInventory(profile, data);
         InventoryLoaded = true;
-        InventoryTime = $"ДАННЫЕ ОТ {DateTime.Now:HH:mm}";
+        InventoryTime = Loc.Tf("ДАННЫЕ ОТ {0:HH:mm}", DateTime.Now);
         MarkChecked();
         _ = CheckNvidiaLatestAsync();
         _ = OfferAmdInstallerAsync();
@@ -160,7 +160,7 @@ public sealed partial class DriversViewModel : PageViewModel
         try { drivers = DriverInventory.LoadSignedDrivers(); }
         catch (Exception ex)
         {
-            driversError = "Не удалось получить список драйверов (WMI): " + ex.Message;
+            driversError = Loc.Tf("Не удалось получить список драйверов (WMI): {0}", ex.Message);
             Log.Warn(driversError);
         }
 
@@ -169,7 +169,7 @@ public sealed partial class DriversViewModel : PageViewModel
         try { problems = DriverInventory.LoadProblemDevices(); }
         catch (Exception ex)
         {
-            problemsError = "Не удалось проверить устройства (WMI): " + ex.Message;
+            problemsError = Loc.Tf("Не удалось проверить устройства (WMI): {0}", ex.Message);
             Log.Warn(problemsError);
         }
 
@@ -178,7 +178,7 @@ public sealed partial class DriversViewModel : PageViewModel
 
         List<DriverBackupInfo> backups = [];
         try { backups = DriverBackupService.List(); }
-        catch (Exception ex) { Log.Warn($"Резервные копии драйверов: {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Резервные копии драйверов: {0}", ex.Message); }
 
         var regs = profile.Gpus.Select(g => (g, DriverInventory.ReadGpuRegistry(g))).ToList();
         return new InventoryData(drivers, driversError, problems, problemsError, apps, DriverInventory.ReadWuPolicy(),
@@ -202,7 +202,7 @@ public sealed partial class DriversViewModel : PageViewModel
         var reportable = data.Problems.Where(p => DeviceProblemCodes.IsReportable(p.Code, p.Present)).ToList();
         var amdPackage = data.Apps.FirstOrDefault(a => a.DisplayName.StartsWith("AMD Chipset Software", StringComparison.OrdinalIgnoreCase))?.Version;
         var chipset = ChipsetAdvisor.Analyze(profile.CpuName, profile.CpuIsAmd, profile.CpuIsIntel, data.Drivers, reportable, amdPackage);
-        ChipsetCpu = string.IsNullOrWhiteSpace(profile.CpuName) ? "Процессор не определён" : profile.CpuName;
+        ChipsetCpu = string.IsNullOrWhiteSpace(profile.CpuName) ? Loc.T("Процессор не определён") : profile.CpuName;
         ChipsetVerdict = chipset.Verdict;
         ChipsetState = chipset.DriverOk switch { true => "ok", false => "bad", _ => "unknown" };
         ChipsetRecommendation = chipset.Recommendation;
@@ -267,14 +267,14 @@ public sealed partial class DriversViewModel : PageViewModel
     }
 
     [RelayCommand]
-    private void OpenDeviceManager() => ShellOpen(ProcessRunner.Sys("devmgmt.msc"), "диспетчер устройств");
+    private void OpenDeviceManager() => ShellOpen(ProcessRunner.Sys("devmgmt.msc"), Loc.T("диспетчер устройств"));
 
     [RelayCommand]
     private async Task OpenUrlAsync(string? url)
     {
         if (!DriverSources.IsAllowedUrl(url))
         {
-            Log.Warn($"Ссылка не открыта (не официальный источник): {url}");
+            Log.Warn("Ссылка не открыта (не официальный источник): {0}", url);
             return;
         }
         if (!url!.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
@@ -286,7 +286,7 @@ public sealed partial class DriversViewModel : PageViewModel
         // Vendor sites: the browser must not inherit MONOLITH's administrator token (drivers downloaded there
         // would otherwise run elevated without a UAC prompt).
         if (!await UnelevatedShell.OpenAsync(url))
-            Ui.Toast($"Не удалось открыть страницу без прав администратора. Откройте её в браузере вручную: {url}", ToastKind.Warning);
+            Ui.Toast(Loc.Tf("Не удалось открыть страницу без прав администратора. Откройте её в браузере вручную: {0}", url), ToastKind.Warning);
     }
 
     private static void ShellOpen(string target, string what)
@@ -297,8 +297,8 @@ public sealed partial class DriversViewModel : PageViewModel
         }
         catch (Exception ex)
         {
-            Log.Error($"Не удалось открыть {what}", ex);
-            Ui.Toast($"Не удалось открыть {what}: {ex.Message}", ToastKind.Error);
+            Log.Error("Не удалось открыть {0}", ex, what);
+            Ui.Toast(Loc.Tf("Не удалось открыть {0}: {1}", what, ex.Message), ToastKind.Error);
         }
     }
 
@@ -353,38 +353,38 @@ public sealed partial class DriversViewModel : PageViewModel
     private void UpdateIntelDsaState()
     {
         IntelDsaInstalled = _apps.Any(a => a.DisplayName.Contains("Driver & Support Assistant", StringComparison.OrdinalIgnoreCase));
-        IntelDsaButtonText = IntelDsaInstalled ? "ОТКРЫТЬ INTEL DSA" : "УСТАНОВИТЬ INTEL DSA";
+        IntelDsaButtonText = IntelDsaInstalled ? Loc.T("ОТКРЫТЬ INTEL DSA") : Loc.T("УСТАНОВИТЬ INTEL DSA");
     }
 
     /// <summary>Installs an official vendor utility with winget after a confirmation that names publisher and source.</summary>
     private async Task<bool> InstallToolAsync(VendorTool tool, string intentCommand, string? intentParameter)
     {
         if (tool.WingetId is not { } id || DriverSources.IsBlocked(id)) return false;
-        if (!RequireAdmin($"установка {tool.Name}", intentCommand, intentParameter)) return false;
+        if (!RequireAdmin(Loc.Tf("установка {0}", tool.Name), intentCommand, intentParameter)) return false;
         if (IsBusy) return false;
 
         var store = tool.WingetSource == "msstore";
         var confirmed = await Ui.ConfirmAsync(
-            $"УСТАНОВИТЬ {tool.Name.ToUpperInvariant()}?",
+            Loc.Tf("УСТАНОВИТЬ {0}?", tool.Name.ToUpperInvariant()),
             tool.Description,
             [
-                $"Программа: {tool.Name}",
-                $"Издатель: {tool.Publisher}",
-                $"Источник: {(store ? "Microsoft Store через winget (msstore)" : "официальный репозиторий winget")}",
-                $"Пакет: {id}",
-                "Будет выполнено: winget install --id … --exact — без --force и без перезагрузки",
+                Loc.Tf("Программа: {0}", tool.Name),
+                Loc.Tf("Издатель: {0}", tool.Publisher),
+                Loc.Tf("Источник: {0}", (store ? Loc.T("Microsoft Store через winget (msstore)") : Loc.T("официальный репозиторий winget"))),
+                Loc.Tf("Пакет: {0}", id),
+                Loc.T("Будет выполнено: winget install --id … --exact — без --force и без перезагрузки"),
                 store
-                    ? "Нажимая «Установить», вы принимаете лицензию издателя и условия Microsoft Store"
-                    : "Нажимая «Установить», вы принимаете лицензию издателя",
+                    ? Loc.T("Нажимая «Установить», вы принимаете лицензию издателя и условия Microsoft Store")
+                    : Loc.T("Нажимая «Установить», вы принимаете лицензию издателя"),
             ],
-            confirmText: "УСТАНОВИТЬ",
-            footnote: "Удалить программу можно в «Параметры → Приложения».");
+            confirmText: Loc.T("УСТАНОВИТЬ"),
+            footnote: Loc.T("Удалить программу можно в «Параметры → Приложения»."));
         if (!confirmed) return false;
 
         var success = false;
-        await RunBusyAsync(OperationClass.Install, $"Установка {tool.Name}…", async () =>
+        await RunBusyAsync(OperationClass.Install, Loc.Tf("Установка {0}…", tool.Name), async () =>
         {
-            Log.Info($"Установка {tool.Name} ({id}, источник {tool.WingetSource})");
+            Log.Info("Установка {0} ({1}, источник {2})", tool.Name, id, tool.WingetSource);
             var r = await WingetClient.InstallAsync(id, tool.WingetSource, line => Log.Info("winget: " + line));
             if (r.Success)
             {
@@ -393,7 +393,7 @@ public sealed partial class DriversViewModel : PageViewModel
             }
             else
             {
-                Ui.Toast($"{tool.Name}: {r.Message}.", ToastKind.Error, "УСТАНОВКА НЕ УДАЛАСЬ");
+                Ui.Toast($"{tool.Name}: {r.Message}.", ToastKind.Error, Loc.T("УСТАНОВКА НЕ УДАЛАСЬ"));
             }
             _apps = await Task.Run(DriverInventory.ReadUninstallEntries);
         });
@@ -406,13 +406,13 @@ public sealed partial class DriversViewModel : PageViewModel
         var rp = await RestorePointService.CreateAsync(description);
         if (rp.Created)
         {
-            Ui.Toast(rp.Message, ToastKind.Success, "ТОЧКА ВОССТАНОВЛЕНИЯ");
+            Ui.Toast(rp.Message, ToastKind.Success, Loc.T("ТОЧКА ВОССТАНОВЛЕНИЯ"));
             return true;
         }
         Log.Warn(rp.Message);
         return await AskWithoutLeaseAsync(() => Ui.ConfirmAsync(
             "ТОЧКА ВОССТАНОВЛЕНИЯ НЕ СОЗДАНА",
-            $"{rp.Message} Без неё откатить драйверы можно будет только через диспетчер устройств или резервную копию драйверов. Продолжить?",
-            confirmText: "ПРОДОЛЖИТЬ", cancelText: "ОТМЕНИТЬ", danger: true));
+            Loc.Tf("{0} Без неё откатить драйверы можно будет только через диспетчер устройств или резервную копию драйверов. Продолжить?", rp.Message),
+            confirmText: Loc.T("ПРОДОЛЖИТЬ"), cancelText: Loc.T("ОТМЕНИТЬ"), danger: true));
     }
 }
