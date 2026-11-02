@@ -54,11 +54,19 @@ public sealed partial class DriversViewModel
     }
 
     /// <summary>Code 22: turns the device back on (pnputil /enable-device), journaled with /disable-device as the undo.</summary>
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private async Task EnableDeviceAsync(ProblemDeviceItem? device)
+    private bool CanModifyDevice(object? target) => CanModify();
+
+    [RelayCommand(CanExecute = nameof(CanModifyDevice))]
+    private async Task EnableDeviceAsync(object? target)
     {
+        var device = target switch
+        {
+            ProblemDeviceItem d => d,
+            string id when id.Length > 0 => Problems.FirstOrDefault(p => string.Equals(p.DeviceId, id, StringComparison.OrdinalIgnoreCase)),
+            _ => null,
+        };
         if (device is null || !device.CanEnable) return;
-        if (!RequireAdmin("включение устройства")) return;
+        if (!RequireAdmin("включение устройства", "EnableDevice", device.DeviceId)) return;
         var pnputil = ProcessRunner.Sys("pnputil.exe");
         var confirmed = await Ui.ConfirmAsync(
             "ВКЛЮЧИТЬ УСТРОЙСТВО?",

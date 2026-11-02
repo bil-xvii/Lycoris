@@ -134,7 +134,8 @@ public sealed partial class GpuCardItem : ObservableObject
     /// <summary>AMD without a download: the "tool" is the official installer page, so a separate site button would duplicate it.</summary>
     public bool ShowSiteButton => SiteUrl is not null && (Tool?.WingetId is not null || !HasTool || HasDownload);
     public bool ToolNeedsAdmin => Tool?.WingetId is not null && !ToolInstalled;
-    public bool CanUseTool => !ToolNeedsAdmin || Elevation.IsElevated;
+    /// <summary>Read-only mode does not disable the button: a click asks for rights and repeats the action after the relaunch.</summary>
+    public bool CanUseTool => true;
 
     // ── Direct download of the vendor's installer (DriverDownloads) ──
 
@@ -155,7 +156,7 @@ public sealed partial class GpuCardItem : ObservableObject
 
     public string DownloadHint => Package is not { } p ? "" :
         $"Официальный установщик {p.VendorName} скачивается прямо с {p.Url.Host}, проверяется по цифровой подписи {p.Signer} " +
-        "и запускается после точки восстановления." + (Elevation.IsElevated ? "" : " Нужны права администратора.");
+        "и запускается после точки восстановления." + (Elevation.IsElevated ? "" : " Без прав администратора нажмите — MONOLITH запросит их и продолжит.");
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
@@ -439,6 +440,10 @@ public sealed partial class WuUpdateItem : ObservableObject
     public bool NeedsEula => !Update.EulaAccepted;
     public bool CanSelect => !IsFirmware;
     public string KindText => IsFirmware ? "ПРОШИВКА" : IsOptional ? "НЕОБЯЗАТЕЛЬНОЕ" : "РЕКОМЕНДУЕМОЕ";
+    // Which theme tag shows the kind: firmware = hatched, optional = muted, recommended = plain.
+    public bool KindIsFirmware => IsFirmware;
+    public bool KindIsOptional => IsOptional && !IsFirmware;
+    public bool KindIsRecommended => !IsOptional && !IsFirmware;
     public string KindHint => IsFirmware
         ? "Обновление прошивки (UEFI/BIOS). MONOLITH не прошивает оборудование — установите его в параметрах Windows Update или утилитой производителя."
         : IsOptional
