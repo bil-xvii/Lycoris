@@ -25,7 +25,7 @@ public static class GameLauncher
         if (!string.IsNullOrEmpty(game.LaunchUri))
         {
             if (!IsAllowedUri(game.LaunchUri))
-                throw new InvalidOperationException("Неизвестный способ запуска игры.");
+                throw new InvalidOperationException(Loc.T("Неизвестный способ запуска игры."));
             if (Elevation.IsElevated)
             {
                 if (!await UnelevatedShell.ShellExecuteAsync(game.LaunchUri, "", "", UnelevatedShell.SwShowNormal).ConfigureAwait(false))
@@ -40,15 +40,15 @@ public static class GameLauncher
                 catch (Win32Exception ex)
                 {
                     throw new InvalidOperationException(
-                        $"Не удалось открыть {GameText.SourceName(game.Platform)}: лаунчер не установлен или не отвечает ({ex.Message}).", ex);
+                        Loc.Tf("Не удалось открыть {0}: лаунчер не установлен или не отвечает ({1}).", GameText.SourceName(game.Platform), ex.Message), ex);
                 }
             }
-            Log.Info($"Запуск «{game.Name}» через {GameText.SourceName(game.Platform)}");
+            Log.Info("Запуск «{0}» через {1}", game.Name, GameText.SourceName(game.Platform));
             return null;
         }
 
         if (string.IsNullOrEmpty(game.ExePath) || !File.Exists(game.ExePath))
-            throw new FileNotFoundException($"Файл игры не найден: {game.ExePath}");
+            throw new FileNotFoundException(Loc.Tf("Файл игры не найден: {0}", game.ExePath));
 
         var workingDir = !string.IsNullOrEmpty(game.WorkingDir) && Directory.Exists(game.WorkingDir)
             ? game.WorkingDir
@@ -59,7 +59,7 @@ public static class GameLauncher
             // Never fall back to an elevated Process.Start: the exe path and the game folder are user-writable.
             if (!await UnelevatedShell.ShellExecuteAsync(game.ExePath, game.Arguments ?? "", workingDir, UnelevatedShell.SwShowNormal).ConfigureAwait(false))
                 throw new InvalidOperationException(NoUnelevatedShell($"«{game.Name}»"));
-            Log.Info($"Запуск «{game.Name}» без прав администратора: {game.ExePath}");
+            Log.Info("Запуск «{0}» без прав администратора: {1}", game.Name, game.ExePath);
             return null;
         }
 
@@ -68,25 +68,25 @@ public static class GameLauncher
         try
         {
             using var p = Process.Start(psi);
-            Log.Info($"Запуск «{game.Name}»: {game.ExePath}");
+            Log.Info("Запуск «{0}»: {1}", game.Name, game.ExePath);
             return p?.Id;
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            throw new OperationCanceledException("Запуск отменён в окне контроля учётных записей.", ex);
+            throw new OperationCanceledException(Loc.T("Запуск отменён в окне контроля учётных записей."), ex);
         }
     }
 
     private static string NoUnelevatedShell(string what) =>
-        $"Не удалось запустить {what} без прав администратора: рабочий стол Windows (Проводник) не отвечает. " +
-        "С правами MONOLITH игры не запускаются — запустите игру обычным способом или повторите, когда Проводник перезапустится.";
+        Loc.Tf("Не удалось запустить {0} без прав администратора: рабочий стол Windows (Проводник) не отвечает. " +
+        "С правами MONOLITH игры не запускаются — запустите игру обычным способом или повторите, когда Проводник перезапустится.", what);
 
     /// <summary>Opens the install folder in Explorer.</summary>
     public static void OpenFolder(GameEntry game)
     {
         var dir = game.InstallDir;
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
-            throw new DirectoryNotFoundException($"Папка игры не найдена: {dir}");
+            throw new DirectoryNotFoundException(Loc.Tf("Папка игры не найдена: {0}", dir));
         using var _ = Process.Start(new ProcessStartInfo(dir.TrimEnd('\\') + "\\") { UseShellExecute = true });
     }
 }

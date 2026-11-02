@@ -96,13 +96,13 @@ internal static class GamesNative
 
     public static string PriorityName(uint cls) => cls switch
     {
-        IDLE_PRIORITY_CLASS => "Низкий",
-        BELOW_NORMAL_PRIORITY_CLASS => "Ниже среднего",
-        NORMAL_PRIORITY_CLASS => "Обычный",
-        ABOVE_NORMAL_PRIORITY_CLASS => "Выше среднего",
-        HIGH_PRIORITY_CLASS => "Высокий",
-        REALTIME_PRIORITY_CLASS => "Реального времени",
-        _ => "Неизвестно",
+        IDLE_PRIORITY_CLASS => Loc.T("Низкий"),
+        BELOW_NORMAL_PRIORITY_CLASS => Loc.T("Ниже среднего"),
+        NORMAL_PRIORITY_CLASS => Loc.T("Обычный"),
+        ABOVE_NORMAL_PRIORITY_CLASS => Loc.T("Выше среднего"),
+        HIGH_PRIORITY_CLASS => Loc.T("Высокий"),
+        REALTIME_PRIORITY_CLASS => Loc.T("Реального времени"),
+        _ => Loc.T("Неизвестно"),
     };
 
     // ───────────────────────────── Power ─────────────────────────────
@@ -147,16 +147,16 @@ internal static class GamesNative
         try
         {
             if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
-                return (false, $"нет доступа к токену процесса (код {Marshal.GetLastWin32Error()})");
+                return (false, Loc.Tf("нет доступа к токену процесса (код {0})", Marshal.GetLastWin32Error()));
             using (token)
             {
                 if (!LookupPrivilegeValueW(null, "SeProfileSingleProcessPrivilege", out var luid))
-                    return (false, $"привилегия не найдена (код {Marshal.GetLastWin32Error()})");
+                    return (false, Loc.Tf("привилегия не найдена (код {0})", Marshal.GetLastWin32Error()));
                 var tp = new TOKEN_PRIVILEGES { PrivilegeCount = 1, Luid = luid, Attributes = 2 /* SE_PRIVILEGE_ENABLED */ };
                 if (!AdjustTokenPrivileges(token, false, ref tp, Marshal.SizeOf<TOKEN_PRIVILEGES>(), IntPtr.Zero, IntPtr.Zero))
-                    return (false, $"не удалось включить привилегию (код {Marshal.GetLastWin32Error()})");
+                    return (false, Loc.Tf("не удалось включить привилегию (код {0})", Marshal.GetLastWin32Error()));
                 if (Marshal.GetLastWin32Error() == 1300) // ERROR_NOT_ALL_ASSIGNED
-                    return (false, "у процесса нет привилегии SeProfileSingleProcessPrivilege (нужны права администратора)");
+                    return (false, Loc.T("у процесса нет привилегии SeProfileSingleProcessPrivilege (нужны права администратора)"));
             }
 
             var cmd = 4; // MemoryPurgeStandbyList

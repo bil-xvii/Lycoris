@@ -177,34 +177,38 @@ public static class GpuPreference
     /// <summary>"GpuPreference=2;" → «высокая производительность» (what Settings calls it).</summary>
     public static string Describe(int? preference) => preference switch
     {
-        HighPerformance => "высокая производительность",
-        PowerSaving => "энергосбережение",
-        Auto or null => "Windows решает сама",
-        _ => $"неизвестное значение {preference}",
+        HighPerformance => Loc.T("высокая производительность"),
+        PowerSaving => Loc.T("энергосбережение"),
+        Auto or null => Loc.T("Windows решает сама"),
+        _ => Loc.Tf("неизвестное значение {0}", preference),
     };
 
+    /// <summary>"дискретной видеокарте" / "дискретной видеокарте (RTX 4070)" — the target of the high-performance choice, in the dative.</summary>
+    public static string DiscreteCardPhrase(string? dgpuName) =>
+        string.IsNullOrWhiteSpace(dgpuName) ? Loc.T("дискретной видеокарте") : Loc.Tf("дискретной видеокарте ({0})", dgpuName);
+
     /// <summary>A registry string for the confirm dialog: «параметра нет» when the value is absent.</summary>
-    public static string ShowValue(string? data) => data is null ? "параметра нет" : $"«{data}»";
+    public static string ShowValue(string? data) => data is null ? Loc.T("параметра нет") : $"«{data}»";
 
     /// <summary>Tooltip of a card's switch: the current state in plain words, then what the switch does (or why it is read-only).</summary>
     public static string CardTooltip(IReadOnlyList<GpuPreferenceValue> values, string? dgpuName, bool elevated, bool writable)
     {
-        var gpu = string.IsNullOrWhiteSpace(dgpuName) ? "дискретной видеокарте" : $"дискретной видеокарте ({dgpuName})";
+        var gpu = DiscreteCardPhrase(dgpuName);
         var high = values.Where(v => v.IsHigh).Select(v => FileName(v.Exe)).ToList();
         var saving = values.Where(v => v.Preference == PowerSaving).Select(v => FileName(v.Exe)).ToList();
         var state = high.Count > 0
-            ? $"Включено: Windows запускает {string.Join(", ", high)} на {gpu}."
+            ? Loc.Tf("Включено: Windows запускает {0} на {1}.", string.Join(", ", high), gpu)
             : saving.Count > 0
-                ? $"Сейчас в параметрах Windows для {string.Join(", ", saving)} выбрано энергосбережение — игра идёт на встроенной видеокарте."
-                : "Сейчас видеокарту выбирает Windows — на ноутбуке игра может запуститься на встроенной и работать медленнее.";
+                ? Loc.Tf("Сейчас в параметрах Windows для {0} выбрано энергосбережение — игра идёт на встроенной видеокарте.", string.Join(", ", saving))
+                : Loc.T("Сейчас видеокарту выбирает Windows — на ноутбуке игра может запуститься на встроенной и работать медленнее.");
         var action = !elevated
-            ? "Только просмотр: менять можно с правами администратора."
+            ? Loc.T("Только просмотр: менять можно с правами администратора.")
             : !writable
-                ? "MONOLITH запущен от другой учётной записи администратора, а эта настройка принадлежит вашей — измените её в «Параметры → Система → Дисплей → Графика»."
+                ? Loc.T("MONOLITH запущен от другой учётной записи администратора, а эта настройка принадлежит вашей — измените её в «Параметры → Система → Дисплей → Графика».")
                 : high.Count > 0
-                    ? "Выключите, чтобы вернуть прежний выбор: если включал MONOLITH, вернётся ровно то значение, что было до него."
-                    : $"Включите, чтобы игра всегда запускалась на {gpu} — как «Высокая производительность» в параметрах графики Windows. " +
-                      "Подействует со следующего запуска игры; от батареи ноутбук разрядится быстрее. Отменяется этим же переключателем.";
+                    ? Loc.T("Выключите, чтобы вернуть прежний выбор: если включал MONOLITH, вернётся ровно то значение, что было до него.")
+                    : Loc.Tf("Включите, чтобы игра всегда запускалась на {0} — как «Высокая производительность» в параметрах графики Windows. " +
+                      "Подействует со следующего запуска игры; от батареи ноутбук разрядится быстрее. Отменяется этим же переключателем.", gpu);
         return state + " " + action;
     }
 }
@@ -260,7 +264,7 @@ public static class GpuPreferenceStore
         }
         catch (Exception ex)
         {
-            Log.Warn($"Настройки видеокарты для игр не прочитаны: {ex.Message}");
+            Log.Warn("Настройки видеокарты для игр не прочитаны: {0}", ex.Message);
         }
         return result;
     }
@@ -314,7 +318,7 @@ public static class GpuPreferenceStore
         try
         {
             return await OperationCoordinator.Instance.RunAsync(
-                new OperationRequest(OperationClass.JournalChange, $"Видеокарта для игры «{gameName}»") { Owner = "games" },
+                new OperationRequest(OperationClass.JournalChange, Loc.Tf("Видеокарта для игры «{0}»", gameName)) { Owner = "games" },
                 _ => SetCoreAsync(exes, enableHigh, gameName, journal));
         }
         catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
@@ -330,7 +334,7 @@ public static class GpuPreferenceStore
         var errors = new List<string>();
         var applied = 0;
         if (!Location().Writable)
-            return new GpuChangeOutcome(0, ["MONOLITH запущен от другой учётной записи — измените настройку в параметрах Windows."]);
+            return new GpuChangeOutcome(0, [Loc.T("MONOLITH запущен от другой учётной записи — измените настройку в параметрах Windows.")]);
 
         var writes = new List<(string Exe, string Data)>();
         var reverts = new List<ChangeRecord>();
@@ -338,13 +342,13 @@ public static class GpuPreferenceStore
         {
             if (!GpuPreference.IsValidExePath(exe))
             {
-                errors.Add($"{exe}: путь не подходит для настройки видеокарты");
+                errors.Add(Loc.Tf("{0}: путь не подходит для настройки видеокарты", exe));
                 continue;
             }
             var snapshot = RegistryHelper.Snapshot(RegHive.HKCU, GpuPreference.KeyPath, exe);
             if (snapshot.ValueExisted && snapshot.Kind != RegistryValueKind.String)
             {
-                errors.Add($"{GpuPreference.FileName(exe)}: в реестре значение необычного типа ({snapshot.Kind}) — MONOLITH его не меняет");
+                errors.Add(Loc.Tf("{0}: в реестре значение необычного типа ({1}) — MONOLITH его не меняет", GpuPreference.FileName(exe), snapshot.Kind));
                 continue;
             }
             // No change without an undo the journal will accept later: check the record shape before writing anything.
@@ -354,7 +358,7 @@ public static class GpuPreferenceStore
             };
             if (JournalTrust.Check(probe) is { } refusal)
             {
-                errors.Add($"{GpuPreference.FileName(exe)}: журнал не принял бы отмену такого изменения ({refusal}) — ничего не изменено");
+                errors.Add(Loc.Tf("{0}: журнал не принял бы отмену такого изменения ({1}) — ничего не изменено", GpuPreference.FileName(exe), refusal));
                 continue;
             }
             var current = snapshot.ValueExisted ? snapshot.Data : null;
@@ -368,7 +372,7 @@ public static class GpuPreferenceStore
                     if (!snapshot.KeyExisted && !RegistryHelper.KeyExists(RegHive.HKCU, GpuPreference.ParentPath))
                     {
                         // The undo removes a key MONOLITH created only one level deep: never leave an empty DirectX key behind.
-                        errors.Add("в реестре нет раздела DirectX — выберите видеокарту в «Параметры → Система → Дисплей → Графика»");
+                        errors.Add(Loc.T("в реестре нет раздела DirectX — выберите видеокарту в «Параметры → Система → Дисплей → Графика»"));
                         continue;
                     }
                     writes.Add((exe, GpuPreference.Merge(current, enableHigh ? GpuPreference.HighPerformance : GpuPreference.Auto)));
@@ -378,7 +382,8 @@ public static class GpuPreferenceStore
 
         if (writes.Count > 0)
         {
-            var title = enableHigh ? $"Игры: высокопроизводительный GPU для «{gameName}»" : $"Игры: выбор GPU Windows для «{gameName}»";
+            // Journal titles are stored in Russian (the on-disk schema is language-neutral).
+            var title = string.Format(enableHigh ? Loc.Key("Игры: высокопроизводительный GPU для «{0}»") : Loc.Key("Игры: выбор GPU Windows для «{0}»"), gameName);
             // One HKCU value per game: the journal record and the .reg export are the undo (as for single startup toggles).
             var session = await ChangeSession.BeginAsync(title, createRestorePoint: false, journal: journal).ConfigureAwait(false);
             foreach (var (exe, _) in writes)
@@ -389,7 +394,7 @@ public static class GpuPreferenceStore
                     var now = RegistryHelper.Read(RegHive.HKCU, GpuPreference.KeyPath, exe) as string;
                     var data = GpuPreference.Merge(now, enableHigh ? GpuPreference.HighPerformance : GpuPreference.Auto);
                     session.SetRegistry(RegHive.HKCU, GpuPreference.KeyPath, exe, RegistryValueKind.String, data,
-                        GpuPreference.JournalSource, $"Видеокарта для игры «{gameName}» ({GpuPreference.FileName(exe)})");
+                        GpuPreference.JournalSource, string.Format(Loc.Key("Видеокарта для игры «{0}» ({1})"), gameName, GpuPreference.FileName(exe)));
                 });
             }
             session.Complete();

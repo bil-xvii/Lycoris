@@ -90,12 +90,12 @@ public static class EcoQos
     public static string? ExclusionReason(string processName, int pid, int selfPid, IReadOnlySet<int> activeAudioPids)
     {
         var name = UserProcesses.NormalizeName(processName);
-        if (name.Length == 0) return "имя процесса не прочитано";
-        if (pid == selfPid || name.StartsWith("monolith", StringComparison.OrdinalIgnoreCase)) return "это сам MONOLITH";
-        if (UserProcesses.IsProtectedName(name)) return "системный процесс, драйвер, античит или лаунчер";
-        if (GameProcessFinder.IsHelper(name)) return "вспомогательный процесс игры или античита";
-        if (UserProcesses.IsNeverThrottled(name)) return "звук, голос, стрим, оверлей или периферия — не ограничивается";
-        if (activeAudioPids.Contains(pid)) return "сейчас воспроизводит звук";
+        if (name.Length == 0) return Loc.T("имя процесса не прочитано");
+        if (pid == selfPid || name.StartsWith("monolith", StringComparison.OrdinalIgnoreCase)) return Loc.T("это сам MONOLITH");
+        if (UserProcesses.IsProtectedName(name)) return Loc.T("системный процесс, драйвер, античит или лаунчер");
+        if (GameProcessFinder.IsHelper(name)) return Loc.T("вспомогательный процесс игры или античита");
+        if (UserProcesses.IsNeverThrottled(name)) return Loc.T("звук, голос, стрим, оверлей или периферия — не ограничивается");
+        if (activeAudioPids.Contains(pid)) return Loc.T("сейчас воспроизводит звук");
         return null;
     }
 
@@ -140,7 +140,7 @@ public static class EcoQos
         }
         catch (Exception ex)
         {
-            Log.Warn($"Режим эффективности: не удалось записать отметку сеанса — {ex.Message}");
+            Log.Warn("Режим эффективности: не удалось записать отметку сеанса — {0}", ex.Message);
             return false;
         }
     }
@@ -153,7 +153,7 @@ public static class EcoQos
         }
         catch (Exception ex)
         {
-            Log.Warn($"Режим эффективности: не удалось удалить отметку сеанса — {ex.Message}");
+            Log.Warn("Режим эффективности: не удалось удалить отметку сеанса — {0}", ex.Message);
         }
     }
 
@@ -268,7 +268,7 @@ public static class EcoQos
         }
         catch (Exception ex)
         {
-            Log.Warn($"Режим эффективности: список звуковых сессий не прочитан — {ex.Message}");
+            Log.Warn("Режим эффективности: список звуковых сессий не прочитан — {0}", ex.Message);
         }
         return pids;
     }
