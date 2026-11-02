@@ -61,7 +61,7 @@ public static class RestoreFormat
     {
         RecordState.Reverted => r.RevertedUtc is { } t ? $"ОТКАЧЕНО {t.ToLocalTime().ToString("dd.MM HH:mm", Ru)}" : "ОТКАЧЕНО",
         RecordState.Failed => "ОШИБКА ОТКАТА",
-        _ => "АКТИВНО",
+        _ => "ИЗМЕНЕНО MONOLITH",
     };
 
     /// <summary>Core writes exactly "Точка восстановления создана (…)." on success and other wording otherwise.</summary>

@@ -39,7 +39,7 @@ public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null, str
 }
 
 /// <summary>A batch ("пакет") of changes made by one action.</summary>
-public sealed class BatchItem(JournalGroup group, Func<ChangeRecord, RecordItem> item)
+public sealed partial class BatchItem(JournalGroup group, Func<ChangeRecord, RecordItem> item) : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
 {
     public JournalGroup Group { get; } = group;
     public Guid Id => Group.Batch.Id;
@@ -51,6 +51,12 @@ public sealed class BatchItem(JournalGroup group, Func<ChangeRecord, RecordItem>
     public bool CanRevert => Group.RevertibleCount > 0;
     public bool IsEmpty => TotalCount == 0;
     public bool IsSynthetic => Group.IsSynthetic;
+
+    /// <summary>The batch's records are open (collapsed by default; the header and the revert button are always visible).</summary>
+    [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty] private bool _isExpanded;
+    partial void OnIsExpandedChanged(bool value) => OnPropertyChanged(nameof(ExpandText));
+    /// <summary>The label of the outlined expander button.</summary>
+    public string ExpandText => IsExpanded ? $"СКРЫТЬ ЗАПИСИ · {TotalCount}" : $"ПОКАЗАТЬ ЗАПИСИ · {TotalCount}";
     public bool HasRestorePointInfo => !IsSynthetic;
     public bool RestorePointCreated => RestoreFormat.IsRestorePointCreated(Group.Batch.RestorePoint);
 
