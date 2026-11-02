@@ -184,6 +184,7 @@ public partial class App : Application
             _ownsMutex = true;
         }
 
+        StartupTiming.Mark("settings+loc+instance lock done");
         Log.PruneOldLogs();
         Monolith.Core.Security.SelfIntegrity.Start(); // background: exe SHA-256, signature, location, unpacked libraries (diagnostics + elevation gate)
         if (Elevation.IsElevated && !snapshot)
@@ -200,8 +201,11 @@ public partial class App : Application
         // QA: pretend an update exists (title-bar button, Settings → О программе) without any network.
         if (snapshot && HasArg(args, "--demo-update")) UpdateController.Instance.EnableDemo();
 
+        StartupTiming.Mark("before MainViewModel");
         var vm = new MainViewModel();
+        StartupTiming.Mark("MainViewModel built");
         var window = new MainWindow(vm);
+        StartupTiming.Mark("MainWindow constructed");
         MainWindow = window;
         if (!snapshot) window.Closed += (_, _) => StartExitWatchdog();
 

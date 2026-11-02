@@ -57,12 +57,30 @@ internal static class StartupTiming
     public static async Task CyclePagesAsync(Shell.MainViewModel vm, int rounds)
     {
         await Task.Delay(6000);
+        var last = Stopwatch.GetTimestamp();
+        var stall = 0.0;
+        var probe = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(20) };
+        probe.Tick += (_, _) =>
+        {
+            var now = Stopwatch.GetTimestamp();
+            stall = Math.Max(stall, Stopwatch.GetElapsedTime(last, now).TotalMilliseconds - 20);
+            last = now;
+        };
+        probe.Start();
         Mark("cycle start heap " + (GC.GetTotalMemory(true) / 1048576) + " MB");
         for (var r = 1; r <= rounds; r++)
         {
             foreach (var page in vm.Pages.ToList())
             {
+                var sw = Stopwatch.StartNew();
+                stall = 0;
                 vm.NavigateTo(page.Key);
+                if (r == 1)
+                {
+                    var load = page.EnsureLoadedAsync();
+                    await Task.WhenAny(load, Task.Delay(30000));
+                    Mark("page " + page.Key + " first load " + sw.ElapsedMilliseconds + " ms" + ", worst UI stall " + (int)stall + " ms" + (load.IsCompleted ? "" : " (not finished in 30 s)"));
+                }
                 await Task.Delay(700);
             }
             vm.NavigateTo("dashboard");
