@@ -433,6 +433,7 @@ public sealed class ToolsTests
     public void Monolith_points_are_marked()
     {
         Assert.True(RestoreFormat.IsMonolithPoint("Lycoris: точка, созданная вручную"));
+        Assert.True(RestoreFormat.IsMonolithPoint("MONOLITH: точка, созданная вручную")); // made before the rename
         Assert.False(RestoreFormat.IsMonolithPoint("Windows Update"));
         Assert.False(RestoreFormat.IsMonolithPoint(null));
     }
