@@ -220,6 +220,7 @@ public static class ProcessRunner
 
         try
         {
+            if (StartupTiming.Enabled) StartupTiming.Mark("child process: " + System.IO.Path.GetFileName(psi.FileName));
             if (!process.Start())
                 return ProcessResult.Failed(Loc.Tf("Не удалось запустить {0}", psi.FileName));
         }
