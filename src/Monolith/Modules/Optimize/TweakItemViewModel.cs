@@ -56,7 +56,8 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// <summary>Detected state; null while detection is running.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StateKey), nameof(StateText), nameof(IsApplicable), nameof(WillChange), nameof(IsPending),
-        nameof(NotApplicableText), nameof(IsApplied), nameof(IsApplicableNow), nameof(DependencySatisfiedByPending), nameof(StatusNote))]
+        nameof(NotApplicableText), nameof(IsApplied), nameof(IsApplicableNow), nameof(DependencySatisfiedByPending), nameof(StatusNote),
+        nameof(HasPreview))]
     private TweakState? _state;
 
     /// <summary>MONOLITH has an active journal entry for this tweak, so it can be undone.</summary>
@@ -73,7 +74,16 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// <summary>Last visible row of its section (rounds the bottom corners of the card).</summary>
     [ObservableProperty] private bool _isLastInGroup;
 
-    [ObservableProperty] private IReadOnlyList<ChangeLineViewModel> _changes = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPreview), nameof(PreviewCurrent), nameof(PreviewNew), nameof(PreviewMore), nameof(HasPreviewMore))]
+    private IReadOnlyList<ChangeLineViewModel> _changes = [];
+
+    /// <summary>The row would change something and the current value is known: the line «сейчас X → станет Y» is shown.</summary>
+    public bool HasPreview => WillChange && Changes.Count > 0 && Changes[0].Current != "чтение…";
+    public string PreviewCurrent => Changes.Count > 0 ? Changes[0].Current : "";
+    public string PreviewNew => Changes.Count > 0 ? Changes[0].New : "";
+    public bool HasPreviewMore => Changes.Count > 1;
+    public string PreviewMore => Changes.Count > 1 ? $"  +{Changes.Count - 1} {OptimizeLogic.Plural(Changes.Count - 1, "параметр", "параметра", "параметров")}" : "";
     [ObservableProperty] private bool _hasPlannedChanges = true;
 
     public string StateKey => State?.ToString() ?? "Checking";
@@ -166,7 +176,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRevertNow))]
     private Task RevertAsync() => _owner.RevertOneAsync(this);
 
-    private bool CanRevertNow() => _owner.CanModify;
+    private bool CanRevertNow() => _owner.CanModify; // read-only: the click asks for admin rights (RequireAdmin) and repeats itself
 
     [RelayCommand]
     private void ToggleDetails() => IsExpanded = !IsExpanded;
