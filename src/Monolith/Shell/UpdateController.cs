@@ -200,7 +200,7 @@ public sealed partial class UpdateController : ObservableObject
         if (_demo is not null) { _demo = null; RaiseAll(); return; }
         _service.Snooze();
         RaiseAll();
-        Ui.Toast("Напомним об обновлении через сутки. Кнопка «ОБНОВИТЬ СЕЙЧАС» остаётся в «Настройки → О программе».", ToastKind.Info, "ОБНОВЛЕНИЯ");
+        Ui.Toast("Напомним об обновлении через сутки. Кнопка «ОБНОВИТЬ СЕЙЧАС» остаётся в «Настройки → Обновления».", ToastKind.Info, "ОБНОВЛЕНИЯ");
     }
 
     [RelayCommand]

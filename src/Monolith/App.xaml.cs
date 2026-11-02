@@ -220,6 +220,12 @@ public partial class App : Application
             window.Top = 0;
             window.Width = 1440;
             window.Height = 900;
+            // QA: "--size 1120x720" renders at the window's minimum size (layout must hold there).
+            if (ArgValue(args, "--size") is { } size && size.Split('x') is [var sw, var sh]
+                && double.TryParse(sw, out var qw) && double.TryParse(sh, out var qh) && qw >= 600 && qh >= 400)
+            {
+                window.MinWidth = qw; window.MinHeight = qh; window.Width = qw; window.Height = qh;
+            }
             window.ShowActivated = false;
             window.ShowInTaskbar = false;
             window.Show();

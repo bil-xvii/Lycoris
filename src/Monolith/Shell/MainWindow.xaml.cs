@@ -20,6 +20,7 @@ public partial class MainWindow : Window
 
     public MainWindow(MainViewModel vm)
     {
+        UiA11y.Install();
         InitializeComponent();
         _vm = vm;
         DataContext = vm;

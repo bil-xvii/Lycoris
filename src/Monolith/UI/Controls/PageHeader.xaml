@@ -40,7 +40,7 @@
         <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center">
             <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" TextTrimming="CharacterEllipsis" />
             <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
-                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subtitle, ElementName=Root}" />
+                       TextWrapping="Wrap" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
             <!-- «проверено 15:40» -->

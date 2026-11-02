@@ -40,6 +40,53 @@
                       Focusable="False">
             <StackPanel Margin="0,0,10,0">
 
+                <!-- ═══════════════ UPDATES (always on top: version, last check, result, every action) ═══════════════ -->
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{loc:T Обновления}" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
+                    <Border x:Name="Row_update" Grid.Column="1" Style="{StaticResource Card}" DataContext="{Binding Updates}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding VersionLine}" Style="{StaticResource T.Label}" />
+                            <TextBlock Text="{Binding StatusText}" Style="{StaticResource T.Body}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                       Foreground="{StaticResource B.Text}" />
+                            <StackPanel Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
+                                <TextBlock Text="{loc:T ЧТО НОВОГО}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{Binding Notes}" Style="{StaticResource T.Caption}" Margin="0,5,0,0" TextWrapping="Wrap" LineHeight="17" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding BlockedReason}" Style="{StaticResource T.BodyStrong}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                       Visibility="{Binding BlockedReason, Converter={StaticResource NullToVis}}" />
+                            <StackPanel Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
+                                <TextBlock Text="{Binding DownloadText}" Style="{StaticResource T.Mono}" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding DownloadPercent}" Margin="0,6,0,0" />
+                            </StackPanel>
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Style="{StaticResource Btn.Primary}" Command="{Binding UpdateNowCommand}" Margin="0,0,8,0" IsEnabled="{Binding CanStart}"
+                                        Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T ОБНОВИТЬ СЕЙЧАС}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource Btn}" Command="{Binding CheckNowCommand}" Margin="0,0,8,0" IsEnabled="{Binding CanStart}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T ПРОВЕРИТЬ ОБНОВЛЕНИЯ}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource Btn.Ghost}" Command="{Binding RemindLaterCommand}" Margin="0,0,8,0"
+                                        Visibility="{Binding ButtonVisible, Converter={StaticResource BoolToVis}}" Content="{loc:T НАПОМНИТЬ ПОЗЖЕ}" />
+                                <Button Style="{StaticResource Btn.Ghost}" Command="{Binding SkipVersionCommand}" Margin="0,0,8,0"
+                                        Visibility="{Binding ButtonVisible, Converter={StaticResource BoolToVis}}" Content="{loc:T ПРОПУСТИТЬ ЭТУ ВЕРСИЮ}" />
+                                <Button Style="{StaticResource Btn}" Command="{Binding CancelDownloadCommand}"
+                                        Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVis}}" Content="{loc:T ОТМЕНА}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
                 <!-- ═══════════════ BEHAVIOUR ═══════════════ -->
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -233,45 +280,6 @@
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding VersionLine}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,10,0,0"
                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding VersionLine}" />
-
-                        <!-- Updates (Core/Updates): versions, notes, and every action as a labelled button -->
-                        <Border x:Name="Row_update" Style="{StaticResource Card}" Margin="0,12,0,0" DataContext="{Binding Updates}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding VersionLine}" Style="{StaticResource T.Label}" />
-                                <TextBlock Text="{Binding StatusText}" Style="{StaticResource T.Body}" Margin="0,6,0,0" TextWrapping="Wrap" />
-                                <StackPanel Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0">
-                                    <TextBlock Text="{loc:T ЧТО НОВОГО}" Style="{StaticResource T.Label}" />
-                                    <TextBlock Text="{Binding Notes}" Style="{StaticResource T.Caption}" Margin="0,5,0,0" TextWrapping="Wrap" LineHeight="17" />
-                                </StackPanel>
-                                <TextBlock Text="{Binding BlockedReason}" Style="{StaticResource T.BodyStrong}" Margin="0,10,0,0" TextWrapping="Wrap"
-                                           Visibility="{Binding BlockedReason, Converter={StaticResource NullToVis}}" />
-                                <StackPanel Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
-                                    <TextBlock Text="{Binding DownloadText}" Style="{StaticResource T.Mono}" />
-                                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding DownloadPercent}" Margin="0,6,0,0" />
-                                </StackPanel>
-                                <WrapPanel Margin="0,12,0,0">
-                                    <Button Style="{StaticResource Btn.Primary}" Command="{Binding UpdateNowCommand}" Margin="0,0,8,0" IsEnabled="{Binding CanStart}"
-                                            Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="{loc:T ОБНОВИТЬ СЕЙЧАС}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource Btn}" Command="{Binding CheckNowCommand}" Margin="0,0,8,0" IsEnabled="{Binding CanStart}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="{loc:T ПРОВЕРИТЬ ОБНОВЛЕНИЯ}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource Btn.Ghost}" Command="{Binding RemindLaterCommand}" Margin="0,0,8,0"
-                                            Visibility="{Binding ButtonVisible, Converter={StaticResource BoolToVis}}" Content="{loc:T НАПОМНИТЬ ПОЗЖЕ}" />
-                                    <Button Style="{StaticResource Btn.Ghost}" Command="{Binding SkipVersionCommand}" Margin="0,0,8,0"
-                                            Visibility="{Binding ButtonVisible, Converter={StaticResource BoolToVis}}" Content="{loc:T ПРОПУСТИТЬ ЭТУ ВЕРСИЮ}" />
-                                    <Button Style="{StaticResource Btn}" Command="{Binding CancelDownloadCommand}"
-                                            Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVis}}" Content="{loc:T ОТМЕНА}" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
 
                         <!-- Principles (collapsed) -->
                         <Expander Margin="0,14,0,0">
