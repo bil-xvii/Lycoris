@@ -17,6 +17,9 @@ public sealed partial class DriversViewModel
 
     [ObservableProperty] private bool _isDriverDownloadRunning;
 
+    /// <summary>True while a download waits in the global install queue (a second click must not queue it twice).</summary>
+    private bool _downloadWaiting;
+
     // The parameter is the card (a click) or the card's PnP id as text (the admin-intent replay, which waits for the vendor lookup).
     private bool CanDownloadDriver(object? target) =>
         target is string ? CanModify() : target is GpuCardItem { HasDownload: true, IsDownloading: false } && CanModify();
@@ -44,7 +47,24 @@ public sealed partial class DriversViewModel
             DriverDownloadText.Plan(package, RestorePointService.IsEnabled()),
             confirmText: "СКАЧАТЬ И УСТАНОВИТЬ",
             footnote: "Откат: точка восстановления или «Откатить драйвер» в диспетчере устройств.");
-        if (!confirmed) return;
+        if (!confirmed || _downloadWaiting) return;
+
+        // One installer at a time across the whole app: waits in the visible queue behind a winget queue or another driver install.
+        OperationLease? lease;
+        _downloadWaiting = true;
+        try
+        {
+            lease = await AcquireLeaseAsync(OperationClass.Install, $"Загрузка драйвера {package.VendorName} {package.Version}",
+                () => Ui.Post(() => { if (card.CancelDownloadCommand.CanExecute(null)) card.CancelDownloadCommand.Execute(null); }));
+        }
+        finally
+        {
+            _downloadWaiting = false;
+        }
+        if (lease is null) return;
+        using var scope = lease.Scope();
+        using var leaseGuard = lease;
+        CurrentLease = lease;
 
         IsDriverDownloadRunning = true;
         var ct = card.BeginDownload(_lifetime.Token);
@@ -92,6 +112,7 @@ public sealed partial class DriversViewModel
         finally
         {
             IsDriverDownloadRunning = false;
+            CurrentLease = null;
         }
     }
 

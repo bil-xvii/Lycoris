@@ -98,15 +98,72 @@ public abstract partial class PageViewModel : ObservableObject
     protected virtual Task LoadAsync() => Task.CompletedTask;
     protected virtual Task OnReturnAsync() => Task.CompletedTask;
 
-    /// <summary>Runs work with the busy indicator; exceptions become an error toast + log entry.</summary>
-    protected async Task RunBusyAsync(string text, Func<Task> work)
+    /// <summary>The coordinator this page asks before it runs anything long (tests may replace it).</summary>
+    internal OperationCoordinator Coordinator { get; set; } = OperationCoordinator.Instance;
+
+    /// <summary>
+    /// Plain Russian text when this page's last start was refused or has to wait («Сейчас идёт установка Steam — дождитесь
+    /// окончания», «В очереди: …»). The shell shows it under the title bar with the «ЗАДАЧИ» button; null = nothing to say.
+    /// </summary>
+    [ObservableProperty] private string? _operationNote;
+
+    /// <summary>
+    /// Runs work with the busy indicator; exceptions become an error toast + log entry. Every long or system-changing
+    /// operation goes through the <see cref="OperationCoordinator"/> with its <paramref name="kind"/>: when it conflicts
+    /// with a running operation it waits in the visible queue or is refused with a plain reason (<see cref="OperationNote"/>).
+    /// </summary>
+    protected Task RunBusyAsync(OperationClass kind, string text, Func<Task> work, bool quiet = false) =>
+        RunBusyAsync(kind, text, _ => work(), quiet);
+
+    /// <summary>As above; the work gets its lease (progress text, safe cancel handler, cancellation token).</summary>
+    protected async Task RunBusyAsync(OperationClass kind, string text, Func<OperationLease, Task> work, bool quiet = false)
     {
         if (IsBusy) return;
         IsBusy = true;
         BusyText = text;
         try
         {
-            await work();
+            var request = new OperationRequest(kind, OperationName(text)) { Owner = Key, Quiet = quiet };
+            var (verdict, _) = Coordinator.Check(request);
+            if (verdict == OperationVerdict.Queue)
+            {
+                BusyText = $"В очереди: {request.Name}";
+                OperationNote = $"В очереди: «{request.Name}» — начнётся, когда закончится предыдущая задача. Отменить можно в списке «ЗАДАЧИ».";
+            }
+            OperationLease lease;
+            try
+            {
+                lease = await Coordinator.AcquireAsync(request);
+            }
+            catch (OperationRefusedException ex)
+            {
+                OperationNote = ex.Message;
+                Log.Warn($"{request.Name}: не запущено — {ex.Message}");
+                if (kind is not (OperationClass.Measure or OperationClass.Background)) Ui.Toast(ex.Message, ToastKind.Warning, request.Name);
+                return;
+            }
+            catch (OperationTimeoutException ex)
+            {
+                OperationNote = ex.Message;
+                Log.Warn(ex.Message);
+                Ui.Toast(ex.Message, ToastKind.Warning, request.Name);
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                OperationNote = null;
+                Log.Info($"{request.Name}: убрано из очереди.");
+                return;
+            }
+            using (lease)
+            {
+                OperationNote = null;
+                BusyText = text;
+                using var scope = lease.Scope();
+                CurrentLease = lease;
+                try { await work(lease); }
+                finally { CurrentLease = null; }
+            }
         }
         catch (Exception ex)
         {
@@ -118,6 +175,67 @@ public abstract partial class PageViewModel : ObservableObject
             IsBusy = false;
             BusyText = null;
         }
+    }
+
+    /// <summary>
+    /// For work that does not run inside <see cref="RunBusyAsync(OperationClass, string, Func{Task}, bool)"/> (its own progress
+    /// UI): takes the lease, waiting in the visible queue when needed. Null when refused, timed out or taken out of the queue
+    /// (the reason is in <see cref="OperationNote"/>). Dispose the lease in <c>finally</c>; call <see cref="OperationLease.Scope"/>
+    /// in the method that runs the work so operations started below it are nested.
+    /// <paramref name="cancel"/> = the safe way to stop the work from the «ЗАДАЧИ» list (null = not cancellable).
+    /// </summary>
+    protected async Task<OperationLease?> AcquireLeaseAsync(OperationClass kind, string name, Action? cancel = null, bool quiet = false)
+    {
+        var request = new OperationRequest(kind, OperationName(name)) { Owner = Key, Quiet = quiet };
+        var (verdict, _) = Coordinator.Check(request);
+        if (verdict == OperationVerdict.Queue)
+            OperationNote = $"В очереди: «{request.Name}» — начнётся, когда закончится предыдущая задача. Отменить можно в списке «ЗАДАЧИ».";
+        try
+        {
+            var lease = await Coordinator.AcquireAsync(request);
+            OperationNote = null;
+            if (cancel is not null) lease.SetCancelHandler(cancel);
+            return lease;
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
+        {
+            OperationNote = ex.Message;
+            Log.Warn($"{request.Name}: не запущено — {ex.Message}");
+            Ui.Toast(ex.Message, ToastKind.Warning, request.Name);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            OperationNote = null;
+            Log.Info($"{request.Name}: убрано из очереди.");
+            return null;
+        }
+    }
+
+    /// <summary>The lease of the work this page is running right now (set by <see cref="RunBusyAsync(OperationClass, string, Func{OperationLease, Task}, bool)"/>).</summary>
+    protected OperationLease? CurrentLease { get; set; }
+
+    /// <summary>
+    /// A modal question in the middle of an operation (restore point failed — continue?). The lease is NOT held while the
+    /// dialog waits for the user; it is taken back first in line afterwards. Ask only before the operation changed anything.
+    /// </summary>
+    protected Task<bool> AskWithoutLeaseAsync(Func<Task<bool>> ask) =>
+        CurrentLease is { IsActive: true } lease ? lease.WhileUserDecidesAsync(ask) : ask();
+
+    /// <summary>«Применение изменений…» → «Применение изменений».</summary>
+    internal static string OperationName(string busyText) => busyText.TrimEnd('…', '.', ' ');
+
+    /// <summary>
+    /// Asks the coordinator BEFORE the page asks the user to confirm something that could not run now: false (with the
+    /// reason in <see cref="OperationNote"/> and a toast) when the operation would be refused. Queued classes always pass.
+    /// </summary>
+    protected bool CanStartNow(OperationClass kind, string name, bool quiet = false)
+    {
+        var (verdict, reason) = Coordinator.Check(new OperationRequest(kind, name) { Owner = Key, Quiet = quiet });
+        if (verdict != OperationVerdict.Refuse) return true;
+        OperationNote = reason;
+        Ui.Toast(reason!, ToastKind.Warning, name);
+        return false;
     }
 
     private static int _elevationPromptOpen;

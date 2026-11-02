@@ -94,7 +94,7 @@ public sealed partial class DriversViewModel
             details, confirmText: "СОЗДАТЬ");
         if (!confirmed) return;
 
-        await RunBusyAsync("Резервное копирование драйверов…", async () =>
+        await RunBusyAsync(OperationClass.Install, "Резервное копирование драйверов…", async () =>
         {
             _backupCts?.Dispose();
             _backupCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -194,7 +194,7 @@ public sealed partial class DriversViewModel
         if (!confirmed) return;
 
         var attempted = false;
-        await RunBusyAsync("Восстановление драйверов…", async () =>
+        await RunBusyAsync(OperationClass.Install, "Восстановление драйверов…", async () =>
         {
             IsBackupRunning = true;
             CanCancelBackup = false; // never kill pnputil in the middle of an install
@@ -228,7 +228,7 @@ public sealed partial class DriversViewModel
                 BackupIndeterminate = false;
             }
         });
-        if (attempted) await RunBusyAsync("Обновление сведений о драйверах…", LoadInventoryAsync);
+        if (attempted) await RunBusyAsync(OperationClass.Measure, "Обновление сведений о драйверах…", LoadInventoryAsync);
     }
 
     // ───────────────────────────── Delete / open ─────────────────────────────
@@ -245,7 +245,7 @@ public sealed partial class DriversViewModel
             confirmText: "УДАЛИТЬ", danger: true);
         if (!confirmed) return;
 
-        await RunBusyAsync("Удаление резервной копии…", async () =>
+        await RunBusyAsync(OperationClass.Cleanup, "Удаление резервной копии…", async () =>
         {
             await DriverBackupService.DeleteAsync(item.Path);
             Ui.Toast($"Копия {item.Name} удалена.", ToastKind.Success);

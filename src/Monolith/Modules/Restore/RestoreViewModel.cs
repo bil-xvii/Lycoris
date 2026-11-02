@@ -103,7 +103,7 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     /// <summary>«ОБНОВИТЬ» in the header: re-reads the journal, the drift check and the System Restore state.</summary>
     [RelayCommand]
-    private Task RefreshAsync() => RunBusyAsync("Обновление…", async () =>
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Обновление…", async () =>
     {
         Rebuild();
         _ = RefreshDriftAsync();
@@ -373,7 +373,7 @@ public sealed partial class RestoreViewModel : PageViewModel
         for (var i = 0; i < 100 && _driftRunning; i++) await Task.Delay(100);
     }
 
-    private Task ReapplyAsync(IReadOnlyList<DriftItem> items) => RunBusyAsync("Повторное применение…", async () =>
+    private Task ReapplyAsync(IReadOnlyList<DriftItem> items) => RunBusyAsync(OperationClass.JournalChange, "Повторное применение…", async () =>
     {
         if (items.Count == 0) return;
         var lines = DriftReapply.DescribeForConfirm(items, id => Monolith.Tweaks.TweakCatalog.Find(id)?.Title);
@@ -454,7 +454,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanAdmin() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanAdmin))]
-    private Task CreateRestorePointAsync() => RunBusyAsync("Создание точки восстановления…", async () =>
+    private Task CreateRestorePointAsync() => RunBusyAsync(OperationClass.Disruptive, "Создание точки восстановления…", async () =>
     {
         if (!RequireAdmin("Создание точки восстановления", "CreateRestorePoint")) return;
         if (ProtectionBlocked)
@@ -489,7 +489,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanEnable() => !IsBusy && CanOfferEnable;
 
     [RelayCommand(CanExecute = nameof(CanEnable))]
-    private Task EnableProtectionAsync() => RunBusyAsync("Включение защиты системы…", async () =>
+    private Task EnableProtectionAsync() => RunBusyAsync(OperationClass.Disruptive, "Включение защиты системы…", async () =>
     {
         if (!RequireAdmin("Включение защиты системы", "EnableProtection")) return;
         var drive = SystemProfile.SystemDrive.TrimEnd('\\');
@@ -587,7 +587,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanRevertRecord(object? parameter) => CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertRecord))]
-    private Task RevertRecordAsync(object? parameter) => RunBusyAsync("Откат изменения…", async () =>
+    private Task RevertRecordAsync(object? parameter) => RunBusyAsync(OperationClass.JournalChange, "Откат изменения…", async () =>
     {
         if (_journal is null || !RequireAdmin("Откат изменения", "RevertRecord", (parameter as RecordItem)?.Record.Id.ToString() ?? parameter as string)) return;
         if (ResolveRecord(parameter) is not { CanRevert: true } item) return;
@@ -640,7 +640,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanRevertBatch(object? parameter) => CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertBatch))]
-    private Task RevertBatchAsync(object? parameter) => RunBusyAsync("Откат пакета…", async () =>
+    private Task RevertBatchAsync(object? parameter) => RunBusyAsync(OperationClass.JournalChange, "Откат пакета…", async () =>
     {
         if (_journal is null || !RequireAdmin("Откат пакета", "RevertBatch", (parameter as BatchItem)?.Id.ToString() ?? parameter as string)) return;
         if (ResolveBatch(parameter) is not { CanRevert: true } batch) return;
@@ -689,7 +689,7 @@ public sealed partial class RestoreViewModel : PageViewModel
     private bool CanRevertAll() => RevertAllCount > 0 && CanAdmin();
 
     [RelayCommand(CanExecute = nameof(CanRevertAll))]
-    private Task RevertAllAsync() => RunBusyAsync("Откат всех изменений…", async () =>
+    private Task RevertAllAsync() => RunBusyAsync(OperationClass.JournalChange, "Откат всех изменений…", async () =>
     {
         if (_journal is null || !RequireAdmin("Откат всех изменений", "RevertAll")) return;
         var journal = _journal;

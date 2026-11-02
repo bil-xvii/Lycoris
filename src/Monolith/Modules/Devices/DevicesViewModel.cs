@@ -193,7 +193,7 @@ public sealed partial class DevicesViewModel : PageViewModel
             ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournalState);
         }
         ApplyFocus(Ui.TakeFocusRequest(Key));
-        await RunBusyAsync("Поиск устройств…", () => ScanAsync());
+        await RunBusyAsync(OperationClass.Measure, "Поиск устройств…", () => ScanAsync());
         ApplyFocus(Ui.TakeFocusRequest(Key));
     }
 
@@ -446,7 +446,7 @@ public sealed partial class DevicesViewModel : PageViewModel
     private bool CanRefresh() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
-    private Task RefreshAsync() => RunBusyAsync("Поиск устройств…", () => ScanAsync());
+    private Task RefreshAsync() => RunBusyAsync(OperationClass.Measure, "Поиск устройств…", () => ScanAsync());
 
     [RelayCommand]
     private void ShowTab(string? tab)
@@ -471,10 +471,10 @@ public sealed partial class DevicesViewModel : PageViewModel
         }
         var selected = PlanItems.Concat(OptionalItems).Where(i => i is { Selectable: true, IsSelected: true }).ToList();
         PlanApplyResult? result = null;
-        await RunBusyAsync("Настройка устройств и сети…", async () =>
+        await RunBusyAsync(OperationClass.Disruptive, "Настройка устройств и сети…", async () =>
         {
             var progress = new Progress<string>(text => BusyText = text);
-            result = await DeviceApply.ApplyPlanAsync(selected, progress, CancellationToken.None);
+            result = await DeviceApply.ApplyPlanAsync(selected, progress, CancellationToken.None, AskWithoutLeaseAsync);
         });
         if (result is null) return;
         await ReportPlanAsync(result);

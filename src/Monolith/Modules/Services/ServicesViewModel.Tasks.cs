@@ -142,7 +142,7 @@ public sealed partial class ServicesViewModel
                 footnote: "Крупные обновления Windows иногда включают задачи заново — просто отключите их снова."))
             return;
 
-        await RunBusyAsync("Отключение задач…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Отключение задач…", async () =>
         {
             var session = await BeginSessionAsync(BatchTitle("Задачи планировщика", plan.Select(t => t.Title).ToList()));
             if (session is null) return;
@@ -204,7 +204,7 @@ public sealed partial class ServicesViewModel
         if (!await Ui.ConfirmAsync("ОТКАТИТЬ ИЗМЕНЕНИЕ?", message, [$"{record.Title}: {current} → {original}"], "ОТКАТИТЬ", danger: drift))
             return;
 
-        await RunBusyAsync("Откат изменения задачи…", async () =>
+        await RunBusyAsync(OperationClass.JournalChange, "Откат изменения задачи…", async () =>
         {
             var result = await Task.Run(() => ChangeJournal.Instance.RevertAsync(layers));
             await ReportRevertAsync(result);

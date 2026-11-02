@@ -45,7 +45,20 @@ public sealed partial class DialogViewModel : ObservableObject
     public bool HasOption => !string.IsNullOrEmpty(OptionText);
     [ObservableProperty] private bool _optionChecked;
 
+    /// <summary>An optional middle button (the exit dialog: «ОТМЕНИТЬ БЕЗОПАСНЫЕ И ВЫЙТИ»); null = none.</summary>
+    public string? ExtraText { get; init; }
+    public bool HasExtra => !string.IsNullOrEmpty(ExtraText);
+    /// <summary>True when the user pressed the middle button (the result is then false).</summary>
+    public bool ExtraChosen { get; private set; }
+
     public Task<bool> Result => _tcs.Task;
+
+    [RelayCommand]
+    private void Extra()
+    {
+        ExtraChosen = true;
+        _tcs.TrySetResult(false);
+    }
 
     [RelayCommand]
     private void Confirm() => _tcs.TrySetResult(true);
@@ -119,6 +132,52 @@ public static class Ui
                 DialogGate.Release();
             }
         });
+    }
+
+    /// <summary>The answer of a three-button dialog (<see cref="ChooseAsync"/>).</summary>
+    public enum Choice { Cancel, Confirm, Extra }
+
+    /// <summary>A dialog with three labelled buttons: cancel, the middle one and confirm. Self-test: answered «cancel».</summary>
+    public static Task<Choice> ChooseAsync(string title, string message, IEnumerable<string>? details,
+        string confirmText, string? extraText, string cancelText, bool danger = false)
+    {
+        if (AutoAnswer is not null)
+        {
+            lock (AutoAnswered) AutoAnswered.Add(title);
+            return Task.FromResult(Choice.Cancel);
+        }
+        return OnUiChoice(async () =>
+        {
+            if (Host is null) return Choice.Cancel;
+            await DialogGate.WaitAsync();
+            try
+            {
+                var vm = new DialogViewModel
+                {
+                    Title = title, Message = message, Details = details?.ToList() ?? [],
+                    ConfirmText = confirmText, CancelText = cancelText, ExtraText = extraText, IsDanger = danger,
+                };
+                Host.Dialog = vm;
+                try
+                {
+                    var ok = await vm.Result;
+                    return ok ? Choice.Confirm : vm.ExtraChosen ? Choice.Extra : Choice.Cancel;
+                }
+                finally { if (Host.Dialog == vm) Host.Dialog = null; }
+            }
+            finally
+            {
+                DialogGate.Release();
+            }
+        });
+    }
+
+    private static Task<Choice> OnUiChoice(Func<Task<Choice>> func)
+    {
+        var d = Dispatcher;
+        if (d is null) return Task.FromResult(Choice.Cancel);
+        if (d.CheckAccess()) return func();
+        return d.InvokeAsync(func).Task.Unwrap();
     }
 
     /// <summary>
