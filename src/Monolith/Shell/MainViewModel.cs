@@ -57,7 +57,10 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     public bool IsElevated => Elevation.IsElevated;
     public bool IsReadOnly => !Elevation.IsElevated;
-    public string Version { get; } = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
+    public string Version { get; } = "v" + Monolith.Core.Updates.AppVersion.CurrentText;
+
+    /// <summary>Update state for the title-bar button «ОБНОВЛЕНИЕ x.y.z» (Shell/UpdateController).</summary>
+    public UpdateController Updates => UpdateController.Instance;
 
     /// <summary>
     /// Sidebar groups in order; the key → group map is the single place that decides where a page lives. The values are

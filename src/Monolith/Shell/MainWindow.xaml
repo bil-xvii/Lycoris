@@ -59,6 +59,12 @@
             <Setter Property="Margin" Value="0,0,8,0" />
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         </Style>
+        <Style x:Key="Btn.TitleBar.Primary" TargetType="Button" BasedOn="{StaticResource Btn.Primary}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
     </Window.Resources>
 
     <Border x:Name="RootBorder" BorderBrush="{StaticResource B.Line2}" BorderThickness="1">
@@ -88,6 +94,15 @@
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- «ОБНОВЛЕНИЕ 1.0.1»: a newer version exists (Core/Updates). White = clickable; opens the confirmation with what will happen. -->
+                    <Button Style="{StaticResource Btn.TitleBar.Primary}" Command="{Binding Updates.UpdateNowCommand}"
+                            Visibility="{Binding Updates.ButtonVisible, Converter={StaticResource BoolToVis}}"
+                            ToolTip="{loc:T 'Вышла новая версия MONOLITH. Нажмите, чтобы посмотреть, что изменится, и обновить.'}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Updates.ButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <!-- Visible search: the one entry to the command palette besides Ctrl+K -->
                     <Button Style="{StaticResource Btn.TitleBar}" Command="{Binding OpenSearchCommand}" ToolTip="{loc:T 'Поиск настроек, разделов и инструментов (Ctrl+K)'}">
                         <StackPanel Orientation="Horizontal">
