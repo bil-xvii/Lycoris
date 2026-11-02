@@ -167,19 +167,19 @@ public static partial class HealthRules
 
     private static string CauseAdvice(CrashCause cause) => cause switch
     {
-        CrashCause.Memory => "Признаки ошибок памяти: проверьте её средством «Диагностика памяти Windows» (раздел «Обслуживание» → " +
-                             "«Ремонт и диски») и попробуйте поработать без профиля XMP/EXPO",
-        CrashCause.Processor => "Аппаратные ошибки процессора (ядро, кэш, шина) обычно вызывают разгон или андервольт (PBO, Curve " +
+        CrashCause.Memory => Loc.T("Признаки ошибок памяти: проверьте её средством «Диагностика памяти Windows» (раздел «Обслуживание» → " +
+                             "«Ремонт и диски») и попробуйте поработать без профиля XMP/EXPO"),
+        CrashCause.Processor => Loc.T("Аппаратные ошибки процессора (ядро, кэш, шина) обычно вызывают разгон или андервольт (PBO, Curve " +
                                 "Optimizer, частота FCLK) либо нестабильный профиль памяти: верните в BIOS значения по умолчанию, " +
                                 "проверьте работу памяти на штатной частоте (JEDEC) и обновите BIOS. Диагностика памяти такие ошибки " +
-                                "не находит",
-        CrashCause.Gpu => "Сбои видеокарты чаще всего вызывает её драйвер — обновите или переустановите его в разделе «Драйверы»; " +
-                          "реже — разгон видеокарты или нехватка питания",
-        CrashCause.Driver => "Такие коды обычно вызывает драйвер устройства: обновите драйверы чипсета, видеокарты, сети и звука " +
-                             "в разделе «Драйверы»",
-        CrashCause.Disk => "Код указывает на ошибку чтения с накопителя: проверьте его состояние и кабель или разъём",
-        CrashCause.Pcie => "Ошибки шины PCIe: проверьте, плотно ли сидят видеокарта и накопители M.2, райзер-кабель и драйвер " +
-                           "чипсета; при большом числе ошибок обновите BIOS",
+                                "не находит"),
+        CrashCause.Gpu => Loc.T("Сбои видеокарты чаще всего вызывает её драйвер — обновите или переустановите его в разделе «Драйверы»; " +
+                          "реже — разгон видеокарты или нехватка питания"),
+        CrashCause.Driver => Loc.T("Такие коды обычно вызывает драйвер устройства: обновите драйверы чипсета, видеокарты, сети и звука " +
+                             "в разделе «Драйверы»"),
+        CrashCause.Disk => Loc.T("Код указывает на ошибку чтения с накопителя: проверьте его состояние и кабель или разъём"),
+        CrashCause.Pcie => Loc.T("Ошибки шины PCIe: проверьте, плотно ли сидят видеокарта и накопители M.2, райзер-кабель и драйвер " +
+                           "чипсета; при большом числе ошибок обновите BIOS"),
         _ => "",
     };
 
@@ -195,8 +195,8 @@ public static partial class HealthRules
     {
         if (s.Stability is not { } log) return null;
         var a = AnalyzeStability(log, s.Now);
-        var period = $"За {DashFormat.Count(a.Days, "день", "дня", "дней")}" +
-                     (a.CoveredFrom is { } from ? $" (журнал Windows хранит события с {DashFormat.Date(from)})" : "");
+        var period = Loc.Tf("За {0}", Loc.N(a.Days, "{0} день", "{0} дня", "{0} дней")) +
+                     (a.CoveredFrom is { } from ? Loc.Tf(" (журнал Windows хранит события с {0})", DashFormat.Date(from)) : "");
 
         var findings = new List<string>();
         var causes = new List<CrashCause>();
@@ -209,70 +209,71 @@ public static partial class HealthRules
         if (blue.Count > 0)
         {
             var codes = blue.GroupBy(c => c.BugCheck).OrderByDescending(g => g.Count()).Take(3).Select(g => BugCheckText(g.Key));
-            findings.Add($"{DashFormat.Count(blue.Count, "синий экран", "синих экрана", "синих экранов")} ({string.Join(", ", codes)})");
+            findings.Add(Loc.Tf("{0} ({1})", Loc.N(blue.Count, "{0} синий экран", "{0} синих экрана", "{0} синих экранов"), string.Join(", ", codes)));
             foreach (var c in blue) Cause(BugCheckCause(c.BugCheck));
         }
         var unexpected = a.UnexpectedRestarts;
         if (unexpected.Count > 0)
         {
             var button = unexpected.Count(c => c.PowerButton);
-            findings.Add(DashFormat.Count(unexpected.Count, "внезапная перезагрузка", "внезапные перезагрузки", "внезапных перезагрузок") +
-                         " без кода ошибки" + (button > 0 ? $" (из них выключений кнопкой питания: {button})" : ""));
+            findings.Add(Loc.Tf("{0} без кода ошибки{1}",
+                Loc.N(unexpected.Count, "{0} внезапная перезагрузка", "{0} внезапные перезагрузки", "{0} внезапных перезагрузок"),
+                button > 0 ? Loc.Tf(" (из них выключений кнопкой питания: {0})", button) : ""));
         }
         if (a.WheaFatal > 0)
         {
-            findings.Add(DashFormat.Count(a.WheaFatal, "неисправимая аппаратная ошибка", "неисправимые аппаратные ошибки", "неисправимых аппаратных ошибок") + " WHEA");
+            findings.Add(Loc.Tf("{0} WHEA", Loc.N(a.WheaFatal, "{0} неисправимая аппаратная ошибка", "{0} неисправимые аппаратные ошибки", "{0} неисправимых аппаратных ошибок")));
             foreach (var c in a.FatalComponents) Cause(CauseOf(c));
         }
         if (a.WheaProcessor > 0)
         {
-            findings.Add(DashFormat.Count(a.WheaProcessor, "исправленная ошибка", "исправленные ошибки", "исправленных ошибок") + " процессора (WHEA)");
+            findings.Add(Loc.Tf("{0} процессора (WHEA)", Loc.N(a.WheaProcessor, "{0} исправленная ошибка", "{0} исправленные ошибки", "{0} исправленных ошибок")));
             Cause(CrashCause.Processor);
         }
         if (a.WheaMemory > 0)
         {
-            findings.Add(DashFormat.Count(a.WheaMemory, "исправленная ошибка", "исправленные ошибки", "исправленных ошибок") + " памяти (WHEA)");
+            findings.Add(Loc.Tf("{0} памяти (WHEA)", Loc.N(a.WheaMemory, "{0} исправленная ошибка", "{0} исправленные ошибки", "{0} исправленных ошибок")));
             Cause(CrashCause.Memory);
         }
         if (a.WheaPcie >= PcieBurst)
         {
-            findings.Add(DashFormat.Count(a.WheaPcie, "исправленная ошибка", "исправленные ошибки", "исправленных ошибок") + " шины PCIe (WHEA)");
+            findings.Add(Loc.Tf("{0} шины PCIe (WHEA)", Loc.N(a.WheaPcie, "{0} исправленная ошибка", "{0} исправленные ошибки", "{0} исправленных ошибок")));
             Cause(CrashCause.Pcie);
         }
         if (a.WheaOther > 0)
-            findings.Add(DashFormat.Count(a.WheaOther, "исправленная аппаратная ошибка", "исправленные аппаратные ошибки", "исправленных аппаратных ошибок") + " WHEA");
+            findings.Add(Loc.Tf("{0} WHEA", Loc.N(a.WheaOther, "{0} исправленная аппаратная ошибка", "{0} исправленные аппаратные ошибки", "{0} исправленных аппаратных ошибок")));
         if (a.GpuResets > 0)
         {
-            findings.Add(DashFormat.Count(a.GpuResets, "сброс", "сброса", "сбросов") + " драйвера видеокарты");
+            findings.Add(Loc.Tf("{0} драйвера видеокарты", Loc.N(a.GpuResets, "{0} сброс", "{0} сброса", "{0} сбросов")));
             Cause(CrashCause.Gpu);
         }
 
         if (findings.Count == 0)
-            return new("stability", "СИСТЕМА РАБОТАЕТ СТАБИЛЬНО",
+            return new("stability", Loc.T("СИСТЕМА РАБОТАЕТ СТАБИЛЬНО"),
                 a.WheaPcie > 0
-                    ? $"{period} не было синих экранов, внезапных перезагрузок, серьёзных аппаратных ошибок и сбросов драйвера " +
-                      $"видеокарты. Единичные исправленные ошибки шины PCIe ({a.WheaPcie}) — это нормально."
-                    : $"{period} не было синих экранов, внезапных перезагрузок, аппаратных ошибок WHEA и сбросов драйвера видеокарты.",
+                    ? Loc.Tf("{0} не было синих экранов, внезапных перезагрузок, серьёзных аппаратных ошибок и сбросов драйвера " +
+                      "видеокарты. Единичные исправленные ошибки шины PCIe ({1}) — это нормально.", period, a.WheaPcie)
+                    : Loc.Tf("{0} не было синих экранов, внезапных перезагрузок, аппаратных ошибок WHEA и сбросов драйвера видеокарты.", period),
                 CheckSeverity.Ok, 10);
 
         var warning = blue.Count > 0 || a.WheaFatal > 0 || unexpected.Count >= 2 || a.GpuResets >= 2;
         var advice = causes.Take(3).Select(CauseAdvice).Where(t => t.Length > 0).ToList();
         if (unexpected.Count > 0)
-            advice.Add("Перезагрузка без кода ошибки — это пропадание питания или слабый блок питания, принудительное выключение " +
+            advice.Add(Loc.T("Перезагрузка без кода ошибки — это пропадание питания или слабый блок питания, принудительное выключение " +
                        "после зависания либо сбой, при котором Windows не успела записать код (например, когда отключена запись " +
-                       "дампа памяти)");
-        var detail = $"{period}: {string.Join("; ", findings)}." + (advice.Count > 0 ? " " + string.Join(". ", advice) + "." : "");
-        if (a.Truncated) detail += " Записей очень много — подсчитаны только самые свежие.";
-        if (causes.Contains(CrashCause.Processor) || causes.Contains(CrashCause.Memory)) detail += " MONOLITH настройки BIOS не меняет.";
+                       "дампа памяти)"));
+        var detail = Loc.Tf("{0}: {1}.", period, string.Join("; ", findings)) + (advice.Count > 0 ? " " + string.Join(". ", advice) + "." : "");
+        if (a.Truncated) detail += " " + Loc.T("Записей очень много — подсчитаны только самые свежие.");
+        if (causes.Contains(CrashCause.Processor) || causes.Contains(CrashCause.Memory)) detail += " " + Loc.T("MONOLITH настройки BIOS не меняет.");
 
         var action = causes.Contains(CrashCause.Memory)
-            ? new CheckAction(CheckActionKind.Navigate, "ПРОВЕРИТЬ ПАМЯТЬ", "tools")
+            ? new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ПАМЯТЬ"), "tools")
             : causes.Contains(CrashCause.Gpu) || causes.Contains(CrashCause.Driver)
-                ? new CheckAction(CheckActionKind.Navigate, "ПРОВЕРИТЬ ДРАЙВЕРЫ", "drivers", "tab:updates")
+                ? new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ДРАЙВЕРЫ"), "drivers", "tab:updates")
                 : null;
-        var days = DashFormat.Count(a.Days, "ДЕНЬ", "ДНЯ", "ДНЕЙ");
+        var days = Loc.N(a.Days, "{0} ДЕНЬ", "{0} ДНЯ", "{0} ДНЕЙ");
         return warning
-            ? new("stability", $"СБОИ ЗА {days}", detail, CheckSeverity.Warning, blue.Count > 0 || a.WheaFatal > 0 ? 15 : 10, action)
-            : new("stability", $"ЗАМЕЧАНИЯ ПО СТАБИЛЬНОСТИ ЗА {days}", detail, CheckSeverity.Info, 5, action);
+            ? new("stability", Loc.Tf("СБОИ ЗА {0}", days), detail, CheckSeverity.Warning, blue.Count > 0 || a.WheaFatal > 0 ? 15 : 10, action)
+            : new("stability", Loc.Tf("ЗАМЕЧАНИЯ ПО СТАБИЛЬНОСТИ ЗА {0}", days), detail, CheckSeverity.Info, 5, action);
     }
 }

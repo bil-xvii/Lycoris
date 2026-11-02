@@ -37,12 +37,12 @@ public sealed partial class DashboardViewModel
 
     private IReadOnlyList<LaunchTile> BuildTiles()
     {
-        _gameTile = new("game", "ИГРОВОЙ СЕАНС", Glyphs.Rocket, ToggleGameCommand, LaunchpadLogic.Game(false));
-        _optimizeTile = new("optimize", "ОПТИМИЗАЦИЯ", Glyphs.Bolt, ApplyRecommendedCommand, LaunchpadLogic.Optimize(null, 0));
-        _cleanTile = new("clean", "ОЧИСТКА", Glyphs.Delete, CleanJunkCommand, LaunchpadLogic.Clean(false, "—", "", "—", ""));
-        _gpuTile = new("gpu", "ВИДЕОКАРТА", Glyphs.Monitor, GpuActionCommand, LaunchpadLogic.Gpu(LaunchpadLogic.GpuState.Unchecked, "", null, null, null, null));
-        _undoTile = new("undo", "ОТКАТ", Glyphs.History, RevertLastCommand, LaunchpadLogic.Undo(0, null, null));
-        _pingTile = new("ping", "ПИНГ", Glyphs.Network, MeasurePingCommand, LaunchpadLogic.Ping(null));
+        _gameTile = new("game", Loc.T("ИГРОВОЙ СЕАНС"), Glyphs.Rocket, ToggleGameCommand, LaunchpadLogic.Game(false));
+        _optimizeTile = new("optimize", Loc.T("ОПТИМИЗАЦИЯ"), Glyphs.Bolt, ApplyRecommendedCommand, LaunchpadLogic.Optimize(null, 0));
+        _cleanTile = new("clean", Loc.T("ОЧИСТКА"), Glyphs.Delete, CleanJunkCommand, LaunchpadLogic.Clean(false, "—", "", "—", ""));
+        _gpuTile = new("gpu", Loc.T("ВИДЕОКАРТА"), Glyphs.Monitor, GpuActionCommand, LaunchpadLogic.Gpu(LaunchpadLogic.GpuState.Unchecked, "", null, null, null, null));
+        _undoTile = new("undo", Loc.T("ОТКАТ"), Glyphs.History, RevertLastCommand, LaunchpadLogic.Undo(0, null, null));
+        _pingTile = new("ping", Loc.T("ПИНГ"), Glyphs.Network, MeasurePingCommand, LaunchpadLogic.Ping(null));
         return [_gameTile, _optimizeTile, _cleanTile, _gpuTile, _undoTile, _pingTile];
     }
 
@@ -84,7 +84,7 @@ public sealed partial class DashboardViewModel
     };
 
     /// <summary>Title of the list card: «Проблемы · 2», «Советы · 2», «В норме · 19».</summary>
-    public string ListTitle => $"{Filter switch { CheckFilter.Warning => "Проблемы", CheckFilter.Info => "Советы", _ => "В норме" }} · {Visible.Count}";
+    public string ListTitle => Loc.Tf("{0} · {1}", Filter switch { CheckFilter.Warning => Loc.T("Проблемы"), CheckFilter.Info => Loc.T("Советы"), _ => Loc.T("В норме") }, Visible.Count);
 
     /// <summary>One line of the key facts (CPU · GPU · RAM · display); the full table is behind «ВСЕ СВЕДЕНИЯ».</summary>
     [ObservableProperty] private string _systemSummary = "";
@@ -92,7 +92,7 @@ public sealed partial class DashboardViewModel
     private void UpdateSystemSummary()
     {
         string? Value(string label) => SystemRows.FirstOrDefault(r => r.Label == label)?.Value;
-        var parts = new[] { Value("ПРОЦЕССОР"), Value("ВИДЕОКАРТА"), Value("ПАМЯТЬ"), Value("ДИСПЛЕЙ") }
+        var parts = new[] { Value(Loc.T("ПРОЦЕССОР")), Value(Loc.T("ВИДЕОКАРТА")), Value(Loc.T("ПАМЯТЬ")), Value(Loc.T("ДИСПЛЕЙ")) }
             .Where(v => !string.IsNullOrWhiteSpace(v) && v != DashFormat.Missing);
         SystemSummary = string.Join(" · ", parts);
     }
@@ -117,7 +117,7 @@ public sealed partial class DashboardViewModel
         _attached = true;
         GameBoostState.Changed += _ => Ui.Post(UpdateGameTile);
         try { ChangeJournal.Instance.Changed += () => Ui.Post(UpdateUndoTile); }
-        catch (Exception ex) { Log.Warn($"Панель: журнал недоступен для плитки отката: {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Панель: журнал недоступен для плитки отката: {0}", ex.Message); }
         UpdateGameTile();
         UpdateUndoTile();
         _ = WarmUpAsync(main);
@@ -139,7 +139,7 @@ public sealed partial class DashboardViewModel
                 Ui.Post(UpdateOptimizeTile);
             }
         }
-        catch (Exception ex) { Log.Warn($"Панель: число оптимизаций не прочитано: {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Панель: число оптимизаций не прочитано: {0}", ex.Message); }
 
         try
         {
@@ -153,7 +153,7 @@ public sealed partial class DashboardViewModel
                 Ui.Post(UpdateCleanTile);
             }
         }
-        catch (Exception ex) { Log.Warn($"Панель: размер мусора не посчитан: {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Панель: размер мусора не посчитан: {0}", ex.Message); }
     }
 
     private void OnCleanerChanged(object? sender, PropertyChangedEventArgs e)
@@ -186,7 +186,7 @@ public sealed partial class DashboardViewModel
 
     /// <summary>Live button text of a problem row: the cleanup row says how much it will clean.</summary>
     private string? ActionLabel(CheckAction action) =>
-        action is { Kind: CheckActionKind.Navigate, Target: "cleaner" } && CleanSize is { } size ? $"ОЧИСТИТЬ {size}" : null;
+        action is { Kind: CheckActionKind.Navigate, Target: "cleaner" } && CleanSize is { } size ? Loc.Tf("ОЧИСТИТЬ {0}", size) : null;
 
     private void UpdateUndoTile()
     {
@@ -196,10 +196,10 @@ public sealed partial class DashboardViewModel
             var active = journal.ActiveRecords;
             var revertible = active.Where(ChangeJournal.IsBulkRevertible).Select(r => r.BatchId).ToHashSet();
             var last = journal.Batches.Where(b => revertible.Contains(b.Id)).OrderByDescending(b => b.TimestampUtc).FirstOrDefault();
-            var title = last is null ? null : last.Title.Length > 0 ? last.Title : "Без названия";
+            var title = last is null ? null : last.Title.Length > 0 ? Loc.Sink(last.Title) : Loc.T("Без названия");
             _undoTile.Apply(LaunchpadLogic.Undo(active.Count, title, last?.Timestamp));
         }
-        catch (Exception ex) { Log.Warn($"Панель: плитка отката: {ex.Message}"); }
+        catch (Exception ex) { Log.Warn("Панель: плитка отката: {0}", ex.Message); }
     }
 
     // ───────────────────────────── Tile commands ─────────────────────────────
@@ -218,7 +218,7 @@ public sealed partial class DashboardViewModel
             await games.StopBoostCommand.ExecuteAsync(null);
             return;
         }
-        if (!RequireAdmin("Игровой сеанс", "ToggleGame")) return;
+        if (!RequireAdmin(Loc.Key("Игровой сеанс"), "ToggleGame")) return;
         await games.EnsureLoadedAsync();
         await games.StartBoostCommand.ExecuteAsync(null);
     }
@@ -242,7 +242,7 @@ public sealed partial class DashboardViewModel
             Ui.Toast("Рекомендуемому профилю нечего менять или список ещё не прочитан. Проверьте страницу «Оптимизация».", ToastKind.Info, "ОПТИМИЗАЦИЯ");
             return;
         }
-        if (!RequireAdmin("Применение оптимизаций", "ApplyRecommended")) return;
+        if (!RequireAdmin(Loc.Key("Применение оптимизаций"), "ApplyRecommended")) return;
         if (!optimize.ApplyRecommendedCommand.CanExecute(null))
         {
             Ui.Toast("Страница «Оптимизация» сейчас занята. Откройте её и проверьте список.", ToastKind.Info, "ОПТИМИЗАЦИЯ");
@@ -368,7 +368,7 @@ public sealed partial class DashboardViewModel
             Ui.Navigate("drivers");
             return;
         }
-        if (!RequireAdmin("Загрузка драйвера видеокарты", "GpuDownload")) return;
+        if (!RequireAdmin(Loc.Key("Загрузка драйвера видеокарты"), "GpuDownload")) return;
         if (_gpuState != LaunchpadLogic.GpuState.UpdateReady) await CheckGpuAsync(drivers); // e.g. right after the relaunch
         if (_gpuState == LaunchpadLogic.GpuState.UpdateReady && _gpuCard is { HasDownload: true } card && drivers.DownloadDriverCommand.CanExecute(card))
             await drivers.DownloadDriverCommand.ExecuteAsync(card);
@@ -401,7 +401,7 @@ public sealed partial class DashboardViewModel
             {
                 _gpuNew = package.Version;
                 _gpuState = LaunchpadLogic.GpuState.UpdateReady;
-                Ui.Toast($"Доступен драйвер {package.Version}. Кнопка «СКАЧАТЬ И УСТАНОВИТЬ» покажет, что именно будет сделано.", ToastKind.Info, "ВИДЕОКАРТА");
+                Ui.Toast(Loc.Tf("Доступен драйвер {0}. Кнопка «СКАЧАТЬ И УСТАНОВИТЬ» покажет, что именно будет сделано.", package.Version), ToastKind.Info, "ВИДЕОКАРТА");
             }
             else if (card is { HasLatest: true })
             {
@@ -418,7 +418,7 @@ public sealed partial class DashboardViewModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"Панель: проверка драйвера видеокарты: {ex.Message}");
+            Log.Warn("Панель: проверка драйвера видеокарты: {0}", ex.Message);
             _gpuState = LaunchpadLogic.GpuState.Unknown;
             Ui.Toast(ex.Message, ToastKind.Warning, "ВИДЕОКАРТА");
         }

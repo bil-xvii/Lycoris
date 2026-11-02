@@ -37,9 +37,9 @@ public sealed partial class CheckItemViewModel : ObservableObject
 
     public string SeverityText => Severity switch
     {
-        CheckSeverity.Warning => "ВНИМАНИЕ",
-        CheckSeverity.Info => "СОВЕТ",
-        _ => "НОРМА",
+        CheckSeverity.Warning => Loc.T("ВНИМАНИЕ"),
+        CheckSeverity.Info => Loc.T("СОВЕТ"),
+        _ => Loc.T("НОРМА"),
     };
 
     public string Glyph => Severity switch
@@ -59,12 +59,12 @@ public sealed partial class CheckItemViewModel : ObservableObject
 
     public string ActionTooltip => Result.Action?.Kind switch
     {
-        CheckActionKind.Navigate => "Открыть раздел MONOLITH",
-        CheckActionKind.OpenUri => "Открыть параметры Windows — сама по себе кнопка ничего не меняет",
-        CheckActionKind.FocusTweak => "Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет",
-        CheckActionKind.FocusDevice => "Показать монитор в разделе «Устройства и сеть» — сама по себе кнопка ничего не меняет",
-        _ when ShowAdminHint => "Нужны права администратора: MONOLITH предложит перезапуск и продолжит действие сам",
-        _ => "Перед изменением MONOLITH покажет, что именно будет сделано",
+        CheckActionKind.Navigate => Loc.T("Открыть раздел MONOLITH"),
+        CheckActionKind.OpenUri => Loc.T("Открыть параметры Windows — сама по себе кнопка ничего не меняет"),
+        CheckActionKind.FocusTweak => Loc.T("Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет"),
+        CheckActionKind.FocusDevice => Loc.T("Показать монитор в разделе «Устройства и сеть» — сама по себе кнопка ничего не меняет"),
+        _ when ShowAdminHint => Loc.T("Нужны права администратора: MONOLITH предложит перезапуск и продолжит действие сам"),
+        _ => Loc.T("Перед изменением MONOLITH покажет, что именно будет сделано"),
     };
 
     [ObservableProperty] private bool _isRunning;

@@ -111,7 +111,7 @@ public sealed class LiveMonitor : IDisposable
                     sample = Sample();
                 }
                 if (ct.IsCancellationRequested) return;
-                try { Sampled?.Invoke(sample); } catch (Exception ex) { Log.Warn($"Мониторинг: {ex.Message}"); }
+                try { Sampled?.Invoke(sample); } catch (Exception ex) { Log.Warn("Мониторинг: {0}", ex.Message); }
 
                 var interval = Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000);
                 var wait = interval - (int)(DateTime.UtcNow - started).TotalMilliseconds;
@@ -140,7 +140,7 @@ public sealed class LiveMonitor : IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warn($"Не удалось получить список видеоадаптеров: {ex.Message}");
+            Log.Warn("Не удалось получить список видеоадаптеров: {0}", ex.Message);
             _adapters = [];
         }
         ResolvePrimaryAdapter();

@@ -71,7 +71,7 @@ internal static class FirmwareProbe
         try { return read(); }
         catch (Exception ex)
         {
-            Log.Warn($"Проверка загрузки: {ex.Message}");
+            Log.Warn("Проверка загрузки: {0}", ex.Message);
             return fallback;
         }
     }
