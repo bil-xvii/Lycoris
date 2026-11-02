@@ -27,7 +27,6 @@ public sealed class SpiSnapshot
 public sealed record DisplayModeSpec(int Width, int Height, int Frequency, uint RefreshNumerator, uint RefreshDenominator,
     int BitsPerPel, int Orientation, int PositionX, int PositionY)
 {
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
 
     /// <summary>The exact refresh rate (239,97 Гц), or the GDI integer when no rational one is known.</summary>
     [JsonIgnore]
@@ -63,11 +62,11 @@ public sealed record DisplayModeSpec(int Width, int Height, int Frequency, uint 
     public string HzText()
     {
         var hz = ExactHz;
-        if (hz < 1) return "частота по умолчанию";
+        if (hz < 1) return Loc.T("частота по умолчанию");
         var rounded = Math.Round(hz);
         return Math.Abs(hz - rounded) < 0.005
-            ? $"{rounded.ToString("0", Ru)} Гц"
-            : $"{hz.ToString("0.00", Ru)} Гц";
+            ? Loc.Tf("{0} Гц", rounded.ToString("0", Loc.Culture))
+            : Loc.Tf("{0} Гц", hz.ToString("0.00", Loc.Culture));
     }
 }
 

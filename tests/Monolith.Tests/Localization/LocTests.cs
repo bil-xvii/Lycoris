@@ -10,7 +10,7 @@ public sealed class LocTests
     private static readonly Dictionary<string, string> Table = new()
     {
         ["Тестовая кнопка"] = "Test button",
-        ["Выбрано {0} из {1}"] = "{1} items, {0} selected",
+        ["Тестовый выбор {0} из {1}"] = "{1} items, {0} selected",
         ["{0} тестовый файл"] = "{0} test file|{0} test files",
         ["тестовое слово"] = "test word|test words",
     };
@@ -86,8 +86,8 @@ public sealed class LocTests
     [Fact]
     public void Tf_formats_with_the_russian_format_as_the_key_and_lets_english_reorder()
     {
-        using (Loc.UseLanguage("ru")) Assert.Equal("Выбрано 3 из 10", Loc.Tf("Выбрано {0} из {1}", 3, 10));
-        using (Loc.UseLanguage("en")) Assert.Equal("10 items, 3 selected", Loc.Tf("Выбрано {0} из {1}", 3, 10));
+        using (Loc.UseLanguage("ru")) Assert.Equal("Тестовый выбор 3 из 10", Loc.Tf("Тестовый выбор {0} из {1}", 3, 10));
+        using (Loc.UseLanguage("en")) Assert.Equal("10 items, 3 selected", Loc.Tf("Тестовый выбор {0} из {1}", 3, 10));
     }
 
     [Fact]
@@ -237,10 +237,10 @@ public sealed class LocTests
         LogEntry? seen = null;
         void Handler(LogEntry e) => seen = e;
         Log.Written += Handler;
-        try { Log.Info("Выбрано {0} из {1}", 3, 10); }
+        try { Log.Info("Тестовый выбор {0} из {1}", 3, 10); }
         finally { Log.Written -= Handler; }
         Assert.NotNull(seen);
-        Assert.Equal("Выбрано 3 из 10", seen!.Message);
+        Assert.Equal("Тестовый выбор 3 из 10", seen!.Message);
         Assert.Equal("10 items, 3 selected", seen.Display);
     }
 

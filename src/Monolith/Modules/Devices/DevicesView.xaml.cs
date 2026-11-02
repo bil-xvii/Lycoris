@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -98,8 +98,8 @@ public partial class DevicesView : UserControl
     private void OnDoubleClickTest(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border { Child: TextBlock text }) return;
-        if (e.ClickCount >= 2) text.Text = "Двойной щелчок засчитан";
-        else if (e.ClickCount == 1 && text.Text != "Дважды щёлкните здесь") text.Text = "Дважды щёлкните здесь";
+        if (e.ClickCount >= 2) text.Text = Loc.T("Двойной щелчок засчитан");
+        else if (e.ClickCount == 1 && text.Text != Loc.T("Дважды щёлкните здесь")) text.Text = Loc.T("Дважды щёлкните здесь");
     }
 
     // ───────────────────────────── DPI drag pad ─────────────────────────────

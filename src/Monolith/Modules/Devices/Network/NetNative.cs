@@ -296,7 +296,7 @@ internal static class NetNative
                 if (size >= 4) rssi = Marshal.ReadInt32(data);
                 WlanFreeMemory(data);
             }
-            else if (rc == ErrorAccessDenied) error = "Windows не дала прочитать сигнал Wi-Fi без доступа к расположению";
+            else if (rc == ErrorAccessDenied) error = Loc.T("Windows не дала прочитать сигнал Wi-Fi без доступа к расположению");
             rc = WlanQueryInterface(h, ref iface, OpChannelNumber, IntPtr.Zero, out size, out data, IntPtr.Zero);
             if (rc == 0)
             {

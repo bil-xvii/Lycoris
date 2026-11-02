@@ -1,10 +1,11 @@
-<UserControl x:Class="Monolith.Modules.Devices.DevicesView"
+﻿<UserControl x:Class="Monolith.Modules.Devices.DevicesView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Monolith.UI.Controls"
              xmlns:ui="clr-namespace:Monolith.UI"
+             xmlns:loc="clr-namespace:Monolith.UI"
              xmlns:local="clr-namespace:Monolith.Modules.Devices"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:DevicesViewModel}"
              d:DesignWidth="1100" d:DesignHeight="760">
@@ -155,7 +156,7 @@
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" Visibility="{Binding NeedsCountdown, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="С ПОДТВЕРЖДЕНИЕМ" />
+                                    <TextBlock Text="{loc:T 'С ПОДТВЕРЖДЕНИЕМ'}" />
                                 </Border>
                                 <Border Style="{StaticResource Tag.Muted}" Margin="0,0,6,0" Visibility="{Binding StateTag, Converter={StaticResource NullToVis}}">
                                     <TextBlock Text="{Binding StateTag}" />
@@ -202,7 +203,7 @@
                         <!-- Live value + recommendation -->
                         <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">
                             <TextBlock Style="{StaticResource T.Mono}" TextWrapping="Wrap">
-                                <Run Text="сейчас " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding CurrentText, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
+                                <Run Text="{loc:T 'сейчас '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding CurrentText, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
                             </TextBlock>
                             <TextBlock Text="{Binding RecommendedText}" Style="{StaticResource Dev.Caption}" Margin="0,2,0,0"
                                        Visibility="{Binding RecommendedText, Converter={StaticResource NullToVis}}" />
@@ -215,30 +216,30 @@
                             <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Margin="6,0,0,0" IsEnabled="{Binding CanApply}"
                                         Command="{Binding DataContext.ApplySettingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                        Visibility="{Binding IsReadOnly, Converter={StaticResource InverseBoolToVis}}" ToolTip="Применить только эту настройку (через журнал)">
+                                        Visibility="{Binding IsReadOnly, Converter={StaticResource InverseBoolToVis}}" ToolTip="{loc:T 'Применить только эту настройку (через журнал)'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                        <TextBlock Text="ПРИМЕНИТЬ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'ПРИМЕНИТЬ'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button Margin="6,0,0,0"
                                         Command="{Binding DataContext.RevertSettingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                        Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}" ToolTip="Вернуть значение, которое было до изменения в MONOLITH">
+                                        Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Вернуть значение, которое было до изменения в MONOLITH'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                        <TextBlock Text="ОТКАТИТЬ" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'ОТКАТИТЬ'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource Btn.Link}" Margin="6,0,0,0" ToolTip="Эта настройка — пункт раздела «Оптимизация»: откроется он, ничего не меняется"
+                                <Button Style="{StaticResource Btn.Link}" Margin="6,0,0,0" ToolTip="{loc:T 'Эта настройка — пункт раздела «Оптимизация»: откроется он, ничего не меняется'}"
                                         Command="{Binding DataContext.OpenTweakCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding TweakId}"
                                         Visibility="{Binding IsTweakRow, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="В ОПТИМИЗАЦИИ →" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'В ОПТИМИЗАЦИИ →'}" VerticalAlignment="Center" />
                                 </Button>
                                 <Button Style="{StaticResource Btn.Link}" Margin="6,0,0,0" Content="{Binding Link.Label}"
                                         Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Link}"
                                         Visibility="{Binding Link, Converter={StaticResource NullToVis}}" />
                             </WrapPanel>
-                            <TextBlock Style="{StaticResource Dev.Caption}" Text="значение не менялось" TextAlignment="Right" Margin="0,4,0,0">
+                            <TextBlock Style="{StaticResource Dev.Caption}" Text="{loc:T 'значение не менялось'}" TextAlignment="Right" Margin="0,4,0,0">
                                 <TextBlock.Visibility>
                                     <MultiBinding Converter="{x:Static local:DevicesView.NotDirtyEditableToVisibility}">
                                         <Binding Path="IsDirty" />
@@ -253,9 +254,9 @@
                     <Border x:Name="DoubleClickTest" Margin="0,8,0,0" HorizontalAlignment="Left" Width="260" Height="34" Background="{StaticResource B.Surface2}"
                             BorderBrush="{StaticResource B.Outline}" BorderThickness="1" CornerRadius="{StaticResource R.Md}" Cursor="Hand"
                             MouseLeftButtonDown="OnDoubleClickTest" Visibility="Collapsed">
-                        <TextBlock Text="Дважды щёлкните здесь" Style="{StaticResource Dev.Caption}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T 'Дважды щёлкните здесь'}" Style="{StaticResource Dev.Caption}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBox x:Name="KeyRepeatTest" Margin="0,8,0,0" HorizontalAlignment="Left" Width="260" Tag="Зажмите здесь любую клавишу"
+                    <TextBox x:Name="KeyRepeatTest" Margin="0,8,0,0" HorizontalAlignment="Left" Width="260" Tag="{loc:T 'Зажмите здесь любую клавишу'}"
                              Visibility="Collapsed" />
 
                     <!-- A measurement of this setting, inline, with its own labelled button -->
@@ -346,10 +347,10 @@
 
         <!-- Plan button of a measurement row: «ЗАМЕРИТЬ» runs the tool in place, «ОТМЕНА» while it runs -->
         <Style x:Key="Dev.MeasureBtn" TargetType="Button" BasedOn="{StaticResource Btn}">
-            <Setter Property="Content" Value="ЗАМЕРИТЬ" />
+            <Setter Property="Content" Value="{loc:T 'ЗАМЕРИТЬ'}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding MeasureTool.IsRunning}" Value="True">
-                    <Setter Property="Content" Value="ОТМЕНА" />
+                    <Setter Property="Content" Value="{loc:T 'ОТМЕНА'}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -366,7 +367,7 @@
                             <ColumnDefinition Width="170" />
                         </Grid.ColumnDefinitions>
                         <CheckBox VerticalAlignment="Top" Margin="0,2,0,0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding Selectable}"
-                                  Visibility="{Binding HasChange, Converter={StaticResource BoolToVis}}" ToolTip="Включить в автонастройку" />
+                                  Visibility="{Binding HasChange, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Включить в автонастройку'}" />
                         <StackPanel Grid.Column="1" Margin="0,0,14,0">
                             <TextBlock Text="{Binding Header}" Style="{StaticResource T.Label}" TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding Setting.Title}" Style="{StaticResource T.BodyStrong}" FontSize="13" Margin="0,2,0,0" TextWrapping="Wrap" />
@@ -441,14 +442,14 @@
                 <RadioButton Style="{StaticResource Segment}" GroupName="DevicesTabs"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=auto}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="АВТОНАСТРОЙКА" />
+                        <TextBlock Text="{loc:T 'АВТОНАСТРОЙКА'}" />
                         <Border Style="{StaticResource TabBadge.Alert}"><TextBlock Text="{Binding PlanCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" GroupName="DevicesTabs"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=manual}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ВРУЧНУЮ" />
+                        <TextBlock Text="{loc:T 'ВРУЧНУЮ'}" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding Cards.Count}" /></Border>
                     </StackPanel>
                 </RadioButton>
@@ -462,9 +463,9 @@
                 <!-- Honest states: searching, nothing found, some devices could not be read -->
                 <Border Style="{StaticResource Card}" Margin="0,0,0,8" Visibility="{Binding NoDevices, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
-                        <TextBlock Text="Устройства не найдены" Style="{StaticResource T.H2}" />
+                        <TextBlock Text="{loc:T 'Устройства не найдены'}" Style="{StaticResource T.H2}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0"
-                                   Text="MONOLITH не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ»." />
+                                   Text="{loc:T 'MONOLITH не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ».'}" />
                     </StackPanel>
                 </Border>
                 <TextBlock Text="{Binding FailedText}" Style="{StaticResource Dev.Caption}" Margin="2,0,0,8" TextWrapping="Wrap"
@@ -480,7 +481,7 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:DeviceCard}">
-                                    <Button Margin="0,0,8,6" ToolTip="Открыть во вкладке «Вручную»"
+                                    <Button Margin="0,0,8,6" ToolTip="{loc:T 'Открыть во вкладке «Вручную»'}"
                                             Command="{Binding DataContext.FocusCardCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -575,9 +576,9 @@
             <StackPanel Margin="0,0,10,12">
                 <Border Style="{StaticResource Card}" Margin="0,0,0,8" Visibility="{Binding NoDevices, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
-                        <TextBlock Text="Устройства не найдены" Style="{StaticResource T.H2}" />
+                        <TextBlock Text="{loc:T 'Устройства не найдены'}" Style="{StaticResource T.H2}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0"
-                                   Text="MONOLITH не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ»." />
+                                   Text="{loc:T 'MONOLITH не нашёл ни одного устройства, которое умеет настраивать. Подключите устройство и нажмите «ОБНОВИТЬ».'}" />
                     </StackPanel>
                 </Border>
                 <TextBlock Text="{Binding FailedText}" Style="{StaticResource Dev.Caption}" Margin="2,0,0,8" TextWrapping="Wrap"
@@ -606,7 +607,7 @@
                      Visibility="{Binding ShowPlanBar, Converter={StaticResource BoolToVis}}">
             <c:StickyBar.Actions>
                 <Button Style="{StaticResource Btn.Hero}" Command="{Binding ApplyPlanCommand}"
-                        ToolTip="Применить отмеченные строки: исходные значения записываются в журнал, создаётся точка восстановления">
+                        ToolTip="{loc:T 'Применить отмеченные строки: исходные значения записываются в журнал, создаётся точка восстановления'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock Text="{Binding ApplyPlanText}" VerticalAlignment="Center" />

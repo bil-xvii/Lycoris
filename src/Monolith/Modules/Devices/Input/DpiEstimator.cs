@@ -47,8 +47,8 @@ internal static class DpiEstimator
 
     /// <summary>Null when the run counts; otherwise why not (Russian, one line).</summary>
     public static string? RunProblem(DpiRun run) =>
-        run.Dpi < MinDpi ? "Проход слишком короткий — проведите мышь на всё расстояние, не отрывая её от стола."
-        : run.Dpi > MaxDpi ? "Проход слишком длинный — остановитесь у отметки и только потом отпустите кнопку."
+        run.Dpi < MinDpi ? Loc.T("Проход слишком короткий — проведите мышь на всё расстояние, не отрывая её от стола.")
+        : run.Dpi > MaxDpi ? Loc.T("Проход слишком длинный — остановитесь у отметки и только потом отпустите кнопку.")
         : null;
 
     public static bool IsValid(DpiRun run) => RunProblem(run) is null;
@@ -72,5 +72,5 @@ internal static class DpiEstimator
 
     /// <summary>«Проходы: 1592, 1601, 1610 DPI» — the raw runs for the detail line.</summary>
     public static string RunsText(DpiEstimate e) =>
-        "Проходы: " + string.Join(", ", e.Runs.Select(r => Math.Round(r).ToString("0", CultureInfo.InvariantCulture))) + " DPI";
+        Loc.Tf("Проходы: {0} DPI", string.Join(", ", e.Runs.Select(r => Math.Round(r).ToString("0", CultureInfo.InvariantCulture))));
 }

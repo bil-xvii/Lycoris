@@ -9,20 +9,20 @@ namespace Monolith.Modules.Devices.Input;
 /// </summary>
 internal static class InputTools
 {
-    private static readonly DeviceOption Ruler = new(DeviceValue.Of(1000), "10 см по линейке");
-    private static readonly DeviceOption Card = new(DeviceValue.Of(856), "банковская карта 85,6 мм");
+    private static readonly DeviceOption Ruler = new(DeviceValue.Of(1000), Loc.T("10 см по линейке"));
+    private static readonly DeviceOption Card = new(DeviceValue.Of(856), Loc.T("банковская карта 85,6 мм"));
 
     /// <summary>«Проверка DPI»: three drags over a known distance on the pad (the pad captures the mouse; nothing else reacts).</summary>
     public static DeviceTool Dpi() => new()
     {
         Id = InputProvider.DpiTool,
-        Title = "Проверка DPI",
-        Description = "Нужна линейка или банковская карта: три раза проведите мышь ровно вправо на выбранное расстояние.",
-        ButtonText = "ПРОВЕРИТЬ",
+        Title = Loc.T("Проверка DPI"),
+        Description = Loc.T("Нужна линейка или банковская карта: три раза проведите мышь ровно вправо на выбранное расстояние."),
+        ButtonText = Loc.T("ПРОВЕРИТЬ"),
         Options = [Ruler, Card],
         SelectedOption = Ruler,
         NeedsDragPad = true,
-        PadText = "Нажмите здесь левую кнопку и, не отпуская, проведите мышь вправо на всё расстояние — затем отпустите",
+        PadText = Loc.T("Нажмите здесь левую кнопку и, не отпуская, проведите мышь вправо на всё расстояние — затем отпустите"),
         Run = RunDpiAsync,
     };
 
@@ -30,18 +30,18 @@ internal static class InputTools
     public static DeviceTool Polling() => new()
     {
         Id = InputProvider.PollingTool,
-        Title = "Измерение частоты опроса",
-        Description = "После нажатия 5 секунд водите мышью быстрыми кругами. Окно MONOLITH должно оставаться активным.",
-        ButtonText = "ИЗМЕРИТЬ",
+        Title = Loc.T("Измерение частоты опроса"),
+        Description = Loc.T("После нажатия 5 секунд водите мышью быстрыми кругами. Окно MONOLITH должно оставаться активным."),
+        ButtonText = Loc.T("ИЗМЕРИТЬ"),
         Run = RunPollingAsync,
     };
 
     // ───────────────────────────── DPI ─────────────────────────────
 
-    private static string DistanceText(double cm) => Math.Abs(cm - DpiEstimator.RulerCm) < 0.01 ? "10 см" : "85,6 мм (длинная сторона карты)";
+    private static string DistanceText(double cm) => Math.Abs(cm - DpiEstimator.RulerCm) < 0.01 ? Loc.T("10 см") : Loc.T("85,6 мм (длинная сторона карты)");
 
     private static string Prompt(int pass, double cm) =>
-        $"Проход {pass} из {DpiEstimator.RunsNeeded}: нажмите в рамке ниже и, не отпуская, проведите мышь ровно вправо на {DistanceText(cm)}.";
+        Loc.Tf("Проход {0} из {1}: нажмите в рамке ниже и, не отпуская, проведите мышь ровно вправо на {2}.", pass, DpiEstimator.RunsNeeded, DistanceText(cm));
 
     private static async Task RunDpiAsync(DeviceToolRun run, CancellationToken ct)
     {
@@ -84,7 +84,7 @@ internal static class InputTools
                     return;
                 }
                 run.Report(done / (double)DpiEstimator.RunsNeeded, problem is null
-                    ? $"Засчитано: {InputAdvice.DpiText(pass.Dpi)}. {Prompt(done + 1, cm)}"
+                    ? Loc.Tf("Засчитано: {0}. {1}", InputAdvice.DpiText(pass.Dpi), Prompt(done + 1, cm))
                     : $"{problem} {Prompt(done + 1, cm)}");
             });
         }
@@ -104,8 +104,8 @@ internal static class InputTools
         if (runs.Count < DpiEstimator.RunsNeeded)
         {
             run.Fail(capture.Interrupted
-                ? "Окно MONOLITH стало неактивным — проверка остановлена. Нажмите «ПРОВЕРИТЬ» ещё раз."
-                : $"Время вышло: засчитано проходов — {runs.Count} из {DpiEstimator.RunsNeeded}. Нажмите «ПРОВЕРИТЬ» ещё раз.");
+                ? Loc.T("Окно MONOLITH стало неактивным — проверка остановлена. Нажмите «ПРОВЕРИТЬ» ещё раз.")
+                : Loc.Tf("Время вышло: засчитано проходов — {0} из {1}. Нажмите «ПРОВЕРИТЬ» ещё раз.", runs.Count, DpiEstimator.RunsNeeded));
             return;
         }
 
@@ -117,8 +117,8 @@ internal static class InputTools
 
         var detail = new List<string> { DpiEstimator.RunsText(estimate) };
         if (InputAdvice.TravelText(width, estimate.Dpi, InputAdvice.PointerMultiplier(speed)) is { } travel)
-            detail.Add(speed == InputAdvice.NeutralSpeed ? travel : $"{travel} при скорости указателя {speed.ToString(CultureInfo.InvariantCulture)}");
-        if (estimate.Inconsistent) detail.Add("Проходы заметно расходятся — проведите мышь ровно вдоль линейки и проверьте ещё раз.");
+            detail.Add(speed == InputAdvice.NeutralSpeed ? travel : Loc.Tf("{0} при скорости указателя {1}", travel, speed.ToString(CultureInfo.InvariantCulture)));
+        if (estimate.Inconsistent) detail.Add(Loc.T("Проходы заметно расходятся — проведите мышь ровно вдоль линейки и проверьте ещё раз."));
         run.Complete(DpiEstimator.ResultText(estimate), string.Join(" · ", detail));
     }
 
@@ -127,12 +127,12 @@ internal static class InputTools
     private static async Task RunPollingAsync(DeviceToolRun run, CancellationToken ct)
     {
         var inventory = await Task.Run(InputDevices.Detect, ct);
-        run.Report(0, "Начните водить мышью быстрыми кругами.");
+        run.Report(0, Loc.T("Начните водить мышью быстрыми кругами."));
         var capture = await RawInputSession.CaptureAsync(RawCaptureMode.Polling, p =>
         {
             if (!p.Moving) return;
             var left = Math.Max(0, (int)Math.Ceiling(RawInputSession.PollingWindow.TotalSeconds * (1 - p.Fraction)));
-            run.Report(p.Fraction, $"Водите мышью быстрыми кругами… ещё {left.ToString(CultureInfo.InvariantCulture)} с");
+            run.Report(p.Fraction, Loc.Tf("Водите мышью быстрыми кругами… ещё {0} с", left.ToString(CultureInfo.InvariantCulture)));
         }, ct);
         ct.ThrowIfCancellationRequested();
 
@@ -143,7 +143,7 @@ internal static class InputTools
         }
         if (capture.Interrupted)
         {
-            run.Fail("Окно MONOLITH стало неактивным — измерение остановлено. Нажмите «ИЗМЕРИТЬ» и не переключайтесь на другие окна.");
+            run.Fail(Loc.T("Окно MONOLITH стало неактивным — измерение остановлено. Нажмите «ИЗМЕРИТЬ» и не переключайтесь на другие окна."));
             return;
         }
 
@@ -152,8 +152,8 @@ internal static class InputTools
         if (PollingRateEstimator.EstimateBusiest(devices, capture.Frequency) is not { } best)
         {
             run.Fail(capture.MostlyBackground
-                ? "Окно MONOLITH было неактивным — Windows не передаёт ему движения мыши. Нажмите «ИЗМЕРИТЬ» ещё раз."
-                : "Движения мыши не было. Нажмите «ИЗМЕРИТЬ» и сразу начните водить мышью кругами.");
+                ? Loc.T("Окно MONOLITH было неактивным — Windows не передаёт ему движения мыши. Нажмите «ИЗМЕРИТЬ» ещё раз.")
+                : Loc.T("Движения мыши не было. Нажмите «ИЗМЕРИТЬ» и сразу начните водить мышью кругами."));
             return;
         }
         var estimate = best.Estimate;
@@ -172,7 +172,7 @@ internal static class InputTools
         if (label is not null) detail.Add(label);
         detail.Add(InputAdvice.PollingAdvice(estimate.Hz));
         if (estimate.Saturated) detail.Add(PollingRateEstimator.SaturationHint);
-        if (capture.MostlyBackground) detail.Add("Часть движений пришла, когда окно MONOLITH было неактивным, — повторите, не переключая окна.");
+        if (capture.MostlyBackground) detail.Add(Loc.T("Часть движений пришла, когда окно MONOLITH было неактивным, — повторите, не переключая окна."));
         run.Complete(PollingRateEstimator.ResultText(estimate), string.Join(" · ", detail));
     }
 }

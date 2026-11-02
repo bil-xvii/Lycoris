@@ -16,7 +16,7 @@ public static class NetworkCards
 {
     public const string ConnectionKey = "net:connection";
     public const int Order = 500;
-    private static readonly CultureInfo Ru = CultureInfo.GetCultureInfo("ru-RU");
+    private static CultureInfo Ru => Loc.Culture;
 
     public static List<DeviceCard> Build(NetSnapshot s, DeviceResultStore results)
     {
@@ -40,18 +40,18 @@ public static class NetworkCards
 
         var card = new DeviceCard
         {
-            Key = ConnectionKey, Kind = DeviceKind.Network, Title = "Подключение к интернету", Order = Order, GlyphOverride = Glyphs.Globe,
+            Key = ConnectionKey, Kind = DeviceKind.Network, Title = Loc.T("Подключение к интернету"), Order = Order, GlyphOverride = Glyphs.Globe,
             Subtitle = best is not null ? $"{(best.Medium == NetMedium.WiFi ? "Wi-Fi" : "Ethernet")} · {NetFindings.Short(best.Description)}"
                 : s.ViaVpn ? $"VPN · {NetFindings.Short(s.BestDescription ?? "")}"
-                : s.BestInterface is not null ? $"через {NetFindings.Short(s.BestDescription ?? "виртуальный адаптер")}" : "нет подключения",
+                : s.BestInterface is not null ? Loc.Tf("через {0}", NetFindings.Short(s.BestDescription ?? Loc.T("виртуальный адаптер"))) : Loc.T("нет подключения"),
             Facts = ConnectionFacts(s),
         };
 
         // Measurements (one row per measurement, the tool inline).
         var ping = new DeviceSetting
         {
-            Id = "net-ping", Title = "Пинг до роутера и интернета", Order = 0,
-            Hint = "Роутер, 1.1.1.1 и 8.8.8.8 по 2 запроса в секунду. Это не пинг до игрового сервера",
+            Id = "net-ping", Title = Loc.T("Пинг до роутера и интернета"), Order = 0,
+            Hint = Loc.T("Роутер, 1.1.1.1 и 8.8.8.8 по 2 запроса в секунду. Это не пинг до игрового сервера"),
             Tool = NetworkTools.Ping(results), Current = check is null ? null : DeviceValue.Of(PingCurrent(check)),
         };
         ping.Recommended = MeasureRequest(check, s);
@@ -70,16 +70,16 @@ public static class NetworkCards
 
         card.Settings.Add(new DeviceSetting
         {
-            Id = "net-load", Title = "Пинг под нагрузкой", Order = OrderOf(loadFinding, 1),
-            Hint = "Скачивает данные и смотрит, растёт ли пинг: так находят bufferbloat — главную причину лагов при загрузках",
-            Tool = NetworkTools.Load(results), Current = load is null ? null : DeviceValue.Of($"оценка {load.Grade} · {NetStats.DeltaMs(load.Increase)}"),
+            Id = "net-load", Title = Loc.T("Пинг под нагрузкой"), Order = OrderOf(loadFinding, 1),
+            Hint = Loc.T("Скачивает данные и смотрит, растёт ли пинг: так находят bufferbloat — главную причину лагов при загрузках"),
+            Tool = NetworkTools.Load(results), Current = load is null ? null : DeviceValue.Of(Loc.Tf("оценка {0} · {1}", load.Grade, NetStats.DeltaMs(load.Increase))),
             Recommended = loadFinding is null ? null : Advice(loadFinding),
         });
 
         card.Settings.Add(new DeviceSetting
         {
-            Id = "net-dns", Title = "DNS-серверы", Order = 2,
-            Hint = "Скорость поиска имён (сайты, лаунчеры). На пинг в играх не влияет",
+            Id = "net-dns", Title = Loc.T("DNS-серверы"), Order = 2,
+            Hint = Loc.T("Скорость поиска имён (сайты, лаунчеры). На пинг в играх не влияет"),
             Tool = NetworkTools.Dns(results), Current = DeviceValue.Of(DnsText(s)),
         });
 
@@ -87,8 +87,8 @@ public static class NetworkCards
         {
             card.Settings.Add(new DeviceSetting
             {
-                Id = "net-valve", Title = "Ближайший регион Valve", Order = OrderOf(regions, 3),
-                Hint = "Пинг до ретрансляторов Steam (CS2, Dota 2): какой регион ближе. Регион задаёт расстояние, не ПК",
+                Id = "net-valve", Title = Loc.T("Ближайший регион Valve"), Order = OrderOf(regions, 3),
+                Hint = Loc.T("Пинг до ретрансляторов Steam (CS2, Dota 2): какой регион ближе. Регион задаёт расстояние, не ПК"),
                 Tool = NetworkTools.Valve(results), Current = regions is null ? null : DeviceValue.Of(regions.Value),
                 Recommended = regions is null ? null : Advice(regions),
             });
@@ -102,16 +102,16 @@ public static class NetworkCards
         var offer = dns is null ? null : DnsAdvice.Offer(dns with { SkipReason = dns.SkipReason ?? DnsAdvice.SkipReason(s) });
         var bloated = load is not null && NetStats.GradeSeverity(load.Grade) >= NetSeverity.Warning;
         if (s.HasWifi)
-            card.Settings.Add(DeviceSetting.ForTweak("wifi-power-saving-off", "Wi-Fi без энергосбережения",
-                "От сети адаптер Wi-Fi не «засыпает» между пакетами — меньше скачков пинга на Wi-Fi", 20,
+            card.Settings.Add(DeviceSetting.ForTweak("wifi-power-saving-off", Loc.T("Wi-Fi без энергосбережения"),
+                Loc.T("От сети адаптер Wi-Fi не «засыпает» между пакетами — меньше скачков пинга на Wi-Fi"), 20,
                 s.BestIsWifi ? null : RecommendPolicy.None));
-        card.Settings.Add(DeviceSetting.ForTweak("tcp-autotuning-normal", "Автонастройка окна TCP",
-            bloated ? "Быстрее загрузки, но на линии с bufferbloat они поднимут пинг — сначала SQM на роутере"
-                    : "Возвращает стандартную автонастройку TCP: быстрее загрузки. На пинг в играх не влияет", 21,
+        card.Settings.Add(DeviceSetting.ForTweak("tcp-autotuning-normal", Loc.T("Автонастройка окна TCP"),
+            bloated ? Loc.T("Быстрее загрузки, но на линии с bufferbloat они поднимут пинг — сначала SQM на роутере")
+                    : Loc.T("Возвращает стандартную автонастройку TCP: быстрее загрузки. На пинг в играх не влияет"), 21,
             bloated ? RecommendPolicy.Suggest : null));
-        card.Settings.Add(DeviceSetting.ForTweak("delivery-optimization-local", "Обновления без P2P-раздачи",
-            "Windows не раздаёт обновления другим ПК. На пинг почти не влияет; полностью — после перезагрузки", 22));
-        foreach (var (id, title, address) in new[] { ("dns-cloudflare", "DNS Cloudflare (1.1.1.1)", DnsAdvice.Cloudflare), ("dns-google", "DNS Google (8.8.8.8)", DnsAdvice.Google) })
+        card.Settings.Add(DeviceSetting.ForTweak("delivery-optimization-local", Loc.T("Обновления без P2P-раздачи"),
+            Loc.T("Windows не раздаёт обновления другим ПК. На пинг почти не влияет; полностью — после перезагрузки"), 22));
+        foreach (var (id, title, address) in new[] { ("dns-cloudflare", Loc.T("DNS Cloudflare (1.1.1.1)"), DnsAdvice.Cloudflare), ("dns-google", Loc.T("DNS Google (8.8.8.8)"), DnsAdvice.Google) })
         {
             var offered = offer?.TweakId == id;
             card.Settings.Add(DeviceSetting.ForTweak(id, title,
@@ -121,12 +121,12 @@ public static class NetworkCards
 
         // ADVANCED rows the skeptic kept — only when their condition was measured (never planned: ReadTweakRows skips Advanced).
         if (check?.TcpGame is { } game)
-            card.Settings.Add(DeviceSetting.ForTweak("tcp-ack-frequency", "Мгновенные TCP-подтверждения",
-                Trim($"{game} держит TCP-соединение с сервером — может помочь. Только вручную; нужна перезагрузка"), 30));
+            card.Settings.Add(DeviceSetting.ForTweak("tcp-ack-frequency", Loc.T("Мгновенные TCP-подтверждения"),
+                Trim(Loc.Tf("{0} держит TCP-соединение с сервером — может помочь. Только вручную; нужна перезагрузка", game)), 30));
         if (check is not null && NetFindings.Ipv6Penalty(check) is { } penalty)
-            card.Settings.Add(DeviceSetting.ForTweak("ipv6-prefer-ipv4", "Предпочитать IPv4",
-                penalty > 0 ? $"IPv6 медленнее IPv4 на {NetStats.Ms(penalty)}: Windows может выбирать IPv4. В играх обычно без разницы"
-                            : "IPv6 теряет пакеты, IPv4 — нет: Windows может выбирать IPv4. В играх обычно без разницы", 31));
+            card.Settings.Add(DeviceSetting.ForTweak("ipv6-prefer-ipv4", Loc.T("Предпочитать IPv4"),
+                penalty > 0 ? Loc.Tf("IPv6 медленнее IPv4 на {0}: Windows может выбирать IPv4. В играх обычно без разницы", NetStats.Ms(penalty))
+                            : Loc.T("IPv6 теряет пакеты, IPv4 — нет: Windows может выбирать IPv4. В играх обычно без разницы"), 31));
         return card;
     }
 
@@ -134,9 +134,9 @@ public static class NetworkCards
     {
         var facts = new List<string>();
         if (s.Best is { SpeedBps: { } bps } best)
-            facts.Add(best.Medium == NetMedium.WiFi ? $"канал {NetFindings.SpeedText(bps)}" : NetFindings.SpeedText(bps));
-        if (s.Gateway is { } gw) facts.Add($"шлюз {gw}");
-        facts.Add(s.HasIpv6 ? "IPv4 и IPv6" : "только IPv4");
+            facts.Add(best.Medium == NetMedium.WiFi ? Loc.Tf("канал {0}", NetFindings.SpeedText(bps)) : NetFindings.SpeedText(bps));
+        if (s.Gateway is { } gw) facts.Add(Loc.Tf("шлюз {0}", gw));
+        facts.Add(s.HasIpv6 ? Loc.T("IPv4 и IPv6") : Loc.T("только IPv4"));
         if (s.Mtu is { } mtu) facts.Add($"MTU {mtu}");
         return facts;
     }
@@ -144,14 +144,14 @@ public static class NetworkCards
     private static Recommendation? MeasureRequest(NetCheckResult? check, NetSnapshot s)
     {
         if (s.BestInterface is null && !s.ViaVpn) return null;
-        var link = new DeviceLink(DeviceLinkKind.Tool, check is null ? "ЗАМЕРИТЬ" : "ЗАМЕРИТЬ СНОВА", ConnectionKey, "net-ping");
+        var link = new DeviceLink(DeviceLinkKind.Tool, check is null ? Loc.T("ЗАМЕРИТЬ") : Loc.T("ЗАМЕРИТЬ СНОВА"), ConnectionKey, "net-ping");
         if (check is null)
-            return new Recommendation(DeviceValue.Of("замер"),
-                "30 с пинга до роутера и интернета, DNS и MTU — без нагрузки на сеть. Предложено будет только то, что поможет",
+            return new Recommendation(DeviceValue.Of(Loc.T("замер")),
+                Loc.T("30 с пинга до роутера и интернета, DNS и MTU — без нагрузки на сеть. Предложено будет только то, что поможет"),
                 RecommendPolicy.Suggest, link) { NeedsMeasurement = true };
         if (!string.Equals(check.Fingerprint, s.Fingerprint, StringComparison.Ordinal))
-            return new Recommendation(DeviceValue.Of("повтор"),
-                "Сеть настроена после замера — замерьте ещё раз, и MONOLITH покажет «было → стало»",
+            return new Recommendation(DeviceValue.Of(Loc.T("повтор")),
+                Loc.T("Сеть настроена после замера — замерьте ещё раз, и MONOLITH покажет «было → стало»"),
                 RecommendPolicy.Suggest, link) { NeedsMeasurement = true };
         return null;
     }
@@ -160,19 +160,19 @@ public static class NetworkCards
     public static string CheckSummary(NetCheckResult r)
     {
         var parts = new List<string>();
-        if (r.Gateway is { } gw) parts.Add(gw.Stats.HasData ? $"роутер {NetStats.Ms(gw.Stats.P50)}" : "роутер не отвечает на ping");
-        if (r.BestInternet is { } inet) parts.Add($"интернет {NetStats.Ms(inet.Stats.P50)}");
+        if (r.Gateway is { } gw) parts.Add(gw.Stats.HasData ? Loc.Tf("роутер {0}", NetStats.Ms(gw.Stats.P50)) : Loc.T("роутер не отвечает на ping"));
+        if (r.BestInternet is { } inet) parts.Add(Loc.Tf("интернет {0}", NetStats.Ms(inet.Stats.P50)));
         var all = r.Internet4.Select(t => t.Stats).Where(st => st.Sent > 0).ToList();
-        if (all.Count > 0) parts.Add($"потери {NetStats.Percent(all.Min(st => st.LossPercent))}");
-        if (NetFindings.Ipv6Penalty(r) is { } p) parts.Add(p > 0 ? $"IPv6 +{NetStats.Ms(p)}" : "IPv6 с потерями");
-        return parts.Count == 0 ? "нет ответа" : string.Join(" · ", parts);
+        if (all.Count > 0) parts.Add(Loc.Tf("потери {0}", NetStats.Percent(all.Min(st => st.LossPercent))));
+        if (NetFindings.Ipv6Penalty(r) is { } p) parts.Add(p > 0 ? $"IPv6 +{NetStats.Ms(p)}" : Loc.T("IPv6 с потерями"));
+        return parts.Count == 0 ? Loc.T("нет ответа") : string.Join(" · ", parts);
     }
 
     private static string DnsText(NetSnapshot s)
     {
-        if (s.DnsServers.Count == 0) return "не задан";
+        if (s.DnsServers.Count == 0) return Loc.T("не задан");
         var first = s.DnsServers[0];
-        if (string.Equals(first, s.Gateway, StringComparison.OrdinalIgnoreCase)) return $"роутер ({first})";
+        if (string.Equals(first, s.Gateway, StringComparison.OrdinalIgnoreCase)) return Loc.Tf("роутер ({0})", first);
         return first switch
         {
             "1.1.1.1" or "1.0.0.1" => "Cloudflare (1.1.1.1)",
@@ -186,9 +186,9 @@ public static class NetworkCards
     {
         if (dns?.Servers.FirstOrDefault(x => x.Address == address) is { MedianMs: { } ms } && dns.Current is { MedianMs: { } cur })
             return ms < cur
-                ? $"Замер: {NetStats.Ms(ms)} против {NetStats.Ms(cur)} у вашего DNS — разница мала, менять не нужно. На пинг не влияет"
-                : $"Замер: {NetStats.Ms(ms)} против {NetStats.Ms(cur)} у вашего DNS — ваш быстрее. На пинг не влияет";
-        return "Только если замер DNS покажет, что он заметно быстрее вашего. На пинг в играх не влияет";
+                ? Loc.Tf("Замер: {0} против {1} у вашего DNS — разница мала, менять не нужно. На пинг не влияет", NetStats.Ms(ms), NetStats.Ms(cur))
+                : Loc.Tf("Замер: {0} против {1} у вашего DNS — ваш быстрее. На пинг не влияет", NetStats.Ms(ms), NetStats.Ms(cur));
+        return Loc.T("Только если замер DNS покажет, что он заметно быстрее вашего. На пинг в играх не влияет");
     }
 
     private static Recommendation Advice(NetFinding f) => new(DeviceValue.Of(f.Value), AdviceText(f), RecommendPolicy.Advice, f.Link);
@@ -200,15 +200,15 @@ public static class NetworkCards
     /// <summary>The ping row's short «сейчас»: the internet latency, and the loss when there is any.</summary>
     public static string PingCurrent(NetCheckResult r)
     {
-        if (r.BestInternet?.Stats is not { } st) return "нет ответа";
-        return $"интернет {NetStats.Ms(st.P50)}" + (st.Lost > 0 ? $" · потери {NetStats.Percent(st.LossPercent)}" : "");
+        if (r.BestInternet?.Stats is not { } st) return Loc.T("нет ответа");
+        return Loc.Tf("интернет {0}", NetStats.Ms(st.P50)) + (st.Lost > 0 ? Loc.Tf(" · потери {0}", NetStats.Percent(st.LossPercent)) : "");
     }
 
     /// <summary>A finding as an Info row: the value is «сейчас», the advice is the plan's «НАХОДКИ» row.</summary>
     public static DeviceSetting FindingRow(NetFinding f, int order) => new()
     {
         Id = "finding:" + f.Id, Title = f.Title, Hint = Trim(f.Hint), Order = order, Control = SettingControl.Info,
-        Current = DeviceValue.Of(f.Value), Link = f.Link, StateTag = f.Severity >= NetSeverity.Warning ? "ВАЖНО" : null,
+        Current = DeviceValue.Of(f.Value), Link = f.Link, StateTag = f.Severity >= NetSeverity.Warning ? Loc.T("ВАЖНО") : null,
         Recommended = Advice(f),
     };
 
@@ -220,13 +220,13 @@ public static class NetworkCards
         {
             Key = "net:" + a.InterfaceGuid.ToString("D"), Kind = DeviceKind.Network, Title = NetFindings.Short(a.Description), Order = Order + index,
             Subtitle = a.Medium == NetMedium.WiFi
-                ? "Wi-Fi · " + (a.RadioOff == true ? "радио выключено" : a.Connected ? "подключено" : "не подключено")
-                : "Ethernet · " + (a.Connected ? "подключено" : "кабель не подключён"),
+                ? "Wi-Fi · " + (a.RadioOff == true ? Loc.T("радио выключено") : a.Connected ? Loc.T("подключено") : Loc.T("не подключено"))
+                : "Ethernet · " + (a.Connected ? Loc.T("подключено") : Loc.T("кабель не подключён")),
             Facts = AdapterFacts(a),
             GlyphOverride = a.Medium == NetMedium.WiFi ? null : Glyphs.Ethernet,
         };
 
-        var gameBlock = s.RunningGame is { } game ? $"Идёт игра ({game}) — адаптер сейчас не перезапускается." : null;
+        var gameBlock = s.RunningGame is { } game ? Loc.Tf("Идёт игра ({0}) — адаптер сейчас не перезапускается.", game) : null;
         if (a.Medium == NetMedium.Ethernet && a.Property("*SpeedDuplex") is { } sd && Number(sd) is { } current && sd.ValidValues.Contains("0"))
         {
             // Research (network_adapter.md): MONOLITH only repairs a forced speed/duplex back to auto-negotiation — it never
@@ -234,28 +234,28 @@ public static class NetworkCards
             var setting = current == 0
                 ? new DeviceSetting
                 {
-                    Id = "nic:*SpeedDuplex", Title = "Скорость и дуплекс", Order = 0, Control = SettingControl.Info,
-                    Hint = "Автосогласование — верно почти всегда. Фиксированная скорость задаётся только вместе с портом роутера, в Диспетчере устройств",
+                    Id = "nic:*SpeedDuplex", Title = Loc.T("Скорость и дуплекс"), Order = 0, Control = SettingControl.Info,
+                    Hint = Loc.T("Автосогласование — верно почти всегда. Фиксированная скорость задаётся только вместе с портом роутера, в Диспетчере устройств"),
                     Default = DeviceValue.Of(0), Format = v => SpeedDuplexLabel(v.Number),
                     JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, "*SpeedDuplex"),
                     ReadCurrent = () => ReadNumber(a.InterfaceGuid, "*SpeedDuplex"), Current = DeviceValue.Of(current),
                 }
                 : new DeviceSetting
                 {
-                    Id = "nic:*SpeedDuplex", Title = "Скорость и дуплекс", Order = 0, Control = SettingControl.Choice,
+                    Id = "nic:*SpeedDuplex", Title = Loc.T("Скорость и дуплекс"), Order = 0, Control = SettingControl.Choice,
                     Options = [new DeviceOption(DeviceValue.Of(0), SpeedDuplexLabel(0)), new DeviceOption(DeviceValue.Of(current), SpeedDuplexLabel(current))],
-                    Hint = "Автосогласование — верно почти всегда; MONOLITH только возвращает его, другую скорость не задаёт",
-                    Default = DeviceValue.Of(0), Format = v => SpeedDuplexLabel(v.Number), AppliesWhen = "ПЕРЕЗАПУСК АДАПТЕРА",
+                    Hint = Loc.T("Автосогласование — верно почти всегда; MONOLITH только возвращает его, другую скорость не задаёт"),
+                    Default = DeviceValue.Of(0), Format = v => SpeedDuplexLabel(v.Number), AppliesWhen = Loc.T("ПЕРЕЗАПУСК АДАПТЕРА"),
                     JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, "*SpeedDuplex"),
                     ReadCurrent = () => ReadNumber(a.InterfaceGuid, "*SpeedDuplex"),
-                    Apply = NicApply(a, "*SpeedDuplex", "Скорость и дуплекс", v => SpeedDuplexLabel(v.Number), results),
+                    Apply = NicApply(a, "*SpeedDuplex", Loc.T("Скорость и дуплекс"), v => SpeedDuplexLabel(v.Number), results),
                     Current = DeviceValue.Of(current), DisabledReason = gameBlock,
                 };
             if (NetFindings.SpeedDuplexNeedsRepair(a))
                 setting.Recommended = new Recommendation(DeviceValue.Of(0),
                     Trim(a.FullDuplex == false
-                        ? $"Задано вручную ({SpeedDuplexLabel(current)}) и связь в полудуплексе. Адаптер перезапустится, связь пропадёт на 1–6 с"
-                        : $"Скорость задана вручную ({SpeedDuplexLabel(current)}) — сеть ограничена. Адаптер перезапустится, связь пропадёт на 1–6 с"),
+                        ? Loc.Tf("Задано вручную ({0}) и связь в полудуплексе. Адаптер перезапустится, связь пропадёт на 1–6 с", SpeedDuplexLabel(current))
+                        : Loc.Tf("Скорость задана вручную ({0}) — сеть ограничена. Адаптер перезапустится, связь пропадёт на 1–6 с", SpeedDuplexLabel(current))),
                     RecommendPolicy.Suggest);
             card.Settings.Add(setting);
         }
@@ -267,14 +267,14 @@ public static class NetworkCards
             foreach (var kw in new[] { "*EEE", "EEE", "AdvancedEEE" })
             {
                 if (a.Property(kw) is not { } p || !p.ValidValues.Contains("0") || !p.ValidValues.Contains("1") || Number(p) is not { } v) continue;
-                var title = kw switch { "*EEE" => "Энергосберегающий Ethernet (EEE)", "EEE" => "Энергосберегающий Ethernet (Realtek)", _ => "Расширенный EEE (Realtek)" };
+                var title = kw switch { "*EEE" => Loc.T("Энергосберегающий Ethernet (EEE)"), "EEE" => Loc.T("Энергосберегающий Ethernet (Realtek)"), _ => Loc.T("Расширенный EEE (Realtek)") };
                 card.Settings.Add(new DeviceSetting
                 {
                     Id = "nic:" + kw, Title = title, Order = order++, Control = SettingControl.Toggle,
-                    Hint = "Выключение — обходной путь при обрывах на Intel I225/I226 и Killer. Сначала обновите драйвер",
-                    Default = p.DefaultValue is { } d && long.TryParse(d, out var dn) ? DeviceValue.Of(dn) : null, AppliesWhen = "ПЕРЕЗАПУСК АДАПТЕРА",
+                    Hint = Loc.T("Выключение — обходной путь при обрывах на Intel I225/I226 и Killer. Сначала обновите драйвер"),
+                    Default = p.DefaultValue is { } d && long.TryParse(d, out var dn) ? DeviceValue.Of(dn) : null, AppliesWhen = Loc.T("ПЕРЕЗАПУСК АДАПТЕРА"),
                     JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, kw), ReadCurrent = () => ReadNumber(a.InterfaceGuid, kw),
-                    Apply = NicApply(a, kw, title, x => x.Number != 0 ? "вкл" : "выкл", results), Current = DeviceValue.Of(v), DisabledReason = gameBlock,
+                    Apply = NicApply(a, kw, title, x => x.Number != 0 ? Loc.T("вкл") : Loc.T("выкл"), results), Current = DeviceValue.Of(v), DisabledReason = gameBlock,
                 });
             }
         }
@@ -289,12 +289,12 @@ public static class NetworkCards
     {
         var facts = new List<string>();
         if (a.Connected && a.SpeedBps is { } bps) facts.Add(NetFindings.SpeedText(bps));
-        if (a.Connected && a.Medium == NetMedium.Ethernet && a.FullDuplex is { } full) facts.Add(full ? "полный дуплекс" : "полудуплекс");
-        if (a.Medium == NetMedium.Ethernet && a.LinkDrops is { } drops) facts.Add(drops == 0 ? "обрывов за неделю нет" : $"обрывов за неделю: {drops}");
+        if (a.Connected && a.Medium == NetMedium.Ethernet && a.FullDuplex is { } full) facts.Add(full ? Loc.T("полный дуплекс") : Loc.T("полудуплекс"));
+        if (a.Medium == NetMedium.Ethernet && a.LinkDrops is { } drops) facts.Add(drops == 0 ? Loc.T("обрывов за неделю нет") : Loc.Tf("обрывов за неделю: {0}", drops));
         if (!string.IsNullOrWhiteSpace(a.DriverProvider))
         {
             var year = a.DriverDate is { Length: >= 4 } d ? d[..4] : null;
-            facts.Add($"драйвер {a.DriverProvider} {a.DriverVersion}{(year is null ? "" : $" ({year})")}".Trim());
+            facts.Add(Loc.Tf("драйвер {0} {1}{2}", a.DriverProvider, a.DriverVersion, year is null ? "" : $" ({year})").Trim());
         }
         return facts;
     }
@@ -302,14 +302,14 @@ public static class NetworkCards
     /// <summary>NDIS *SpeedDuplex values (0 auto, 1–6 the standard 10/100/1000 half/full, ≥ 1000 = Mbit/s).</summary>
     public static string SpeedDuplexLabel(long v) => v switch
     {
-        0 => "автосогласование",
-        1 => "10 Мбит/с, полудуплекс",
-        2 => "10 Мбит/с, дуплекс",
-        3 => "100 Мбит/с, полудуплекс",
-        4 => "100 Мбит/с, дуплекс",
-        5 => "1 Гбит/с, полудуплекс",
-        6 => "1 Гбит/с, дуплекс",
-        >= 1000 => (v >= 1000 && v % 1000 == 0 ? (v / 1000).ToString(Ru) : (v / 1000.0).ToString("0.#", Ru)) + " Гбит/с, дуплекс",
+        0 => Loc.T("автосогласование"),
+        1 => Loc.T("10 Мбит/с, полудуплекс"),
+        2 => Loc.T("10 Мбит/с, дуплекс"),
+        3 => Loc.T("100 Мбит/с, полудуплекс"),
+        4 => Loc.T("100 Мбит/с, дуплекс"),
+        5 => Loc.T("1 Гбит/с, полудуплекс"),
+        6 => Loc.T("1 Гбит/с, дуплекс"),
+        >= 1000 => Loc.Tf("{0} Гбит/с, дуплекс", v >= 1000 && v % 1000 == 0 ? (v / 1000).ToString(Ru) : (v / 1000.0).ToString("0.#", Ru)),
         _ => v.ToString(Ru),
     };
 
@@ -333,18 +333,18 @@ public static class NetworkCards
         var name = NetFindings.Short(a.Description);
         if (NetGames.RunningGame() is { } game)
         {
-            session.Errors.Add($"{title}: идёт игра ({game}) — во время игры MONOLITH не перезапускает сетевой адаптер.");
+            session.Errors.Add(Loc.Tf("{0}: идёт игра ({1}) — во время игры MONOLITH не перезапускает сетевой адаптер.", title, game));
             return ApplyOutcome.Blocked;
         }
         if (DeviceWriters.Nic?.Read(a.InterfaceGuid, keyword) is { } live && Number(live) == value.Number) return ApplyOutcome.NoChange;
         if (keyword == "*SpeedDuplex" && value.Number != 0)
         {
-            session.Errors.Add($"{title}: MONOLITH только возвращает автосогласование — фиксированную скорость он не задаёт.");
+            session.Errors.Add(Loc.Tf("{0}: MONOLITH только возвращает автосогласование — фиксированную скорость он не задаёт.", title));
             return ApplyOutcome.Blocked;
         }
         var ok = await Ui.ConfirmAsync("Перезапустить сетевой адаптер?",
-            $"{name}: «{title}» → {describe(value)}. Драйвер перезапустит адаптер: связь пропадёт на 1–6 секунд, загрузки, голосовой чат " +
-            "и онлайн-матч прервутся. Вернуть прежнее значение можно кнопкой «ОТКАТИТЬ».", confirmText: "ПЕРЕЗАПУСТИТЬ");
+            Loc.Tf("{0}: «{1}» → {2}. Драйвер перезапустит адаптер: связь пропадёт на 1–6 секунд, загрузки, голосовой чат " +
+            "и онлайн-матч прервутся. Вернуть прежнее значение можно кнопкой «ОТКАТИТЬ».", name, title, describe(value)), confirmText: Loc.T("ПЕРЕЗАПУСТИТЬ"));
         if (!ok) return ApplyOutcome.Declined;
         var target = value.Key;
         var applied = await Task.Run(() => session.SetNicAdvancedProperty(a.InterfaceGuid, keyword, target, DeviceTargets.Source, $"{name}: {title}"),
@@ -367,17 +367,17 @@ public static class NetworkCards
             if (link.FullDuplex == false)
             {
                 results.Set(NetKeys.DuplexRegression(adapter), true);
-                Log.Warn($"{name}: после автосогласования связь в полудуплексе — порт роутера, видимо, задан вручную.");
+                Log.Warn("{0}: после автосогласования связь в полудуплексе — порт роутера, видимо, задан вручную.", name);
                 Ui.Toast("Связь в полудуплексе: порт роутера, видимо, задан вручную. Откатите «Скорость и дуплекс».", ToastKind.Warning, name);
             }
             else
             {
                 results.Remove(NetKeys.DuplexRegression(adapter));
-                Log.Info($"{name}: связь восстановлена — {(link.SpeedBps is { } b ? NetFindings.SpeedText(b) : "скорость неизвестна")}, полный дуплекс.");
+                Log.Info("{0}: связь восстановлена — {1}, полный дуплекс.", name, link.SpeedBps is { } b ? NetFindings.SpeedText(b) : Loc.T("скорость неизвестна"));
             }
             return;
         }
-        Log.Warn($"{name}: связь не вернулась за 20 с после изменения скорости и дуплекса.");
+        Log.Warn("{0}: связь не вернулась за 20 с после изменения скорости и дуплекса.", name);
         Ui.Toast("Связь не вернулась за 20 секунд — проверьте кабель или откатите «Скорость и дуплекс».", ToastKind.Warning, name);
     }
 

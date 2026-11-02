@@ -162,8 +162,8 @@ public static partial class DeviceWriters
     static partial void InitNetwork();
 
     /// <summary>The message of a refused change or undo when this build has no writer for it.</summary>
-    public const string NoWriterApply = "эта версия MONOLITH не умеет менять этот параметр";
-    public const string NoWriterRevert = "эта версия MONOLITH не умеет откатывать такое изменение";
+    public static string NoWriterApply => Loc.T("эта версия MONOLITH не умеет менять этот параметр");
+    public static string NoWriterRevert => Loc.T("эта версия MONOLITH не умеет откатывать такое изменение");
 
     /// <summary>TESTS ONLY: replaces the writers until disposed (null leaves a writer absent).</summary>
     internal static IDisposable OverrideForTests(ISpiWriter? spi = null, IDisplayWriter? display = null, IMonitorWriter? monitor = null,
@@ -194,14 +194,14 @@ public static partial class DeviceWriters
         public int? Get(SpiEntry e) => inner.Get(e);
         public bool Set(SpiEntry e, int value)
         {
-            SafetyLock.ThrowIfLocked("изменение параметра Windows");
+            SafetyLock.ThrowIfLocked(Loc.T("изменение параметра Windows"));
             return inner.Set(e, value);
         }
     }
 
     private sealed class GuardedDisplay(IDisplayWriter inner) : IDisplayWriter
     {
-        private const string What = "изменение параметров экрана";
+        private static string What => Loc.T("изменение параметров экрана");
         public DisplayModeSpec? ReadCurrentMode(string p) => inner.ReadCurrentMode(p);
         public DisplayModeSpec? ReadPersistedMode(string p) => inner.ReadPersistedMode(p);
         public bool IsModeOffered(string p, DisplayModeSpec m) => inner.IsModeOffered(p, m);
@@ -250,14 +250,14 @@ public static partial class DeviceWriters
         public VcpReading? Get(string p, MonitorVcp code) => inner.Get(p, code);
         public bool Set(string p, MonitorVcp code, uint value)
         {
-            SafetyLock.ThrowIfLocked("изменение яркости или контраста монитора");
+            SafetyLock.ThrowIfLocked(Loc.T("изменение яркости или контраста монитора"));
             return inner.Set(p, code, value);
         }
     }
 
     private sealed class GuardedAudio(IAudioWriter inner) : IAudioWriter
     {
-        private const string What = "изменение уровня звука";
+        private static string What => Loc.T("изменение уровня звука");
         public bool IsPresent(string id) => inner.IsPresent(id);
         public (float Scalar, bool Mute)? Read(string id) => inner.Read(id);
 
@@ -286,7 +286,7 @@ public static partial class DeviceWriters
         public NicPropertyInfo? Read(Guid g, string keyword) => inner.Read(g, keyword);
         public bool Set(Guid g, string keyword, string value)
         {
-            SafetyLock.ThrowIfLocked("изменение свойства сетевого адаптера");
+            SafetyLock.ThrowIfLocked(Loc.T("изменение свойства сетевого адаптера"));
             return inner.Set(g, keyword, value);
         }
         public string? RunningGame() => inner.RunningGame();

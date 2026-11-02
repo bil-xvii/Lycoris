@@ -13,8 +13,8 @@ public sealed record CountdownRequest(string Title, string Message, int Seconds,
     public TimeSpan Duration => Window ?? TimeSpan.FromSeconds(Math.Max(1, Seconds));
 
     /// <summary>The one keep verb of every countdown (mode, HDR, buttons, pointer speed, brightness).</summary>
-    public const string Keep = "ОСТАВИТЬ";
-    public const string Revert = "ВЕРНУТЬ";
+    public static string Keep => Loc.T("ОСТАВИТЬ");
+    public static string Revert => Loc.T("ВЕРНУТЬ");
 }
 
 /// <summary>
@@ -46,7 +46,7 @@ public static class DeviceConfirm
         }
         catch (Exception ex)
         {
-            Log.Warn($"Окно подтверждения не открылось: {ex.Message}");
+            Log.Warn("Окно подтверждения не открылось: {0}", ex.Message);
             return false;
         }
 
@@ -74,7 +74,7 @@ public static class DeviceConfirm
         try { return await hook(title, message, details).ConfigureAwait(false); }
         catch (Exception ex)
         {
-            Log.Warn($"Вопрос «{title}» не показан: {ex.Message}");
+            Log.Warn("Вопрос «{0}» не показан: {1}", title, ex.Message);
             return false;
         }
     }
