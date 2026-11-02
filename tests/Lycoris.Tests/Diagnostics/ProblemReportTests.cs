@@ -384,15 +384,54 @@ public sealed class ProblemReportTests
             File.WriteAllText(Path.Combine(real, "x.log"), "SECRET-OTHER-FOLDER");
             var link = Path.Combine(holder, "Logs");
             if (!TryJunction(link, real)) return;   // cannot create a junction here: nothing to prove
-            Assert.Empty(ProblemReport.CollectLogs(link));
+            Assert.Contains(ProblemReport.CollectLogs(link), x => x.Name == "logs/log-unavailable.txt");
             // the parent (the Lycoris user folder) is a junction
             var sub = Path.Combine(real, "Logs");
             Directory.CreateDirectory(sub);
             File.WriteAllText(Path.Combine(sub, "y.log"), "INSIDE");
             var parentLink = Path.Combine(holder, "User");
-            if (TryJunction(parentLink, real)) Assert.Empty(ProblemReport.CollectLogs(Path.Combine(parentLink, "Logs")));
+            if (TryJunction(parentLink, real)) Assert.Contains(ProblemReport.CollectLogs(Path.Combine(parentLink, "Logs")), x => x.Name == "logs/log-unavailable.txt");
         }
         finally { Cleanup(holder); Cleanup(real); }
+    }
+
+    [Fact]
+    public void LogsFolderRejectsJunctionInAnyAncestor()
+    {
+        var real = TempDir(); var holder = TempDir();
+        try
+        {
+            var target = Path.Combine(real, "nested"); Directory.CreateDirectory(target);
+            File.WriteAllText(Path.Combine(target, "x.log"), "SECRET-ANCESTOR");
+            var link = Path.Combine(holder, "linked");
+            if (!TryJunction(link, real)) { Console.WriteLine("SKIP: Windows не разрешила создать junction через mklink /J."); return; }
+            Assert.Contains(ProblemReport.CollectLogs(Path.Combine(link, "nested")), x => x.Name == "logs/log-unavailable.txt");
+        }
+        finally { Cleanup(holder); Cleanup(real); }
+    }
+
+    [Fact]
+    public void LogReaderRejectsAFileJunctionWithoutReadingItsTarget()
+    {
+        var dir = TempDir(); var outside = Path.Combine(TempDir(), "secret.log");
+        try
+        {
+            File.WriteAllText(outside, "SECRET-TARGET");
+            if (!TryFileSymlink(Path.Combine(dir, "link.log"), outside)) { Console.WriteLine("SKIP: Windows не разрешила создать файловую ссылку."); return; }
+            Assert.ThrowsAny<Exception>(() => Lycoris.Core.Security.SafeIo.ReadTailNoFollow(Path.Combine(dir, "link.log"), 1024));
+        }
+        finally { Cleanup(dir); Cleanup(Path.GetDirectoryName(outside)!); }
+    }
+
+    private static bool TryFileSymlink(string link, string target)
+    {
+        try
+        {
+            var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink \"{link}\" \"{target}\"") { CreateNoWindow = true, UseShellExecute = false });
+            p?.WaitForExit(5000);
+            return File.Exists(link) && (File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch { return false; }
     }
 
     [Fact]

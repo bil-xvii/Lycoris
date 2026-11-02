@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
+using System.Runtime.InteropServices;
 
 namespace Lycoris.Core.Security;
 
@@ -10,6 +12,30 @@ namespace Lycoris.Core.Security;
 /// </summary>
 public static class SafeIo
 {
+    private const uint GenericRead = 0x80000000, ShareRead = 1, OpenExisting = 3, OpenReparsePoint = 0x00200000;
+    private const int FileAttributeTagInfo = 9;
+    [StructLayout(LayoutKind.Sequential)] private struct AttributeTagInfo { public uint Attributes; public uint ReparseTag; }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int infoClass, out AttributeTagInfo info, uint size);
+
+    /// <summary>Opens the file itself (without following a final reparse point) and reads its bounded tail.</summary>
+    public static byte[] ReadTailNoFollow(string path, int maxBytes)
+    {
+        using var handle = CreateFileW(path, GenericRead, ShareRead, IntPtr.Zero, OpenExisting, OpenReparsePoint, IntPtr.Zero);
+        if (handle.IsInvalid) throw new IOException("Cannot open file without following links.", Marshal.GetExceptionForHR(Marshal.GetHRForLastWin32Error()));
+        if (!GetFileInformationByHandleEx(handle, FileAttributeTagInfo, out var info, (uint)Marshal.SizeOf<AttributeTagInfo>()))
+            throw new IOException("Cannot inspect opened file handle.", Marshal.GetExceptionForHR(Marshal.GetHRForLastWin32Error()));
+        if ((info.Attributes & (uint)FileAttributes.ReparsePoint) != 0 || (info.Attributes & (uint)FileAttributes.Directory) != 0)
+            throw new InvalidDataException("the file is a link or directory");
+        using var fs = new FileStream(handle, FileAccess.Read, 4096, false);
+        var take = (int)Math.Min(fs.Length, maxBytes);
+        fs.Position = fs.Length - take;
+        var bytes = new byte[take]; var read = 0;
+        while (read < take) { var n = fs.Read(bytes, read, take - read); if (n == 0) break; read += n; }
+        return read == bytes.Length ? bytes : bytes[..read];
+    }
     /// <summary>Settings, caches and markers are small; nothing Lycoris keeps in the user folder needs more.</summary>
     public const int MaxSmallFileBytes = 4 * 1024 * 1024;
 
