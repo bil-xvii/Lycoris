@@ -28,6 +28,9 @@ $SourceRepo = 'bil-xvii/MONOLITH'
 $dry = [bool]$WhatIfPreference
 
 function Fail($msg) { Write-Host "REFUSED: $msg" -ForegroundColor Red; exit 1 }
+# In a dry run a failed check is reported and the plan is still shown; a real run stops at once.
+$script:problems = @()
+function Problem($msg) { if ($dry) { $script:problems += $msg; Write-Host "WOULD REFUSE: $msg" -ForegroundColor Yellow } else { Fail $msg } }
 function Step($msg) { Write-Host "== $msg" -ForegroundColor Cyan }
 function Parse-Version($text) {
     if ($text -match '^v?(\d+)\.(\d+)\.(\d+)$') { return [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" }
@@ -45,11 +48,11 @@ Step "Version $versionText (tag $tag)"
 
 # 2. clean tree, HEAD pushed
 $dirty = git status --porcelain
-if ($dirty) { Fail "the working tree is not clean:`n$($dirty -join "`n")" }
+if ($dirty) { Problem "the working tree is not clean:`n$($dirty -join "`n")" }
 $head = (git rev-parse HEAD).Trim()
 $onOrigin = git branch -r --contains $head 2>$null
-if (-not $onOrigin) { Fail "HEAD $($head.Substring(0,8)) is not on origin yet - push first (the release tag must point at a pushed commit)" }
-Write-Host "tree clean, HEAD $($head.Substring(0,8)) is on origin"
+if (-not $onOrigin) { Problem "HEAD $($head.Substring(0,8)) is not on origin yet - push first (the release tag must point at a pushed commit)" }
+if ($onOrigin -and -not $dirty) { Write-Host "tree clean, HEAD $($head.Substring(0,8)) is on origin" }
 
 # 3. greater than the latest published release
 $gh = Get-Command gh -ErrorAction SilentlyContinue
@@ -66,23 +69,28 @@ else {
     else { Fail "could not ask GitHub for the latest release: $($out | Out-String)" }
 }
 if ($latest) {
-    if ($version -le $latest) { Fail "version $versionText is not greater than the latest release v$latest - raise <Version> in Monolith.csproj" }
-    Write-Host "latest release is v$latest -> $versionText is newer"
+    if ($version -le $latest) { Problem "version $versionText is not greater than the latest release v$latest - raise <Version> in Monolith.csproj" }
+    elseif ($version -gt $latest) { Write-Host "latest release is v$latest -> $versionText is newer" }
 }
 $existing = git tag --list $tag
-if ($existing) { Fail "tag $tag already exists locally" }
+if ($existing) { Problem "tag $tag already exists locally" }
 
 # 4. notes
 $notesFile = Join-Path $root 'RELEASE_NOTES.md'
-if (-not (Test-Path $notesFile)) { Fail 'RELEASE_NOTES.md is missing (add a "## x.y.z" section)' }
-$lines = Get-Content $notesFile -Encoding UTF8
-$start = -1
-for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match "^##\s+v?$([regex]::Escape($versionText))\b") { $start = $i; break } }
-if ($start -lt 0) { Fail "RELEASE_NOTES.md has no '## $versionText' section" }
-$end = $lines.Count
-for ($i = $start + 1; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^##\s') { $end = $i; break } }
-$notes = ($lines[($start + 1)..($end - 1)] -join "`n").Trim()
-if (-not $notes) { Fail "the '## $versionText' section of RELEASE_NOTES.md is empty" }
+$notes = ''
+if (-not (Test-Path $notesFile)) { Problem 'RELEASE_NOTES.md is missing (add a "## x.y.z" section)' }
+else {
+    $lines = @(Get-Content $notesFile -Encoding UTF8)
+    $start = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match "^##\s+v?$([regex]::Escape($versionText))\b") { $start = $i; break } }
+    if ($start -lt 0) { Problem "RELEASE_NOTES.md has no '## $versionText' section" }
+    else {
+        $end = $lines.Count
+        for ($i = $start + 1; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^##\s') { $end = $i; break } }
+        if ($end -gt $start + 1) { $notes = ($lines[($start + 1)..($end - 1)] -join "`n").Trim() }
+        if (-not $notes) { Problem "the '## $versionText' section of RELEASE_NOTES.md is empty" }
+    }
+}
 Step 'Release notes (what the app shows)'
 Write-Host $notes
 
@@ -99,6 +107,7 @@ if ($dry) {
     Write-Host "  gh release create $tag --repo $PublicRepo --title 'MONOLITH $versionText' --notes-file <notes> MONOLITH.exe MONOLITH.exe.sha256"
     Write-Host "  gh release create $tag --repo $SourceRepo --target $($head.Substring(0,8)) --title 'MONOLITH $versionText' --notes-file <notes> MONOLITH.exe MONOLITH.exe.sha256"
     Write-Host 'WhatIf: nothing was built, tagged or published.' -ForegroundColor Green
+    if ($script:problems.Count -gt 0) { Write-Host "$($script:problems.Count) check(s) would refuse a real release (see WOULD REFUSE above)." -ForegroundColor Yellow; exit 1 }
     exit 0
 }
 
