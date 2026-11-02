@@ -30,8 +30,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private readonly HashSet<string> _acceptedExpert = new(StringComparer.Ordinal);
     /// <summary>Tweak ids whose pending dependency is being evaluated right now (UI thread): guards against a Requires cycle.</summary>
     private readonly HashSet<string> _dependencyWalk = new(StringComparer.Ordinal);
-    private readonly ProfilesRow _profilesRow;
-    private readonly FilterRow _filterRow;
     private readonly EmptyRow _emptyRow;
     private readonly ExpertRow _expertRow;
     private readonly DispatcherTimer _searchTimer;
@@ -39,8 +37,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private readonly DispatcherTimer _highlightTimer;
     private TweakItemViewModel? _highlighted;
     private HashSet<string>? _customSelection;
-    private bool _expertOpen;
-    private bool _expertHiddenInSearch;
     private int _visibleExpert;
     private bool _detected;
     private bool _refreshing;
@@ -49,8 +45,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     public OptimizeViewModel()
     {
-        _profilesRow = new ProfilesRow(this);
-        _filterRow = new FilterRow(this);
         _emptyRow = new EmptyRow(this);
         _expertRow = new ExpertRow(this);
 
@@ -70,9 +64,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 "Ваш собственный набор: отметьте нужные пункты в списке ниже. Выбор запоминается между запусками."),
         ];
         UpdateTileSelection();
-
-        Rows.Add(_profilesRow);
-        Rows.Add(_filterRow);
 
         _searchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
         _searchTimer.Tick += (_, _) =>
@@ -99,12 +90,13 @@ public sealed partial class OptimizeViewModel : PageViewModel
         PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(IsBusy)) OnBusyChanged();
+            if (e.PropertyName is nameof(IsBusy) or nameof(BusyText)) OnPropertyChanged(nameof(StatusLine));
         };
     }
 
     // ───────────────────────────── Bindable state ─────────────────────────────
 
-    /// <summary>Everything the virtualized list shows, in order (see OptimizeRows.cs).</summary>
+    /// <summary>The virtualized list under the fixed profile tiles and filter bar (see OptimizeRows.cs).</summary>
     public ObservableCollection<object> Rows { get; } = [];
     public ObservableCollection<ProfileTileViewModel> Profiles { get; }
     public ObservableCollection<CategoryFilterViewModel> Categories { get; } = [];
@@ -112,6 +104,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
     [ObservableProperty] private OptimizeProfile _profile = OptimizeProfile.Recommended;
     [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private TweakCategory? _categoryFilter;
+    /// <summary>The «ЭКСПЕРТ» segment is selected: only expert items are listed (each needs its own confirmation).</summary>
+    [ObservableProperty] private bool _expertTab;
+    /// <summary>Chip «НЕ ПРИМЕНЕНО»: only items that would change something now.</summary>
+    [ObservableProperty] private bool _onlyPending;
     [ObservableProperty] private bool _isDetecting;
     [ObservableProperty] private int _selectedCount;
     [ObservableProperty] private int _changeCount;
@@ -126,7 +122,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
     [ObservableProperty] private RestartRequirement _pendingRestart;
 
     public int TotalCount => _items.Count;
-    public bool CanModify => IsElevated && !IsBusy;
+    /// <summary>Buttons are never disabled for missing admin rights: a click asks for them (RequireAdmin) and repeats itself.</summary>
+    public bool CanModify => !IsBusy;
+    public int ExpertCount => _items.Count(i => i.IsAdvanced);
+    /// <summary>Rows that would change something now (the chip «НЕ ПРИМЕНЕНО · N»).</summary>
+    public int NotAppliedCount => _items.Count(i => !i.IsAdvanced && i.WillChange);
+    public string OnlyPendingText => $"НЕ ПРИМЕНЕНО · {NotAppliedCount}";
+    public string ChangeDetail => $"БУДЕТ ИЗМЕНЕНО {ChangeCount}";
+    public string ShownSummary => $"ПОКАЗАНО {VisibleCount} / {(ExpertTab ? ExpertCount : _items.Count(i => !i.IsAdvanced))}  ·  ПРИМЕНЕНО {AppliedSummary}";
+    /// <summary>The sticky bar's line: the busy text while working, else the hint or the read-only reason.</summary>
+    public string StatusLine => IsBusy && !string.IsNullOrEmpty(BusyText) ? BusyText! : BarNote;
+    /// <summary>Tile «Рекомендуемый»: how many items «ПРИМЕНИТЬ» would change (null until detected). For the Dashboard tile.</summary>
+    public int? RecommendedToChange => Profiles.First(p => p.Kind == OptimizeProfile.Recommended).ToChange;
     public bool HasSearch => !string.IsNullOrWhiteSpace(SearchText);
     public bool HasPendingRestart => PendingRestart != RestartRequirement.None;
     public string PendingRestartText => PendingRestart switch
@@ -138,7 +145,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
     };
     public string AppliedSummary => _detected ? $"{AppliedTotal} ИЗ {ApplicableTotal}" : "—";
     public string ApplyButtonText => ChangeCount > 0 ? $"ПРИМЕНИТЬ · {ChangeCount}" : "ПРИМЕНИТЬ";
-    public string ApplyTooltip => IsReadOnly ? "Нужны права администратора" : "Показать полный список изменений и применить их";
 
     private ProfileTileViewModel CurrentTile => Profiles.First(p => p.Kind == Profile);
 
@@ -148,10 +154,13 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateTileSelection();
     }
 
+    partial void OnOnlyPendingChanged(bool value) => RebuildRows();
+    partial void OnVisibleCountChanged(int value) => OnPropertyChanged(nameof(ShownSummary));
+    partial void OnBarNoteChanged(string value) => OnPropertyChanged(nameof(StatusLine));
+
     partial void OnSearchTextChanged(string value)
     {
         OnPropertyChanged(nameof(HasSearch));
-        if (!HasSearch) _expertHiddenInSearch = false;
         _searchTimer.Stop();
         _searchTimer.Start();
     }
@@ -164,7 +173,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
         OnPropertyChanged(nameof(PendingRestartText));
     }
 
-    partial void OnChangeCountChanged(int value) => OnPropertyChanged(nameof(ApplyButtonText));
+    partial void OnChangeCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(ApplyButtonText));
+        OnPropertyChanged(nameof(ChangeDetail));
+    }
 
     // ───────────────────────────── Lifecycle ─────────────────────────────
 
@@ -184,12 +197,14 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateCounts();
         ApplyFocus(Ui.TakeFocusRequest(Key));
         await RefreshStatesAsync();
+        MarkChecked();
     }
 
-    protected override Task OnReturnAsync()
+    protected override async Task OnReturnAsync()
     {
         ApplyFocus(Ui.TakeFocusRequest(Key));
-        return RefreshStatesAsync();
+        await RefreshStatesAsync();
+        MarkChecked();
     }
 
     /// <summary>
@@ -204,12 +219,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
         _searchTimer.Stop();
         SearchText = "";
         _searchTimer.Stop(); // the setter restarted the debounce; rebuild right away instead
-        SelectCategory(null);
-        if (item.IsAdvanced)
-        {
-            _expertOpen = true;
-            _expertHiddenInSearch = false;
-        }
+        OnlyPending = false;
+        if (item.IsAdvanced) SelectExpertTab();
+        else SelectCategory(null);
         RebuildRows();
         item.IsExpanded = true;
 
@@ -245,14 +257,19 @@ public sealed partial class OptimizeViewModel : PageViewModel
             _sections[c] = new SectionRow(this, c);
 
         Categories.Clear();
-        Categories.Add(new CategoryFilterViewModel(this, null, "ВСЕ", _items.Count) { IsSelected = true });
+        Categories.Add(new CategoryFilterViewModel(this, null, "ВСЕ", _items.Count(i => !i.IsAdvanced)) { IsSelected = true });
         foreach (var c in Enum.GetValues<TweakCategory>())
         {
-            var count = _items.Count(i => i.Category == c);
+            var count = _items.Count(i => i.Category == c && !i.IsAdvanced);
             if (count > 0) Categories.Add(new CategoryFilterViewModel(this, c, OptimizeLogic.CategoryTitle(c), count));
         }
+        // Expert items are their own segment (not part of «ВСЕ» and of no profile).
+        var expertCount = _items.Count(i => i.IsAdvanced);
+        if (expertCount > 0) Categories.Add(new CategoryFilterViewModel(this, null, "ЭКСПЕРТ", expertCount, isExpert: true));
         CategoryFilter = null;
+        ExpertTab = false;
         OnPropertyChanged(nameof(TotalCount));
+        OnPropertyChanged(nameof(ExpertCount));
     }
 
     /// <summary>Test hook: the defaults of a profile for a synthetic catalog (the real ones come from <see cref="TweakCatalog.DefaultsFor"/>).</summary>
@@ -299,9 +316,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
                     if (i.IsChecked && !i.IsApplicableNow) i.SetChecked(false);
                 }
                 SyncDependents();
+                // «сейчас → станет» is always visible on a row that would change: read the current values for those too.
                 foreach (var i in _items)
                 {
-                    if (i.IsExpanded) _ = LoadChangesAsync(i);
+                    if (i.IsExpanded || i.WillChange) _ = LoadChangesAsync(i);
                 }
             });
         }
@@ -528,22 +546,17 @@ public sealed partial class OptimizeViewModel : PageViewModel
     internal void SelectCategory(TweakCategory? category)
     {
         CategoryFilter = category;
-        foreach (var c in Categories) c.IsSelected = c.Category == category;
+        ExpertTab = false;
+        foreach (var c in Categories) c.IsSelected = !c.IsExpert && c.Category == category;
         RebuildRows();
     }
 
-    internal void ToggleExpert()
+    /// <summary>The «ЭКСПЕРТ» segment: only expert items.</summary>
+    internal void SelectExpertTab()
     {
-        if (_expertRow.IsOpen)
-        {
-            _expertOpen = false;
-            _expertHiddenInSearch = HasSearch;
-        }
-        else
-        {
-            _expertOpen = true;
-            _expertHiddenInSearch = false;
-        }
+        CategoryFilter = null;
+        ExpertTab = true;
+        foreach (var c in Categories) c.IsSelected = c.IsExpert;
         RebuildRows();
     }
 
@@ -552,7 +565,16 @@ public sealed partial class OptimizeViewModel : PageViewModel
     {
         SearchText = "";
         _searchTimer.Stop(); // rebuild right away below instead of after the search debounce
+        OnlyPending = false; // rebuilds the rows; the category change below rebuilds once more (cheap)
         SelectCategory(null);
+    }
+
+    /// <summary>«СНЯТЬ ВЫБОР»: unchecks every item (the selection only; nothing is applied or undone).</summary>
+    [RelayCommand]
+    private void ClearSelection()
+    {
+        foreach (var i in _items) i.SetChecked(false);
+        OnSelectionEditedByUser();
     }
 
     [RelayCommand]
@@ -560,8 +582,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     private void RebuildRows()
     {
-        var desired = new List<object> { _profilesRow, _filterRow };
-        var visible = _items.Where(i => (CategoryFilter is null || i.Category == CategoryFilter) && OptimizeLogic.Matches(i.Tweak, SearchText)).ToList();
+        var desired = new List<object>();
+        // «ВСЕ» and the category segments list normal items; «ЭКСПЕРТ» only expert ones. A search also finds expert items.
+        var visible = _items.Where(i => (CategoryFilter is null || i.Category == CategoryFilter)
+                                        && (!OnlyPending || i.WillChange)
+                                        && (ExpertTab ? i.IsAdvanced : !i.IsAdvanced || (HasSearch && CategoryFilter is null))
+                                        && OptimizeLogic.Matches(i.Tweak, SearchText)).ToList();
 
         foreach (var category in Enum.GetValues<TweakCategory>())
         {
@@ -578,15 +604,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
         _visibleExpert = expert.Count;
         if (expert.Count > 0)
         {
-            // A search shows matching expert items even when the section is collapsed (unless the user hid it again).
-            var open = _expertOpen || (HasSearch && !_expertHiddenInSearch);
-            _expertRow.IsOpen = open;
             desired.Add(_expertRow);
-            if (open)
-            {
-                for (var k = 0; k < expert.Count; k++) { expert[k].IsFirstInGroup = k == 0; expert[k].IsLastInGroup = k == expert.Count - 1; }
-                desired.AddRange(expert);
-            }
+            for (var k = 0; k < expert.Count; k++) { expert[k].IsFirstInGroup = k == 0; expert[k].IsLastInGroup = k == expert.Count - 1; }
+            desired.AddRange(expert);
         }
 
         if (visible.Count == 0) desired.Add(_emptyRow);
@@ -605,6 +625,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
         AppliedTotal = _items.Count(i => i.IsApplied);
         ApplicableTotal = _items.Count(i => i.State is not null && i.IsApplicable);
         OnPropertyChanged(nameof(AppliedSummary));
+        OnPropertyChanged(nameof(ShownSummary));
+        OnPropertyChanged(nameof(NotAppliedCount));
+        OnPropertyChanged(nameof(OnlyPendingText));
+        OnPropertyChanged(nameof(RecommendedToChange));
+        // The sidebar badge: how many changes the selected set would make (only a fact already known).
+        BadgeText = _detected && ChangeCount > 0 ? ChangeCount.ToString() : null;
 
         foreach (var tile in Profiles)
         {
@@ -618,6 +644,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             tile.ToChange = _detected ? members.Count(i => i.WillChange || !i.IsApplicable) : null;
             tile.Applied = _detected ? members.Count(i => i.IsApplied) : null;
         }
+        foreach (var tile in Profiles) tile.RefreshAct();
 
         foreach (var s in _sections.Values) s.Refresh();
         UpdateExpertRow();
@@ -633,6 +660,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             ? $"{_visibleExpert} ИЗ {all.Count} {OptimizeLogic.Plural(all.Count, "ПУНКТА", "ПУНКТОВ", "ПУНКТОВ")}"
             : $"{all.Count} {OptimizeLogic.Plural(all.Count, "ПУНКТ", "ПУНКТА", "ПУНКТОВ")}";
         _expertRow.CountText = count + (chosen > 0 ? $" · ВЫБРАНО {chosen}" : "");
+        OnPropertyChanged(nameof(ExpertCount));
     }
 
     private string BuildBarNote()
@@ -658,6 +686,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     // ───────────────────────────── Commands: state ─────────────────────────────
 
     private bool CanApply() => CanModify && !IsDetecting && ChangeCount > 0;
+    internal bool CanActOnTile => CanModify && !IsDetecting;
 
     private void OnBusyChanged()
     {
@@ -669,6 +698,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private void RefreshCommandStates()
     {
         ApplyCommand.NotifyCanExecuteChanged();
+        ApplyProfileCommand.NotifyCanExecuteChanged();
+        ApplyRecommendedCommand.NotifyCanExecuteChanged();
+        ClearSelectionCommand.NotifyCanExecuteChanged();
+        foreach (var t in Profiles) t.RefreshAct();
         ExportProfileCommand.NotifyCanExecuteChanged();
         ImportProfileCommand.NotifyCanExecuteChanged();
     }
@@ -682,9 +715,31 @@ public sealed partial class OptimizeViewModel : PageViewModel
     // ───────────────────────────── Apply ─────────────────────────────
 
     [RelayCommand(CanExecute = nameof(CanApply))]
-    private async Task ApplyAsync()
+    private Task ApplyAsync() => ApplyCoreAsync("Apply", null);
+
+    /// <summary>
+    /// A profile tile's «ПРИМЕНИТЬ»: selects the profile (parameter = its name: Normal, Gaming, Recommended, Custom) and applies it
+    /// through the same preview and confirmation as the sticky bar. Without admin rights the click asks for them and the
+    /// relaunched copy repeats it.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanActOnTile))]
+    private async Task ApplyProfileAsync(string? profile)
     {
-        if (!RequireAdmin("Применение оптимизаций")) return;
+        var kind = OptimizeLogic.ParseProfile(profile);
+        SelectProfile(kind);
+        await ApplyCoreAsync("ApplyProfile", kind.ToString());
+    }
+
+    /// <summary>
+    /// «ПРИМЕНИТЬ рекомендуемый профиль» for the Dashboard tile: the page must be loaded first
+    /// (<c>await page.EnsureLoadedAsync()</c>); then it behaves exactly like the «Рекомендуемый» tile's button.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanActOnTile))]
+    private Task ApplyRecommendedAsync() => ApplyProfileAsync(nameof(OptimizeProfile.Recommended));
+
+    private async Task ApplyCoreAsync(string intentCommand, string? intentParameter)
+    {
+        if (!RequireAdmin("Применение оптимизаций", intentCommand, intentParameter)) return;
         var targets = _items.Where(i => i.IsPending).ToList();
         if (targets.Count == 0)
         {
@@ -788,9 +843,14 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     // ───────────────────────────── Revert ─────────────────────────────
 
+    /// <summary>Replay target of the row's «ОТКАТИТЬ» after a relaunch with admin rights (parameter = tweak id).</summary>
+    [RelayCommand]
+    private Task RevertItemAsync(string? id) =>
+        FindItem(id ?? "") is { } item ? RevertOneAsync(item) : Task.CompletedTask;
+
     internal async Task RevertOneAsync(TweakItemViewModel item)
     {
-        if (!RequireAdmin("Откат изменений")) return;
+        if (!RequireAdmin("Откат изменений", "RevertItem", item.Id)) return;
         var journal = ChangeJournal.Instance;
         // The same selection the revert makes: older per-user records under this account's own later change stay.
         var (records, left) = journal.SourceCandidates([SourcePrefix + item.Id]);
