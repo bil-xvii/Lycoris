@@ -20,7 +20,12 @@
 
     <Product>MONOLITH</Product>
     <Company>MONOLITH</Company>
-    <Description>MONOLITH — безопасная оптимизация Windows для работы и игр</Description>
+    <!-- Shown in Explorer → Properties → Details and read by antivirus/SmartScreen: an honest, readable identity (English + Russian) -->
+    <AssemblyTitle>MONOLITH - Windows optimizer / оптимизатор Windows</AssemblyTitle>
+    <Description>MONOLITH: safe Windows optimization for work and games with a full undo journal. / MONOLITH — безопасная оптимизация Windows для работы и игр с полным журналом отката.</Description>
+    <Authors>MONOLITH</Authors>
+    <Trademark>MONOLITH</Trademark>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Copyright>© 2026 MONOLITH</Copyright>
     <Version>1.0.0</Version>
     <NeutralLanguage>ru-RU</NeutralLanguage>
@@ -36,7 +41,11 @@
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-    <PublishReadyToRun>false</PublishReadyToRun>
+    <!-- ReadyToRun: precompiled code, about a second faster start (88 MB). Compression stays on: an uncompressed self-contained
+         WPF exe is 156 MB (222 MB with R2R) — see docs/antivirus.md. Managed assemblies run from memory; only the few native
+         WPF libraries are unpacked to %TEMP%\.net on first start (needed for a true single file). -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
