@@ -248,6 +248,60 @@
 
                 <Rectangle Style="{StaticResource Divider}" Margin="0,19" />
 
+                <!-- ═══════════════ PROTECTION & ACCESS (roadmap item 11) ═══════════════ -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,17,0">
+                        <TextBlock Text="{loc:T Защита и доступ}" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource SectionCaption}" Text="{loc:T 'Что Lycoris может менять, как это защищено и чего она не трогает никогда.'}" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
+                        <StackPanel x:Name="Row_protection">
+                            <ItemsControl ItemsSource="{Binding Protection}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="14,10">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Margin="0,0,15,0">
+                                                    <TextBlock Text="{Binding Title}" Style="{StaticResource RowTitle}" />
+                                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource RowText}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding State}" VerticalAlignment="Center" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+                                                            <Setter Property="Foreground" Value="{StaticResource B.WarningText}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Ok}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Border Padding="14,10">
+                                <StackPanel>
+                                    <TextBlock Text="{loc:T Lycoris никогда не отключает}" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="{Binding NeverTouchedText}" Style="{StaticResource RowText}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Rectangle Style="{StaticResource Divider}" Margin="0,19" />
+
                 <!-- ═══════════════ DATA ═══════════════ -->
                 <Grid>
                     <Grid.ColumnDefinitions>
