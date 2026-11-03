@@ -7,6 +7,7 @@ using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
+using Lycoris.Core.Measurements;
 using Lycoris.Modules.Cleaner;
 using Lycoris.Modules.Dashboard;
 using Lycoris.Modules.Maintenance;
@@ -51,53 +52,52 @@ public sealed partial class HomeViewModel : PageViewModel
     [ObservableProperty] private string _measurementDetails = "";
     [ObservableProperty] private bool _hasMeasurements;
 
-    private sealed record Measurement(DateTime At, string Windows, string Lycoris, int? Startup, long? FreeMb, string Boot, string BootSource);
-    private static string MeasurementsPath => Path.Combine(AppPaths.UserDir, "measurements.json");
+    // Before / after measurement: the shared Core/Measurements module (real sources, safe store, honest comparison).
+    private readonly MeasurementStore _measurementStore = new();
+    [ObservableProperty] private string? _measurementNote;
 
     [RelayCommand]
     private async Task RecordMeasurementAsync()
     {
-        await Task.Run(() =>
+        string? preserved = null;
+        var saved = await Task.Run(() =>
         {
-            var items = ReadMeasurements();
-            var startup = (Ui.Host as MainViewModel)?.Pages.OfType<ServicesViewModel>().FirstOrDefault()?.Startup;
-            var data = new Measurement(DateTime.UtcNow,
-                $"{Environment.OSVersion.Version} ({Environment.OSVersion.Version.Build})", typeof(HomeViewModel).Assembly.GetName().Version?.ToString() ?? Loc.T("недоступно"),
-                startup is { IsLoaded: true } ? startup.TotalCount : null,
-                GetFreeMemoryMb(), Loc.T("недоступно"), Loc.T("недоступно"));
-            items.Add(data);
-            Directory.CreateDirectory(AppPaths.UserDir);
-            File.WriteAllText(MeasurementsPath, JsonSerializer.Serialize(items.TakeLast(30).ToArray()));
+            var ok = _measurementStore.Save(MeasurementCollector.CreateDefault().Collect());
+            preserved = _measurementStore.PreservedCorruptFile;
+            return ok;
         });
+        MeasurementNote = !saved ? Loc.T("Замер не сохранён: нет доступа к папке данных Lycoris")
+            : preserved is not null ? Loc.Tf("Старый файл замеров не прочитан и сохранён рядом: {0}", Path.GetFileName(preserved))
+            : null;
         RefreshMeasurements();
-    }
-
-    private static long? GetFreeMemoryMb()
-    {
-        try { using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"); _ = key; }
-        catch { }
-        try { return (long)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024); } catch { return null; }
-    }
-
-    private static List<Measurement> ReadMeasurements()
-    {
-        try { return JsonSerializer.Deserialize<List<Measurement>>(File.ReadAllText(MeasurementsPath)) ?? []; }
-        catch { return []; }
     }
 
     private void RefreshMeasurements()
     {
-        var entries = ReadMeasurements().TakeLast(2).ToArray();
+        var entries = _measurementStore.Read().TakeLast(2).ToArray();
         HasMeasurements = entries.Length > 0;
         MeasurementSummary = entries.Length switch
         {
             0 => Loc.T("Замеры ещё не записаны"),
-            1 => Loc.Tf("Последний замер: {0}", entries[0].At.ToLocalTime().ToString("g")),
-            _ => Loc.Tf("Последние замеры: {0} → {1}", entries[0].At.ToLocalTime().ToString("g"), entries[1].At.ToLocalTime().ToString("g"))
+            1 => Loc.Tf("Последний замер: {0}", entries[0].RecordedAt.ToLocalTime().ToString("g")),
+            _ => Loc.Tf("Последние замеры: {0} → {1}", entries[0].RecordedAt.ToLocalTime().ToString("g"), entries[1].RecordedAt.ToLocalTime().ToString("g"))
         };
-        MeasurementDetails = entries.Length == 2
-            ? Loc.T("Несопоставимо: условия могли измениться") + " · " + Loc.Tf("Автозапуск: {0} / {1}; память: {2} / {3} МБ", entries[0].Startup?.ToString() ?? Loc.T("недоступно"), entries[1].Startup?.ToString() ?? Loc.T("недоступно"), entries[0].FreeMb?.ToString() ?? Loc.T("недоступно"), entries[1].FreeMb?.ToString() ?? Loc.T("недоступно"))
-            : Loc.T("Сравнение появится после второго замера");
+        if (entries.Length < 2)
+        {
+            MeasurementDetails = Loc.T("Сравнение появится после второго замера");
+            return;
+        }
+        var c = MeasurementComparer.Compare(entries[0], entries[1]);
+        var a = entries[0].Conditions;
+        var b = entries[1].Conditions;
+        static string Mb(long? bytes) => bytes is { } v ? (v / 1024 / 1024).ToString("N0") : "—";
+        var boot = a.BootTimeSeconds is { } bs && b.BootTimeSeconds is { } be
+            ? Loc.Tf("загрузка: {0} → {1} с", bs.ToString("0.0"), be.ToString("0.0"))
+            : Loc.T("время загрузки недоступно");
+        MeasurementDetails = (c.Incomparable ? Loc.Tf("Несопоставимо: {0}", c.Reason ?? "") : Loc.T("Сопоставимо"))
+            + " · " + Loc.Tf("Автозапуск: {0} → {1}", a.EnabledStartupItems, b.EnabledStartupItems)
+            + " · " + Loc.Tf("свободная память: {0} → {1} МБ", Mb(a.FreeMemoryBytes), Mb(b.FreeMemoryBytes))
+            + " · " + boot;
     }
 
     private readonly Func<string, Task> _runDoctorCheck;
