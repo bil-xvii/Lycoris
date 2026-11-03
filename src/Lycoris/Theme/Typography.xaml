@@ -16,9 +16,9 @@
     <!-- Brand wordmark: distinct from interface copy, with open proportions for Cyrillic fallback. -->
     <Style x:Key="T.Wordmark" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Stat}" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontStretch" Value="Normal" />
-        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontSize" Value="19" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
     </Style>
