@@ -27,7 +27,7 @@
                            Visibility="{Binding Detail, ElementName=Root, Converter={StaticResource NullToVis}}" />
             </StackPanel>
             <TextBlock Grid.Column="1" Text="{Binding Text, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="16,0" VerticalAlignment="Center"
-                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, ElementName=Root}" />
+                       TextWrapping="Wrap" />
             <ContentPresenter Grid.Column="2" Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Center" />
         </Grid>
     </Border>
