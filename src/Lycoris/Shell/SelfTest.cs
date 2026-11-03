@@ -83,7 +83,23 @@ public sealed class SelfTestRunner
         ChangeSession.Locked = true;
         Ui.AutoAnswer = false;
         var settingsBackup = File.Exists(AppPaths.SettingsFile) ? await File.ReadAllTextAsync(AppPaths.SettingsFile) : null;
+        try
+        {
+            return await RunPagesAsync();
+        }
+        finally
+        {
+            // Also after an exception: a crashed self-test must not leave its UI clicks in the owner's settings.
+            if (settingsBackup is not null)
+            {
+                try { await File.WriteAllTextAsync(AppPaths.SettingsFile, settingsBackup); } catch { }
+            }
+            IsRunning = false;
+        }
+    }
 
+    private async Task<int> RunPagesAsync()
+    {
         PresentationTraceSources.Refresh();
         PresentationTraceSources.DataBindingSource.Listeners.Add(_bindings);
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Warning;
@@ -174,12 +190,6 @@ public sealed class SelfTestRunner
 
         var endMem = Process.GetCurrentProcess().WorkingSet64;
         WriteReport(reports, total.Elapsed, startMem, endMem);
-
-        if (settingsBackup is not null)
-        {
-            try { await File.WriteAllTextAsync(AppPaths.SettingsFile, settingsBackup); } catch { }
-        }
-        IsRunning = false;
         return reports.Count(r => r.Status == "FAIL");
     }
 

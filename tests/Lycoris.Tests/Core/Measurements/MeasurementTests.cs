@@ -28,6 +28,18 @@ public sealed class MeasurementTests
         var row = Sample();
         Assert.True(store.Save(row));
         Assert.Equal(row, Assert.Single(store.Read()));
+        // The unreadable history is kept aside, byte for byte, not overwritten.
+        Assert.NotNull(store.PreservedCorruptFile);
+        Assert.Equal("{ broken", File.ReadAllText(store.PreservedCorruptFile!));
+    }
+
+    [Fact]
+    public void Store_ParallelSavesKeepEveryRecord()
+    {
+        using var dir = new TemporaryDirectory();
+        var store = new MeasurementStore(Path.Combine(dir.Path, "measurements.json"));
+        Parallel.For(0, 20, i => Assert.True(store.Save(Sample(DateTimeOffset.UnixEpoch.AddMinutes(i)))));
+        Assert.Equal(20, store.Read().Count);
     }
 
     [Fact]
