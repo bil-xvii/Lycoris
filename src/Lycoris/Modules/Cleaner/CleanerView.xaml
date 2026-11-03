@@ -173,42 +173,32 @@
                 <!-- ═══════════════ Summary + status: one rounded strip ═══════════════ -->
                 <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                     <StackPanel>
-                        <Grid>
+                        <Grid MinHeight="54">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border Padding="16,14,14,12" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
-                                <StackPanel>
-                                    <TextBlock Text="{loc:T НАЙДЕНО}" Style="{StaticResource T.Label}" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                        <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" />
-                                        <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding FoundCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            <Border Padding="14,8" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,1,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T НАЙДЕНО}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
                             <!-- Emphasis without white fill (white = clickable only): a raised plate with a white edge -->
-                            <Border Grid.Column="1" Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.White}" BorderThickness="0,2,0,0" Padding="16,12,14,12">
-                                <StackPanel>
-                                    <TextBlock Text="{loc:T 'К ОЧИСТКЕ'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                        <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" />
-                                        <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding SelectedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0"
-                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            <Border Grid.Column="1" Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.White}" BorderThickness="0,2,0,0" Padding="14,8">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T 'К ОЧИСТКЕ'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="2" Padding="16,14,14,12" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
-                                <StackPanel>
-                                    <TextBlock Text="{loc:T ОСВОБОЖДЕНО}" Style="{StaticResource T.Label}" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                        <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" />
-                                        <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,4" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding FreedCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            <Border Grid.Column="2" Padding="14,8" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T ОСВОБОЖДЕНО}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
                         </Grid>
