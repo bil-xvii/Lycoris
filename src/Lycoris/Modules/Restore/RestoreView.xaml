@@ -61,7 +61,7 @@
                                 <TextBlock Text="{loc:T НЕ СОВПАДАЕТ}" />
                             </Border>
                         </WrapPanel>
-                        <TextBlock Text="{Binding Target}" ToolTip="{Binding RawTarget}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                        <TextBlock Text="{Binding Target}" ToolTip="{Binding RawTarget}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}"
                                    Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
                         <TextBlock Style="{StaticResource T.Mono}" Margin="0,6,0,0" TextWrapping="Wrap">
                             <Run Text="{Binding OldValue, Mode=OneWay}" Foreground="{StaticResource B.Text2}" />
@@ -70,7 +70,7 @@
                         </TextBlock>
                         <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0">
                             <Run Text="{Binding Source, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="11.5" />
-                            <Run Text="  ·  " Foreground="{StaticResource B.Text3}" />
+                            <Run Text="  ·  " Foreground="{StaticResource B.Text2}" />
                             <Run Text="{Binding TimeText, Mode=OneWay}" FontFamily="{StaticResource F.Mono}" FontSize="11.5" />
                         </TextBlock>
                         <TextBlock Text="{Binding DriftText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}"
@@ -233,8 +233,8 @@
                     </StackPanel>
                 </RadioButton>
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding RevertAllNote}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
-                       MaxHeight="34" TextAlignment="Right" VerticalAlignment="Center" Margin="16,0,12,0"
+            <TextBlock Grid.Column="1" Text="{Binding RevertAllNote}" Style="{StaticResource T.Caption}" TextWrapping="Wrap"
+                       TextAlignment="Right" VerticalAlignment="Center" Margin="16,0,12,0"
                        Visibility="{Binding RevertAllNote, Converter={StaticResource NullToVis}}" ToolTip="{Binding RevertAllNote}" />
             <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Command="{Binding RevertAllCommand}" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
@@ -285,9 +285,9 @@
                       Focusable="False">
             <Grid Margin="0,0,10,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="24" />
-                    <ColumnDefinition Width="340" />
+                    <ColumnDefinition Width="2*" MinWidth="0" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="1*" MinWidth="290" />
                 </Grid.ColumnDefinitions>
 
                 <!-- Journal -->
@@ -312,7 +312,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Margin="0,0,10,0">
-                                                <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" />
+                                                <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}" />
                                                 <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
                                                            FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap" />
                                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
