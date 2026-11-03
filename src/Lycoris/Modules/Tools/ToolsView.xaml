@@ -87,10 +87,19 @@
                     <StackPanel Grid.Column="1" Margin="8,0,16,0">
                         <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
                                    Foreground="{StaticResource B.Text}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Command}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
-                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
-                        <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" Margin="0,7,0,0" />
-                        <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Margin="0,6,0,0" LineHeight="17"
+                        <Expander Margin="0,4,0,0">
+                            <Expander.Header>
+                                <TextBlock Text="{loc:T ПОДРОБНЕЕ}" Style="{StaticResource T.Label}" />
+                            </Expander.Header>
+                            <StackPanel Margin="0,4,0,0">
+                                <TextBlock Text="{loc:T КОМАНДА}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{Binding Command}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}"
+                                           TextWrapping="Wrap" Margin="0,2,0,6" />
+                                <TextBlock Text="{loc:T ОПИСАНИЕ}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </Expander>
+                        <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Margin="0,6,0,0" LineHeight="17" TextWrapping="Wrap"
                                    Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}" />
                         <WrapPanel Margin="0,8,0,4">
                             <Border Style="{StaticResource Tag}" Margin="0,0,6,6">
