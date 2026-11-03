@@ -28,6 +28,19 @@
         <Style x:Key="RowText" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
             <Setter Property="Margin" Value="0,5,0,0" />
         </Style>
+        <Style x:Key="ToggleState" TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
+            <Setter Property="Margin" Value="0,0,9,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding}" Value="True">
+                    <Setter Property="Text" Value="{loc:T ВКЛЮЧЕНО}" />
+                    <Setter Property="Foreground" Value="{StaticResource B.SuccessText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding}" Value="False">
+                    <Setter Property="Text" Value="{loc:T ВЫКЛЮЧЕНО}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -100,6 +113,7 @@
                     <TextBlock Text="{loc:T Поведение}" Style="{StaticResource SectionTitle}" Margin="0,4,17,0" VerticalAlignment="Top" />
                     <Border Grid.Column="1" Style="{StaticResource Card.Flush}">
                         <StackPanel>
+                            <TextBlock Text="{loc:T ОСНОВНЫЕ ПАРАМЕТРЫ}" Style="{StaticResource T.Label}" Margin="14,12,14,0" />
                             <!-- Language: a visible segmented choice (docs/localization.md). The labels РУССКИЙ / ENGLISH are the languages' own names and are never translated. -->
                             <Border x:Name="Row_language" Style="{StaticResource SettingRow}" BorderThickness="0">
                                 <Grid>
@@ -109,6 +123,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,17,0">
                                         <TextBlock Text="{loc:T Язык / Language}" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="{loc:T ТЕМА · ТЁМНАЯ}" Style="{StaticResource T.Label}" Margin="0,5,0,0" Foreground="{StaticResource B.Text2}" />
                                         <TextBlock Style="{StaticResource RowText}"
                                                    Text="{loc:T 'АВТО — язык Windows. Выбранный язык применяется после перезапуска Lycoris.'}" />
                                         <TextBlock Style="{StaticResource T.BodyStrong}" Margin="0,6,0,0" Text="{Binding LanguageNote}"
@@ -146,7 +161,10 @@
                                         <TextBlock Style="{StaticResource RowText}"
                                                    Text="{loc:T 'Включено: запрос UAC при каждом запуске, и все кнопки работают сразу. Выключено: Lycoris открывается без UAC в режиме просмотра, а права запросит при первом изменении и продолжит действие сам. Действует со следующего запуска.'}" />
                                     </StackPanel>
-                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ElevateAtStartup}" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource ToggleState}" DataContext="{Binding Settings.ElevateAtStartup}" />
+                                        <CheckBox Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ElevateAtStartup}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <Border x:Name="Row_confirm" Style="{StaticResource SettingRow}">
@@ -160,7 +178,10 @@
                                         <TextBlock Style="{StaticResource RowText}"
                                                    Text="{loc:T 'Перед применением показывается точный список изменений. Если выключить, твики применяются сразу; удаление, установка драйверов и другие необратимые действия всё равно спрашивают подтверждение.'}" />
                                     </StackPanel>
-                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ConfirmBeforeApply}" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource ToggleState}" DataContext="{Binding Settings.ConfirmBeforeApply}" />
+                                        <CheckBox Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.ConfirmBeforeApply}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <Border x:Name="Row_updates" Style="{StaticResource SettingRow}">
@@ -174,7 +195,10 @@
                                         <TextBlock Style="{StaticResource RowText}"
                                                    Text="{loc:T 'Раз в 12 часов Lycoris сам смотрит на странице релизов, вышла ли новая версия, и показывает кнопку «ОБНОВЛЕНИЕ» в заголовке окна. Ничего не скачивается и не устанавливается без вашего подтверждения.'}" />
                                     </StackPanel>
-                                    <CheckBox Grid.Column="1" Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.AutoCheckUpdates}" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource ToggleState}" DataContext="{Binding Settings.AutoCheckUpdates}" />
+                                        <CheckBox Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.AutoCheckUpdates}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <Border x:Name="Row_monitor_interval" Style="{StaticResource SettingRow}">
@@ -231,7 +255,7 @@
                                                 <StackPanel Margin="0,0,15,0">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding State}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}"
+                                                        <TextBlock Text="{Binding State}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}"
                                                                    VerticalAlignment="Center" Margin="9,1,0,0" />
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding Path}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text}"
