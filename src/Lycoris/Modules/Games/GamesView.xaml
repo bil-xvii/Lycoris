@@ -79,7 +79,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" FontSize="15.5" TextTrimming="CharacterEllipsis"
+                            <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" FontSize="15.5" TextWrapping="Wrap"
                                        ToolTip="{Binding Name}" VerticalAlignment="Center" />
                         </Grid>
                         <TextBlock Text="{Binding PathText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
