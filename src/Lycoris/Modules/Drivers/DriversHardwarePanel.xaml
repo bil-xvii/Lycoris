@@ -302,14 +302,14 @@
 
                             <!-- Every button is labelled and outlined; read-only mode asks for rights when the button is pressed -->
                             <WrapPanel Margin="0,0,0,-8">
-                                <Button Margin="0,0,8,8" Command="{Binding DataContext.CheckGpuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                <Button Style="{StaticResource Btn.Primary}" Margin="0,0,8,8" Command="{Binding DataContext.CheckGpuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         ToolTip="{loc:T Сверить версию драйвера с сайтом производителя. Ничего не скачивается и не меняется.}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                                         <TextBlock Text="{loc:T ПРОВЕРИТЬ ВЕРСИЮ}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button Margin="0,0,8,8"
+                                <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,8"
                                         Command="{Binding DataContext.DownloadDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" ToolTip="{Binding DownloadHint}">
                                     <Button.Visibility>
@@ -323,7 +323,7 @@
                                         <TextBlock Text="{Binding DownloadButtonText}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button Margin="0,0,8,8" Visibility="{Binding ShowToolPrimary, Converter={StaticResource BoolToVis}}"
+                                <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,8" Visibility="{Binding ShowToolPrimary, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding DataContext.UseGpuToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" ToolTip="{Binding ToolHint}">
                                     <StackPanel Orientation="Horizontal">
@@ -331,10 +331,10 @@
                                         <TextBlock Text="{Binding ToolButtonText}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button Margin="0,0,8,8" Visibility="{Binding ShowToolSecondary, Converter={StaticResource BoolToVis}}"
+                                <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,8" Visibility="{Binding ShowToolSecondary, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding DataContext.UseGpuToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" ToolTip="{Binding ToolHint}" Content="{Binding ToolButtonText}" />
-                                <Button Margin="0,0,8,8" Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}"
+                                <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,8" Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding DataContext.OpenUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding SiteUrl}" ToolTip="{Binding SiteUrl}">
                                     <StackPanel Orientation="Horizontal">
@@ -683,14 +683,14 @@
 
                         <Border Style="{StaticResource Drv.CardFooter}">
                             <WrapPanel>
-                                <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsAmd, Converter={StaticResource BoolToVis}}"
+                                <Button Style="{StaticResource Btn.Primary}" Margin="0,0,8,0" Visibility="{Binding ChipsetIsAmd, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding OpenUrlCommand}" CommandParameter="{Binding AmdDriversUrl}" ToolTip="{Binding AmdDriversUrl}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{loc:T ДРАЙВЕРЫ ЧИПСЕТА НА AMD.COM}" VerticalAlignment="Center" />
                                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                                     </StackPanel>
                                 </Button>
-                                <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
+                                <Button Style="{StaticResource Btn.Primary}" Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding UseIntelDsaCommand}"
                                         ToolTip="{loc:T 'Intel Driver &amp; Support Assistant — официальный помощник Intel (winget, издатель Intel)'}">
                                     <StackPanel Orientation="Horizontal">
@@ -698,7 +698,7 @@
                                         <TextBlock Text="{Binding IntelDsaButtonText}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
+                                <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Visibility="{Binding ChipsetIsIntel, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding OpenUrlCommand}" CommandParameter="{Binding IntelSupportUrl}" ToolTip="{Binding IntelSupportUrl}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{loc:T ПОДДЕРЖКА INTEL}" VerticalAlignment="Center" />
