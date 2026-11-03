@@ -144,6 +144,21 @@ public static class GameLibrary
         };
     }
 
+    internal static LibraryScan? LoadCache(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var data = JsonSerializer.Deserialize<CacheFile>(Lycoris.Core.Security.SafeIo.ReadText(path), JsonOptions);
+            if (data is null || data.Version != 1) return null;
+            return new LibraryScan(data.Games, data.Sources, data.ScannedAt);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static LibraryScan? LoadCache()
     {
         try
