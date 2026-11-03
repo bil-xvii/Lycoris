@@ -1,7 +1,10 @@
 {
   "area": "Diagnostics",
   "translated": true,
-  "sources": ["Core/Diagnostics/ProblemReportText.cs"],
+  "sources": [
+    "Core/Diagnostics/ProblemReportText.cs",
+    "Core/Diagnostics/HealthReport.cs"
+  ],
   "ignore": [],
   "en": {
     "СООБЩИТЬ О ПРОБЛЕМЕ": "REPORT A PROBLEM",
@@ -16,6 +19,16 @@
     "Отчёт не сохранён: не удалось определить пользователя рабочего стола. Запустите Lycoris без прав администратора и повторите.": "Report not saved: the desktop user could not be determined. Start Lycoris without administrator rights and try again.",
     "Отчёт сохранён на рабочем столе.": "Report saved to the desktop.",
     "ОТКРЫТЬ ПАПКУ": "OPEN FOLDER",
-    "Создать обезличенный архив диагностики на рабочем столе.": "Create an anonymized diagnostics archive on the desktop."
+    "Создать обезличенный архив диагностики на рабочем столе.": "Create an anonymized diagnostics archive on the desktop.",
+    "Оценка ПК и все проверки «Панели» с пояснениями": "PC score and every «Dashboard» check with an explanation",
+    "Сводка о системе: Windows, процессор, видеокарта, память, диски, мониторы": "System summary: Windows, processor, graphics card, memory, drives, monitors",
+    "Последний замер «до / после», если он есть": "The latest «before / after» measurement, if there is one",
+    "Без имени пользователя и компьютера, без серийных номеров и сетевых адресов": "No user or computer name, no serial numbers and no network addresses",
+    "Отчёт о ПК — Lycoris": "PC report — Lycoris",
+    "Отчёт о ПК": "PC report",
+    "Создан {0} · Lycoris {1}": "Created {0} · Lycoris {1}",
+    "ПРОВЕРКИ": "CHECKS",
+    "ЗАМЕР ДО / ПОСЛЕ": "BEFORE / AFTER MEASUREMENT",
+    "Отчёт создан на этом ПК и никуда не отправлялся.": "The report was created on this PC and was not sent anywhere."
   }
 }

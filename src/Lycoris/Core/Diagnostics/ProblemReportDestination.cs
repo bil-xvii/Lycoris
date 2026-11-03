@@ -64,10 +64,10 @@ public static partial class ProblemReport
     /// <paramref name="expectedFolder"/> (when given) and writes the data. A file that landed elsewhere is deleted and refused.
     /// Returns the path written.
     /// </summary>
-    internal static string WriteUnique(string folder, byte[] data, string? expectedFolder = null)
+    internal static string WriteUnique(string folder, byte[] data, string? expectedFolder = null, string prefix = "Lycoris-report", string extension = "zip")
     {
         var suffix = Guid.NewGuid().ToString("N")[..6];
-        var path = Path.Combine(folder, $"Lycoris-report-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}-{suffix}.zip");
+        var path = Path.Combine(folder, $"{prefix}-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}-{suffix}.{extension}");
         var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         try
         {
@@ -136,6 +136,13 @@ public static partial class ProblemReport
     }
 
     /// <summary>Writes the archive to the checked Desktop; returns the folder.</summary>
+    /// <summary>Writes the PC health report (HTML) to the same checked Desktop; returns the full file path.</summary>
+    public static string SaveHealthReportToDesktop(byte[] html)
+    {
+        var destination = ResolveDestination();
+        return WriteUnique(destination.Folder, html, destination.Folder, "Lycoris-PC-report", "html");
+    }
+
     public static string SaveToDesktop(byte[] archive)
     {
         var destination = ResolveDestination();
