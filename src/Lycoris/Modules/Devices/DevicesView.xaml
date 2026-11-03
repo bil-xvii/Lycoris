@@ -17,7 +17,9 @@
 
     <UserControl.Resources>
         <!-- ─────────────── Small building blocks ─────────────── -->
-        <Style x:Key="Dev.Caption" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}" />
+        <Style x:Key="Dev.Caption" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+            <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+        </Style>
 
         <!-- A card that briefly frames itself when opened from a link (Dashboard, Ctrl+K, Restore) -->
         <Style x:Key="Dev.Card" TargetType="Border" BasedOn="{StaticResource Card.Flush}">
@@ -116,13 +118,11 @@
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <!-- Fixed, so every card's columns line up across the tab; a second link wraps under the first.
-                                 160 + 246 + 190 + 212 = 808 ≤ the row width at the smallest window (1120 px: 818 after the
-                                 sidebar, margins, scrollbar and row padding), so no row ever overflows. -->
-                            <ColumnDefinition Width="*" MinWidth="160" />
-                            <ColumnDefinition Width="246" />
-                            <ColumnDefinition Width="190" />
-                            <ColumnDefinition Width="212" />
+                            <!-- Share the row width with the description first; keep controls and current values readable at 1120 px. -->
+                            <ColumnDefinition Width="2*" MinWidth="160" />
+                            <ColumnDefinition Width="1.5*" MinWidth="180" />
+                            <ColumnDefinition Width="1.1*" MinWidth="130" />
+                            <ColumnDefinition Width="Auto" MinWidth="190" />
                         </Grid.ColumnDefinitions>
 
                         <!-- Title, one-line hint, tags -->
