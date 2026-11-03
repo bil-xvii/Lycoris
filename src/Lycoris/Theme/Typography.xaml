@@ -13,6 +13,16 @@
     <FontFamily x:Key="F.Mono">Cascadia Mono, Consolas</FontFamily>
     <FontFamily x:Key="F.Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
+    <!-- Brand wordmark: distinct from interface copy, with open proportions for Cyrillic fallback. -->
+    <Style x:Key="T.Wordmark" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource F.Stat}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontStretch" Value="Normal" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    </Style>
+
     <!-- Page title (compact header) -->
     <Style x:Key="T.Display" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
