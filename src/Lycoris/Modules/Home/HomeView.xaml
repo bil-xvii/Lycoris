@@ -14,6 +14,25 @@
                     <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Content="{loc:T НАЧАТЬ МАСТЕР}" Command="{Binding OpenWizardCommand}" VerticalAlignment="Center"/>
                 </Grid>
             </Border>
+            <ItemsControl ItemsSource="{Binding Goals}">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate><DataTemplate>
+                    <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="10" Margin="0,0,6,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="30" Foreground="{StaticResource B.Text}" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,3,8,0"/>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="Bold" Foreground="{StaticResource B.Text}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Description}" Margin="0,3,0,0" Foreground="{StaticResource B.Text2}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Fact}" Margin="0,5,0,0" Foreground="{StaticResource B.Text}" TextWrapping="Wrap" Visibility="{Binding Fact, Converter={StaticResource NullToVis}}"/>
+                                <Border HorizontalAlignment="Left" Margin="0,7,0,0"><Border.Style><Style TargetType="Border" BasedOn="{StaticResource Tag.Ok}"><Style.Triggers><DataTrigger Binding="{Binding Id}" Value="startup"><Setter Property="Background" Value="{StaticResource B.InfoDeep}"/><Setter Property="BorderBrush" Value="{StaticResource B.Info}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="cleanup"><Setter Property="Background" Value="{StaticResource B.InfoDeep}"/><Setter Property="BorderBrush" Value="{StaticResource B.Info}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="laptop"><Setter Property="Background" Value="{StaticResource B.InfoDeep}"/><Setter Property="BorderBrush" Value="{StaticResource B.Info}"/></DataTrigger></Style.Triggers></Style></Border.Style><TextBlock Text="{Binding Risk}" Foreground="{StaticResource B.SuccessText}"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource T.Label}"><Setter Property="Foreground" Value="{StaticResource B.SuccessText}"/><Style.Triggers><DataTrigger Binding="{Binding Id}" Value="startup"><Setter Property="Foreground" Value="{StaticResource B.InfoText}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="cleanup"><Setter Property="Foreground" Value="{StaticResource B.InfoText}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="laptop"><Setter Property="Foreground" Value="{StaticResource B.InfoText}"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Border>
+                                <TextBlock Text="{Binding ExpertDetail}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" Margin="0,2,0,0" TextWrapping="Wrap" Visibility="{Binding DataContext.ExpertMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVis}}"/>
+                                <Button Style="{StaticResource Btn}" Content="{Binding Action}" Command="{Binding DataContext.OpenGoalCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
             <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="8" Margin="0,0,0,8">
                 <StackPanel>
                     <Grid>
@@ -51,25 +70,7 @@
                     <Button Style="{StaticResource Btn.Link}" Content="{loc:T ВСЕ ПРОБЛЕМЫ}" Command="{Binding OpenDoctorCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="{Binding DoctorHasProblems, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
             </Border>
-            <ItemsControl ItemsSource="{Binding Goals}">
-                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate><DataTemplate>
-                    <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="10" Margin="0,0,6,6">
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="30" Foreground="{StaticResource B.Text}" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,3,8,0"/>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="Bold" Foreground="{StaticResource B.Text}" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding Description}" Margin="0,3,0,0" Foreground="{StaticResource B.Text2}" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding Fact}" Margin="0,5,0,0" Foreground="{StaticResource B.Text}" TextWrapping="Wrap" Visibility="{Binding Fact, Converter={StaticResource NullToVis}}"/>
-                                <Border HorizontalAlignment="Left" Margin="0,7,0,0"><Border.Style><Style TargetType="Border" BasedOn="{StaticResource Tag.Ok}"><Style.Triggers><DataTrigger Binding="{Binding Id}" Value="startup"><Setter Property="Background" Value="{StaticResource B.InfoDeep}"/><Setter Property="BorderBrush" Value="{StaticResource B.Info}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="cleanup"><Setter Property="Background" Value="{StaticResource B.InfoDeep}"/><Setter Property="BorderBrush" Value="{StaticResource B.Info}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="laptop"><Setter Property="Background" Value="{StaticResource B.InfoDeep}"/><Setter Property="BorderBrush" Value="{StaticResource B.Info}"/></DataTrigger></Style.Triggers></Style></Border.Style><TextBlock Text="{Binding Risk}" Foreground="{StaticResource B.SuccessText}"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource T.Label}"><Setter Property="Foreground" Value="{StaticResource B.SuccessText}"/><Style.Triggers><DataTrigger Binding="{Binding Id}" Value="startup"><Setter Property="Foreground" Value="{StaticResource B.InfoText}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="cleanup"><Setter Property="Foreground" Value="{StaticResource B.InfoText}"/></DataTrigger><DataTrigger Binding="{Binding Id}" Value="laptop"><Setter Property="Foreground" Value="{StaticResource B.InfoText}"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Border>
-                                <TextBlock Text="{Binding ExpertDetail}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" Margin="0,2,0,0" TextWrapping="Wrap" Visibility="{Binding DataContext.ExpertMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVis}}"/>
-                                <Button Style="{StaticResource Btn}" Content="{Binding Action}" Command="{Binding DataContext.OpenGoalCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                </DataTemplate></ItemsControl.ItemTemplate>
-            </ItemsControl>
+
             <TextBlock Text="{loc:T ЧТО МЕНЯЛОСЬ}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,4"/>
             <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="12">
                 <StackPanel>
