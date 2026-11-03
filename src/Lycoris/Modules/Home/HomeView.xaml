@@ -11,7 +11,9 @@
                         <TextBlock Text="{loc:T Настроим ПК вместе}" Style="{StaticResource T.H3}" Foreground="{StaticResource B.Text}"/>
                         <TextBlock Text="{loc:T Мастер поможет выбрать безопасный профиль под ваши задачи.}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" Margin="0,3,0,0"/>
                     </StackPanel>
-                    <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Content="{loc:T НАЧАТЬ МАСТЕР}" Command="{Binding OpenWizardCommand}" VerticalAlignment="Center"/>
+                    <!-- One primary action per page: the wizard button steps back to an ordinary one while «ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ» is shown. -->
+                    <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Content="{loc:T НАЧАТЬ МАСТЕР}" Command="{Binding OpenWizardCommand}" VerticalAlignment="Center" Visibility="{Binding HasSafeFixes, Converter={StaticResource InverseBoolToVis}}"/>
+                    <Button Grid.Column="1" Style="{StaticResource Btn}" Content="{loc:T НАЧАТЬ МАСТЕР}" Command="{Binding OpenWizardCommand}" VerticalAlignment="Center" Visibility="{Binding HasSafeFixes, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </Border>
             <ItemsControl ItemsSource="{Binding Goals}">
@@ -57,9 +59,14 @@
                             <Ellipse Width="9" Height="9" HorizontalAlignment="Left" Margin="1,0,0,4"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{StaticResource B.SuccessText}"/><Style.Triggers><DataTrigger Binding="{Binding DoctorHasProblems}" Value="True"><Setter Property="Fill" Value="{StaticResource B.WarningText}"/></DataTrigger><DataTrigger Binding="{Binding DoctorHasData}" Value="False"><Setter Property="Fill" Value="{StaticResource B.Text3}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse>
                             <TextBlock Text="{Binding DoctorStatus}" Foreground="{StaticResource B.Text}" FontSize="16" FontWeight="Bold"/>
                             <TextBlock Text="{Binding DoctorChecked}" Foreground="{StaticResource B.Text2}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"/>
+                            <TextBlock Text="{Binding ScoreText}" Style="{StaticResource T.Stat}" Margin="0,6,0,0" Visibility="{Binding ScoreText, Converter={StaticResource NullToVis}}" ToolTip="{loc:T 'Оценка ПК по проверкам «Панели»: 100 — замечаний нет'}"/>
                         </StackPanel>
-                        <Button Grid.Column="1" Style="{StaticResource Btn}" Content="{loc:T ПРОВЕРИТЬ СНОВА}" Command="{Binding RefreshDoctorCommand}" Visibility="{Binding DoctorHasProblems, Converter={StaticResource InverseBoolToVis}}"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                            <Button Style="{StaticResource Btn.Primary}" Content="{Binding FixSafeText}" Command="{Binding FixSafeCommand}" Margin="0,0,8,0" Visibility="{Binding HasSafeFixes, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Одно подтверждение, запись в журнал и откат — то же, что на «Панели»'}"/>
+                            <Button Style="{StaticResource Btn}" Content="{loc:T ПРОВЕРИТЬ СНОВА}" Command="{Binding RefreshDoctorCommand}" Visibility="{Binding DoctorHasProblems, Converter={StaticResource InverseBoolToVis}}"/>
+                        </StackPanel>
                     </Grid>
+                    <TextBlock Text="{loc:T Остальное требует вашего решения — кнопки у каждого пункта ниже}" Style="{StaticResource T.Caption}" Margin="0,6,0,0" Visibility="{Binding ShowDecisionHint, Converter={StaticResource BoolToVis}}"/>
                     <TextBlock Text="{loc:T Пока не удалось получить результаты проверки.}" Foreground="{StaticResource B.Text2}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="{Binding DoctorHasData, Converter={StaticResource InverseBoolToVis}}"/>
                     <ItemsControl ItemsSource="{Binding DoctorIssues}" Margin="0,4,0,0" Visibility="{Binding DoctorHasProblems, Converter={StaticResource BoolToVis}}">
                         <ItemsControl.ItemTemplate><DataTemplate>

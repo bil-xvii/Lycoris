@@ -196,17 +196,28 @@ public sealed partial class HomeViewModel : PageViewModel
     internal static bool ShouldShowLaptopGoal(bool profileComplete, bool isLaptop, bool hasAutonomyScenario) =>
         profileComplete && isLaptop && hasAutonomyScenario;
 
+    // Score and «ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ» come straight from the Dashboard (same checks, same command, one journal batch).
+    [ObservableProperty] private string? _scoreText;
+    public bool HasSafeFixes => _dashboard.HasSafeFixes;
+    public string FixSafeText => _dashboard.FixSafeText;
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand FixSafeCommand => _dashboard.FixSafeCommand;
+    public bool ShowDecisionHint => DoctorHasProblems && !HasSafeFixes;
+
     private void RefreshDoctor()
     {
         DoctorIssues.Clear();
         DoctorHasData = _dashboard.HasResults;
         DoctorHasProblems = false;
-        if (!DoctorHasData) { DoctorStatus = Loc.T("Нет данных"); DoctorChecked = ""; return; }
+        if (!DoctorHasData) { DoctorStatus = Loc.T("Нет данных"); DoctorChecked = ""; ScoreText = null; OnPropertyChanged(nameof(HasSafeFixes)); OnPropertyChanged(nameof(ShowDecisionHint)); return; }
         var issues = BuildDoctorIssues(_dashboard.Issues);
         foreach (var item in issues) DoctorIssues.Add(item);
         DoctorHasProblems = issues.Count > 0;
         DoctorStatus = DoctorHasProblems ? Loc.T("Что можно улучшить") : Loc.T("Проблем не найдено");
         DoctorChecked = _dashboard.LastCheckText;
+        ScoreText = Loc.Tf("{0} / 100", _dashboard.Score);
+        OnPropertyChanged(nameof(HasSafeFixes));
+        OnPropertyChanged(nameof(FixSafeText));
+        OnPropertyChanged(nameof(ShowDecisionHint));
     }
 
     internal static IReadOnlyList<DoctorIssue> BuildDoctorIssues(IEnumerable<CheckItemViewModel> source) => source
