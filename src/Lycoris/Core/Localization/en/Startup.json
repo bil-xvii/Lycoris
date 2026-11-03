@@ -2,10 +2,15 @@
   "area": "Startup",
   "translated": true,
   "sources": [
-    "Modules/Startup/**"
+    "Modules/Startup/**",
+    "Core/Measurements/**"
   ],
   "ignore": [],
   "en": {
+    "недоступно": "unavailable",
+    "Разная версия или сборка Windows": "Different Windows version or build",
+    "Разная версия Lycoris": "Different Lycoris version",
+    "Разные источники времени загрузки": "Different boot time sources",
     "Автозапуск: журнал времени загрузки недоступен: {0}": "Startup: the boot time log is unavailable: {0}",
     "{0},{1} с": "{0}.{1} s",
     "Последняя загрузка ({0}): {1}": "Last boot ({0}): {1}",

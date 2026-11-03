@@ -1,5 +1,7 @@
 namespace Lycoris.Core.Measurements;
 
+using Lycoris.Core.Localization;
+
 public sealed record MeasurementDelta(double? Before, double? After, double? Delta, double? MinDelta, double? MaxDelta);
 
 public sealed record MeasurementComparison(bool Incomparable, string? Reason,
@@ -16,11 +18,11 @@ public static class MeasurementComparer
         var b = after.Conditions;
         string? reason = null;
         if (!string.Equals(a.WindowsVersion, b.WindowsVersion, StringComparison.Ordinal) || !string.Equals(a.WindowsBuild, b.WindowsBuild, StringComparison.Ordinal))
-            reason = "Разная версия или сборка Windows";
+            reason = Loc.T("Разная версия или сборка Windows");
         else if (!string.Equals(a.LycorisVersion, b.LycorisVersion, StringComparison.Ordinal))
-            reason = "Разная версия Lycoris";
+            reason = Loc.T("Разная версия Lycoris");
         else if (!string.Equals(a.BootTimeSource, b.BootTimeSource, StringComparison.Ordinal))
-            reason = "Разные источники времени загрузки";
+            reason = Loc.T("Разные источники времени загрузки");
 
         return new MeasurementComparison(reason is not null, reason,
             Build(a.EnabledStartupItems, b.EnabledStartupItems,
