@@ -86,3 +86,16 @@ public sealed class HomeTests
     public void Doctor_reason_is_short_and_plain(string ruleId, string expected) =>
         Assert.Equal(expected, HomeViewModel.DoctorReason(ruleId, "Технические подробности. Дополнительные сведения."));
 }
+
+public sealed class HomeScoreFixTests
+{
+    [Fact]
+    public void Home_fix_all_is_the_dashboard_command_and_shows_the_score()
+    {
+        var dashboard = new Lycoris.Modules.Dashboard.DashboardViewModel();
+        var home = new Lycoris.Modules.Home.HomeViewModel(dashboard, _ => Task.CompletedTask);
+        Assert.Same(dashboard.FixSafeCommand, home.FixSafeCommand);
+        Assert.Equal(dashboard.HasSafeFixes, home.HasSafeFixes);
+        Assert.Equal(dashboard.FixSafeText, home.FixSafeText);
+    }
+}

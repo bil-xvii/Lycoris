@@ -1,7 +1,9 @@
 {
   "area": "Home",
   "translated": true,
-  "sources": ["Modules/Home/**"],
+  "sources": [
+    "Modules/Home/**"
+  ],
   "ignore": [],
   "en": {
     "Замер до / после": "Before / after measurement",
@@ -81,6 +83,9 @@
     "Программы в фоне могут замедлять вход в Windows.": "Background programs can slow down Windows sign-in.",
     "Сбалансированный режим снижает нагрев и расход энергии в простое.": "Balanced mode reduces heat and power use while idle.",
     "Правило: {0}": "Rule: {0}",
-    "Источник времени загрузки: {0}": "Boot time source: {0}"
+    "Источник времени загрузки: {0}": "Boot time source: {0}",
+    "Оценка ПК по проверкам «Панели»: 100 — замечаний нет": "PC score from the «Dashboard» checks: 100 means no remarks",
+    "Одно подтверждение, запись в журнал и откат — то же, что на «Панели»": "One confirmation, logged and undoable — the same as on the «Dashboard»",
+    "Остальное требует вашего решения — кнопки у каждого пункта ниже": "The rest needs your decision — each item below has its own button"
   }
 }
