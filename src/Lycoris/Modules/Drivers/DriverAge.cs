@@ -29,11 +29,11 @@ internal static class DriverAge
         _ => DriverAgeVerdict.Fresh,
     };
 
-    /// <summary>"меньше месяца", "3 мес.", "1 год", "1 год 4 мес.", "2 года", "5 лет".</summary>
+    /// <summary>"до месяца", "3 мес.", "1 год", "1 год 4 мес.", "2 года", "5 лет".</summary>
     public static string Format(int? months)
     {
         if (months is not { } m) return "—";
-        if (m < 1) return Loc.T("меньше месяца");
+        if (m < 1) return Loc.T("до месяца");
         if (m < 12) return Loc.Tf("{0} мес.", m);
         var years = m / 12;
         var rest = m % 12;

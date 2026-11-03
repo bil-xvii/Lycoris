@@ -485,7 +485,7 @@
                                         <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" FontSize="17"
                                                    VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1" Text="{Binding Description}" Style="{StaticResource T.Caption}" Margin="10,3,0,0"
-                                                   VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                                   VerticalAlignment="Center" TextWrapping="Wrap" />
                                         <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" Margin="10,2,10,0" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="3" Style="{StaticResource T.Mono}" VerticalAlignment="Center"
                                                    Foreground="{StaticResource B.Text3}">

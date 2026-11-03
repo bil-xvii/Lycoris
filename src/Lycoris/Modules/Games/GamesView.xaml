@@ -97,7 +97,7 @@
                                 </MultiBinding>
                             </CheckBox.IsEnabled>
                             <TextBlock Text="{loc:T 'Высокопроизводительный GPU'}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}"
-                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                       TextWrapping="Wrap" />
                         </CheckBox>
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
@@ -413,7 +413,7 @@
 
                     <!-- Footer: which launchers were checked -->
                     <TextBlock Grid.Row="3" Text="{Binding SourcesFooter}" Style="{StaticResource T.Caption}" Margin="0,8,9,0"
-                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding SourcesFooter}"
+                               TextWrapping="Wrap" ToolTip="{Binding SourcesFooter}"
                                Visibility="{Binding HasGames, Converter={StaticResource BoolToVis}}" />
                 </Grid>
 

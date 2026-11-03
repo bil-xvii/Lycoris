@@ -20,8 +20,8 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
         <Style x:Key="Hw.StatCaption" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
-            <Setter Property="TextWrapping" Value="NoWrap" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="None" />
             <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
         <Style x:Key="Hw.StatValueCompact" TargetType="TextBlock" BasedOn="{StaticResource Hw.StatValue}">

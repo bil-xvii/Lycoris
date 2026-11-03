@@ -151,7 +151,7 @@ public sealed class DriversTests
 
     [Theory]
     [InlineData(null, "—")]
-    [InlineData(0, "меньше месяца")]
+    [InlineData(0, "до месяца")]
     [InlineData(3, "3 мес.")]
     [InlineData(12, "1 год")]
     [InlineData(16, "1 год 4 мес.")]

@@ -280,7 +280,7 @@
                                                                TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
                                                     <!-- Why the switch is locked: text, not only a tooltip -->
                                                     <TextBlock Text="{Binding LockNote}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text}" Margin="0,2,0,0"
-                                                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="Wrap"
                                                                Visibility="{Binding LockNote, Converter={StaticResource NullToVis}}" />
                                                 </StackPanel>
                                             </Grid>
@@ -398,7 +398,7 @@
                                                     <TextBlock Text="{Binding StatusDetail}" Style="{StaticResource T.Caption}" Margin="0,1,0,0"
                                                                TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Text="{Binding LockNote}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text}" Margin="0,2,0,0"
-                                                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="Wrap"
                                                                Visibility="{Binding LockNote, Converter={StaticResource NullToVis}}" />
                                                 </StackPanel>
                                             </Grid>

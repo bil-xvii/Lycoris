@@ -169,7 +169,7 @@
     "Неизвестная ошибка устройства (код {0})": "Unknown device error (code {0})",
     "Windows сообщает о проблеме с устройством, но этот код встречается редко.": "Windows reports a problem with the device, but this code is rare.",
     "Откройте диспетчер устройств и посмотрите подробности в свойствах устройства.": "Open Device Manager and check the details in the device's properties.",
-    "меньше месяца": "less than a month",
+    "до месяца": "< 1 month",
     "{0} мес.": "{0} mo.",
     "{0} год": "{0} year|{0} years",
     "{0} {1} мес.": "{0} {1} mo.",
