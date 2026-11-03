@@ -3,9 +3,18 @@
         <StackPanel Margin="0,0,0,20">
             <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource B.Text}" />
             <TextBlock Text="{Binding Subtitle}" Margin="0,4,0,14" Foreground="{StaticResource B.Text2}" />
-            <Button Style="{StaticResource Btn}" Content="{loc:T Хотите пройти мастер?}" Command="{Binding OpenWizardCommand}" HorizontalAlignment="Left" Margin="0,0,0,12"
-                    Visibility="{Binding ShowWizardPrompt, Converter={StaticResource BoolToVis}}" />
-            <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="12" Margin="0,0,0,12">
+            <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="10" Margin="0,0,0,8"
+                    Visibility="{Binding ShowWizardPrompt, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock Text="{loc:T Настроим ПК вместе}" Style="{StaticResource T.H3}" Foreground="{StaticResource B.Text}"/>
+                        <TextBlock Text="{loc:T Мастер поможет выбрать безопасный профиль под ваши задачи.}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Content="{loc:T НАЧАТЬ МАСТЕР}" Command="{Binding OpenWizardCommand}" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+            <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="8" Margin="0,0,0,8">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -19,7 +28,7 @@
                     <TextBlock Text="{loc:T Пока не удалось получить результаты проверки.}" Foreground="{StaticResource B.Text2}" Margin="0,8,0,0" TextWrapping="Wrap" Visibility="{Binding DoctorHasData, Converter={StaticResource InverseBoolToVis}}"/>
                     <ItemsControl ItemsSource="{Binding DoctorIssues}" Margin="0,4,0,0" Visibility="{Binding DoctorHasProblems, Converter={StaticResource BoolToVis}}">
                         <ItemsControl.ItemTemplate><DataTemplate>
-                            <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,1,0,0" Padding="0,9,0,8">
+                            <Border BorderBrush="{StaticResource B.Line2}" BorderThickness="0,1,0,0" Padding="0,5,0,5">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <Ellipse Width="9" Height="9" Margin="2,5,10,0" VerticalAlignment="Top"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{StaticResource B.WarningText}"/><Style.Triggers><DataTrigger Binding="{Binding DotStyle}" Value="Dot.Red"><Setter Property="Fill" Value="{StaticResource B.Red}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse>

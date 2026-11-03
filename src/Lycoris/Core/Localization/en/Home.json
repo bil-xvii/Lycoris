@@ -4,7 +4,7 @@
   "sources": ["Modules/Home/**"],
   "ignore": [],
   "en": {
-    "Хотите пройти мастер?": "Would you like to take the wizard?",
+    "НАЧАТЬ МАСТЕР": "START THE WIZARD",`n    "Настроим ПК вместе": "Set up your PC",`n    "Мастер поможет выбрать безопасный профиль под ваши задачи.": "The wizard helps you choose a safe profile for what you do.",
     "Главная": "Home",
     "Выберите, что хотите сделать.": "Choose what you want to do.",
     "Доктор собирает сведения при первом открытии Панели.": "Doctor is collecting information when Dashboard opens for the first time.",
