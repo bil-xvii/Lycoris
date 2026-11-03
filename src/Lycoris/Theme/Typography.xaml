@@ -68,7 +68,9 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
         <Setter Property="TextWrapping" Value="Wrap" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="LineHeight" Value="19" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
     </Style>
 
     <Style x:Key="T.BodyStrong" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
