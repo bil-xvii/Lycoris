@@ -92,7 +92,7 @@
                     <TextBlock Text="Lycoris" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Display}"
                                FontWeight="Bold" FontStretch="Condensed" FontSize="21" Foreground="{StaticResource B.Text}" />
                     <TextBlock Text="{Binding Version}" Margin="10,3,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}"
-                               FontSize="11.5" Foreground="{StaticResource B.Text3}" />
+                               FontSize="12" Foreground="{StaticResource B.Text3}" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -117,7 +117,7 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
                             <TextBlock Text="{loc:T ПОИСК}" Margin="7,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Ctrl+K" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}" FontSize="11.5"
+                            <TextBlock Text="Ctrl+K" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}" FontSize="12"
                                        FontWeight="Normal" FontStretch="Normal" Foreground="{StaticResource B.Text3}" />
                         </StackPanel>
                     </Button>
@@ -159,7 +159,7 @@
                         <Run Text="{loc:T РЕЖИМ ПРОСМОТРА}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource B.Text}" />
                         <Run Text="{loc:T ' — смотреть и проверять можно сразу; любая кнопка изменения сама попросит права и продолжит действие.'}" FontSize="12" Foreground="{StaticResource B.Text2}" />
                     </TextBlock>
-                    <Button Grid.Column="2" Style="{StaticResource Btn}" Height="22" Padding="8,0" FontSize="11.5" Command="{Binding RestartAsAdminCommand}"
+                    <Button Grid.Column="2" Style="{StaticResource Btn}" Height="22" Padding="8,0" FontSize="12" Command="{Binding RestartAsAdminCommand}"
                             ToolTip="{loc:T Перезапустить Lycoris с правами администратора сейчас (запрос UAC)}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
@@ -401,7 +401,7 @@
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Width="6" Height="6" Background="{StaticResource B.White}" VerticalAlignment="Center" />
                             <TextBlock Text="{loc:T ЖУРНАЛ ДЕЙСТВИЙ}" Style="{StaticResource T.Label}" Margin="10,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}"
+                            <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}"
                                        Text="{Binding LogEntries.Count, StringFormat={loc:T 'СТРОК: {0}'}}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -430,8 +430,8 @@
                                         <ColumnDefinition Width="46" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding TimeText}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" />
-                                    <TextBlock Grid.Column="1" Text="{Binding LevelTag}" FontFamily="{StaticResource F.Mono}" FontSize="11.5">
+                                    <TextBlock Text="{Binding TimeText}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding LevelTag}" FontFamily="{StaticResource F.Mono}" FontSize="12">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
@@ -450,7 +450,7 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <TextBlock Grid.Column="2" Text="{Binding Display}" Style="{StaticResource T.Mono}" FontSize="11.5" TextTrimming="CharacterEllipsis" ToolTip="{Binding Display}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Display}" Style="{StaticResource T.Mono}" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding Display}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -474,7 +474,7 @@
                             </Style>
                         </Border.Style>
                     </Border>
-                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="11.5">
+                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
                                 <Setter Property="Text" Value="{loc:T ГОТОВ}" />
@@ -487,7 +487,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}"
+                    <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}"
                                Text="{Binding CurrentPage.CheckedText, StringFormat=· {0}}"
                                Visibility="{Binding CurrentPage.CheckedText, Converter={StaticResource NullToVis}, FallbackValue=Collapsed}" />
                 </StackPanel>
@@ -513,7 +513,7 @@
                         </TextBlock>
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource Btn}" Height="26" Padding="10,0" FontSize="11.5" VerticalAlignment="Center"
+                <Button Style="{StaticResource Btn}" Height="26" Padding="10,0" FontSize="12" VerticalAlignment="Center"
                         Command="{Binding ToggleConsoleCommand}" ToolTip="{loc:T Показать или скрыть журнал действий Lycoris}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE756;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />

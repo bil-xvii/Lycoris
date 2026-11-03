@@ -283,9 +283,9 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <StackPanel Margin="0,0,0,9">
-                                                    <TextBlock Text="{Binding Target}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text}"
+                                                    <TextBlock Text="{Binding Target}" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text}"
                                                                TextWrapping="Wrap" />
-                                                    <TextBlock Margin="0,3,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11.5" TextWrapping="Wrap">
+                                                    <TextBlock Margin="0,3,0,0" FontFamily="{StaticResource F.Mono}" FontSize="12" TextWrapping="Wrap">
                                                         <Run Text="{loc:T 'сейчас '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding Current, Mode=OneWay}"
                                                              Foreground="{StaticResource B.Text2}" /><Run Text="  →  " Foreground="{StaticResource B.Text3}" /><Run
                                                              Text="{loc:T 'станет '}" Foreground="{StaticResource B.Text3}" /><Run Text="{Binding New, Mode=OneWay}"
@@ -415,10 +415,10 @@
                             <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
                                        TextWrapping="Wrap" MinHeight="32" ToolTip="{Binding Description}" />
                             <!-- Counters on two fixed lines: six tiles never wrap them at different places. -->
-                            <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
+                            <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
                                 <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run Text="{loc:T ' к изменению'}" />
                             </TextBlock>
-                            <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
+                            <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
                                 <Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text="{loc:T ' применено'}" />
                             </TextBlock>
                             <StackPanel Margin="0,8,0,0">
