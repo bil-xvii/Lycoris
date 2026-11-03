@@ -6,6 +6,7 @@
   ],
   "ignore": [],
   "en": {
+    "Что нужно сделать": "What to do",
     "Слишком много резервных копий за одну минуту.": "Too many driver backups in one minute.",
     "Профили питания ядер Ryzen для Windows.": "Ryzen core power profiles for Windows.",
     "Переводит игры на ядра с 3D-кэшем (X3D).": "Moves games onto the cores with 3D cache (X3D).",
