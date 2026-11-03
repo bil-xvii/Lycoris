@@ -457,6 +457,11 @@
     "Отчёт о ПК сохранён: {0}": "PC report saved: {0}",
     "Отчёт о ПК сохранён на рабочем столе.": "PC report saved to the Desktop.",
     "Отчёт не сохранён: {0}": "Report not saved: {0}",
-    "Последний замер {0}: автозапуск — {1}, свободная память — {2} МБ, время загрузки — {3}": "Last measurement {0}: startup — {1}, free memory — {2} MB, boot time — {3}"
+    "Последний замер {0}: автозапуск — {1}, свободная память — {2} МБ, время загрузки — {3}": "Last measurement {0}: startup — {1}, free memory — {2} MB, boot time — {3}",
+    "ОБСЛУЖИВАНИЕ В НОРМЕ": "MAINTENANCE IS UP TO DATE",
+    "Очистка проводилась сегодня.": "A cleanup was done today.",
+    "Последняя очистка — {0} назад.": "Last cleanup — {0} ago.",
+    "ПОРА ОБСЛУЖИТЬ ПК": "TIME TO SERVICE THE PC",
+    "С последней очистки прошло {0}. Lycoris покажет, что можно удалить, — без вашего подтверждения ничего не удаляется. Напоминание выключается в «Настройках».": "{0} have passed since the last cleanup. Lycoris shows what can be removed — nothing is deleted without your confirmation. The reminder can be switched off in «Settings»."
   }
 }

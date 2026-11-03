@@ -47,7 +47,7 @@ public static partial class HealthRules
         {
             CheckRestore, CheckDiskSpace, CheckDiskHealth, CheckDevices, CheckStability, CheckRefreshRate, CheckMonitorOnGpu,
             CheckRam, CheckTrim, CheckPendingReboot, CheckUpdatePin, CheckGpuDriver, CheckRebar, CheckPcieLink, CheckGameMode, CheckHags,
-            CheckGameDvr, CheckStartup, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
+            CheckGameDvr, CheckStartup, CheckMaintenance, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
         };
         var results = new List<HealthCheckResult>();
         foreach (var check in checks)
@@ -625,6 +625,24 @@ public static partial class HealthRules
     /// (02 = enabled, 03 = disabled); a missing value means enabled.
     /// </summary>
     public static bool IsStartupEntryEnabled(byte[]? approved) => approved is not { Length: > 0 } || (approved[0] & 1) == 0;
+
+    /// <summary>
+    /// Regular maintenance (roadmap item 7): a gentle reminder once the last cleanup is older than two weeks. It only leads to
+    /// the cleaner's preview — nothing is ever deleted without the owner's confirmation, and the reminder can be switched off.
+    /// </summary>
+    public static HealthCheckResult? CheckMaintenance(SystemSnapshot s)
+    {
+        if (s.DaysSinceMaintenance is not { } days) return null;
+        var n = (int)Math.Floor(days);
+        if (n < AppSettings.MaintenanceEveryDays)
+            return new("maintenance", Loc.T("ОБСЛУЖИВАНИЕ В НОРМЕ"),
+                n == 0 ? Loc.T("Очистка проводилась сегодня.") : Loc.Tf("Последняя очистка — {0} назад.", Loc.N(n, "{0} день", "{0} дня", "{0} дней")),
+                CheckSeverity.Ok, 3);
+        return new("maintenance", Loc.T("ПОРА ОБСЛУЖИТЬ ПК"),
+            Loc.Tf("С последней очистки прошло {0}. Lycoris покажет, что можно удалить, — без вашего подтверждения ничего не удаляется. " +
+                   "Напоминание выключается в «Настройках».", Loc.N(n, "{0} день", "{0} дня", "{0} дней")),
+            CheckSeverity.Info, 3, new CheckAction(CheckActionKind.Navigate, Loc.T("ПОСМОТРЕТЬ, ЧТО ОЧИСТИТЬ"), "cleaner"));
+    }
 
     public static HealthCheckResult? CheckStartup(SystemSnapshot s)
     {

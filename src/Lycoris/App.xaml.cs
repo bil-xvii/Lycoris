@@ -129,6 +129,9 @@ public partial class App : Application
         // ("--lang en|ru" overrides it for this run only: QA / screenshots).
         AppSettings.Load();
         Loc.Initialize(ArgValue(args, "--lang") ?? AppSettings.Current.Language);
+        // Regular maintenance: the first run is the baseline, so the reminder appears two weeks later, not on day one.
+        if (!snapshot && !timingRun && string.IsNullOrEmpty(AppSettings.Current.LastMaintenanceUtc))
+            AppSettings.Current.LastMaintenanceUtc = DateTime.UtcNow.ToString("o");
 
         // Already running? Bring that window up instead of asking for admin rights again. A copy that is still
         // closing (or hangs without a window) is waited for / offered to be ended — never a silent exit.
