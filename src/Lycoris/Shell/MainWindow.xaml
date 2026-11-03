@@ -209,7 +209,7 @@
                         <!-- Same plate and marker as a selected nav item while Settings is open -->
                         <Border Margin="10,0,8,0" Height="34" Background="{StaticResource B.Surface2}" CornerRadius="{StaticResource R.Md}"
                                 Visibility="{Binding IsSettingsOpen, Converter={StaticResource BoolToVis}}">
-                            <Rectangle Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.White}"
+                            <Rectangle Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.Red}"
                                        RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
                         </Border>
                         <Button Command="{Binding NavigateCommand}" CommandParameter="settings" ToolTip="{loc:T Настройки Lycoris}"
@@ -276,7 +276,7 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="{Binding DisplayTitle, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Body}"
-                                               FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                               FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" TextWrapping="Wrap" />
                                     <Border Grid.Column="2" Style="{StaticResource TabBadge}" Margin="8,0,0,0"
                                             Visibility="{Binding BadgeText, Converter={StaticResource NullToVis}}">
                                         <TextBlock Text="{Binding BadgeText}" />
