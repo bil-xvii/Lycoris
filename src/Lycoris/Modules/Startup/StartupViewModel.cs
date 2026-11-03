@@ -319,8 +319,12 @@ public sealed partial class StartupViewModel : PageViewModel
         await ApplyEntriesAsync(targets, enable: false, createRestorePoint: targets.Count > 1);
     }
 
-    /// <summary>Extra = enabled, allowed to switch off, and either slows boot (Windows measured it) or points to a missing file.</summary>
-    internal static bool IsExtra(StartupItem i) => i.IsEnabled && i.CanDisable && i.CanChange && (i.ShowBootDelay || !i.TargetExists);
+    /// <summary>
+    /// Extra = enabled, allowed to switch off, and either slows boot (Windows measured it), points to a missing file, or is an
+    /// ordinary program that is just as usable without starting at logon (StartupClassifier.IsOptionalAtLogon).
+    /// </summary>
+    internal static bool IsExtra(StartupItem i) => i.IsEnabled && i.CanDisable && i.CanChange
+        && (i.ShowBootDelay || !i.TargetExists || StartupClassifier.IsOptionalAtLogon(i.TargetPath, i.Command, i.Risk));
 
     [RelayCommand]
     private async Task DisableSelectedAsync(string? keys)
