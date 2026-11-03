@@ -464,11 +464,12 @@ public sealed partial class WuUpdateItem : ObservableObject
 
 public sealed class ProblemDeviceItem
 {
-    internal ProblemDeviceItem(ProblemDeviceInfo d)
+    internal ProblemDeviceItem(ProblemDeviceInfo d, string? service = null)
     {
         Name = d.Name;
         DeviceId = d.DeviceId;
         Code = d.Code;
+        ServiceName = string.IsNullOrWhiteSpace(service ?? d.Service) ? null : (service ?? d.Service);
         var info = DeviceProblemCodes.Describe(d.Code);
         CodeText = info.CodeText;
         ProblemTitle = info.Title;
@@ -484,6 +485,7 @@ public sealed class ProblemDeviceItem
     public string Name { get; }
     public string DeviceId { get; }
     public int Code { get; }
+    public string? ServiceName { get; }
     public string CodeText { get; }
     public string ProblemTitle { get; }
     public string Explanation { get; }
@@ -495,6 +497,14 @@ public sealed class ProblemDeviceItem
     public bool IsSevere { get; }
     public bool CanEnable => Code == DeviceProblemCodes.Disabled && DeviceId.Length > 0;
     public bool SuggestsWindowsUpdate => Remedy is ProblemRemedy.InstallDriver or ProblemRemedy.UpdateDriver or ProblemRemedy.ReinstallDriver or ProblemRemedy.Hardware;
+
+    // ── Driver service restore (code 32) ──
+
+    public bool CanRestoreService => Code == 32 && !string.IsNullOrWhiteSpace(ServiceName);
+    public bool IsHyperVService => CanRestoreService && 
+        (ServiceName!.StartsWith("hv", StringComparison.OrdinalIgnoreCase) || 
+         ServiceName.StartsWith("vm", StringComparison.OrdinalIgnoreCase) || 
+         string.Equals(ServiceName, "vid", StringComparison.OrdinalIgnoreCase));
 }
 
 // ───────────────────────────── Installed drivers ─────────────────────────────

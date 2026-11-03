@@ -42,7 +42,8 @@ internal sealed record ProblemDeviceInfo(
     IReadOnlyList<string> HardwareIds,
     int Code,
     bool? Present,
-    string Manufacturer);
+    string Manufacturer,
+    string Service = "");
 
 /// <summary>Installed details from the display class key (HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-…}\00NN).</summary>
 internal sealed record GpuRegistryInfo(string? InfPath, string? Provider, string? RadeonSoftwareVersion, string? RadeonSoftwareEdition);
@@ -102,13 +103,13 @@ internal static class DriverInventory
     {
         try
         {
-            return QueryProblems("SELECT Name, DeviceID, PNPClass, HardwareID, ConfigManagerErrorCode, Present, Manufacturer " +
+            return QueryProblems("SELECT Name, DeviceID, PNPClass, HardwareID, ConfigManagerErrorCode, Present, Manufacturer, Service " +
                                  "FROM Win32_PnPEntity WHERE ConfigManagerErrorCode <> 0", withPresent: true);
         }
         catch (ManagementException)
         {
             // Older builds without the Present property.
-            return QueryProblems("SELECT Name, DeviceID, PNPClass, HardwareID, ConfigManagerErrorCode, Manufacturer " +
+            return QueryProblems("SELECT Name, DeviceID, PNPClass, HardwareID, ConfigManagerErrorCode, Manufacturer, Service " +
                                  "FROM Win32_PnPEntity WHERE ConfigManagerErrorCode <> 0", withPresent: false);
         }
     }
@@ -132,7 +133,8 @@ internal static class DriverInventory
                     ids,
                     Convert.ToInt32(mo["ConfigManagerErrorCode"] ?? 0),
                     present,
-                    Str(mo["Manufacturer"])));
+                    Str(mo["Manufacturer"]),
+                    Str(mo["Service"])));
             }
         }
         return list;

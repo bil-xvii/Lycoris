@@ -85,7 +85,20 @@
             <!-- ═══════════ List ═══════════ -->
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Visibility="{Binding HasProblems, Converter={StaticResource BoolToVis}}">
-                <ItemsControl ItemsSource="{Binding Problems}" Margin="0,0,9,10" Focusable="False">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Margin="0,0,9,8" Visibility="{Binding CanRestoreAllDriverServices, Converter={StaticResource BoolToVis}}">
+                        <Button Command="{Binding RestoreAllDriverServicesCommand}" MinWidth="176">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Repair}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="{loc:T ИСПРАВИТЬ ВСЕ}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Problems}" Margin="0,0,9,10" Focusable="False">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:ProblemDeviceItem}">
                             <!-- RoundClip: the code block fills the left edge -->
@@ -114,7 +127,7 @@
                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                             <TextBlock Text="{loc:T КОД}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12"
                                                        HorizontalAlignment="Center" Foreground="{StaticResource B.Text2}" />
-                                            <TextBlock Text="{Binding Code, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
+                                            <TextBlock Text="{Binding CodeText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
                                                        FontSize="30" HorizontalAlignment="Center" />
                                         </StackPanel>
                                     </Border>
@@ -168,6 +181,16 @@
                                                 <TextBlock Text="{loc:T ВКЛЮЧИТЬ УСТРОЙСТВО}" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
+                                        <Button MinWidth="176" Margin="0,0,0,8"
+                                                Visibility="{Binding CanRestoreService, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.RestoreDriverServiceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                ToolTip="{loc:T Восстановить тип запуска службы драйвера}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{x:Static ui:Glyphs.Repair}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                <TextBlock Text="{loc:T ВЕРНУТЬ СЛУЖБУ}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
                                         <Button MinWidth="176" Visibility="{Binding SuggestsWindowsUpdate, Converter={StaticResource BoolToVis}}"
                                                 Command="{Binding DataContext.FindInWindowsUpdateCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                             <StackPanel Orientation="Horizontal">
@@ -181,6 +204,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+            </Grid>
             </ScrollViewer>
         </Grid>
     </Grid>

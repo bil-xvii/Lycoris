@@ -1,3 +1,4 @@
+using System.ServiceProcess;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Data;
@@ -22,11 +23,13 @@ public sealed partial class DriversViewModel
     {
         Problems.Clear();
         foreach (var p in reportable
-                     .Select(p => new ProblemDeviceItem(p))
+                     .Select(p => new ProblemDeviceItem(p, p.Service))
                      .OrderByDescending(p => p.IsSevere)
                      .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase))
             Problems.Add(p);
         HasProblems = Problems.Count > 0;
+        OnPropertyChanged(nameof(CanRestoreAllDriverServices));
+        RestoreAllDriverServicesCommand.NotifyCanExecuteChanged();
         ProblemsError = error;
     }
 
@@ -96,6 +99,99 @@ public sealed partial class DriversViewModel
                 Ui.Toast(Loc.Tf("Устройство «{0}» будет включено после перезагрузки.", device.Name), ToastKind.Success);
             else if (ok) Ui.Toast(Loc.Tf("Устройство «{0}» включено.", device.Name), ToastKind.Success);
             else Ui.Toast(session.Errors.FirstOrDefault() ?? Loc.T("Не удалось включить устройство."), ToastKind.Error);
+            await LoadInventoryAsync();
+        });
+    }
+
+    // ───────────────────────────── Driver service restore ─────────────────────────────
+
+    private bool CanRestoreDriverService(object? target) => target is ProblemDeviceItem item && item.CanRestoreService;
+
+    [RelayCommand(CanExecute = nameof(CanRestoreDriverService))]
+    private async Task RestoreDriverServiceAsync(object? target)
+    {
+        var device = target switch { ProblemDeviceItem d => d, _ => null };
+        if (device is null || !device.CanRestoreService) return;
+        if (!RequireAdmin(Loc.T("восстановление службы драйвера"), "RestoreDriverService", device.DeviceId)) return;
+        if (string.IsNullOrWhiteSpace(device.ServiceName)) return;
+
+        var service = device.ServiceName!;
+        var confirmLines = new List<string>
+        {
+            Loc.Tf("Устройство: {0}", device.Name),
+            Loc.Tf("Служба: {0}", service),
+            Loc.T("Тип запуска: Отключена → Вручную (Windows запускает драйвер, когда устройство подключено)"),
+        };
+        if (device.IsHyperVService)
+        {
+            confirmLines.Add(Loc.T("Эта служба нужна только для виртуальных машин Hyper-V — её часто отключают специально"));
+        }
+        confirmLines.AddRange([
+            Loc.T("Перед изменением создаётся точка восстановления (если включено в разделе «Восстановление»)"),
+            Loc.T("Отменить можно в «Восстановлении»: служба будет снова отключена"),
+        ]);
+
+        var confirmed = await Ui.ConfirmAsync(
+            "ВЕРНУТЬ СЛУЖБУ?",
+            Loc.Tf("Служба «{0}» устройства «{1}» была отключена. Восстановить тип запуска на «Вручную»?", service, device.Name),
+            confirmLines,
+            confirmText: Loc.T("ВЕРНУТЬ"));
+        if (!confirmed) return;
+
+        await RunBusyAsync(OperationClass.Disruptive, Loc.T("Восстановление службы драйвера…"), async () =>
+        {
+            var session = await ChangeSession.BeginAsync(Loc.Tf("Восстановление службы «{0}» устройства «{1}»", service, device.Name));
+            var ok = session.SetServiceStart(service, ServiceStartMode.Manual, Source, Loc.Tf("Восстановление службы «{0}»", service));
+            session.Complete();
+            if (ok)
+            {
+                Ui.Toast(Loc.Tf("Служба «{0}» восстановлена. Может потребоваться перезагрузка устройства.", service), ToastKind.Success);
+            }
+            else
+            {
+                Ui.Toast(session.Errors.FirstOrDefault() ?? Loc.Tf("Не удалось восстановить службу «{0}».", service), ToastKind.Error);
+            }
+            await LoadInventoryAsync();
+        });
+    }
+
+    /// <summary>«ИСПРАВИТЬ ВСЕ»: code-32 devices whose driver service can be restored; Hyper-V services are left to a per-device decision.</summary>
+    public bool CanRestoreAllDriverServices => Problems.Any(p => p.CanRestoreService && !p.IsHyperVService);
+
+    [RelayCommand(CanExecute = nameof(CanRestoreAllDriverServices))]
+    private async Task RestoreAllDriverServicesAsync()
+    {
+        var devices = Problems.Where(p => p.CanRestoreService && !p.IsHyperVService).ToList();
+        if (devices.Count == 0) return;
+
+        var confirmed = await Ui.ConfirmAsync(
+            "ИСПРАВИТЬ ВСЕ?",
+            Loc.Tf("У {0} устройств отключена служба драйвера. Восстановить тип запуска на «Вручную» для всех?", devices.Count),
+            [
+                Loc.Tf("Будет исправлено: {0}", devices.Count),
+                Loc.T("Службы Hyper-V игнорируются"),
+                Loc.T("Перед изменением создаётся точка восстановления (если включено в разделе «Восстановление»)"),
+                Loc.T("Отменить можно в «Восстановлении»"),
+            ],
+            confirmText: Loc.T("ИСПРАВИТЬ ВСЕ"));
+        if (!confirmed) return;
+
+        await RunBusyAsync(OperationClass.Disruptive, Loc.T("Восстановление служб драйверов…"), async () =>
+        {
+            var session = await ChangeSession.BeginAsync(Loc.Tf("Восстановление служб драйверов ({0} устройств)", devices.Count));
+            int restored = 0;
+            foreach (var d in devices)
+            {
+                if (string.IsNullOrWhiteSpace(d.ServiceName)) continue;
+                var ok = session.SetServiceStart(d.ServiceName!, ServiceStartMode.Manual, Source,
+                    Loc.Tf("Восстановление службы «{0}»", d.ServiceName));
+                if (ok) restored++;
+            }
+            session.Complete();
+            if (restored > 0)
+                Ui.Toast(Loc.Tf("Восстановлено служб: {0}. Может потребоваться перезагрузка устройств.", restored), ToastKind.Success);
+            else
+                Ui.Toast(Loc.T("Не удалось восстановить ни одной службы."), ToastKind.Error);
             await LoadInventoryAsync();
         });
     }
