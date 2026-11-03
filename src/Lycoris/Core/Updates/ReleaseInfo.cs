@@ -117,6 +117,11 @@ public static class ReleaseParser
             problem = "malformed JSON: " + ex.Message;
             return null;
         }
+        catch (Exception ex) when (ex is ArgumentException or ObjectDisposedException or InvalidOperationException)
+        {
+            problem = "parse error: " + ex.GetType().Name;
+            return null;
+        }
     }
 
     public static string Serialize(ReleaseInfo r) => JsonSerializer.Serialize(r, CacheOptions);
