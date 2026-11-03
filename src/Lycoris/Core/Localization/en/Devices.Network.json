@@ -283,6 +283,7 @@
     ".\nЭто ICMP до ретрансляторов: в игре цифры могут отличаться на несколько мс. Регион задаёт расстояние — на ПК его не изменить.": ".\nThis is ICMP to the relays: in game the numbers may differ by a few ms. The region sets the distance — it cannot be changed on the PC.",
     "Сеть: строки не обновлены — {0}. Нажмите «ОБНОВИТЬ».": "Network: rows were not refreshed — {0}. Click “REFRESH”.",
     "Сеть: адаптер не прочитан — {0}": "Network: adapter could not be read — {0}",
+    "Сеть: {0} = {1} применено, хотя команда вернула ошибку (драйвер перезапустил адаптер)": "Network: {0} = {1} was applied although the command reported an error (the driver restarted the adapter)",
     "сетевой адаптер не прочитан (WMI): {0} — повторите позже": "network adapter could not be read (WMI): {0} — try again later",
     "Сеть: {0} = {1} — {2}": "Network: {0} = {1} — {2}",
     "свойство «{0}» Lycoris не меняет": "Lycoris does not change the property “{0}”",
