@@ -680,9 +680,12 @@
                                         </Border>
 
                                         <TextBlock Text="{loc:T СЛУЖБА}" Style="{StaticResource T.Label}" />
-                                        <TextBlock Text="{Binding DisplayName, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" FontSize="17" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                        <TextBlock Text="{Binding Name}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" Margin="0,5,0,0"
-                                                   TextWrapping="Wrap" Visibility="{Binding DataContext.ExpertMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="{Binding DisplayName, Converter={StaticResource Sentence}}" Style="{StaticResource T.BodyStrong}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                        <StackPanel Margin="0,5,0,0" Visibility="{Binding DataContext.ExpertMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{loc:T Системное имя}" Style="{StaticResource T.Caption}" />
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource T.Caption}" FontFamily="{StaticResource F.Mono}"
+                                                       TextWrapping="Wrap" ToolTip="{Binding Name}" />
+                                        </StackPanel>
                                         <WrapPanel Margin="0,9,0,0">
                                             <Border Style="{StaticResource Tag}" Margin="0,0,6,6" Visibility="{Binding IsThirdParty, Converter={StaticResource InverseBoolToVis}}">
                                                 <TextBlock Text="WINDOWS" />
