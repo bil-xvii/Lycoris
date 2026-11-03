@@ -113,11 +113,28 @@ public static class AppPaths
         }
     }
 
-    public static string MachineDir { get; } = Path.Combine(
+    public static string MachineDir { get; } = TestRoot is { } t ? Path.Combine(t, "machine") : Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), AppName);
 
-    public static string UserDir { get; } = Path.Combine(
+    public static string UserDir { get; } = TestRoot is { } t ? Path.Combine(t, "user") : Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
+
+    /// <summary>
+    /// Crash tests (tools/crash-test.ps1) point a DEBUG build at a throwaway folder instead of the owner's data.
+    /// Never in Release: an elevated Lycoris must not read a journal from a folder another process chose.
+    /// </summary>
+    internal static string? TestRoot
+    {
+        get
+        {
+#if DEBUG
+            var root = Environment.GetEnvironmentVariable("LYCORIS_TEST_ROOT");
+            return string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root);
+#else
+            return null;
+#endif
+        }
+    }
 
     public static string JournalFile => Path.Combine(MachineDir, "journal.json");
     public static string BackupsDir => Path.Combine(MachineDir, "Backups");
