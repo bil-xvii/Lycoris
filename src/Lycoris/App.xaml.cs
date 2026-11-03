@@ -46,7 +46,10 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
     private bool _ownsMutex;
-    private const string SingleInstanceName = @"Local\Lycoris.SingleInstance";
+    // A DEBUG crash-test copy (AppPaths.TestRoot) gets its own lock, so it neither hands over to nor blocks the owner's Lycoris.
+    private static readonly string SingleInstanceName = AppPaths.TestRoot is { } testRoot
+        ? @"Local\Lycoris.SingleInstance.Test." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(testRoot.ToLowerInvariant())))[..16]
+        : @"Local\Lycoris.SingleInstance";
     /// <summary>The display guard's marker, held for the life of the guard process.</summary>
     private static IDisposable? _guardMarker;
 
