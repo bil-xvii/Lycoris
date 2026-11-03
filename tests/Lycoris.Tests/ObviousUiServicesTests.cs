@@ -123,3 +123,23 @@ public class ObviousUiServicesTests
         Assert.Equal("services", MainViewModel.ResolvePageKey(new AdminIntent("services", "ApplyRecommendations").PageKey));
     }
 }
+
+public sealed class StartupOptionalAtLogonTests
+{
+    [Theory]
+    [InlineData(@"C:\Program Files (x86)\Steam\steam.exe", "", true)]
+    [InlineData(@"C:\Users\u\AppData\Local\Discord\Update.exe", @"Update.exe --processStart Discord.exe", true)]
+    [InlineData(@"C:\Program Files\Spotify\Spotify.exe", "", true)]
+    [InlineData(@"C:\Program Files\Realtek\RtkAudUService64.exe", "", false)]
+    [InlineData(@"C:\Apps\MyTool.exe", "", false)]
+    public void Optional_programs_are_recognised(string target, string command, bool optional) =>
+        Assert.Equal(optional, Lycoris.Modules.Startup.StartupClassifier.IsOptionalAtLogon(target, command, Lycoris.Modules.Startup.StartupRisk.Normal));
+
+    [Theory]
+    [InlineData(Lycoris.Modules.Startup.StartupRisk.Microsoft)]
+    [InlineData(Lycoris.Modules.Startup.StartupRisk.Driver)]
+    [InlineData(Lycoris.Modules.Startup.StartupRisk.Security)]
+    [InlineData(Lycoris.Modules.Startup.StartupRisk.Updater)]
+    public void Protected_kinds_are_never_optional(Lycoris.Modules.Startup.StartupRisk risk) =>
+        Assert.False(Lycoris.Modules.Startup.StartupClassifier.IsOptionalAtLogon(@"C:\Steam\steam.exe", "", risk));
+}
