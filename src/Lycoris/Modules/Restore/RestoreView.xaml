@@ -157,7 +157,7 @@
                                    HorizontalAlignment="Right" />
                     </Grid>
                     <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
-                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding Description}" />
+                               TextWrapping="Wrap" ToolTip="{Binding Description}" />
                     <WrapPanel Margin="0,6,0,0">
                         <Border Style="{StaticResource Tag.Solid}" Margin="0,0,6,0"
                                 Visibility="{Binding IsLycoris, Converter={StaticResource BoolToVis}}">
