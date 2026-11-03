@@ -34,6 +34,8 @@ public sealed class SelfTestRunner
         public List<string> Unhandled { get; set; } = [];
         public List<string> Dialogs { get; set; } = [];
         public List<string> Exercised { get; set; } = [];
+        /// <summary>Visible texts cut with «…» (a layout problem to look at; does not change the status — some trims are deliberate).</summary>
+        public List<string> Trimmed { get; set; } = [];
         public bool StillBusy { get; set; }
         public string Status => Unhandled.Count > 0 || Errors.Count > 0 || BindingErrors.Count > 0 || MaxUiLagMs > 1500 || StillBusy
             ? "FAIL" : Warnings.Count > 0 ? "WARN" : "OK";
@@ -330,6 +332,7 @@ public sealed class SelfTestRunner
         await WaitIdleAsync(page, TimeSpan.FromSeconds(90));
         r.StillBusy = page.IsBusy;
 
+        FindTrimmedTexts(r);
         try { MainWindow.SaveVisual(_window.RootBorder, Path.Combine(_outDir, screenshot)); }
         catch (Exception ex) { r.Warnings.Add("screenshot: " + ex.Message); }
 
@@ -488,6 +491,26 @@ public sealed class SelfTestRunner
         while (page.IsBusy && sw.Elapsed.TotalSeconds < maxSeconds) await Task.Delay(200);
     }
 
+
+    /// <summary>
+    /// Every visible TextBlock whose text does not fit and is cut with «…» (TextTrimming). Found by measuring the full text
+    /// with the block's own font; tooltips keep the full text, but a cut label or value is usually a layout problem.
+    /// </summary>
+    private void FindTrimmedTexts(PageReport r)
+    {
+        var dip = VisualTreeHelper.GetDpi(_window).PixelsPerDip;
+        foreach (var tb in Find<TextBlock>())
+        {
+            if (!tb.IsVisible || tb.TextTrimming == TextTrimming.None || tb.TextWrapping != TextWrapping.NoWrap) continue;
+            var text = tb.Text;
+            if (string.IsNullOrWhiteSpace(text) || tb.ActualWidth < 4) continue;
+            var ft = new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, tb.FlowDirection,
+                new Typeface(tb.FontFamily, tb.FontStyle, tb.FontWeight, tb.FontStretch), tb.FontSize, Brushes.Black, dip);
+            var available = tb.ActualWidth - tb.Padding.Left - tb.Padding.Right;
+            if (ft.WidthIncludingTrailingWhitespace > available + 1)
+                r.Trimmed.Add($"«{(text.Length > 70 ? text[..70] + "…" : text)}» ({Math.Round(ft.WidthIncludingTrailingWhitespace)} > {Math.Round(available)} px)");
+        }
+    }
     private IEnumerable<T> Find<T>() where T : DependencyObject
     {
         var stack = new Stack<DependencyObject>();
@@ -529,6 +552,13 @@ public sealed class SelfTestRunner
             foreach (var e in r.BindingErrors) sb.AppendLine($"- ПРИВЯЗКА: {e}");
             foreach (var e in r.Warnings.Distinct().Take(15)) sb.AppendLine($"- предупреждение: {e}");
             if (r.MaxUiLagMs > 1500) sb.AppendLine($"- интерфейс зависал на {r.MaxUiLagMs} мс");
+            sb.AppendLine();
+        }
+        var trimmed = reports.SelectMany(x => x.Trimmed.Select(t => $"{x.Key}: {t}")).Distinct().ToList();
+        if (trimmed.Count > 0)
+        {
+            sb.AppendLine($"## Обрезанные тексты ({trimmed.Count})");
+            foreach (var t in trimmed) sb.AppendLine("- " + t);
             sb.AppendLine();
         }
         File.WriteAllText(Path.Combine(_outDir, "report.md"), sb.ToString(), new UTF8Encoding(false));

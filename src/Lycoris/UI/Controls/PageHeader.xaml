@@ -34,15 +34,16 @@
             </Style>
         </Grid.Style>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
+            <!-- The title always shows in full; on a narrow window the buttons wrap under one another (round 2: «Восстанов…» at 1120 px). -->
             <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-        <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" TextTrimming="CharacterEllipsis" />
+        <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center" MaxWidth="420">
+            <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" />
             <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
                        TextWrapping="Wrap" />
         </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
+        <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="20,0,0,0">
             <!-- «проверено 15:40» -->
             <TextBlock Text="{Binding Checked, ElementName=Root}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                        VerticalAlignment="Center" Margin="0,0,10,0" Visibility="{Binding HasChecked, ElementName=Root, Converter={StaticResource BoolToVis}}" />
@@ -58,6 +59,6 @@
             <!-- The ONE main button of the page -->
             <ContentPresenter Content="{Binding Primary, ElementName=Root}" VerticalAlignment="Center" Margin="8,0,0,0"
                               Visibility="{Binding HasPrimary, ElementName=Root, Converter={StaticResource BoolToVis}}" />
-        </StackPanel>
+        </WrapPanel>
     </Grid>
 </UserControl>
