@@ -89,8 +89,9 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
                     <!-- Logo: Lycoris mark (Theme/Brand.xaml) -->
                     <Path Data="{StaticResource G.LycorisMark}" Fill="{StaticResource B.Red}" Stretch="Uniform" Width="26" Height="26" VerticalAlignment="Center" />
-                    <!-- Letter-spaced with thin spaces (WPF has no tracking); the name read aloud stays «Lycoris». -->
-                    <TextBlock Text="L&#x2009;Y&#x2009;C&#x2009;O&#x2009;R&#x2009;I&#x2009;S" AutomationProperties.Name="Lycoris" Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Wordmark}" />
+                    <!-- Wordmark (Theme/Brand.xaml): vector letters with rounded ends, not a font, so it reads as the brand. -->
+                    <Path Data="{StaticResource G.LycorisWordmark}" AutomationProperties.Name="Lycoris" Stroke="{StaticResource B.Text}" StrokeThickness="2.1"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" Height="15" Margin="13,0,0,0" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding Version}" Margin="10,3,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}"
                                FontSize="12" Foreground="{StaticResource B.Text3}" />
                 </StackPanel>
