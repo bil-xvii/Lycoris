@@ -230,15 +230,15 @@ internal static class SessionActions
     }
 
     /// <summary>Schedules a normal reboot (shutdown /r /t 10). Windows shows its own notice; "shutdown /a" cancels it.</summary>
-    public static async Task<SessionActionResult> ScheduleRebootAsync()
+    public static async Task<SessionActionResult> ScheduleRebootAsync(int delaySeconds = RebootDelaySeconds)
     {
         var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("shutdown.exe"),
-            ["/r", "/t", RebootDelaySeconds.ToString(CultureInfo.InvariantCulture), "/c", Loc.T("Lycoris: перезагрузка для применения настроек")],
+            ["/r", "/t", delaySeconds.ToString(CultureInfo.InvariantCulture), "/c", Loc.T("Lycoris: перезагрузка для применения настроек")],
             new ProcessRunOptions { Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromSeconds(30) }).ConfigureAwait(false);
         if (r.Success)
         {
-            Log.Warn("Перезагрузка запланирована через {0} с.", RebootDelaySeconds);
-            return new(true, Loc.Tf("Компьютер перезагрузится через {0} секунд.", RebootDelaySeconds));
+            Log.Warn("Перезагрузка запланирована через {0} с.", delaySeconds);
+            return new(true, Loc.Tf("Компьютер перезагрузится через {0} секунд.", delaySeconds));
         }
         if (r.ExitCode == 1190) // ERROR_SHUTDOWN_IS_SCHEDULED
             return new(true, Loc.T("Перезагрузка уже запланирована."));

@@ -244,6 +244,7 @@ public sealed partial class HomeViewModel : PageViewModel
         Lycoris.Modules.Dashboard.Checks.CheckActionKind.ApplyTweak => action.Label,
         Lycoris.Modules.Dashboard.Checks.CheckActionKind.FocusTweak => Loc.T("ПОСМОТРЕТЬ НАСТРОЙКУ"),
         Lycoris.Modules.Dashboard.Checks.CheckActionKind.FocusDevice => Loc.T("ОТКРЫТЬ МОНИТОР"),
+        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Restart => action.Label,
         Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "startup" => Loc.T("ОТКРЫТЬ АВТОЗАПУСК"),
         Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "restore" => Loc.T("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ"),
         Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "cleaner" => action.Label,

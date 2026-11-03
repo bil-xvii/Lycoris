@@ -438,6 +438,16 @@
     "Мониторинг: {0}": "Monitoring: {0}",
     "Мониторинг остановлен из-за ошибки": "Monitoring stopped because of an error",
     "Счётчики производительности Windows недоступны — часть показателей будет скрыта.": "Windows performance counters are unavailable — some readings will be hidden.",
-    "Не удалось получить список видеоадаптеров: {0}": "Couldn't get the list of video adapters: {0}"
+    "Не удалось получить список видеоадаптеров: {0}": "Couldn't get the list of video adapters: {0}",
+    "ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ": "CANCEL RESTART",
+    "Windows ждёт перезагрузки, чтобы завершить обновления и изменения.": "Windows is waiting for a restart to finish updates and changes.",
+    "Сохраните открытые файлы и закройте игры": "Save open files and close games",
+    "Перезагрузка начнётся через {0} секунд": "The restart starts in {0} seconds",
+    "До этого её можно отменить кнопкой «ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ» на «Панели»": "Until then you can cancel it with «CANCEL RESTART» on the «Dashboard»",
+    "Не удалось запланировать перезагрузку (код {0}).": "Could not schedule the restart (code {0}).",
+    "Перезагрузка через {0} секунд. Отменить — «ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ» на «Панели».": "Restarting in {0} seconds. To cancel — «CANCEL RESTART» on the «Dashboard».",
+    "Перезагрузка через {0} с": "Restart in {0} s",
+    "Перезагрузка отменена.": "Restart cancelled.",
+    "Запланированной перезагрузки уже нет.": "No restart is scheduled any more."
   }
 }

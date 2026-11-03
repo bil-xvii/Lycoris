@@ -188,7 +188,13 @@
                 </StackPanel>
 
                 <!-- ONE primary action: white only while it has something to do -->
-                <Grid Grid.Column="3" VerticalAlignment="Center">
+                <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                <!-- A restart scheduled from «ОЖИДАЕТСЯ ПЕРЕЗАГРУЗКА»: countdown and the way back, until it happens. -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,6" HorizontalAlignment="Right" Visibility="{Binding RestartCountdown, Converter={StaticResource NullToVis}}">
+                    <TextBlock Text="{Binding RestartCountdown}" Foreground="{StaticResource B.WarningText}" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold" />
+                    <Button Style="{StaticResource Btn}" Content="{loc:T ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ}" Command="{Binding CancelRestartCommand}" />
+                </StackPanel>
+                <Grid>
                     <Button Style="{StaticResource Btn.Primary}" Command="{Binding FixSafeCommand}" Visibility="{Binding HasSafeFixes, Converter={StaticResource BoolToVis}}"
                             ToolTip="{loc:T 'Включает безопасные настройки одним пакетом: один список, одно подтверждение, откат одной кнопкой'}">
                         <StackPanel Orientation="Horizontal">
@@ -204,6 +210,7 @@
                         </StackPanel>
                     </Button>
                 </Grid>
+                </StackPanel>
             </Grid>
         </Border>
 

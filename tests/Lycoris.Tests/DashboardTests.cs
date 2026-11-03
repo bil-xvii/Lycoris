@@ -852,7 +852,9 @@ public sealed class DashboardRulesTests
 
         var pending = HealthRules.CheckPendingReboot(new SystemSnapshot { PendingReboot = ["Центр обновления Windows"] })!;
         Assert.Equal(CheckSeverity.Warning, pending.Severity);
-        Assert.Null(pending.Action); // Lycoris never reboots by itself
+        // Lycoris never reboots by itself: the button asks first, waits 60 s and can be cancelled; it is not a safe-fix tweak.
+        Assert.Equal(CheckActionKind.Restart, pending.Action!.Kind);
+        Assert.False(pending.Action.RequiresAdmin);
     }
 
     [Fact]
