@@ -61,12 +61,16 @@ public static class SelfIntegrity
             try
             {
                 var exe = AppPaths.ExecutablePath;
-                HashAtStart = Sha256OfFile(exe);
-                Signature = Authenticode.Check(exe);
-                SignerName = Signature is SignatureState.Valid or SignatureState.Untrusted or SignatureState.Tampered ? Authenticode.SignerName(exe) : null;
+                // Independent reads of different files: run them side by side (the elevation request waits for all of them).
+                var hash = Task.Run(() => Sha256OfFile(exe));
+                var signature = Task.Run(() => Authenticode.Check(exe));
+                var libraries = Task.Run(BundleGuard.FindUntrustedLibraries);
                 HostileLocation = PathTrust.IsHostileLocation(exe);
                 WritableReason = PathTrust.WhyUserWritable(exe);
-                BadNativeLibraries = BundleGuard.FindUntrustedLibraries();
+                HashAtStart = hash.GetAwaiter().GetResult();
+                Signature = signature.GetAwaiter().GetResult();
+                SignerName = Signature is SignatureState.Valid or SignatureState.Untrusted or SignatureState.Tampered ? Authenticode.SignerName(exe) : null;
+                BadNativeLibraries = libraries.GetAwaiter().GetResult();
 
                 Log.Info("Целостность: {0}, SHA-256 {1}", exe, HashAtStart ?? "—");
                 Log.Info("Подпись программы: {0}{1}", Signature, SignerName is null ? "" : " (" + SignerName + ")");

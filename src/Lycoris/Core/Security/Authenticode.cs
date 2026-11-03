@@ -43,6 +43,9 @@ public static class Authenticode
     public static SignatureState Check(string path)
     {
         if (!File.Exists(path)) return SignatureState.Error;
+        // A PE file without a certificate table cannot carry an embedded signature: WinVerifyTrust would answer
+        // TRUST_E_NOSIGNATURE after hashing the whole file (~260 ms for the 88 MB exe, on the path to the UAC prompt).
+        if (HasNoCertificateTable(path)) return SignatureState.Unsigned;
         try
         {
             return Classify(Verify(path));
@@ -50,6 +53,25 @@ public static class Authenticode
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException or ArgumentException)
         {
             return SignatureState.Error;
+        }
+    }
+
+    /// <summary>
+    /// True only when the file is a well-formed PE whose certificate table directory is empty. Anything unusual (not a PE,
+    /// unreadable, malformed headers) answers false, so the full WinVerifyTrust check still decides.
+    /// </summary>
+    internal static bool HasNoCertificateTable(string path)
+    {
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096);
+            using var pe = new System.Reflection.PortableExecutable.PEReader(fs, System.Reflection.PortableExecutable.PEStreamOptions.LeaveOpen);
+            var header = pe.PEHeaders.PEHeader;
+            return header is not null && header.CertificateTableDirectory.Size == 0 && header.CertificateTableDirectory.RelativeVirtualAddress == 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or BadImageFormatException or InvalidOperationException)
+        {
+            return false;
         }
     }
 
