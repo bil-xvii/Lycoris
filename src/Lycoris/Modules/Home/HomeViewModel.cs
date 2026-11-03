@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text.Json;
+using System.Diagnostics;
+using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
@@ -40,6 +43,58 @@ public sealed partial class HomeViewModel : PageViewModel
     [ObservableProperty] private string? _cleanupFact;
     [ObservableProperty] private string? _laptopFact;
     [ObservableProperty] private string? _driversFact;
+    [ObservableProperty] private string _measurementSummary = Loc.T("Замеры ещё не записаны");
+    [ObservableProperty] private string _measurementDetails = "";
+    [ObservableProperty] private bool _hasMeasurements;
+
+    private sealed record Measurement(DateTime At, string Windows, string Lycoris, int? Startup, long? FreeMb, string Boot, string BootSource);
+    private static string MeasurementsPath => Path.Combine(AppPaths.UserDir, "measurements.json");
+
+    [RelayCommand]
+    private async Task RecordMeasurementAsync()
+    {
+        await Task.Run(() =>
+        {
+            var items = ReadMeasurements();
+            var startup = (Ui.Host as MainViewModel)?.Pages.OfType<ServicesViewModel>().FirstOrDefault()?.Startup;
+            var data = new Measurement(DateTime.UtcNow,
+                $"{Environment.OSVersion.Version} ({Environment.OSVersion.Version.Build})", typeof(HomeViewModel).Assembly.GetName().Version?.ToString() ?? Loc.T("недоступно"),
+                startup is { IsLoaded: true } ? startup.TotalCount : null,
+                GetFreeMemoryMb(), Loc.T("недоступно"), Loc.T("недоступно"));
+            items.Add(data);
+            Directory.CreateDirectory(AppPaths.UserDir);
+            File.WriteAllText(MeasurementsPath, JsonSerializer.Serialize(items.TakeLast(30).ToArray()));
+        });
+        RefreshMeasurements();
+    }
+
+    private static long? GetFreeMemoryMb()
+    {
+        try { using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"); _ = key; }
+        catch { }
+        try { return (long)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024); } catch { return null; }
+    }
+
+    private static List<Measurement> ReadMeasurements()
+    {
+        try { return JsonSerializer.Deserialize<List<Measurement>>(File.ReadAllText(MeasurementsPath)) ?? []; }
+        catch { return []; }
+    }
+
+    private void RefreshMeasurements()
+    {
+        var entries = ReadMeasurements().TakeLast(2).ToArray();
+        HasMeasurements = entries.Length > 0;
+        MeasurementSummary = entries.Length switch
+        {
+            0 => Loc.T("Замеры ещё не записаны"),
+            1 => Loc.Tf("Последний замер: {0}", entries[0].At.ToLocalTime().ToString("g")),
+            _ => Loc.Tf("Последние замеры: {0} → {1}", entries[0].At.ToLocalTime().ToString("g"), entries[1].At.ToLocalTime().ToString("g"))
+        };
+        MeasurementDetails = entries.Length == 2
+            ? Loc.T("Несопоставимо: условия могли измениться") + " · " + Loc.Tf("Автозапуск: {0} / {1}; память: {2} / {3} МБ", entries[0].Startup?.ToString() ?? Loc.T("недоступно"), entries[1].Startup?.ToString() ?? Loc.T("недоступно"), entries[0].FreeMb?.ToString() ?? Loc.T("недоступно"), entries[1].FreeMb?.ToString() ?? Loc.T("недоступно"))
+            : Loc.T("Сравнение появится после второго замера");
+    }
 
     private readonly Func<string, Task> _runDoctorCheck;
 
@@ -67,11 +122,12 @@ public sealed partial class HomeViewModel : PageViewModel
         RefreshFacts();
         RefreshJournal();
         RefreshDoctor();
+        RefreshMeasurements();
     }
 
     protected override Task OnReturnAsync()
     {
-        RefreshFacts(); RefreshJournal(); RefreshDoctor();
+        RefreshFacts(); RefreshJournal(); RefreshDoctor(); RefreshMeasurements();
         return Task.CompletedTask;
     }
 

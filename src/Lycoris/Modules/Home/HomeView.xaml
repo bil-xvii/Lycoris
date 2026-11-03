@@ -33,6 +33,18 @@
                     </Border>
                 </DataTemplate></ItemsControl.ItemTemplate>
             </ItemsControl>
+            <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="10" Margin="0,0,0,8">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock Text="{loc:T Замер до / после}" Style="{StaticResource T.H3}" Foreground="{StaticResource B.Text}"/>
+                        <TextBlock Text="{Binding MeasurementSummary}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0"/>
+                        <TextBlock Text="{Binding MeasurementDetails}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.InfoText}" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="{Binding ExpertMode, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text="{loc:T Замер только читает данные и хранится на этом ПК}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Style="{StaticResource Btn}" Content="{loc:T ЗАПИСАТЬ ЗАМЕР}" Command="{Binding RecordMeasurementCommand}" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
             <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="8" Margin="0,0,0,8">
                 <StackPanel>
                     <Grid>
