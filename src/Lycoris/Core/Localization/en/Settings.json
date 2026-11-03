@@ -8,8 +8,8 @@
   "en": {
     "ОСНОВНЫЕ ПАРАМЕТРЫ": "GENERAL SETTINGS",
     "ТЕМА · ТЁМНАЯ": "THEME · DARK",
-    "ВКЛЮЧЕНО": "ON",
-    "ВЫКЛЮЧЕНО": "OFF",
+    "ВКЛЮЧЕНО": "ENABLED",
+    "ВЫКЛЮЧЕНО": "DISABLED",
     "ЗАПУСТИТЬ МАСТЕР ЗАНОВО": "RUN THE WIZARD AGAIN",
     "Точка восстановления перед изменениями — {0}": "Restore point before changes — {0}",
     "Подтверждение перед применением — {0}": "Confirmation before applying — {0}",
