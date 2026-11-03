@@ -394,7 +394,7 @@
                             ToolTipService.ShowDuration="30000">
                         <StackPanel>
                             <!-- Thin top line: green = the recommended profile, steel blue = the other scenarios (the selected tile also gets the white frame) -->
-                            <Border Height="2" Margin="-11,-10,-11,8" CornerRadius="11,11,0,0">
+                    <Border Height="2" Margin="-11,-10,-11,8">
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Setter Property="Background" Value="{StaticResource B.Info}" />
