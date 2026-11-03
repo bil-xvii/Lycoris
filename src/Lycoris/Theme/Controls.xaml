@@ -38,9 +38,9 @@
         <Setter Property="Padding" Value="12,0" />
         <Setter Property="Height" Value="30" />
         <Setter Property="MinWidth" Value="36" />
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="SemiCondensed" />
+        <Setter Property="FontStretch" Value="Normal" />
         <Setter Property="FontSize" Value="12.5" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -120,8 +120,7 @@
     <Style x:Key="Btn.Hero" TargetType="Button" BasedOn="{StaticResource Btn.Primary}">
         <Setter Property="Height" Value="38" />
         <Setter Property="Padding" Value="20,0" />
-        <Setter Property="FontSize" Value="16" />
-        <Setter Property="FontStretch" Value="Condensed" />
+        <Setter Property="FontSize" Value="13" />
     </Style>
 
     <!-- Ghost: secondary action — same outline, muted text. Never the only button in a row and never for a main action. -->
@@ -224,7 +223,7 @@
         like every other action (no underlined text), muted so it reads as navigation, not as a change.
     -->
     <Style x:Key="Btn.Link" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="12.5" />
     </Style>
@@ -389,12 +388,12 @@
 
     <Style x:Key="Segment" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="SemiCondensed" />
+        <Setter Property="FontStretch" Value="Normal" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Padding" Value="12,0" />
-        <Setter Property="Height" Value="28" />
+        <Setter Property="Height" Value="30" />
         <Setter Property="MinWidth" Value="40" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
@@ -448,12 +447,12 @@
     </ControlTemplate>
     <Style x:Key="Chip" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="SemiCondensed" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontStretch" Value="Normal" />
+        <Setter Property="FontSize" Value="12.5" />
         <Setter Property="Padding" Value="10,0" />
-        <Setter Property="Height" Value="28" />
+        <Setter Property="Height" Value="30" />
         <Setter Property="Margin" Value="0,0,6,0" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
@@ -461,12 +460,12 @@
     </Style>
     <Style x:Key="Chip.Toggle" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="SemiCondensed" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontStretch" Value="Normal" />
+        <Setter Property="FontSize" Value="12.5" />
         <Setter Property="Padding" Value="10,0" />
-        <Setter Property="Height" Value="28" />
+        <Setter Property="Height" Value="30" />
         <Setter Property="Margin" Value="0,0,6,0" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
@@ -734,6 +733,8 @@
 
     <Style TargetType="ComboBoxItem">
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="Template">
             <Setter.Value>
@@ -1059,7 +1060,7 @@
                                         <Rectangle x:Name="Bar" Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.Red}"
                                                    RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" Visibility="Hidden" />
                                     </Border>
-                                    <ContentPresenter x:Name="Cp" Margin="20,0,16,0" VerticalAlignment="Center" TextElement.Foreground="{StaticResource B.Text2}" />
+                                    <ContentPresenter x:Name="Cp" Margin="20,0,16,0" VerticalAlignment="Center" TextElement.FontFamily="{StaticResource F.Body}" TextElement.FontWeight="SemiBold" TextElement.FontSize="12.5" TextElement.Foreground="{StaticResource B.Text2}" />
                                 </Grid>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
@@ -1104,16 +1105,16 @@
 
     <Style TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="SemiCondensed" />
+        <Setter Property="FontStretch" Value="Normal" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Border x:Name="Plate" Background="Transparent" Height="28" CornerRadius="{StaticResource R.Sm}" SnapsToDevicePixels="True">
+                    <Border x:Name="Plate" Background="Transparent" Height="30" CornerRadius="{StaticResource R.Sm}" SnapsToDevicePixels="True">
                         <ContentPresenter ContentSource="Header" Margin="12,0" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -1150,7 +1151,7 @@
                                             CornerRadius="{StaticResource R.Md}" Height="30" Padding="12,0,10,0" SnapsToDevicePixels="True">
                                         <StackPanel Orientation="Horizontal">
                                             <ContentPresenter Content="{Binding Header, RelativeSource={RelativeSource AncestorType=Expander}}" VerticalAlignment="Center"
-                                                              TextElement.FontFamily="{StaticResource F.Display}" TextElement.FontWeight="SemiBold"
+                                                              TextElement.FontFamily="{StaticResource F.Body}" TextElement.FontWeight="SemiBold"
                                                               TextElement.FontSize="12.5" TextElement.Foreground="{StaticResource B.Text}" />
                                             <TextBlock x:Name="Chev" Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text2}"
                                                        VerticalAlignment="Center" Margin="8,1,0,0" RenderTransformOrigin="0.5,0.5">
