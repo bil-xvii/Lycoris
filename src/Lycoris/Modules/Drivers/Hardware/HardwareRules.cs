@@ -106,7 +106,7 @@ internal static partial class HardwareRules
     public static string? RealtekCodecName(string? deviceId)
     {
         if (string.IsNullOrWhiteSpace(deviceId) || !deviceId.StartsWith(@"HDAUDIO\", StringComparison.OrdinalIgnoreCase)) return null;
-        var m = Regex.Match(deviceId, @"VEN_10EC&DEV_([0-9A-F]{4})", RegexOptions.IgnoreCase);
+        var m = Regex.Match(deviceId, @"VEN_10EC&DEV_([0-9A-F]{4})", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
         if (!m.Success) return null;
         var dev = m.Groups[1].Value.TrimStart('0').ToUpperInvariant();
         return dev.Length is >= 3 and <= 4 ? $"Realtek ALC{dev}" : null;
@@ -157,7 +157,7 @@ internal static partial class HardwareRules
     public static Version? ParseVersion(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
-        var m = Regex.Match(text, @"\d+(?:\.\d+){1,3}");
+        var m = Regex.Match(text, @"\d+(?:\.\d+){1,3}", RegexOptions.None, TimeSpan.FromMilliseconds(250));
         return m.Success && Version.TryParse(m.Value, out var v) ? v : null;
     }
 

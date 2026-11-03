@@ -131,7 +131,7 @@ public static class AudioParsing
     public static string? InstanceIdFromPath(string? instancePath)
     {
         if (string.IsNullOrWhiteSpace(instancePath)) return null;
-        var m = Regex.Match(instancePath, @"^\{\d+\}\.(.+)$", RegexOptions.CultureInvariant);
+        var m = Regex.Match(instancePath, @"^\{\d+\}\.(.+)$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
         return m.Success ? m.Groups[1].Value : instancePath;
     }
 
