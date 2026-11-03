@@ -6,6 +6,9 @@
   ],
   "ignore": [],
   "en": {
+    "ПОДРОБНЕЕ": "MORE DETAILS",
+    "КОМАНДА": "COMMAND",
+    "ОПИСАНИЕ": "DESCRIPTION",
     "неизвестный модуль": "unknown module",
     "в норме": "normal",
     "повышенные": "elevated",
