@@ -494,7 +494,8 @@ public static partial class HealthRules
             return new("pending-reboot", Loc.T("НЕЗАВЕРШЁННЫХ ОБНОВЛЕНИЙ НЕТ"), Loc.T("Windows не ждёт перезагрузки для установки обновлений."), CheckSeverity.Ok, 6);
         return new("pending-reboot", Loc.T("ОЖИДАЕТСЯ ПЕРЕЗАГРУЗКА"),
             Loc.Tf("Перезапуска ждут: {0}. До перезагрузки часть исправлений не действует, " +
-            "а установка драйверов и обновлений может завершиться ошибкой.", string.Join(", ", s.PendingReboot)), CheckSeverity.Warning, 6);
+            "а установка драйверов и обновлений может завершиться ошибкой.", string.Join(", ", s.PendingReboot)), CheckSeverity.Warning, 6,
+            new CheckAction(CheckActionKind.Restart, Loc.T("ПЕРЕЗАГРУЗИТЬ")));
     }
 
     // ───────────────────────────── Windows Update: pinned version ─────────────────────────────

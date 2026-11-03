@@ -54,6 +54,9 @@ public sealed partial class DashboardViewModel
             case CheckActionKind.ApplyTweak when action.Target is { } id:
                 await ApplyTweakAsync(id, checkId);
                 break;
+            case CheckActionKind.Restart:
+                await ScheduleRestartAsync();
+                break;
             case CheckActionKind.FocusDevice when action.Target is { } target:
                 _lastCheck = DateTime.MinValue; // the user may fix it there: re-check on return
                 Ui.RequestFocus("devices", target);
@@ -245,5 +248,65 @@ public sealed partial class DashboardViewModel
                 Ui.Toast("Всё уже применено — менять нечего.", ToastKind.Info, "ПАНЕЛЬ");
         }
         await RefreshAsync(showBusy: false);
+    }
+
+    // ───────────────────────────── «ПЕРЕЗАГРУЗИТЬ» (pending reboot) ─────────────────────────────
+
+    internal const int RestartDelaySeconds = 60;
+    private DateTime? _restartAt;
+    private System.Windows.Threading.DispatcherTimer? _restartTimer;
+
+    /// <summary>«Перезагрузка через 45 с» while a restart from Lycoris is scheduled; null otherwise.</summary>
+    [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty] private string? _restartCountdown;
+
+    /// <summary>The same reboot as «Оптимизация» (SessionActions), with a longer delay so there is time to cancel it.</summary>
+    private async Task ScheduleRestartAsync()
+    {
+        // A running install / DISM / cleaning or a game session would be cut off mid-way: refuse, as «Оптимизация» does.
+        if (Lycoris.Modules.Optimize.SessionActions.RebootBlockerText(OperationCoordinator.Instance.Snapshot(),
+                GameBoostState.IsActive) is { } blocked)
+        {
+            Ui.Toast(blocked, ToastKind.Warning);
+            return;
+        }
+        var confirmed = await Ui.ConfirmAsync(
+            Loc.T("ПЕРЕЗАГРУЗИТЬ КОМПЬЮТЕР?"),
+            Loc.T("Windows ждёт перезагрузки, чтобы завершить обновления и изменения."),
+            [
+                Loc.T("Сохраните открытые файлы и закройте игры"),
+                Loc.Tf("Перезагрузка начнётся через {0} секунд", RestartDelaySeconds),
+                Loc.T("До этого её можно отменить кнопкой «ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ» на «Панели»"),
+            ],
+            confirmText: Loc.T("ПЕРЕЗАГРУЗИТЬ"));
+        if (!confirmed) return;
+        var result = await Lycoris.Modules.Optimize.SessionActions.ScheduleRebootAsync(RestartDelaySeconds);
+        if (!result.Success)
+        {
+            Ui.Toast(result.Message, ToastKind.Error);
+            return;
+        }
+        _restartAt = DateTime.Now.AddSeconds(RestartDelaySeconds);
+        _restartTimer ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _restartTimer.Tick -= OnRestartTick;
+        _restartTimer.Tick += OnRestartTick;
+        _restartTimer.Start();
+        OnRestartTick(null, EventArgs.Empty);
+        Ui.Toast(Loc.Tf("Перезагрузка через {0} секунд. Отменить — «ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ» на «Панели».", RestartDelaySeconds),
+            ToastKind.Warning, navigateTo: "dashboard");
+    }
+
+    private void OnRestartTick(object? sender, EventArgs e)
+    {
+        var left = _restartAt is { } at ? (int)Math.Ceiling((at - DateTime.Now).TotalSeconds) : 0;
+        if (left <= 0) { _restartTimer?.Stop(); RestartCountdown = null; return; }
+        RestartCountdown = Loc.Tf("Перезагрузка через {0} с", left);
+    }
+
+    [RelayCommand]
+    private async Task CancelRestartAsync()
+    {
+        var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("shutdown.exe"), "/a");
+        _restartTimer?.Stop(); _restartAt = null; RestartCountdown = null;
+        Ui.Toast(r.ExitCode == 0 ? Loc.T("Перезагрузка отменена.") : Loc.T("Запланированной перезагрузки уже нет."), ToastKind.Info);
     }
 }

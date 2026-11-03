@@ -25,6 +25,11 @@ public enum CheckActionKind
     /// Changes nothing: the change itself is made there, through the journal and with an on-screen confirmation.
     /// </summary>
     FocusDevice,
+    /// <summary>
+    /// Restart Windows to finish pending updates: only after an on-screen confirmation, with a 60-second delay that the
+    /// user can cancel. Never part of «ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ»; not a system change, so nothing is journaled.
+    /// </summary>
+    Restart,
 }
 
 /// <summary>What the button next to a check does. Nothing here touches the system by itself.</summary>
