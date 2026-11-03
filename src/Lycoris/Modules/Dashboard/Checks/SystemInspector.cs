@@ -112,9 +112,15 @@ public static class SystemInspector
             UpdatePinnedTo = Safe(TweakCatalog.ReadUpdatePinnedTo, null),
             PrimaryGpu = p.PrimaryGpu,
             StartupCount = Safe<int?>(() => CountStartupEntries(), null),
+            DaysSinceMaintenance = DaysSince(AppSettings.Current.MaintenanceReminders ? AppSettings.Current.LastMaintenanceUtc : null),
             Vbs = Safe(ReadVbs, VbsState.Unknown),
         };
     }
+
+    /// <summary>Days since an ISO 8601 UTC time; null for empty or unreadable values (pure).</summary>
+    internal static double? DaysSince(string? isoUtc, DateTime? nowUtc = null) =>
+        DateTime.TryParse(isoUtc, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var t)
+            ? Math.Max(0, ((nowUtc ?? DateTime.UtcNow) - t.ToUniversalTime()).TotalDays) : null;
 
     private static T Safe<T>(Func<T> read, T fallback)
     {

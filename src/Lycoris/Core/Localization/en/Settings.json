@@ -85,6 +85,8 @@
     "Сбросить настройки?": "Reset settings?",
     "Параметры Lycoris вернутся к значениям по умолчанию.": "Lycoris settings will return to their defaults.",
     "СБРОСИТЬ": "RESET",
-    "Настройки сброшены к значениям по умолчанию.": "Settings were reset to their defaults."
+    "Настройки сброшены к значениям по умолчанию.": "Settings were reset to their defaults.",
+    "Напоминать об обслуживании": "Remind about maintenance",
+    "Если с последней очистки прошло больше двух недель, в проверках ПК появится пункт «Пора обслужить ПК» с кнопкой к предпросмотру очистки. Ничего не удаляется без вашего подтверждения.": "When the last cleanup is more than two weeks old, the PC checks show «Time to service the PC» with a button to the cleanup preview. Nothing is deleted without your confirmation."
   }
 }

@@ -596,6 +596,7 @@ public sealed partial class CleanerViewModel : PageViewModel
         var report = await Task.Run(() => SystemCleanup.WriteReport(started, results.Select(x => ToReport(x.Item1, x.Item2)).ToList(), freeBefore, freeAfter));
         if (report is not null) Log.Info("Очистка: отчёт сохранён — {0}", report);
         Log.Success("Очистка завершена: освобождено {0}, удалено {1}.", CleanFormat.Bytes(freed), CleanFormat.Files(deleted));
+        AppSettings.Current.LastMaintenanceUtc = DateTime.UtcNow.ToString("o"); // the «ПОРА ОБСЛУЖИТЬ ПК» reminder starts over
         return results;
     }
 

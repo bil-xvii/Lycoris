@@ -168,6 +168,8 @@ public sealed record SystemSnapshot
 
     /// <summary>Enabled startup entries (Run keys + Startup folders). Null = unknown.</summary>
     public int? StartupCount { get; init; }
+    /// <summary>Days since the last cleanup (AppSettings.LastMaintenanceUtc); null when reminders are off or the time is unknown.</summary>
+    public double? DaysSinceMaintenance { get; init; }
 
     public VbsState Vbs { get; init; }
 

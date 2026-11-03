@@ -1858,3 +1858,27 @@ public sealed class DashboardUpdatePinTests
         Assert.True(HealthScore.Calculate(results) < 100);
     }
 }
+
+public sealed class MaintenanceReminderTests
+{
+    [Fact]
+    public void Reminder_appears_after_two_weeks_and_leads_to_the_cleaner_preview()
+    {
+        var due = Lycoris.Modules.Dashboard.Checks.HealthRules.CheckMaintenance(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { DaysSinceMaintenance = 15.2 })!;
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckSeverity.Info, due.Severity);
+        Assert.Equal("cleaner", due.Action!.Target);
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate, due.Action.Kind); // never cleans by itself
+        var fresh = Lycoris.Modules.Dashboard.Checks.HealthRules.CheckMaintenance(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { DaysSinceMaintenance = 3 })!;
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckSeverity.Ok, fresh.Severity);
+        Assert.Null(Lycoris.Modules.Dashboard.Checks.HealthRules.CheckMaintenance(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { DaysSinceMaintenance = null }));
+    }
+
+    [Fact]
+    public void Days_since_reads_iso_times_and_ignores_garbage()
+    {
+        var now = new DateTime(2026, 11, 20, 12, 0, 0, DateTimeKind.Utc);
+        Assert.Equal(14.0, Lycoris.Modules.Dashboard.Checks.SystemInspector.DaysSince("2026-11-06T12:00:00.0000000Z", now)!.Value, 3);
+        Assert.Null(Lycoris.Modules.Dashboard.Checks.SystemInspector.DaysSince("", now));
+        Assert.Null(Lycoris.Modules.Dashboard.Checks.SystemInspector.DaysSince("вчера", now));
+    }
+}

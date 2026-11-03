@@ -102,6 +102,16 @@ public sealed partial class AppSettings : ObservableObject
     /// </summary>
     [ObservableProperty] private string _language = "auto";
 
+    // ───────── Regular maintenance (roadmap item 7) ─────────
+
+    /// <summary>Show «ПОРА ОБСЛУЖИТЬ ПК» in the checks when the last cleanup is older than <see cref="MaintenanceEveryDays"/>. Default on.</summary>
+    [ObservableProperty] private bool _maintenanceReminders = true;
+
+    /// <summary>UTC time (ISO 8601) of the last finished cleanup, or of the first run (the baseline); "" = not set yet.</summary>
+    [ObservableProperty] private string _lastMaintenanceUtc = "";
+
+    public const int MaintenanceEveryDays = 14;
+
     // ───────── Updates (Core/Updates) ─────────
 
     /// <summary>Look for a new Lycoris version in the background (at most every 12 hours). Default on.</summary>

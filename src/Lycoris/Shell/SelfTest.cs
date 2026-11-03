@@ -180,6 +180,7 @@ public sealed class SelfTestRunner
         reports.Add(stress);
 
         // Concurrency: many read-only / measure operations from several pages at once, plus a synthetic storm through the coordinator.
+        reports.Add(await TestRefreshLagAsync());
         reports.Add(await TestConcurrencyAsync());
 
         // Security: the hostile-input corpus against every parser and validator (read-only, offline).
@@ -230,6 +231,47 @@ public sealed class SelfTestRunner
         return r;
     }
 
+
+    /// <summary>
+    /// Which refresh freezes the window: every read-only refresh command alone, the busiest UI-thread stall it caused
+    /// (the lag monitor's sample). Diagnostic only — listed in the report; the section fails only on errors.
+    /// </summary>
+    private async Task<PageReport> TestRefreshLagAsync()
+    {
+        var r = new PageReport { Key = "refresh-lag", Title = "ЗАДЕРЖКА ПО КОМАНДАМ ОБНОВЛЕНИЯ", LagLimitMs = double.MaxValue };
+        var commands = new List<(string Name, System.Windows.Input.ICommand Command, PageViewModel Page)>();
+        void Add(object owner, string label, PageViewModel page)
+        {
+            foreach (var name in new[] { "RefreshCommand", "RefreshChecksCommand", "AnalyzeCommand" })
+                if (owner.GetType().GetProperty(name)?.GetValue(owner) is System.Windows.Input.ICommand cmd) commands.Add(($"{label}.{name}", cmd, page));
+        }
+        foreach (var page in _vm.Pages)
+        {
+            Add(page, page.Key, page);
+            if (page is MaintenanceViewModel host) { Add(host.Cleaner, "cleaner", page); Add(host.Tools, "tools", page); }
+        }
+        var results = new List<(string Name, double Lag, long Ms)>();
+        foreach (var (name, cmd, page) in commands)
+        {
+            try
+            {
+                if (!cmd.CanExecute(null)) continue;
+                await Task.Delay(300);
+                _currentMaxLag = 0;
+                var sw = Stopwatch.StartNew();
+                cmd.Execute(null);
+                await Task.Delay(200);
+                await WaitIdleAsync(page, TimeSpan.FromSeconds(60));
+                await Task.Delay(300);
+                results.Add((name, Math.Round(_currentMaxLag), sw.ElapsedMilliseconds));
+            }
+            catch (Exception ex) { r.Errors.Add($"{name}: {ex.Message}"); }
+        }
+        foreach (var x in results.OrderByDescending(x => x.Lag).Take(12))
+            r.Exercised.Add($"{x.Name}: подвисание до {x.Lag} мс, обновление {x.Ms} мс");
+        r.MaxUiLagMs = results.Count > 0 ? results.Max(x => x.Lag) : 0;
+        return r;
+    }
     /// <summary>
     /// "Many tasks at once": the refresh / analysis commands of every page (read-only) fired together three times, then 90
     /// synthetic operations of every class through the coordinator. Passes when nothing deadlocks, no error or binding error is
@@ -554,6 +596,12 @@ public sealed class SelfTestRunner
             foreach (var e in r.BindingErrors) sb.AppendLine($"- ПРИВЯЗКА: {e}");
             foreach (var e in r.Warnings.Distinct().Take(15)) sb.AppendLine($"- предупреждение: {e}");
             if (r.MaxUiLagMs > r.LagLimitMs) sb.AppendLine($"- интерфейс зависал на {r.MaxUiLagMs} мс (порог {r.LagLimitMs} мс)");
+            sb.AppendLine();
+        }
+        if (reports.FirstOrDefault(x => x.Key == "refresh-lag") is { Exercised.Count: > 0 } lag)
+        {
+            sb.AppendLine("## Задержка интерфейса по командам обновления (сверху — худшие)");
+            foreach (var e in lag.Exercised) sb.AppendLine("- " + e);
             sb.AppendLine();
         }
         var trimmed = reports.SelectMany(x => x.Trimmed.Select(t => $"{x.Key}: {t}")).Distinct().ToList();
