@@ -153,27 +153,15 @@ public static class GameLibrary
             if (data is null || data.Version != 1) return null;
             return new LibraryScan(data.Games, data.Sources, data.ScannedAt);
         }
-        catch
-        {
-            return null;
-        }
-    }
-
-    public static LibraryScan? LoadCache()
-    {
-        try
-        {
-            if (!File.Exists(CacheFilePath)) return null;
-            var data = JsonSerializer.Deserialize<CacheFile>(Lycoris.Core.Security.SafeIo.ReadText(CacheFilePath), JsonOptions);
-            if (data is null || data.Version != 1) return null;
-            return new LibraryScan(data.Games, data.Sources, data.ScannedAt);
-        }
         catch (Exception ex)
         {
             Log.Warn("Кэш библиотеки игр повреждён и будет пересоздан: {0}", ex.Message);
             return null;
         }
     }
+
+    /// <summary>The cache of the last library scan; null when missing or unreadable (the caller rescans).</summary>
+    public static LibraryScan? LoadCache() => LoadCache(CacheFilePath);
 
     public static void SaveCache(LibraryScan scan)
     {
