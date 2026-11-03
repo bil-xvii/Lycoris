@@ -82,6 +82,7 @@
     "До перезагрузки часть изменений не вступит в силу.": "Some changes will not take effect until you restart.",
     "Программы в фоне могут замедлять вход в Windows.": "Background programs can slow down Windows sign-in.",
     "Сбалансированный режим снижает нагрев и расход энергии в простое.": "Balanced mode reduces heat and power use while idle.",
-    "Правило: {0}": "Rule: {0}"
+    "Правило: {0}": "Rule: {0}",
+    "Источник времени загрузки: {0}": "Boot time source: {0}"
   }
 }

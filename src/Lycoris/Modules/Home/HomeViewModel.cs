@@ -51,6 +51,7 @@ public sealed partial class HomeViewModel : PageViewModel
     [ObservableProperty] private string _measurementSummary = Loc.T("Замеры ещё не записаны");
     [ObservableProperty] private string _measurementDetails = "";
     [ObservableProperty] private bool _hasMeasurements;
+    [ObservableProperty] private string _bootTimeSourceText = "";
 
     // Before / after measurement: the shared Core/Measurements module (real sources, safe store, honest comparison).
     private readonly MeasurementStore _measurementStore = new();
@@ -85,6 +86,7 @@ public sealed partial class HomeViewModel : PageViewModel
         if (entries.Length < 2)
         {
             MeasurementDetails = Loc.T("Сравнение появится после второго замера");
+            BootTimeSourceText = "";
             return;
         }
         var c = MeasurementComparer.Compare(entries[0], entries[1]);
@@ -98,6 +100,7 @@ public sealed partial class HomeViewModel : PageViewModel
             + " · " + Loc.Tf("Автозапуск: {0} → {1}", a.EnabledStartupItems, b.EnabledStartupItems)
             + " · " + Loc.Tf("свободная память: {0} → {1} МБ", Mb(a.FreeMemoryBytes), Mb(b.FreeMemoryBytes))
             + " · " + boot;
+        BootTimeSourceText = ExpertMode ? Loc.Tf("Источник времени загрузки: {0}", b.BootTimeSource) : "";
     }
 
     private readonly Func<string, Task> _runDoctorCheck;

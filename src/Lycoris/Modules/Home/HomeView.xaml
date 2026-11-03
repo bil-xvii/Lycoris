@@ -40,6 +40,7 @@
                         <TextBlock Text="{loc:T Замер до / после}" Style="{StaticResource T.H3}" Foreground="{StaticResource B.Text}"/>
                         <TextBlock Text="{Binding MeasurementSummary}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0"/>
                         <TextBlock Text="{Binding MeasurementDetails}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="{Binding ExpertMode, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text="{Binding BootTimeSourceText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,2,0,0" TextWrapping="Wrap" Visibility="{Binding ExpertMode, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding MeasurementNote}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.WarningText}" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="{Binding MeasurementNote, Converter={StaticResource NullToVis}}"/>
                         <TextBlock Text="{loc:T Замер только читает данные и хранится на этом ПК}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"/>
                     </StackPanel>
