@@ -98,7 +98,7 @@
                             </StackPanel>
                         </Grid>
                         <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" FontSize="12.5" LineHeight="18" Margin="0,10,0,0"
-                                   MaxHeight="36" TextTrimming="CharacterEllipsis" ToolTip="{Binding Description}" />
+                                   TextWrapping="Wrap" ToolTip="{Binding Description}" />
                         <!-- install advice: why (every level except ПО ЖЕЛАНИЮ), one line, full text in the tooltip -->
                         <TextBlock Text="{Binding AdviceReason}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
                                    TextWrapping="Wrap" ToolTip="{Binding AdviceReason}"
@@ -307,7 +307,7 @@
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}"
                       Checked="{Binding CheckedText}" RefreshCommand="{Binding RefreshCommand}">
             <c:PageHeader.Primary>
-                <Button Command="{Binding UpdateAllCommand}"
+                <Button Style="{StaticResource Btn.Primary}" Command="{Binding UpdateAllCommand}"
                         ToolTip="{loc:T Обновить через winget все установленные программы из каталога (кроме обновляющихся самостоятельно)}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -317,28 +317,36 @@
             </c:PageHeader.Primary>
         </c:PageHeader>
 
-        <!-- Search (first control of the first row) + tabs -->
+        <!-- Search and category filters are secondary controls, explicitly labelled. -->
         <Grid Grid.Row="1" Margin="0,14,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="230" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Grid VerticalAlignment="Top">
+            <TextBlock Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}"
+                       Text="{loc:T ПОИСК}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}"
+                       Text="{loc:T ФИЛЬТРЫ}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <Grid Grid.Row="1" VerticalAlignment="Top" Margin="0,4,0,0">
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,10,0" Height="32"
                          Tag="{loc:T Поиск по названию или ID}" />
                 <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12"
                            Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"
                            IsHitTestVisible="False" Visibility="{Binding HasSearch, Converter={StaticResource InverseBoolToVis}}" />
             </Grid>
-            <Button Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Top" Command="{Binding ClearSearchCommand}"
+            <Button Grid.Row="1" Grid.Column="1" Margin="8,4,0,0" VerticalAlignment="Top" Command="{Binding ClearSearchCommand}"
                     Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                     <TextBlock Text="{loc:T СБРОСИТЬ}" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
-            <Border Grid.Column="2" Style="{StaticResource SegmentBar}" Margin="12,0,0,0" VerticalAlignment="Top">
+            <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource SegmentBar}" Margin="12,4,0,0" VerticalAlignment="Top">
                 <ItemsControl ItemsSource="{Binding Categories}" Focusable="False">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>

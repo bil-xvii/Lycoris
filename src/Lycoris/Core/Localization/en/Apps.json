@@ -110,6 +110,8 @@
     "Набор геймера": "Gamer kit",
     "Показать список пакетов и установить недостающие библиотеки, которые нужны этому ПК": "Show the list of packages and install the missing libraries this PC needs",
     "СБРОСИТЬ ПОИСК": "CLEAR SEARCH",
+    "ПОИСК": "SEARCH",
+    "ФИЛЬТРЫ": "FILTERS",
     "ПОКАЗАТЬ ВСЕ ПРОГРАММЫ": "SHOW ALL PROGRAMS",
     "Только проверенные пакеты winget и Microsoft Store. Lycoris никогда не передаёт winget --force, --ignore-security-hash и --allow-reboot. Установка работает и без прав администратора: установщики сами запросят UAC.": "Only verified winget and Microsoft Store packages. Lycoris never passes winget --force, --ignore-security-hash or --allow-reboot. Installs also work without administrator rights: the installers ask for UAC themselves.",
     "Каталог составлен из пакетов, проверенных командой winget show: издатель совпадает с разработчиком, установщик скачивается с его сервера, а SHA256 сверяется с манифестом. Пакеты Microsoft Store скачиваются из Store и проверяются его подписью. При установке winget принимает за вас лицензии издателей и условия Microsoft Store — Lycoris предупреждает об этом перед каждой установкой. Удалить программу можно в «Параметры → Приложения».": "The catalog is made of packages verified with winget show: the publisher matches the developer, the installer is downloaded from the developer's server and its SHA256 is checked against the manifest. Microsoft Store packages are downloaded from the Store and checked against its signature. When installing, winget accepts the publishers' licenses and the Microsoft Store terms on your behalf — Lycoris warns you about this before every install. You can remove a program in “Settings → Apps → Installed apps”.",
