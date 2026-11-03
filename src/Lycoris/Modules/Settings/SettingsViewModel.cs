@@ -1,3 +1,4 @@
+using Lycoris.Core.Security;
 using System.IO;
 using System.Management;
 using System.Reflection;
@@ -138,12 +139,14 @@ public sealed partial class SettingsViewModel : PageViewModel
         ApplyFocus(Ui.TakeFocusRequest(Key));
         MarkChecked();
         Updates.Refresh();
+        _ = RefreshProtectionAsync();
         return RefreshPathsAsync();
     }
 
     protected override Task OnReturnAsync()
     {
         RaiseSettingProperties();
+        _ = RefreshProtectionAsync();
         ApplyFocus(Ui.TakeFocusRequest(Key));
         return RefreshPathsAsync();
     }
@@ -304,5 +307,45 @@ public sealed partial class SettingsViewModel : PageViewModel
         await RefreshPathsAsync();
         Log.Info("Настройки сброшены к значениям по умолчанию.");
         Ui.Toast("Настройки сброшены к значениям по умолчанию.", ToastKind.Success);
+    }
+
+    // ───────────────────────────── «Защита и доступ» (roadmap item 11) ─────────────────────────────
+
+    /// <summary>One line of the «Защита и доступ» card: what it is, its state, and whether it is fine.</summary>
+    public sealed record ProtectionRow(string Title, string State, string Detail, bool Ok);
+
+    public System.Collections.ObjectModel.ObservableCollection<ProtectionRow> Protection { get; } = [];
+
+    /// <summary>What Lycoris never switches off, whatever profile or tweak is chosen (CLAUDE.md, «Не делаем»).</summary>
+    public string NeverTouchedText => Loc.T("Защитник Windows, брандмауэр, контроль учётных записей (UAC), SmartScreen и обновления безопасности Windows");
+
+    private async Task RefreshProtectionAsync()
+    {
+        var (restoreOn, records) = await Task.Run(() =>
+        {
+            bool? on; try { on = RestorePointService.IsEnabled(); } catch { on = null; }
+            return (on, ChangeJournal.Instance.Records.Count(r => !r.Reverted));
+        });
+        Protection.Clear();
+        Protection.Add(Elevation.IsElevated
+            ? new(Loc.T("Права"), Loc.T("С правами администратора"), Loc.T("Изменения применяются сразу, каждое — с подтверждением и записью в журнал."), true)
+            : new(Loc.T("Права"), Loc.T("Режим просмотра"), Loc.T("Смотреть можно всё; кнопка, которой нужны права, сама попросит их через окно Windows."), true));
+        var signed = SelfIntegrity.Signature == SignatureState.Valid;
+        Protection.Add(new(Loc.T("Подпись программы"), signed ? Loc.Tf("Подписана: {0}", SelfIntegrity.SignerName ?? "") : Loc.T("Без цифровой подписи"),
+            signed ? Loc.T("Windows подтверждает издателя.")
+                   : Loc.T("Перед каждым запросом прав Lycoris сверяет свой файл с тем, что был при запуске, и проверяет свои библиотеки."), signed));
+        Protection.Add(SelfIntegrity.WritableReason is null
+            ? new(Loc.T("Расположение"), Loc.T("Защищённая папка"), Loc.T("Файл программы лежит там, куда обычные программы писать не могут."), true)
+            : new(Loc.T("Расположение"), Loc.T("Обычная папка"), Loc.T("Файл лежит там, куда могут писать другие программы. Надёжнее установить Lycoris в Program Files."), false));
+        Protection.Add(new(Loc.T("Журнал изменений"), Loc.N(records, "{0} изменение", "{0} изменения", "{0} изменений"),
+            Loc.T("Каждое изменение Lycoris записано и откатывается на странице «Восстановление»."), true));
+        Protection.Add(restoreOn switch
+        {
+            true => new(Loc.T("Защита системы Windows"), Loc.T("Включена"), Loc.T("Перед пакетами изменений создаются точки восстановления."), true),
+            false => new(Loc.T("Защита системы Windows"), Loc.T("Выключена"), Loc.T("Точки восстановления не создаются — включите на странице «Восстановление»."), false),
+            _ => new(Loc.T("Защита системы Windows"), Loc.T("Не удалось проверить"), Loc.T("Состояние видно на странице «Восстановление»."), false),
+        });
+        Protection.Add(new(Loc.T("Интернет"), Loc.T("Без телеметрии"),
+            Loc.T("Сама Lycoris проверяет только новую версию Lycoris и свежий драйвер видеокарты на сайте производителя; замер пинга и загрузки — по вашей кнопке."), true));
     }
 }

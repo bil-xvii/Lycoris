@@ -253,3 +253,18 @@ public sealed class CommandPaletteTests
         Assert.Contains(CommandPaletteSearch.Search(index, "discord inc"), e => e.Kind == PaletteKind.Startup);
     }
 }
+
+public sealed class GlossarySearchTests
+{
+    [Theory]
+    [InlineData("hags")]
+    [InlineData("точка восстановления")]
+    [InlineData("dpc")]
+    public void A_term_is_found_and_explained(string query)
+    {
+        var index = Lycoris.Shell.CommandPaletteIndex.Build([], Lycoris.Tweaks.TweakCatalog.All, [], [], []);
+        var hit = Lycoris.Shell.CommandPaletteSearch.Search(index, query, 10).FirstOrDefault(e => e.Kind == Lycoris.Shell.PaletteKind.Term);
+        Assert.NotNull(hit);
+        Assert.False(string.IsNullOrWhiteSpace(hit!.Description));
+    }
+}

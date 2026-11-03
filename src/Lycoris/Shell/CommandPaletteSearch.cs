@@ -5,7 +5,7 @@ namespace Lycoris.Shell;
 
 /// <summary>What a command-palette result points to.</summary>
 /// <remarks><see cref="Myth"/> = a rejected tweak («НЕ ДЕЛАЕМ»): opens its explanation in Settings → О программе.</remarks>
-public enum PaletteKind { Page, Tweak, Tool, Service, Myth, App, Clean, Startup, Setting }
+public enum PaletteKind { Page, Tweak, Tool, Service, Myth, App, Clean, Startup, Setting, Term }
 
 /// <summary>
 /// One searchable entry of the command palette. Opening it only navigates (and may ask the page to focus an item):
@@ -43,6 +43,7 @@ public sealed class PaletteEntry
         PaletteKind.Clean => Loc.T("ОЧИСТКА"),
         PaletteKind.Startup => Loc.T("АВТОЗАПУСК"),
         PaletteKind.Setting => Loc.T("ПАРАМЕТР"),
+        PaletteKind.Term => Loc.T("ТЕРМИН"),
         _ => Loc.T("СЛУЖБА"),
     };
 

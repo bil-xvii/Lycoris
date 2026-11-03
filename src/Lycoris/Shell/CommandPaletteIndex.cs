@@ -82,6 +82,10 @@ public static class CommandPaletteIndex
                 PageKey = "settings", FocusId = RejectedTweaks.FocusPrefix + r.Id,
             });
 
+        // Glossary («Что это?», roadmap item 9): a term found in the search shows its meaning; opening only navigates.
+        foreach (var t in Glossary.Terms)
+            list.Add(new PaletteEntry { Kind = PaletteKind.Term, Title = t.Term, Description = t.Meaning, Keywords = t.Keywords, PageKey = t.PageKey, FocusId = t.FocusId });
+
         // Programs, cleanup items, autostart entries, Settings rows, Drivers tabs, Restore sections (Obvious UI: the search
         // must know everything the user can click, not only tweaks).
         foreach (var e in extra ?? [])
