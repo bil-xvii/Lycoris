@@ -192,12 +192,15 @@ public static class InstalledDetector
         public List<string>? Unmanaged { get; set; }
     }
 
-    public static InstalledSnapshot? LoadCache()
+    public static InstalledSnapshot? LoadCache() => LoadCache(CacheFile);
+
+    /// <summary>TESTS: reads cache from an arbitrary path instead of the default cache directory.</summary>
+    internal static InstalledSnapshot? LoadCache(string path)
     {
         try
         {
-            if (!File.Exists(CacheFile)) return null;
-            var dto = JsonSerializer.Deserialize<CacheDto>(Lycoris.Core.Security.SafeIo.ReadText(CacheFile));
+            if (!File.Exists(path)) return null;
+            var dto = JsonSerializer.Deserialize<CacheDto>(Lycoris.Core.Security.SafeIo.ReadText(path));
             if (dto?.Packages is null) return null;
             return new InstalledSnapshot(new Dictionary<string, string>(dto.Packages, StringComparer.OrdinalIgnoreCase), dto.CheckedAt, true)
             {
