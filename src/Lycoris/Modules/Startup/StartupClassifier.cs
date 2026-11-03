@@ -51,6 +51,24 @@ public static class StartupClassifier
 
     private static readonly string[] MicrosoftNames = ["Microsoft", Loc.Keep("Майкрософт")];
 
+    /// <summary>
+    /// Programs that work the same without starting at logon — they are simply opened from their shortcut when needed
+    /// (game launchers, chat and music apps, remote-help tools). «ОТКЛЮЧИТЬ ЛИШНЕЕ» offers them, always in the confirmation
+    /// list; only ordinary entries (StartupRisk.Normal), never Microsoft, drivers, security or updaters.
+    /// </summary>
+    private static readonly HashSet<string> OptionalAtLogonExecutables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Steam.exe", "EpicGamesLauncher.exe", "Battle.net.exe", "Battle.net Launcher.exe", "GalaxyClient.exe", "EADesktop.exe",
+        "Discord.exe", "Telegram.exe", "Viber.exe", "WhatsApp.exe", "Skype.exe", "Zoom.exe", "Spotify.exe", "AnyDesk.exe",
+    };
+
+    /// <summary>True for an ordinary entry whose program is optional at logon (Discord starts through Squirrel's Update.exe).</summary>
+    public static bool IsOptionalAtLogon(string? targetPath, string? command, StartupRisk risk) =>
+        risk == StartupRisk.Normal
+        && (OptionalAtLogonExecutables.Contains(Path.GetFileName(targetPath ?? ""))
+            || (command ?? "").Contains("--processStart Discord.exe", StringComparison.OrdinalIgnoreCase)
+            || (command ?? "").Contains("--processStart \"Discord.exe\"", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>Risk of a Run / Startup-folder entry.</summary>
     public static StartupRisk ClassifyEntry(string? targetPath, string? publisher)
     {
