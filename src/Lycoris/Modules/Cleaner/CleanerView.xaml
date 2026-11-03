@@ -139,36 +139,35 @@
         <!-- Header: проверено · ОБНОВИТЬ (= a new read-only analysis) · [ОТМЕНА] · РЕКОМЕНДУЕМЫЙ НАБОР · ONE main button -->
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}"
                       RefreshCommand="{Binding RefreshCommand}">
-            <c:PageHeader.Actions>
-                <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource Btn.Danger}" Margin="0,0,8,0" Command="{Binding CancelCommand}"
-                            Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{loc:T ОТМЕНА}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button Margin="0,0,0,0" Command="{Binding ResetSelectionCommand}"
-                            ToolTip="{loc:T 'Вернуть рекомендуемый набор пунктов'}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{loc:T 'РЕКОМЕНДУЕМЫЙ НАБОР'}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </c:PageHeader.Actions>
-            <c:PageHeader.Primary>
-                <Button Style="{StaticResource Btn.Primary}" Command="{Binding CleanCommand}"
-                        ToolTip="{loc:T 'Удалить отмеченное — после подтверждения со списком. Если анализ устарел, он выполнится заново.'}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
-                        <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </c:PageHeader.Primary>
+
         </c:PageHeader>
 
-        <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel Grid.Row="1" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <Button Style="{StaticResource Btn.Danger}" Margin="0,0,8,0" Command="{Binding CancelCommand}"
+                        Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{loc:T РћРўРњР•РќРђ}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource Btn}" Command="{Binding ResetSelectionCommand}"
+                        ToolTip="{loc:T 'Вернуть рекомендуемый набор пунктов'}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{loc:T 'РЕКОМЕНДУЕМЫЙ НАБОР'}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <Button Style="{StaticResource Btn.Primary}" Command="{Binding CleanCommand}"
+                    HorizontalAlignment="Left" ToolTip="{loc:T 'РЈРґР°Р»РёС‚СЊ РѕС‚РјРµС‡РµРЅРЅРѕРµ вЂ” РїРѕСЃР»Рµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ СЃРѕ СЃРїРёСЃРєРѕРј. Р•СЃР»Рё Р°РЅР°Р»РёР· СѓСЃС‚Р°СЂРµР», РѕРЅ РІС‹РїРѕР»РЅРёС‚СЃСЏ Р·Р°РЅРѕРІРѕ.'}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
+                    <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" Margin="0,98,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="0,0,10,10">
 
                 <!-- ═══════════════ Summary + status: one rounded strip ═══════════════ -->
