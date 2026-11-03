@@ -14,11 +14,14 @@ internal static class CustomSelectionStore
 
     private static string FilePath => Path.Combine(AppPaths.UserDir, "optimize-custom.json");
 
-    public static HashSet<string>? Load()
+    public static HashSet<string>? Load() => Load(FilePath);
+
+    /// <summary>Load from a specific path (testing overload). Always returns null on error.</summary>
+    internal static HashSet<string>? Load(string path)
     {
         try
         {
-            return File.Exists(FilePath) ? Parse(Lycoris.Core.Security.SafeIo.ReadText(FilePath)) : null;
+            return File.Exists(path) ? Parse(Lycoris.Core.Security.SafeIo.ReadText(path)) : null;
         }
         catch (Exception ex)
         {

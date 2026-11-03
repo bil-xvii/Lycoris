@@ -144,12 +144,12 @@ public static class GameLibrary
         };
     }
 
-    public static LibraryScan? LoadCache()
+    internal static LibraryScan? LoadCache(string path)
     {
         try
         {
-            if (!File.Exists(CacheFilePath)) return null;
-            var data = JsonSerializer.Deserialize<CacheFile>(Lycoris.Core.Security.SafeIo.ReadText(CacheFilePath), JsonOptions);
+            if (!File.Exists(path)) return null;
+            var data = JsonSerializer.Deserialize<CacheFile>(Lycoris.Core.Security.SafeIo.ReadText(path), JsonOptions);
             if (data is null || data.Version != 1) return null;
             return new LibraryScan(data.Games, data.Sources, data.ScannedAt);
         }
@@ -159,6 +159,9 @@ public static class GameLibrary
             return null;
         }
     }
+
+    /// <summary>The cache of the last library scan; null when missing or unreadable (the caller rescans).</summary>
+    public static LibraryScan? LoadCache() => LoadCache(CacheFilePath);
 
     public static void SaveCache(LibraryScan scan)
     {
