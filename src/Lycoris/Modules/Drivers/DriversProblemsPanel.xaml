@@ -127,7 +127,7 @@
                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                             <TextBlock Text="{loc:T КОД}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12"
                                                        HorizontalAlignment="Center" Foreground="{StaticResource B.Text2}" />
-                                            <TextBlock Text="{Binding CodeText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
+                                            <TextBlock Text="{Binding Code}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
                                                        FontSize="30" HorizontalAlignment="Center" />
                                         </StackPanel>
                                     </Border>
