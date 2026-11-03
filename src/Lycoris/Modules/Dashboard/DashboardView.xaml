@@ -35,10 +35,8 @@
 
         <Style x:Key="Dash.TileDetail" TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
             <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="Margin" Value="0,4,0,0" />
             <Setter Property="MinHeight" Value="32" />
-            <Setter Property="MaxHeight" Value="48" />
             <Setter Property="LineHeight" Value="16" />
             <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
         </Style>
