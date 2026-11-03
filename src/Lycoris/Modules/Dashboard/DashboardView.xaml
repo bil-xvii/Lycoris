@@ -98,6 +98,14 @@
                       RefreshCommand="{Binding RefreshChecksCommand}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- «ОТЧЁТ О ПК»: a readable HTML page on the Desktop from the checks already made (nothing is sent anywhere). -->
+                    <Button Style="{StaticResource Btn}" Command="{Binding CreateHealthReportCommand}" Margin="0,0,14,0"
+                            ToolTip="{loc:T 'Понятный отчёт о ПК на рабочий стол: оценка, проверки, сводка о системе'}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Save}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T ОТЧЁТ О ПК}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <Border Style="{StaticResource Dot.Red}" />
                     <TextBlock Text="LIVE" Style="{StaticResource T.Mono}" FontWeight="Bold" Foreground="{StaticResource B.Text2}" Margin="7,0,0,0" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding IntervalText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" Margin="7,0,0,0" VerticalAlignment="Center" />

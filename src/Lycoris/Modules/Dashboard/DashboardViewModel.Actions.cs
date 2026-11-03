@@ -1,3 +1,4 @@
+using System.IO;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
@@ -308,5 +309,53 @@ public sealed partial class DashboardViewModel
         var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("shutdown.exe"), "/a");
         _restartTimer?.Stop(); _restartAt = null; RestartCountdown = null;
         Ui.Toast(r.ExitCode == 0 ? Loc.T("Перезагрузка отменена.") : Loc.T("Запланированной перезагрузки уже нет."), ToastKind.Info);
+    }
+
+    // ───────────────────────────── «ОТЧЁТ О ПК» (roadmap item 8) ─────────────────────────────
+
+    [RelayCommand]
+    private async Task CreateHealthReportAsync()
+    {
+        if (!HasResults)
+        {
+            Ui.Toast(Loc.T("Дождитесь окончания проверки — отчёт строится по её результатам."), ToastKind.Info);
+            return;
+        }
+        if (!await Ui.ConfirmAsync(Loc.T("ОТЧЁТ О ПК"),
+                Loc.T("Lycoris сохранит понятный отчёт о ПК на рабочий стол (страница HTML, открывается в браузере)."),
+                Lycoris.Core.Diagnostics.HealthReport.Contents, confirmText: Loc.T("СОХРАНИТЬ ОТЧЁТ"))) return;
+        try
+        {
+            var html = Lycoris.Core.Diagnostics.HealthReport.Build(BuildHealthReportData());
+            var path = await Task.Run(() => Lycoris.Core.Diagnostics.ProblemReport.SaveHealthReportToDesktop(System.Text.Encoding.UTF8.GetBytes(html)));
+            Log.Info("Отчёт о ПК сохранён: {0}", Path.GetFileName(path));
+            Ui.Toast(Loc.T("Отчёт о ПК сохранён на рабочем столе."), ToastKind.Success, openFolderPath: Path.GetDirectoryName(path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Ui.Toast(ex is InvalidOperationException ? ex.Message : Loc.Tf("Отчёт не сохранён: {0}", ex.Message), ToastKind.Error);
+        }
+    }
+
+    internal Lycoris.Core.Diagnostics.HealthReportData BuildHealthReportData()
+    {
+        var checks = _all.OrderBy(i => i.IsOk).ThenByDescending(i => i.Severity)
+            .Select(i => new Lycoris.Core.Diagnostics.HealthReportCheck(i.Title, i.Detail,
+                i.IsOk ? "ok" : i.Severity == CheckSeverity.Warning ? "warn" : "info"))
+            .ToList();
+        var system = SystemRows.Select(r => new Lycoris.Core.Diagnostics.HealthReportRow(r.Label, r.Value, r.Detail)).ToList();
+        string? measurement = null;
+        try
+        {
+            var last = new Lycoris.Core.Measurements.MeasurementStore().Read().LastOrDefault();
+            if (last is not null)
+                measurement = Loc.Tf("Последний замер {0}: автозапуск — {1}, свободная память — {2} МБ, время загрузки — {3}",
+                    last.RecordedAt.ToLocalTime().ToString("g"), last.Conditions.EnabledStartupItems,
+                    (last.Conditions.FreeMemoryBytes ?? 0) / 1024 / 1024,
+                    last.Conditions.BootTimeSeconds is { } s ? Loc.Tf("{0} с", s.ToString("0.0")) : Loc.T("недоступно"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        var version = typeof(DashboardViewModel).Assembly.GetName().Version?.ToString(3) ?? "?";
+        return new(DateTime.Now, version, Score, Verdict, checks, system, measurement);
     }
 }
