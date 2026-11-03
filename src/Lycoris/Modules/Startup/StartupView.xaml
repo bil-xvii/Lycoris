@@ -57,7 +57,7 @@
 
         <!-- Row actions: «ЧТО ЭТО? ↗» searches the web, «ПАПКА · КОПИЯ ▾» opens the labelled menu (folder / copy command) -->
         <DataTemplate x:Key="RowActions">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Margin="0,0,6,0"
                         Command="{Binding DataContext.SearchOnlineCommand, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
                         CommandParameter="{Binding}" ToolTip="{loc:T 'Найти в интернете, что это за программа (откроется браузер)'}">
@@ -74,7 +74,7 @@
                         <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,1,0,0" />
                     </StackPanel>
                 </Button>
-            </StackPanel>
+            </WrapPanel>
         </DataTemplate>
 
         <!-- Risk / hint tags shared by autostart rows and logon-task rows (the theme's Tag styles only) -->
