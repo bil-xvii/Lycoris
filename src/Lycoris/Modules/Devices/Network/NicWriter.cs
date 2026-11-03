@@ -45,8 +45,30 @@ internal sealed class NicWriter : INicWriter
         var script = Script(interfaceGuid, keyword, value);
         var r = ProcessRunner.RunPowerShellAsync(script, new ProcessRunOptions { Encoding = OutputEncoding.Utf8, Timeout = TimeSpan.FromSeconds(90) })
             .GetAwaiter().GetResult();
-        if (r.ExitCode != 0) Log.Warn("Сеть: {0} = {1} — {2}", keyword, value, (r.StdErr + r.StdOut).Trim());
-        return r.ExitCode == 0;
+        if (r.ExitCode == 0) return true;
+        Log.Warn("Сеть: {0} = {1} — {2}", keyword, value, (r.StdErr + r.StdOut).Trim());
+        // Some drivers (Realtek) restart the adapter in the middle of the cmdlet and it fails with «Общий сбой» although
+        // the value was written; the driver's value is the truth, so wait for the adapter and read it back before reporting failure.
+        var applied = WaitUntilApplied(() => TryRead(interfaceGuid, keyword), value, TimeSpan.FromSeconds(25), TimeSpan.FromSeconds(1), Thread.Sleep);
+        if (applied) Log.Info("Сеть: {0} = {1} применено, хотя команда вернула ошибку (драйвер перезапустил адаптер)", keyword, value);
+        return applied;
+    }
+
+    string? TryRead(Guid interfaceGuid, string keyword)
+    {
+        try { return Read(interfaceGuid, keyword)?.Value; }
+        catch (InvalidOperationException) { return null; } // adapter still restarting
+    }
+
+    /// <summary>Polls until the property reads back as <paramref name="expected"/> or the time is up (pure; unit-tested).</summary>
+    internal static bool WaitUntilApplied(Func<string?> read, string expected, TimeSpan timeout, TimeSpan step, Action<int> sleepMs)
+    {
+        for (var waited = TimeSpan.Zero; ; waited += step)
+        {
+            if (string.Equals(read()?.Trim(), expected.Trim(), StringComparison.Ordinal)) return true;
+            if (waited >= timeout) return false;
+            sleepMs((int)step.TotalMilliseconds);
+        }
     }
 
     /// <summary>Game Boost session or a library game with a window: no adapter restart then (changes and per-row undo).</summary>
