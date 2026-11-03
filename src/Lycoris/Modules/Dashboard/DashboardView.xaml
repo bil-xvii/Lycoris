@@ -211,7 +211,7 @@
         <ItemsControl Grid.Row="2" ItemsSource="{Binding Tiles}" Margin="0,10,-10,0" Focusable="False">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <UniformGrid Rows="1" />
+                    <UniformGrid Columns="3" />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -244,7 +244,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <TextBlock Text="{Binding Label}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" />
+                                           TextWrapping="Wrap" />
                             </StackPanel>
                             <TextBlock Text="{Binding Value}" Style="{StaticResource Dash.TileValue}" ToolTip="{Binding Value}" />
                             <TextBlock Text="{Binding Detail}" Style="{StaticResource Dash.TileDetail}" ToolTip="{Binding Detail}" />
@@ -253,14 +253,14 @@
                                         Visibility="{Binding IsPrimary, Converter={StaticResource BoolToVis}}">
                                     <DockPanel HorizontalAlignment="Center" LastChildFill="True">
                                         <TextBlock Text="{Binding ButtonGlyph}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" DockPanel.Dock="Left" />
-                                        <TextBlock Text="{Binding ButtonText}" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+                                        <TextBlock Text="{Binding ButtonText}" VerticalAlignment="Center" TextWrapping="NoWrap" TextAlignment="Center" />
                                     </DockPanel>
                                 </Button>
                                 <Button Style="{StaticResource Btn}" Command="{Binding Command}" Height="Auto" MinHeight="30" Padding="6,4"
                                         Visibility="{Binding IsSecondary, Converter={StaticResource BoolToVis}}">
                                     <DockPanel HorizontalAlignment="Center" LastChildFill="True">
                                         <TextBlock Text="{Binding ButtonGlyph}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" DockPanel.Dock="Left" />
-                                        <TextBlock Text="{Binding ButtonText}" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+                                        <TextBlock Text="{Binding ButtonText}" VerticalAlignment="Center" TextWrapping="NoWrap" TextAlignment="Center" />
                                     </DockPanel>
                                 </Button>
                             </Grid>
