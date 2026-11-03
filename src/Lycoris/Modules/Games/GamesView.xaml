@@ -44,7 +44,7 @@
             <Border x:Name="Card" Margin="0,0,9,9" Padding="0" Style="{StaticResource Card.Hover}" ui:RoundClip.Content="True">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="132" />
+                        <RowDefinition Height="112" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
@@ -52,8 +52,8 @@
                     <Grid x:Name="Cover" ClipToBounds="True" Background="{StaticResource B.Surface2}">
                         <Border x:Name="Pattern" Background="{StaticResource B.DotGrid}" />
                         <TextBlock x:Name="Monogram" Text="{Binding Initials, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
-                                   FontStretch="Condensed" FontSize="112" Foreground="{StaticResource B.Text}" TextOptions.TextFormattingMode="Ideal"
-                                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="9,0,0,-19" IsHitTestVisible="False" />
+                                   FontStretch="Condensed" FontSize="92" Foreground="{StaticResource B.Text}" TextOptions.TextFormattingMode="Ideal"
+                                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="9,0,0,-16" IsHitTestVisible="False" />
                         <Grid VerticalAlignment="Top" Margin="9,9,10,0">
                             <Border Style="{StaticResource Tag.Solid}" Padding="6,1,6,2">
                                 <TextBlock Text="{Binding PlatformLabel}" />
