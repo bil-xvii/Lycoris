@@ -75,6 +75,56 @@ public sealed class MeasurementTests
         Assert.Equal(2, result.BootTimeSeconds.Delta);
     }
 
+    [Fact]
+    public void Collector_UsesInjectedReadOnlySourcesAndDoesNotPersist()
+    {
+        var collector = new MeasurementCollector(
+            new FakeBoot((12.5, "test log")), new FakeMemory(2048), new FakeStartup(4), new FakeEnvironment(("Windows 11", "26100", "1.2.3")));
+
+        var result = collector.Collect();
+
+        Assert.Equal("Windows 11", result.Conditions.WindowsVersion);
+        Assert.Equal("26100", result.Conditions.WindowsBuild);
+        Assert.Equal("1.2.3", result.Conditions.LycorisVersion);
+        Assert.Equal(4, result.Conditions.EnabledStartupItems);
+        Assert.Equal(2048, result.Conditions.FreeMemoryBytes);
+        Assert.Equal(12.5, result.Conditions.BootTimeSeconds);
+        Assert.Equal("test log", result.Conditions.BootTimeSource);
+    }
+
+    [Fact]
+    public void Collector_PreservesUnavailableBootReason()
+    {
+        var collector = new MeasurementCollector(
+            new FakeBoot((null, "недоступно")), new FakeMemory(null), new FakeStartup(0), new FakeEnvironment(("Windows", "build", "version")));
+
+        var result = collector.Collect();
+
+        Assert.Null(result.Conditions.BootTimeSeconds);
+        Assert.Equal("недоступно", result.Conditions.BootTimeSource);
+        Assert.Null(result.Conditions.FreeMemoryBytes);
+    }
+
+    private sealed class FakeBoot((double? Seconds, string Source) result) : IMeasurementBootSource
+    {
+        public (double? Seconds, string Source) Read() => result;
+    }
+
+    private sealed class FakeMemory(long? value) : IMeasurementMemorySource
+    {
+        public long? ReadFreeBytes() => value;
+    }
+
+    private sealed class FakeStartup(int value) : IMeasurementStartupSource
+    {
+        public int ReadEnabledCount() => value;
+    }
+
+    private sealed class FakeEnvironment((string Version, string Build, string LycorisVersion) value) : IMeasurementEnvironmentSource
+    {
+        public (string Version, string Build, string LycorisVersion) Read() => value;
+    }
+
     private static Measurement Sample(DateTimeOffset? time = null, (int Startup, long Memory, double Boot)? values = null)
     {
         var v = values ?? (5, 100L, 10d);
