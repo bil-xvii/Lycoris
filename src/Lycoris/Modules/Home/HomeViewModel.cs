@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using System.Diagnostics;
@@ -23,6 +24,9 @@ public sealed partial class HomeViewModel : PageViewModel
         File.Exists(AppPaths.SettingsReadFile), ChangeJournal.Instance.Records.Count > 0, AppSettings.Current.ExpertMode, AppSettings.Current.LastProfile);
     [RelayCommand] private void OpenWizard() => (Ui.Host as MainViewModel)?.OpenWizard();
     private readonly DashboardViewModel _dashboard;
+    private PropertyChangedEventHandler? _dashboardChangedHandler;
+    private PropertyChangedEventHandler? _settingsChangedHandler;
+    private Action? _journalChangedHandler;
     public override string Key => "home";
     public override string Index => "00";
     public override string Title => Loc.T("Главная");
@@ -105,13 +109,16 @@ public sealed partial class HomeViewModel : PageViewModel
     }
     protected override async Task LoadAsync()
     {
-        _dashboard.PropertyChanged += (_, _) => Ui.Post(RefreshDoctor);
-        ChangeJournal.Instance.Changed += () => Ui.Post(RefreshJournal);
-        AppSettings.Current.PropertyChanged += (_, e) =>
+        _dashboardChangedHandler = (_, _) => Ui.Post(RefreshDoctor);
+        _dashboard.PropertyChanged += _dashboardChangedHandler;
+        _journalChangedHandler = () => Ui.Post(RefreshJournal);
+        ChangeJournal.Instance.Changed += _journalChangedHandler;
+        _settingsChangedHandler = (_, e) =>
         {
             if (e.PropertyName == nameof(AppSettings.ExpertMode)) Ui.Post(() => ExpertMode = AppSettings.Current.ExpertMode);
             if (e.PropertyName == nameof(AppSettings.FirstRunCompleted)) Ui.Post(() => OnPropertyChanged(nameof(ShowWizardPrompt)));
         };
+        AppSettings.Current.PropertyChanged += _settingsChangedHandler;
         try
         {
             if (!_dashboard.HasResults) await _dashboard.RefreshChecksCommand.ExecuteAsync(null);
@@ -123,6 +130,16 @@ public sealed partial class HomeViewModel : PageViewModel
         RefreshJournal();
         RefreshDoctor();
         RefreshMeasurements();
+    }
+
+    public override void Deactivate()
+    {
+        if (_dashboardChangedHandler is not null) _dashboard.PropertyChanged -= _dashboardChangedHandler;
+        if (_journalChangedHandler is not null) ChangeJournal.Instance.Changed -= _journalChangedHandler;
+        if (_settingsChangedHandler is not null) AppSettings.Current.PropertyChanged -= _settingsChangedHandler;
+        _dashboardChangedHandler = null;
+        _journalChangedHandler = null;
+        _settingsChangedHandler = null;
     }
 
     protected override Task OnReturnAsync()
