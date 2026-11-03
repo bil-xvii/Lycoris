@@ -145,11 +145,10 @@
                     </c:Meter>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="16,0,16,0" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource T.H3}" TextTrimming="CharacterEllipsis">
+                    <TextBlock Style="{StaticResource T.H3}" TextWrapping="Wrap">
                         <Run Text="{Binding Verdict, Converter={StaticResource Sentence}, Mode=OneWay}" /><Run Text="{loc:T ' · оценка '}" Foreground="{StaticResource B.Text2}" /><Run Text="{Binding ScoreText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text="{loc:T ' из 100'}" Foreground="{StaticResource B.Text2}" />
                     </TextBlock>
-                    <TextBlock Text="{Binding VerdictSummary}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding VerdictSummary}" />
+                    <TextBlock Text="{Binding VerdictSummary}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
                 </StackPanel>
 
                 <!-- Chips = the filter of the list below -->
