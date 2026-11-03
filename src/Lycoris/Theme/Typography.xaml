@@ -2,13 +2,14 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        Display: Bahnschrift (DIN-style, ships with Windows 10/11, Cyrillic) — condensed bold for headings.
+        Display: Segoe UI Variable Display for headings; Bahnschrift SemiCondensed for numeric readouts.
         Body:    Segoe UI Variable.
         Mono:    Cascadia Mono → Consolas (numbers, logs, ids).
         Icons:   Segoe Fluent Icons (Win11) → Segoe MDL2 Assets (Win10).
     -->
-    <FontFamily x:Key="F.Display">Bahnschrift</FontFamily>
+    <FontFamily x:Key="F.Display">Segoe UI Variable Display, Segoe UI</FontFamily>
     <FontFamily x:Key="F.Body">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="F.Stat">Bahnschrift</FontFamily>
     <FontFamily x:Key="F.Mono">Cascadia Mono, Consolas</FontFamily>
     <FontFamily x:Key="F.Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
@@ -16,11 +17,11 @@
     <Style x:Key="T.Display" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="FontStretch" Value="Condensed" />
-        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontStretch" Value="Normal" />
+        <Setter Property="FontSize" Value="26" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
-        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-        <Setter Property="LineHeight" Value="28" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <Setter Property="LineHeight" Value="32" />
         <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
     </Style>
 
@@ -28,22 +29,24 @@
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontStretch" Value="Condensed" />
-        <Setter Property="FontSize" Value="19" />
+        <Setter Property="FontStretch" Value="Normal" />
+        <Setter Property="FontSize" Value="20" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
     </Style>
 
     <Style x:Key="T.H2" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="SemiCondensed" />
-        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontStretch" Value="Normal" />
+        <Setter Property="FontSize" Value="16" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
     </Style>
 
     <Style x:Key="T.H3" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontStretch" Value="Normal" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
     </Style>
 
@@ -53,9 +56,9 @@
     -->
     <!-- Small uppercase label: section captions, table headers -->
     <Style x:Key="T.Label" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="SemiCondensed" />
+        <Setter Property="FontStretch" Value="Normal" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
     </Style>
@@ -88,18 +91,18 @@
 
     <!-- Big numeric readouts on the dashboard -->
     <Style x:Key="T.Stat" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Stat}" />
         <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="FontStretch" Value="Condensed" />
+        <Setter Property="FontStretch" Value="SemiCondensed" />
         <Setter Property="FontSize" Value="26" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
     </Style>
 
     <Style x:Key="T.StatUnit" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontStretch" Value="Condensed" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Stat}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontStretch" Value="SemiCondensed" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{StaticResource B.Text3}" />
         <Setter Property="Margin" Value="3,0,0,3" />
