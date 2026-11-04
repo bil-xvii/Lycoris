@@ -21,7 +21,8 @@ public static partial class ProblemReport
     private static Regex R(string pattern, RegexOptions options = Rx) => new(pattern, options, RxTimeout);
 
     // No left boundary for the long words (camelCase: accessToken, clientSecret); «key» and «sid» need one or a lower→Upper hump (monkey is not a key).
-    private const string SecretWords = @"(?:token|secret|passw(?:or)?d|pwd|bearer|authorization|cookie|credential|session|signature|connectionstring|парол\w*|ключ\w*|токен\w*|куки|(?<![A-Za-z])key|(?-i:(?<=[a-z])Key)|(?<![A-Za-z])sid|(?-i:(?<=[a-z])Sid))";
+    // Use (?i:...) / (?-i:...) inline flags to keep key/sid matching correct with IgnoreCase: standalone key/sid (case-insensitive, no letter before) + camelCase hump (lowercase before Uppercase Key/Sid).
+    private const string SecretWords = @"(?:token|secret|passw(?:or)?d|pwd|bearer|authorization|cookie|credential|session|signature|connectionstring|парол\w*|ключ\w*|токен\w*|куки|(?i:(?<![a-z])key)|(?-i:(?<=[a-z])Key)|(?i:(?<![a-z])sid)|(?-i:(?<=[a-z])Sid))";
 
     // A path segment may hold single spaces («Мария Иванова», «OneDrive - Компания»): it runs to the next slash, but stops before « C:\».
     private const string Seg = @"(?:[^\\/\s""'<>|:*?]| (?![A-Za-z]:))+";
