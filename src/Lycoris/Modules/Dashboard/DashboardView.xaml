@@ -138,7 +138,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- «ПОЧЕМУ ТОРМОЗИТ?»: 10 s read-only measurement, explained in plain words -->
                     <Button Style="{StaticResource Btn}" Command="{Binding DiagnoseCommand}" Margin="0,0,8,0"
-                            ToolTip="{loc:T 'Замер 10 секунд: кто грузит процессор, память и диск, и что с этим делать'}">
+                            ToolTip="{loc:T 'Замер 10 секунд: кто грузит процессор и память, занят ли диск, и что с этим делать'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                             <TextBlock Text="{loc:T 'ПОЧЕМУ ТОРМОЗИТ?'}" VerticalAlignment="Center" />

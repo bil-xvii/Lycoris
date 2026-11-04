@@ -12,11 +12,15 @@ namespace Lycoris.Modules.Dashboard;
 
 /// <summary>
 /// «ПОЧЕМУ ТОРМОЗИТ?» (roadmap item 2, «Доктор ПК»): a 10-second read-only measurement — the live monitor's CPU/RAM/disk/GPU
-/// samples plus each program's CPU time — explained by <see cref="PcDoctor"/>. Nothing is changed or closed.
+/// samples (at least one a second) plus each program's CPU time — explained by <see cref="PcDoctor"/> against a fresh system
+/// snapshot. Nothing is changed or closed.
 /// </summary>
 public sealed partial class DashboardViewModel
 {
     private SystemSnapshot? _lastSnapshot;
+
+    /// <summary>The page itself shows the live tiles (visible, not minimized). The doctor keeps the monitor running past that.</summary>
+    private bool _monitorWanted;
 
     public ObservableCollection<CheckItemViewModel> DoctorItems { get; } = [];
 
@@ -25,6 +29,13 @@ public sealed partial class DashboardViewModel
     [ObservableProperty] private string _doctorStatus = "";
 
     public string DoctorSourceUrl => PcDoctor.MicrosoftTipsUrl;
+
+    /// <summary>The page no longer needs the live tiles; a running measurement keeps the monitor until it ends.</summary>
+    private void ReleaseMonitor()
+    {
+        _monitorWanted = false;
+        if (!IsDiagnosing) _monitor.Stop();
+    }
 
     [RelayCommand]
     private async Task DiagnoseAsync()
@@ -37,6 +48,7 @@ public sealed partial class DashboardViewModel
         try
         {
             DoctorSample? sample = null;
+            SystemSnapshot? snapshot = null;
             // Not RunBusyAsync: the page's own checks may be running, and a read-only measurement must not wait for them or be dropped.
             try
             {
@@ -44,22 +56,29 @@ public sealed partial class DashboardViewModel
                     async _ =>
                     {
                         sample = await MeasureAsync(PcDoctor.Window);
-                        _lastSnapshot ??= await SystemInspector.CollectAsync();
+                        // Fresh facts after the window (free space, uptime, pending restart may have changed since the page's check);
+                        // collected afterwards so its own WMI work is not counted as load.
+                        snapshot = await SystemInspector.CollectAsync();
                     });
             }
             catch (Exception ex)
             {
                 Log.Error("Замер «почему тормозит» не удался", ex);
             }
+            if (snapshot is not null) _lastSnapshot = snapshot;
             if (sample is null || _lastSnapshot is null) { DoctorStatus = Loc.T("Замер не удался. Подробности — в журнале действий."); return; }
             foreach (var r in PcDoctor.Diagnose(sample, _lastSnapshot))
                 DoctorItems.Add(new CheckItemViewModel(r, RunActionAsync, ActionLabel));
-            DoctorStatus = Loc.Tf("Замер {0} с в {1}: процессор {2} %, память {3} %, диск {4} %.", (int)sample.Window.TotalSeconds, Loc.TimeText(DateTime.Now),
-                DashFormat.Percent(sample.CpuAvg), DashFormat.Percent(sample.RamPercent), DashFormat.Percent(sample.DiskAvg));
+            DoctorStatus = sample.Samples < PcDoctor.MinSamples
+                ? Loc.T("Нагрузка не измерена.")
+                : Loc.Tf("Замер {0} с в {1}: процессор {2} %, память {3} %, диск {4} %.", (int)sample.Window.TotalSeconds, Loc.TimeText(DateTime.Now),
+                    DashFormat.Percent(sample.CpuAvg), DashFormat.Percent(sample.RamPercent), DashFormat.Percent(sample.DiskAvg)) +
+                  (sample.HiddenPrograms > 0 ? " " + Loc.T("Часть системных процессов без прав администратора не видна.") : "");
         }
         finally
         {
             IsDiagnosing = false;
+            if (!_monitorWanted) _monitor.Stop();
         }
     }
 
@@ -73,7 +92,9 @@ public sealed partial class DashboardViewModel
     [RelayCommand]
     private async Task OpenDoctorSourceAsync()
     {
-        if (!await UnelevatedShell.OpenAsync(PcDoctor.MicrosoftTipsUrl)) Log.Warn("Не удалось открыть страницу: {0}", PcDoctor.MicrosoftTipsUrl);
+        if (await UnelevatedShell.OpenAsync(PcDoctor.MicrosoftTipsUrl)) return;
+        Log.Warn("Не удалось открыть страницу: {0}", PcDoctor.MicrosoftTipsUrl);
+        Ui.Toast(Loc.Tf("Не удалось открыть {0}", "support.microsoft.com"), ToastKind.Warning);
     }
 
     /// <summary>Collects the live monitor's samples for the window and each process's CPU time at both ends of it.</summary>
@@ -81,9 +102,9 @@ public sealed partial class DashboardViewModel
     {
         var samples = new List<MonitorSample>();
         void OnSample(MonitorSample s) { lock (samples) samples.Add(s); }
-        var startedMonitor = !_monitor.IsRunning;
-        if (startedMonitor) _monitor.Start();
+        _monitor.MaxIntervalMs = 1000; // dense samples whatever the polling setting (up to 10 s) is
         _monitor.Sampled += OnSample;
+        if (!_monitor.IsRunning) _monitor.Start();
         try
         {
             var before = await Task.Run(ReadProcessTimes);
@@ -92,10 +113,12 @@ public sealed partial class DashboardViewModel
             var after = await Task.Run(ReadProcessTimes);
             var elapsed = clock.Elapsed;
 
-            var deltas = after.Select(a => before.TryGetValue(a.Key, out var b) && b.Name == a.Value.Name
-                ? (a.Value.Name, a.Value.Cpu - b.Cpu, a.Value.Private)
-                : (a.Value.Name, TimeSpan.Zero, a.Value.Private)).ToList();
+            // CPU time only for processes readable at both ends; memory for every process whose memory is readable.
+            var deltas = after.Select(a => (a.Value.Name,
+                    a.Value.Cpu is { } now && before.TryGetValue(a.Key, out var b) && b.Name == a.Value.Name && b.Cpu is { } then ? now - then : TimeSpan.Zero,
+                    a.Value.Memory ?? 0)).ToList();
             var programs = PcDoctor.Group(deltas, elapsed, Environment.ProcessorCount);
+            var hidden = after.Count(a => a.Value.Cpu is null);
 
             MonitorSample[] got;
             lock (samples) got = [.. samples];
@@ -103,12 +126,13 @@ public sealed partial class DashboardViewModel
                 Average(got.Select(s => s.CpuPercent)), got.LastOrDefault()?.RamPercent, Average(got.Select(s => s.DiskPercent)),
                 got.Select(s => s.GpuTemperature).LastOrDefault(t => t is not null),
                 programs.OrderByDescending(p => p.CpuPercent).Take(5).ToList(),
-                programs.OrderByDescending(p => p.MemoryBytes).Take(5).ToList());
+                programs.OrderByDescending(p => p.MemoryBytes).Take(5).ToList(),
+                got.Length, hidden);
         }
         finally
         {
             _monitor.Sampled -= OnSample;
-            if (startedMonitor) _monitor.Stop();
+            _monitor.MaxIntervalMs = int.MaxValue;
         }
     }
 
@@ -118,16 +142,24 @@ public sealed partial class DashboardViewModel
         return v.Count == 0 ? null : v.Average();
     }
 
-    /// <summary>CPU time and memory in RAM (working set, as Task Manager shows) of every process this account may read (others are skipped without rights).</summary>
-    private static Dictionary<int, (string Name, TimeSpan Cpu, long Private)> ReadProcessTimes()
+    /// <summary>
+    /// CPU time and memory in RAM (working set, as Task Manager shows) of every process. Without admin rights the CPU time of
+    /// system services cannot be read (null), while their memory usually can — each is read on its own.
+    /// </summary>
+    private static Dictionary<int, (string Name, TimeSpan? Cpu, long? Memory)> ReadProcessTimes()
     {
-        var map = new Dictionary<int, (string, TimeSpan, long)>();
+        var map = new Dictionary<int, (string, TimeSpan?, long?)>();
         foreach (var p in Process.GetProcesses())
         {
             using (p)
             {
-                try { map[p.Id] = (p.ProcessName, p.TotalProcessorTime, p.WorkingSet64); }
-                catch { /* access denied or exited: not counted */ }
+                string name;
+                try { name = p.ProcessName; } catch { continue; } // exited
+                TimeSpan? cpu = null;
+                long? memory = null;
+                try { cpu = p.TotalProcessorTime; } catch { /* access denied */ }
+                try { memory = p.WorkingSet64; } catch { /* access denied or exited */ }
+                map[p.Id] = (name, cpu, memory);
             }
         }
         return map;

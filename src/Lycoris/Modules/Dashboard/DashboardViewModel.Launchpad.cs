@@ -182,6 +182,7 @@ public sealed partial class DashboardViewModel
         if (size == CleanSize) return;
         CleanSize = size;
         foreach (var item in _all) item.RefreshLabels();
+        foreach (var item in DoctorItems) item.RefreshLabels();
     }
 
     /// <summary>Live button text of a problem row: the cleanup row says how much it will clean.</summary>

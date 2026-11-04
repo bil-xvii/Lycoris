@@ -39,14 +39,14 @@ public class PcDoctorTests
         Assert.Contains("HandBrake — 62 %", r.Detail);
         Assert.Contains("chrome", r.Detail);
         Assert.DoesNotContain("Discord", r.Detail); // below 3 % is noise
-        Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
         Assert.EndsWith("Taskmgr.exe", r.Action.Target, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(CheckActionKind.OpenTaskManager, r.Action.Kind);
     }
 
     [Fact]
-    public void Medium_cpu_is_reported_only_when_one_program_dominates()
+    public void Medium_cpu_is_a_tip_and_low_cpu_is_silent()
     {
-        Assert.DoesNotContain("doctor-cpu", Ids(Calm(cpu: 60, cpuTop: [new("a", 10, 0), new("b", 10, 0)]), Healthy()));
+        Assert.DoesNotContain("doctor-cpu", Ids(Calm(cpu: 40, cpuTop: [new("a", 30, 0)]), Healthy()));
         var r = PcDoctor.Diagnose(Calm(cpu: 60, cpuTop: [new("game", 40, 0)]), Healthy()).Single(x => x.Id == "doctor-cpu");
         Assert.Equal(CheckSeverity.Info, r.Severity);
     }
@@ -88,6 +88,51 @@ public class PcDoctorTests
         Assert.Contains(rows, r => r.Action is { Kind: CheckActionKind.Navigate, Target: "cleaner" });
         Assert.Equal(CheckSeverity.Warning, rows[0].Severity); // most serious first
         Assert.NotNull(Lycoris.Tweaks.TweakCatalog.Find("power-plan-balanced"));
+    }
+
+    [Fact]
+    public void Too_few_samples_give_no_diagnosis_only_repeat()
+    {
+        var s = new SystemSnapshot { SystemDriveTotal = 256 * Gb, SystemDriveFree = 1 * Gb };
+        var only = Assert.Single(PcDoctor.Diagnose(Calm() with { Samples = 1 }, s));
+        Assert.Equal("doctor-interrupted", only.Id); // not «nothing is overloaded», not a half diagnosis
+    }
+
+    [Fact]
+    public void Busy_cpu_without_a_visible_culprit_is_still_reported_and_says_why()
+    {
+        var r = PcDoctor.Diagnose(Calm(cpu: 70, cpuTop: [new("a", 8, 0)]), Healthy()).Single(x => x.Id == "doctor-cpu");
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+        Assert.Contains("службы Windows", r.Detail);
+        Assert.DoesNotContain("doctor-none", Ids(Calm(cpu: 70), Healthy()));
+    }
+
+    [Fact]
+    public void Energy_saver_opens_settings_and_power_saver_plan_uses_the_panel_button()
+    {
+        var saver = PcDoctor.Diagnose(Calm(), Healthy() with { EnergySaverOn = true }).Single(x => x.Id == "doctor-power");
+        Assert.Equal(CheckActionKind.OpenUri, saver.Action!.Kind);
+        Assert.Equal(HealthRules.PowerSettingsUri, saver.Action.Target);
+
+        var plan = Healthy() with { PowerPlan = PowerPlanKind.PowerSaver };
+        var r = PcDoctor.Diagnose(Calm(), plan).Single(x => x.Id == "doctor-power");
+        Assert.Equal(HealthRules.CheckPowerPlan(plan)!.Action, r.Action); // X3D-aware choice lives in one place
+    }
+
+    [Fact]
+    public void Task_manager_button_has_its_own_kind_and_full_path()
+    {
+        var r = PcDoctor.Diagnose(Calm(cpu: 95, cpuTop: [new("x", 90, 0)]), Healthy()).Single(x => x.Id == "doctor-cpu");
+        Assert.Equal(CheckActionKind.OpenTaskManager, r.Action!.Kind);
+        Assert.True(System.IO.Path.IsPathRooted(r.Action.Target));
+    }
+
+    [Fact]
+    public void Focus_argument_is_not_carried_into_the_elevated_copy()
+    {
+        var args = Lycoris.Core.Elevation.RelaunchArguments(["--page", "dashboard", "--focus", "doctor"], null, 42);
+        Assert.DoesNotContain("--focus", args);
+        Assert.DoesNotContain("doctor", args);
     }
 
     [Fact]

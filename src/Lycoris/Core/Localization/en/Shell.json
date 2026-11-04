@@ -282,6 +282,6 @@
     "Программы, которые Windows запускает при входе. Каждая замедляет вход и работает в фоне; отключение обратимо, программы не удаляются.": "Programs Windows starts when you sign in. Each one slows sign-in and runs in the background; turning them off is reversible, nothing is uninstalled.",
     "Lycoris запущена без прав администратора: всё можно смотреть и проверять, а действие, которому нужны права, само попросит их.": "Lycoris runs without administrator rights: you can look at and check everything, and an action that needs rights asks for them itself.",
     "ПОЧЕМУ ТОРМОЗИТ?": "WHY IS IT SLOW?",
-    "Замер 10 секунд: кто грузит процессор, память и диск, и что с этим делать — раздел «Панель».": "A 10-second measurement: what loads the processor, memory and disk, and what to do about it — the Dashboard page."
+    "Замер 10 секунд: кто грузит процессор и память, занят ли диск, и что с этим делать — раздел «Панель».": "A 10-second measurement: what loads the processor and memory, whether the disk is busy, and what to do about it — the Dashboard page."
   }
 }

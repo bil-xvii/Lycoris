@@ -61,6 +61,7 @@ public sealed partial class CheckItemViewModel : ObservableObject
     {
         CheckActionKind.Navigate => Loc.T("Открыть раздел Lycoris"),
         CheckActionKind.OpenUri => Loc.T("Открыть параметры Windows — сама по себе кнопка ничего не меняет"),
+        CheckActionKind.OpenTaskManager => Loc.T("Открыть диспетчер задач Windows — сама по себе кнопка ничего не закрывает"),
         CheckActionKind.FocusTweak => Loc.T("Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет"),
         CheckActionKind.FocusDevice => Loc.T("Показать монитор в разделе «Устройства и сеть» — сама по себе кнопка ничего не меняет"),
         _ when ShowAdminHint => Loc.T("Нужны права администратора: Lycoris предложит перезапуск и продолжит действие сам"),

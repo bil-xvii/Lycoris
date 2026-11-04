@@ -208,7 +208,9 @@ public sealed partial class TweakItemViewModel : ObservableObject
     private async Task OpenSourceAsync(string? url)
     {
         if (url is null || !TweakEvidence.IsAllowedUrl(url)) return;
-        if (!await UnelevatedShell.OpenAsync(url)) Log.Warn("Не удалось открыть источник: {0}", url);
+        if (await UnelevatedShell.OpenAsync(url)) return;
+        Log.Warn("Не удалось открыть источник: {0}", url);
+        Lycoris.UI.Ui.Toast(Loc.Tf("Не удалось открыть {0}", TweakEvidence.HostOf(url).ToLowerInvariant()), Lycoris.UI.ToastKind.Warning);
     }
 
     internal void RefreshCommands() => RevertCommand.NotifyCanExecuteChanged();
