@@ -174,6 +174,13 @@ public static class CommandPaletteIndex
     ];
 
     /// <summary>Tabs of the Drivers page («tab:&lt;DriversTab&gt;», resolved by the page).</summary>
+    /// <summary>«Доктор ПК» on the Panel: opening it starts the 10-second read-only measurement there (nothing changes).</summary>
+    public static IReadOnlyList<Entry> DoctorEntries { get; } =
+    [
+        new(PaletteKind.Page, Loc.Key("ПОЧЕМУ ТОРМОЗИТ?"), Loc.Key("Замер 10 секунд: кто грузит процессор, память и диск, и что с этим делать — раздел «Панель»."),
+            Loc.Keep("тормозит медленно лагает зависает доктор нагрузка процессор память диск slow"), "dashboard", "doctor", IsSection: true),
+    ];
+
     public static IReadOnlyList<Entry> DriverTabEntries { get; } =
     [
         new(PaletteKind.Page, Loc.Key("ПОДБОР ДРАЙВЕРОВ ДЛЯ ВАШЕГО ПК"), Loc.Key("Видеокарта, чипсет, сеть, звук: что установлено и что стоит обновить — раздел «Драйверы»."),
@@ -208,7 +215,7 @@ public static class CommandPaletteIndex
             $"{i.Publisher} {i.Command} " + Loc.Keep("автозапуск startup"), "services", StartupFocusPrefix + i.Key));
 
     /// <summary>Everything static (no live scans): catalogs, Settings rows, Drivers tabs, Restore sections.</summary>
-    public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(RestoreEntries).Concat(ModeEntries).Append(
+    public static IEnumerable<Entry> StaticExtras => AppEntries.Concat(CleanEntries).Concat(SettingsEntries).Concat(DriverTabEntries).Concat(DoctorEntries).Concat(RestoreEntries).Concat(ModeEntries).Append(
         new Entry(PaletteKind.Setting, Loc.Key("Запустить мастер заново"), Loc.Key("Настроить цель компьютера и режим интерфейса."), Loc.Keep("мастер первого запуска настройка"), "settings", "wizard:open"))
         .Append(new Entry(PaletteKind.Setting, ProblemReportText.Button, ProblemReportText.PaletteDescription, Loc.Keep("отчёт проблема диагностика"), "settings", "action:problem-report"));
 

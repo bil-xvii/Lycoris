@@ -23,7 +23,7 @@
     "Сам OneDrive продолжает работать как прежде. Применяется после перезапуска Проводника.": "OneDrive itself keeps working as before. Takes effect after File Explorer restarts.",
     "Скрыть раздел «Рекомендуем» в «Пуске»": "Hide the “Recommended” section in Start",
     "Политика полностью убирает раздел рекомендаций (недавние файлы и приложения) из меню «Пуск».": "The policy removes the recommendations section (recent files and apps) from the Start menu completely.",
-    "Официально политика поддерживается в Windows 11 SE и Education; в Home и Pro Windows может её игнорировать — тогда пункт ничего не изменит, и его можно откатить. Применяется после перезапуска Проводника.": "The policy is officially supported in Windows 11 SE and Education; Home and Pro may ignore it — then this item changes nothing, and it can be undone. Takes effect after File Explorer restarts.",
+    "Официально политика поддерживается в Pro, Enterprise и Education Windows 11 22H2 и новее; в Home Windows может её игнорировать — тогда пункт ничего не изменит, и его можно откатить. Применяется после перезапуска Проводника.": "The policy is officially supported in Windows 11 Pro, Enterprise and Education, version 22H2 and later; Home may ignore it — then this item changes nothing, and it can be undone. Takes effect after File Explorer restarts.",
     "Только для Windows 11.": "Windows 11 only.",
     "«Пуск» без рекомендаций сайтов": "Start without website recommendations",
     "Убирает из раздела «Рекомендуем» меню «Пуск» сайты, которые Windows подбирает по журналу браузера.": "Removes websites that Windows picks from your browser history from the “Recommended” section of the Start menu.",
