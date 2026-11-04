@@ -67,6 +67,17 @@ public class TweakSourcesTests
         }
     }
 
+    /// <summary>The Windows line is shown as is in both languages: only versions, builds, KB numbers and edition names, no English prose.</summary>
+    [Fact]
+    public void Windows_line_is_language_neutral()
+    {
+        var prose = new[] { " and ", "later", "only", " with ", "page", " also", "policy", " is ", " on ", ";" };
+        var bad = TweakSources.Ids.Select(id => (id, w: TweakSources.For(id)!.Windows))
+            .Where(x => !x.w.StartsWith("Windows ", StringComparison.Ordinal) || prose.Any(p => x.w.Contains(p, StringComparison.OrdinalIgnoreCase)))
+            .Select(x => x.id + ": " + x.w).ToList();
+        Assert.True(bad.Count == 0, "Строка версий Windows с текстом на английском: " + string.Join("; ", bad));
+    }
+
     [Theory]
     [InlineData("https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-system", true)]
     [InlineData("https://www.nvidia.com/en-us/geforce/news/", true)]

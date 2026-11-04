@@ -71,6 +71,9 @@ public sealed class LiveMonitor : IDisposable
 
     /// <summary>Starts sampling (no-op when already running). A loop that is still winding down after
     /// <see cref="Stop"/> exits on its own cancelled token, so a quick Stop → Start is safe.</summary>
+    /// <summary>Upper bound of the polling interval while a measurement needs dense samples («ПОЧЕМУ ТОРМОЗИТ?»: 1 s); int.MaxValue = the setting.</summary>
+    public volatile int MaxIntervalMs = int.MaxValue;
+
     public void Start()
     {
         lock (_ctsGate)
@@ -115,7 +118,7 @@ public sealed class LiveMonitor : IDisposable
                 if (ct.IsCancellationRequested) return;
                 try { Sampled?.Invoke(sample); } catch (Exception ex) { Log.Warn("Мониторинг: {0}", ex.Message); }
 
-                var interval = Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000);
+                var interval = Math.Min(Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000), MaxIntervalMs);
                 var wait = interval - (int)(DateTime.UtcNow - started).TotalMilliseconds;
                 await Task.Delay(Math.Max(50, wait), ct).ConfigureAwait(false);
             }

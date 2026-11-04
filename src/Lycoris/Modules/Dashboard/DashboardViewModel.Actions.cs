@@ -47,6 +47,9 @@ public sealed partial class DashboardViewModel
             case CheckActionKind.OpenUri when action.Target is { } uri:
                 await OpenShellAsync(uri, null, Loc.T("параметры Windows"));
                 break;
+            case CheckActionKind.OpenTaskManager:
+                await OpenShellAsync(Doctor.PcDoctor.TaskManagerPath, null, Loc.T("диспетчер задач"));
+                break;
             case CheckActionKind.FocusTweak when action.Target is { } tweakId:
                 _lastCheck = DateTime.MinValue;
                 Ui.RequestFocus("optimize", tweakId);

@@ -13,7 +13,9 @@ public sealed record DoctorSample(
     double? DiskAvg,
     double? GpuTemperature,
     IReadOnlyList<ProcessUse> TopCpu,
-    IReadOnlyList<ProcessUse> TopMemory);
+    IReadOnlyList<ProcessUse> TopMemory,
+    int Samples = 10,
+    int HiddenPrograms = 0);
 
 /// <summary>
 /// «Доктор ПК» (roadmap item 2): explains in plain words what slows the PC down right now. Pure: a measurement and the
@@ -34,21 +36,35 @@ public static class PcDoctor
     internal const double LowSpaceFraction = 0.10, LowSpaceGb = 15;
     internal const int UptimeDays = 7;
 
+    /// <summary>Fewer live samples than this (page left or window minimized during the window) = no diagnosis, only «repeat».</summary>
+    internal const int MinSamples = 3;
+
     public static string TaskManagerPath => System.IO.Path.Combine(Environment.SystemDirectory, "Taskmgr.exe");
 
-    private static CheckAction TaskManager => new(CheckActionKind.OpenUri, Loc.T("ДИСПЕТЧЕР ЗАДАЧ"), TaskManagerPath);
+    private static CheckAction TaskManager => new(CheckActionKind.OpenTaskManager, Loc.T("ДИСПЕТЧЕР ЗАДАЧ"), TaskManagerPath);
 
     public static IReadOnlyList<HealthCheckResult> Diagnose(DoctorSample m, SystemSnapshot s)
     {
         var list = new List<HealthCheckResult>();
 
-        // 1. Processor: who keeps it busy.
-        if (m.CpuAvg is { } cpu && (cpu >= CpuBusy || (cpu >= CpuNoticeable && m.TopCpu.Any(p => p.CpuPercent >= ProcessHeavyCpu))))
+        // No honest diagnosis without the live samples: say so instead of «nothing is overloaded».
+        if (m.Samples < MinSamples)
+            return [new("doctor-interrupted", Loc.T("ЗАМЕР ПРЕРВАН"),
+                Loc.T("Монитор нагрузки не успел собрать данные за время замера. Нажмите «ПОЧЕМУ ТОРМОЗИТ?» ещё раз."),
+                CheckSeverity.Info, 0)];
+
+        // 1. Processor: who keeps it busy. Without admin rights the system services (Windows Update, antivirus, indexing)
+        // cannot be read, so a busy processor with no visible culprit is still reported — and the text says why.
+        if (m.CpuAvg is { } cpu && cpu >= CpuNoticeable)
         {
             var who = Names(m.TopCpu.Where(p => p.CpuPercent >= 3), p => Loc.Tf("{0} — {1} %", p.Name, Math.Round(p.CpuPercent)));
+            var culprit = m.TopCpu.Any(p => p.CpuPercent >= ProcessHeavyCpu);
             list.Add(new("doctor-cpu", Loc.Tf("ПРОЦЕССОР ЗАГРУЖЕН НА {0} %", Math.Round(cpu)),
                 (who.Length > 0 ? Loc.Tf("Больше всего его занимают: {0}. ", who) : "") +
-                Loc.T("Закройте программу, если она сейчас не нужна, или дождитесь, пока она закончит работу (обновление, проверка, сжатие видео)."),
+                (culprit
+                    ? Loc.T("Закройте программу, если она сейчас не нужна, или дождитесь, пока она закончит работу (обновление, проверка, сжатие видео).")
+                    : Loc.T("Заметной программы-виновника не видно: вероятно, это службы Windows (обновления, антивирус, индексирование). " +
+                            "Без прав администратора Lycoris их не видит — подробности на вкладке «Процессы» диспетчера задач.")),
                 cpu >= CpuBusy ? CheckSeverity.Warning : CheckSeverity.Info, 0, TaskManager));
         }
 
@@ -90,10 +106,17 @@ public static class PcDoctor
                 CheckSeverity.Info, 0, new(CheckActionKind.Restart, Loc.T("ПЕРЕЗАГРУЗИТЬ"))));
 
         // 6. Power saving while on mains.
-        if (s.OnAcPower != false && (s.PowerPlan == PowerPlanKind.PowerSaver || s.EnergySaverOn == true))
+        // Energy saver is a Windows mode no tweak controls: the button opens Settings (as the Panel check does).
+        if (s.OnAcPower == true && s.EnergySaverOn == true)
             list.Add(new("doctor-power", Loc.T("ВКЛЮЧЕНО ЭНЕРГОСБЕРЕЖЕНИЕ"),
-                Loc.T("Процессор ограничен ради экономии энергии. От сети лучше сбалансированная схема питания."),
-                CheckSeverity.Warning, 0, new(CheckActionKind.FocusTweak, Loc.T("К СХЕМЕ ПИТАНИЯ"), "power-plan-balanced")));
+                Loc.T("Режим энергосбережения Windows включён, хотя компьютер работает от сети: он ограничивает производительность. " +
+                      "Отключается в Параметрах → Система → Питание."),
+                CheckSeverity.Warning, 0, new(CheckActionKind.OpenUri, Loc.T("ОТКРЫТЬ ПАРАМЕТРЫ ПИТАНИЯ"), HealthRules.PowerSettingsUri)));
+        // The «Power saver» plan: the same button as the Panel check (it knows which plan fits, Ryzen X3D included).
+        else if (s.OnAcPower != false && s.PowerPlan == PowerPlanKind.PowerSaver)
+            list.Add(new("doctor-power", Loc.T("ВКЛЮЧЕНА СХЕМА «ЭКОНОМИЯ ЭНЕРГИИ»"),
+                Loc.T("Схема питания ограничивает частоту процессора ради экономии энергии; от сети она замедляет программы и игры."),
+                CheckSeverity.Warning, 0, HealthRules.CheckPowerPlan(s)?.Action));
 
         // 7. Many startup apps (slow sign-in and background load).
         if (s.StartupCount is { } n && n > HealthRules.StartupLimit)

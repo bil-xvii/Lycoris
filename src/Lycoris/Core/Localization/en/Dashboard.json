@@ -463,7 +463,7 @@
     "Последняя очистка — {0} назад.": "Last cleanup — {0} ago.",
     "ПОРА ОБСЛУЖИТЬ ПК": "TIME TO SERVICE THE PC",
     "С последней очистки прошло {0}. Lycoris покажет, что можно удалить, — без вашего подтверждения ничего не удаляется. Напоминание выключается в «Настройках».": "{0} have passed since the last cleanup. Lycoris shows what can be removed — nothing is deleted without your confirmation. The reminder can be switched off in «Settings».",
-    "Замер 10 секунд: кто грузит процессор, память и диск, и что с этим делать": "A 10-second measurement: what loads the processor, memory and disk, and what to do about it",
+    "Замер 10 секунд: кто грузит процессор и память, занят ли диск, и что с этим делать": "A 10-second measurement: what loads the processor and memory, whether the disk is busy, and what to do about it",
     "ПОЧЕМУ ТОРМОЗИТ?": "WHY IS IT SLOW?",
     "Почему тормозит": "Why is it slow",
     "СОВЕТЫ MICROSOFT ↗": "MICROSOFT TIPS ↗",
@@ -496,6 +496,16 @@
     "При перегреве видеокарта снижает частоты. Проверьте, не забиты ли пылью радиаторы и свободен ли приток воздуха к корпусу.": "When overheating, the graphics card lowers its clocks. Check that the heatsinks are not clogged with dust and that air flows freely into the case.",
     "ЯВНЫХ ПРИЧИН СЕЙЧАС НЕТ": "NO OBVIOUS CAUSE RIGHT NOW",
     "Процессор, память и диск не перегружены, места достаточно. Если тормозит время от времени, нажмите «ПОЧЕМУ ТОРМОЗИТ?» в тот момент; если тормозит только в игре — откройте страницу «Игры».": "The processor, memory and disk are not overloaded and there is enough space. If it slows down from time to time, press “WHY IS IT SLOW?” at that moment; if it is slow only in a game, open the Games page.",
-    "Замер «почему тормозит» не удался": "The “why is it slow” measurement failed"
+    "Замер «почему тормозит» не удался": "The “why is it slow” measurement failed",
+    "Открыть диспетчер задач Windows — сама по себе кнопка ничего не закрывает": "Open Windows Task Manager — the button itself closes nothing",
+    "диспетчер задач": "Task Manager",
+    "Нагрузка не измерена.": "The load was not measured.",
+    "Часть системных процессов без прав администратора не видна.": "Some system processes are not visible without administrator rights.",
+    "ЗАМЕР ПРЕРВАН": "MEASUREMENT INTERRUPTED",
+    "Монитор нагрузки не успел собрать данные за время замера. Нажмите «ПОЧЕМУ ТОРМОЗИТ?» ещё раз.": "The load monitor did not collect data during the measurement. Press “WHY IS IT SLOW?” again.",
+    "Заметной программы-виновника не видно: вероятно, это службы Windows (обновления, антивирус, индексирование). Без прав администратора Lycoris их не видит — подробности на вкладке «Процессы» диспетчера задач.": "No obvious culprit program is visible: it is probably Windows services (updates, antivirus, indexing). Without administrator rights Lycoris cannot see them — details are on the Processes tab of Task Manager.",
+    "Режим энергосбережения Windows включён, хотя компьютер работает от сети: он ограничивает производительность. Отключается в Параметрах → Система → Питание.": "Windows Energy saver is on although the computer runs on mains power: it limits performance. Turn it off in Settings → System → Power.",
+    "ВКЛЮЧЕНА СХЕМА «ЭКОНОМИЯ ЭНЕРГИИ»": "THE “POWER SAVER” PLAN IS ON",
+    "Схема питания ограничивает частоту процессора ради экономии энергии; от сети она замедляет программы и игры.": "The power plan limits the processor clock to save energy; on mains power it slows programs and games down."
   }
 }

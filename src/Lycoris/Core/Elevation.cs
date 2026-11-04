@@ -118,7 +118,7 @@ public static class Elevation
     /// </summary>
     public static readonly IReadOnlySet<string> PerRunArgs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "--page", "--tab", "--replay-page", "--replay-command", "--replay-param", "--parent", "--lang",
+        "--page", "--tab", "--focus", "--replay-page", "--replay-command", "--replay-param", "--parent", "--lang",
     };
 
     /// <summary>

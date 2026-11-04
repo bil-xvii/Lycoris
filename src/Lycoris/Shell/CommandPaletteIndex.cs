@@ -177,7 +177,7 @@ public static class CommandPaletteIndex
     /// <summary>«Доктор ПК» on the Panel: opening it starts the 10-second read-only measurement there (nothing changes).</summary>
     public static IReadOnlyList<Entry> DoctorEntries { get; } =
     [
-        new(PaletteKind.Page, Loc.Key("ПОЧЕМУ ТОРМОЗИТ?"), Loc.Key("Замер 10 секунд: кто грузит процессор, память и диск, и что с этим делать — раздел «Панель»."),
+        new(PaletteKind.Page, Loc.Key("ПОЧЕМУ ТОРМОЗИТ?"), Loc.Key("Замер 10 секунд: кто грузит процессор и память, занят ли диск, и что с этим делать — раздел «Панель»."),
             Loc.Keep("тормозит медленно лагает зависает доктор нагрузка процессор память диск slow"), "dashboard", "doctor", IsSection: true),
     ];
 

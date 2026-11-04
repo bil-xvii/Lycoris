@@ -123,10 +123,10 @@ public sealed partial class DashboardViewModel : PageViewModel
         if (DateTime.Now - _lastCheck > RecheckAfter) await RefreshAsync(showBusy: false);
     }
 
-    public override void Deactivate() => _monitor.Stop();
+    public override void Deactivate() => ReleaseMonitor();
 
     // A minimized window shows nothing: stop PDH/D3DKMT polling until it is restored (a first load still running is not disturbed).
-    public override void SuspendForMinimize() => _monitor.Stop();
+    public override void SuspendForMinimize() => ReleaseMonitor();
 
     public override void ResumeFromMinimize()
     {
@@ -139,6 +139,7 @@ public sealed partial class DashboardViewModel : PageViewModel
     {
         var ms = Math.Clamp(AppSettings.Current.MonitorIntervalMs, 250, 10_000);
         IntervalText = Loc.Tf("ОПРОС {0} С", (ms / 1000d).ToString(ms % 1000 == 0 ? "0" : "0.0#", Loc.Culture));
+        _monitorWanted = true;
         _monitor.Start();
     }
 

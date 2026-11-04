@@ -30,6 +30,8 @@ public enum CheckActionKind
     /// user can cancel. Never part of «ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ»; not a system change, so nothing is journaled.
     /// </summary>
     Restart,
+    /// <summary>Opens Windows Task Manager (System32, full path); reading only — it never ends a process by itself.</summary>
+    OpenTaskManager,
 }
 
 /// <summary>What the button next to a check does. Nothing here touches the system by itself.</summary>
