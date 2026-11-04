@@ -8,6 +8,8 @@ by `tools/autosave.ps1` (Claude Code Stop hook in `.claude/settings.json`).
 
 Every task (own or delegated to Codex/Gemini/Hermes/local models) starts with the checklist `C:\Users\Lycoris\agent-tools\task-preamble.md`;
 the full rulebook with official sources (Anthropic, OpenAI, Google, GitHub) is `docs/ai-coding-rules.md`. Delegated task prompts get the checklist first.
+No «impossible» (owner, 04.11.2026): there is only missing data — research online (official sources, cross-check), verify, and if nothing exists, build it.
+A real limit is stated only with numbers, what was tried and the next step.
 
 ## Prime directive: never damage the system
 
