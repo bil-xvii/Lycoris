@@ -148,12 +148,24 @@ public class PcDoctorTests
         var items = new List<(string, TimeSpan, long)>
         {
             ("chrome", TimeSpan.FromSeconds(4), 100), ("Chrome", TimeSpan.FromSeconds(4), 50),
-            ("Idle", TimeSpan.FromSeconds(70), 0), ("Lycoris", TimeSpan.FromSeconds(1), 10),
         };
         var g = PcDoctor.Group(items, TimeSpan.FromSeconds(10), cores: 8);
         var chrome = Assert.Single(g);
         Assert.Equal(10, chrome.CpuPercent, 3); // 8 s of 80 core-seconds
         Assert.Equal(150, chrome.MemoryBytes);
+    }
+
+    /// <summary>A program chooses its own name: one disguised as «LycorisHelper» or «Idle» must not hide from the culprit list.</summary>
+    [Fact]
+    public void Programs_are_never_hidden_by_their_name()
+    {
+        var items = new List<(string, TimeSpan, long)>
+        {
+            ("LycorisHelper", TimeSpan.FromSeconds(40), 0), ("Idle", TimeSpan.FromSeconds(20), 0),
+        };
+        var names = PcDoctor.Group(items, TimeSpan.FromSeconds(10), cores: 8).Select(p => p.Name).ToList();
+        Assert.Contains("LycorisHelper", names);
+        Assert.Contains("Idle", names);
     }
 
     [Fact]
