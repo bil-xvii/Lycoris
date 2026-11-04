@@ -108,7 +108,7 @@ public static partial class TweakCatalog
             Id = "start-hide-recommended",
             Title = Loc.Key("Скрыть раздел «Рекомендуем» в «Пуске»"),
             Description = Loc.T("Политика полностью убирает раздел рекомендаций (недавние файлы и приложения) из меню «Пуск»."),
-            Details = Loc.T("Официально политика поддерживается в Windows 11 SE и Education; в Home и Pro Windows может её игнорировать — тогда " +
+            Details = Loc.T("Официально политика поддерживается в Pro, Enterprise и Education Windows 11 22H2 и новее; в Home Windows может её игнорировать — тогда " +
                       "пункт ничего не изменит, и его можно откатить. Применяется после перезапуска Проводника."),
             Category = TweakCategory.Interface,
             Risk = TweakRisk.Optional,

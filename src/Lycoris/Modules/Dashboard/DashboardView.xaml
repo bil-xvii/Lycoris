@@ -83,6 +83,44 @@
         <DataTemplate x:Key="Dash.ButtonContent">
             <TextBlock Text="{Binding}" />
         </DataTemplate>
+            <DataTemplate x:Key="Dash.CheckRow" DataType="{x:Type local:CheckItemViewModel}">
+                <Border Style="{StaticResource Row}" Padding="16,11,16,11">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="92" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource Dash.SeverityTag}">
+                            <TextBlock Text="{Binding SeverityText}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" FontSize="12.5"
+                                       LineHeight="18" Margin="0,4,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Top" HorizontalAlignment="Right">
+                            <Button MinWidth="150" HorizontalAlignment="Stretch" Command="{Binding RunCommand}"
+                                    ToolTip="{Binding ActionTooltip}" Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="12"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"
+                                               Visibility="{Binding ShowAdminHint, Converter={StaticResource BoolToVis}}" />
+                                    <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <!-- Optional second lever (it only shows the setting; the change is made there) -->
+                            <Button Margin="0,6,0,0" MinWidth="150" HorizontalAlignment="Stretch"
+                                    Command="{Binding DataContext.RunSecondaryActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}"
+                                    ToolTip="{loc:T 'Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет'}"
+                                    Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
+                                <TextBlock Text="{Binding SecondaryActionText}" VerticalAlignment="Center" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -98,6 +136,14 @@
                       RefreshCommand="{Binding RefreshChecksCommand}">
             <c:PageHeader.Actions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- «ПОЧЕМУ ТОРМОЗИТ?»: 10 s read-only measurement, explained in plain words -->
+                    <Button Style="{StaticResource Btn}" Command="{Binding DiagnoseCommand}" Margin="0,0,8,0"
+                            ToolTip="{loc:T 'Замер 10 секунд: кто грузит процессор, память и диск, и что с этим делать'}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T 'ПОЧЕМУ ТОРМОЗИТ?'}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <!-- «ОТЧЁТ О ПК»: a readable HTML page on the Desktop from the checks already made (nothing is sent anywhere). -->
                     <Button Style="{StaticResource Btn}" Command="{Binding CreateHealthReportCommand}" Margin="0,0,14,0"
                             ToolTip="{loc:T 'Понятный отчёт о ПК на рабочий стол: оценка, проверки, сводка о системе'}">
@@ -295,6 +341,37 @@
                     <ColumnDefinition Width="*" MinWidth="300" MaxWidth="440" />
                 </Grid.ColumnDefinitions>
 
+                <!-- «ПОЧЕМУ ТОРМОЗИТ?» (Доктор ПК): appears after the button; the same rows and buttons as the checks -->
+                <StackPanel VerticalAlignment="Top">
+                <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,14" Visibility="{Binding HasDoctor, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <Grid Margin="16,12,16,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{loc:T 'Почему тормозит'}" Style="{StaticResource Dash.CardTitle}" />
+                                <TextBlock Text="{Binding DoctorStatus}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                <Button Style="{StaticResource Btn.Link}" Command="{Binding OpenDoctorSourceCommand}" Margin="12,0,6,0" ToolTip="{Binding DoctorSourceUrl}">
+                                    <TextBlock Text="{loc:T 'СОВЕТЫ MICROSOFT ↗'}" VerticalAlignment="Center" />
+                                </Button>
+                                <Button Command="{Binding CloseDoctorCommand}">
+                                    <TextBlock Text="{loc:T ЗАКРЫТЬ}" VerticalAlignment="Center" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                        <ProgressBar IsIndeterminate="{Binding IsDiagnosing}" Height="2" Margin="16,0,16,10"
+                                     Visibility="{Binding IsDiagnosing, Converter={StaticResource BoolToVis}}" />
+                        <Rectangle Style="{StaticResource Divider}" />
+                        <ItemsControl ItemsSource="{Binding DoctorItems}" ItemTemplate="{StaticResource Dash.CheckRow}" Focusable="False" />
+                        <TextBlock Text="{loc:T 'Lycoris только измеряет: программы не закрываются и ничего не меняется без вашей кнопки.'}"
+                                   Style="{StaticResource T.Caption}" Margin="16,10,16,12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Problems and advice -->
                 <Border Style="{StaticResource Card.Flush}" VerticalAlignment="Top">
                     <StackPanel>
@@ -303,47 +380,7 @@
                         </Grid>
                         <Rectangle Style="{StaticResource Divider}" />
 
-                        <ItemsControl ItemsSource="{Binding Visible}" Focusable="False">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type local:CheckItemViewModel}">
-                                    <Border Style="{StaticResource Row}" Padding="16,11,16,11">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="82" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource Dash.SeverityTag}">
-                                                <TextBlock Text="{Binding SeverityText}" />
-                                            </Border>
-                                            <StackPanel Grid.Column="1" Margin="0,0,16,0">
-                                                <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" FontSize="12.5"
-                                                           LineHeight="18" Margin="0,4,0,0" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="2" VerticalAlignment="Top" HorizontalAlignment="Right">
-                                                <Button MinWidth="150" HorizontalAlignment="Stretch" Command="{Binding RunCommand}"
-                                                        ToolTip="{Binding ActionTooltip}" Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="12"
-                                                                   VerticalAlignment="Center" Margin="0,0,8,0"
-                                                                   Visibility="{Binding ShowAdminHint, Converter={StaticResource BoolToVis}}" />
-                                                        <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                </Button>
-                                                <!-- Optional second lever (it only shows the setting; the change is made there) -->
-                                                <Button Margin="0,6,0,0" MinWidth="150" HorizontalAlignment="Stretch"
-                                                        Command="{Binding DataContext.RunSecondaryActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        ToolTip="{loc:T 'Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет'}"
-                                                        Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
-                                                    <TextBlock Text="{Binding SecondaryActionText}" VerticalAlignment="Center" />
-                                                </Button>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
+                        <ItemsControl ItemsSource="{Binding Visible}" ItemTemplate="{StaticResource Dash.CheckRow}" Focusable="False">
                         </ItemsControl>
 
                         <!-- Empty list: says what it means -->
@@ -357,6 +394,7 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+                </StackPanel>
 
                 <!-- Right column: monitor in four rows + the system facts behind ВСЕ СВЕДЕНИЯ -->
                 <StackPanel Grid.Column="2">

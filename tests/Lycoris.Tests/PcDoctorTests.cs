@@ -1,0 +1,129 @@
+using Lycoris.Modules.Dashboard.Checks;
+using Lycoris.Modules.Dashboard.Doctor;
+using Xunit;
+
+namespace Lycoris.Tests;
+
+/// <summary>«Доктор ПК» (roadmap item 2): plain-language causes from a measurement; read-only, every button is an existing command.</summary>
+public class PcDoctorTests
+{
+    private const ulong Gb = 1024UL * 1024 * 1024;
+
+    private static SystemSnapshot Healthy() => new()
+    {
+        SystemDriveTotal = 500 * Gb, SystemDriveFree = 200 * Gb, Uptime = TimeSpan.FromHours(5),
+        PowerPlan = PowerPlanKind.Balanced, OnAcPower = true, StartupCount = 4,
+    };
+
+    private static DoctorSample Calm(double cpu = 10, double ram = 40, double disk = 5, double? gpuTemp = 55,
+        IReadOnlyList<ProcessUse>? cpuTop = null, IReadOnlyList<ProcessUse>? memTop = null) =>
+        new(PcDoctor.Window, cpu, ram, disk, gpuTemp, cpuTop ?? [], memTop ?? []);
+
+    private static IReadOnlyList<string> Ids(DoctorSample m, SystemSnapshot s) => PcDoctor.Diagnose(m, s).Select(r => r.Id).ToList();
+
+    [Fact]
+    public void Calm_pc_says_no_obvious_cause()
+    {
+        var r = PcDoctor.Diagnose(Calm(), Healthy());
+        var only = Assert.Single(r);
+        Assert.Equal("doctor-none", only.Id);
+        Assert.Equal(CheckSeverity.Ok, only.Severity);
+    }
+
+    [Fact]
+    public void Busy_cpu_names_the_heaviest_programs_and_opens_task_manager()
+    {
+        var top = new List<ProcessUse> { new("HandBrake", 62, 0), new("chrome", 9, 0), new("Discord", 1, 0) };
+        var r = PcDoctor.Diagnose(Calm(cpu: 91, cpuTop: top), Healthy()).Single(x => x.Id == "doctor-cpu");
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+        Assert.Contains("HandBrake — 62 %", r.Detail);
+        Assert.Contains("chrome", r.Detail);
+        Assert.DoesNotContain("Discord", r.Detail); // below 3 % is noise
+        Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
+        Assert.EndsWith("Taskmgr.exe", r.Action.Target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Medium_cpu_is_reported_only_when_one_program_dominates()
+    {
+        Assert.DoesNotContain("doctor-cpu", Ids(Calm(cpu: 60, cpuTop: [new("a", 10, 0), new("b", 10, 0)]), Healthy()));
+        var r = PcDoctor.Diagnose(Calm(cpu: 60, cpuTop: [new("game", 40, 0)]), Healthy()).Single(x => x.Id == "doctor-cpu");
+        Assert.Equal(CheckSeverity.Info, r.Severity);
+    }
+
+    [Fact]
+    public void Full_memory_lists_the_biggest_programs()
+    {
+        var r = PcDoctor.Diagnose(Calm(ram: 93, memTop: [new("chrome", 0, (long)(3.5 * Gb))]), Healthy()).Single(x => x.Id == "doctor-ram");
+        Assert.Contains("chrome", r.Detail);
+        Assert.Equal(CheckSeverity.Warning, r.Severity);
+    }
+
+    [Fact]
+    public void Busy_disk_low_space_restart_power_startup_and_heat_each_have_their_row()
+    {
+        var s = new SystemSnapshot
+        {
+            SystemDriveTotal = 256 * Gb, SystemDriveFree = 9 * Gb, Uptime = TimeSpan.FromDays(12), PowerPlan = PowerPlanKind.PowerSaver,
+            OnAcPower = true, StartupCount = HealthRules.StartupLimit + 5,
+        };
+        var ids = Ids(Calm(disk: 97, gpuTemp: 91), s);
+        foreach (var id in new[] { "doctor-disk", "doctor-space", "doctor-restart", "doctor-power", "doctor-startup", "doctor-gpu-hot" })
+            Assert.Contains(id, ids);
+        Assert.DoesNotContain("doctor-none", ids);
+    }
+
+    [Fact]
+    public void Every_button_is_an_existing_safe_command()
+    {
+        var s = new SystemSnapshot
+        {
+            SystemDriveTotal = 256 * Gb, SystemDriveFree = 1 * Gb, PendingReboot = ["Windows Update"], PowerPlan = PowerPlanKind.PowerSaver,
+            OnAcPower = true, StartupCount = 30,
+        };
+        var rows = PcDoctor.Diagnose(Calm(cpu: 99, ram: 99, disk: 99, gpuTemp: 99, cpuTop: [new("x", 90, 0)], memTop: [new("x", 0, 1)]), s);
+        Assert.All(rows, r => Assert.False(r.Action?.RequiresAdmin ?? false)); // the doctor never applies a tweak by itself
+        Assert.Contains(rows, r => r.Action?.Kind == CheckActionKind.Restart);
+        Assert.Contains(rows, r => r.Action is { Kind: CheckActionKind.FocusTweak, Target: "power-plan-balanced" });
+        Assert.Contains(rows, r => r.Action is { Kind: CheckActionKind.Navigate, Target: "cleaner" });
+        Assert.Equal(CheckSeverity.Warning, rows[0].Severity); // most serious first
+        Assert.NotNull(Lycoris.Tweaks.TweakCatalog.Find("power-plan-balanced"));
+    }
+
+    [Fact]
+    public void Power_saving_on_battery_is_not_blamed()
+    {
+        var s = Healthy() with { PowerPlan = PowerPlanKind.PowerSaver, OnAcPower = false };
+        Assert.DoesNotContain("doctor-power", Ids(Calm(), s));
+    }
+
+    [Fact]
+    public void Group_sums_processes_of_one_program_and_scales_to_all_cores()
+    {
+        var items = new List<(string, TimeSpan, long)>
+        {
+            ("chrome", TimeSpan.FromSeconds(4), 100), ("Chrome", TimeSpan.FromSeconds(4), 50),
+            ("Idle", TimeSpan.FromSeconds(70), 0), ("Lycoris", TimeSpan.FromSeconds(1), 10),
+        };
+        var g = PcDoctor.Group(items, TimeSpan.FromSeconds(10), cores: 8);
+        var chrome = Assert.Single(g);
+        Assert.Equal(10, chrome.CpuPercent, 3); // 8 s of 80 core-seconds
+        Assert.Equal(150, chrome.MemoryBytes);
+    }
+
+    [Fact]
+    public void English_texts_exist()
+    {
+        using var _ = Lycoris.Core.Localization.Loc.UseLanguage("en");
+        var s = new SystemSnapshot { SystemDriveTotal = 256 * Gb, SystemDriveFree = 1 * Gb, Uptime = TimeSpan.FromDays(9), StartupCount = 40,
+            PowerPlan = PowerPlanKind.PowerSaver, OnAcPower = true };
+        var rows = PcDoctor.Diagnose(Calm(cpu: 95, ram: 95, disk: 95, gpuTemp: 95, cpuTop: [new("x", 80, 0)], memTop: [new("x", 0, 1)]), s)
+            .Concat(PcDoctor.Diagnose(Calm(), Healthy()));
+        foreach (var r in rows)
+        {
+            Assert.DoesNotMatch("[А-Яа-яЁё]", r.Title);
+            Assert.DoesNotMatch("[А-Яа-яЁё]", r.Detail);
+            if (r.Action is { } a) Assert.DoesNotMatch("[А-Яа-яЁё]", a.Label);
+        }
+    }
+}

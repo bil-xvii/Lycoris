@@ -34,6 +34,11 @@ public sealed partial class DashboardViewModel : PageViewModel
         _monitor.Sampled += sample => Ui.Post(() => Apply(sample));
         Ui.FocusRequested += request =>
         {
+            if (request.PageKey == Key && request.ItemId == "doctor")
+            {
+                Ui.Post(() => _ = DiagnoseAsync()); // read-only measurement; the result appears in the «Почему тормозит» card
+                return;
+            }
             if (request.PageKey != Key || request.ItemId != "health:issues") return;
             _filterChosen = true;
             Filter = CheckFilter.Warning;
@@ -207,6 +212,7 @@ public sealed partial class DashboardViewModel : PageViewModel
     private async Task CheckCoreAsync()
     {
         var snapshot = await SystemInspector.CollectAsync();
+        _lastSnapshot = snapshot;
         var results = await Task.Run(() => HealthRules.Evaluate(snapshot));
         var profile = SystemProfile.Current;
 
