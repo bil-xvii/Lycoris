@@ -325,7 +325,10 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 _hardwareFactsKnown = sp.HardwareFactsKnown;
                 _laptop = sp.HardwareFactsKnown && sp.IsLaptop;
                 var tweaks = _items.Select(i => i.Tweak).ToList();
-                _hardwareExcluded = tweaks.Where(t => TweakEngine.Applicability(t, sp) == false).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+                // Off the UI thread: some rules enumerate network adapters, read the registry or probe the display (~100 ms in all,
+                // several times more on a PC without a GPU driver — the self-test saw the page stall there).
+                _hardwareExcluded = await Task.Run(() =>
+                    tweaks.Where(t => TweakEngine.Applicability(t, sp) == false).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
                 var states = await TweakEngine.DetectAllAsync(tweaks);
                 var revertable = await Task.Run(() => tweaks.Where(TweakEngine.CanRevert).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
                 _protectionOn = await Task.Run(RestorePointService.IsEnabled);
