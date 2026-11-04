@@ -62,8 +62,10 @@ public sealed class CleanerTests : IDisposable
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
         };
         using var p = Process.Start(psi)!;
-        p.WaitForExit(15000);
-        Assert.True(Directory.Exists(link), "mklink /J failed: " + p.StandardError.ReadToEnd());
+        // Never wait unbounded: reading the output of a process that is still running would block the test run forever.
+        if (!p.WaitForExit(15000)) { try { p.Kill(entireProcessTree: true); } catch { } }
+        var error = p.HasExited ? p.StandardError.ReadToEnd() : "mklink did not finish in 15 s";
+        Assert.True(Directory.Exists(link), "mklink /J failed: " + error);
         Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0);
         _links.Add(link);
         return link;
