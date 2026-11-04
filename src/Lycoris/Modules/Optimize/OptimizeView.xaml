@@ -301,6 +301,37 @@
 
                                     <TextBlock Text="{loc:T 'КАК ОТКАТИТЬ'}" Style="{StaticResource T.Label}" Margin="0,10,0,0" />
                                     <TextBlock Text="{Binding UndoText}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" />
+
+                                    <!-- Official source (roadmap item 10): what it says, which Windows, when it was checked, the page itself -->
+                                    <StackPanel Visibility="{Binding HasEvidence, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{loc:T 'ОСНОВАНИЕ'}" Style="{StaticResource T.Label}" Margin="0,10,0,0" />
+                                        <TextBlock Text="{Binding EvidenceBasis}" Style="{StaticResource T.Body}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding EvidenceLimits}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                   Visibility="{Binding HasEvidenceLimits, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="{Binding EvidenceMeta}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource T.Caption}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                   Visibility="{Binding HasNoOfficialSource, Converter={StaticResource BoolToVis}}"
+                                                   Text="{loc:T 'Официальной страницы об этом параметре нет: основание — замеры и исследование Lycoris (docs/research).'}" />
+                                        <ItemsControl ItemsSource="{Binding SourceLinks}" Margin="0,6,0,0" Focusable="False">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Style="{StaticResource Btn.Link}" Margin="0,0,6,6" ToolTip="{Binding Url}"
+                                                            Command="{Binding DataContext.OpenSourceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding Url}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{loc:T 'ИСТОЧНИК'}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="·" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource B.Text3}" />
+                                                            <TextBlock Text="{Binding Host}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="↗" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

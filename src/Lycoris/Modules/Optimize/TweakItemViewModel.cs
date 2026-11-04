@@ -2,12 +2,16 @@ using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lycoris.Core;
 using Lycoris.Tweaks;
 
 namespace Lycoris.Modules.Optimize;
 
 /// <summary>One line of the "what will change" preview, with the value read from the system right now.</summary>
 public sealed record ChangeLineViewModel(string Target, string Current, string New);
+
+/// <summary>A button that opens one official source of a tweak.</summary>
+public sealed record SourceLinkViewModel(string Url, string Host);
 
 /// <summary>One tweak in the Optimize list: selection, detected state, preview and per-row undo.</summary>
 public sealed partial class TweakItemViewModel : ObservableObject
@@ -185,6 +189,27 @@ public sealed partial class TweakItemViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleDetails() => IsExpanded = !IsExpanded;
+
+    // «ОСНОВАНИЕ» (roadmap item 10): the official source behind this tweak; the page opens in the user's browser without admin rights.
+    public TweakEvidence? Evidence => TweakSources.For(Id);
+    public bool HasEvidence => Evidence is not null;
+    public string EvidenceBasis => Evidence?.Basis ?? "";
+    public string EvidenceLimits => Evidence?.Limits ?? "";
+    public bool HasEvidenceLimits => !string.IsNullOrWhiteSpace(EvidenceLimits);
+    public string EvidenceMeta => Evidence is not { } e ? ""
+        : e.IsStale(DateOnly.FromDateTime(DateTime.Today))
+            ? Loc.Tf("{0} · источник проверен {1} — пора проверить снова", e.Windows, Loc.DateText(e.Reviewed.ToDateTime(TimeOnly.MinValue)))
+            : Loc.Tf("{0} · источник проверен {1}", e.Windows, Loc.DateText(e.Reviewed.ToDateTime(TimeOnly.MinValue)));
+    public IReadOnlyList<SourceLinkViewModel> SourceLinks =>
+        Evidence?.Urls.Select(u => new SourceLinkViewModel(u, TweakEvidence.HostOf(u))).ToList() ?? [];
+    public bool HasNoOfficialSource => Evidence is { HasOfficialSource: false };
+
+    [RelayCommand]
+    private async Task OpenSourceAsync(string? url)
+    {
+        if (url is null || !TweakEvidence.IsAllowedUrl(url)) return;
+        if (!await UnelevatedShell.OpenAsync(url)) Log.Warn("Не удалось открыть источник: {0}", url);
+    }
 
     internal void RefreshCommands() => RevertCommand.NotifyCanExecuteChanged();
 }
