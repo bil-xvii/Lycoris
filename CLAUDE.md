@@ -4,6 +4,11 @@ Lycoris is a Windows 10/11 PC optimizer and game booster (C# / WPF / .NET 10, Ru
 Owner: GitHub `bil-xvii`, private repo `bil-xvii/Lycoris`. Everything is auto-committed and pushed
 by `tools/autosave.ps1` (Claude Code Stop hook in `.claude/settings.json`).
 
+## AI coding rules (owner, 04.11.2026)
+
+Every task (own or delegated to Codex/Gemini/Hermes/local models) starts with the checklist `C:\Users\Lycoris\agent-tools\task-preamble.md`;
+the full rulebook with official sources (Anthropic, OpenAI, Google, GitHub) is `docs/ai-coding-rules.md`. Delegated task prompts get the checklist first.
+
 ## Prime directive: never damage the system
 
 Goal (owner): Lycoris must be the best PC-optimizer on the market — more effective, more honest and better

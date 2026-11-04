@@ -272,6 +272,12 @@
     "Оптимизация: сценарий «Тихий ПК»": "Optimize: “Quiet PC” scenario",
     "ПЕРЕЗАГРУЗКА СЕЙЧАС НЕВОЗМОЖНА": "RESTART IS NOT POSSIBLE NOW",
     "Сейчас выполняется задача «{0}»: перезагрузка прервала бы её на середине. Дождитесь окончания (список «ЗАДАЧИ» внизу окна) и перезагрузите компьютер позже.": "The task “{0}” is running: a restart would interrupt it half-way. Wait for it to finish (the “TASKS” list at the bottom of the window) and restart the computer later.",
-    "Идёт игровой сеанс Lycoris: остановите его на странице «Игры» и перезагрузите компьютер после этого.": "A Lycoris game session is active: stop it on the Games page and restart the computer after that."
+    "Идёт игровой сеанс Lycoris: остановите его на странице «Игры» и перезагрузите компьютер после этого.": "A Lycoris game session is active: stop it on the Games page and restart the computer after that.",
+    "ОСНОВАНИЕ": "BASIS",
+    "Официальной страницы об этом параметре нет: основание — замеры и исследование Lycoris (docs/research).": "There is no official page on this setting: the basis is Lycoris's measurements and research (docs/research).",
+    "ИСТОЧНИК": "SOURCE",
+    "{0} · источник проверен {1} — пора проверить снова": "{0} · source checked {1}, due for a new check",
+    "{0} · источник проверен {1}": "{0} · source checked {1}",
+    "Не удалось открыть источник: {0}": "Could not open the source: {0}"
   }
 }

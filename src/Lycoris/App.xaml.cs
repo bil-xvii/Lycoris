@@ -219,6 +219,9 @@ public partial class App : Application
         // A tab of the start page ("--tab manual"): a focus request the page takes on its first load.
         if (ArgValue(args, "--tab") is { Length: > 0 } tab)
             Ui.RequestFocus(MainViewModel.ResolvePageKey(startPage), "tab:" + tab);
+        // «--focus <id>»: open the start page on one row (QA screenshots of an expanded tweak); it only navigates, nothing changes.
+        else if (ArgValue(args, "--focus") is { Length: > 0 and <= 200 } focus)
+            Ui.RequestFocus(MainViewModel.ResolvePageKey(startPage), focus);
         vm.NavigateTo(startPage);
         // «--replay-page … --replay-command …»: the action the user clicked before the relaunch with admin rights.
         // Only an elevated copy started by Lycoris itself replays it, once, after the startup checks.
