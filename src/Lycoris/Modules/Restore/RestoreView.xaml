@@ -202,8 +202,12 @@
             </c:PageHeader.Primary>
         </c:PageHeader>
 
-        <!-- Journal filters (chips) + «ОТКАТИТЬ ВСЁ»; the reason it is grey is the text next to it -->
+        <!-- Journal filters (chips) + «ОТКАТИТЬ ВСЁ»; the reason it is grey is the text on its own full-width line under them -->
         <Grid x:Name="Sec_journal" Grid.Row="1" Margin="0,16,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -233,8 +237,8 @@
                     </StackPanel>
                 </RadioButton>
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding RevertAllNote}" Style="{StaticResource T.Caption}" TextWrapping="Wrap"
-                       TextAlignment="Right" VerticalAlignment="Center" Margin="16,0,12,0"
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding RevertAllNote}" Style="{StaticResource T.Caption}" TextWrapping="Wrap"
+                       TextAlignment="Left" HorizontalAlignment="Left" Margin="0,8,0,0"
                        Visibility="{Binding RevertAllNote, Converter={StaticResource NullToVis}}" ToolTip="{Binding RevertAllNote}" />
             <Button Grid.Column="2" Style="{StaticResource Btn.Danger}" Command="{Binding RevertAllCommand}" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
@@ -315,8 +319,13 @@
                                                 <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}" />
                                                 <TextBlock Text="{Binding Title}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
                                                            FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap" />
-                                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                                    <Rectangle Width="8" Height="8" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Center" Margin="0,1,8,0">
+                                                <!-- Dot + restore-point line; the line wraps (Grid with a * column, not a horizontal StackPanel) -->
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Rectangle Width="8" Height="8" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" VerticalAlignment="Top" Margin="0,4,8,0">
                                                         <Rectangle.Style>
                                                             <Style TargetType="Rectangle">
                                                                 <Setter Property="Fill" Value="Transparent" />
@@ -331,8 +340,9 @@
                                                             </Style>
                                                         </Rectangle.Style>
                                                     </Rectangle>
-                                                    <TextBlock Text="{Binding RestorePointText}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" />
-                                                </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding RestorePointText}" Style="{StaticResource T.Caption}" VerticalAlignment="Top"
+                                                               TextWrapping="Wrap" />
+                                                </Grid>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Top">
                                                 <!-- Count = status (a filled block, never white) -->

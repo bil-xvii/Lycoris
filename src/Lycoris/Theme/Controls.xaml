@@ -1050,7 +1050,23 @@
             <Setter.Value>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="Cursor" Value="Hand" />
-                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <!-- Items are PageViewModel objects: without a name a screen reader reads the class name -->
+                    <Setter Property="AutomationProperties.Name" Value="{Binding DisplayTitle, Converter={StaticResource Sentence}}" />
+                    <!-- Keyboard-only focus ring (Tab / arrows), drawn on the inset plate like FocusVisual.Mono -->
+                    <Setter Property="FocusVisualStyle">
+                        <Setter.Value>
+                            <Style>
+                                <Setter Property="Control.Template">
+                                    <Setter.Value>
+                                        <ControlTemplate>
+                                            <Rectangle Margin="10,1,8,1" Stroke="{StaticResource B.Text}" StrokeThickness="1" StrokeDashArray="2 2" SnapsToDevicePixels="True"
+                                                       RadiusX="{StaticResource R.Md.D}" RadiusY="{StaticResource R.Md.D}" />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Setter.Value>
+                    </Setter>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="ListBoxItem">
@@ -1064,6 +1080,11 @@
                                 </Grid>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" />
+                                        <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
+                                    </Trigger>
+                                    <!-- Keyboard focus = the hover look (selected keeps its Surface2 + red bar; the dashed ring above marks focus) -->
+                                    <Trigger Property="IsKeyboardFocused" Value="True">
                                         <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" />
                                         <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
                                     </Trigger>

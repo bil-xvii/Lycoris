@@ -133,17 +133,24 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header: проверено · ОБНОВИТЬ (= a new read-only analysis) · [ОТМЕНА] · РЕКОМЕНДУЕМЫЙ НАБОР · ONE main button -->
+        <!-- Header: проверено · ОБНОВИТЬ (= a new read-only analysis). Embedded in «Обслуживание», it shares its line with the
+             host's tabs, which are drawn over its left side — so the wider actions sit on their own row below, not in the header. -->
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}"
                       RefreshCommand="{Binding RefreshCommand}">
 
         </c:PageHeader>
 
-        <StackPanel Grid.Row="1" Margin="0,12,0,0">
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+        <!-- One action line: secondary [ОТМЕНА] · РЕКОМЕНДУЕМЫЙ НАБОР wrap on the left, the ONE main button stays on the right -->
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                 <Button Style="{StaticResource Btn.Danger}" Margin="0,0,8,0" Command="{Binding CancelCommand}"
                         Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
@@ -158,16 +165,16 @@
                         <TextBlock Text="{loc:T 'РЕКОМЕНДУЕМЫЙ НАБОР'}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-            </StackPanel>
-            <Button Style="{StaticResource Btn.Primary}" Command="{Binding CleanCommand}"
-                    HorizontalAlignment="Left" ToolTip="{loc:T 'Удалить отмеченное — после подтверждения со списком. Если анализ устарел, он выполнится заново.'}">
+            </WrapPanel>
+            <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Command="{Binding CleanCommand}" VerticalAlignment="Top"
+                    ToolTip="{loc:T 'Удалить отмеченное — после подтверждения со списком. Если анализ устарел, он выполнится заново.'}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
                     <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
-        </StackPanel>
-        <ScrollViewer Grid.Row="1" Margin="0,98,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        </Grid>
+        <ScrollViewer Grid.Row="2" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="0,0,10,10">
 
                 <!-- ═══════════════ Summary + status: one rounded strip ═══════════════ -->

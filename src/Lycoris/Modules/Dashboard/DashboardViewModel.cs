@@ -96,9 +96,14 @@ public sealed partial class DashboardViewModel : PageViewModel
     [ObservableProperty] private string _verdict = Loc.T("ПРОВЕРКА…");
     [ObservableProperty] private string _verdictSummary = Loc.T("Собираем сведения о системе. Это займёт несколько секунд.");
     [ObservableProperty] private string _passedText = "";
-    [ObservableProperty] private int _warningCount;
-    [ObservableProperty] private int _infoCount;
-    [ObservableProperty] private int _okCount;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(WarningChipName))] private int _warningCount;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(InfoChipName))] private int _infoCount;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(OkChipName))] private int _okCount;
+
+    // Screen-reader names of the filter chips: they start with the visible label + count (WCAG 2.5.3 «Label in Name»).
+    public string WarningChipName => Loc.Tf("Внимание: {0}", WarningCount);
+    public string InfoChipName => Loc.Tf("Советы: {0}", InfoCount);
+    public string OkChipName => Loc.Tf("В норме: {0}", OkCount);
     [ObservableProperty] private string _lastCheckText = "";
     [ObservableProperty] private bool _hasResults;
     [ObservableProperty] private bool _hasIssues;

@@ -61,7 +61,10 @@ public sealed class ChangeSession
         {
             progress?.Report(Loc.T("Создание точки восстановления…"));
             var rp = await RestorePointService.CreateAsync($"Lycoris: {title}").ConfigureAwait(false);
-            batch.RestorePoint = rp.Message;
+            // A failure's reason/code is already in the log; the batch keeps the next step (Russian key, translated where shown).
+            batch.RestorePoint = rp.Outcome == RestorePointOutcome.Failed
+                ? Loc.Key("Windows не создала точку восстановления. Изменения всё равно можно откатить в «Восстановлении».")
+                : rp.Message;
             journal.UpdateBatch(batch);
         }
         return session;

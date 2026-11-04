@@ -10,7 +10,7 @@ public sealed class LaunchpadTileTextTests
     public void Game_tile_starts_idle_with_a_white_start_and_stops_when_active()
     {
         var idle = LaunchpadLogic.Game(false);
-        Assert.Equal("Выключен", idle.Value);
+        Assert.Equal("Не запущен", idle.Value);
         Assert.Equal("СТАРТ", idle.Button);
         Assert.True(idle.Primary);
 
@@ -105,8 +105,16 @@ public sealed class LaunchpadTileTextTests
         var some = LaunchpadLogic.Undo(71, "Оптимизация: профиль «Рекомендуемый»", new DateTime(2026, 11, 1, 13, 12, 0));
         Assert.Equal("01.11 13:12", some.Value);
         Assert.Contains("Рекомендуемый", some.Detail);
-        Assert.Contains("71", some.Detail);
+        Assert.Contains("всего 71 изменение", some.Detail); // a real plural, not the abbreviation «изм.»
         Assert.Equal("ОТКАТИТЬ ПОСЛЕДНЕЕ", some.Button);
+        Assert.Contains("всего 5 изменений", LaunchpadLogic.Undo(5, "x", null).Detail);
+
+        using (Loc.UseLanguage("en"))
+        {
+            var en = LaunchpadLogic.Undo(2, "Optimize", null);
+            Assert.Equal("Optimize · 2 changes total", en.Detail);
+            Assert.Equal("Not running", LaunchpadLogic.Game(false).Value);
+        }
 
         var none = LaunchpadLogic.Undo(0, null, null);
         Assert.Equal("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ", none.Button);

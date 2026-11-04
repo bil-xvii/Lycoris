@@ -257,7 +257,7 @@
     "Компьютер перезагрузится через {0} секунд.": "The computer will restart in {0} seconds.",
     "Перезагрузка уже запланирована.": "A restart is already scheduled.",
     "Не удалось запланировать перезагрузку (код {0}). {1}": "Could not schedule the restart (code {0}). {1}",
-    "Не удалось запланировать перезагрузку (код {0}). Перезагрузите компьютер вручную.": "Could not schedule the restart (code {0}). Restart the computer manually.",
+    "Не удалось запланировать перезагрузку. Перезагрузите компьютер вручную: «Пуск → Выключение → Перезагрузка».": "Couldn't schedule the restart. Restart the computer yourself: “Start → Power → Restart”.",
     "ПЕРЕЗАПУСК ПРОВОДНИКА": "EXPLORER RESTART",
     "Это настройка с реальным компромиссом (безопасность или совместимость). Она не входит ни в один профиль.": "This setting has a real trade-off (security or compatibility). It is not part of any profile.",
     "Кнопка «ОТКАТИТЬ» у этого пункта или раздел «Восстановление» вернут настройку. {0}": "The UNDO button on this item or Restore will bring the setting back. {0}",
@@ -274,10 +274,11 @@
     "Сейчас выполняется задача «{0}»: перезагрузка прервала бы её на середине. Дождитесь окончания (список «ЗАДАЧИ» внизу окна) и перезагрузите компьютер позже.": "The task “{0}” is running: a restart would interrupt it half-way. Wait for it to finish (the “TASKS” list at the bottom of the window) and restart the computer later.",
     "Идёт игровой сеанс Lycoris: остановите его на странице «Игры» и перезагрузите компьютер после этого.": "A Lycoris game session is active: stop it on the Games page and restart the computer after that.",
     "ОСНОВАНИЕ": "BASIS",
-    "Официальной страницы об этом параметре нет: основание — замеры и исследование Lycoris (docs/research).": "There is no official page on this setting: the basis is Lycoris's measurements and research (docs/research).",
+    "Официальной страницы об этом параметре нет: основание — замеры и исследование Lycoris.": "There is no official page on this setting: the basis is Lycoris's own measurements and research.",
     "ИСТОЧНИК": "SOURCE",
-    "{0} · источник проверен {1} — пора проверить снова": "{0} · source checked {1}, due for a new check",
+    "{0} · источник проверен {1}, сведения могли устареть": "{0} · source checked {1}, may be out of date",
     "{0} · источник проверен {1}": "{0} · source checked {1}",
-    "Не удалось открыть источник: {0}": "Could not open the source: {0}"
+    "Не удалось открыть источник: {0}": "Could not open the source: {0}",
+    "откроется в браузере": "opens in the browser"
   }
 }

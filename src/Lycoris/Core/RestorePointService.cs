@@ -246,7 +246,7 @@ public static class RestorePointService
             if (rc == 0)
                 return new(RestorePointOutcome.Skipped, Loc.T("Windows не создала новую точку (недавно уже была создана)."));
             Log.Warn("Точка восстановления не создана, код {0}", rc);
-            return new(RestorePointOutcome.Failed, Loc.Tf("Точка восстановления не создана (код {0}).", rc));
+            return new(RestorePointOutcome.Failed, Loc.T("Windows не создала точку восстановления. Подробности — в журнале действий.")); // the code is in the log line above
         }
         catch (Exception ex)
         {

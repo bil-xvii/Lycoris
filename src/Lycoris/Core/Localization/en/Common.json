@@ -22,6 +22,7 @@
     "не указан сетевой адаптер": "no network adapter specified",
     "нет": "no",
     "нужна перезагрузка": "restart required",
+    "{0} изменение": "{0} change|{0} changes",
     "отсутствовало": "missing",
     "ПРЕРВАНО": "INTERRUPTED",
     "ПРОЦЕССОР": "CPU",

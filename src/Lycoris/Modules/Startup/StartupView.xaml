@@ -56,9 +56,10 @@
         </ContextMenu>
 
         <!-- Row actions: «ЧТО ЭТО? ↗» searches the web, «ПАПКА · КОПИЯ ▾» opens the labelled menu (folder / copy command) -->
+        <!-- Stacked and equally wide: the Actions column is Auto (shared by header and rows), so it stays narrow at 1120 px -->
         <DataTemplate x:Key="RowActions">
-            <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button Margin="0,0,6,0"
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Margin="0,0,0,6" HorizontalAlignment="Stretch"
                         Command="{Binding DataContext.SearchOnlineCommand, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
                         CommandParameter="{Binding}" ToolTip="{loc:T 'Найти в интернете, что это за программа (откроется браузер)'}">
                     <StackPanel Orientation="Horizontal">
@@ -66,7 +67,7 @@
                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0" />
                     </StackPanel>
                 </Button>
-                <Button Click="More_Click" ContextMenu="{StaticResource RowMore}"
+                <Button Click="More_Click" ContextMenu="{StaticResource RowMore}" HorizontalAlignment="Stretch"
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
                         ToolTip="{loc:T 'Открыть папку файла, скопировать команду запуска'}">
                     <StackPanel Orientation="Horizontal">
@@ -74,7 +75,7 @@
                         <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,1,0,0" />
                     </StackPanel>
                 </Button>
-            </WrapPanel>
+            </StackPanel>
         </DataTemplate>
 
         <!-- Risk / hint tags shared by autostart rows and logon-task rows (the theme's Tag styles only) -->
@@ -111,27 +112,22 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Search + filters (chips) in one row -->
-        <Grid Margin="0,2,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="280" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid VerticalAlignment="Center">
+        <!-- Search first, then the filter chips; chips wrap to the next line on a narrow window (6 px bottom gap per item) -->
+        <WrapPanel Margin="0,2,0,0" Orientation="Horizontal">
+            <Grid Width="280" Margin="0,0,12,6" VerticalAlignment="Center">
                 <TextBox Tag="{loc:T 'Поиск: имя, команда, издатель'}" Padding="10,0,24,0"
                          Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="13" Foreground="{StaticResource B.Text3}"
                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0" IsHitTestVisible="False" />
             </Grid>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
+                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter" Margin="0,0,6,6"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=all}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{loc:T ВСЕ}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding TotalCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
+                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter" Margin="0,0,6,6"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=slow}"
                              ToolTip="{loc:T 'Программы, которые Windows записала в журнал как замедлившие последнюю загрузки'}">
                     <StackPanel Orientation="Horizontal">
@@ -151,21 +147,21 @@
                         </Border>
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
+                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter" Margin="0,0,6,6"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=enabled}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{loc:T ВКЛЮЧЕНО}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding EnabledCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
+                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter" Margin="0,0,6,6"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=disabled}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{loc:T ОТКЛЮЧЕНО}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding DisabledCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter"
+                <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter" Margin="0,0,6,6"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=missing}"
                              ToolTip="{loc:T 'Записи, чей файл больше не существует (программа удалена или перенесена)'}">
                     <StackPanel Orientation="Horizontal">
@@ -173,10 +169,9 @@
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding MissingCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
-            </StackPanel>
-        </Grid>
+        </WrapPanel>
 
-        <TextBlock Grid.Row="1" Style="{StaticResource T.Caption}" FontSize="12" Foreground="{StaticResource B.Text2}" Margin="0,10,0,0" TextWrapping="Wrap">
+        <TextBlock Grid.Row="1" Style="{StaticResource T.Caption}" FontSize="12" Foreground="{StaticResource B.Text2}" Margin="0,4,0,0" TextWrapping="Wrap">
             <Run Text="{loc:T Как вкладка «Автозагрузка» Диспетчера задач: отключение не удаляет запись и сработает при следующем входе.}" />
             <Run Text="{Binding ScanText, Mode=OneWay}" />
             <Run Text="{Binding BootText, Mode=OneWay}" ToolTip="{Binding BootTooltip}" />
@@ -184,24 +179,25 @@
 
         <!-- The list is the page's only ScrollViewer -->
         <ScrollViewer Grid.Row="2" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-            <StackPanel Margin="0,0,10,9">
+            <StackPanel Margin="0,0,10,9" Grid.IsSharedSizeScope="True">
 
                 <!-- Table -->
                 <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                     <StackPanel>
-                        <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="0,0,0,1" Padding="10,0" Height="40">
+                        <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="0,0,0,1" Padding="10,6" MinHeight="40">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="230" />
-                                    <ColumnDefinition Width="210" />
-                                    <ColumnDefinition Width="225" />
+                                    <!-- Same definitions as the rows below (shared Auto groups: selection + actions; proportional middle) -->
+                                    <ColumnDefinition Width="Auto" MinWidth="30" SharedSizeGroup="StartupSel" />
+                                    <ColumnDefinition Width="2*" MinWidth="180" />
+                                    <ColumnDefinition Width="1.3*" MinWidth="150" />
+                                    <ColumnDefinition Width="1.1*" MinWidth="130" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="StartupActions" />
                                 </Grid.ColumnDefinitions>
                                 <CheckBox IsChecked="{Binding AllSelected}" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="{loc:T Выбрать все видимые записи}" />
-                                <TextBlock Grid.Column="1" Text="{loc:T ПРИЛОЖЕНИЕ И КОМАНДА}" Style="{StaticResource ColLabel}" />
-                                <TextBlock Grid.Column="2" Text="{loc:T 'ИЗДАТЕЛЬ, ФАЙЛ, ОБЛАСТЬ'}" Style="{StaticResource ColLabel}" />
-                                <TextBlock Grid.Column="3" Text="{loc:T СОСТОЯНИЕ}" Style="{StaticResource ColLabel}" />
+                                <TextBlock Grid.Column="1" Text="{loc:T ПРИЛОЖЕНИЕ И КОМАНДА}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,12,0" />
+                                <TextBlock Grid.Column="2" Text="{loc:T 'ИЗДАТЕЛЬ, ФАЙЛ, ОБЛАСТЬ'}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,10,0" />
+                                <TextBlock Grid.Column="3" Text="{loc:T СОСТОЯНИЕ}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,10,0" />
                                 <TextBlock Grid.Column="4" Text="{loc:T ДЕЙСТВИЯ}" Style="{StaticResource ColLabel}" HorizontalAlignment="Right" Margin="0,0,10,0" />
                             </Grid>
                         </Border>
@@ -212,11 +208,11 @@
                                     <Border Style="{StaticResource Row}" Padding="10,10">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="230" />
-                                                <ColumnDefinition Width="210" />
-                                                <ColumnDefinition Width="225" />
+                                                <ColumnDefinition Width="Auto" MinWidth="30" SharedSizeGroup="StartupSel" />
+                                                <ColumnDefinition Width="2*" MinWidth="180" />
+                                                <ColumnDefinition Width="1.3*" MinWidth="150" />
+                                                <ColumnDefinition Width="1.1*" MinWidth="130" />
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="StartupActions" />
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Always visible: read-only mode asks for rights when the action is pressed -->
@@ -225,7 +221,7 @@
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
                                                 <WrapPanel>
                                                     <TextBlock Text="{Binding DisplayName}" Style="{StaticResource T.BodyStrong}" FontSize="13.5" TextWrapping="NoWrap"
-                                                               TextTrimming="CharacterEllipsis" MaxWidth="250" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
                                                     <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Значок защиты Windows или антивируса — Lycoris его не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Security}">
                                                         <TextBlock Text="{loc:T ЗАЩИТА}" />
@@ -335,11 +331,11 @@
                                     <Border Style="{StaticResource Row}" Padding="10,10">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="30" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="230" />
-                                                <ColumnDefinition Width="210" />
-                                                <ColumnDefinition Width="225" />
+                                                <ColumnDefinition Width="Auto" MinWidth="30" SharedSizeGroup="StartupSel" />
+                                                <ColumnDefinition Width="2*" MinWidth="180" />
+                                                <ColumnDefinition Width="1.3*" MinWidth="150" />
+                                                <ColumnDefinition Width="1.1*" MinWidth="130" />
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="StartupActions" />
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Text="{x:Static ui:Glyphs.Services}" FontFamily="{StaticResource F.Icons}" FontSize="14" Foreground="{StaticResource B.Text3}"
@@ -348,7 +344,7 @@
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
                                                 <WrapPanel>
                                                     <TextBlock Text="{Binding DisplayName}" Style="{StaticResource T.BodyStrong}" FontSize="13.5" TextWrapping="NoWrap"
-                                                               TextTrimming="CharacterEllipsis" MaxWidth="250" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding NameTooltip}" />
                                                     <Border Style="{StaticResource Tag.Solid}" Margin="0,2,8,2" ToolTip="{loc:T Задача обновляет программу и закрывает уязвимости — Lycoris её не отключает}"
                                                             Visibility="{Binding Risk, Converter={StaticResource EqualsToVis}, ConverterParameter=Updater}">
                                                         <TextBlock Text="{loc:T ОБНОВЛЕНИЯ}" />

@@ -210,7 +210,7 @@
     "нет доступа": "no access",
     "Включить в очистку": "Include in cleanup",
     "ДОЛГО": "LONG",
-    "Lycoris перезапустится с правами администратора и продолжит очистку — перед удалением снова покажет список.": "Lycoris will restart with administrator rights and continue the cleanup — it will show the list again before deleting.",
+    "Lycoris перезапустится с правами администратора и продолжит очистку — перед удалением снова покажет список.": "Lycoris will relaunch with administrator rights and continue the cleanup — it will show the list again before deleting.",
     "ПОЛУЧИТЬ ПРАВА": "GET ADMIN RIGHTS",
     "Вернуть рекомендуемый набор пунктов": "Restore the recommended set of items",
     "РЕКОМЕНДУЕМЫЙ НАБОР": "RECOMMENDED SET",
