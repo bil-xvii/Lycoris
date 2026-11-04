@@ -86,6 +86,11 @@ public static class RestorePointService
                 }
             }
         }
+        catch (ManagementException ex) when (ex.ErrorCode == ManagementStatus.InvalidClass)
+        {
+            // Windows Server and some stripped builds have no System Restore at all: a fact, not a failure.
+            Log.Info("В этой Windows нет «Восстановления системы»: точек восстановления не бывает.");
+        }
         catch (Exception ex)
         {
             Log.Warn("Не удалось получить список точек восстановления: {0}", ex.Message);
