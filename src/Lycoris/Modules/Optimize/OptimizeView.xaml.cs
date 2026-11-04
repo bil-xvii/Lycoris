@@ -11,12 +11,25 @@ public partial class OptimizeView : UserControl
 {
     private OptimizeViewModel? _vm;
 
+    /// <summary>
+    /// Page height (the view itself, without the shell's title bar and status bar) below which the profile tiles drop their
+    /// description, second counter line and note, so the list keeps room in a short window (the window's minimum is 720).
+    /// </summary>
+    internal const double CompactBelowHeight = 700;
+
+    public static readonly DependencyProperty IsCompactProperty =
+        DependencyProperty.Register(nameof(IsCompact), typeof(bool), typeof(OptimizeView), new PropertyMetadata(false));
+
+    /// <summary>True while the page is short: the profile tiles show only the title, «N к изменению» and their button.</summary>
+    public bool IsCompact { get => (bool)GetValue(IsCompactProperty); set => SetValue(IsCompactProperty, value); }
+
     public OptimizeView()
     {
         InitializeComponent();
         DataContextChanged += (_, _) => { if (IsLoaded) Sync(); };
         Loaded += (_, _) => Sync();
         Unloaded += (_, _) => Release();
+        SizeChanged += (_, e) => IsCompact = e.NewSize.Height < CompactBelowHeight;
     }
 
     /// <summary>The view subscribes to its page view-model only while it is on screen: the view-model lives for the whole run, a subscription left behind would keep every closed copy of this view (and its rows) alive and still react to focus requests.</summary>

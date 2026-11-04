@@ -439,13 +439,13 @@
                                     <TextBlock Text="{Binding Badge}" />
                                 </Border>
                             </WrapPanel>
-                            <TextBlock Text="{Binding Description}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
+                            <TextBlock x:Name="Desc" Text="{Binding Description}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
                                        TextWrapping="Wrap" MinHeight="32" ToolTip="{Binding Description}" />
                             <!-- Counters on two fixed lines: six tiles never wrap them at different places. -->
                             <TextBlock Margin="0,5,0,0" FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
                                 <Run Text="{Binding ToChangeText, Mode=OneWay}" Foreground="{StaticResource B.Text}" FontWeight="Bold" /><Run Text="{loc:T ' к изменению'}" />
                             </TextBlock>
-                            <TextBlock FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
+                            <TextBlock x:Name="Applied" FontFamily="{StaticResource F.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis">
                                 <Run Text="{Binding AppliedText, Mode=OneWay}" Foreground="{StaticResource B.Text2}" /><Run Text="{loc:T ' применено'}" />
                             </TextBlock>
                             <StackPanel Margin="0,8,0,0">
@@ -459,6 +459,11 @@
                         </StackPanel>
                     </Border>
                     <DataTemplate.Triggers>
+                        <!-- Short window: the list needs the room; the description stays in the tile's tooltip -->
+                        <DataTrigger Binding="{Binding IsCompact, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                            <Setter TargetName="Desc" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="Applied" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
                             <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource B.White}" />
                             <Setter TargetName="Card" Property="Background" Value="{StaticResource B.Surface2}" />
