@@ -9,6 +9,7 @@ Lycoris хранит данные локально. Настройки (`setting
 Сетевые обращения:
 
 - Проверка обновления обращается к `api.github.com/repos/bil-xvii/Lycoris-releases/releases/latest` анонимно не чаще одного раза за 12 часов.
+- Страница «Драйверы» при анализе оборудования сама узнаёт номер последнего драйвера видеокарты на сайтах NVIDIA (`nvidia.com`, `gfwsl.geforce.com`) и AMD (`amd.com`); передаётся только модель видеокарты. Ошибка или отказ сети просто оставляют «не проверено».
 - winget и загрузка вендорных установщиков обращаются к соответствующим источникам только при действии пользователя. Запросы winget выполняет сам Windows Package Manager.
 - Проверки ping, DNS и доступности игровых серверов выполняются по запросу пользователя; отдельные сетевые тесты могут обращаться к Steam API или проверяемому адресу.
 
@@ -23,6 +24,7 @@ There is no telemetry. The app does not send settings, journal entries, logs, co
 Network requests:
 
 - Update checks anonymously query `api.github.com/repos/bil-xvii/Lycoris-releases/releases/latest`, at most once every 12 hours.
+- During the hardware analysis the Drivers page itself looks up the latest graphics driver version on NVIDIA (`nvidia.com`, `gfwsl.geforce.com`) and AMD (`amd.com`) sites; only the graphics card model is sent. A network error or refusal simply leaves it "not checked".
 - winget and vendor installer downloads contact their respective sources only after a user action. Windows Package Manager performs winget requests.
 - Ping, DNS, and game-server availability checks run when requested by the user; specific network tests may contact the Steam API or the address being tested.
 

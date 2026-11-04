@@ -52,3 +52,11 @@ No defect in the display protocol, HDR, DDC, audio or journal undo was found; re
 - Fullscreen D3D / RDP block paths, a cable that cannot carry a mode (�5 e), and a reboot test (�5 a) were not run.
 - The countdown window itself was replaced by a hook (it needs a human click); its timing and revert paths were exercised with real writers.
 - Owner's values noted at the start: double-click 900 ms (the UI maximum), keyboard delay 3 / speed 0 (the slowest). Left as they were.
+
+## Сеанс с владельцем (подготовлено 05.11.2026; ~5 минут, когда владелец за ПК)
+Нужен человек у экрана — без него эти проверки не запускаются:
+1. Смена кнопок мыши: Lycoris включает смену, появляется отсчёт 15 с — нажать «СОХРАНИТЬ» (правой кнопкой, она теперь главная), затем откат из «Восстановления». Если не нажать — всё вернётся само через 15 с.
+2. Частота опроса и DPI мыши: «Устройства → Вручную → Замерить мышь», 5 секунд водить мышью по кругу.
+3. Настройки сетевого адаптера (скорость/дуплекс): интернет пропадёт на ~10 с, удалённое управление переподключится; затем откат.
+4. Перезагрузка: применить один безопасный пункт, перезагрузить ПК, проверить, что журнал и откат на месте после запуска.
+Тесты: `tests/Lycoris.Tests/Hardware` с `Lycoris_HW_TESTS=1` (пункты 1, 3 добавить как ручные сценарии в этот документ по итогам).
