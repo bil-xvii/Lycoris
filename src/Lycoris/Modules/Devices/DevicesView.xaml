@@ -361,12 +361,14 @@
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="30" />
+                            <!-- Auto: the check box brings its own 12 px gap; rows without a change (HasChange = false, box collapsed)
+                                 reserve no empty column. The right column grows for long link labels (EN) but keeps rows aligned. -->
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" SharedSizeGroup="DevPlanChange" />
-                            <ColumnDefinition Width="170" />
+                            <ColumnDefinition Width="Auto" MinWidth="170" SharedSizeGroup="DevPlanSide" />
                         </Grid.ColumnDefinitions>
-                        <CheckBox VerticalAlignment="Top" Margin="0,2,0,0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding Selectable}"
+                        <CheckBox VerticalAlignment="Top" Margin="0,2,12,0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding Selectable}"
                                   Visibility="{Binding HasChange, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Включить в автонастройку'}" />
                         <StackPanel Grid.Column="1" Margin="0,0,14,0">
                             <TextBlock Text="{Binding Header}" Style="{StaticResource T.Label}" TextTrimming="CharacterEllipsis" />

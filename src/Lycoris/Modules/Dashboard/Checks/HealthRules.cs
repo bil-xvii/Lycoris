@@ -178,7 +178,7 @@ public static partial class HealthRules
         }
         var what = string.Join("; ", slow.Select(d => Loc.Tf("{0}: сейчас {1} Гц, доступно {2} Гц при {3}×{4}", d.Name, d.CurrentHz, d.MaxHz, d.Width, d.Height)));
         var detail = what + ". " + Loc.T("Выберите максимальную частоту в разделе «Устройства и сеть»: Lycoris переключит её с подтверждением " +
-                     "на экране, а откатить можно там же или в «Восстановлении». Игры и интерфейс станут плавнее.");
+                     "на экране, а откатить можно там же или в «Восстановлении». На мониторе с высокой частотой движение выглядит плавнее.");
         return new("refresh-rate", Loc.T("МОНИТОР НЕ НА МАКСИМАЛЬНОЙ ЧАСТОТЕ"), detail, CheckSeverity.Warning, 10,
             new CheckAction(CheckActionKind.FocusDevice, Loc.T("НАСТРОИТЬ МОНИТОР"), "kind:monitor"));
     }
@@ -613,7 +613,7 @@ public static partial class HealthRules
                 Loc.Tf("{0}: версия {1} от {2}.", gpu.Name, version, DashFormat.Date(date)), CheckSeverity.Ok, 6);
         return new("gpu-driver", Loc.T("ДРАЙВЕР ВИДЕОКАРТЫ УСТАРЕЛ"),
             Loc.Tf("{0}: версия {1} от {2} — ему {3}. " +
-            "Новые драйверы исправляют ошибки и ускоряют свежие игры. Проверьте обновление в разделе «Драйверы».",
+            "Новые драйверы исправляют ошибки и проблемы в новых играх. Проверьте обновление в разделе «Драйверы».",
             gpu.Name, version, DashFormat.Date(date), DashFormat.Age(date, s.Now)),
             CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ДРАЙВЕР"), "drivers", "tab:overview"));
     }
@@ -651,7 +651,7 @@ public static partial class HealthRules
         if (n <= StartupLimit)
             return new("startup", Loc.T("АВТОЗАПУСК В НОРМЕ"), Loc.Tf("Вместе с Windows запускается {0}.", count), CheckSeverity.Ok, 6);
         return new("startup", Loc.T("МНОГО ПРОГРАММ В АВТОЗАПУСКЕ"),
-            Loc.Tf("Вместе с Windows запускается {0}. Каждая замедляет вход в систему и работает в фоне. Отключите лишние " +
+            Loc.Tf("Вместе с Windows запускается {0}. Каждая может удлинять вход в систему и работает в фоне. Отключите лишние " +
             "в разделе «Автозапуск и службы» — это обратимо, программы не удаляются.", count),
             CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("ОТКЛЮЧИТЬ ЛИШНЕЕ"), "startup"));
     }

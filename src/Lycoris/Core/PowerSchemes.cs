@@ -32,7 +32,10 @@ public static class PowerSchemes
     {
         SafetyLock.ThrowIfLocked(Loc.T("смена плана питания"));
         var rc = PowerSetActiveScheme(IntPtr.Zero, ref scheme);
-        if (rc != 0) throw new InvalidOperationException(Loc.Tf("Не удалось включить план питания {0} (код {1}).", scheme, rc));
+        if (rc == 0) return;
+        // The code goes to the log; the user gets the next step.
+        Log.Warn("Не удалось включить план питания {0} (код {1}).", scheme, rc);
+        throw new InvalidOperationException(Loc.T("Windows не включила план питания. Повторите позже или выберите план вручную: «Панель управления → Электропитание»."));
     }
 
     public static IReadOnlyList<PowerScheme> List()
@@ -101,7 +104,10 @@ public static class PowerSchemes
         var dest = IntPtr.Zero;
         var rc = PowerDuplicateScheme(IntPtr.Zero, ref source, ref dest);
         if (rc != 0 || dest == IntPtr.Zero)
-            throw new InvalidOperationException(Loc.Tf("Не удалось создать план питания (код {0}).", rc));
+        {
+            Log.Warn("Не удалось создать план питания (код {0}).", rc);
+            throw new InvalidOperationException(Loc.T("Windows не создала копию плана питания — ничего не изменено. Повторите позже."));
+        }
         try { return Marshal.PtrToStructure<Guid>(dest); }
         finally { LocalFree(dest); }
     }

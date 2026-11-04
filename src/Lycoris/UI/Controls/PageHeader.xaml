@@ -35,11 +35,15 @@
         </Grid.Style>
         <Grid.ColumnDefinitions>
             <!-- The title always shows in full; on a narrow window the buttons wrap under one another (round 2: «Восстанов…» at 1120 px). -->
+            <!-- Only the secondary group (checked · ОБНОВИТЬ · Actions) wraps; the ONE Primary button has its own Auto column
+                 on the right and never drops under the others (round 9: it wrapped at 1120 px). -->
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}" />
+            <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}"
+                       AutomationProperties.HeadingLevel="Level1" />
             <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
                        TextWrapping="Wrap" />
         </StackPanel>
@@ -56,9 +60,9 @@
                 </StackPanel>
             </Button>
             <ContentPresenter Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Center" />
-            <!-- The ONE main button of the page -->
-            <ContentPresenter Content="{Binding Primary, ElementName=Root}" VerticalAlignment="Center" Margin="8,0,0,0"
-                              Visibility="{Binding HasPrimary, ElementName=Root, Converter={StaticResource BoolToVis}}" />
         </WrapPanel>
+        <!-- The ONE main button of the page -->
+        <ContentPresenter Grid.Column="2" Content="{Binding Primary, ElementName=Root}" VerticalAlignment="Center" Margin="8,0,0,0"
+                          Visibility="{Binding HasPrimary, ElementName=Root, Converter={StaticResource BoolToVis}}" />
     </Grid>
 </UserControl>

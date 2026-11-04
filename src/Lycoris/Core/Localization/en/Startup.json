@@ -80,7 +80,7 @@
     "Состоянием этой задачи управляет администратор или групповая политика — Lycoris его не меняет.": "The state of this task is managed by an administrator or a group policy — Lycoris doesn't change it.",
     "Состояние задачи не распознано или имя пакета нестандартное — Lycoris её не меняет.": "The task state is not recognized or the package name is non-standard — Lycoris doesn't change it.",
     "Значок защиты Windows или антивируса — Lycoris его не отключает.": "A Windows security or antivirus icon — Lycoris doesn't disable it.",
-    "Без прав администратора: нажмите — Lycoris запросит права, перезапустится и продолжит это действие.": "No administrator rights: click — Lycoris will ask for rights, restart and continue this action.",
+    "Без прав администратора: нажмите — Lycoris запросит права, перезапустится и продолжит это действие.": "No administrator rights: click — Lycoris will ask for rights, relaunch and continue this action.",
     "Отключить: программа не будет запускаться при входе. Ничего не удаляется.": "Disable: the program won't start at sign-in. Nothing is deleted.",
     "Включить: программа снова будет запускаться при входе в Windows.": "Enable: the program will start with Windows sign-in again.",
     "Включить: Lycoris вернёт State = {0} ({1}), как было до него.": "Enable: Lycoris will restore State = {0} ({1}), as it was before it.",

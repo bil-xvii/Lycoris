@@ -11,6 +11,7 @@
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:SettingsViewModel}">
     <UserControl.Resources>
         <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource T.H1}">
+            <Setter Property="AutomationProperties.HeadingLevel" Value="Level2" />
             <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
         <Style x:Key="SectionCaption" TargetType="TextBlock" BasedOn="{StaticResource T.Body}">
@@ -335,7 +336,8 @@
                                                 </StackPanel>
                                                 <Button Grid.Column="1" VerticalAlignment="Center" MinWidth="120"
                                                         Command="{Binding DataContext.OpenPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}">
+                                                        CommandParameter="{Binding}"
+                                                        AutomationProperties.HelpText="{Binding Title}">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                         <TextBlock Text="{loc:T ОТКРЫТЬ}" VerticalAlignment="Center" />

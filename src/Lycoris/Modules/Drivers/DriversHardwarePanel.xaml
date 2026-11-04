@@ -365,29 +365,31 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="1.5*" />
             </Grid.ColumnDefinitions>
-            <RadioButton Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
+            <!-- Filter tiles: 34 px right padding keeps captions clear of the corner check box; captions wrap (same T.Label on all three) -->
+            <RadioButton Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,34,12"
                          IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=all, Mode=TwoWay}"
                          ToolTip="{loc:T 'Показать все компоненты: устройства, найденные на этом ПК, и библиотеки для игр'}">
                 <StackPanel>
-                    <TextBlock Text="{loc:T КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ}" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{loc:T КОМПОНЕНТОВ · ПОКАЗАТЬ ВСЕ}" Style="{StaticResource T.Label}" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding HwComponentsStat}" Style="{StaticResource Hw.StatValueCompact}" />
                     <TextBlock Text="{Binding HwComponentsCaption}" Style="{StaticResource Hw.StatCaption}" />
                 </StackPanel>
             </RadioButton>
-            <RadioButton Grid.Column="1" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
+            <RadioButton Grid.Column="1" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,34,12"
                          IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=recommend, Mode=TwoWay}"
                          ToolTip="{loc:T 'Показать только компоненты, которым нужно обновление, установка или ручной шаг'}">
                 <StackPanel>
-                    <TextBlock Text="{loc:T Что нужно сделать}" Style="{StaticResource T.H2}" />
+                    <!-- Same caption style as the other tiles; the existing key, upper-cased like the other labels -->
+                    <TextBlock Text="{Binding Source={loc:T 'Что нужно сделать'}, Converter={StaticResource Upper}}" Style="{StaticResource T.Label}" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding HwRecommendationsStat}" Style="{StaticResource Hw.StatValueMain}" />
                     <TextBlock Text="{Binding HwRecommendationsCaption}" Style="{StaticResource Hw.StatCaption}" />
                 </StackPanel>
             </RadioButton>
-            <RadioButton Grid.Column="2" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,30,12"
+            <RadioButton Grid.Column="2" Style="{StaticResource Tile}" GroupName="HwFilter" Margin="0,0,8,0" Padding="16,12,34,12"
                          IsChecked="{Binding HwFilter, Converter={StaticResource Equals}, ConverterParameter=current, Mode=TwoWay}"
                          ToolTip="{loc:T 'Показать только компоненты, у которых версия сверена с производителем или уже установлена'}">
                 <StackPanel>
-                    <TextBlock Text="{loc:T АКТУАЛЬНО · ТОЛЬКО ИХ}" Style="{StaticResource T.Label}" />
+                    <TextBlock Text="{loc:T АКТУАЛЬНО · ТОЛЬКО ИХ}" Style="{StaticResource T.Label}" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding HwCurrentStat}" Style="{StaticResource Hw.StatValueCompact}" />
                     <TextBlock Text="{Binding HwCurrentCaption}" Style="{StaticResource Hw.StatCaption}" />
                 </StackPanel>

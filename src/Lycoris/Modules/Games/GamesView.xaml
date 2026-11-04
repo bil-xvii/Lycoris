@@ -546,6 +546,10 @@
                                               VerticalAlignment="Top" Margin="0,10,0,0" />
                                 </Grid>
                                 <Grid Margin="0,10,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -559,22 +563,29 @@
                                             </Border>
                                         </StackPanel>
                                         <TextBlock Text="{Binding CloseListSummary}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
-                                        <!-- Windows 11 only: close the listed apps, or keep them running in efficiency mode (EcoQoS) -->
-                                        <StackPanel Visibility="{Binding ShowCloseModeChoice, Converter={StaticResource BoolToVis}}">
-                                        <Border Style="{StaticResource SegmentBar}" Margin="0,6,0,0"><StackPanel Orientation="Horizontal">
-                                            <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
-                                                         Content="{loc:T 'ЗАКРЫТЬ'}" IsChecked="{Binding CloseModeIsClose}"
-                                                         ToolTip="{loc:T 'Программы из списка закрываются перед игрой: сначала обычная команда «закрыть окно», принудительно — только после отдельного вопроса.'}" />
-                                            <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
-                                                         Content="{loc:T 'РЕЖИМ ЭФФЕКТИВНОСТИ'}" IsChecked="{Binding CloseModeIsEcoQos}"
-                                                         ToolTip="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" />
-                                        </StackPanel></Border>
-                                        <TextBlock Text="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" LineHeight="16"
-                                                   TextWrapping="Wrap" Visibility="{Binding CloseModeIsEcoQos, Converter={StaticResource BoolToVis}}" />
-                                        </StackPanel>
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="{loc:T 'НАСТРОИТЬ'}" Padding="12,0" VerticalAlignment="Top" Margin="0,9,0,0"
                                             Command="{Binding OpenEditorCommand}" />
+                                    <!-- Windows 11 only: close the listed apps, or keep them running in efficiency mode (EcoQoS).
+                                         Own full-width row (under НАСТРОИТЬ too) with star columns, so «РЕЖИМ ЭФФЕКТИВНОСТИ» shows in full in RU and EN. -->
+                                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Visibility="{Binding ShowCloseModeChoice, Converter={StaticResource BoolToVis}}">
+                                        <Border Style="{StaticResource SegmentBar}" Margin="0,6,0,0" HorizontalAlignment="Stretch">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
+                                                             Content="{loc:T 'ЗАКРЫТЬ'}" IsChecked="{Binding CloseModeIsClose}"
+                                                             ToolTip="{loc:T 'Программы из списка закрываются перед игрой: сначала обычная команда «закрыть окно», принудительно — только после отдельного вопроса.'}" />
+                                                <RadioButton Grid.Column="1" Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
+                                                             Content="{loc:T 'РЕЖИМ ЭФФЕКТИВНОСТИ'}" IsChecked="{Binding CloseModeIsEcoQos}"
+                                                             ToolTip="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" />
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock Text="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" LineHeight="16"
+                                                   TextWrapping="Wrap" Visibility="{Binding CloseModeIsEcoQos, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
                                 </Grid>
                             </StackPanel>
 

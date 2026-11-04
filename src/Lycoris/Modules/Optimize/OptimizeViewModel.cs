@@ -889,7 +889,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         {
             string.IsNullOrWhiteSpace(result.RestorePoint)
                 ? Loc.T("Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал Lycoris.")
-                : result.RestorePoint!,
+                : Loc.Sink(result.RestorePoint), // a failure is stored as a Russian key (ChangeSession)
         };
         foreach (var t in targets)
         {

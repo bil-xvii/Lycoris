@@ -66,7 +66,7 @@ public static class LaunchpadLogic
 
     public static TileState Game(bool active) => active
         ? new(Loc.T("Идёт"), Loc.T("Схема питания и приоритет игры включены"), Loc.T("СТОП"), Glyphs.Stop)
-        : new(Loc.T("Выключен"), Loc.T("Схема питания · приоритет игры"), Loc.T("СТАРТ"), Glyphs.Play, Primary: true);
+        : new(Loc.T("Не запущен"), Loc.T("Схема питания · приоритет игры"), Loc.T("СТАРТ"), Glyphs.Play, Primary: true);
 
     // ───────────── ОПТИМИЗАЦИЯ ─────────────
 
@@ -134,7 +134,7 @@ public static class LaunchpadLogic
         if (activeChanges <= 0 || lastBatchTitle is null)
             return new(Loc.T("Нечего откатывать"), Loc.T("Изменений Lycoris пока нет"), Loc.T("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ"), Glyphs.History);
         var when = lastBatchAt is { } t ? t.ToString(Loc.IsEnglish ? "MMM d, HH:mm" : "dd.MM HH:mm", Ru) : Loc.T("Последний пакет");
-        return new(when, Loc.Tf("{0} · всего {1}", lastBatchTitle, Loc.N(activeChanges, "{0} изм.", "{0} изм.", "{0} изм.")), Loc.T("ОТКАТИТЬ ПОСЛЕДНЕЕ"), Glyphs.Undo);
+        return new(when, Loc.Tf("{0} · всего {1}", lastBatchTitle, Loc.N(activeChanges, "{0} изменение", "{0} изменения", "{0} изменений")), Loc.T("ОТКАТИТЬ ПОСЛЕДНЕЕ"), Glyphs.Undo);
     }
 
     // ───────────── ПИНГ ─────────────

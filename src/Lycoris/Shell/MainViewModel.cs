@@ -349,7 +349,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         ActiveChanges = active.Count;
         var revertible = active.Where(ChangeJournal.IsBulkRevertible).Select(r => r.BatchId).ToHashSet();
         var last = journal.Batches.Where(b => revertible.Contains(b.Id)).OrderByDescending(b => b.TimestampUtc).FirstOrDefault();
-        LastBatchTitle = last is null ? null : last.Title.Length > 0 ? last.Title : Loc.T("Без названия");
+        LastBatchTitle = last is null ? null : last.Title.Length > 0 ? Loc.Sink(last.Title) : Loc.T("Без названия"); // stored in Russian: translated for display
         // The sidebar badge of «Восстановление»: the journal count is already known — no work just for the badge.
         Restore.BadgeText = ActiveChanges > 0 ? ActiveChanges.ToString() : null;
     }

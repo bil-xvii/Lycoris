@@ -382,7 +382,14 @@ public partial class MainWindow : Window
         using (var dc = dv.RenderOpen())
         {
             dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(9, 9, 9)), null, new Rect(0, 0, element.ActualWidth, element.ActualHeight));
-            dc.DrawRectangle(new VisualBrush(element), null, new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+            // 1:1, clipped to the element: a VisualBrush stretches the content's descendant bounds into the rectangle, so a child
+            // that sticks out (negative margins, scroll overhang) used to shrink the whole picture by ~12 % with a black band.
+            var area = new Rect(0, 0, element.ActualWidth, element.ActualHeight);
+            dc.DrawRectangle(new VisualBrush(element)
+            {
+                Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top,
+                ViewboxUnits = BrushMappingMode.Absolute, Viewbox = area,
+            }, null, area);
         }
         rtb.Render(dv);
         var enc = new PngBitmapEncoder();

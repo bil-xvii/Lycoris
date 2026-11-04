@@ -8,6 +8,7 @@
   "ignore": [],
   "en": {
     "удалено": "deleted",
+    "Windows не создала точку восстановления. Изменения всё равно можно откатить в «Восстановлении».": "Windows didn't create a restore point. You can still undo the changes in “Restore”.",
     " (не подтверждено)": " (not confirmed)",
     "не подтверждено — возвращено прежнее": "not confirmed — the previous value was restored",
     "Откат подтверждён: {0}.": "Undo confirmed: {0}.",

@@ -11,7 +11,11 @@ namespace Lycoris.Modules.Optimize;
 public sealed record ChangeLineViewModel(string Target, string Current, string New);
 
 /// <summary>A button that opens one official source of a tweak.</summary>
-public sealed record SourceLinkViewModel(string Url, string Host);
+public sealed record SourceLinkViewModel(string Url, string Host)
+{
+    /// <summary>Screen-reader name without the decorative «·» and «↗»: «Источник: learn.microsoft.com».</summary>
+    public string AutomationName => Loc.Tf("Источник: {0}", Host.ToLowerInvariant());
+}
 
 /// <summary>One tweak in the Optimize list: selection, detected state, preview and per-row undo.</summary>
 public sealed partial class TweakItemViewModel : ObservableObject
@@ -198,7 +202,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
     public bool HasEvidenceLimits => !string.IsNullOrWhiteSpace(EvidenceLimits);
     public string EvidenceMeta => Evidence is not { } e ? ""
         : e.IsStale(DateOnly.FromDateTime(DateTime.Today))
-            ? Loc.Tf("{0} · источник проверен {1} — пора проверить снова", e.Windows, Loc.DateText(e.Reviewed.ToDateTime(TimeOnly.MinValue)))
+            ? Loc.Tf("{0} · источник проверен {1}, сведения могли устареть", e.Windows, Loc.DateText(e.Reviewed.ToDateTime(TimeOnly.MinValue)))
             : Loc.Tf("{0} · источник проверен {1}", e.Windows, Loc.DateText(e.Reviewed.ToDateTime(TimeOnly.MinValue)));
     public IReadOnlyList<SourceLinkViewModel> SourceLinks =>
         Evidence?.Urls.Select(u => new SourceLinkViewModel(u, TweakEvidence.HostOf(u))).ToList() ?? [];
