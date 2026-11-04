@@ -97,7 +97,8 @@ public static class UnelevatedShell
         }
         try
         {
-            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            // Off the UI thread (ShellExecute can wait for the browser to start) and the Process handle is released.
+            using var started = await Task.Run(() => Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }));
             return true;
         }
         catch (Exception ex)

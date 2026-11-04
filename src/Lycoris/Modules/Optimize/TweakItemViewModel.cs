@@ -195,7 +195,18 @@ public sealed partial class TweakItemViewModel : ObservableObject
     private void ToggleDetails() => IsExpanded = !IsExpanded;
 
     // «ОСНОВАНИЕ» (roadmap item 10): the official source behind this tweak; the page opens in the user's browser without admin rights.
-    public TweakEvidence? Evidence => TweakSources.For(Id);
+    // Built once per row (the language changes only with a restart): the row template reads these ~7 times per created row.
+    private TweakEvidence? _evidence;
+    private bool _evidenceRead;
+    private IReadOnlyList<SourceLinkViewModel>? _sourceLinks;
+    public TweakEvidence? Evidence
+    {
+        get
+        {
+            if (!_evidenceRead) { _evidence = TweakSources.For(Id); _evidenceRead = true; }
+            return _evidence;
+        }
+    }
     public bool HasEvidence => Evidence is not null;
     public string EvidenceBasis => Evidence?.Basis ?? "";
     public string EvidenceLimits => Evidence?.Limits ?? "";
@@ -205,7 +216,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
             ? Loc.Tf("{0} · источник проверен {1}, сведения могли устареть", e.Windows, Loc.DateText(e.Reviewed.ToDateTime(TimeOnly.MinValue)))
             : Loc.Tf("{0} · источник проверен {1}", e.Windows, Loc.DateText(e.Reviewed.ToDateTime(TimeOnly.MinValue)));
     public IReadOnlyList<SourceLinkViewModel> SourceLinks =>
-        Evidence?.Urls.Select(u => new SourceLinkViewModel(u, TweakEvidence.HostOf(u))).ToList() ?? [];
+        _sourceLinks ??= Evidence?.Urls.Select(u => new SourceLinkViewModel(u, TweakEvidence.HostOf(u))).ToList() ?? [];
     public bool HasNoOfficialSource => Evidence is { HasOfficialSource: false };
 
     [RelayCommand]

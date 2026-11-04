@@ -104,7 +104,9 @@ public sealed partial class DashboardViewModel
         void OnSample(MonitorSample s) { lock (samples) samples.Add(s); }
         _monitor.MaxIntervalMs = 1000; // dense samples whatever the polling setting (up to 10 s) is
         _monitor.Sampled += OnSample;
-        if (!_monitor.IsRunning) _monitor.Start();
+        // Restart so the 1-second interval applies from the first second: a running loop may be mid-way through a 5-second wait.
+        _monitor.Stop();
+        _monitor.Start();
         try
         {
             var before = await Task.Run(ReadProcessTimes);
@@ -153,6 +155,7 @@ public sealed partial class DashboardViewModel
         {
             using (p)
             {
+                if (p.Id == 0 || p.Id == Environment.ProcessId) continue; // System Idle Process; Lycoris itself — by id, never by name
                 string name;
                 try { name = p.ProcessName; } catch { continue; } // exited
                 TimeSpan? cpu = null;

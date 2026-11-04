@@ -144,13 +144,14 @@ public static class PcDoctor
 
     /// <summary>
     /// Groups per-process measurements by program name and turns CPU time into a share of the whole processor
-    /// (100 % = all logical cores busy for the whole window), heaviest first. Idle and Lycoris itself are left out.
+    /// (100 % = all logical cores busy for the whole window), heaviest first. Idle and Lycoris itself are excluded by process id before this (see ReadProcessTimes).
     /// </summary>
     public static IReadOnlyList<ProcessUse> Group(IEnumerable<(string Name, TimeSpan Cpu, long MemoryBytes)> items, TimeSpan window, int cores)
     {
         var denominator = window.TotalMilliseconds * Math.Max(1, cores);
         return items
-            .Where(d => !string.Equals(d.Name, "Idle", StringComparison.OrdinalIgnoreCase) && !d.Name.StartsWith("Lycoris", StringComparison.OrdinalIgnoreCase))
+            // No filtering by name here: a program chooses its own name (a miner called «LycorisHelper.exe» must still show up).
+            // The System Idle Process and Lycoris itself are left out by process id when the list is read.
             .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .Select(g => new ProcessUse(g.Key,
                 denominator > 0 ? Math.Clamp(g.Sum(d => d.Cpu.TotalMilliseconds) / denominator * 100, 0, 100) : 0,
