@@ -39,7 +39,7 @@ public class PcDoctorTests
         Assert.Contains("HandBrake — 62 %", r.Detail);
         Assert.Contains("chrome", r.Detail);
         Assert.DoesNotContain("Discord", r.Detail); // below 3 % is noise
-        Assert.EndsWith("Taskmgr.exe", r.Action.Target, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("Taskmgr.exe", r.Action!.Target, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(CheckActionKind.OpenTaskManager, r.Action.Kind);
     }
 
