@@ -175,6 +175,8 @@ public sealed record SystemSnapshot
     /// <see cref="Lycoris.Modules.Restore.DriftDetector"/>; changes the owner accepted are not counted). Null = unknown.
     /// </summary>
     public int? DriftCount { get; init; }
+    /// <summary>Windows 11 «Оптимизации для оконных игр» (tweak windowed-games-optimization): true/false; null = not Windows 11 or unknown.</summary>
+    public bool? WindowedGamesOptimization { get; init; }
 
     public VbsState Vbs { get; init; }
 

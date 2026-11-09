@@ -19,6 +19,7 @@ public static partial class HealthRules
     public const string TweakHagsOther = "hags-other-gpu";
     public const string TweakTrim = "trim-on";
     public const string TweakGameDvr = "gamedvr-off";
+    public const string TweakWindowedGames = "windowed-games-optimization";
     public const string TweakBalancedPlan = "power-plan-balanced";
     public const string TweakBalancedPlanX3D = "power-plan-balanced-x3d";
     public const string TweakPowerModeBestPerformance = "power-mode-best-performance";
@@ -47,7 +48,7 @@ public static partial class HealthRules
         {
             CheckRestore, CheckDiskSpace, CheckDiskHealth, CheckDevices, CheckStability, CheckRefreshRate, CheckMonitorOnGpu,
             CheckRam, CheckTrim, CheckPendingReboot, CheckUpdatePin, CheckGpuDriver, CheckRebar, CheckPcieLink, CheckGameMode, CheckHags,
-            CheckGameDvr, CheckStartup, CheckMaintenance, CheckDrift, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
+            CheckGameDvr, CheckWindowedGames, CheckStartup, CheckMaintenance, CheckDrift, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
         };
         var results = new List<HealthCheckResult>();
         foreach (var check in checks)
@@ -388,6 +389,21 @@ public static partial class HealthRules
                 return null; // unsupported by the GPU / driver, or unknown
         }
     }
+
+    /// <summary>
+    /// Windows 11 «Оптимизации для оконных игр» (flip model for DX10/11 games in a window / borderless): an optional advice
+    /// (Info), applied only through the catalog tweak — confirmation, journal, one-click undo.
+    /// </summary>
+    public static HealthCheckResult? CheckWindowedGames(SystemSnapshot s) => s.WindowedGamesOptimization switch
+    {
+        true => new("windowed-games", Loc.T("ОПТИМИЗАЦИЯ ОКОННЫХ ИГР ВКЛЮЧЕНА"),
+            Loc.T("Игры DirectX 10/11 в окне и без рамки выводят кадры по современной модели: меньше задержка, работают VRR и Auto HDR."), CheckSeverity.Ok, 3),
+        false => new("windowed-games", Loc.T("ОПТИМИЗАЦИЯ ОКОННЫХ ИГР ВЫКЛЮЧЕНА"),
+            Loc.T("Если играете в окне или без рамки, Windows 11 может выводить кадры по современной модели: меньше задержка, в окне работают VRR и Auto HDR. " +
+                  "Изредка отдельная игра работает с разрывами — тогда её можно исключить в Параметрах → Дисплей → Графика."),
+            CheckSeverity.Info, 3, new CheckAction(CheckActionKind.ApplyTweak, Loc.T("ВКЛЮЧИТЬ"), TweakWindowedGames)),
+        _ => null,
+    };
 
     public static HealthCheckResult? CheckGameDvr(SystemSnapshot s)
     {

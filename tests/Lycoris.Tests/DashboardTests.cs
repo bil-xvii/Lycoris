@@ -1859,6 +1859,22 @@ public sealed class DashboardUpdatePinTests
     }
 }
 
+public sealed class WindowedGamesCheckTests
+{
+    [Fact]
+    public void Windowed_games_optimization_is_optional_advice_applied_only_through_its_tweak()
+    {
+        var off = Lycoris.Modules.Dashboard.Checks.HealthRules.CheckWindowedGames(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { WindowedGamesOptimization = false })!;
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckSeverity.Info, off.Severity);   // advice, not a problem
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckActionKind.ApplyTweak, off.Action!.Kind);
+        Assert.Equal("windowed-games-optimization", off.Action.Target);
+        Assert.NotNull(Lycoris.Tweaks.TweakCatalog.Find(off.Action.Target!));   // the button points at a real catalog tweak
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckSeverity.Ok,
+            Lycoris.Modules.Dashboard.Checks.HealthRules.CheckWindowedGames(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { WindowedGamesOptimization = true })!.Severity);
+        Assert.Null(Lycoris.Modules.Dashboard.Checks.HealthRules.CheckWindowedGames(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot()));   // Windows 10 / unknown
+    }
+}
+
 public sealed class DriftCheckTests
 {
     [Fact]
