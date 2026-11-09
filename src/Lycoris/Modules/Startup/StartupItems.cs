@@ -41,6 +41,29 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     public string SourceText => StartupLocations.ShortLabel(Entry.Source);
     public string PublisherText => Entry.Publisher ?? (Entry.TargetExists ? Loc.T("Издатель не указан") : Loc.T("Нет данных"));
     public bool HasPublisher => Entry.Publisher is not null;
+
+    // ── Цифровая подпись (как в Sysinternals Autoruns): издатель из свойств файла пишет кто угодно, подпись — проверяема ──
+    public bool SignatureOk => Entry.Signature == Lycoris.Core.Security.SignatureState.Valid;
+    /// <summary>No signature, or a signature this PC does not trust: worth a look, not proof of anything bad.</summary>
+    public bool SignatureWarn => Entry.Signature is Lycoris.Core.Security.SignatureState.Unsigned or Lycoris.Core.Security.SignatureState.Untrusted;
+    /// <summary>The file was changed after it was signed — the strongest warning sign the table can show.</summary>
+    public bool SignatureBad => Entry.Signature == Lycoris.Core.Security.SignatureState.Tampered;
+    public string SignatureText => Entry.Signature switch
+    {
+        Lycoris.Core.Security.SignatureState.Valid => Loc.T("ПОДПИСАНО"),
+        Lycoris.Core.Security.SignatureState.Unsigned => Loc.T("БЕЗ ПОДПИСИ"),
+        Lycoris.Core.Security.SignatureState.Untrusted => Loc.T("ПОДПИСЬ НЕ ДОВЕРЕНА"),
+        Lycoris.Core.Security.SignatureState.Tampered => Loc.T("ФАЙЛ ИЗМЕНЁН ПОСЛЕ ПОДПИСИ"),
+        _ => "",
+    };
+    public string SignatureTooltip => Entry.Signature switch
+    {
+        Lycoris.Core.Security.SignatureState.Valid => Loc.Tf("Цифровая подпись проверена: {0}", Entry.SignedBy ?? Loc.T("издатель не прочитан")),
+        Lycoris.Core.Security.SignatureState.Unsigned => Loc.T("У файла нет цифровой подписи. Так бывает у небольших и самодельных программ, но вредоносные тоже обычно без подписи: если программа вам незнакома, проверьте её."),
+        Lycoris.Core.Security.SignatureState.Untrusted => Loc.T("Файл подписан, но этот ПК не доверяет подписавшему (сертификат самодельный, неизвестный или просрочен)."),
+        Lycoris.Core.Security.SignatureState.Tampered => Loc.T("Файл изменили после того, как его подписали: подпись не совпадает с содержимым. Если вы не знаете, почему так, — отключите запись и проверьте ПК антивирусом."),
+        _ => "",
+    };
     public string FileText => BootPerformance.FileName(TargetPath) ?? "—";
 
     public string NameTooltip =>
