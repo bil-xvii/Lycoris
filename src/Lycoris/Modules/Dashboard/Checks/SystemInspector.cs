@@ -113,6 +113,8 @@ public static class SystemInspector
             PrimaryGpu = p.PrimaryGpu,
             StartupCount = Safe<int?>(() => CountStartupEntries(), null),
             DaysSinceMaintenance = DaysSince(AppSettings.Current.MaintenanceReminders ? AppSettings.Current.LastMaintenanceUtc : null),
+            // read-only live comparison of the journal with the system (the same detector as the startup toast and «Восстановление»)
+            DriftCount = Safe<int?>(() => Lycoris.Modules.Restore.DriftDetector.DetectLive(AppSettings.Current.DriftAccepted.ToList()).Count, null),
             Vbs = Safe(ReadVbs, VbsState.Unknown),
         };
     }
