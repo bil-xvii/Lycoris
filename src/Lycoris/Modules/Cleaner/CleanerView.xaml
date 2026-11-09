@@ -338,6 +338,58 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                <!-- ═══════════════ What takes the space: the largest files — shown only, never deleted by Lycoris ═══════════════ -->
+                <StackPanel Margin="0,22,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{loc:T 'Что занимает место'}" Style="{StaticResource T.H2}" FontFamily="{StaticResource F.Body}" FontWeight="Bold" VerticalAlignment="Center" />
+                        <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="11,3,11,0" />
+                        <Button Grid.Column="2" Style="{StaticResource Btn}" Command="{Binding FindLargeFilesCommand}"
+                                ToolTip="{loc:T 'Только поиск и показ: Lycoris не удаляет ваши файлы'}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="{loc:T 'НАЙТИ КРУПНЫЕ ФАЙЛЫ'}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <TextBlock Text="{loc:T 'Самые крупные файлы в вашей папке пользователя (от 100 МБ). Это ваши данные: Lycoris их только показывает, удалить или перенести — решаете вы в Проводнике.'}"
+                               Style="{StaticResource T.Caption}" Margin="0,6,0,6" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LargeFilesSummary}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text2}" Margin="0,0,0,10" TextWrapping="Wrap" />
+                    <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True" Visibility="{Binding LargeFilesFound, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding LargeFilesList}" Focusable="False" Margin="0,0,0,-1">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:LargeFile}">
+                                    <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1" Padding="14,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                                                <TextBlock Text="{Binding Folder}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Folder}" />
+                                                <TextBlock Text="{Binding Hint}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.WarningText}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                           Visibility="{Binding HasHint, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding DateText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="{loc:T 'ПОКАЗАТЬ'}" VerticalAlignment="Center"
+                                                    ToolTip="{loc:T 'Открыть в Проводнике с выделенным файлом'}"
+                                                    Command="{Binding DataContext.RevealLargeFileCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </StackPanel>
+
                 <!-- ═══════════════ Bottom: what is never deleted (secondary text only) ═══════════════ -->
                 <Expander Margin="0,22,0,0">
                     <Expander.Header>
