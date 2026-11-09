@@ -49,6 +49,20 @@ public sealed class HomeTests
     }
 
     [Fact]
+    public void Recent_row_offers_undo_only_for_a_change_still_in_effect()
+    {
+        var active = new HomeChangeItem(new ChangeRecord { Kind = ChangeKind.Service, Title = "Служба", Target = "svc:Test" });
+        var undone = new HomeChangeItem(new ChangeRecord { Kind = ChangeKind.Service, Title = "Служба", Target = "svc:Test", Reverted = true });
+
+        Assert.False(active.IsReverted);
+        Assert.Equal(active.CanRevert ? "ОТКАТИТЬ" : "ПОДРОБНЕЕ", active.ActionLabel);
+        // an undone change never offers «ОТКАТИТЬ» again; the button stays (Obvious UI) and opens the record
+        Assert.True(undone.IsReverted);
+        Assert.False(undone.CanRevert);
+        Assert.Equal("ПОДРОБНЕЕ", undone.ActionLabel);
+    }
+
+    [Fact]
     public void Doctor_uses_existing_dashboard_state_and_navigation_key_is_stable()
     {
         var dashboard = new DashboardViewModel();
