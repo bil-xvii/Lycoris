@@ -514,6 +514,18 @@ public sealed class GamesTests
     // ───────────────────────────── Readiness ─────────────────────────────
 
     [Fact]
+    public void Windowed_and_vrr_lines_follow_the_tweak_state_and_never_guess()
+    {
+        Assert.Equal(ReadinessState.Ok, GamingReadiness.WindowedOptimization(Lycoris.Tweaks.TweakState.Applied)!.State);
+        Assert.Equal(ReadinessState.Info, GamingReadiness.WindowedOptimization(Lycoris.Tweaks.TweakState.NotApplied)!.State); // optional: info, not alarm
+        Assert.Null(GamingReadiness.WindowedOptimization(Lycoris.Tweaks.TweakState.NotApplicable));   // e.g. Windows 10 — no line
+        Assert.Equal(ReadinessState.Ok, GamingReadiness.Vrr(Lycoris.Tweaks.TweakState.Applied)!.State);
+        Assert.Equal(ReadinessState.Info, GamingReadiness.Vrr(Lycoris.Tweaks.TweakState.NotApplied)!.State);
+        Assert.Null(GamingReadiness.Vrr(Lycoris.Tweaks.TweakState.Unknown));   // no reliable answer — no line rather than a guess
+        Assert.Null(GamingReadiness.Vrr(Lycoris.Tweaks.TweakState.NotApplicable));
+    }
+
+    [Fact]
     public void Game_mode_absent_means_on()
     {
         Assert.Equal(ReadinessState.Ok, GamingReadiness.GameModeFromValue(null).State);

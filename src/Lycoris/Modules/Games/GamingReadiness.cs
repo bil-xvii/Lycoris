@@ -24,13 +24,51 @@ public static class GamingReadiness
     public const int DriverAgeAttentionDays = 180;
 
     public static IReadOnlyList<ReadinessCheck> Collect(SystemProfile sp) =>
-    [
-        GameMode(),
-        Hags(sp),
-        BackgroundRecording(),
-        PowerPlan(sp),
-        Gpu(sp, DateTime.Now),
-    ];
+        new[]
+        {
+            GameMode(),
+            Hags(sp),
+            BackgroundRecording(),
+            FromTweak("windowed-games-optimization", WindowedOptimization),
+            FromTweak("vrr-optimization", Vrr),
+            PowerPlan(sp),
+            Gpu(sp, DateTime.Now),
+        }.OfType<ReadinessCheck>().ToList();
+
+    /// <summary>
+    /// State of a catalog tweak as a readiness line — read through the tweak's own Detect (the same answer «Оптимизация»
+    /// shows, so the two pages never disagree). Not applicable on this PC (e.g. not Windows 11) — no line at all.
+    /// </summary>
+    private static ReadinessCheck? FromTweak(string id, Func<Tweaks.TweakState, ReadinessCheck?> map)
+    {
+        if (Tweaks.TweakCatalog.Find(id) is not { } t) return null;
+        Tweaks.TweakState state;
+        try { state = t.Detect(); } catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or System.IO.IOException) { state = Tweaks.TweakState.Unknown; }
+        return map(state);
+    }
+
+    /// <summary>Windows 11 «Оптимизации для оконных игр» (SwapEffectUpgradeEnable): flip model for DX10/11 games in a window.</summary>
+    public static ReadinessCheck? WindowedOptimization(Tweaks.TweakState s) => s switch
+    {
+        Tweaks.TweakState.NotApplicable => null,
+        Tweaks.TweakState.Applied => new ReadinessCheck(Loc.T("ОПТИМИЗАЦИЯ ОКОННЫХ ИГР"), Loc.T("Включена"), ReadinessState.Ok,
+            Loc.T("Игры DirectX 10/11 в окне и без рамки выводят кадры по современной модели: меньше задержка, в окне работают VRR и Auto HDR.")),
+        Tweaks.TweakState.NotApplied => new ReadinessCheck(Loc.T("ОПТИМИЗАЦИЯ ОКОННЫХ ИГР"), Loc.T("Выключена"), ReadinessState.Info,
+            Loc.T("Полезно, если играете в окне или без рамки: включается в «Оптимизации» (безопасно, откатывается в один клик).")),
+        _ => new ReadinessCheck(Loc.T("ОПТИМИЗАЦИЯ ОКОННЫХ ИГР"), Loc.T("Не удалось определить"), ReadinessState.Info,
+            Loc.T("Состояние смотрите в Параметрах → Дисплей → Графика.")),
+    };
+
+    /// <summary>VRR optimization (VRROptimizeEnable): Windows drives VRR for DX11 games that do not support it themselves.</summary>
+    public static ReadinessCheck? Vrr(Tweaks.TweakState s) => s switch
+    {
+        Tweaks.TweakState.NotApplicable => null,
+        Tweaks.TweakState.Applied => new ReadinessCheck(Loc.T("ОПТИМИЗАЦИЯ VRR"), Loc.T("Включена"), ReadinessState.Ok,
+            Loc.T("Windows включает переменную частоту (G-SYNC / FreeSync) и для игр DirectX 11, которые сами её не поддерживают.")),
+        Tweaks.TweakState.NotApplied => new ReadinessCheck(Loc.T("ОПТИМИЗАЦИЯ VRR"), Loc.T("Выключена"), ReadinessState.Info,
+            Loc.T("Нужна только для монитора с G-SYNC / FreeSync: включается в «Оптимизации» по желанию. На других мониторах ничего не меняет.")),
+        _ => null,   // нет надёжного ответа — не показываем строку, чем гадать
+    };
 
     /// <summary>HKCU\Software\Microsoft\GameBar AutoGameModeEnabled: absent or 1 = on (gaming_tweaks.md `game-mode`).</summary>
     public static ReadinessCheck GameMode()
