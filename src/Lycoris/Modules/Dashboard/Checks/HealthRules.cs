@@ -47,7 +47,7 @@ public static partial class HealthRules
         {
             CheckRestore, CheckDiskSpace, CheckDiskHealth, CheckDevices, CheckStability, CheckRefreshRate, CheckMonitorOnGpu,
             CheckRam, CheckTrim, CheckPendingReboot, CheckUpdatePin, CheckGpuDriver, CheckRebar, CheckPcieLink, CheckGameMode, CheckHags,
-            CheckGameDvr, CheckStartup, CheckMaintenance, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
+            CheckGameDvr, CheckStartup, CheckMaintenance, CheckDrift, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
         };
         var results = new List<HealthCheckResult>();
         foreach (var check in checks)
@@ -642,6 +642,22 @@ public static partial class HealthRules
             Loc.Tf("С последней очистки прошло {0}. Lycoris покажет, что можно удалить, — без вашего подтверждения ничего не удаляется. " +
                    "Напоминание выключается в «Настройках».", Loc.N(n, "{0} день", "{0} дня", "{0} дней")),
             CheckSeverity.Info, 3, new CheckAction(CheckActionKind.Navigate, Loc.T("ПОСМОТРЕТЬ, ЧТО ОЧИСТИТЬ"), "cleaner"));
+    }
+
+    /// <summary>
+    /// Drift as a lasting check, not only the startup toast that is easy to miss: Lycoris changes that Windows (often a
+    /// feature update) or another program changed back. Read-only — the button only opens «Восстановление» filtered to the
+    /// drifted records, where the owner sees «было → стало» and decides: apply again (confirmation + journal) or accept.
+    /// </summary>
+    public static HealthCheckResult? CheckDrift(SystemSnapshot s)
+    {
+        if (s.DriftCount is not { } n) return null;
+        if (n <= 0)
+            return new("drift", Loc.T("НАСТРОЙКИ LYCORIS НА МЕСТЕ"), Loc.T("Всё, что применял Lycoris, сейчас действует."), CheckSeverity.Ok, 2);
+        return new("drift", Loc.T("НАСТРОЙКИ ИЗМЕНЕНЫ ВНЕ LYCORIS"),
+            Loc.Tf("Windows или другая программа вернула {0} (часто так бывает после крупного обновления Windows). В «Восстановлении» видно, " +
+                   "что было и что стало: применить снова или оставить как есть — решаете вы.", Loc.N(n, "{0} настройку", "{0} настройки", "{0} настроек")),
+            CheckSeverity.Info, 3, new CheckAction(CheckActionKind.Navigate, Loc.T("ПОСМОТРЕТЬ ИЗМЕНЁННОЕ"), "restore", "drift"));
     }
 
     public static HealthCheckResult? CheckStartup(SystemSnapshot s)

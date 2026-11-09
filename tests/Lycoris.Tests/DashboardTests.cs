@@ -1859,6 +1859,28 @@ public sealed class DashboardUpdatePinTests
     }
 }
 
+public sealed class DriftCheckTests
+{
+    [Fact]
+    public void Drift_is_a_lasting_check_that_only_opens_restore_filtered_to_drift()
+    {
+        var drifted = Lycoris.Modules.Dashboard.Checks.HealthRules.CheckDrift(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { DriftCount = 3 })!;
+        Assert.Equal("drift", drifted.Id);
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckSeverity.Info, drifted.Severity);
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate, drifted.Action!.Kind);   // never re-applies by itself
+        Assert.Equal("restore", drifted.Action.Target);
+        Assert.Equal("drift", drifted.Action.Focus);   // RestoreViewModel turns this focus key into the «изменено вне Lycoris» filter
+        Assert.False(drifted.Action.RequiresAdmin);
+        Assert.Contains("3", drifted.Detail);
+
+        var clean = Lycoris.Modules.Dashboard.Checks.HealthRules.CheckDrift(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { DriftCount = 0 })!;
+        Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckSeverity.Ok, clean.Severity);
+        Assert.Null(clean.Action);
+
+        Assert.Null(Lycoris.Modules.Dashboard.Checks.HealthRules.CheckDrift(new Lycoris.Modules.Dashboard.Checks.SystemSnapshot { DriftCount = null }));
+    }
+}
+
 public sealed class MaintenanceReminderTests
 {
     [Fact]
