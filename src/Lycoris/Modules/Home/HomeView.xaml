@@ -103,10 +103,12 @@
                             <Grid Margin="0,1">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="130"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding Date}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                <StackPanel Grid.Column="1" Margin="8,0">
-                                    <TextBlock Text="{Binding Title}" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Grid.Column="1" Margin="8,0" Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Title}" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{loc:T ОТКАЧЕНО}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                               Visibility="{Binding IsReverted, Converter={StaticResource BoolToVis}}"/>
                                 </StackPanel>
-                                <Button Grid.Column="2" Style="{StaticResource Btn}" Content="{loc:T ОТКАТИТЬ}" Command="{Binding DataContext.OpenRestoreCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding Id}"/>
+                                <Button Grid.Column="2" Style="{StaticResource Btn}" Content="{Binding ActionLabel}" Command="{Binding DataContext.OpenRestoreCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding Id}"/>
                             </Grid>
                         </DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>

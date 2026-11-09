@@ -301,4 +301,11 @@ public sealed class HomeChangeItem(ChangeRecord record)
     public string Target => RestoreFormat.DescribeTarget(record.Target);
     public string Date => record.TimestampUtc.ToLocalTime().ToString(Loc.IsEnglish ? "M/d HH:mm" : "dd.MM HH:mm", Loc.Culture);
     public bool CanRevert => !record.Reverted && ChangeJournal.IsBulkRevertible(record);
+    /// <summary>Already undone: the row says so instead of offering a rollback that cannot happen.</summary>
+    public bool IsReverted => record.Reverted;
+    /// <summary>
+    /// The row's button always stays (Obvious UI: actions are not hidden) but tells the truth: «ОТКАТИТЬ» only for a change
+    /// that is in effect and can be undone; otherwise «ПОДРОБНЕЕ» — both open this record in «Восстановление».
+    /// </summary>
+    public string ActionLabel => CanRevert ? Loc.T("ОТКАТИТЬ") : Loc.T("ПОДРОБНЕЕ");
 }
