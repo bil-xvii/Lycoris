@@ -113,6 +113,15 @@ public static class SystemInspector
             PrimaryGpu = p.PrimaryGpu,
             StartupCount = Safe<int?>(() => CountStartupEntries(), null),
             DaysSinceMaintenance = DaysSince(AppSettings.Current.MaintenanceReminders ? AppSettings.Current.LastMaintenanceUtc : null),
+            // read-only live comparison of the journal with the system (the same detector as the startup toast and «Восстановление»)
+            DriftCount = Safe<int?>(() => Lycoris.Modules.Restore.DriftDetector.DetectLive(AppSettings.Current.DriftAccepted.ToList()).Count, null),
+            // the tweak's own Detect — the same answer «Оптимизация» and «Игры» show
+            WindowedGamesOptimization = Safe<bool?>(() => TweakCatalog.Find(HealthRules.TweakWindowedGames)?.Detect() switch
+            {
+                TweakState.Applied => true,
+                TweakState.NotApplied => false,
+                _ => null,
+            }, null),
             Vbs = Safe(ReadVbs, VbsState.Unknown),
         };
     }

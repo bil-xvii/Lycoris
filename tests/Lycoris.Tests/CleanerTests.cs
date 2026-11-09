@@ -29,6 +29,58 @@ public sealed class CleanerTests : IDisposable
         try { Directory.Delete(_root, recursive: true); } catch { }
     }
 
+    // ───────────────────────────── «Что занимает место» (read-only) ─────────────────────────────
+
+    [Fact]
+    public void Large_files_keeps_only_the_biggest_above_the_threshold_sorted()
+    {
+        var root = Dir("profile");
+        File.WriteAllBytes(Path.Combine(Dir("profile", "a"), "big1.bin"), new byte[5000]);
+        File.WriteAllBytes(Path.Combine(Dir("profile", "b", "c"), "big2.bin"), new byte[9000]);
+        File.WriteAllBytes(Path.Combine(root, "big3.bin"), new byte[7000]);
+        File.WriteAllBytes(Path.Combine(root, "small.txt"), new byte[100]);
+
+        var top2 = Lycoris.Modules.Cleaner.LargeFiles.Scan(root, minBytes: 1000, top: 2);
+        Assert.Equal(["big2.bin", "big3.bin"], top2.Select(f => f.Name));   // largest first, only the top 2, the small file never
+        Assert.Empty(Lycoris.Modules.Cleaner.LargeFiles.Scan(root, minBytes: 100_000));
+        Assert.Empty(Lycoris.Modules.Cleaner.LargeFiles.Scan(Path.Combine(root, "missing")));
+    }
+
+    [Fact]
+    public void Large_files_never_follows_a_junction_out_of_the_folder()
+    {
+        var outside = Dir("outside");
+        File.WriteAllBytes(Path.Combine(outside, "elsewhere.bin"), new byte[8000]);
+        var root = Dir("profile2");
+        Junction(Path.Combine(root, "link"), outside);
+        File.WriteAllBytes(Path.Combine(root, "mine.bin"), new byte[6000]);
+
+        var found = Lycoris.Modules.Cleaner.LargeFiles.Scan(root, minBytes: 1000);
+        Assert.Equal(["mine.bin"], found.Select(f => f.Name));
+    }
+
+    [Fact]
+    public void Program_storage_among_large_files_says_how_to_free_it_safely()
+    {
+        string? H(string p) => Lycoris.Modules.Cleaner.LargeFiles.HintFor(p);
+        Assert.Contains("ollama rm", H(@"C:\Users\x\.ollama\models\blobs\sha256-abc"));
+        Assert.Contains("Docker Desktop", H(@"C:\Users\x\AppData\Local\Docker\wsl\disk\docker_data.vhdx"));
+        Assert.Contains("wsl --unregister", H(@"C:\Users\x\AppData\Local\Packages\Canonical.Ubuntu\LocalState\ext4.vhdx"));
+        Assert.Contains("Steam", H(@"C:\Users\x\Steam\steamapps\common\Game\data.pak"));
+        Assert.Contains("git gc", H(@"C:\Users\x\.git\objects\pack\pack-1.pack"));
+        Assert.Null(H(@"C:\Users\x\Downloads\movie.mkv"));   // an ordinary file — no hint, the owner decides
+    }
+
+    [Fact]
+    public void Large_files_scan_can_be_cancelled()
+    {
+        var root = Dir("profile3");
+        File.WriteAllBytes(Path.Combine(root, "x.bin"), new byte[2000]);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.Throws<OperationCanceledException>(() => Lycoris.Modules.Cleaner.LargeFiles.Scan(root, minBytes: 1, ct: cts.Token));
+    }
+
     // ───────────────────────────── Helpers ─────────────────────────────
 
     private string Dir(params string[] parts)

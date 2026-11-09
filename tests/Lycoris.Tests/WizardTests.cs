@@ -4,6 +4,11 @@ using Lycoris.Shell;
 
 namespace Lycoris.Tests;
 
+/// <summary>Both wizard test classes change the global AppSettings.Current (FirstRun*, UserGoal): one collection runs them one at a time.</summary>
+[CollectionDefinition("WizardSettings", DisableParallelization = true)]
+public sealed class WizardSettingsCollection { }
+
+[Collection("WizardSettings")]
 public sealed class WizardTests
 {
     [Fact]
@@ -96,6 +101,7 @@ public sealed class WizardTests
     }
 }
 
+[Collection("WizardSettings")]
 public sealed class WizardGamesLinkTests
 {
     [Fact]

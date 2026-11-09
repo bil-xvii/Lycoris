@@ -103,8 +103,13 @@ public sealed record StartupEntry
     /// <summary>The file that identifies the program (exe, or the DLL/script a host runs). Null when unknown.</summary>
     public string? TargetPath { get; init; }
     public bool TargetExists { get; init; }
+    /// <summary>CompanyName from the file's version info — anyone can write it; <see cref="Signature"/> is the proof.</summary>
     public string? Publisher { get; init; }
     public string? Description { get; init; }
+    /// <summary>Authenticode of the target (PE files only; null = not checked: scripts, missing file, unknown type).</summary>
+    public Lycoris.Core.Security.SignatureState? Signature { get; init; }
+    /// <summary>Organization of the signing certificate (only for a valid signature).</summary>
+    public string? SignedBy { get; init; }
     /// <summary>The shortcut / file in the Startup folder (folder sources only).</summary>
     public string? ItemPath { get; init; }
     public bool Enabled { get; init; }
@@ -261,6 +266,7 @@ public static class StartupScanner
         target = ResolveAppPath(target);
         var exists = target is null || FileProbe.FileExists(target);
         var (company, description) = exists ? ReadVersion(target) : (null, null);
+        var (signature, signedBy) = exists ? StartupSignatures.Read(target) : (null, null);
         var raw = RegistryHelper.Read(StartupLocations.ApprovedHive(source), StartupLocations.ApprovedKey(source), name) as byte[];
 
         return new StartupEntry
@@ -273,6 +279,8 @@ public static class StartupScanner
             TargetExists = exists,
             Publisher = company,
             Description = description,
+            Signature = signature,
+            SignedBy = signedBy,
             ItemPath = itemPath,
             Enabled = StartupApproved.IsEnabled(raw),
             DisabledAtUtc = StartupApproved.DisabledAtUtc(raw),

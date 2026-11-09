@@ -170,6 +170,13 @@ public sealed record SystemSnapshot
     public int? StartupCount { get; init; }
     /// <summary>Days since the last cleanup (AppSettings.LastMaintenanceUtc); null when reminders are off or the time is unknown.</summary>
     public double? DaysSinceMaintenance { get; init; }
+    /// <summary>
+    /// Lycoris changes that are no longer in effect because Windows or another program changed them back (drift,
+    /// <see cref="Lycoris.Modules.Restore.DriftDetector"/>; changes the owner accepted are not counted). Null = unknown.
+    /// </summary>
+    public int? DriftCount { get; init; }
+    /// <summary>Windows 11 «Оптимизации для оконных игр» (tweak windowed-games-optimization): true/false; null = not Windows 11 or unknown.</summary>
+    public bool? WindowedGamesOptimization { get; init; }
 
     public VbsState Vbs { get; init; }
 
