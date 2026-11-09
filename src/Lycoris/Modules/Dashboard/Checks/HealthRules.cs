@@ -19,6 +19,7 @@ public static partial class HealthRules
     public const string TweakHagsOther = "hags-other-gpu";
     public const string TweakTrim = "trim-on";
     public const string TweakGameDvr = "gamedvr-off";
+    public const string TweakWindowedGames = "windowed-games-optimization";
     public const string TweakBalancedPlan = "power-plan-balanced";
     public const string TweakBalancedPlanX3D = "power-plan-balanced-x3d";
     public const string TweakPowerModeBestPerformance = "power-mode-best-performance";
@@ -47,7 +48,7 @@ public static partial class HealthRules
         {
             CheckRestore, CheckDiskSpace, CheckDiskHealth, CheckDevices, CheckStability, CheckRefreshRate, CheckMonitorOnGpu,
             CheckRam, CheckTrim, CheckPendingReboot, CheckUpdatePin, CheckGpuDriver, CheckRebar, CheckPcieLink, CheckGameMode, CheckHags,
-            CheckGameDvr, CheckStartup, CheckMaintenance, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
+            CheckGameDvr, CheckWindowedGames, CheckStartup, CheckMaintenance, CheckDrift, CheckUptime, CheckPowerPlan, CheckBootSecurity, CheckVbs,
         };
         var results = new List<HealthCheckResult>();
         foreach (var check in checks)
@@ -389,6 +390,21 @@ public static partial class HealthRules
         }
     }
 
+    /// <summary>
+    /// Windows 11 «Оптимизации для оконных игр» (flip model for DX10/11 games in a window / borderless): an optional advice
+    /// (Info), applied only through the catalog tweak — confirmation, journal, one-click undo.
+    /// </summary>
+    public static HealthCheckResult? CheckWindowedGames(SystemSnapshot s) => s.WindowedGamesOptimization switch
+    {
+        true => new("windowed-games", Loc.T("ОПТИМИЗАЦИЯ ОКОННЫХ ИГР ВКЛЮЧЕНА"),
+            Loc.T("Игры DirectX 10/11 в окне и без рамки выводят кадры по современной модели: меньше задержка, работают VRR и Auto HDR."), CheckSeverity.Ok, 3),
+        false => new("windowed-games", Loc.T("ОПТИМИЗАЦИЯ ОКОННЫХ ИГР ВЫКЛЮЧЕНА"),
+            Loc.T("Если играете в окне или без рамки, Windows 11 может выводить кадры по современной модели: меньше задержка, в окне работают VRR и Auto HDR. " +
+                  "Изредка отдельная игра работает с разрывами — тогда её можно исключить в Параметрах → Дисплей → Графика."),
+            CheckSeverity.Info, 3, new CheckAction(CheckActionKind.ApplyTweak, Loc.T("ВКЛЮЧИТЬ"), TweakWindowedGames)),
+        _ => null,
+    };
+
     public static HealthCheckResult? CheckGameDvr(SystemSnapshot s)
     {
         if (s.BackgroundRecordingOn is null) return null;
@@ -642,6 +658,22 @@ public static partial class HealthRules
             Loc.Tf("С последней очистки прошло {0}. Lycoris покажет, что можно удалить, — без вашего подтверждения ничего не удаляется. " +
                    "Напоминание выключается в «Настройках».", Loc.N(n, "{0} день", "{0} дня", "{0} дней")),
             CheckSeverity.Info, 3, new CheckAction(CheckActionKind.Navigate, Loc.T("ПОСМОТРЕТЬ, ЧТО ОЧИСТИТЬ"), "cleaner"));
+    }
+
+    /// <summary>
+    /// Drift as a lasting check, not only the startup toast that is easy to miss: Lycoris changes that Windows (often a
+    /// feature update) or another program changed back. Read-only — the button only opens «Восстановление» filtered to the
+    /// drifted records, where the owner sees «было → стало» and decides: apply again (confirmation + journal) or accept.
+    /// </summary>
+    public static HealthCheckResult? CheckDrift(SystemSnapshot s)
+    {
+        if (s.DriftCount is not { } n) return null;
+        if (n <= 0)
+            return new("drift", Loc.T("НАСТРОЙКИ LYCORIS НА МЕСТЕ"), Loc.T("Всё, что применял Lycoris, сейчас действует."), CheckSeverity.Ok, 2);
+        return new("drift", Loc.T("НАСТРОЙКИ ИЗМЕНЕНЫ ВНЕ LYCORIS"),
+            Loc.Tf("Windows или другая программа вернула {0} (часто так бывает после крупного обновления Windows). В «Восстановлении» видно, " +
+                   "что было и что стало: применить снова или оставить как есть — решаете вы.", Loc.N(n, "{0} настройку", "{0} настройки", "{0} настроек")),
+            CheckSeverity.Info, 3, new CheckAction(CheckActionKind.Navigate, Loc.T("ПОСМОТРЕТЬ ИЗМЕНЁННОЕ"), "restore", "drift"));
     }
 
     public static HealthCheckResult? CheckStartup(SystemSnapshot s)

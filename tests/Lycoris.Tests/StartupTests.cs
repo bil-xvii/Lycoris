@@ -943,3 +943,53 @@ public sealed class BootPerformanceTests
         Assert.Equal(@"C:\Windows\system32\drivers\x.sys", BootPerformance.NormalizePath(@"\??\C:\Windows\system32\drivers\x.sys"));
     }
 }
+
+public sealed class StartupSignatureTests
+{
+    [Fact]
+    public void Only_file_types_that_carry_authenticode_are_checked()
+    {
+        Assert.True(StartupSignatures.IsSignable(@"C:\x\app.EXE"));
+        Assert.True(StartupSignatures.IsSignable(@"C:\x\lib.dll"));
+        Assert.False(StartupSignatures.IsSignable(@"C:\x\run.ps1"));
+        Assert.False(StartupSignatures.IsSignable(@"C:\x\run.bat"));
+        Assert.Equal((null, null), StartupSignatures.Read(@"C:\x\run.bat"));
+        Assert.Equal((null, null), StartupSignatures.Read("relative.exe"));
+    }
+
+    [Fact]
+    public void Windows_own_catalog_signed_program_is_not_reported_as_unsigned()
+    {
+        // cmd.exe carries no embedded signature: it is signed through a Windows catalog — a naive check would call it «unsigned»
+        var cmd = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        var (state, signer) = Lycoris.Core.Security.Authenticode.CheckWithCatalog(cmd);
+        Assert.Equal(Lycoris.Core.Security.SignatureState.Valid, state);
+        Assert.False(string.IsNullOrWhiteSpace(signer));
+    }
+
+    [Fact]
+    public void A_file_no_catalog_lists_stays_unsigned()
+    {
+        var f = Path.Combine(Path.GetTempPath(), "lycoris-sig-" + Guid.NewGuid().ToString("N") + ".exe");
+        File.WriteAllBytes(f, System.Security.Cryptography.RandomNumberGenerator.GetBytes(4096));
+        try { Assert.Equal(Lycoris.Core.Security.SignatureState.Unsigned, Lycoris.Core.Security.Authenticode.CheckWithCatalog(f).State); }
+        finally { File.Delete(f); }
+    }
+
+    [Fact]
+    public void Row_tags_tell_signed_unsigned_and_tampered_apart()
+    {
+        StartupItem Row(Lycoris.Core.Security.SignatureState? s, string? by = null) => new(new StartupEntry
+        { Source = StartupSource.RunUser, Name = "x", DisplayName = "x", Command = "x", Signature = s, SignedBy = by });
+
+        var ok = Row(Lycoris.Core.Security.SignatureState.Valid, "Contoso Ltd");
+        Assert.True(ok.SignatureOk); Assert.False(ok.SignatureWarn); Assert.Contains("Contoso Ltd", ok.SignatureTooltip);
+        Assert.True(Row(Lycoris.Core.Security.SignatureState.Unsigned).SignatureWarn);
+        Assert.True(Row(Lycoris.Core.Security.SignatureState.Untrusted).SignatureWarn);
+        var bad = Row(Lycoris.Core.Security.SignatureState.Tampered);
+        Assert.True(bad.SignatureBad); Assert.False(bad.SignatureOk); Assert.Equal("ФАЙЛ ИЗМЕНЁН ПОСЛЕ ПОДПИСИ", bad.SignatureText);
+        var unknown = Row(null);   // scripts / unreadable: no tag at all, never a guess
+        Assert.False(unknown.SignatureOk || unknown.SignatureWarn || unknown.SignatureBad);
+        Assert.Equal("", unknown.SignatureText);
+    }
+}
