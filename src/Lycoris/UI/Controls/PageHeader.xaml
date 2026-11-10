@@ -41,7 +41,11 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center" MaxWidth="420">
+        <!-- Embedded: room for the host's tabs on the same line (0 when not embedded). -->
+        <Border Width="{Binding (c:PageHeader.EmbeddedInset), ElementName=Root}" />
+        <!-- 360, not 420: at the minimum window width (1120) «проверено» and ОБНОВИТЬ were clipped on Drivers (10.11) —
+             the subtitle wraps one line more, the right side gets room to stack. -->
+        <StackPanel Grid.Column="0" Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center" MaxWidth="360">
             <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}"
                        AutomationProperties.HeadingLevel="Level1" />
             <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"

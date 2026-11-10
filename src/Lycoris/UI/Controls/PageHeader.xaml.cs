@@ -43,6 +43,16 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
     public static bool GetIsEmbedded(DependencyObject d) => (bool)d.GetValue(IsEmbeddedProperty);
     public static void SetIsEmbedded(DependencyObject d, bool value) => d.SetValue(IsEmbeddedProperty, value);
 
+    /// <summary>
+    /// Width the host's tabs take on the left of the embedded header's line (inherited). The header keeps that room free,
+    /// so «проверено» and the buttons wrap instead of sliding under the tabs on a narrow window.
+    /// </summary>
+    public static readonly DependencyProperty EmbeddedInsetProperty = DependencyProperty.RegisterAttached(
+        "EmbeddedInset", typeof(double), typeof(PageHeader), new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static double GetEmbeddedInset(DependencyObject d) => (double)d.GetValue(EmbeddedInsetProperty);
+    public static void SetEmbeddedInset(DependencyObject d, double value) => d.SetValue(EmbeddedInsetProperty, value);
+
     public string Index { get => (string)GetValue(IndexProperty); set => SetValue(IndexProperty, value); }
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string Subtitle { get => (string)GetValue(SubtitleProperty); set => SetValue(SubtitleProperty, value); }
