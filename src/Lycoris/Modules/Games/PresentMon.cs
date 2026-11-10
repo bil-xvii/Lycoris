@@ -28,7 +28,7 @@ public sealed record PresentMonStatus(string? ExePath, string? Problem, bool Ins
 public static partial class PresentMon
 {
     public const string WingetId = "Intel.PresentMon";
-    public const string ExpectedSigner = "Intel";
+    public const string ExpectedSigner = "Intel Corporation";
 
     [GeneratedRegex(@"^PresentMon-(\d+(?:\.\d+){1,3})-x64\.exe$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ConsoleName();
@@ -65,7 +65,7 @@ public static partial class PresentMon
                 SignatureState.Tampered => Loc.T("Файл PresentMon изменён после подписи — запуск отклонён."),
                 _ => Loc.T("Подпись файла PresentMon не проверена — запуск отклонён."),
             };
-        if (signer is null || !signer.Contains(ExpectedSigner, StringComparison.OrdinalIgnoreCase))
+        if (signer is null || !string.Equals(signer.Trim(), ExpectedSigner, StringComparison.OrdinalIgnoreCase))
             return Loc.Tf("PresentMon подписан не Intel ({0}) — запуск отклонён.", signer ?? "?");
         return null;
     }

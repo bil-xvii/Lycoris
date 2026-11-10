@@ -168,6 +168,7 @@ public class FpsMeasureTests
         Assert.NotNull(PresentMon.Refusal(null, SignatureState.Tampered, "Intel Corporation"));
         Assert.NotNull(PresentMon.Refusal(null, SignatureState.Untrusted, "Intel Corporation"));
         Assert.NotNull(PresentMon.Refusal(null, SignatureState.Valid, "Evil Ltd"));
+        Assert.NotNull(PresentMon.Refusal(null, SignatureState.Valid, "Intelligent Software Ltd")); // a look-alike name is not Intel
         Assert.NotNull(PresentMon.Refusal(null, SignatureState.Valid, null));
     }
 
