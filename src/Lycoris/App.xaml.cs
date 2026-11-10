@@ -36,6 +36,10 @@ namespace Lycoris;
 ///                          INTERNAL (Core/Updates): the NEW exe, started by the old copy after a verified download; headless:
 ///                          waits for the old process, sets Lycoris.exe aside as .old, copies itself to Lycoris.exe, starts it,
 ///                          rolls back if it crashes within 10 s.
+///  --apply-profile normal|gaming|recommended [--dry-run] [--yes]
+///                          command line (Modules/Optimize/ProfileCommandLine): no window; prints the scenario's plan (current →
+///                          new) into the parent console; only with --yes in an administrator console applies it through
+///                          TweakEngine (journal + restore point + undo). Exit codes in ProfileCommandLine.Exit.
 ///  --demo-update           with --snapshot (QA only): pretend a newer version exists (title bar button, Settings About)
 ///  --demo-measurements     with --snapshot (QA only): Home shows an in-memory history of six measurements (nothing saved)
 ///  --mode simple|expert    with --snapshot (QA only): show that mode; settings are not saved during the run
@@ -87,6 +91,21 @@ public partial class App : Application
             if (Lycoris.Core.Updates.UpdateApplyMode.FailureText(code, e.Args.Length > 1 ? e.Args[1] : "") is { } failure)
                 MessageBox.Show(failure, "Lycoris", MessageBoxButton.OK, MessageBoxImage.Warning);
             Shutdown(code);
+            return;
+        }
+
+        // «--apply-profile normal|gaming|recommended [--dry-run] [--yes]»: the command line of the Optimize scenarios. No window,
+        // no UAC prompt: it prints the plan and applies only with --yes when the console already runs as administrator.
+        if (Lycoris.Modules.Optimize.ProfileCommandLine.IsRequested(e.Args))
+        {
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            AppSettings.Load();
+            AppSettings.SaveSuspended = true; // the page view-model remembers the scenario in memory; this run never saves settings
+            Loc.Initialize(ArgValue(e.Args, "--lang") is "ru" or "en" or "auto" ? ArgValue(e.Args, "--lang") : AppSettings.Current.Language);
+            var cliArgs = e.Args;
+            Dispatcher.InvokeAsync(async () => Shutdown(await RunProfileCommandLineAsync(cliArgs)));
             return;
         }
 
@@ -546,6 +565,39 @@ public partial class App : Application
         }
         catch { }
         return false;
+    }
+
+    /// <summary>«--apply-profile»: runs the command line, prints into the parent console (or a message box without one).</summary>
+    private async Task<int> RunProfileCommandLineAsync(string[] args)
+    {
+        var console = CliConsole.Open();
+        var output = console ?? new StringWriter();
+        var code = await Lycoris.Modules.Optimize.ProfileCommandLine.RunSafeAsync(args,
+            new Lycoris.Modules.Optimize.ProfileCommandLineHost(TryLockInstanceForCommandLine), output);
+        if (console is null)
+            MessageBox.Show(output.ToString(), "Lycoris", MessageBoxButton.OK, code == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        else
+            console.Flush();
+        return code;
+    }
+
+    /// <summary>The single-instance lock for a command-line apply: a running Lycoris (or a second apply) must not write the journal meanwhile.</summary>
+    private bool TryLockInstanceForCommandLine()
+    {
+        try
+        {
+            _singleInstance ??= new Mutex(false, SingleInstanceName);
+            _ownsMutex = _singleInstance.WaitOne(TimeSpan.Zero);
+        }
+        catch (AbandonedMutexException)
+        {
+            _ownsMutex = true; // the previous instance crashed — we own it now
+        }
+        catch
+        {
+            _ownsMutex = false;
+        }
+        return _ownsMutex;
     }
 
     private static bool HasArg(string[] args, string name) => args.Any(a => a.Equals(name, StringComparison.OrdinalIgnoreCase));

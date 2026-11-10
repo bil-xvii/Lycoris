@@ -395,6 +395,10 @@ dotnet publish src/Lycoris/Lycoris.csproj -c Release -r win-x64 --self-contained
 # exit code = number of failed pages. Run after every change set.
 Lycoris.exe --selftest snapshots/selftest
 ```
+Command line of the Optimize scenarios (Modules/Optimize/ProfileCommandLine): `Lycoris.exe --apply-profile normal|gaming|recommended`
+prints the exact plan (read-only, safe on the dev PC: add `--dry-run`); `--yes` applies through `TweakEngine.ApplyAsync` — never run it on
+the dev machine. Output goes to the parent console (`Core/CliConsole`: AttachConsole + WriteConsoleW, UTF-8 when redirected); run it from
+cmd with `start /wait "" Lycoris.exe …`. Exit codes: `ProfileCommandLine.Exit`. Tests: `ProfileCommandLineTests` (fake host).
 On Linux (cloud sessions): build with `-p:EnableWindowsTargeting=true`; `tools/test-on-linux.sh` runs the unit tests
 (~170 Windows-only tests fail there by design — judge only failures that don't involve registry/P/Invoke/paths/processes).
 Unit tests include `TweakApplyRevertTests`: every RegistryTweak is applied and reverted against a redirected

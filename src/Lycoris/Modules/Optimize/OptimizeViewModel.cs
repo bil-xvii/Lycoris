@@ -439,6 +439,20 @@ public sealed partial class OptimizeViewModel : PageViewModel
         UpdateCounts();
     }
 
+    /// <summary>
+    /// The command line («Lycoris.exe --apply-profile …», <see cref="ProfileCommandLine"/>): with the states already detected,
+    /// selects <paramref name="profile"/> exactly like a click on its tile and returns the rows the page's «ПРИМЕНИТЬ» would
+    /// apply (pending, risk allowed in the current mode). The selection rules stay in one place — this page.
+    /// </summary>
+    internal IReadOnlyList<TweakItemViewModel> PendingForProfile(OptimizeProfile profile, IReadOnlyDictionary<string, TweakState> states,
+        IEnumerable<string> hardwareExcluded)
+    {
+        _hardwareExcluded = hardwareExcluded.ToHashSet(StringComparer.Ordinal);
+        foreach (var i in _items) i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
+        SelectProfile(profile);
+        return OptimizeLogic.FilterApplicable(_items.Where(i => i.IsPending), i => i.Tweak.Risk, ExpertMode);
+    }
+
     /// <summary>The profile and the checked ids now — a shortcut (the Dashboard tile) that changes the selection puts it back with <see cref="RestoreSelection"/>.</summary>
     internal (OptimizeProfile Profile, IReadOnlySet<string> Ids) CaptureSelection() =>
         (Profile, _items.Where(i => i.IsChecked).Select(i => i.Id).ToHashSet(StringComparer.Ordinal));
@@ -908,7 +922,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
         return string.Join(" · ", parts);
     }
 
-    private static async Task<string> RestorePointFootnoteAsync()
+    /// <summary>The restore-point line under the apply confirmation (also printed by «--apply-profile»).</summary>
+    internal static async Task<string> RestorePointFootnoteAsync()
     {
         if (!AppSettings.Current.CreateRestorePoints)
             return Loc.T("Точка восстановления отключена в разделе «Восстановление». Откат — через журнал Lycoris.");
@@ -920,41 +935,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     private async Task ShowApplyResultAsync(TweakRunResult result, IReadOnlyList<TweakItemViewModel> targets, OptimizeProfile scenario)
     {
-        var lines = new List<string>
-        {
-            string.IsNullOrWhiteSpace(result.RestorePoint)
-                ? Loc.T("Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал Lycoris.")
-                : Loc.Sink(result.RestorePoint), // a failure is stored as a Russian key (ChangeSession)
-        };
-        foreach (var t in targets)
-        {
-            if (result.SkippedIds.Contains(t.Id)) continue; // listed below with the reason the engine gave
-            lines.Add(t.State switch
-            {
-                TweakState.Applied => Loc.Tf("ПРИМЕНЕНО — {0}", t.Title),
-                TweakState.Partial => Loc.Tf("ЧАСТИЧНО — {0}", t.Title),
-                TweakState.NotApplicable => Loc.Tf("ПРОПУЩЕНО — {0}: {1}", t.Title, t.NotApplicableText),
-                _ => Loc.Tf("НЕ ПОДТВЕРЖДЕНО — {0}", t.Title),
-            });
-        }
-        lines.AddRange(result.SkippedReasons.Select(r => Loc.Tf("ПРОПУЩЕНО — {0}", r)));
-        lines.AddRange(result.Errors.Select(e => Loc.Tf("ОШИБКА — {0}", e)));
-        // What the scenario leaves to the user because Lycoris must not write it (vendor fan curves, charge limits, DND blobs).
-        // Each line carries the «ВРУЧНУЮ —» label, like the «ПРИМЕНЕНО —» lines above it (the dialog lists bullets, not headers).
-        var manual = OptimizeLogic.ManualSteps(scenario, _laptop);
-        if (manual.Count > 0)
-        {
-            lines.AddRange(manual.Select(m => OptimizeLogic.ManualStepsHeader + " — " + m));
-        }
-
-        var verified = targets.Count(t => t.IsApplied);
-        var title = result.Errors.Count > 0 ? Loc.T("ГОТОВО С ОШИБКАМИ") : verified == targets.Count ? Loc.T("ГОТОВО") : Loc.T("ГОТОВО ЧАСТИЧНО");
-        var message = Loc.Tf("Подтверждено {0} из {1}, изменено параметров системы: {2}.",
-                          verified, Loc.N(targets.Count, "{0} пункта", "{0} пунктов", "{0} пунктов"), result.Applied) +
-                      (result.Skipped > 0 ? Loc.Tf(" Пропущено как неподходящие для этого ПК: {0}.", result.Skipped) : "") +
-                      (result.SkippedReasons.Count > 0 ? Loc.Tf(" Пропущено из-за зависимостей: {0}.", result.SkippedReasons.Count) : "") +
-                      Loc.T(" Откатить можно кнопкой «ОТКАТИТЬ» у пункта или в разделе «Восстановление».");
-        await Ui.AlertAsync(title, message, lines);
+        var report = OptimizeLogic.BuildApplyReport(result,
+            targets.Select(t => new ApplyReportRow(t.Id, t.Title, t.State, t.NotApplicableText ?? "")).ToList(), scenario, _laptop);
+        await Ui.AlertAsync(report.Title, report.Message, report.Lines);
     }
 
     // ───────────────────────────── Revert ─────────────────────────────
