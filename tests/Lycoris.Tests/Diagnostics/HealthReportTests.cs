@@ -37,6 +37,15 @@ public sealed class HealthReportTests
         Assert.DoesNotContain("DESKTOP-ABC", html);
         Assert.DoesNotContain(@"C:\Users\Lycoris", html);
     }
+
+    [Fact]
+    public void SuggestedFileName_contains_date_and_has_html_extension()
+    {
+        var name = HealthReport.SuggestedFileName;
+        Assert.EndsWith(".html", name);
+        Assert.Contains("Отчёт о ПК — ", name);
+        Assert.Matches(@"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}", name);
+    }
 }
 
 public sealed class HealthReportSample

@@ -325,19 +325,40 @@ public sealed partial class DashboardViewModel
             return;
         }
         if (!await Ui.ConfirmAsync(Loc.T("ОТЧЁТ О ПК"),
-                Loc.T("Lycoris сохранит понятный отчёт о ПК на рабочий стол (страница HTML, открывается в браузере)."),
+                Loc.T("Lycoris сохранит понятный отчёт о ПК — вы выберете, куда (страница HTML, открывается в браузере)."),
                 Lycoris.Core.Diagnostics.HealthReport.Contents, confirmText: Loc.T("СОХРАНИТЬ ОТЧЁТ"))) return;
+
+        var html = Lycoris.Core.Diagnostics.HealthReport.Build(BuildHealthReportData());
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = Loc.T("Сохранить отчёт"),
+            Filter = Loc.T("HTML-файл (*.html)") + "|*.html",
+            DefaultExt = ".html",
+            AddExtension = true,
+            FileName = Lycoris.Core.Diagnostics.HealthReport.SuggestedFileName,
+            OverwritePrompt = true,
+            InitialDirectory = SafeDesktopDir(),
+        };
+        if (dlg.ShowDialog(System.Windows.Application.Current?.MainWindow) != true) return;
+
         try
         {
-            var html = Lycoris.Core.Diagnostics.HealthReport.Build(BuildHealthReportData());
-            var path = await Task.Run(() => Lycoris.Core.Diagnostics.ProblemReport.SaveHealthReportToDesktop(System.Text.Encoding.UTF8.GetBytes(html)));
-            Log.Info("Отчёт о ПК сохранён: {0}", Path.GetFileName(path));
-            Ui.Toast(Loc.T("Отчёт о ПК сохранён на рабочем столе."), ToastKind.Success, openFolderPath: Path.GetDirectoryName(path));
+            await Task.Run(() => System.IO.File.WriteAllText(dlg.FileName, html, new System.Text.UTF8Encoding(false)));
+            Log.Info("Отчёт о ПК сохранён: {0}", dlg.FileName);
+            Ui.Toast(Loc.T("Отчёт о ПК сохранён."), ToastKind.Success, openFolderPath: System.IO.Path.GetDirectoryName(dlg.FileName));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Ui.Toast(ex is InvalidOperationException ? ex.Message : Loc.Tf("Отчёт не сохранён: {0}", ex.Message), ToastKind.Error);
+            Ui.Toast(Loc.Tf("Отчёт не сохранён: {0}", ex.Message), ToastKind.Error);
         }
+    }
+
+    // The checked Desktop of the signed-in user (as before); Documents is often closed by Windows «Controlled folder access».
+    private static string SafeDesktopDir()
+    {
+        try { return Lycoris.Core.Diagnostics.ProblemReport.ResolveDestination().Folder; }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException) { return ""; }
     }
 
     internal Lycoris.Core.Diagnostics.HealthReportData BuildHealthReportData()
