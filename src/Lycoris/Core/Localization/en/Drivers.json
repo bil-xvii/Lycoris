@@ -937,6 +937,8 @@
     "winget остановлен пользователем («СТОП»).": "winget was stopped by the user (“STOP”).",
     "УСТАНОВКА {0}": "INSTALLING {0}",
     "УСТАНОВКА НЕ ЗАВЕРШЕНА": "INSTALLATION NOT FINISHED",
-    "Прервать winget сейчас: процесс и запущенный им установщик будут завершены (после подтверждения).": "Interrupt winget now: the process and the installer it started will be ended (after a confirmation)."
+    "Прервать winget сейчас: процесс и запущенный им установщик будут завершены (после подтверждения).": "Interrupt winget now: the process and the installer it started will be ended (after a confirmation).",
+    "Windows Update: повтор загрузки ({0}) после ошибки {1}": "Windows Update: retrying the download ({0}) after error {1}",
+    "Файл драйвера не скачался с серверов Windows Update (Lycoris уже повторил загрузку). Повторите позже; если ошибка не уходит — «Сброс Центра обновления Windows» в «Обслуживании».": "The driver file did not download from Windows Update servers (Lycoris already retried). Try again later; if the error persists, use \"Windows Update reset\" in Maintenance."
   }
 }
