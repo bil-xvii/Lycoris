@@ -176,8 +176,15 @@ public sealed class OperationCoordinatorTests
         using var first = await c.AcquireAsync(R(OperationClass.Install, "Установка Steam"));
         var waiting = Task.Run(() => c.AcquireAsync(new OperationRequest(OperationClass.JournalChange, "Применение") { QueueTimeout = TimeSpan.FromMinutes(5) }));
         await WaitUntil(() => c.Snapshot().Any(i => i.Name == "Применение"));
-        clock.Advance(TimeSpan.FromMinutes(6));
-        var ex = await Assert.ThrowsAsync<OperationTimeoutException>(() => waiting);
+        // The waiter shows in the queue a moment before it arms its timeout timer: a single Advance in that gap moved the
+        // clock before the timer existed, the timer never fired and the test hung (CI windows-2025, 10.11). Advance until it ends.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!waiting.IsCompleted && DateTime.UtcNow < deadline)
+        {
+            clock.Advance(TimeSpan.FromMinutes(6));
+            await Task.WhenAny(waiting, Task.Delay(20));
+        }
+        var ex = await Assert.ThrowsAsync<OperationTimeoutException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Contains("не дождалась очереди", ex.Message);
         Assert.Contains("установка Steam", ex.Message);
         Assert.Single(c.Snapshot());
