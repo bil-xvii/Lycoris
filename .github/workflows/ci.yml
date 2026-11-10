@@ -75,7 +75,7 @@ jobs:
       # screenshots of every page (ru + en) for visual review of UI changes — the owner's PC blocks unsigned dev builds (Smart App Control)
       - name: Upload self-test screenshots
         if: success() && matrix.os == 'windows-2025'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: selftest-screenshots
           path: |
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload self-test reports on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: selftest-reports-${{ matrix.os }}
           path: ${{ runner.temp }}/lycoris-selftest-*/
