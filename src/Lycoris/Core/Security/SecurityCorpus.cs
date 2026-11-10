@@ -244,6 +244,31 @@ public static class SecurityCorpus
         foreach (var path in new[] { @"C:\", @"C:\Windows", @"C:\Windows\System32", @"\\evil\share\x", @"\\?\C:\Windows", @"C:\Users", "" })
             Expect($"cleaner base refused: {path}", () => Modules.Cleaner.PathGuard.Default.CheckBase(path) != Modules.Cleaner.GuardVerdict.Ok);
 
+        // ── Scheduled maintenance: the task definition read back from the scheduler, the result file in the user's folder ──
+        var maintenanceOk = Maintenance.MaintenanceTaskSnapshot.For(Maintenance.MaintenanceSchedule.Default, @"C:\Tools\Lycoris.exe", "S-1-5-21-1-2-3-1001");
+        var maintenanceXml = Maintenance.ScheduledMaintenanceTask.BuildXml(maintenanceOk);
+        Expect("maintenance task: own definition parses back", () => Maintenance.ScheduledMaintenanceTask.Parse(maintenanceXml) == maintenanceOk);
+        foreach (var (name, hostile) in new[]
+                 {
+                     ("highest rights", maintenanceXml.Replace("LeastPrivilege", "HighestAvailable")),
+                     ("stored password", maintenanceXml.Replace("InteractiveToken", "Password")),
+                     ("other arguments", maintenanceXml.Replace("<Arguments>--maintain</Arguments>", "<Arguments>--e2e C:\\x</Arguments>")),
+                     ("network exe", maintenanceXml.Replace(@"C:\Tools\Lycoris.exe", @"\\evil\share\Lycoris.exe")),
+                     ("DTD", "<!DOCTYPE t [<!ENTITY x SYSTEM \"file:///c:/windows/win.ini\">]><Task>&x;</Task>"),
+                     ("oversize", new string(' ', 70_000) + maintenanceXml),
+                 })
+            Expect($"maintenance task refused: {name}", () => Maintenance.ScheduledMaintenanceTask.Parse(hostile) is null);
+        Expect("maintenance result: hostile values clamped", () =>
+        {
+            var r = new Modules.Cleaner.MaintenanceRunResult
+            {
+                FinishedUtc = DateTime.UtcNow.ToString("o"), FreedBytes = long.MinValue, HealthScore = -9,
+                Warnings = [.. Enumerable.Repeat("w", 50), "\u001b[31m"], Error = new string('e', 10_000),
+            }.Sanitized();
+            return r is { FreedBytes: 0, HealthScore: 0, Error: null } && r.Warnings.Count == Modules.Cleaner.MaintenanceRunResult.MaxWarnings;
+        });
+        Expect("maintenance result: no finish time = unusable", () => new Modules.Cleaner.MaintenanceRunResult { FinishedUtc = "x" }.Sanitized() is null);
+
         return new Result(checks, failures);
     }
 }
