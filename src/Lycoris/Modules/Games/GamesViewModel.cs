@@ -169,6 +169,7 @@ public sealed partial class GamesViewModel : PageViewModel
         CheckStale();
         await RecoverStaleEcoQosAsync(); // before the slow scan and dialogs, so a quick ИГРАТЬ cannot overwrite the marker
         await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync(), RefreshCloseModeAsync());
+        await RefreshFpsAsync(); // after the scan: the library names the game to preselect
         MarkChecked();
         await OfferStaleRestoreAsync();
     }
@@ -216,6 +217,7 @@ public sealed partial class GamesViewModel : PageViewModel
         var rescan = DateTime.Now - _lastScan > TimeSpan.FromMinutes(3) ? ScanAsync() : Task.CompletedTask;
         // The GPU choice may have been changed in Windows Settings or undone in «Восстановление» meanwhile.
         await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), rescan);
+        await RefreshFpsAsync();
         MarkChecked();
     }
 
@@ -313,6 +315,7 @@ public sealed partial class GamesViewModel : PageViewModel
     private async Task Refresh()
     {
         await Task.WhenAll(ScanAsync(), RefreshReadinessAsync(), RefreshPowerNoteAsync());
+        await RefreshFpsAsync();
         MarkChecked();
     }
 

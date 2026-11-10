@@ -625,6 +625,150 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- ─────────── FPS BEFORE / AFTER (PresentMon) ─────────── -->
+                    <Border Style="{StaticResource Card.Flush}" Margin="0,10,0,0" ui:RoundClip.Content="True">
+                        <StackPanel Margin="12,11,12,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="40" Height="40" Background="{StaticResource B.Surface4}" CornerRadius="{StaticResource R.Sm}" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Chart}" FontFamily="{StaticResource F.Icons}" FontSize="18"
+                                               Foreground="{StaticResource B.Text}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:T 'ЗАМЕР FPS'}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T 'До и после'}" Style="{StaticResource T.H1}" FontSize="17" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <!-- One status tag: ready (green) · measuring (blue) · PresentMon needed (muted) -->
+                                <Grid Grid.Column="2" VerticalAlignment="Top" Margin="8,2,0,0">
+                                    <Border Style="{StaticResource Tag.Ok}" Visibility="{Binding FpsTagReady, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding FpsStatus}" />
+                                    </Border>
+                                    <Border Style="{StaticResource Tag.Info}" Visibility="{Binding IsFpsMeasuring, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding FpsStatus}" />
+                                    </Border>
+                                    <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding FpsTagMissing, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding FpsStatus}" />
+                                    </Border>
+                                </Grid>
+                            </Grid>
+
+                            <!-- PresentMon missing / refused: the reason as text + the way to install it (Apps page, winget) -->
+                            <StackPanel Visibility="{Binding ShowPresentMonInstall, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding PresentMonNote}" Style="{StaticResource T.Caption}" Margin="0,10,0,8" LineHeight="16" TextWrapping="Wrap" />
+                                <Button Style="{StaticResource Btn.Link}" HorizontalAlignment="Left" Command="{Binding InstallPresentMonCommand}"
+                                        Content="{loc:T 'УСТАНОВИТЬ В ПРИЛОЖЕНИЯХ →'}" />
+                            </StackPanel>
+
+                            <!-- What to measure -->
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{loc:T 'ЧТО ЗАМЕРЯТЬ'}" Style="{StaticResource T.Label}" Margin="0,0,0,4" />
+                                    <ComboBox ItemsSource="{Binding FpsTargets}" SelectedItem="{Binding FpsTarget}" IsEnabled="{Binding FpsIdle}" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom" Padding="10,0" Command="{Binding RefreshFpsTargetsCommand}"
+                                        IsEnabled="{Binding FpsIdle}" ToolTip="{loc:T 'Перечитать список запущенных программ с окном'}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="{loc:T 'СПИСОК'}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <TextBlock Text="{loc:T 'Запустите игру — она появится в списке.'}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
+                                       Visibility="{Binding HasFpsTargets, Converter={StaticResource InverseBoolToVis}}" />
+                            <TextBlock Text="{loc:T 'ДЛИТЕЛЬНОСТЬ'}" Style="{StaticResource T.Label}" Margin="0,10,0,4" />
+                            <Border Style="{StaticResource SegmentBar}" HorizontalAlignment="Stretch" IsEnabled="{Binding FpsIdle}">
+                                <UniformGrid Rows="1">
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="GamesFpsSeconds" Height="26" FontSize="12" Content="{loc:T '15 С'}" IsChecked="{Binding FpsIs15}" />
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="GamesFpsSeconds" Height="26" FontSize="12" Content="{loc:T '30 С'}" IsChecked="{Binding FpsIs30}" />
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="GamesFpsSeconds" Height="26" FontSize="12" Content="{loc:T '60 С'}" IsChecked="{Binding FpsIs60}" />
+                                </UniformGrid>
+                            </Border>
+
+                            <!-- Two captures -->
+                            <UniformGrid Rows="1" Margin="0,12,0,0" Visibility="{Binding FpsIdle, Converter={StaticResource BoolToVis}}">
+                                <Button Margin="0,0,4,0" Command="{Binding MeasureFpsCommand}" CommandParameter="before">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T 'ЗАМЕР «ДО»'}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Margin="4,0,0,0" Command="{Binding MeasureFpsCommand}" CommandParameter="after">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T 'ЗАМЕР «ПОСЛЕ»'}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </UniformGrid>
+                            <!-- Running: progress text + a visible cancel -->
+                            <StackPanel Margin="0,12,0,0" Visibility="{Binding IsFpsMeasuring, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding FpsProgressText}" Style="{StaticResource T.Body}" TextWrapping="Wrap" />
+                                <ProgressBar IsIndeterminate="True" Margin="0,8,0,8" />
+                                <Button HorizontalAlignment="Left" Padding="12,0" Command="{Binding CancelFpsCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{loc:T 'ОТМЕНИТЬ ЗАМЕР'}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <TextBlock Text="{Binding FpsAdminNote}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,8,0,0" LineHeight="16"
+                                       TextWrapping="Wrap" Visibility="{Binding HasFpsAdminNote, Converter={StaticResource BoolToVis}}" />
+
+                            <!-- Result table: ДО | ПОСЛЕ | change (only once something was measured) -->
+                            <Grid Margin="0,12,0,0" Visibility="{Binding HasFpsRows, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="62" />
+                                    <ColumnDefinition Width="62" />
+                                    <ColumnDefinition Width="76" />
+                                </Grid.ColumnDefinitions>
+                                <Rectangle Grid.ColumnSpan="4" Height="1" Fill="{StaticResource B.Line}" VerticalAlignment="Top" />
+                                <TextBlock Grid.Column="1" Text="{loc:T 'ДО'}" Style="{StaticResource T.Label}" HorizontalAlignment="Right" Margin="0,8,0,0" />
+                                <TextBlock Grid.Column="2" Text="{loc:T 'ПОСЛЕ'}" Style="{StaticResource T.Label}" HorizontalAlignment="Right" Margin="0,8,0,0" />
+                                <TextBlock Grid.Column="3" Text="{loc:T 'РАЗНИЦА'}" Style="{StaticResource T.Label}" HorizontalAlignment="Right" Margin="0,8,0,0" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding FpsRows}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:FpsRowItem}">
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="62" />
+                                                <ColumnDefinition Width="62" />
+                                                <ColumnDefinition Width="76" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Before}" Style="{StaticResource T.Mono}" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Column="2" Text="{Binding After}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" HorizontalAlignment="Right" />
+                                            <TextBlock x:Name="Change" Grid.Column="3" Text="{Binding Change}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" HorizontalAlignment="Right" />
+                                        </Grid>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding State}" Value="better">
+                                                <Setter TargetName="Change" Property="Foreground" Value="{StaticResource B.SuccessText}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding State}" Value="worse">
+                                                <Setter TargetName="Change" Property="Foreground" Value="{StaticResource B.WarningText}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding FpsBeforeText}" Style="{StaticResource T.Caption}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding FpsAfterText}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding FpsWarning}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.WarningText}" Margin="0,6,0,0" LineHeight="16"
+                                       TextWrapping="Wrap" Visibility="{Binding HasFpsWarning, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Style="{StaticResource T.Caption}" Margin="0,8,0,0" LineHeight="16" TextWrapping="Wrap"
+                                       Text="{loc:T 'Как сравнить: замер «до» в одном месте игры → игровой сеанс или оптимизации → замер «после» там же. Разница меньше 3 % — обычный разброс, а не эффект. 1% low — FPS самых медленных кадров (99-й процентиль frametime).'}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Readiness: the checks themselves live on the Dashboard (with fix buttons) -->
                     <Button Style="{StaticResource Btn.Link}" Content="{Binding ReadinessText}" Command="{Binding GoDashboardCommand}"
                             HorizontalAlignment="Left" Margin="0,10,0,0"
