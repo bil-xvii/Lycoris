@@ -16,7 +16,7 @@
 | **06 Обслуживание → Очистка** | Временные файлы, кэши Windows, браузеров (только кэш — без паролей и истории), лаунчеров. Сначала анализ, потом удаление. |
 | **06 Обслуживание → Инструменты** | SFC, DISM, проверка и оптимизация дисков, сброс DNS / сети / кэша Store, быстрые ссылки на системные утилиты. |
 | **07 Драйверы** | Обновления драйверов через Windows Update, официальные утилиты NVIDIA / AMD / Intel, проблемные устройства, резервная копия драйверов. |
-| **08 Устройства** | Настройки мыши, клавиатуры, звука, мониторов и сети: автонастройка или вручную, замер частоты опроса мыши, каждое изменение — через журнал с откатом. |
+| **08 Устройства** | Настройки мыши, клавиатуры, звука, мониторов и сети: автонастройка или вручную, замеры (частота опроса и DPI мыши, уровень микрофона, пинг), каждое изменение — через журнал с откатом. |
 | **09 Приложения** | Лаунчеры, библиотеки для игр (Visual C++, DirectX, .NET), программы — установка и обновление через winget в один клик. |
 | **10 Восстановление** | Журнал всех изменений, откат по одному / пакетом / всего сразу, точки восстановления Windows. |
 | **11 Настройки** | Поведение программы, папки с данными, сведения. |
@@ -66,7 +66,7 @@ powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сбо�
 | **06 Maintenance → Cleanup** | Temporary files, caches of Windows, browsers (cache only — no passwords or history), launchers. Analysis first, then deletion. |
 | **06 Maintenance → Tools** | SFC, DISM, disk check and optimization, DNS / network / Store cache reset, quick links to system utilities. |
 | **07 Drivers** | Driver updates via Windows Update, official NVIDIA / AMD / Intel utilities, problematic devices, driver backup. |
-| **08 Devices** | Mouse, keyboard, audio, display and network settings: auto-tune or manual, mouse polling-rate measurement, every change goes through the journal with undo. |
+| **08 Devices** | Mouse, keyboard, audio, display and network settings: auto-tune or manual, measurements (mouse polling rate and DPI, mic level, ping), every change goes through the journal with undo. |
 | **09 Applications** | Launchers, game libraries (Visual C++, DirectX, .NET), programs — install and update via winget in one click. |
 | **10 Recovery** | Journal of all changes, undo one / batch / all at once, Windows restore points. |
 | **11 Settings** | Program behavior, data folders, information. |
