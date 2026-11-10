@@ -205,6 +205,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             case ToolOp.DismScan: await RunDismAsync(ToolOutput.DismMode.ScanHealth); break;
             case ToolOp.DismRestore: await RunDismAsync(ToolOutput.DismMode.RestoreHealth); break;
             case ToolOp.Sfc: await RunSfcAsync(); break;
+            case ToolOp.WuReset: await RunWuResetAsync(); break;
             case ToolOp.ChkdskScan: await RunChkdskAsync(); break;
             case ToolOp.ChkntfsQuery: await RunChkntfsAsync(); break;
             case ToolOp.CopyChkdskCommand: CopyToClipboard(ChkdskCommandText, Loc.T("Команда скопирована")); break;
@@ -330,6 +331,55 @@ public sealed partial class ToolsViewModel : PageViewModel
             return ToolOutput.ClassifySfc(r.ExitCode, r.Combined);
         });
     }
+
+    /// <summary>
+    /// «Сброс Центра обновления»: the documented Microsoft reset (<see cref="WuReset"/>). Checks first (missing or disabled
+    /// services, Windows busy installing), then one confirmation, then the steps in the console. The batch goes to the undo
+    /// journal so it shows in «Восстановление»; it has no undo records — nothing is deleted, the old folders stay as *.bak.
+    /// </summary>
+    private async Task RunWuResetAsync()
+    {
+        if (!CanStartNow(OperationClass.SystemRepair, Loc.T("Сброс Центра обновления Windows"))) return;
+        var system = WuResetSystem.Instance;
+        var blocker = await Task.Run(() => CheckWuReset(system));
+        if (blocker is not null)
+        {
+            await Ui.AlertAsync(Loc.T("Сброс Центра обновления не выполняется"), blocker);
+            return;
+        }
+        if (!await Ui.ConfirmAsync(
+                Loc.T("Сбросить компоненты Центра обновления?"),
+                Loc.T("Помогает, когда обновления Windows не скачиваются, зависают или завершаются ошибкой. Lycoris выполнит шаги из инструкции Microsoft:"),
+                [
+                    Loc.T("Остановит службы: Центр обновления Windows (wuauserv), BITS и службы криптографии (CryptSvc)"),
+                    Loc.T("Переименует папки %WINDIR%\\SoftwareDistribution (кэш загрузок обновлений) и %WINDIR%\\System32\\catroot2 (каталог подписей) в *.bak-дата — ничего не удаляется"),
+                    Loc.T("Запустит службы снова — Windows создаст эти папки заново"),
+                    Loc.T("Следующая проверка обновлений займёт больше времени: Windows заново скачает сведения об обновлениях. Журнал обновлений в «Параметрах» может опустеть"),
+                    Loc.T("Установленные обновления, личные файлы и программы не затрагиваются. Закройте «Параметры → Центр обновления Windows» перед сбросом"),
+                ],
+                confirmText: Loc.T("СБРОСИТЬ"),
+                footnote: Loc.T("Кнопкой «Откатить» не отменяется. Когда обновления снова работают, папки *.bak можно удалить вручную.")))
+            return;
+
+        await ExecuteAsync(Loc.T("СБРОС ЦЕНТРА ОБНОВЛЕНИЯ"), WuReset.CommandText, cancellable: false, Loc.T("Сброс Центра обновления Windows…"), async _ =>
+        {
+            // The state may have changed while the dialog was open.
+            if (await Task.Run(() => CheckWuReset(system)) is { } late) return ToolOutcome.Fail(late);
+
+            var session = await ChangeSession.BeginAsync(WuReset.JournalTitle, createRestorePoint: false);
+            session.Batch.RestorePoint = WuReset.JournalNote;
+            ChangeJournal.Instance.UpdateBatch(session.Batch);
+
+            var windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            var folders = await Task.Run(() => WuReset.PlanFolders(windowsDir, DateTime.Now, p => Directory.Exists(p) || File.Exists(p)));
+            var report = await WuReset.RunAsync(system, folders, line => Emit(line, ConsoleLineKind.Info));
+            session.Complete();
+            return WuReset.Classify(report);
+        });
+    }
+
+    private static string? CheckWuReset(IWuResetSystem system) =>
+        WuReset.Blocker(WuReset.StopOrder.Select(system.Query).ToList(), system.IsRunning(WuReset.ServicingService));
 
     private Task RunChkdskAsync() =>
         ExecuteAsync(Loc.Tf("ПРОВЕРКА ДИСКА {0}", SystemDrive), $"chkdsk {SystemDrive} /scan", cancellable: true, Loc.T("Проверка диска…"), async ct =>
@@ -1059,7 +1109,7 @@ public sealed partial class ToolsViewModel : PageViewModel
             new ToolSection
             {
                 Title = Loc.T("ЦЕЛОСТНОСТЬ WINDOWS"),
-                Caption = Loc.T("Порядок важен: сначала DISM восстанавливает хранилище компонентов, затем SFC берёт из него исправные копии системных файлов."),
+                Caption = Loc.T("Порядок важен: сначала DISM восстанавливает хранилище компонентов, затем SFC берёт из него исправные копии системных файлов. Если не устанавливаются обновления — сброс Центра обновления."),
                 Cards =
                 [
                     new ToolCard
@@ -1088,6 +1138,17 @@ public sealed partial class ToolsViewModel : PageViewModel
                         Duration = Loc.T("5–20 МИН"),
                         RequiresAdmin = true,
                         Actions = [new ToolCardAction { Op = ToolOp.Sfc, Label = Loc.T("ЗАПУСТИТЬ"), IsPrimary = true, RequiresAdmin = true }],
+                    },
+                    new ToolCard
+                    {
+                        Glyph = Glyphs.Sync,
+                        Title = Loc.T("СБРОС ЦЕНТРА ОБНОВЛЕНИЯ"),
+                        Command = "net stop wuauserv · ren SoftwareDistribution, catroot2",
+                        Description = Loc.T("Когда обновления Windows не скачиваются, зависают или завершаются ошибкой: останавливает службы обновления, переименовывает кэш загрузок (SoftwareDistribution) и каталог подписей (catroot2) и запускает службы снова — Windows создаст папки заново. Шаги — по инструкции Microsoft."),
+                        Note = Loc.T("Ничего не удаляется: старые папки остаются рядом с именем *.bak-дата. Следующая проверка обновлений займёт больше времени, журнал обновлений в «Параметрах» может опустеть. Отключённые службы Lycoris не включает."),
+                        Duration = Loc.T("~1 МИН"),
+                        RequiresAdmin = true,
+                        Actions = [new ToolCardAction { Op = ToolOp.WuReset, Label = Loc.T("СБРОСИТЬ"), IsPrimary = true, RequiresAdmin = true }],
                     },
                 ],
             },
