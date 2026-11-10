@@ -34,6 +34,10 @@ public static class HealthReport
         Loc.T("Без имени пользователя и компьютера, без серийных номеров и сетевых адресов"),
     ];
 
+    /// <summary>Suggested filename for the «ОТЧЁТ О ПК» dialog.</summary>
+    public static string SuggestedFileName =>
+        Loc.Tf("Отчёт о ПК — {0}.html", DateTime.Now.ToString("yyyy-MM-dd_HH-mm"));
+
     public static string Build(HealthReportData d, string? userName = null, string? computerName = null)
     {
         // Data from the system is anonymized; the report's own words are only encoded (the owner's account may be named «Lycoris» too).
