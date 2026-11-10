@@ -80,5 +80,29 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
     public PageHeader()
     {
         InitializeComponent();
+        SizeChanged += (_, _) => FitTitle();
+        Secondary.SizeChanged += (_, _) => FitTitle();
+        PrimaryHost.SizeChanged += (_, _) => FitTitle();
+    }
+
+    /// <summary>
+    /// Keeps «проверено» and ОБНОВИТЬ whole on a narrow window: the title block gives up width (its subtitle wraps) until the
+    /// widest secondary item fits next to the main button. The title itself is never narrower than its own text.
+    /// </summary>
+    private void FitTitle()
+    {
+        if (ActualWidth <= 0 || TitlePanel.Visibility != Visibility.Visible) return;
+        double widest = 0;
+        foreach (UIElement child in Secondary.Children)
+        {
+            if (child.Visibility != Visibility.Visible) continue;
+            child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            widest = Math.Max(widest, child.DesiredSize.Width);
+        }
+        var primary = PrimaryHost.Visibility == Visibility.Visible ? PrimaryHost.DesiredSize.Width : 0;
+        var room = ActualWidth - GetEmbeddedInset(this) - Secondary.Margin.Left - widest - primary - 4;
+        TitleText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var max = Math.Max(TitleText.DesiredSize.Width, Math.Min(360, room));
+        if (Math.Abs(TitlePanel.MaxWidth - max) > 0.5) TitlePanel.MaxWidth = max;
     }
 }
