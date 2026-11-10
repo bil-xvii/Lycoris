@@ -7,15 +7,17 @@
 
 | Раздел | Что делает |
 |---|---|
-| **01 Панель** | Нагрузка ЦП / видеокарты / памяти / диска / сети в реальном времени, температура GPU, оценка состояния системы, проверки с исправлением в один клик (XMP выключен, монитор работает не на своей частоте, нет точек восстановления, мало места и т. д.). |
-| **02 Оптимизация** | Профили **Обычный**, **Игровой**, **Рекомендуемый** и **Свой набор**. Перед применением — список всех изменений, точка восстановления Windows, после — откат любого пункта. |
-| **03 Игры** | Библиотека игр (Steam, Epic, GOG и др.), запуск с ускорением: план питания, приоритет игры, закрытие выбранных фоновых программ — всё возвращается после выхода из игры. |
-| **04 Очистка** | Временные файлы, кэши Windows, браузеров (только кэш — без паролей и истории), лаунчеров. Сначала анализ, потом удаление. |
-| **05 Драйверы** | Обновления драйверов через Windows Update, официальные утилиты NVIDIA / AMD / Intel, проблемные устройства, резервная копия драйверов. |
-| **06 Службы** | Рекомендации по службам (только «Вручную», а не «Отключить»), полный список, задачи телеметрии. Критичные службы защищены. |
-| **07 Автозапуск** | Программы и задачи при входе в систему — отключение так же, как в Диспетчере задач. |
-| **08 Приложения** | Лаунчеры, библиотеки для игр (Visual C++, DirectX, .NET), программы — установка и обновление через winget в один клик. |
-| **09 Инструменты** | SFC, DISM, проверка и оптимизация дисков, сброс DNS / сети / кэша Store, быстрые ссылки на системные утилиты. |
+| **01 Главная** | С чего начать: три главные проблемы ПК с кнопкой исправления, «Исправить всё безопасное», цели в один клик (игры, автозапуск, очистка, драйверы), последние изменения с откатом. |
+| **02 Панель** | Нагрузка ЦП / видеокарты / памяти / диска / сети в реальном времени, температура GPU, оценка состояния системы, проверки с исправлением в один клик (XMP выключен, монитор работает не на своей частоте, нет точек восстановления, мало места и т. д.). |
+| **03 Оптимизация** | Профили **Обычный**, **Игровой**, **Рекомендуемый** и **Свой набор**. Перед применением — список всех изменений, точка восстановления Windows, после — откат любого пункта. |
+| **04 Игры** | Библиотека игр (Steam, Epic, GOG и др.), запуск с ускорением: план питания, приоритет игры, закрытие выбранных фоновых программ. |
+| **05 Службы** | Рекомендации по службам (только «Вручную», а не «Отключить»), полный список, задачи телеметрии. Критичные службы защищены. |
+| **05 Службы → Автозапуск** | Программы и задачи при входе в систему — отключение так же, как в Диспетчере задач. |
+| **06 Обслуживание → Очистка** | Временные файлы, кэши Windows, браузеров (только кэш — без паролей и истории), лаунчеров. Сначала анализ, потом удаление. |
+| **06 Обслуживание → Инструменты** | SFC, DISM, проверка и оптимизация дисков, сброс DNS / сети / кэша Store, быстрые ссылки на системные утилиты. |
+| **07 Драйверы** | Обновления драйверов через Windows Update, официальные утилиты NVIDIA / AMD / Intel, проблемные устройства, резервная копия драйверов. |
+| **08 Устройства** | Настройки мыши, клавиатуры, звука, мониторов и сети: автонастройка или вручную, замеры (частота опроса и DPI мыши, уровень микрофона, пинг), каждое изменение — через журнал с откатом. |
+| **09 Приложения** | Лаунчеры, библиотеки для игр (Visual C++, DirectX, .NET), программы — установка и обновление через winget в один клик. |
 | **10 Восстановление** | Журнал всех изменений, откат по одному / пакетом / всего сразу, точки восстановления Windows. |
 | **11 Настройки** | Поведение программы, папки с данными, сведения. |
 
@@ -50,5 +52,23 @@ powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сбо�
 # Lycoris (English)
 
 **Safe Windows optimization for work and gaming.** Strict black-and-white interface. Every change is written to a journal and can be undone in one click; a Windows restore point is created before each batch; only documented, evidence-backed settings; critical services are protected.
+
+## What it does
+
+| Section | What it does |
+|---|---|
+| **01 Home** | Where to start: the top three PC issues with a fix button, "Fix all safe", one-click goals (games, startup, cleanup, drivers), recent changes with undo. |
+| **02 Dashboard** | Real-time CPU / GPU / memory / disk / network load, GPU temperature, system health score, one-click checks with fixes (XMP off, monitor not on its own frequency, no restore points, low space, etc.). |
+| **03 Optimization** | Profiles **Standard**, **Gaming**, **Recommended** and **Custom**. Before applying — list of all changes, Windows restore point, after — undo any item. |
+| **04 Games** | Game library (Steam, Epic, GOG etc.), launch with boost: power plan, game priority, closing selected background programs. |
+| **05 Services** | Service recommendations (only "Manual", not "Disabled"), full list, telemetry tasks. Critical services are protected. |
+| **05 Services → Auto-start** | Programs and tasks at login — disabling the same way as Task Manager. |
+| **06 Maintenance → Cleanup** | Temporary files, caches of Windows, browsers (cache only — no passwords or history), launchers. Analysis first, then deletion. |
+| **06 Maintenance → Tools** | SFC, DISM, disk check and optimization, DNS / network / Store cache reset, quick links to system utilities. |
+| **07 Drivers** | Driver updates via Windows Update, official NVIDIA / AMD / Intel utilities, problematic devices, driver backup. |
+| **08 Devices** | Mouse, keyboard, audio, display and network settings: auto-tune or manual, measurements (mouse polling rate and DPI, mic level, ping), every change goes through the journal with undo. |
+| **09 Applications** | Launchers, game libraries (Visual C++, DirectX, .NET), programs — install and update via winget in one click. |
+| **10 Recovery** | Journal of all changes, undo one / batch / all at once, Windows restore points. |
+| **11 Settings** | Program behavior, data folders, information. |
 
 **Download:** grab `Lycoris.exe` from the [latest release](../../releases/latest) — a single self-contained file, no installer, no .NET needed (Windows 10 2004+/11, 64-bit). It opens read-only without a UAC prompt and asks for administrator rights only when you press a button that changes something, then continues the same action. Interface language: Russian / English (Settings → Language; default follows Windows). Verify the download with `Lycoris.exe.sha256`. The file is not code-signed yet, so Windows may show "Unknown publisher" (see `docs/signing.md`).
