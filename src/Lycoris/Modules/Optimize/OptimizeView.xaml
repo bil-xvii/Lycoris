@@ -408,10 +408,12 @@
         </c:PageHeader>
 
         <!-- Profile tiles: each has its own button, so one click applies a profile -->
-        <ItemsControl Grid.Row="1" Margin="-4,12,-4,0" ItemsSource="{Binding Profiles}" Focusable="False">
+        <!-- One row of six; when a tile would be narrower than its title («Рекомендуемые» + «ПО УМОЛЧАНИЮ») — two rows of three. -->
+        <ItemsControl x:Name="ProfileTiles" Grid.Row="1" Margin="-4,12,-4,0" ItemsSource="{Binding Profiles}" Focusable="False"
+                      SizeChanged="ProfileTiles_SizeChanged">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <UniformGrid Rows="1" />
+                    <UniformGrid Columns="{Binding TileColumns, RelativeSource={RelativeSource AncestorType=local:OptimizeView}}" />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
