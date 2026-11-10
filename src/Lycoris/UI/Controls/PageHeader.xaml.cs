@@ -43,6 +43,16 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
     public static bool GetIsEmbedded(DependencyObject d) => (bool)d.GetValue(IsEmbeddedProperty);
     public static void SetIsEmbedded(DependencyObject d, bool value) => d.SetValue(IsEmbeddedProperty, value);
 
+    /// <summary>
+    /// Width the host's tabs take on the left of the embedded header's line (inherited). The header keeps that room free,
+    /// so «проверено» and the buttons wrap instead of sliding under the tabs on a narrow window.
+    /// </summary>
+    public static readonly DependencyProperty EmbeddedInsetProperty = DependencyProperty.RegisterAttached(
+        "EmbeddedInset", typeof(double), typeof(PageHeader), new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static double GetEmbeddedInset(DependencyObject d) => (double)d.GetValue(EmbeddedInsetProperty);
+    public static void SetEmbeddedInset(DependencyObject d, double value) => d.SetValue(EmbeddedInsetProperty, value);
+
     public string Index { get => (string)GetValue(IndexProperty); set => SetValue(IndexProperty, value); }
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public string Subtitle { get => (string)GetValue(SubtitleProperty); set => SetValue(SubtitleProperty, value); }
@@ -70,5 +80,29 @@ public partial class PageHeader : UserControl, System.ComponentModel.INotifyProp
     public PageHeader()
     {
         InitializeComponent();
+        SizeChanged += (_, _) => FitTitle();
+        Secondary.SizeChanged += (_, _) => FitTitle();
+        PrimaryHost.SizeChanged += (_, _) => FitTitle();
+    }
+
+    /// <summary>
+    /// Keeps «проверено» and ОБНОВИТЬ whole on a narrow window: the title block gives up width (its subtitle wraps) until the
+    /// widest secondary item fits next to the main button. The title itself is never narrower than its own text.
+    /// </summary>
+    private void FitTitle()
+    {
+        if (ActualWidth <= 0 || TitlePanel.Visibility != Visibility.Visible) return;
+        double widest = 0;
+        foreach (UIElement child in Secondary.Children)
+        {
+            if (child.Visibility != Visibility.Visible) continue;
+            child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            widest = Math.Max(widest, child.DesiredSize.Width);
+        }
+        var primary = PrimaryHost.Visibility == Visibility.Visible ? PrimaryHost.DesiredSize.Width : 0;
+        var room = ActualWidth - GetEmbeddedInset(this) - Secondary.Margin.Left - widest - primary - 4;
+        TitleText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var max = Math.Max(TitleText.DesiredSize.Width, Math.Min(360, room));
+        if (Math.Abs(TitlePanel.MaxWidth - max) > 0.5) TitlePanel.MaxWidth = max;
     }
 }

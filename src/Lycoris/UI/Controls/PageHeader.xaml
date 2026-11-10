@@ -41,13 +41,17 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <StackPanel Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center" MaxWidth="420">
-            <TextBlock Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}"
+        <!-- Embedded: room for the host's tabs on the same line (0 when not embedded). -->
+        <Border Width="{Binding (c:PageHeader.EmbeddedInset), ElementName=Root}" />
+        <!-- At most 360; on a narrow window (or a 1024 px screen) code-behind narrows it further so «проверено» and ОБНОВИТЬ
+             always fit whole — the subtitle wraps one more line, the title itself never shrinks (10.11). -->
+        <StackPanel x:Name="TitlePanel" Grid.Column="0" Style="{StaticResource HideWhenEmbedded}" VerticalAlignment="Center" MaxWidth="360">
+            <TextBlock x:Name="TitleText" Text="{Binding Title, ElementName=Root, Converter={StaticResource Sentence}}" Style="{StaticResource T.Display}"
                        AutomationProperties.HeadingLevel="Level1" />
             <TextBlock Text="{Binding Subtitle, ElementName=Root}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
                        TextWrapping="Wrap" />
         </StackPanel>
-        <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="20,0,0,0">
+        <WrapPanel x:Name="Secondary" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="20,0,0,0">
             <!-- «проверено 15:40» -->
             <TextBlock Text="{Binding Checked, ElementName=Root}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                        VerticalAlignment="Center" Margin="0,0,10,0" Visibility="{Binding HasChecked, ElementName=Root, Converter={StaticResource BoolToVis}}" />
@@ -62,7 +66,7 @@
             <ContentPresenter Content="{Binding Actions, ElementName=Root}" VerticalAlignment="Center" />
         </WrapPanel>
         <!-- The ONE main button of the page -->
-        <ContentPresenter Grid.Column="2" Content="{Binding Primary, ElementName=Root}" VerticalAlignment="Center" Margin="8,0,0,0"
+        <ContentPresenter x:Name="PrimaryHost" Grid.Column="2" Content="{Binding Primary, ElementName=Root}" VerticalAlignment="Center" Margin="8,0,0,0"
                           Visibility="{Binding HasPrimary, ElementName=Root, Converter={StaticResource BoolToVis}}" />
     </Grid>
 </UserControl>
