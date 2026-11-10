@@ -29,8 +29,12 @@ not from riskier changes.
 2. Only documented, reversible, evidence-backed changes. Research lives in `docs/research/*.md` — its
    classifications (SAFE-DEFAULT / SAFE-OPTIONAL / ADVANCED / DO-NOT-INCLUDE) are binding.
    DO-NOT-INCLUDE items must not be implemented, not even hidden.
+   Exception (owner, 10.11.2026): a DO-NOT-INCLUDE item that is merely useless or risky — NOT protection, NOT irreversible —
+   may be offered as an expert-only setting in `Tweaks/TweakCatalog.Expert.cs` (id `expert-…`, ADVANCED, honest «Lycoris это не
+   рекомендует» warning, exact journal rollback, evidence record). It stays in `RejectedTweaks` with the reason.
 3. Never: disable Windows Update / Defender / firewall / UAC / SmartScreen, delete system files, clean the
-   registry, disable the page file, SysMain on SSD "fixes", core-parking hacks, bcdedit tweaks, remove Store
+   registry, disable the page file, SysMain on SSD "fixes"; core-parking hacks are prohibited except as warned,
+   exactly reversible expert-only settings (`expert-…`); bcdedit tweaks, remove Store
    apps silently, pass `--ignore-security-hash`/`--force`/`--allow-reboot` to winget, delete user data
    (Downloads, Documents, browser cookies/passwords/history) by default.
 4. `Core/ServiceControl.Protected` services are never modified. Cleaner never follows reparse points.
@@ -210,6 +214,7 @@ Owner: «чтобы при выполнении много задач однов
 - В «Простом» запрет настроек ADVANCED проверяется в логике Optimize при выборе и непосредственно перед применением; импорт профиля пропускает их.
 - `ServicesExpertMode` действует только вместе с `ExpertMode`; сохранённое значение не стирается. Откат журнала разрешён в обоих режимах.
 - Защитные настройки Windows из списка DO-NOT-INCLUDE остаются недоступны в обоих режимах.
+- Экспертные настройки (`expert-…`, `TweakCatalog.Expert.cs`) — то, что Lycoris не рекомендует, но разрешает эксперту: только ADVANCED, с предупреждением и точным откатом; в профили не входят.
 
 - **MVVM** with CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`, `partial` classes).
   Each page VM derives from `Shell/PageViewModel`: override `LoadAsync` (first visit) / `OnReturnAsync`,
