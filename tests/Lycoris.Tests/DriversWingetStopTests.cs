@@ -83,7 +83,7 @@ public sealed class DriversWingetStopTests
     public async Task A_normal_result_passes_unchanged_and_the_stopper_can_run_again()
     {
         var stopper = new WingetStopper();
-        var first = await stopper.RunAsync(_ => Task.FromResult(new WingetResult(WingetClient.RebootRequiredToInstall, "ok")));
+        var first = await stopper.RunAsync(_ => Task.FromResult(new WingetResult(WingetClient.RebootRequiredToFinish, "ok")));
         Assert.Equal(DriverWingetOutcome.DoneReboot, DriverWinget.Classify(first));
         Assert.False(stopper.IsRunning);
         var second = await stopper.RunAsync(_ => Task.FromResult(new WingetResult(0, "")));
