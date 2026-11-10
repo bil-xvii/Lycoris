@@ -30,9 +30,9 @@
             </c:PageHeader.Primary>
         </c:PageHeader>
 
-        <!-- ═══════════ Tabs: four, a framed segmented control ═══════════ -->
+        <!-- ═══════════ Tabs: four, a framed segmented control; on a narrow window the last ones wrap to a second line ═══════════ -->
         <Border Grid.Row="1" Margin="0,12,0,0" Style="{StaticResource SegmentBar}">
-            <StackPanel Orientation="Horizontal">
+            <WrapPanel Orientation="Horizontal">
                 <RadioButton Style="{StaticResource Segment}" GroupName="DriversTabs" IsChecked="{Binding TabIsHardware, Mode=TwoWay}"
                              ToolTip="{loc:T 'Видеокарта, процессор, плата, память, сеть, звук, периферия — что установить и обновить'}">
                     <StackPanel Orientation="Horizontal">
@@ -67,7 +67,7 @@
                         </Border>
                     </StackPanel>
                 </RadioButton>
-            </StackPanel>
+            </WrapPanel>
         </Border>
 
         <!-- ═══════════ Tab content ═══════════ -->
