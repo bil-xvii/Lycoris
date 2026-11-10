@@ -26,9 +26,13 @@
     "Без имени пользователя и компьютера, без серийных номеров и сетевых адресов": "No user or computer name, no serial numbers and no network addresses",
     "Отчёт о ПК — Lycoris": "PC report — Lycoris",
     "Отчёт о ПК": "PC report",
+    "Отчёт о ПК — {0}.html": "PC report — {0}.html",
     "Создан {0} · Lycoris {1}": "Created {0} · Lycoris {1}",
     "ПРОВЕРКИ": "CHECKS",
     "ЗАМЕР ДО / ПОСЛЕ": "BEFORE / AFTER MEASUREMENT",
-    "Отчёт создан на этом ПК и никуда не отправлялся.": "The report was created on this PC and was not sent anywhere."
+    "Отчёт создан на этом ПК и никуда не отправлялся.": "The report was created on this PC and was not sent anywhere.",
+    "Сохранить отчёт": "Save report",
+    "HTML-файл (*.html)": "HTML file (*.html)",
+    "Отчёт о ПК сохранён.": "PC report saved."
   }
 }
