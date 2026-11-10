@@ -3,7 +3,7 @@ namespace Lycoris.Modules.Tools;
 /// <summary>Every runnable operation on the Tools page.</summary>
 public enum ToolOp
 {
-    DismCheck, DismScan, DismRestore, Sfc,
+    DismCheck, DismScan, DismRestore, Sfc, WuReset,
     ChkdskScan, ChkntfsQuery, CopyChkdskCommand,
     DefragAll, DefragVolume,
     FlushDns, NetworkReset,
