@@ -99,13 +99,19 @@ public sealed class RejectedTweaksTests
     {
         var expert = TweakCatalog.All.Where(t => t.Id.StartsWith(TweakCatalog.ExpertPrefix, StringComparison.Ordinal)).ToList();
         Assert.NotEmpty(expert);
+        string[] stageTwoPartTwo =
+        [
+            "expert-cstates-idle-disable", "expert-core-parking-off", "expert-svchost-split-off", "expert-do-background-limit",
+            "expert-memory-compression-off", "expert-reserved-storage-off", "expert-hibernation-off-laptop",
+        ];
+        Assert.All(stageTwoPartTwo, id => Assert.Contains(expert, t => t.Id == id));
         foreach (var t in expert)
         {
             Assert.Equal(TweakRisk.Advanced, t.Risk);
             Assert.False(Lycoris.Modules.Optimize.OptimizeLogic.CanApplyRisk(t.Risk, expertMode: false));
             Assert.True(Lycoris.Modules.Optimize.OptimizeLogic.CanApplyRisk(t.Risk, expertMode: true));
             Assert.False(string.IsNullOrWhiteSpace(t.Warning));
-            Assert.Contains("не рекомендует", t.Warning); // loc:ignore
+            Assert.StartsWith("Lycoris это не рекомендует:", t.Warning); // loc:ignore
             Assert.Equal(default, t.DefaultIn);
         }
         // Protection stays off-limits in both modes.

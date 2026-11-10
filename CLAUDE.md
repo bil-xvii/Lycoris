@@ -33,7 +33,8 @@ not from riskier changes.
    may be offered as an expert-only setting in `Tweaks/TweakCatalog.Expert.cs` (id `expert-…`, ADVANCED, honest «Lycoris это не
    рекомендует» warning, exact journal rollback, evidence record). It stays in `RejectedTweaks` with the reason.
 3. Never: disable Windows Update / Defender / firewall / UAC / SmartScreen, delete system files, clean the
-   registry, disable the page file, SysMain on SSD "fixes", core-parking hacks, bcdedit tweaks, remove Store
+   registry, disable the page file, SysMain on SSD "fixes"; core-parking hacks are prohibited except as warned,
+   exactly reversible expert-only settings (`expert-…`); bcdedit tweaks, remove Store
    apps silently, pass `--ignore-security-hash`/`--force`/`--allow-reboot` to winget, delete user data
    (Downloads, Documents, browser cookies/passwords/history) by default.
 4. `Core/ServiceControl.Protected` services are never modified. Cleaner never follows reparse points.

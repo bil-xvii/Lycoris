@@ -174,6 +174,20 @@
     "Microsoft документирует политику «Ограничить резервируемую пропускную способность» (NonBestEffortLimit): резерв действует только для трафика с приоритетом QoS.": "Microsoft documents the \"Limit reservable bandwidth\" policy (NonBestEffortLimit): the reserve applies only to QoS-prioritised traffic.",
     "Только для экспертов: скорость не меняется.": "Experts only: speed does not change.",
     "Microsoft документирует значение ToastEnabled: 0 выключает всплывающие уведомления пользователя.": "Microsoft documents the ToastEnabled value: 0 turns off toast notifications for the user.",
-    "Только для экспертов: пропадают все уведомления.": "Experts only: all notifications disappear."
+    "Только для экспертов: пропадают все уведомления.": "Experts only: all notifications disappear.",
+    "Microsoft документирует IDLEDISABLE (IdleDisable): значение 1 отключает состояния простоя процессора.": "Microsoft documents IDLEDISABLE (IdleDisable): value 1 disables processor idle states.",
+    "Пример Microsoft относится к устройствам с требованиями программного времени реального масштаба.": "Microsoft's example is for devices with soft real-time requirements.",
+    "Microsoft документирует CPMINCORES: 100 % отключает алгоритм парковки ядер.": "Microsoft documents CPMINCORES: 100% disables the core-parking algorithm.",
+    "Microsoft документирует разделение служб SvcHost на отдельные процессы при объёме ОЗУ свыше 3,5 ГБ; значение порога задаётся в килобайтах.": "Microsoft documents splitting SvcHost services into separate processes above 3.5 GB of RAM; the threshold is set in kilobytes.",
+    "Microsoft документирует DOPercentageMaxBackgroundBandwidth как максимальную долю доступной полосы для фоновых загрузок Delivery Optimization.": "Microsoft documents DOPercentageMaxBackgroundBandwidth as the maximum share of available bandwidth for Delivery Optimization background downloads.",
+    "Microsoft документирует Disable-MMAgent -MemoryCompression и парную команду Enable-MMAgent -MemoryCompression.": "Microsoft documents Disable-MMAgent -MemoryCompression and its counterpart, Enable-MMAgent -MemoryCompression.",
+    "Microsoft документирует DISM /Get-ReservedStorageState и парные команды /Set-ReservedStorageState /State:Disabled|Enabled.": "Microsoft documents DISM /Get-ReservedStorageState and the paired /Set-ReservedStorageState /State:Disabled|Enabled commands.",
+    "Microsoft документирует powercfg /hibernate off; отключение гибернации также отключает гибридный сон и быстрый запуск.": "Microsoft documents powercfg /hibernate off; turning off hibernation also turns off hybrid sleep and Fast Startup.",
+    "Lycoris меняет только значение от сети активной схемы питания.": "Lycoris changes only the active power plan's AC value.",
+    "Сохранение групп служб может снизить изоляцию отказов; часть служб остаётся сгруппированной.": "Keeping services grouped can reduce fault isolation; some services remain grouped.",
+    "Политика ограничивает фоновые загрузки и блокирует соответствующие настройки пользователя.": "The policy limits background downloads and locks the corresponding user settings.",
+    "До команды Lycoris читает Get-MMAgent и восстанавливает прежнее включённое состояние.": "Before running the command, Lycoris reads Get-MMAgent and restores the previous enabled state.",
+    "Отключение не поддерживается, пока зарезервированное хранилище используется обслуживанием.": "Disabling reserved storage is unsupported while it is in use by servicing.",
+    "На ноутбуке при разряде питания может быть потеряна несохранённая работа.": "A laptop may lose unsaved work when its battery runs down."
   }
 }
