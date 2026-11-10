@@ -7,6 +7,7 @@
         xmlns:shell="clr-namespace:Lycoris.Shell"
         xmlns:ui="clr-namespace:Lycoris.UI"
         xmlns:dash="clr-namespace:Lycoris.Modules.Dashboard"
+        xmlns:assist="clr-namespace:Lycoris.Modules.Assistant"
         xmlns:home="clr-namespace:Lycoris.Modules.Home"
         xmlns:opt="clr-namespace:Lycoris.Modules.Optimize"
         xmlns:games="clr-namespace:Lycoris.Modules.Games"
@@ -34,6 +35,7 @@
         <!-- Page view-model → view -->
         <DataTemplate DataType="{x:Type home:HomeViewModel}"><home:HomeView /></DataTemplate>
         <DataTemplate DataType="{x:Type dash:DashboardViewModel}"><dash:DashboardView /></DataTemplate>
+        <DataTemplate DataType="{x:Type assist:AssistantViewModel}"><assist:AssistantView /></DataTemplate>
         <DataTemplate DataType="{x:Type opt:OptimizeViewModel}"><opt:OptimizeView /></DataTemplate>
         <DataTemplate DataType="{x:Type games:GamesViewModel}"><games:GamesView /></DataTemplate>
         <DataTemplate DataType="{x:Type maint:MaintenanceViewModel}"><maint:MaintenanceView /></DataTemplate>

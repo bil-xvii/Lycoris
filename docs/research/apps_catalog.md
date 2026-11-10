@@ -140,6 +140,7 @@
 | WinRAR | `RARLab.WinRAR` | win.rar GmbH | yes, official | Trialware; picks the ru installer on ru systems |
 | NanaZip | `M2Team.NanaZip` | Kenji Mouri | yes | MSIX |
 | PowerToys | `Microsoft.PowerToys` | Microsoft | yes, official | Separate user and machine bootstrappers |
+| Ollama | `Ollama.Ollama` | Ollama | yes, official (checked 10.11.2026: v0.40.16, MIT, Inno installer from github.com/ollama/ollama releases; `ollama.exe` Authenticode-signed by Ollama Inc.) | Per-user install (`%LOCALAPPDATA%\Programs\Ollama`); runs the «Помощник» model locally |
 | Everything | `voidtools.Everything` | voidtools | yes, official | MSI |
 | ShareX / Notepad++ / VLC | `ShareX.ShareX` / `Notepad++.Notepad++` / `VideoLAN.VLC` | vendors | yes, official | |
 | K-Lite Codec Pack | `CodecGuide.K-LiteCodecPack.Standard` (also `.Basic .Full .Mega`) | KLCP | yes, official | 20.1.0; changes file associations |
@@ -286,6 +287,7 @@
 {"id":"RARLab.WinRAR","name":"WinRAR","category":"utilities","source":"winget","description_ru":"Архиватор RAR и ZIP","website":"https://www.win-rar.com/","scope":"machine","flags":["trialware"]},
 {"id":"M2Team.NanaZip","name":"NanaZip","category":"utilities","source":"winget","description_ru":"Современный форк 7-Zip для Windows 11","website":"https://github.com/M2Team/NanaZip","scope":"both","flags":[]},
 {"id":"Microsoft.PowerToys","name":"PowerToys","category":"utilities","source":"winget","description_ru":"Набор утилит Microsoft для продвинутых пользователей","website":"https://github.com/microsoft/PowerToys","scope":"both","flags":[]},
+{"id":"Ollama.Ollama","name":"Ollama","category":"utilities","source":"winget","description_ru":"Запускает ИИ-модели прямо на вашем ПК — нужен для «Помощника» Lycoris","website":"https://ollama.com/","scope":"user","flags":[]},
 {"id":"voidtools.Everything","name":"Everything","category":"utilities","source":"winget","description_ru":"Мгновенный поиск файлов","website":"https://www.voidtools.com/","scope":"machine","flags":[]},
 {"id":"ShareX.ShareX","name":"ShareX","category":"utilities","source":"winget","description_ru":"Скриншоты и запись экрана","website":"https://getsharex.com/","scope":"both","flags":[]},
 {"id":"Notepad++.Notepad++","name":"Notepad++","category":"utilities","source":"winget","description_ru":"Текстовый редактор","website":"https://notepad-plus-plus.org/","scope":"machine","flags":[]},

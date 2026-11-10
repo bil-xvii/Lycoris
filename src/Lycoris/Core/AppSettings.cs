@@ -93,6 +93,9 @@ public sealed partial class AppSettings : ObservableObject
     /// </summary>
     [ObservableProperty] private List<string> _driftAccepted = [];
 
+    /// <summary>«Помощник»: the Ollama model the user picked (e.g. "qwen3:8b"); "" = choose automatically.</summary>
+    [ObservableProperty] private string _assistantModel = "";
+
     /// <summary>The last tab of «Устройства и сеть»: "auto" (АВТОНАСТРОЙКА, default) or "manual" (ВРУЧНУЮ).</summary>
     [ObservableProperty] private string _devicesTab = "auto";
 

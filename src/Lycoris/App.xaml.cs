@@ -38,6 +38,7 @@ namespace Lycoris;
 ///                          rolls back if it crashes within 10 s.
 ///  --demo-update           with --snapshot (QA only): pretend a newer version exists (title bar button, Settings About)
 ///  --demo-measurements     with --snapshot (QA only): Home shows an in-memory history of six measurements (nothing saved)
+///  --demo-assistant        with --snapshot (QA only): «Помощник» shows a sample conversation (no Ollama needed, nothing sent)
 ///  --display-guard …       INTERNAL: the guard of a display change (Core/Devices/DisplaySafeApply). Started by Lycoris
 ///                          itself, no window; it reverts the display mode/HDR if Lycoris dies or the user never
 ///                          confirms. Runs before every other startup step and marks itself (DisplayGuardProcess) so a
@@ -209,6 +210,8 @@ public partial class App : Application
         if (snapshot && HasArg(args, "--demo-update")) UpdateController.Instance.EnableDemo();
         // QA: a filled measurement history on Home, in memory only (measurements.json is neither read nor written).
         Lycoris.Modules.Home.HomeViewModel.DemoMeasurements = Lycoris.Modules.Home.MeasurementDemo.Resolve(snapshotDir is not null, args);
+        // QA: a sample «Помощник» conversation (CI has no Ollama); nothing is sent anywhere.
+        Lycoris.Modules.Assistant.AssistantViewModel.Demo = Lycoris.Modules.Assistant.AssistantDemo.Resolve(snapshotDir is not null, args);
 
         StartupTiming.Mark("before MainViewModel");
         var vm = new MainViewModel();

@@ -56,6 +56,8 @@ public static class Glyphs
     public const string Speaker = "";
     public const string Microphone = "";
     public const string Headphone = "";
+    /// <summary>«Помощник»: a speech bubble (Segoe Fluent «Message»).</summary>
+    public const string Assistant = "";
     public const string Lightbulb = "";
     public const string Ethernet = "";
 
