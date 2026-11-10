@@ -7,7 +7,7 @@
 
 | Раздел | Что делает |
 |---|---|
-| **01 Главная** | Краткая сводка: состояние системы, температура GPU, быстрые проверки с исправлением в один клик. |
+| **01 Главная** | С чего начать: три главные проблемы ПК с кнопкой исправления, «Исправить всё безопасное», цели в один клик (игры, автозапуск, очистка, драйверы), последние изменения с откатом. |
 | **02 Панель** | Нагрузка ЦП / видеокарты / памяти / диска / сети в реальном времени, температура GPU, оценка состояния системы, проверки с исправлением в один клик (XMP выключен, монитор работает не на своей частоте, нет точек восстановления, мало места и т. д.). |
 | **03 Оптимизация** | Профили **Обычный**, **Игровой**, **Рекомендуемый** и **Свой набор**. Перед применением — список всех изменений, точка восстановления Windows, после — откат любого пункта. |
 | **04 Игры** | Библиотека игр (Steam, Epic, GOG и др.), запуск с ускорением: план питания, приоритет игры, закрытие выбранных фоновых программ. |
@@ -16,7 +16,7 @@
 | **06 Обслуживание → Очистка** | Временные файлы, кэши Windows, браузеров (только кэш — без паролей и истории), лаунчеров. Сначала анализ, потом удаление. |
 | **06 Обслуживание → Инструменты** | SFC, DISM, проверка и оптимизация дисков, сброс DNS / сети / кэша Store, быстрые ссылки на системные утилиты. |
 | **07 Драйверы** | Обновления драйверов через Windows Update, официальные утилиты NVIDIA / AMD / Intel, проблемные устройства, резервная копия драйверов. |
-| **08 Устройства** | Подключённые устройства, их состояние и диагностика. |
+| **08 Устройства** | Настройки мыши, клавиатуры, звука, мониторов и сети: автонастройка или вручную, замер частоты опроса мыши, каждое изменение — через журнал с откатом. |
 | **09 Приложения** | Лаунчеры, библиотеки для игр (Visual C++, DirectX, .NET), программы — установка и обновление через winget в один клик. |
 | **10 Восстановление** | Журнал всех изменений, откат по одному / пакетом / всего сразу, точки восстановления Windows. |
 | **11 Настройки** | Поведение программы, папки с данными, сведения. |
@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сбо�
 
 | Section | What it does |
 |---|---|
-| **01 Home** | Quick system overview: health status, GPU temperature, one-click checks. |
+| **01 Home** | Where to start: the top three PC issues with a fix button, "Fix all safe", one-click goals (games, startup, cleanup, drivers), recent changes with undo. |
 | **02 Dashboard** | Real-time CPU / GPU / memory / disk / network load, GPU temperature, system health score, one-click checks with fixes (XMP off, monitor not on its own frequency, no restore points, low space, etc.). |
 | **03 Optimization** | Profiles **Standard**, **Gaming**, **Recommended** and **Custom**. Before applying — list of all changes, Windows restore point, after — undo any item. |
 | **04 Games** | Game library (Steam, Epic, GOG etc.), launch with boost: power plan, game priority, closing selected background programs. |
@@ -66,7 +66,7 @@ powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сбо�
 | **06 Maintenance → Cleanup** | Temporary files, caches of Windows, browsers (cache only — no passwords or history), launchers. Analysis first, then deletion. |
 | **06 Maintenance → Tools** | SFC, DISM, disk check and optimization, DNS / network / Store cache reset, quick links to system utilities. |
 | **07 Drivers** | Driver updates via Windows Update, official NVIDIA / AMD / Intel utilities, problematic devices, driver backup. |
-| **08 Devices** | Connected devices, their status and diagnostics. |
+| **08 Devices** | Mouse, keyboard, audio, display and network settings: auto-tune or manual, mouse polling-rate measurement, every change goes through the journal with undo. |
 | **09 Applications** | Launchers, game libraries (Visual C++, DirectX, .NET), programs — install and update via winget in one click. |
 | **10 Recovery** | Journal of all changes, undo one / batch / all at once, Windows restore points. |
 | **11 Settings** | Program behavior, data folders, information. |
