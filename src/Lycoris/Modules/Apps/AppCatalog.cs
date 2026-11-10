@@ -387,6 +387,8 @@ public static class AppCatalog
         // MSIX bundle: registered per user, like a Store app — install it as the signed-in user.
         W("M2Team.NanaZip", "NanaZip", U, Loc.T("Современный форк 7-Zip для Windows 11"), "https://github.com/M2Team/NanaZip", User),
         W("Microsoft.PowerToys", "PowerToys", U, Loc.T("Набор утилит Microsoft для продвинутых пользователей"), "https://github.com/microsoft/PowerToys", Both),
+        // «Помощник» runs its model here (local, free); signed installer from the vendor.
+        W("Ollama.Ollama", "Ollama", U, Loc.T("Запускает ИИ-модели прямо на вашем ПК — нужен для «Помощника» Lycoris"), "https://ollama.com/", User),
         W("voidtools.Everything", "Everything", U, Loc.T("Мгновенный поиск файлов"), "https://www.voidtools.com/", Machine),
         W("ShareX.ShareX", "ShareX", U, Loc.T("Скриншоты и запись экрана"), "https://getsharex.com/", Both),
         W("Notepad++.Notepad++", "Notepad++", U, Loc.T("Текстовый редактор"), "https://notepad-plus-plus.org/", Machine),

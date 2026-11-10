@@ -12,9 +12,9 @@ public sealed class AppsTests
     [Fact]
     public void Catalog_contains_every_verified_research_entry()
     {
-        // docs/research/apps_catalog.md §8 lists 124 verified packages; the two vendor driver tools
-        // (NVIDIA App, Intel DSA) are offered only on the Drivers page.
-        Assert.Equal(122, AppCatalog.All.Count);
+        // docs/research/apps_catalog.md §8 lists 125 verified packages (Ollama added 10.11.2026 for «Помощник»); the two vendor
+        // driver tools (NVIDIA App, Intel DSA) are offered only on the Drivers page.
+        Assert.Equal(123, AppCatalog.All.Count);
     }
 
     [Theory]

@@ -153,6 +153,7 @@
     "Быстрый анализ занятого места на диске": "Fast disk space usage analysis",
     "Анализ размеров папок": "Folder size analysis",
     "Виджеты рабочего стола": "Desktop widgets",
-    "Удалённый доступ (давайте его только тем, кому доверяете)": "Remote access (give it only to people you trust)"
+    "Удалённый доступ (давайте его только тем, кому доверяете)": "Remote access (give it only to people you trust)",
+    "Запускает ИИ-модели прямо на вашем ПК — нужен для «Помощника» Lycoris": "Runs AI models right on your PC — needed for the Lycoris Assistant"
   }
 }

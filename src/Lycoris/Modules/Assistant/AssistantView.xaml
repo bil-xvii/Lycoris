@@ -1,0 +1,171 @@
+<UserControl x:Class="Lycoris.Modules.Assistant.AssistantView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Lycoris.UI.Controls"
+             xmlns:ui="clr-namespace:Lycoris.UI"
+             xmlns:loc="clr-namespace:Lycoris.UI"
+             xmlns:shell="clr-namespace:Lycoris.Shell"
+             xmlns:local="clr-namespace:Lycoris.Modules.Assistant"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:AssistantViewModel}">
+    <!--
+        Obvious UI anatomy: header (title · проверено · ОБНОВИТЬ) → status of the local model (tag + plain reason + model choice
+        or «УСТАНОВИТЬ OLLAMA») → ready-made questions → the conversation (the only ScrollViewer) → the question bar outside the scroll.
+        Answers carry labelled «ОТКРЫТЬ …» buttons: navigation only, never a change.
+    -->
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}" RefreshCommand="{Binding CheckCommand}" />
+
+        <!-- ═══════════ The local model: state, why, and the one thing to do ═══════════ -->
+        <Border Grid.Row="1" Margin="0,12,0,0" Style="{StaticResource Card}" Padding="14,11">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Border Style="{StaticResource Tag.Ok}" Visibility="{Binding IsReady, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding StateTag}" />
+                    </Border>
+                    <Border Style="{StaticResource Tag.Warn}" Visibility="{Binding IsReady, Converter={StaticResource InverseBoolToVis}}">
+                        <TextBlock Text="{Binding StateTag}" />
+                    </Border>
+                </Grid>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource T.BodyStrong}" Text="{loc:T 'Локальная модель'}" />
+                    <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Text="{Binding StateText}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsReady, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Style="{StaticResource T.Label}" Text="{loc:T МОДЕЛЬ}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" MinWidth="170" IsEnabled="{Binding IsAnswering, Converter={StaticResource InverseBool}}"
+                                  ToolTip="{loc:T 'Модели, скачанные в Ollama. Побольше — умнее, поменьше — быстрее.'}" />
+                    </StackPanel>
+                    <Button Style="{StaticResource Btn.Primary}" Command="{Binding InstallOllamaCommand}" Visibility="{Binding NeedsOllama, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
+                            <TextBlock Text="{loc:T УСТАНОВИТЬ OLLAMA}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════ Ready-made questions: one click asks ═══════════ -->
+        <ItemsControl Grid.Row="2" Margin="0,10,0,0" ItemsSource="{Binding QuickQuestions}" Focusable="False">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Button Style="{StaticResource Btn}" Margin="0,0,8,6" Content="{Binding}"
+                            Command="{Binding DataContext.AskCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ═══════════ The conversation (the page's only ScrollViewer) ═══════════ -->
+        <Border Grid.Row="3" Margin="0,4,0,0" Style="{StaticResource Card.Flush}">
+            <Grid>
+                <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" Padding="14,12">
+                    <ItemsControl x:Name="Conversation" ItemsSource="{Binding Messages}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:AssistantMessage}">
+                                <Border x:Name="Bubble" Margin="0,0,0,10" Padding="13,10" CornerRadius="{StaticResource R.Lg}" BorderThickness="1"
+                                        Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" HorizontalAlignment="Left" MaxWidth="760">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                            <TextBlock Style="{StaticResource T.Label}" Text="{Binding Author}" Foreground="{StaticResource B.Text3}" />
+                                            <TextBlock Style="{StaticResource T.Label}" Text="{loc:T ' · ПЕЧАТАЕТ…'}" Foreground="{StaticResource B.Text3}"
+                                                       Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource T.Body}" Text="{Binding Text}" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource T.Caption}" Text="{Binding Note}" TextWrapping="Wrap" Margin="0,5,0,0"
+                                                   Visibility="{Binding Note, Converter={StaticResource NullToVis}}" />
+                                        <ItemsControl ItemsSource="{Binding Actions}" Focusable="False" Margin="0,4,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type shell:PaletteEntry}">
+                                                    <Button Style="{StaticResource Btn.Link}" Margin="0,6,8,0" ToolTip="{Binding Description}"
+                                                            Command="{Binding DataContext.OpenPlaceCommand, ElementName=Root}" CommandParameter="{Binding}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{loc:T 'ОТКРЫТЬ: '}" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding Title, Converter={StaticResource Upper}}" VerticalAlignment="Center" />
+                                                            <TextBlock Text=" →" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsUser}" Value="True">
+                                        <Setter TargetName="Bubble" Property="HorizontalAlignment" Value="Right" />
+                                        <Setter TargetName="Bubble" Property="Background" Value="{StaticResource B.Surface3}" />
+                                        <Setter TargetName="Bubble" Property="MaxWidth" Value="560" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <!-- Empty: what to ask and what the assistant sees -->
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520" Visibility="{Binding HasMessages, Converter={StaticResource InverseBoolToVis}}">
+                    <TextBlock Style="{StaticResource T.BodyStrong}" HorizontalAlignment="Center" TextAlignment="Center" Text="{loc:T 'Спросите о своём ПК'}" />
+                    <TextBlock Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Text="{loc:T 'Помощник видит результаты проверок Lycoris и сводку о железе — без имени пользователя, паролей и файлов. Под ответом — кнопки, которые открывают нужное место.'}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════ The question bar (outside the scroll) ═══════════ -->
+        <Border Grid.Row="4" Margin="0,10,0,0" Style="{StaticResource Card}" Padding="12,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="Input" Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" MinHeight="38" MaxLength="1000"
+                         AutomationProperties.Name="{loc:T 'Ваш вопрос'}" ToolTip="{loc:T 'Enter — спросить'}">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding AskCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                    <Button Style="{StaticResource Btn}" Command="{Binding ClearCommand}" Margin="0,0,8,0" Height="38">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T ОЧИСТИТЬ}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn}" Command="{Binding StopCommand}" Margin="0,0,8,0" Height="38"
+                            Visibility="{Binding IsAnswering, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T СТОП}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn.Hero}" Command="{Binding AskCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Assistant}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
+                            <TextBlock Text="{loc:T СПРОСИТЬ}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

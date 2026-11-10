@@ -72,6 +72,19 @@ jobs:
             Get-ChildItem $out -Filter *.png | ForEach-Object { $_.Name }
           }
 
+      # «Помощник» with a sample conversation (CI machines have no Ollama; nothing is sent anywhere)
+      - name: Snapshot Assistant with a demo conversation
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'src/Lycoris/bin/Release/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe').Path
+          foreach ($lang in 'ru', 'en') {
+            $out = Join-Path $env:RUNNER_TEMP "lycoris-demo-assistant-$lang"
+            $process = Start-Process -FilePath $exe -ArgumentList @('--snapshot', $out, '--page', 'assistant', '--pages', 'assistant', '--demo-assistant', '--lang', $lang, '--no-elevate') -Wait -PassThru -WindowStyle Hidden
+            if ($process.ExitCode -ne 0) { throw "Assistant demo snapshot ($lang) failed with exit code $($process.ExitCode)" }
+            Get-ChildItem $out -Filter *.png | ForEach-Object { $_.Name }
+          }
+
       # screenshots of every page (ru + en) for visual review of UI changes — the owner's PC blocks unsigned dev builds (Smart App Control)
       - name: Upload self-test screenshots
         if: success() && matrix.os == 'windows-2025'

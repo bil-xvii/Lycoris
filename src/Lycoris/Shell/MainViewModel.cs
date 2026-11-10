@@ -91,7 +91,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     /// <summary>Sidebar group of a page key (pure; tested).</summary>
     public static string NavGroupOf(string pageKey) => pageKey switch
     {
-        "home" or "dashboard" => GroupOverview,
+        "home" or "dashboard" or "assistant" => GroupOverview,
         "optimize" or "games" or "services" or "devices" => GroupBoost,
         "maintenance" or "drivers" or "apps" => GroupMaintenance,
         "restore" => GroupProtection,
@@ -105,6 +105,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         [
             new HomeViewModel(dashboard),
             dashboard,
+            new Lycoris.Modules.Assistant.AssistantViewModel(dashboard),
             new OptimizeViewModel(),
             new GamesViewModel(),
             new ServicesViewModel(),
