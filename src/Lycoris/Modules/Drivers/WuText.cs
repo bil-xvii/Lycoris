@@ -44,9 +44,23 @@ internal static partial class WuText
         unchecked((int)0x8024401C), // WU_E_PT_HTTP_STATUS_REQUEST_TIMEOUT
         unchecked((int)0x80244022), // WU_E_PT_HTTP_STATUS_SERVICE_UNAVAIL
         unchecked((int)0x80240438), // WU_E_PT_ENDPOINT_UNREACHABLE
+        unchecked((int)0x80072EFF), // ERROR_INTERNET_CONNECTION_RESET
+        unchecked((int)0x80246005), // WU_E_DM_NONETWORK
+        unchecked((int)0x80D03805), // DO_E_BLOCKED_BY_NO_NETWORK
     ];
 
     public static bool IsNetworkError(int hresult) => NetworkErrors.Contains(hresult);
+
+    // Microsoft's side is busy or broken (not the user's network): wait a little, then retry once.
+    private static readonly int[] ServerBusyErrors =
+    [
+        unchecked((int)0x8024401F), // WU_E_PT_HTTP_STATUS_SERVER_ERROR (500)
+        unchecked((int)0x80244021), // WU_E_PT_HTTP_STATUS_BAD_GATEWAY (502)
+        unchecked((int)0x80244023), // WU_E_PT_HTTP_STATUS_GATEWAY_TIMEOUT (504)
+        unchecked((int)0x8024402D), // WU_E_PT_LOAD_SHEDDING (Microsoft: transient, retry later)
+    ];
+
+    public static bool IsServerBusy(int hresult) => ServerBusyErrors.Contains(hresult);
 
     public static bool IsSuccess(int resultCode) => resultCode is OrcSucceeded or OrcSucceededWithErrors;
 
@@ -54,23 +68,33 @@ internal static partial class WuText
     public const int FileNotFound = unchecked((int)0x80070002);     // ERROR_FILE_NOT_FOUND (the payload vanished from the cache)
 
     // Download failures that a second try usually fixes (owner's PC 10.11.2026: three Realtek drivers failed with 0x80240034 /
-    // 0x80070002 and installed fine one minute later). Not retried: cancel, policy, rights, EULA, service disabled.
+    // 0x80070002 and installed fine one minute later). Codes checked against Microsoft Learn "Windows Update error codes by
+    // component" and "Delivery Optimization return values". Not retried: cancel, policy, rights, EULA, service disabled, no disk space.
     private static readonly int[] TransientDownloadErrors =
     [
         DownloadFailed, FileNotFound,
+        unchecked((int)0x80246002), // WU_E_DM_INCORRECTFILEHASH (corrupt download — fetch again)
         unchecked((int)0x80246007), // WU_E_DM_NOTDOWNLOADED
         unchecked((int)0x80246008), // WU_E_DM_FAILTOCONNECTTOBITS
-        unchecked((int)0x8024200D), // WU_E_UH_NEEDANOTHERDOWNLOAD
+        unchecked((int)0x80246009), // WU_E_DM_BITSTRANSFERERROR
+        unchecked((int)0x8024600A), // WU_E_DM_DOWNLOADLOCATIONCHANGED ("download must be restarted")
+        unchecked((int)0x8024600B), // WU_E_DM_CONTENTCHANGED ("download must be restarted")
+        unchecked((int)0x80244025), // WU_E_PT_FILE_LOCATIONS_CHANGED ("refresh and resend")
+        unchecked((int)0x80D02002), // DO_E_DOWNLOAD_NO_PROGRESS (Delivery Optimization stalled)
         unchecked((int)0x80240021), // WU_E_TIME_OUT
     ];
 
+    /// <summary>Pause before the one retry: a network failure needs time to recover, a dropped file does not.</summary>
+    public static TimeSpan RetryDelayFor(IEnumerable<int> hresults) =>
+        hresults.Any(h => IsNetworkError(h) || IsServerBusy(h)) ? TimeSpan.FromSeconds(30) : TimeSpan.FromSeconds(5);
+
     /// <summary>
-    /// True when one automatic retry of the download is worth it: the item failed (not aborted by the user) with a network or
-    /// transient download error, or with no error code at all.
+    /// True when one automatic retry of the download is worth it: the item ended as failed (not aborted, not still running)
+    /// with a network or transient download error, or with no error code at all.
     /// </summary>
     public static bool IsRetryableDownload(int resultCode, int hresult) =>
-        !IsSuccess(resultCode) && resultCode != OrcAborted
-        && (hresult == 0 || IsNetworkError(hresult) || TransientDownloadErrors.Contains(hresult));
+        resultCode == OrcFailed
+        && (hresult == 0 || IsNetworkError(hresult) || IsServerBusy(hresult) || TransientDownloadErrors.Contains(hresult));
 
     /// <summary>OperationResultCode → short Russian status.</summary>
     public static string ResultText(int resultCode) => resultCode switch

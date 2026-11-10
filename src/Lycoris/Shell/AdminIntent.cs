@@ -74,8 +74,8 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         "Apply", "ApplyPlan", "ApplyProfile", "ApplyRecommendations", "ApplyRecommended", "ApplySetting", "ApplyStartType", "ApplyTasks",
         "Clean", "CreateRestorePoint", "DeleteBackup", "DisableExtraStartup", "DisableSelectedStartup", "DownloadDriver", "EnableDevice",
         "EnableProtection", "EnableSelectedStartup", "ExportBackup", "FixSafe", "GpuDownload", "InstallHardware", "InstallUpdates",
-        "PlayBoostedGame", "ReapplyAllDrift", "ReapplyDrift", "RepairWindows", "RestoreBackup", "RestoreStale", "RevertAll", "RevertBatch",
-        "RevertItem", "RevertLastBatch", "RevertRecord", "RevertService", "RevertSetting", "RevertTask", "RunCheck", "RunTool", "ShowPoints",
+        "AddPriorityRule", "PlayBoostedGame", "ReapplyAllDrift", "ReapplyDrift", "RepairWindows", "RestoreBackup", "RestoreStale", "RevertAll", "RevertBatch",
+        "RevertItem", "RevertLastBatch", "RevertRecord", "RevertService", "RevertSetting", "RemovePriorityRule", "RevertTask", "RunCheck", "RunTool", "ScheduleMaintenance", "ShowPoints",
         "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
     };
 

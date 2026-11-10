@@ -283,6 +283,76 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                <!-- ═══════════════ Scheduled maintenance: state · day and time · labelled buttons (logic: CleanerViewModel.Schedule) ═══════════════ -->
+                <Border Style="{StaticResource Card}" Padding="14,11,14,12" Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.History}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{StaticResource B.Text2}" Margin="0,0,9,0" />
+                                <TextBlock Text="{loc:T 'Обслуживание по расписанию'}" Style="{StaticResource T.H3}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <Border Style="{StaticResource Tag.Ok}" Margin="0,2,0,2" Visibility="{Binding ScheduleIsOn, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding ScheduleStateText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag.Warn}" Margin="0,2,0,2" Visibility="{Binding ScheduleNeedsFix, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding ScheduleStateText}" />
+                                </Border>
+                                <Border Style="{StaticResource Tag.Muted}" Margin="0,2,0,2" Visibility="{Binding ScheduleTagMuted, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding ScheduleStateText}" />
+                                </Border>
+                            </WrapPanel>
+                            <TextBlock Text="{Binding ScheduleDetail}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            <TextBlock Text="{Binding ScheduleLastText}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text2}"
+                                       TextWrapping="Wrap" Margin="0,5,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding ScheduleShowPicker, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{loc:T ДЕНЬ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox Width="140" MinWidth="0" ItemsSource="{Binding ScheduleDays}" SelectedItem="{Binding ScheduleDay}" DisplayMemberPath="Name"
+                                          VerticalAlignment="Center" ToolTip="{loc:T 'День недели запуска'}" />
+                                <TextBlock Text="{loc:T ВРЕМЯ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                                <ComboBox Width="84" MinWidth="0" ItemsSource="{Binding ScheduleTimes}" SelectedItem="{Binding ScheduleTime}"
+                                          VerticalAlignment="Center" ToolTip="{loc:T 'Время запуска по часам этого ПК'}" Margin="0,0,10,0" />
+                            </StackPanel>
+                            <Button Style="{StaticResource Btn}" Command="{Binding EnableScheduleCommand}" Margin="0,0,8,0"
+                                    Visibility="{Binding ScheduleIsOff, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="{loc:T 'Создать еженедельную задачу — после подтверждения со списком'}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="{loc:T ВКЛЮЧИТЬ}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Btn}" Command="{Binding EnableScheduleCommand}" Margin="0,0,8,0"
+                                    Visibility="{Binding ScheduleChanged, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Save}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="{loc:T 'СОХРАНИТЬ ВРЕМЯ'}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Btn}" Command="{Binding FixScheduleCommand}" Margin="0,0,8,0"
+                                    Visibility="{Binding ScheduleNeedsFix, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="{loc:T 'Задача будет запускать эту копию Lycoris'}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Repair}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="{loc:T ИСПРАВИТЬ}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Btn}" Command="{Binding DisableScheduleCommand}"
+                                    Visibility="{Binding ScheduleCanDisable, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="{loc:T 'Удалить задачу из планировщика — после подтверждения'}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="{loc:T ВЫКЛЮЧИТЬ}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- Elevated as another account -->
                 <TextBlock Text="{Binding ForeignUserText}" Style="{StaticResource T.Caption}" Margin="0,10,0,0"
                            Visibility="{Binding ForeignUserText, Converter={StaticResource NullToVis}}" />

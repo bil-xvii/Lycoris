@@ -76,6 +76,8 @@ public sealed class ChangeRecord
         Source == source || AlsoSources.Contains(source);
     public bool? TaskWasEnabled { get; set; }
     public string? TaskPath { get; init; }
+    /// <summary>Lycoris's own maintenance task (source "maintenance"): its state before this change (absent = the undo deletes it).</summary>
+    public Lycoris.Core.Maintenance.MaintenanceTaskSnapshot? MaintenanceTask { get; set; }
     public string? RevertFile { get; set; }
     public string? RevertArgs { get; set; }
 
@@ -733,11 +735,11 @@ public sealed class ChangeJournal
     private readonly record struct RestoreInputs(string OldValue, RegistryValueSnapshot? Registry, ServiceStartSnapshot? Service,
         Guid? PlanOriginal, Guid? PlanCreated, string PlansMore, bool? TaskWasEnabled, string? RevertFile, string? RevertArgs,
         SpiSnapshot? Spi, DisplayModeSnapshot? DisplayMode, DisplayHdrSnapshot? DisplayHdr, MonitorVcpSnapshot? Monitor,
-        AudioLevelSnapshot? Audio, NicPropertySnapshot? Nic)
+        AudioLevelSnapshot? Audio, NicPropertySnapshot? Nic, Lycoris.Core.Maintenance.MaintenanceTaskSnapshot? MaintenanceTask)
     {
         public static RestoreInputs Of(ChangeRecord r) => new(r.OldValue, r.Registry, r.Service, r.PowerSchemeOriginal,
             r.PowerSchemeCreated, string.Join(",", r.PowerSchemesCreatedMore ?? []), r.TaskWasEnabled, r.RevertFile, r.RevertArgs,
-            r.Spi, r.DisplayMode, r.DisplayHdr, r.Monitor, r.Audio, r.Nic);
+            r.Spi, r.DisplayMode, r.DisplayHdr, r.Monitor, r.Audio, r.Nic, r.MaintenanceTask);
     }
 
     private async Task<RevertResult> RevertCoreAsync(IEnumerable<ChangeRecord> records, Func<ChangeRecord, RevertCheck>? verify)
@@ -898,7 +900,7 @@ public sealed class ChangeJournal
         lock (_lock)
         {
             var backup = (newer.OldValue, newer.Registry, newer.Service, newer.PowerSchemeOriginal, newer.PowerSchemeCreated,
-                More: newer.PowerSchemesCreatedMore?.ToList(), newer.TaskWasEnabled, newer.RevertFile, newer.RevertArgs);
+                More: newer.PowerSchemesCreatedMore?.ToList(), newer.TaskWasEnabled, newer.RevertFile, newer.RevertArgs, newer.MaintenanceTask);
             var deviceBackup = (newer.Spi, newer.DisplayMode, newer.DisplayHdr, newer.Monitor, newer.Audio, newer.Nic);
             newer.OldValue = r.OldValue;
             switch (r.Kind)
@@ -906,7 +908,10 @@ public sealed class ChangeJournal
                 case ChangeKind.Registry: newer.Registry = r.Registry; break;
                 case ChangeKind.Service: newer.Service = r.Service; break;
                 case ChangeKind.PowerScheme: newer.PowerSchemeOriginal = r.PowerSchemeOriginal; break;
-                case ChangeKind.ScheduledTask: newer.TaskWasEnabled = r.TaskWasEnabled; break;
+                case ChangeKind.ScheduledTask:
+                    newer.TaskWasEnabled = r.TaskWasEnabled;
+                    newer.MaintenanceTask = r.MaintenanceTask;
+                    break;
                 case ChangeKind.Command:
                     newer.RevertFile = r.RevertFile;
                     newer.RevertArgs = r.RevertArgs;
@@ -950,6 +955,7 @@ public sealed class ChangeJournal
                 newer.PowerSchemeCreated = backup.PowerSchemeCreated;
                 newer.PowerSchemesCreatedMore = backup.More;
                 newer.TaskWasEnabled = backup.TaskWasEnabled;
+                newer.MaintenanceTask = backup.MaintenanceTask;
                 newer.RevertFile = backup.RevertFile;
                 newer.RevertArgs = backup.RevertArgs;
                 (newer.Spi, newer.DisplayMode, newer.DisplayHdr, newer.Monitor, newer.Audio, newer.Nic) = deviceBackup;
@@ -1083,6 +1089,9 @@ public sealed class ChangeJournal
     /// </summary>
     internal static bool IsForbiddenRestoreTarget(RegistryValueSnapshot s)
     {
+        // The one IFEO value Lycoris writes: a program's CPU priority rule (PerfOptions\CpuPriorityClass of a non-system exe,
+        // original absent or a known level). Debugger, GlobalFlag, MitigationOptions… and every other IFEO value stay refused.
+        if (Lycoris.Modules.Games.PriorityRules.IsRuleValue(s)) return false;
         var p = s.Path.Replace('/', '\\').TrimEnd('\\').ToLowerInvariant();
         var n = s.Name.ToLowerInvariant();
         if (p.Contains("image file execution options") || p.Contains("silentprocessexit")) return true;
@@ -1341,6 +1350,11 @@ internal sealed class WindowsJournalSystem : IJournalSystem
                 return new RevertOutcome(note, DeletedSchemes: gone);
             }
 
+            case ChangeKind.ScheduledTask when r.Source == Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source && r.MaintenanceTask is { } original:
+                // Rebuilt from the recorded data by Lycoris's own code (normal rights only), never from a stored definition.
+                Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Apply(original);
+                return RevertOutcome.Done;
+
             case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
                 var taskNow = ScheduledTasks.Query(r.TaskPath);
                 // The scheduler not answering is not «the task is gone»: closing the record would leave the task changed for good.
@@ -1425,6 +1439,7 @@ internal static class JournalTrust
     private static readonly HashSet<string> ModuleSources = new(StringComparer.Ordinal)
     {
         "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers", "games", DeviceTargets.Source,
+        Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source,
     };
 
     /// <summary>Kinds only the «Устройства и сеть» page writes (and the only kinds it writes).</summary>
@@ -1451,7 +1466,7 @@ internal static class JournalTrust
         ChangeKind? expected = r.Source switch
         {
             "services" => ChangeKind.Service,
-            "services-tasks" or "startup-tasks" => ChangeKind.ScheduledTask,
+            "services-tasks" or "startup-tasks" or Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source => ChangeKind.ScheduledTask,
             "startup" or "games" => ChangeKind.Registry,
             // The game session switches the plan or, where no plan switch is possible, the Windows 11 AC power mode.
             "gameboost" => r.Kind == ChangeKind.Command ? ChangeKind.Command : ChangeKind.PowerScheme,
@@ -1481,11 +1496,19 @@ internal static class JournalTrust
                 if (reg.CreatedKeyRoot is { } root)
                 {
                     if (!RegistryHelper.IsValidCreatedRoot(reg.Path, root)) return Loc.T("некорректный раздел, созданный Lycoris");
-                    if (ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = reg.Hive, Path = root, Name = "" }))
+                    // A priority rule may own the program's IFEO key (or its PerfOptions key): removed only while empty.
+                    var isRule = Lycoris.Modules.Games.PriorityRules.IsRuleValue(reg);
+                    var ruleRoot = isRule && Lycoris.Modules.Games.PriorityRules.IsRuleKeyRoot(reg.Hive, root);
+                    if (isRule && !ruleRoot) return Loc.Tf("{0}\\{1} — защищённое место реестра", reg.Hive, root);
+                    if (!ruleRoot && ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = reg.Hive, Path = root, Name = "" }))
                         return Loc.Tf("{0}\\{1} — защищённое место реестра", reg.Hive, root);
                 }
                 if (r.Source == "startup" && !IsStartupMark(reg)) return Loc.Tf("{0} — не отметка автозагрузки", reg.FullName);
-                if (r.Source == "games" && !IsGpuPreference(reg)) return Loc.Tf("{0} — не выбор видеокарты для игры", reg.FullName);
+                if (r.Source == "games" && !IsGpuPreference(reg) && !Lycoris.Modules.Games.PriorityRules.IsRuleValue(reg))
+                    return Loc.Tf("{0} — не выбор видеокарты и не приоритет программы", reg.FullName);
+                // A priority rule is written only by the Games page (a tweak or another page never touches IFEO).
+                if (r.Source != "games" && Lycoris.Modules.Games.PriorityRules.IsRuleValue(reg))
+                    return Loc.Tf("{0} — защищённое место реестра", reg.FullName);
                 return null;
 
             case ChangeKind.Service when r.Service is { } svc:
@@ -1497,6 +1520,9 @@ internal static class JournalTrust
                     && !(LegacyRevertibleServices.Contains(svc.Name) && svc.StartMode != System.ServiceProcess.ServiceStartMode.Disabled))
                     return Loc.Tf("службу {0} Lycoris никогда не меняет", svc.Name);
                 return null;
+
+            case ChangeKind.ScheduledTask when r.Source == Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source || r.MaintenanceTask is not null:
+                return CheckMaintenanceTask(r);
 
             case ChangeKind.ScheduledTask when r.TaskPath is { } task:
                 if (!string.Equals(r.Target, "task:" + task, StringComparison.OrdinalIgnoreCase)) return Loc.T("цель записи не совпадает с задачей");
@@ -1528,6 +1554,19 @@ internal static class JournalTrust
             default:
                 return null; // no data to revert: the system side reports that itself
         }
+    }
+
+    /// <summary>Lycoris's maintenance task: only its own fixed path, only its own record form, a state Lycoris could have written.</summary>
+    private static string? CheckMaintenanceTask(ChangeRecord r)
+    {
+        if (r.Source != Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source || r.AlsoSources.Count > 0)
+            return Loc.T("данные задачи обслуживания в записи другого источника");
+        if (r.Target != Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Target
+            || r.TaskPath != Lycoris.Core.Maintenance.ScheduledMaintenanceTask.TaskPath)
+            return Loc.T("цель записи не совпадает с задачей обслуживания");
+        if (r.TaskWasEnabled is not null) return Loc.T("лишние данные в записи задачи обслуживания");
+        if (r.MaintenanceTask is not { } original) return Loc.T("в записи задачи обслуживания нет исходного состояния");
+        return original.Problem();
     }
 
     // ───────────────────────────── Device records ─────────────────────────────

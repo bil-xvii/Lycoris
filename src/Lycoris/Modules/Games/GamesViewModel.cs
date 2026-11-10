@@ -168,7 +168,7 @@ public sealed partial class GamesViewModel : PageViewModel
 
         CheckStale();
         await RecoverStaleEcoQosAsync(); // before the slow scan and dialogs, so a quick ИГРАТЬ cannot overwrite the marker
-        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync(), RefreshCloseModeAsync());
+        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), ScanAsync(), RefreshCloseModeAsync(), RefreshPriorityRulesAsync());
         MarkChecked();
         await OfferStaleRestoreAsync();
     }
@@ -215,7 +215,7 @@ public sealed partial class GamesViewModel : PageViewModel
         // Library changes rarely: rescan on return only when the last scan is a few minutes old (ОБНОВИТЬ forces it).
         var rescan = DateTime.Now - _lastScan > TimeSpan.FromMinutes(3) ? ScanAsync() : Task.CompletedTask;
         // The GPU choice may have been changed in Windows Settings or undone in «Восстановление» meanwhile.
-        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), rescan);
+        await Task.WhenAll(RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshGpuAsync(), rescan, RefreshPriorityRulesAsync());
         MarkChecked();
     }
 
@@ -312,7 +312,7 @@ public sealed partial class GamesViewModel : PageViewModel
     [RelayCommand]
     private async Task Refresh()
     {
-        await Task.WhenAll(ScanAsync(), RefreshReadinessAsync(), RefreshPowerNoteAsync());
+        await Task.WhenAll(ScanAsync(), RefreshReadinessAsync(), RefreshPowerNoteAsync(), RefreshPriorityRulesAsync());
         MarkChecked();
     }
 

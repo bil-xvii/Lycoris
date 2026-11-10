@@ -114,8 +114,6 @@ internal static class WindowsUpdateDrivers
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
-    /// <summary>Pause before the one automatic retry of failed downloads (lets a CDN hiccup pass).</summary>
-    public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan AbortGrace = TimeSpan.FromMinutes(2);
 
     // ───────────── Public API ─────────────
@@ -227,7 +225,7 @@ internal static class WindowsUpdateDrivers
             if (retry.Count > 0)
             {
                 Log.Info("Windows Update: повтор загрузки ({0}) после ошибки {1}", retry.Count, string.Join(", ", retry.Select(f => $"0x{unchecked((uint)f.Hr):X8}").Distinct()));
-                token.WaitHandle.WaitOne(RetryDelay);
+                token.WaitHandle.WaitOne(WuText.RetryDelayFor(retry.Select(f => f.Hr)));
                 token.ThrowIfCancellationRequested();
                 dynamic retryColl = New("Microsoft.Update.UpdateColl");
                 foreach (var f in retry) retryColl.Add(coll[f.Index]);

@@ -244,6 +244,7 @@ internal static class OptimizeLogic
         "games" => Loc.T("Игры"),
         "drivers" => Loc.T("Драйверы"),
         "devices" => Loc.T("Устройства и сеть"),
+        Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source => Loc.T("Обслуживание по расписанию"),
         _ => source,
     };
 

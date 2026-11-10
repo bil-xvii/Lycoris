@@ -308,6 +308,7 @@
     "Lycoris уже открыт: закройте его окно и повторите команду. Ничего не изменено.": "Lycoris is already open: close its window and run the command again. Nothing was changed.",
     "Часть изменений вступит в силу после перезагрузки или повторного входа в Windows — Lycoris её не выполняет.": "Some changes take effect after a restart or signing in to Windows again — Lycoris does not do that for you.",
     "ИЗМЕНИТСЯ {0}:": "WILL CHANGE {0}:",
-    "состояние: {0} → {1}": "state: {0} → {1}"
+    "состояние: {0} → {1}": "state: {0} → {1}",
+    "Обслуживание по расписанию": "Scheduled maintenance"
   }
 }
