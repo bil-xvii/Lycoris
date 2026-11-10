@@ -49,14 +49,41 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     public string LastBatchMenuText => LastBatchTitle is { } t ? Loc.Tf("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ «{0}»", t) : Loc.T("ОТКАТИТЬ ПОСЛЕДНИЙ ПАКЕТ — ПАКЕТОВ НЕТ");
     /// <summary>«ОТКАТ · 71» in the title bar.</summary>
     public string UndoButtonText => ActiveChanges > 0 ? Loc.Tf("ОТКАТ · {0}", ActiveChanges) : Loc.T("ОТКАТ");
-    public bool ExpertMode { get => AppSettings.Current.ExpertMode; set => SetExpertMode(value); }
+    public bool ExpertMode { get => AppSettings.Current.ExpertMode; set { if (!value) SetExpertMode(false); else _ = RequestExpertModeAsync(); } }
     public string ExpertModeText => ExpertMode ? Loc.T("ЭКСПЕРТ") : Loc.T("ПРОСТОЙ");
 
     [RelayCommand] private void SetSimpleMode() => SetExpertMode(false);
-    [RelayCommand] private void SetExpertModeCommand() => SetExpertMode(true);
+    [RelayCommand] private Task SetExpertModeCommand() => RequestExpertModeAsync();
+
+    private bool _confirmingExpertMode;
+
+    public async Task<bool> RequestExpertModeAsync()
+    {
+        if (AppSettings.Current.ExpertMode) return true;
+        if (_confirmingExpertMode) return false;
+        _confirmingExpertMode = true;
+        try
+        {
+            var accepted = await Ui.ConfirmAsync(
+                Loc.T("Включить режим Эксперт?"),
+                Loc.T("Откроются настройки уровня ЭКСПЕРТ и полный список служб. Они могут ухудшить безопасность, совместимость и работу ПК."),
+                [Loc.T("Изменения по-прежнему записываются в журнал и откатываются в разделе «Восстановление».")],
+                confirmText: Loc.T("ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ"), cancelText: Loc.T("ОСТАТЬСЯ В ПРОСТОМ РЕЖИМЕ"), danger: true);
+            if (!accepted) return false;
+            SetExpertMode(true);
+            return true;
+        }
+        finally
+        {
+            _confirmingExpertMode = false;
+            OnPropertyChanged(nameof(ExpertMode));
+            OnPropertyChanged(nameof(ExpertModeText));
+        }
+    }
 
     private void SetExpertMode(bool value)
     {
+        if (AppSettings.Current.ExpertMode == value) return;
         AppSettings.Current.ExpertMode = value;
         OnPropertyChanged(nameof(ExpertMode));
         OnPropertyChanged(nameof(ExpertModeText));

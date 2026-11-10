@@ -170,8 +170,12 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>Every property change saves, from the UI thread and from background tasks (update check): one writer at a time, they share one .tmp file.</summary>
     private static readonly object SaveLock = new();
 
+    /// <summary>QA only («--snapshot … --mode simple|expert»): settings changed in memory for the screenshot are never written.</summary>
+    public static bool SaveSuspended { get; set; }
+
     public void Save()
     {
+        if (SaveSuspended) return;
         try
         {
             lock (SaveLock)

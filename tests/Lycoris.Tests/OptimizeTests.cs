@@ -10,6 +10,29 @@ namespace Lycoris.Tests;
 /// <summary>Pure logic of the Optimize page. Nothing here touches the real system.</summary>
 public sealed class OptimizeTests
 {
+    [Theory]
+    [InlineData(TweakRisk.Safe, false, true)]
+    [InlineData(TweakRisk.Optional, false, true)]
+    [InlineData(TweakRisk.Advanced, false, false)]
+    [InlineData(TweakRisk.Advanced, true, true)]
+    public void Applying_a_tweak_depends_on_mode_and_risk(TweakRisk risk, bool expertMode, bool expected) =>
+        Assert.Equal(expected, OptimizeLogic.CanApplyRisk(risk, expertMode));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Reverting_a_journaled_tweak_is_available_in_both_modes(bool expertMode) =>
+        Assert.True(OptimizeLogic.CanRevert(hasJournalEntry: true, expertMode));
+
+    [Fact]
+    public void Applying_and_importing_filter_advanced_items_only_in_simple_mode()
+    {
+        var tweaks = new[] { Tweak("safe", "Safe"), Tweak("advanced", "Advanced", risk: TweakRisk.Advanced) };
+
+        Assert.Equal(["safe"], OptimizeLogic.FilterApplicable(tweaks, t => t.Risk, expertMode: false).Select(t => t.Id));
+        Assert.Equal(["safe", "advanced"], OptimizeLogic.FilterApplicable(tweaks, t => t.Risk, expertMode: true).Select(t => t.Id));
+    }
+
     private static CustomTweak Tweak(string id, string title, string description = "", string details = "",
         TweakCategory category = TweakCategory.Gaming, TweakRisk risk = TweakRisk.Safe) => new()
     {

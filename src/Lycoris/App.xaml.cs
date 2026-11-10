@@ -38,6 +38,7 @@ namespace Lycoris;
 ///                          rolls back if it crashes within 10 s.
 ///  --demo-update           with --snapshot (QA only): pretend a newer version exists (title bar button, Settings About)
 ///  --demo-measurements     with --snapshot (QA only): Home shows an in-memory history of six measurements (nothing saved)
+///  --mode simple|expert    with --snapshot (QA only): show that mode; settings are not saved during the run
 ///  --demo-assistant        with --snapshot (QA only): «Помощник» shows a sample conversation (no Ollama needed, nothing sent)
 ///  --display-guard …       INTERNAL: the guard of a display change (Core/Devices/DisplaySafeApply). Started by Lycoris
 ///                          itself, no window; it reverts the display mode/HDR if Lycoris dies or the user never
@@ -213,6 +214,12 @@ public partial class App : Application
         // QA: a sample «Помощник» conversation (CI has no Ollama); nothing is sent anywhere.
         Lycoris.Modules.Assistant.AssistantViewModel.Demo = Lycoris.Modules.Assistant.AssistantDemo.Resolve(snapshotDir is not null, args);
 
+        // QA: «--mode simple|expert» shows the chosen mode on the screenshots; settings are not saved for the whole run.
+        if (snapshotDir is not null && ArgValue(args, "--mode") is "simple" or "expert")
+        {
+            AppSettings.SaveSuspended = true;
+            AppSettings.Current.ExpertMode = ArgValue(args, "--mode") == "expert";
+        }
         StartupTiming.Mark("before MainViewModel");
         var vm = new MainViewModel();
         StartupTiming.Mark("MainViewModel built");

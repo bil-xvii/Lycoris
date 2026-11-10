@@ -6,6 +6,13 @@
   ],
   "ignore": [],
   "en": {
+    "Доступно в режиме Эксперт · {0} настройка": "Available in Expert mode · {0} setting",
+    "Доступно в режиме Эксперт · {0} настройки": "Available in Expert mode · {0} settings",
+    "Доступно в режиме Эксперт · {0} настроек": "Available in Expert mode · {0} settings",
+    "Настройки уровня ЭКСПЕРТ могут ухудшить безопасность, совместимость или работу ПК.": "EXPERT settings may reduce security, compatibility or PC stability.",
+    "Настройки уровня ЭКСПЕРТ пропущены — включите режим Эксперт.": "EXPERT settings were skipped — enable Expert mode.",
+    "{0} настроек уровня ЭКСПЕРТ пропущено — включите режим Эксперт.": "{0} EXPERT settings were skipped — enable Expert mode.",
+    " Необратимые пункты отметьте вручную: у каждого своё предупреждение.": " Select irreversible items manually; each has its own warning.",
     "Оптимизация: не удалось прочитать свой набор ({0}).": "Optimize: could not read the custom set ({0}).",
     "Оптимизация: не удалось сохранить свой набор ({0}).": "Optimize: could not save the custom set ({0}).",
     "РАБОТА И УЧЁБА": "WORK & STUDY",

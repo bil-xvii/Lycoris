@@ -111,7 +111,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         if (StartupTabShown) await EnsureStartupAsync();
         if (IsBusy) return;
         // Expert mode was toggled elsewhere: re-apply the locks to the last scan (no rescan needed).
-        if (_builtExpertMode != AppSettings.Current.ServicesExpertMode) BuildAllServices(_scannedServices);
+        if (_builtExpertMode != ServicesExpertMode) BuildAllServices(_scannedServices);
         await RefreshStatesAsync();
     }
 
@@ -280,14 +280,20 @@ public sealed partial class ServicesViewModel : PageViewModel
     /// </summary>
     public bool ServicesExpertMode
     {
-        get => AppSettings.Current.ServicesExpertMode;
+        get => ServiceGuard.ExpertModeEnabled(AppSettings.Current.ExpertMode, AppSettings.Current.ServicesExpertMode);
         set
         {
-            if (value == AppSettings.Current.ServicesExpertMode) return;
+            if (value == ServicesExpertMode) return;
             if (!value)
             {
                 AppSettings.Current.ServicesExpertMode = false;
                 Log.Info("Экспертный режим служб выключен: службы вне списка Lycoris снова только для просмотра.");
+                return;
+            }
+            if (!AppSettings.Current.ExpertMode)
+            {
+                OnPropertyChanged(nameof(ServicesExpertMode));
+                _ = EnableServicesExpertModeAsync();
                 return;
             }
             // Keep the toggle off until the user confirms (re-raised after the binding finishes its update).
@@ -328,14 +334,26 @@ public sealed partial class ServicesViewModel : PageViewModel
         }
     }
 
+    [RelayCommand]
+    private async Task RequestExpertModeAsync()
+    {
+        if (Ui.Host is MainViewModel shell) await shell.RequestExpertModeAsync();
+    }
+
+    private async Task EnableServicesExpertModeAsync()
+    {
+        if (Ui.Host is not MainViewModel shell || !await shell.RequestExpertModeAsync()) return;
+        await ConfirmEnableExpertModeAsync();
+    }
+
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(AppSettings.ServicesExpertMode)) return;
+        if (e.PropertyName is not (nameof(AppSettings.ServicesExpertMode) or nameof(AppSettings.ExpertMode))) return;
         Ui.Post(() =>
         {
-            if (!_confirmingExpertMode) OnPropertyChanged(nameof(ServicesExpertMode));
+            OnPropertyChanged(nameof(ServicesExpertMode));
             // Re-apply the locks to the last scan (no rescan needed).
-            if (_scannedServices.Count > 0 && _builtExpertMode != AppSettings.Current.ServicesExpertMode)
+            if (_scannedServices.Count > 0 && _builtExpertMode != ServicesExpertMode)
                 BuildAllServices(_scannedServices);
         });
     }

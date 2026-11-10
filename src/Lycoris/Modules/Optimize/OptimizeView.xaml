@@ -521,9 +521,11 @@
         </StackPanel>
 
         <!-- The tweak list: the only scroller -->
-        <ItemsControl x:Name="RowsList" Grid.Row="3" Margin="0,12,-10,0" ItemsSource="{Binding Rows}" Focusable="False"
+        <Grid Grid.Row="3" Margin="0,12,-10,0">
+        <ItemsControl x:Name="RowsList" ItemsSource="{Binding Rows}" Focusable="False"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Standard"
-                      VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True">
+                      VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True"
+                      Visibility="{Binding IsExpertLocked, Converter={StaticResource InverseBoolToVis}}">
             <ItemsControl.Template>
                 <ControlTemplate TargetType="ItemsControl">
                     <ScrollViewer CanContentScroll="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
@@ -537,6 +539,22 @@
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
         </ItemsControl>
+        <Border Style="{StaticResource Card}" VerticalAlignment="Top" Visibility="{Binding IsExpertLocked, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="16" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding ExpertLockText}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Text="{Binding ExpertLockReason}" Style="{StaticResource T.Caption}" Margin="0,5,0,10" />
+                <Button HorizontalAlignment="Left" Command="{Binding RequestExpertModeCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+        </Grid>
         <!-- Soft edge where the list scrolls under the sticky bar -->
         <Rectangle Grid.Row="3" Height="26" VerticalAlignment="Bottom" IsHitTestVisible="False">
             <Rectangle.Fill>

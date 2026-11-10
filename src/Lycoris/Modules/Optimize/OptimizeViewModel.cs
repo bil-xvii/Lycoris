@@ -100,7 +100,18 @@ public sealed partial class OptimizeViewModel : PageViewModel
             if (e.PropertyName is nameof(IsBusy)) OnBusyChanged();
             if (e.PropertyName is nameof(IsBusy) or nameof(BusyText)) OnPropertyChanged(nameof(StatusLine));
         };
-        ExpertModeChanged += _ => { foreach (var item in _items) item.RefreshExpertMode(); };
+        ExpertModeChanged += enabled =>
+        {
+            foreach (var item in _items)
+            {
+                item.RefreshExpertMode();
+                item.NotifyDependencyChanged();
+                if (!enabled && item.IsAdvanced) item.SetChecked(false);
+            }
+            OnPropertyChanged(nameof(IsExpertLocked));
+            RebuildRows();
+            UpdateCounts();
+        };
     }
 
     // ───────────────────────────── Bindable state ─────────────────────────────
@@ -131,6 +142,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
     [ObservableProperty] private RestartRequirement _pendingRestart;
 
     public int TotalCount => _items.Count;
+    public bool IsExpertLocked => ExpertTab && !ExpertMode;
+    public string ExpertLockText => Loc.N(ExpertCount, "Доступно в режиме Эксперт · {0} настройка", "Доступно в режиме Эксперт · {0} настройки", "Доступно в режиме Эксперт · {0} настроек");
+    public string ExpertLockReason => Loc.T("Настройки уровня ЭКСПЕРТ могут ухудшить безопасность, совместимость или работу ПК.");
     /// <summary>Buttons are never disabled for missing admin rights: a click asks for them (RequireAdmin) and repeats itself.</summary>
     public bool CanModify => !IsBusy;
     public int ExpertCount => _items.Count(i => i.IsAdvanced);
@@ -167,6 +181,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     }
 
     partial void OnOnlyPendingChanged(bool value) => RebuildRows();
+    partial void OnExpertTabChanged(bool value) => OnPropertyChanged(nameof(IsExpertLocked));
     partial void OnVisibleCountChanged(int value) => OnPropertyChanged(nameof(ShownSummary));
     partial void OnBarNoteChanged(string value) => OnPropertyChanged(nameof(StatusLine));
 
@@ -237,7 +252,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
         SearchText = "";
         _searchTimer.Stop(); // the setter restarted the debounce; rebuild right away instead
         OnlyPending = false;
-        if (item.IsAdvanced) SelectExpertTab();
+        if (item.IsAdvanced)
+        {
+            SelectExpertTab();
+            if (!ExpertMode) return;
+        }
         else SelectCategory(null);
         RebuildRows();
         item.IsExpanded = true;
@@ -335,7 +354,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
                 foreach (var i in _items)
                 {
                     i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
-                    i.CanRevert = revertable.Contains(i.Id);
+                    i.CanRevert = OptimizeLogic.CanRevert(revertable.Contains(i.Id), ExpertMode);
                 }
                 // Only after every state is known: a not-applicable row loses its check — unless it is a dependent row
                 // whose dependency is checked and pending (SyncDependents re-checks those once more, for chains).
@@ -450,7 +469,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
     {
         foreach (var i in _items)
         {
-            var want = ids.Contains(i.Id) && i.IsApplicable && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id));
+            var want = ids.Contains(i.Id) && i.IsApplicable && OptimizeLogic.CanApplyRisk(i.Tweak.Risk, ExpertMode)
+                && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id));
             i.SetChecked(want);
         }
         EnforceExclusiveGroups();
@@ -458,7 +478,8 @@ public sealed partial class OptimizeViewModel : PageViewModel
         foreach (var i in _items)
         {
             if (i.IsApplicable || i.Tweak.Requires.Count == 0) continue;
-            i.SetChecked(ids.Contains(i.Id) && i.IsApplicableNow && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id)));
+            i.SetChecked(ids.Contains(i.Id) && i.IsApplicableNow && OptimizeLogic.CanApplyRisk(i.Tweak.Risk, ExpertMode)
+                && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id)));
         }
         EnforceExclusiveGroups();
         SyncDependents();
@@ -629,6 +650,12 @@ public sealed partial class OptimizeViewModel : PageViewModel
     }
 
     [RelayCommand]
+    private async Task RequestExpertModeAsync()
+    {
+        if (Ui.Host is MainViewModel shell) await shell.RequestExpertModeAsync();
+    }
+
+    [RelayCommand]
     private void ClearFilter()
     {
         SearchText = "";
@@ -695,6 +722,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         OnPropertyChanged(nameof(AppliedSummary));
         OnPropertyChanged(nameof(ShownSummary));
         OnPropertyChanged(nameof(NotAppliedCount));
+        OnPropertyChanged(nameof(ExpertLockText)); // the lock card counts the expert tweaks once the list has loaded
         OnPropertyChanged(nameof(OnlyPendingText));
         OnPropertyChanged(nameof(RecommendedToChange));
         // The sidebar badge: how many changes the selected set would make (only a fact already known).
@@ -814,7 +842,14 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private async Task ApplyCoreAsync(string intentCommand, string? intentParameter)
     {
         if (!RequireAdmin(Loc.T("Применение оптимизаций"), intentCommand, intentParameter)) return;
-        var targets = _items.Where(i => i.IsPending).ToList();
+        var pending = _items.Where(i => i.IsPending).ToList();
+        var targets = OptimizeLogic.FilterApplicable(pending, i => i.Tweak.Risk, ExpertMode);
+        if (targets.Count != pending.Count)
+        {
+            foreach (var item in pending.Except(targets)) item.SetChecked(false);
+            UpdateCounts();
+            Ui.Toast(Loc.T("Настройки уровня ЭКСПЕРТ пропущены — включите режим Эксперт."), ToastKind.Info);
+        }
         if (targets.Count == 0)
         {
             Ui.Toast("Все выбранные пункты уже применены — менять нечего.", ToastKind.Info);

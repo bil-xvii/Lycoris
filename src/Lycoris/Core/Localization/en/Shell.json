@@ -18,6 +18,11 @@
   ],
   "ignore": [],
   "en": {
+    "Включить режим Эксперт?": "Enable Expert mode?",
+    "Откроются настройки уровня ЭКСПЕРТ и полный список служб. Они могут ухудшить безопасность, совместимость и работу ПК.": "EXPERT settings and the full service list will become available. They may reduce security, compatibility or PC stability.",
+    "Изменения по-прежнему записываются в журнал и откатываются в разделе «Восстановление».": "Changes will still be recorded in the journal and can be reverted in Restore.",
+    "ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ": "ENABLE EXPERT MODE",
+    "ОСТАТЬСЯ В ПРОСТОМ РЕЖИМЕ": "STAY IN SIMPLE MODE",
     "Ваша цель": "Your goal",
     "ПОКАЗАТЬ, ЧТО УЛУЧШИТЬ": "SHOW WHAT CAN BE IMPROVED",
     "Тихо и прохладно": "Quiet and cool",

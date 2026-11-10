@@ -12,6 +12,7 @@
   ],
   "ignore": [],
   "en": {
+    "ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ": "ENABLE EXPERT MODE",
     "Системное имя": "System name",
     "Ядро Windows (RPC/COM): от неё зависит вся система.": "Windows core (RPC/COM): the whole system depends on it.",
     "Вход в систему, профили, UAC и учётные записи.": "Sign-in, profiles, UAC and user accounts.",
@@ -233,6 +234,7 @@
     "Изменено: {0}, ошибок: {1}. Подробности — в консоли и журнале.": "Changed: {0}, errors: {1}. Details are in the console and the change log.",
     "{0} Ошибок: {1}. Записи, которые не откатились, остались в «Восстановлении».": "{0} Errors: {1}. Records that were not reverted stay in “Restore”.",
     "ОТКАТ ВЫПОЛНЕН НЕ ПОЛНОСТЬЮ": "UNDO NOT FULLY COMPLETED",
-    "Задачи: не удалось перечислить {0} — {1}": "Tasks: couldn't list {0} — {1}"
+    "Задачи: не удалось перечислить {0} — {1}": "Tasks: couldn't list {0} — {1}",
+    "доступен в режиме Эксперт": "available in Expert mode"
   }
 }
