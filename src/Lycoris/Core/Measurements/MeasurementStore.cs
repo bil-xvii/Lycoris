@@ -78,5 +78,6 @@ public sealed class MeasurementStore
         && !string.IsNullOrWhiteSpace(c.WindowsVersion) && !string.IsNullOrWhiteSpace(c.WindowsBuild)
         && !string.IsNullOrWhiteSpace(c.LycorisVersion) && !string.IsNullOrWhiteSpace(c.BootTimeSource)
         && c.EnabledStartupItems >= 0 && (c.FreeMemoryBytes is null or >= 0)
-        && (c.BootTimeSeconds is null or >= 0);
+        && (c.BootTimeSeconds is null or >= 0)
+        && (row.ChangesApplied is null or >= 0) && (row.ChangesReverted is null or >= 0);
 }

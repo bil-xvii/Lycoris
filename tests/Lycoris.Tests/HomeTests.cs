@@ -112,4 +112,25 @@ public sealed class HomeScoreFixTests
         Assert.Equal(dashboard.HasSafeFixes, home.HasSafeFixes);
         Assert.Equal(dashboard.FixSafeText, home.FixSafeText);
     }
+    [Fact]
+    public void Measurement_demo_is_ignored_without_snapshot()
+    {
+        Assert.Null(MeasurementDemo.Resolve(snapshot: false, ["--demo-measurements"]));
+        Assert.Null(MeasurementDemo.Resolve(snapshot: true, ["--demo-update"]));
+        Assert.Equal(6, MeasurementDemo.Resolve(snapshot: true, ["--snapshot", "x", "--demo-measurements"])!.Count);
+    }
+
+    [Fact]
+    public void Measurement_demo_covers_every_kind_of_history_row()
+    {
+        using var _ = Lycoris.Core.Localization.Loc.UseLanguage("ru");
+        var rows = Lycoris.Core.Measurements.MeasurementHistory.Build(MeasurementDemo.Build(DateTimeOffset.Now));
+
+        Assert.Equal(6, rows.Count);
+        Assert.Contains("сравнивать пока не с чем", rows[^1].Change);
+        Assert.Contains(rows, r => r.WithinNoise);
+        Assert.Contains(rows, r => r.Incomparable);
+        Assert.Contains(rows, r => !r.WithinNoise && !r.Incomparable && r.Change.Contains("применено 6 изменений"));
+        Assert.True(rows.Count > HomeViewModel.HistoryVisibleRows, "the demo must also fill «ВСЯ ИСТОРИЯ»");
+    }
 }
