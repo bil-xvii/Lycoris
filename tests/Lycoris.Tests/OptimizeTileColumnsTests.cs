@@ -8,7 +8,7 @@ public class OptimizeTileColumnsTests
 {
     [Fact] public void Wide_row_keeps_all_six_in_one_row() => Assert.Equal(6, OptimizeView.ColumnsFor(1100, 6));
 
-    [Fact] public void Narrow_row_splits_into_two_rows_of_three() => Assert.Equal(3, OptimizeView.ColumnsFor(700, 6));
+    [Fact] public void Narrow_row_splits_into_two_rows_of_three() => Assert.Equal(3, OptimizeView.ColumnsFor(776, 6));
 
     [Fact] public void Odd_count_rounds_up() => Assert.Equal(3, OptimizeView.ColumnsFor(500, 5));
 

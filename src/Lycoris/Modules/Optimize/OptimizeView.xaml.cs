@@ -23,8 +23,8 @@ public partial class OptimizeView : UserControl
     /// <summary>True while the page is short: the profile tiles show only the title, «N к изменению» and their button.</summary>
     public bool IsCompact { get => (bool)GetValue(IsCompactProperty); set => SetValue(IsCompactProperty, value); }
 
-    /// <summary>Narrowest profile tile that still shows «Рекомендуемые» and its «ПО УМОЛЧАНИЮ» mark whole (1024 px screen, 10.11).</summary>
-    internal const double MinTileWidth = 128;
+    /// <summary>Narrowest profile tile (with its margins) that still shows «Рекомендуемые» and its «ПО УМОЛЧАНИЮ» mark whole (1024 px screen, 10.11).</summary>
+    internal const double MinTileWidth = 150;
 
     public static readonly DependencyProperty TileColumnsProperty =
         DependencyProperty.Register(nameof(TileColumns), typeof(int), typeof(OptimizeView), new PropertyMetadata(6));
