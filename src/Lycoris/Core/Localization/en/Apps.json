@@ -25,7 +25,7 @@
     "winget export: повреждённый JSON ({0})": "winget export: corrupted JSON ({0})",
     "winget не найден. Установите «Установщик приложений» из Microsoft Store.": "winget was not found. Install “App Installer” from the Microsoft Store.",
     "Установка программ заблокирована: режим самопроверки.": "Program installs are blocked: self-test mode.",
-    "winget {0} {1}: идёт дольше 30 минут — Lycoris перестал ждать, процесс не прерывался.": "winget {0} {1}: running for more than 30 minutes — Lycoris stopped waiting, the process was not interrupted.",
+    "winget {0} {1}: идёт дольше {2} мин — Lycoris перестал ждать, процесс не прерывался.": "winget {0} {1}: running for more than {2} min — Lycoris stopped waiting, the process was not interrupted.",
     "готово": "done",
     "уже последняя версия": "already the latest version",
     "уже установлено": "already installed",
