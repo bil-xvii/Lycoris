@@ -270,7 +270,7 @@ public sealed class TweakCatalogTests : IDisposable
             foreach (var v in t.Values)
             {
                 Assert.False(string.IsNullOrWhiteSpace(v.Path), t.Id);
-                Assert.False(IsForbidden(v), $"{t.Id} touches a forbidden area: {v.Hive}\\{v.Path}\\{v.Name}");
+                Assert.False(IsForbidden(v, t), $"{t.Id} touches a forbidden area: {v.Hive}\\{v.Path}\\{v.Name}");
             }
         }
     }
@@ -734,7 +734,7 @@ public sealed class TweakCatalogTests : IDisposable
             "DisableWindowsSpotlightFeatures", "DisableWindowsConsumerFeatures", "DisableSoftLanding", "DisableCloudOptimizedContent",
             "RefsDisableDeleteNotification", "DisableGraphRecentItems", "ActiveOverlayAcPowerScheme",
         ];
-        Assert.DoesNotContain(TweakCatalog.All.OfType<RegistryTweak>().SelectMany(t => t.Values), v => rejected.Contains(v.Name));
+        Assert.DoesNotContain(TweakCatalog.All.OfType<RegistryTweak>().Where(t => !t.Id.StartsWith(TweakCatalog.ExpertPrefix, StringComparison.Ordinal)).SelectMany(t => t.Values), v => rejected.Contains(v.Name));
     }
 
     private static SystemProfile Profile(int build, int ubr = 0, string edition = "Professional", string cpu = "AMD Ryzen 7 9800X3D 8-Core Processor", int cores = 8)
@@ -1402,11 +1402,17 @@ public sealed class TweakCatalogTests : IDisposable
         "DisableNotifications", "TaskbarDa", "EnableVirtualizationBasedSecurity", "FeatureSettingsOverride", "FeatureSettingsOverrideMask",
         "SystemResponsiveness", "GlobalTimerResolutionRequests", "LargeSystemCache", "DisablePagingExecutive", "ClearPageFileAtShutdown",
         "PlatformAoAcOverride", "AllowGameDVR", "LetAppsRunInBackground",
+        "SvcHostSplitThresholdInKB", "DOPercentageMaxBackgroundBandwidth",
     ];
 
-    private static bool IsForbidden(RegSet v) =>
+    // Not protection, just "not recommended": allowed only in expert-only tweaks (ids «expert-…», ADVANCED, warned, reversible).
+    private static readonly string[] ExpertAllowedValueNames = ["GlobalTimerResolutionRequests", "PlatformAoAcOverride", "LetAppsRunInBackground", "SvcHostSplitThresholdInKB", "DOPercentageMaxBackgroundBandwidth"];
+
+    private static bool IsForbidden(RegSet v, Tweak? owner = null) =>
         ForbiddenPathFragments.Any(f => v.Path.Contains(f, StringComparison.OrdinalIgnoreCase)) ||
-        ForbiddenValueNames.Any(n => string.Equals(v.Name, n, StringComparison.OrdinalIgnoreCase));
+        ForbiddenValueNames.Any(n => string.Equals(v.Name, n, StringComparison.OrdinalIgnoreCase)
+            && !(owner is { Risk: TweakRisk.Advanced } && owner.Id.StartsWith(TweakCatalog.ExpertPrefix, StringComparison.Ordinal)
+                 && ExpertAllowedValueNames.Contains(n)));
 }
 
 /// <summary>
@@ -1438,6 +1444,7 @@ public sealed class CustomTweakApplyRevertTests : IDisposable
     private const string Filter = @"Control Panel\Accessibility\Keyboard Response";
     private const string Toggle = @"Control Panel\Accessibility\ToggleKeys";
     private const string FileSystem = @"SYSTEM\CurrentControlSet\Control\FileSystem";
+    private const string SvcHostPath = @"SYSTEM\CurrentControlSet\Control";
 
     [Fact]
     public async Task Accessibility_shortcuts_are_cleared_and_restored_byte_for_byte()
@@ -1496,11 +1503,76 @@ public sealed class CustomTweakApplyRevertTests : IDisposable
         Assert.Equal(1, RegistryHelper.ReadInt(RegHive.HKLM, FileSystem, "DisableDeleteNotification"));
     }
 
-    private async Task Apply(Tweak tweak, int? expectChanges = null)
+    [Fact]
+    public async Task Expert_registry_values_are_restored_exactly()
+    {
+        const string doKey = @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization";
+        var testSystem = new SystemProfile();
+        typeof(SystemProfile).GetProperty(nameof(SystemProfile.RamTotalBytes))!.SetValue(testSystem, 16UL * 1024 * 1024 * 1024);
+        RegistryHelper.Write(RegHive.HKLM, doKey, "DOPercentageMaxBackgroundBandwidth", RegistryValueKind.DWord, 37);
+        RegistryHelper.Write(RegHive.HKLM, SvcHostPath, "SvcHostSplitThresholdInKB", RegistryValueKind.DWord, 1234);
+
+        await Apply(TweakCatalog.Find("expert-do-background-limit")!);
+        Assert.Equal(10, RegistryHelper.ReadInt(RegHive.HKLM, doKey, "DOPercentageMaxBackgroundBandwidth"));
+        await RevertAll();
+        Assert.Equal(37, RegistryHelper.ReadInt(RegHive.HKLM, doKey, "DOPercentageMaxBackgroundBandwidth"));
+
+        await Apply(TweakCatalog.Find("expert-svchost-split-off")!, system: testSystem);
+        Assert.Equal((int)TweakCatalog.SvcHostThreshold(testSystem), RegistryHelper.ReadInt(RegHive.HKLM, SvcHostPath, "SvcHostSplitThresholdInKB"));
+        await RevertAll();
+        Assert.Equal(1234, RegistryHelper.ReadInt(RegHive.HKLM, SvcHostPath, "SvcHostSplitThresholdInKB"));
+
+        RegistryHelper.DeleteValue(RegHive.HKLM, SvcHostPath, "SvcHostSplitThresholdInKB");
+        await Apply(TweakCatalog.Find("expert-svchost-split-off")!, system: testSystem);
+        await RevertAll();
+        Assert.False(RegistryHelper.Snapshot(RegHive.HKLM, SvcHostPath, "SvcHostSplitThresholdInKB").ValueExisted);
+    }
+
+    [Fact]
+    public void Expert_command_pairs_restore_the_state_read_before_apply()
+    {
+        var compression = TweakCatalog.BuildMemoryCompressionCommands(wasEnabled: true);
+        Assert.Contains("Disable-MMAgent -MemoryCompression", compression.Apply);
+        Assert.Contains("Enable-MMAgent -MemoryCompression", compression.Revert);
+        var compressionWasOff = TweakCatalog.BuildMemoryCompressionCommands(wasEnabled: false);
+        Assert.Contains("Enable-MMAgent -MemoryCompression", compressionWasOff.Apply);
+        Assert.Contains("Disable-MMAgent -MemoryCompression", compressionWasOff.Revert);
+
+        var reserved = TweakCatalog.BuildReservedStorageCommands(wasEnabled: true);
+        Assert.Contains("/State:Disabled", reserved.Apply);
+        Assert.Contains("/State:Enabled", reserved.Revert);
+        var reservedWasOff = TweakCatalog.BuildReservedStorageCommands(wasEnabled: false);
+        Assert.Contains("/State:Enabled", reservedWasOff.Apply);
+        Assert.Contains("/State:Disabled", reservedWasOff.Revert);
+
+        var hibernation = TweakCatalog.BuildLaptopHibernationCommands(1);
+        Assert.Contains("/hibernate off", hibernation.Apply);
+        Assert.Contains("/hibernate on", hibernation.Revert);
+        Assert.Contains("/type reduced", hibernation.Revert);
+        var fullHibernation = TweakCatalog.BuildLaptopHibernationCommands(2);
+        Assert.DoesNotContain("/type reduced", fullHibernation.Revert);
+        Assert.Equal(16u * 1024 * 1024, TweakCatalog.SvcHostThreshold(16UL * 1024 * 1024 * 1024));
+
+        var scheme = Guid.NewGuid();
+        foreach (var (setting, target, original) in new[]
+                 {
+                     (TweakCatalog.IdleDisable, 1u, 0u),
+                     (TweakCatalog.CpMinCores, 100u, 50u),
+                 })
+        {
+            var forward = TweakCatalog.PowerSettingCommand(scheme, TweakCatalog.SubProcessor, setting, target, rollbackTo: original);
+            var undo = TweakCatalog.PowerSettingCommand(scheme, TweakCatalog.SubProcessor, setting, original);
+            Assert.Contains($"/setacvalueindex {scheme:D} {TweakCatalog.SubProcessor:D} {setting:D} {target}", forward);
+            Assert.Contains($"/setacvalueindex {scheme:D} {TweakCatalog.SubProcessor:D} {setting:D} {original}", forward);
+            Assert.Contains($"/setacvalueindex {scheme:D} {TweakCatalog.SubProcessor:D} {setting:D} {original}", undo);
+        }
+    }
+
+    private async Task Apply(Tweak tweak, int? expectChanges = null, SystemProfile? system = null)
     {
         var journal = new ChangeJournal(_journalPath);
         var session = await ChangeSession.BeginAsync("test " + tweak.Id, createRestorePoint: false, journal: journal);
-        tweak.Apply(new TweakContext { Session = session, System = SystemProfile.Current, Tweak = tweak });
+        tweak.Apply(new TweakContext { Session = session, System = system ?? SystemProfile.Current, Tweak = tweak });
         session.Complete();
         Assert.Empty(session.Errors);
         if (expectChanges is { } n) Assert.Equal(n, session.Applied);

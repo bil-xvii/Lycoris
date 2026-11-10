@@ -21,5 +21,6 @@ public static partial class TweakCatalog
             .Concat(InterfaceTweaks())
             .Concat(PrivacyTweaks())
             .Concat(NetworkTweaks())
-            .Concat(SystemTweaks());
+            .Concat(SystemTweaks())
+            .Concat(ExpertTweaks());
 }
