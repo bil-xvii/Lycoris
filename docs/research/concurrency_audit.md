@@ -47,6 +47,7 @@ Thread = where the work runs. Lock = what it takes today (before) → the coordi
 | 19 | Startup recovery: stale game session revert, display reconcile | `MainViewModel.RunStartupChecksAsync` | pool | journal gate | seconds | HKLM/HKCU, display | JournalChange / Disruptive |
 | 20 | Admin-intent replay | `MainViewModel.ReplayIntentAsync` | UI | polls `CanExecute` up to 10 s | — | whatever the command does | (goes through the page command) |
 | 21 | Page loads / refreshes / Dashboard checks / hardware analysis / warm-ups | every `LoadAsync` / `Refresh` | pool + WMI + PowerShell | page `IsBusy` | 1–10 s each | nothing | Measure |
+| 22 | Scheduled maintenance: create / move / remove the weekly task | `CleanerViewModel.ScheduleMaintenanceAsync` | pool + COM | `IsBusy` | < 1 s | one scheduled task (journaled) | JournalChange. The weekly run itself (`Lycoris.exe --maintain`) is a separate process with normal rights and its own mutex; it deletes only files the cleaner engine re-checks (gone/changed/in use are skipped), so it never conflicts with an open Lycoris |
 
 ## 3. Matrix of dangerous combinations
 

@@ -96,6 +96,19 @@ public static class RegistryHelper
         catch { return null; }
     }
 
+    /// <summary>Names of the subkeys of a key (empty when it is missing or unreadable). Read-only.</summary>
+    public static IReadOnlyList<string> SubKeyNames(RegHive hive, string path)
+    {
+        Map(ref hive, ref path);
+        try
+        {
+            using var b = OpenBase(hive);
+            using var k = b.OpenSubKey(path, false);
+            return k?.GetSubKeyNames() ?? [];
+        }
+        catch { return []; }
+    }
+
     public static int? ReadInt(RegHive hive, string path, string name) => Read(hive, path, name) switch
     {
         int i => i,

@@ -36,6 +36,10 @@ namespace Lycoris;
 ///                          INTERNAL (Core/Updates): the NEW exe, started by the old copy after a verified download; headless:
 ///                          waits for the old process, sets Lycoris.exe aside as .old, copies itself to Lycoris.exe, starts it,
 ///                          rolls back if it crashes within 10 s.
+///  --maintain              INTERNAL (Core/Maintenance, Modules/Cleaner/ScheduledMaintenanceRun): the weekly task Lycoris creates
+///                          when the user turns on «Обслуживание по расписанию». Headless, normal rights only (refused when
+///                          elevated), does nothing unless the setting is on: cleans the safe per-user cleaner items, runs the
+///                          read-only health checks, writes %LocalAppData%\Lycoris\maintenance-last.json.
 ///  --demo-update           with --snapshot (QA only): pretend a newer version exists (title bar button, Settings About)
 ///  --demo-measurements     with --snapshot (QA only): Home shows an in-memory history of six measurements (nothing saved)
 ///  --mode simple|expert    with --snapshot (QA only): show that mode; settings are not saved during the run
@@ -87,6 +91,19 @@ public partial class App : Application
             if (Lycoris.Core.Updates.UpdateApplyMode.FailureText(code, e.Args.Length > 1 ? e.Args[1] : "") is { } failure)
                 MessageBox.Show(failure, "Lycoris", MessageBoxButton.OK, MessageBoxImage.Warning);
             Shutdown(code);
+            return;
+        }
+
+        // Scheduled maintenance (Core/Maintenance): started by Lycoris's weekly task with normal rights. Headless, no instance
+        // lock (the app may be open), no UAC, no other argument accepted. It only does what the user switched on in the Cleaner.
+        if (e.Args.Length == 1 && e.Args[0].Equals(Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Argument, StringComparison.OrdinalIgnoreCase))
+        {
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            AppSettings.Load();
+            Loc.Initialize(AppSettings.Current.Language);
+            _ = RunScheduledMaintenanceAsync();
             return;
         }
 
@@ -329,6 +346,14 @@ public partial class App : Application
 #else
         return Environment.GetEnvironmentVariable("LYCORIS_E2E") == "1";
 #endif
+    }
+
+    private async Task RunScheduledMaintenanceAsync()
+    {
+        var code = 2;
+        try { code = await Lycoris.Modules.Cleaner.ScheduledMaintenanceRunner.RunProcessAsync(); }
+        catch (Exception ex) { Log.Error("Обслуживание по расписанию: непредвиденная ошибка", ex); }
+        Shutdown(code);
     }
 
     /// <summary>"--e2e &lt;dir&gt;": headless real-system apply/revert test (asks for admin rights once).</summary>

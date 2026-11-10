@@ -274,6 +274,19 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
         // 4. Drift: settings Lycoris applied were changed afterwards (Windows feature update, another program).
         await CheckDriftAsync();
 
+        // 4b. Scheduled maintenance: the result of a run since the last start, or a task that points at a missing Lycoris.exe.
+        try
+        {
+            var enabled = AppSettings.Current.ScheduledMaintenance;
+            var (info, last) = await Task.Run(() => (
+                enabled ? Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Inspect(AppPaths.ExecutablePath)
+                        : new Lycoris.Core.Maintenance.MaintenanceTaskInfo(Lycoris.Core.Maintenance.MaintenanceTaskStatus.Off, null),
+                Lycoris.Modules.Cleaner.MaintenanceResultStore.Read()));
+            if (Lycoris.Modules.Cleaner.ScheduledMaintenanceNotice.Take(AppSettings.Current, last, info) is { } notice)
+                Ui.Toast(notice.Text, notice.Kind, "ОБСЛУЖИВАНИЕ", navigateTo: "cleaner");
+        }
+        catch (Exception ex) { Log.Warn("Обслуживание по расписанию: итог не проверен — {0}", ex.Message); }
+
         // 5. (the action the user clicked before the relaunch with admin rights is repeated by RunStartupChecksAsync)
     }
 

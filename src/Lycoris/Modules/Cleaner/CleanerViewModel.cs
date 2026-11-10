@@ -88,6 +88,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     protected override async Task LoadAsync()
     {
         _ = RefreshDrivesAsync();
+        _ = RefreshScheduleAsync();
         // The first visit runs a dry-run analysis right away: it only reads, never deletes.
         await RunWorkAsync(OperationClass.Measure, Loc.T("Анализ мусора…"), async () =>
         {
@@ -96,7 +97,7 @@ public sealed partial class CleanerViewModel : PageViewModel
         });
     }
 
-    protected override Task OnReturnAsync() => RefreshDrivesAsync();
+    protected override Task OnReturnAsync() => Task.WhenAll(RefreshDrivesAsync(), RefreshScheduleAsync());
 
     /// <summary>
     /// Leaving the page: drop the file lists of analyses that can no longer be used (stale or already cleaned —

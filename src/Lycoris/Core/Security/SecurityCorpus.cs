@@ -114,6 +114,15 @@ public static class SecurityCorpus
             ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKCU, Path = "Environment", Name = "PSModulePath" }));
         Expect("journal: IFEO is a forbidden restore target", () =>
             ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\x.exe", Name = "Debugger" }));
+        Expect("journal: IFEO PerfOptions of a system program is forbidden", () =>
+            ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\lsass.exe\PerfOptions", Name = "CpuPriorityClass" }));
+        Expect("journal: IFEO PerfOptions with a path-like name is forbidden", () =>
+            ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\..\x.exe\PerfOptions", Name = "CpuPriorityClass" }));
+        Expect("journal: a realtime priority original is forbidden", () =>
+            ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\game.exe\PerfOptions", Name = "CpuPriorityClass", ValueExisted = true, KeyExisted = true, Kind = Microsoft.Win32.RegistryValueKind.DWord, Data = "4" }));
+        Expect("journal: a priority rule from a tweak source is refused", () =>
+            JournalTrust.Check(new ChangeRecord { Source = "tweak:x", Kind = ChangeKind.Registry, Target = @"reg:HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\game.exe\PerfOptions\CpuPriorityClass",
+                Registry = new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\game.exe\PerfOptions", Name = "CpuPriorityClass" } }) is not null);
         Expect("journal: forged command from a user folder is refused", () =>
             JournalTrust.Check(new ChangeRecord { Source = "tweak:x", Kind = ChangeKind.Command, Target = "cmd:hibernate", RevertFile = @"C:\Users\Public\evil.exe", RevertArgs = "" }) is not null);
         Expect("journal: forged cmd line is refused", () =>
@@ -243,6 +252,31 @@ public static class SecurityCorpus
         // ── The cleaner never leaves its sandbox ──
         foreach (var path in new[] { @"C:\", @"C:\Windows", @"C:\Windows\System32", @"\\evil\share\x", @"\\?\C:\Windows", @"C:\Users", "" })
             Expect($"cleaner base refused: {path}", () => Modules.Cleaner.PathGuard.Default.CheckBase(path) != Modules.Cleaner.GuardVerdict.Ok);
+
+        // ── Scheduled maintenance: the task definition read back from the scheduler, the result file in the user's folder ──
+        var maintenanceOk = Maintenance.MaintenanceTaskSnapshot.For(Maintenance.MaintenanceSchedule.Default, @"C:\Tools\Lycoris.exe", "S-1-5-21-1-2-3-1001");
+        var maintenanceXml = Maintenance.ScheduledMaintenanceTask.BuildXml(maintenanceOk);
+        Expect("maintenance task: own definition parses back", () => Maintenance.ScheduledMaintenanceTask.Parse(maintenanceXml) == maintenanceOk);
+        foreach (var (name, hostile) in new[]
+                 {
+                     ("highest rights", maintenanceXml.Replace("LeastPrivilege", "HighestAvailable")),
+                     ("stored password", maintenanceXml.Replace("InteractiveToken", "Password")),
+                     ("other arguments", maintenanceXml.Replace("<Arguments>--maintain</Arguments>", "<Arguments>--e2e C:\\x</Arguments>")),
+                     ("network exe", maintenanceXml.Replace(@"C:\Tools\Lycoris.exe", @"\\evil\share\Lycoris.exe")),
+                     ("DTD", "<!DOCTYPE t [<!ENTITY x SYSTEM \"file:///c:/windows/win.ini\">]><Task>&x;</Task>"),
+                     ("oversize", new string(' ', 70_000) + maintenanceXml),
+                 })
+            Expect($"maintenance task refused: {name}", () => Maintenance.ScheduledMaintenanceTask.Parse(hostile) is null);
+        Expect("maintenance result: hostile values clamped", () =>
+        {
+            var r = new Modules.Cleaner.MaintenanceRunResult
+            {
+                FinishedUtc = DateTime.UtcNow.ToString("o"), FreedBytes = long.MinValue, HealthScore = -9,
+                Warnings = [.. Enumerable.Repeat("w", 50), "\u001b[31m"], Error = new string('e', 10_000),
+            }.Sanitized();
+            return r is { FreedBytes: 0, HealthScore: 0, Error: null } && r.Warnings.Count == Modules.Cleaner.MaintenanceRunResult.MaxWarnings;
+        });
+        Expect("maintenance result: no finish time = unusable", () => new Modules.Cleaner.MaintenanceRunResult { FinishedUtc = "x" }.Sanitized() is null);
 
         return new Result(checks, failures);
     }

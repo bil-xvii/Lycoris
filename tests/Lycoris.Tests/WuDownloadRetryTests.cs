@@ -19,6 +19,14 @@ public class WuDownloadRetryTests
     [InlineData(WuText.OrcFailed, WuText.EulasDeclined, false)]        // licence not accepted
     [InlineData(WuText.OrcFailed, WuText.ServiceDisabled, false)]      // service off
     [InlineData(WuText.OrcFailed, unchecked((int)0x8024002E), false)]  // blocked by policy
+    [InlineData(WuText.OrcFailed, unchecked((int)0x80D02002), true)]   // Delivery Optimization stalled
+    [InlineData(WuText.OrcFailed, unchecked((int)0x8024600B), true)]   // content changed — download must restart
+    [InlineData(WuText.OrcFailed, unchecked((int)0x80246002), true)]   // bad hash — fetch again
+    [InlineData(WuText.OrcFailed, unchecked((int)0x80244021), true)]   // HTTP 502
+    [InlineData(WuText.OrcFailed, unchecked((int)0x8024200D), false)]  // install-side code, not a download error
+    [InlineData(WuText.OrcFailed, unchecked((int)0x80070070), false)]  // disk full — a retry will not help
+    [InlineData(WuText.OrcInProgress, 0, false)]                       // still running
+    [InlineData(WuText.OrcNotStarted, 0, false)]
     public void Only_transient_download_failures_are_retried(int resultCode, int hresult, bool retry) =>
         Assert.Equal(retry, WuText.IsRetryableDownload(resultCode, hresult));
 
@@ -32,6 +40,9 @@ public class WuDownloadRetryTests
     }
 
     [Fact]
-    public void The_retry_pause_is_short() =>
-        Assert.InRange(WindowsUpdateDrivers.RetryDelay, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(15));
+    public void A_network_failure_waits_longer_than_a_dropped_file()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(5), WuText.RetryDelayFor([WuText.DownloadFailed]));
+        Assert.Equal(TimeSpan.FromSeconds(30), WuText.RetryDelayFor([WuText.DownloadFailed, unchecked((int)0x8024001F)]));
+    }
 }
