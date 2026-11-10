@@ -85,6 +85,15 @@ public static class SecurityCorpus
             return !args.Contains("--replay-command") && !args.Contains("x") && args.Count(a => a == "--elevated") == 1;
         });
 
+        // ── FPS «до / после» file (read by the elevated copy) and the process name handed to PresentMon ──
+        Expect("fps: oversize", () => FpsStore.Parse(new byte[FpsStore.MaxBytes + 1]).Before is null);
+        Expect("fps: nesting bomb", () => FpsStore.Parse(Encoding.UTF8.GetBytes(new string('[', 5000) + new string(']', 5000))).Before is null);
+        Expect("fps: path as process refused", () => FpsStore.Parse(Encoding.UTF8.GetBytes(
+            "{\"Before\":{\"Kind\":\"before\",\"Process\":\"..\\\\cmd.exe\",\"RequestedSeconds\":30,\"RecordedAt\":\"2026-11-01T00:00:00Z\"," +
+            "\"Stats\":{\"Frames\":300,\"Seconds\":3,\"AvgFps\":100,\"Low1Fps\":50,\"AvgFrameMs\":10,\"P99FrameMs\":20}}}")).Before is null);
+        foreach (var n in new[] { "--output_file", "a\"b", "..\\x", "c:\\x.exe", "a\nb", "a*" })
+            Expect($"fps process name refused: «{n}»", () => FpsMeasure.NormalizeProcess(n) is null);
+
         // ── Imported profile file ──
         Expect("profile: empty", () => OptimizeProfileFile.Parse([], out _) is null);
         Expect("profile: oversize", () => OptimizeProfileFile.Parse(new byte[OptimizeProfileFile.MaxBytes + 1], out _) is null);

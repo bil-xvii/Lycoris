@@ -379,6 +379,10 @@ public sealed partial class DashboardViewModel
                     last.Conditions.BootTimeSeconds is { } s ? Loc.Tf("{0} с", s.ToString("0.0")) : Loc.T("недоступно"));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        // The FPS «до / после» of the Games page (PresentMon) joins the same section of the report.
+        var fps = new Lycoris.Modules.Games.FpsStore().Read();
+        var fpsLine = Lycoris.Modules.Games.FpsMeasure.Summary(fps.Before, fps.After);
+        if (fpsLine.Length > 0) measurement = string.IsNullOrEmpty(measurement) ? fpsLine : measurement + ". " + fpsLine;
         var version = typeof(DashboardViewModel).Assembly.GetName().Version?.ToString(3) ?? "?";
         return new(DateTime.Now, version, Score, Verdict, checks, system, measurement);
     }
