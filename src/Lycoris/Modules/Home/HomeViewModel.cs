@@ -62,10 +62,15 @@ public sealed partial class HomeViewModel : PageViewModel
     [ObservableProperty] private bool _hasMoreMeasurementHistory;
     [ObservableProperty] private string _moreMeasurementHistoryText = "";
     internal const int HistoryVisibleRows = 3;
+    /// <summary>QA only: set by App for «--snapshot … --demo-measurements» (see <see cref="MeasurementDemo"/>); null in normal runs.</summary>
+    public static IReadOnlyList<Measurement>? DemoMeasurements { get; set; }
+    // The demo opens the full history so the snapshot shows every kind of row.
+    [ObservableProperty] private bool _measurementHistoryExpanded = DemoMeasurements is not null;
 
     [RelayCommand]
     private async Task RecordMeasurementAsync()
     {
+        if (DemoMeasurements is not null) return; // the demo history is never written to disk
         string? preserved = null;
         var saved = await Task.Run(() =>
         {
@@ -88,7 +93,7 @@ public sealed partial class HomeViewModel : PageViewModel
 
     private void RefreshMeasurements()
     {
-        var all = _measurementStore.Read();
+        var all = DemoMeasurements ?? _measurementStore.Read();
         var history = MeasurementHistory.Build(all);
         MeasurementHistoryTop.Clear();
         MeasurementHistoryMore.Clear();
