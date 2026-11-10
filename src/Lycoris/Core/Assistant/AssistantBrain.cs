@@ -105,11 +105,14 @@ public static partial class AssistantBrain
     /// </summary>
     public static string Context(HealthReportData? pc, IReadOnlyList<PaletteEntry> places, IEnumerable<string>? recentChanges)
     {
-        static string Clean(string? s, int max = 200)
+        // System data goes through the report anonymizer; Lycoris's own texts (journal titles, place names) are only cut and
+        // flattened — the anonymizer treats «ключ» in «Включён» as a secret word and would garble them.
+        static string Flat(string? s, int max)
         {
-            var text = ProblemReport.Anonymize(s ?? "").Replace('\r', ' ').Replace('\n', ' ').Replace("[", "(").Replace("]", ")").Trim();
+            var text = (s ?? "").Replace('\r', ' ').Replace('\n', ' ').Replace("[", "(").Replace("]", ")").Trim();
             return text.Length > max ? text[..max] + "…" : text;
         }
+        static string Clean(string? s, int max = 200) => Flat(ProblemReport.Anonymize(Flat(s, 2000)), max);
         var sb = new StringBuilder();
         sb.AppendLine(Loc.T("СВЕДЕНИЯ О ПК (собраны Lycoris, только чтение):"));
         if (pc is null)
@@ -128,11 +131,11 @@ public static partial class AssistantBrain
         if (changes.Count > 0)
         {
             sb.AppendLine(Loc.T("Последние изменения Lycoris (всё можно откатить в «Восстановлении»):"));
-            foreach (var c in changes) sb.Append("- ").AppendLine(Clean(c, 120));
+            foreach (var c in changes) sb.Append("- ").AppendLine(Flat(c, 120));
         }
         sb.AppendLine(Loc.T("МЕСТА (ссылайся только на эти номера):"));
         for (var i = 0; i < places.Count; i++)
-            sb.Append('[').Append(i + 1).Append("] ").Append(Clean(places[i].Title, 80)).Append(" — ").AppendLine(Clean(places[i].Description, 140));
+            sb.Append('[').Append(i + 1).Append("] ").Append(Flat(places[i].Title, 80)).Append(" — ").AppendLine(Flat(places[i].Description, 140));
         return sb.ToString();
     }
 

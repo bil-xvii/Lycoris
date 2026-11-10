@@ -23,7 +23,7 @@ public static class AssistantDemo
             Text = Loc.T("Судя по проверкам, при входе в Windows запускается 14 программ — часть из них работает в фоне и во время игры. Посмотрите список в «Автозапуске» и отключите то, чем не пользуетесь. Ещё выключена оптимизация оконных игр: включите её в «Оптимизации» — это безопасно и откатывается в один клик."),
         };
         var index = Ui.Host is MainViewModel shell ? CommandPaletteIndex.Build(shell.Pages) : [];
-        foreach (var query in new[] { "автозапуск", "оконных игр" })
+        foreach (var query in new[] { "автозапуск", "оконных игр" }) // loc:ignore — palette search keeps Russian aliases in every language
             if (CommandPaletteSearch.Search(index, query, 1) is [var hit]) answer.Actions.Add(hit);
         vm.AddMessage(answer);
         vm.AddMessage(new AssistantMessage { IsUser = true, Text = Loc.T("А отключать Защитник Windows стоит?") });
