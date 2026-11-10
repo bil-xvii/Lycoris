@@ -578,19 +578,20 @@
                                 </StackPanel>
                             </RadioButton>
                         </StackPanel>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                            <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding ServicesExpertMode}"
+                        <!-- Expert mode of services: the switch only in the app's Expert mode; in Simple — one labelled button that asks to switch -->
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0">
+                            <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding ServicesExpertMode}" Visibility="{Binding ExpertMode, Converter={StaticResource BoolToVis}}"
                                       ToolTip="{loc:T 'Разрешает менять службы, которых нет в проверенном списке Lycoris: другие службы Windows и службы сторонних программ. Критичные службы, драйверы и защищённые службы заблокированы всегда. Включение — после предупреждения.'}">
                                 <TextBlock Text="{loc:T ЭКСПЕРТНЫЙ РЕЖИМ}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                             </CheckBox>
-                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0" Visibility="{Binding ExpertMode, Converter={StaticResource InverseBoolToVis}}">
-                                <TextBlock Text="{loc:T Требуется режим Эксперт}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <Button Command="{Binding RequestExpertModeCommand}">
+                            <StackPanel Visibility="{Binding ExpertMode, Converter={StaticResource InverseBoolToVis}}">
+                                <Button Command="{Binding RequestExpertModeCommand}" HorizontalAlignment="Right">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
-                                        <TextBlock Text="{loc:T ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ}" Margin="6,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T ЭКСПЕРТНЫЙ РЕЖИМ}" Margin="7,0,0,0" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
+                                <TextBlock Text="{loc:T 'доступен в режиме Эксперт'}" Style="{StaticResource T.Caption}" HorizontalAlignment="Right" Margin="0,3,0,0" />
                             </StackPanel>
                         </StackPanel>
                     </Grid>

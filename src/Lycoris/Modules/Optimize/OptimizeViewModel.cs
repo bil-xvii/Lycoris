@@ -722,6 +722,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         OnPropertyChanged(nameof(AppliedSummary));
         OnPropertyChanged(nameof(ShownSummary));
         OnPropertyChanged(nameof(NotAppliedCount));
+        OnPropertyChanged(nameof(ExpertLockText)); // the lock card counts the expert tweaks once the list has loaded
         OnPropertyChanged(nameof(OnlyPendingText));
         OnPropertyChanged(nameof(RecommendedToChange));
         // The sidebar badge: how many changes the selected set would make (only a fact already known).
