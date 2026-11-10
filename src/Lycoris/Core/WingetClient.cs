@@ -119,22 +119,25 @@ public static partial class WingetClient
 
     private static IEnumerable<string> Common => ["--accept-source-agreements", "--disable-interactivity"];
 
-    public static Task<WingetResult> InstallAsync(string id, string source = "winget", Action<string>? output = null, CancellationToken ct = default)
-        => InstallPackageAsync(new WingetPackageRequest(id, source), output, ct);
+    public static Task<WingetResult> InstallAsync(string id, string source = "winget", Action<string>? output = null, CancellationToken ct = default,
+        TimeSpan? timeout = null)
+        => InstallPackageAsync(new WingetPackageRequest(id, source), output, ct, timeout);
 
     public static Task<WingetResult> UpgradeAsync(string id, string source = "winget", Action<string>? output = null, CancellationToken ct = default)
         => UpgradePackageAsync(new WingetPackageRequest(id, source), output, ct);
 
     /// <summary>Installs a package with optional installer filters (architecture, installer type, install location).</summary>
-    public static Task<WingetResult> InstallPackageAsync(WingetPackageRequest request, Action<string>? output = null, CancellationToken ct = default)
-        => RunBuiltAsync(() => BuildInstallArgs(request), output, ct);
+    /// <param name="timeout">How long to wait before giving up (default <see cref="DefaultTimeout"/>); the run is left running, not killed.</param>
+    public static Task<WingetResult> InstallPackageAsync(WingetPackageRequest request, Action<string>? output = null, CancellationToken ct = default,
+        TimeSpan? timeout = null)
+        => RunBuiltAsync(() => BuildInstallArgs(request), output, ct, timeout);
 
     /// <summary>Upgrades one package (UpdateNotApplicable = already the newest version).</summary>
     public static Task<WingetResult> UpgradePackageAsync(WingetPackageRequest request, Action<string>? output = null, CancellationToken ct = default)
-        => RunBuiltAsync(() => BuildUpgradeArgs(request), output, ct);
+        => RunBuiltAsync(() => BuildUpgradeArgs(request), output, ct, null);
 
     /// <summary>Invalid requests become a failed result instead of an exception (the caller always gets a WingetResult).</summary>
-    private static Task<WingetResult> RunBuiltAsync(Func<IReadOnlyList<string>> build, Action<string>? output, CancellationToken ct)
+    private static Task<WingetResult> RunBuiltAsync(Func<IReadOnlyList<string>> build, Action<string>? output, CancellationToken ct, TimeSpan? timeout)
     {
         IReadOnlyList<string> args;
         try
@@ -146,7 +149,7 @@ public static partial class WingetClient
             Log.Warn($"winget: {ex.Message}");
             return Task.FromResult(new WingetResult(NoApplicationsFound, ex.Message));
         }
-        return RunAsync(args, output, ct);
+        return RunAsync(args, output, ct, timeout: timeout);
     }
 
     public static Task<WingetResult> UninstallAsync(string id, Action<string>? output = null, CancellationToken ct = default)
@@ -373,8 +376,15 @@ public static partial class WingetClient
         args.Count > 0 && args[0].ToLowerInvariant() is "install" or "add" or "upgrade" or "update" or "uninstall" or "remove" or "rm"
             or "import" or "repair" or "configure" or "pin" or "source";
 
-    /// <summary>Runs winget with the given arguments (serialized; retried once on internal error).</summary>
-    public static async Task<WingetResult> RunAsync(IEnumerable<string> args, Action<string>? output, CancellationToken ct, bool log = true)
+    /// <summary>How long a winget run is waited for when the caller sets no limit.</summary>
+    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Runs winget with the given arguments (serialized; retried once on internal error). Cancelling <paramref name="ct"/>
+    /// kills the winget process tree (ProcessRunner) — only for an explicit, confirmed user stop.
+    /// </summary>
+    public static async Task<WingetResult> RunAsync(IEnumerable<string> args, Action<string>? output, CancellationToken ct, bool log = true,
+        TimeSpan? timeout = null)
     {
         var exe = ExePath;
         if (exe is null) return new WingetResult(-1, Loc.T("winget не найден. Установите «Установщик приложений» из Microsoft Store."));
@@ -385,6 +395,7 @@ public static partial class WingetClient
         // Killing winget mid-install would kill the installer it started and can leave a half-installed program:
         // a modifying run that exceeds the timeout is left running and reported as "still running".
         var modifying = IsModifying(list);
+        var limit = timeout is { } t && t > TimeSpan.Zero ? t : DefaultTimeout;
         await Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -394,7 +405,7 @@ public static partial class WingetClient
                 {
                     Encoding = OutputEncoding.Utf8,
                     LogCommand = log,
-                    Timeout = TimeSpan.FromMinutes(30),
+                    Timeout = limit,
                     KillOnTimeout = !modifying,
                     OnOutput = line =>
                     {
@@ -407,7 +418,7 @@ public static partial class WingetClient
                 if (r.Cancelled) return new WingetResult(r.ExitCode, text, Cancelled: true);
                 if (r.StillRunning)
                 {
-                    Log.Warn("winget {0} {1}: идёт дольше 30 минут — Lycoris перестал ждать, процесс не прерывался.", list.FirstOrDefault(), ArgId(list));
+                    Log.Warn("winget {0} {1}: идёт дольше {2} мин — Lycoris перестал ждать, процесс не прерывался.", list.FirstOrDefault(), ArgId(list), (int)limit.TotalMinutes);
                     return new WingetResult(-1, text) { StillRunning = true };
                 }
                 if (r.ExitCode == InternalError && attempt == 0)

@@ -391,15 +391,37 @@ public sealed partial class DriversViewModel : PageViewModel
         await RunBusyAsync(OperationClass.Install, Loc.Tf("Установка {0}…", tool.Name), async () =>
         {
             Log.Info("Установка {0} ({1}, источник {2})", tool.Name, id, tool.WingetSource);
-            var r = await WingetClient.InstallAsync(id, tool.WingetSource, line => Log.Info("winget: " + line));
-            if (r.Success)
+            // The progress strip of «ПОДБОР» shows the winget lines and the «СТОП» button.
+            HwInstallStage = Loc.Tf("УСТАНОВКА {0}", tool.Name.ToUpperInvariant());
+            HwInstallDetail = $"winget install {id}";
+            HwInstallPercent = 0;
+            HwInstallIndeterminate = true;
+            IsToolInstalling = true;
+            try
             {
-                success = true;
-                Ui.Toast($"{tool.Name}: {r.Message}.", ToastKind.Success);
+                var r = await RunDriverWingetAsync(t => WingetClient.InstallAsync(id, tool.WingetSource, line =>
+                {
+                    Log.Info("winget: " + line);
+                    Ui.Post(() => HwInstallDetail = line);
+                }, t, DriverWinget.Timeout));
+                switch (DriverWinget.Classify(r))
+                {
+                    case DriverWingetOutcome.Done or DriverWingetOutcome.DoneReboot:
+                        success = true;
+                        Ui.Toast($"{tool.Name}: {r.Message}.", ToastKind.Success);
+                        break;
+                    case DriverWingetOutcome.Stopped or DriverWingetOutcome.TimedOut:
+                        Ui.Toast($"{tool.Name}: {DriverWinget.ProblemText(r)}.", ToastKind.Warning, Loc.T("УСТАНОВКА НЕ ЗАВЕРШЕНА"));
+                        break;
+                    default:
+                        Ui.Toast($"{tool.Name}: {r.Message}.", ToastKind.Error, Loc.T("УСТАНОВКА НЕ УДАЛАСЬ"));
+                        break;
+                }
             }
-            else
+            finally
             {
-                Ui.Toast($"{tool.Name}: {r.Message}.", ToastKind.Error, Loc.T("УСТАНОВКА НЕ УДАЛАСЬ"));
+                IsToolInstalling = false;
+                HwInstallIndeterminate = false;
             }
             _apps = await Task.Run(DriverInventory.ReadUninstallEntries);
         });

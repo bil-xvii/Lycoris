@@ -926,6 +926,17 @@
     "Восстановление служб драйверов…": "Restoring driver services…",
     "Восстановление служб драйверов ({0} устройств)": "Restoring driver services ({0} devices)",
     "Восстановлено служб: {0}. Может потребоваться перезагрузка устройств.": "Services restored: {0}. Devices may need a restart.",
-    "Не удалось восстановить ни одной службы.": "No service could be restored."
+    "Не удалось восстановить ни одной службы.": "No service could be restored.",
+    "Остановлено — изменения, которые winget успел сделать, остались; проверьте список": "Stopped — the changes winget had already made remain; check the list",
+    "winget не завершился за {0} мин — Lycoris перестал ждать, процесс не прерван. Установка может ещё идти: проверьте список позже": "winget didn't finish within {0} min — Lycoris stopped waiting, the process wasn't interrupted. The installation may still be running: check the list later",
+    "ПРОПУЩЕНО: WINGET ЕЩЁ РАБОТАЕТ": "SKIPPED: WINGET IS STILL RUNNING",
+    "ОСТАНОВЛЕНО": "STOPPED",
+    "НЕТ ОТВЕТА {0} МИН": "NO ANSWER FOR {0} MIN",
+    "ОСТАНОВИТЬ WINGET?": "STOP WINGET?",
+    "Остановка winget…": "Stopping winget…",
+    "winget остановлен пользователем («СТОП»).": "winget was stopped by the user (“STOP”).",
+    "УСТАНОВКА {0}": "INSTALLING {0}",
+    "УСТАНОВКА НЕ ЗАВЕРШЕНА": "INSTALLATION NOT FINISHED",
+    "Прервать winget сейчас: процесс и запущенный им установщик будут завершены (после подтверждения).": "Interrupt winget now: the process and the installer it started will be ended (after a confirmation)."
   }
 }

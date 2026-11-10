@@ -742,7 +742,7 @@
             <c:StickyBar Count="{Binding HwSelectedCount}" Text="{Binding HwSelectionText}">
                 <c:StickyBar.Visibility>
                     <MultiBinding Converter="{StaticResource Drv.AllTrueToVis}">
-                        <Binding Path="IsHwInstalling" Converter="{StaticResource InverseBool}" />
+                        <Binding Path="ShowInstallStrip" Converter="{StaticResource InverseBool}" />
                         <Binding Path="HasPrimary" />
                     </MultiBinding>
                 </c:StickyBar.Visibility>
@@ -756,9 +756,9 @@
                 </c:StickyBar.Actions>
             </c:StickyBar>
 
-            <!-- Installing -->
+            <!-- Installing: the «ПОДБОР» queue or a vendor tool; «СТОП» only while winget runs -->
             <Border Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}"
-                    Visibility="{Binding IsHwInstalling, Converter={StaticResource BoolToVis}}">
+                    Visibility="{Binding ShowInstallStrip, Converter={StaticResource BoolToVis}}">
                 <Grid Margin="14,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -771,13 +771,24 @@
                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding HwInstallDetail}" />
                         <ProgressBar Value="{Binding HwInstallPercent}" Maximum="100" IsIndeterminate="{Binding HwInstallIndeterminate}" />
                     </StackPanel>
-                    <Button Grid.Column="1" Style="{StaticResource Btn.Danger}" VerticalAlignment="Center" Command="{Binding CancelHardwareInstallCommand}"
-                            ToolTip="{loc:T Остановить очередь. Уже открытый установщик драйвера не прерывается.}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="{loc:T ОТМЕНИТЬ УСТАНОВКУ}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource Btn}" Command="{Binding CancelHardwareInstallCommand}"
+                                Visibility="{Binding IsHwInstalling, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{loc:T Остановить очередь. Уже открытый установщик драйвера не прерывается.}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{loc:T ОТМЕНИТЬ УСТАНОВКУ}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource Btn.Danger}" Margin="8,0,0,0" Command="{Binding StopWingetCommand}"
+                                Visibility="{Binding IsWingetRunning, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{loc:T Прервать winget сейчас: процесс и запущенный им установщик будут завершены (после подтверждения).}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="{loc:T СТОП}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

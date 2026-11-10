@@ -24,6 +24,9 @@ public sealed partial class DriversViewModel
     private OnlineInfo _hwOnline = OnlineInfo.NotStarted;
     private CancellationTokenSource? _hwScanCts;
     private CancellationTokenSource? _hwInstallCts;
+    private readonly WingetStopper _wingetStop = new();
+    /// <summary>A winget run of this «ПОДБОР» pass timed out and was left running: the next winget items are skipped.</summary>
+    private bool _hwWingetLeftRunning;
     private bool _hwHooked;
     private bool _hwRebuildQueued;
     private bool _hwRebuildAfterInstall;
@@ -131,7 +134,17 @@ public sealed partial class DriversViewModel
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(InstallHardwareCommand), nameof(CancelHardwareInstallCommand), nameof(RescanHardwareCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowInstallStrip))]
     private bool _isHwInstalling;
+
+    /// <summary>A vendor tool (GPU card / Intel DSA button) is being installed through winget.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowInstallStrip))] private bool _isToolInstalling;
+
+    /// <summary>winget is running right now for this page: «СТОП» is shown.</summary>
+    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(StopWingetCommand))] private bool _isWingetRunning;
+
+    /// <summary>The progress strip at the bottom of «ПОДБОР»: the queue or a vendor-tool install.</summary>
+    public bool ShowInstallStrip => IsHwInstalling || IsToolInstalling;
 
     [ObservableProperty] private string _hwInstallStage = "";
     [ObservableProperty] private string _hwInstallDetail = "";
@@ -544,6 +557,7 @@ public sealed partial class DriversViewModel
             _hwInstallCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             var ct = _hwInstallCts.Token;
             IsHwInstalling = true;
+            _hwWingetLeftRunning = false;
             HwInstallPercent = 0;
             HwInstallIndeterminate = true;
             try
@@ -673,14 +687,27 @@ public sealed partial class DriversViewModel
             HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОТМЕНЕНО"), false));
             return;
         }
-        // The token is only checked BETWEEN steps: cancelling a running winget would kill the installer it started and
-        // leave a half-installed program (OperationCoordinator rule: never kill an installer).
-        var r = await WingetClient.InstallPackageAsync(request, line => Ui.Post(() => HwInstallDetail = line), CancellationToken.None);
-        if (r.Cancelled)
+        if (_hwWingetLeftRunning)
         {
-            item.SetJob(HwJobState.Skipped, Loc.T("ОТМЕНЕНО"));
-            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОТМЕНЕНО"), false));
+            // Never a second winget beside the one still running (parallel runs fail with internal errors).
+            item.SetJob(HwJobState.Skipped, Loc.T("ПРОПУЩЕНО: WINGET ЕЩЁ РАБОТАЕТ"));
+            HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ПРОПУЩЕНО"), false, DriverWinget.TimedOutText));
             return;
+        }
+        // «ОТМЕНИТЬ УСТАНОВКУ» (ct) is only checked BETWEEN steps: it never kills the installer winget started. Only the
+        // confirmed «СТОП» (_wingetStop) kills the winget process tree; the page reports what that means.
+        var r = await RunDriverWingetAsync(t => WingetClient.InstallPackageAsync(request, line => Ui.Post(() => HwInstallDetail = line), t, DriverWinget.Timeout));
+        switch (DriverWinget.Classify(r))
+        {
+            case DriverWingetOutcome.Stopped:
+                item.SetJob(HwJobState.Skipped, Loc.T("ОСТАНОВЛЕНО"));
+                HardwareResults.Add(new HwResultItem(item.Title, Loc.T("ОСТАНОВЛЕНО"), false, DriverWinget.StoppedText));
+                return;
+            case DriverWingetOutcome.TimedOut:
+                _hwWingetLeftRunning = true;
+                item.SetJob(HwJobState.Failed, Loc.Tf("НЕТ ОТВЕТА {0} МИН", DriverWinget.TimeoutMinutes));
+                HardwareResults.Add(new HwResultItem(item.Title, Loc.T("НЕ ДОЖДАЛИСЬ"), false, DriverWinget.TimedOutText));
+                return;
         }
         if (!r.Success)
         {
@@ -788,6 +815,41 @@ public sealed partial class DriversViewModel
         var failed = HardwareResults.Count - ok;
         if (HardwareResults.Count > 0)
             HwResultsSummary = failed == 0 ? Loc.Tf("Готово: {0} из {1}.", ok, HardwareResults.Count) : Loc.Tf("Успешно: {0}, с ошибками или отменено: {1}.", ok, failed);
+    }
+
+    /// <summary>Runs one winget call that «СТОП» can stop (<see cref="WingetStopper"/>).</summary>
+    private async Task<WingetResult> RunDriverWingetAsync(Func<CancellationToken, Task<WingetResult>> run)
+    {
+        IsWingetRunning = true;
+        try
+        {
+            return await _wingetStop.RunAsync(run);
+        }
+        finally
+        {
+            IsWingetRunning = false;
+        }
+    }
+
+    /// <summary>
+    /// «СТОП»: after a confirmation that says what it means, kills the running winget and the installer it started
+    /// (ProcessRunner kills the process tree) and does not start the rest of the «ПОДБОР» queue.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(IsWingetRunning))]
+    private async Task StopWingetAsync()
+    {
+        if (!_wingetStop.IsRunning || _wingetStop.StopRequested) return;
+        var ok = await Ui.ConfirmAsync(Loc.T("ОСТАНОВИТЬ WINGET?"),
+            Loc.T("Процесс winget и запущенный им установщик будут принудительно завершены. Программа может остаться " +
+            "установленной не полностью — тогда установите её заново или удалите в «Параметры → Приложения»."),
+            null, Loc.T("СТОП"), Loc.T("ПРОДОЛЖИТЬ УСТАНОВКУ"), danger: true);
+        if (!ok) return;
+        if (_hwInstallCts is { IsCancellationRequested: false } queue) queue.Cancel();
+        if (_wingetStop.Stop())
+        {
+            HwInstallDetail = Loc.T("Остановка winget…");
+            Log.Warn("winget остановлен пользователем («СТОП»).");
+        }
     }
 
     [RelayCommand(CanExecute = nameof(IsHwInstalling))]
