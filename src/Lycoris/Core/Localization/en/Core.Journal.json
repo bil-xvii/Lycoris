@@ -83,7 +83,7 @@
     "некорректный раздел, созданный Lycoris": "invalid key created by Lycoris",
     "{0}\\{1} — защищённое место реестра": "{0}\\{1} is a protected registry location",
     "{0} — не отметка автозагрузки": "{0} is not a startup entry",
-    "{0} — не выбор видеокарты для игры": "{0} is not a graphics card choice for a game",
+    "{0} — не выбор видеокарты и не приоритет программы": "{0} is neither a graphics card choice nor a program priority",
     "цель записи не совпадает со службой": "the record target does not match the service",
     "служба {0} защищена от изменений": "the service {0} is protected from changes",
     "службу {0} Lycoris никогда не меняет": "Lycoris never changes the service {0}",
