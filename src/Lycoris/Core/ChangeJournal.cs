@@ -1089,6 +1089,9 @@ public sealed class ChangeJournal
     /// </summary>
     internal static bool IsForbiddenRestoreTarget(RegistryValueSnapshot s)
     {
+        // The one IFEO value Lycoris writes: a program's CPU priority rule (PerfOptions\CpuPriorityClass of a non-system exe,
+        // original absent or a known level). Debugger, GlobalFlag, MitigationOptions… and every other IFEO value stay refused.
+        if (Lycoris.Modules.Games.PriorityRules.IsRuleValue(s)) return false;
         var p = s.Path.Replace('/', '\\').TrimEnd('\\').ToLowerInvariant();
         var n = s.Name.ToLowerInvariant();
         if (p.Contains("image file execution options") || p.Contains("silentprocessexit")) return true;
@@ -1493,11 +1496,19 @@ internal static class JournalTrust
                 if (reg.CreatedKeyRoot is { } root)
                 {
                     if (!RegistryHelper.IsValidCreatedRoot(reg.Path, root)) return Loc.T("некорректный раздел, созданный Lycoris");
-                    if (ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = reg.Hive, Path = root, Name = "" }))
+                    // A priority rule may own the program's IFEO key (or its PerfOptions key): removed only while empty.
+                    var isRule = Lycoris.Modules.Games.PriorityRules.IsRuleValue(reg);
+                    var ruleRoot = isRule && Lycoris.Modules.Games.PriorityRules.IsRuleKeyRoot(reg.Hive, root);
+                    if (isRule && !ruleRoot) return Loc.Tf("{0}\\{1} — защищённое место реестра", reg.Hive, root);
+                    if (!ruleRoot && ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = reg.Hive, Path = root, Name = "" }))
                         return Loc.Tf("{0}\\{1} — защищённое место реестра", reg.Hive, root);
                 }
                 if (r.Source == "startup" && !IsStartupMark(reg)) return Loc.Tf("{0} — не отметка автозагрузки", reg.FullName);
-                if (r.Source == "games" && !IsGpuPreference(reg)) return Loc.Tf("{0} — не выбор видеокарты для игры", reg.FullName);
+                if (r.Source == "games" && !IsGpuPreference(reg) && !Lycoris.Modules.Games.PriorityRules.IsRuleValue(reg))
+                    return Loc.Tf("{0} — не выбор видеокарты и не приоритет программы", reg.FullName);
+                // A priority rule is written only by the Games page (a tweak or another page never touches IFEO).
+                if (r.Source != "games" && Lycoris.Modules.Games.PriorityRules.IsRuleValue(reg))
+                    return Loc.Tf("{0} — защищённое место реестра", reg.FullName);
                 return null;
 
             case ChangeKind.Service when r.Service is { } svc:

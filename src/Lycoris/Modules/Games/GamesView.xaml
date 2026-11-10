@@ -629,6 +629,90 @@
                     <Button Style="{StaticResource Btn.Link}" Content="{Binding ReadinessText}" Command="{Binding GoDashboardCommand}"
                             HorizontalAlignment="Left" Margin="0,10,0,0"
                             Visibility="{Binding ReadinessLoaded, Converter={StaticResource BoolToVis}}" />
+
+                    <!-- ─────────── PROGRAM PRIORITY (persistent, IFEO PerfOptions; journaled with a restore point) ─────────── -->
+                    <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True" Margin="0,10,0,0">
+                        <StackPanel Margin="12,11,12,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{loc:T 'ВСЕГДА, НЕ ТОЛЬКО В СЕАНСЕ'}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T 'Приоритет программ'}" Style="{StaticResource T.H1}" FontSize="17" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource TabBadge}" VerticalAlignment="Top" Margin="8,2,0,0">
+                                    <TextBlock Text="{Binding PriorityRulesCount}" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Style="{StaticResource T.Caption}" Margin="0,6,0,0" LineHeight="16" TextWrapping="Wrap"
+                                       Text="{loc:T 'Windows будет запускать выбранную программу с этим приоритетом при каждом старте — например, игру выше остальных, а торрент ниже. Подействует со следующего запуска; никогда не «Реального времени».'}" />
+
+                            <!-- Rules -->
+                            <ItemsControl ItemsSource="{Binding PriorityRuleItems}" Margin="0,10,0,0" Focusable="False"
+                                          Visibility="{Binding HasPriorityRules, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:PriorityRuleItem}">
+                                        <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,8,0,8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Margin="0,0,8,0">
+                                                    <!-- Wraps: a long level name moves under the file name instead of running under УДАЛИТЬ -->
+                                                    <WrapPanel>
+                                                        <TextBlock Text="{Binding Exe}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" Margin="0,0,8,0"
+                                                                   TextTrimming="CharacterEllipsis" MaxWidth="190" ToolTip="{Binding Exe}" VerticalAlignment="Center" />
+                                                        <Border Style="{StaticResource Tag.Solid}" Margin="0,1,0,1" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding LevelText}" />
+                                                        </Border>
+                                                    </WrapPanel>
+                                                    <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" TextWrapping="Wrap" LineHeight="16" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Padding="10,0" VerticalAlignment="Top"
+                                                        Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.RemovePriorityRuleCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                                        CommandParameter="{Binding Exe}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{x:Static ui:Glyphs.Remove}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                                        <TextBlock Text="{loc:T 'УДАЛИТЬ'}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{loc:T 'Правил пока нет: все программы запускаются с обычным приоритетом.'}" Style="{StaticResource T.Caption}"
+                                       Margin="0,10,0,0" TextWrapping="Wrap" Foreground="{StaticResource B.Text2}"
+                                       Visibility="{Binding NoPriorityRules, Converter={StaticResource BoolToVis}}" />
+
+                            <!-- Add: level + program -->
+                            <Rectangle Height="1" Fill="{StaticResource B.Line}" Margin="0,10,0,10" />
+                            <TextBlock Text="{loc:T 'НОВОЕ ПРАВИЛО'}" Style="{StaticResource T.Label}" />
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox ItemsSource="{Binding PriorityLevels}" SelectedItem="{Binding SelectedPriorityLevel}" DisplayMemberPath="Label"
+                                          AutomationProperties.Name="{loc:T 'Уровень приоритета'}" />
+                                <Button Grid.Column="1" Padding="10,0" Margin="8,0,0,0" Command="{Binding AddPriorityRuleCommand}"
+                                        IsEnabled="{Binding IsPriorityChanging, Converter={StaticResource InverseBool}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.Add}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                        <TextBlock Text="{loc:T 'ВЫБРАТЬ ПРОГРАММУ'}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <TextBlock Text="{Binding PriorityLevelNote}" Style="{StaticResource T.Caption}" Margin="0,6,0,0" TextWrapping="Wrap" LineHeight="16" />
+                            <TextBlock Text="{Binding PriorityModeNote}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" TextWrapping="Wrap" LineHeight="16" />
+                            <TextBlock Style="{StaticResource T.Caption}" Margin="0,4,0,0" TextWrapping="Wrap" LineHeight="16"
+                                       Text="{loc:T 'Программы Windows, античиты и сам Lycoris не меняются. Каждое правило — в журнале с точкой восстановления.'}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
                 </ScrollViewer>
         </Grid>

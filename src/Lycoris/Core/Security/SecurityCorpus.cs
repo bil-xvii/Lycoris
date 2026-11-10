@@ -105,6 +105,15 @@ public static class SecurityCorpus
             ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKCU, Path = "Environment", Name = "PSModulePath" }));
         Expect("journal: IFEO is a forbidden restore target", () =>
             ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\x.exe", Name = "Debugger" }));
+        Expect("journal: IFEO PerfOptions of a system program is forbidden", () =>
+            ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\lsass.exe\PerfOptions", Name = "CpuPriorityClass" }));
+        Expect("journal: IFEO PerfOptions with a path-like name is forbidden", () =>
+            ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\..\x.exe\PerfOptions", Name = "CpuPriorityClass" }));
+        Expect("journal: a realtime priority original is forbidden", () =>
+            ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\game.exe\PerfOptions", Name = "CpuPriorityClass", ValueExisted = true, KeyExisted = true, Kind = Microsoft.Win32.RegistryValueKind.DWord, Data = "4" }));
+        Expect("journal: a priority rule from a tweak source is refused", () =>
+            JournalTrust.Check(new ChangeRecord { Source = "tweak:x", Kind = ChangeKind.Registry, Target = @"reg:HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\game.exe\PerfOptions\CpuPriorityClass",
+                Registry = new RegistryValueSnapshot { Hive = RegHive.HKLM, Path = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\game.exe\PerfOptions", Name = "CpuPriorityClass" } }) is not null);
         Expect("journal: forged command from a user folder is refused", () =>
             JournalTrust.Check(new ChangeRecord { Source = "tweak:x", Kind = ChangeKind.Command, Target = "cmd:hibernate", RevertFile = @"C:\Users\Public\evil.exe", RevertArgs = "" }) is not null);
         Expect("journal: forged cmd line is refused", () =>
