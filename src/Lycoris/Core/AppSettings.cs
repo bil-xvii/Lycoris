@@ -115,6 +115,15 @@ public sealed partial class AppSettings : ObservableObject
 
     public const int MaintenanceEveryDays = 14;
 
+    /// <summary>
+    /// «Обслуживание по расписанию» was switched on in Lycoris (the user's consent; the task itself lives in the Task Scheduler,
+    /// see Core/Maintenance). «Lycoris.exe --maintain» does nothing while this is off.
+    /// </summary>
+    [ObservableProperty] private bool _scheduledMaintenance;
+
+    /// <summary>UTC time (ISO 8601) of the last scheduled run the app has already reported; "" = none.</summary>
+    [ObservableProperty] private string _scheduledMaintenanceSeenUtc = "";
+
     // ───────── Updates (Core/Updates) ─────────
 
     /// <summary>Look for a new Lycoris version in the background (at most every 12 hours). Default on.</summary>

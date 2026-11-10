@@ -71,6 +71,8 @@ src/Lycoris/
                          ChangeJournal, ChangeSession, OperationCoordinator, ServiceControl, PowerSchemes, ScheduledTasks,
                          RestorePointService, SystemProfile, AppSettings, WingetClient, VendorDownloads;
                          Core/Devices: device journal targets, writer interfaces, safe display apply, undo of device records
+                         Core/Maintenance: «Обслуживание по расписанию» — the weekly task «Lycoris.exe --maintain» (always normal rights,
+                         journaled through ChangeSession.SetMaintenanceTask; the run: Modules/Cleaner/ScheduledMaintenanceRun.cs)
   Tweaks/                Tweak model (RegistryTweak, ServiceTweak, ScheduledTaskTweak, CustomTweak),
                          TweakEngine (apply/revert via journal), TweakCatalog (+ partial files with items)
   Shell/                 MainWindow (custom chrome, sidebar, console, toasts, dialogs), MainViewModel, PageViewModel

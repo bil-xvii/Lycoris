@@ -93,6 +93,9 @@ public sealed partial class MaintenanceViewModel : PageViewModel
     /// <summary>A fresh read-only analysis of the cleaning tab.</summary>
     public ICommand AnalyzeCommand => Cleaner.AnalyzeCommand;
 
+    /// <summary>«Обслуживание по расписанию» of the cleaning tab: "on:&lt;day&gt;:&lt;HH:mm&gt;", "fix" or "off" (confirms first).</summary>
+    public ICommand ScheduleMaintenanceCommand => Cleaner.ScheduleMaintenanceCommand;
+
     /// <summary>A tool button by its text id («Sfc», «DismRestore», «DefragVolume:C:») — what the admin-intent replay repeats.</summary>
     public ICommand RunToolCommand => Tools.RunToolCommand;
 

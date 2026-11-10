@@ -180,6 +180,12 @@
     "Готово: {0} — изменений: {1}": "Done: {0} — changes: {1}",
     "{0}: применено {1}, ошибок {2}": "{0}: applied {1}, errors {2}",
     "{0} — не применено": "{0} — not applied",
-    "Планировщик заданий не ответил — откат не выполнен, повторите позже.": "Task Scheduler did not respond — nothing was reverted, try again later."
+    "Планировщик заданий не ответил — откат не выполнен, повторите позже.": "Task Scheduler did not respond — nothing was reverted, try again later.",
+    "данные задачи обслуживания в записи другого источника": "maintenance task data in a record of another source",
+    "цель записи не совпадает с задачей обслуживания": "the record's target doesn't match the maintenance task",
+    "лишние данные в записи задачи обслуживания": "extra data in the maintenance task record",
+    "в записи задачи обслуживания нет исходного состояния": "the maintenance task record has no original state",
+    "Задача по расписанию": "Scheduled task",
+    "Нет задачи": "No task"
   }
 }

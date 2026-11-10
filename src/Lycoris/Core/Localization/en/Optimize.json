@@ -286,6 +286,7 @@
     "{0} · источник проверен {1}, сведения могли устареть": "{0} · source checked {1}, may be out of date",
     "{0} · источник проверен {1}": "{0} · source checked {1}",
     "Не удалось открыть источник: {0}": "Could not open the source: {0}",
-    "откроется в браузере": "opens in the browser"
+    "откроется в браузере": "opens in the browser",
+    "Обслуживание по расписанию": "Scheduled maintenance"
   }
 }

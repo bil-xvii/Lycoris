@@ -271,6 +271,49 @@ public sealed class ChangeSession
         }
     }
 
+    /// <summary>
+    /// Creates, changes or removes Lycoris's maintenance task (<see cref="Maintenance.ScheduledMaintenanceTask"/>):
+    /// <paramref name="desired"/> = the task's new state (<see cref="Maintenance.MaintenanceTaskSnapshot.Absent"/> removes it).
+    /// The state before is journaled first; the undo puts exactly that back (deletes a created task, re-creates a removed one).
+    /// A task with this name that Lycoris did not create is never touched.
+    /// </summary>
+    public bool SetMaintenanceTask(Maintenance.MaintenanceTaskSnapshot desired, string title) =>
+        _journal.Exclusive(() => SetMaintenanceTaskCore(desired, title));
+
+    private bool SetMaintenanceTaskCore(Maintenance.MaintenanceTaskSnapshot desired, string title)
+    {
+        ChangeRecord? rec = null;
+        bool isNew = false;
+        try
+        {
+            if (desired.Problem() is { } problem) throw new InvalidOperationException(problem);
+            var before = Maintenance.ScheduledMaintenanceTask.ReadSnapshot();
+            var incoming = new ChangeRecord
+            {
+                BatchId = Batch.Id, Source = Maintenance.ScheduledMaintenanceTask.Source, Title = title, Kind = ChangeKind.ScheduledTask,
+                Target = Maintenance.ScheduledMaintenanceTask.Target, TaskPath = Maintenance.ScheduledMaintenanceTask.TaskPath,
+                OldValue = MaintenanceStateText(before), NewValue = MaintenanceStateText(desired), MaintenanceTask = before,
+            };
+            RefuseUntrusted(incoming);
+            (rec, isNew) = _journal.Add(incoming);
+            Maintenance.ScheduledMaintenanceTask.Apply(desired);
+            if (!isNew) _journal.MergeInto(rec, incoming);
+            Applied++;
+            Log.Info("{0}: {1} → {2}", title, incoming.OldValue, incoming.NewValue);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (rec is not null && isNew) _journal.Remove(rec);
+            Fail(title, ex);
+            return false;
+        }
+    }
+
+    /// <summary>Journal wording (Russian on disk, a fixed key translated where shown) of a maintenance task state.</summary>
+    internal static string MaintenanceStateText(Maintenance.MaintenanceTaskSnapshot s) =>
+        s.Exists ? Loc.Keep("Задача по расписанию") : Loc.Keep("Нет задачи");
+
     // ───────────────────────────── Commands ─────────────────────────────
 
     /// <summary>

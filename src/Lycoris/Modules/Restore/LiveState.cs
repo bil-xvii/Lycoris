@@ -82,6 +82,7 @@ public static class LiveState
                 ChangeKind.Registry when r.Registry is { } original => VerifyRegistry(original),
                 ChangeKind.Service when r.Service is { } original => VerifyService(original),
                 ChangeKind.PowerScheme => VerifyPower(r),
+                ChangeKind.ScheduledTask when r.MaintenanceTask is { } original => VerifyMaintenanceTask(original),
                 ChangeKind.ScheduledTask when r.TaskPath is { } path && r.TaskWasEnabled is { } was => VerifyTask(path, was),
                 ChangeKind.Command => VerifyCommand(r),
                 _ when JournalTrust.IsDeviceKind(r.Kind) => VerifyDevice(r),
@@ -204,6 +205,20 @@ public static class LiveState
         static string TaskText(bool enabled) => enabled ? "Включена" : "Отключена"; // loc:ignore journal-compared state text (Russian on disk)
     }
 
+    /// <summary>The maintenance task now in the journal's wording; null when the scheduler did not answer or the task is not Lycoris's.</summary>
+    private static string? MaintenanceLive()
+    {
+        try { return ChangeSession.MaintenanceStateText(Lycoris.Core.Maintenance.ScheduledMaintenanceTask.ReadSnapshot()); }
+        catch { return null; }
+    }
+
+    private static RevertCheck VerifyMaintenanceTask(Lycoris.Core.Maintenance.MaintenanceTaskSnapshot original)
+    {
+        var expected = ChangeSession.MaintenanceStateText(original);
+        if (MaintenanceLive() is not { } live) return RevertCheck.NotChecked;
+        return new RevertCheck(live == expected, live, expected);
+    }
+
     private const string DxPreferencesPath = @"Software\Microsoft\DirectX\UserGpuPreferences";
     private const string DxGlobalSettings = "DirectXUserGlobalSettings";
 
@@ -270,6 +285,9 @@ public static class LiveState
 
     private static LiveValue ReadTask(ChangeRecord r)
     {
+        // Lycoris's own maintenance task: shown, never compared (switching it off and on is the user's choice, not drift).
+        if (r.Source == Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source)
+            return new LiveValue(MaintenanceLive() ?? Unknown, null);
         var path = r.TaskPath ?? StripPrefix(r.Target, "task:");
         if (string.IsNullOrEmpty(path)) return new LiveValue(Unknown, null);
         var info = ScheduledTasks.Query(path);

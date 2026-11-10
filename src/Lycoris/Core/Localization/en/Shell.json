@@ -287,6 +287,8 @@
     "Программы, которые Windows запускает при входе. Каждая может удлинять вход и работает в фоне; отключение обратимо, программы не удаляются.": "Programs Windows starts when you sign in. Each one can lengthen sign-in and runs in the background; turning them off is reversible, nothing is uninstalled.",
     "Lycoris запущена без прав администратора: всё можно смотреть и проверять, а действие, которому нужны права, само попросит их.": "Lycoris runs without administrator rights: you can look at and check everything, and an action that needs rights asks for them itself.",
     "ПОЧЕМУ ТОРМОЗИТ?": "WHY IS IT SLOW?",
-    "Замер 10 секунд: кто грузит процессор и память, занят ли диск, и что с этим делать — раздел «Панель».": "A 10-second measurement: what loads the CPU and memory, whether the disk is busy, and what to do about it — the Dashboard page."
+    "Замер 10 секунд: кто грузит процессор и память, занят ли диск, и что с этим делать — раздел «Панель».": "A 10-second measurement: what loads the CPU and memory, whether the disk is busy, and what to do about it — the Dashboard page.",
+    "Обслуживание по расписанию: непредвиденная ошибка": "Scheduled maintenance: unexpected error",
+    "Обслуживание по расписанию: итог не проверен — {0}": "Scheduled maintenance: the result wasn't checked — {0}"
   }
 }

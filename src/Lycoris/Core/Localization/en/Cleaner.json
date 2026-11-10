@@ -244,6 +244,16 @@
     "Файл игры Steam: удаляйте игру через Steam, иначе Steam сочтёт её повреждённой.": "Steam game file: uninstall the game through Steam, otherwise Steam will consider it damaged.",
     "Часть истории Git-репозитория: не удаляйте вручную — так репозиторий сломается; сжать историю можно командой «git gc».": "Part of a Git repository's history: do not delete it by hand — that breaks the repository; “git gc” can compact the history.",
     "Кэш моделей Hugging Face: можно удалить — модель скачается заново, когда понадобится.": "Hugging Face model cache: safe to delete — the model downloads again when needed.",
-    "{0} лежит в папке, куда могут писать обычные программы, — с правами администратора он не запускается. Очистите этот кэш командой самого инструмента в обычном окне терминала.": "{0} is in a folder that ordinary programs can write to, so it is not run with administrator rights. Clean this cache with the tool\u0027s own command in a normal terminal window."
+    "{0} лежит в папке, куда могут писать обычные программы, — с правами администратора он не запускается. Очистите этот кэш командой самого инструмента в обычном окне терминала.": "{0} is in a folder that ordinary programs can write to, so it is not run with administrator rights. Clean this cache with the tool's own command in a normal terminal window.",
+    "Обслуживание по расписанию": "Scheduled maintenance",
+    "ДЕНЬ": "DAY",
+    "День недели запуска": "Day of the week to run",
+    "ВРЕМЯ": "TIME",
+    "Время запуска по часам этого ПК": "Start time by this PC's clock",
+    "Создать еженедельную задачу — после подтверждения со списком": "Create the weekly task — after a confirmation with the list",
+    "СОХРАНИТЬ ВРЕМЯ": "SAVE TIME",
+    "Задача будет запускать эту копию Lycoris": "The task will start this copy of Lycoris",
+    "ИСПРАВИТЬ": "FIX",
+    "Удалить задачу из планировщика — после подтверждения": "Delete the task from the Task Scheduler — after a confirmation"
   }
 }
