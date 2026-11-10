@@ -87,6 +87,9 @@
     "Источник времени загрузки: {0}": "Boot time source: {0}",
     "Оценка ПК по проверкам «Панели»: 100 — замечаний нет": "PC score from the «Dashboard» checks: 100 means no remarks",
     "Одно подтверждение, запись в журнал и откат — то же, что на «Панели»": "One confirmation, logged and undoable — the same as on the «Dashboard»",
-    "Остальное требует вашего решения — кнопки у каждого пункта ниже": "The rest needs your decision — each item below has its own button"
+    "Остальное требует вашего решения — кнопки у каждого пункта ниже": "The rest needs your decision — each item below has its own button",
+    "ВСЯ ИСТОРИЯ · ЕЩЁ {0}": "FULL HISTORY · {0} MORE",
+    "ИСТОРИЯ ЗАМЕРОВ": "MEASUREMENT HISTORY",
+    "Запишите замер сейчас и ещё раз после изменений — здесь появится история с разницей между замерами.": "Record a measurement now and again after changes — the history with the difference between them will appear here."
   }
 }

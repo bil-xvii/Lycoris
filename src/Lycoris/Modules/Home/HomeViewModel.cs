@@ -56,6 +56,12 @@ public sealed partial class HomeViewModel : PageViewModel
     // Before / after measurement: the shared Core/Measurements module (real sources, safe store, honest comparison).
     private readonly MeasurementStore _measurementStore = new();
     [ObservableProperty] private string? _measurementNote;
+    /// <summary>Newest measurements first: the first rows are always visible, the rest sit under «ВСЯ ИСТОРИЯ».</summary>
+    public ObservableCollection<MeasurementHistoryRow> MeasurementHistoryTop { get; } = [];
+    public ObservableCollection<MeasurementHistoryRow> MeasurementHistoryMore { get; } = [];
+    [ObservableProperty] private bool _hasMoreMeasurementHistory;
+    [ObservableProperty] private string _moreMeasurementHistoryText = "";
+    internal const int HistoryVisibleRows = 3;
 
     [RelayCommand]
     private async Task RecordMeasurementAsync()
@@ -63,7 +69,14 @@ public sealed partial class HomeViewModel : PageViewModel
         string? preserved = null;
         var saved = await Task.Run(() =>
         {
-            var ok = _measurementStore.Save(MeasurementCollector.CreateDefault().Collect());
+            var measurement = MeasurementCollector.CreateDefault().Collect();
+            var previous = _measurementStore.Read().LastOrDefault();
+            if (previous is not null && !ChangeJournal.Instance.IsUnavailable)
+            {
+                var (applied, reverted) = MeasurementHistory.CountJournalChanges(ChangeJournal.Instance.Records, previous.RecordedAt, measurement.RecordedAt);
+                measurement = measurement with { ChangesApplied = applied, ChangesReverted = reverted };
+            }
+            var ok = _measurementStore.Save(measurement);
             preserved = _measurementStore.PreservedCorruptFile;
             return ok;
         });
@@ -75,7 +88,15 @@ public sealed partial class HomeViewModel : PageViewModel
 
     private void RefreshMeasurements()
     {
-        var entries = _measurementStore.Read().TakeLast(2).ToArray();
+        var all = _measurementStore.Read();
+        var history = MeasurementHistory.Build(all);
+        MeasurementHistoryTop.Clear();
+        MeasurementHistoryMore.Clear();
+        for (var i = 0; i < history.Count; i++)
+            (i < HistoryVisibleRows ? MeasurementHistoryTop : MeasurementHistoryMore).Add(history[i]);
+        HasMoreMeasurementHistory = MeasurementHistoryMore.Count > 0;
+        MoreMeasurementHistoryText = Loc.Tf("ВСЯ ИСТОРИЯ · ЕЩЁ {0}", MeasurementHistoryMore.Count);
+        var entries = all.TakeLast(2).ToArray();
         HasMeasurements = entries.Length > 0;
         MeasurementSummary = entries.Length switch
         {

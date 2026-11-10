@@ -252,6 +252,22 @@
     "Автозапуск: буфер обмена недоступен: {0}": "Startup: clipboard unavailable: {0}",
     "Не удалось открыть браузер. Поиск: {0}": "Couldn't open the browser. Search: {0}",
     "Дождитесь окончания текущей операции: ": "Wait for the current operation to finish: ",
-    "идёт работа": "work in progress"
+    "идёт работа": "work in progress",
+    "автозапуск {0}": "startup {0}",
+    "свободно {0} МБ": "{0} MB free",
+    "память недоступна": "memory unavailable",
+    "загрузка {0} с": "boot {0} s",
+    "загрузка недоступна": "boot unavailable",
+    "первый замер в истории — сравнивать пока не с чем": "first measurement in the history — nothing to compare with yet",
+    "Lycoris между замерами ничего не менял": "Lycoris changed nothing between the measurements",
+    "между замерами применено {0} изменение": "{0} change applied between the measurements|{0} changes applied between the measurements",
+    "между замерами применено {0}, откачено {1}": "{0} applied, {1} undone between the measurements",
+    "несопоставимо: {0}": "not comparable: {0}",
+    "свободной памяти больше на {0} МБ": "{0} MB more free memory",
+    "свободной памяти меньше на {0} МБ": "{0} MB less free memory",
+    "время загрузки то же — перезагрузки, вероятно, не было": "same boot time — probably no restart in between",
+    "загрузка быстрее на {0} с": "boot {0} s faster",
+    "загрузка медленнее на {0} с": "boot {0} s slower",
+    "разница в пределах погрешности": "difference within measurement noise"
   }
 }
