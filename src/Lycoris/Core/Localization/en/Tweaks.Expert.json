@@ -1,0 +1,34 @@
+{
+  "area": "Tweaks.Expert",
+  "translated": true,
+  "sources": [
+    "Tweaks/TweakCatalog.Expert.cs"
+  ],
+  "ignore": [],
+  "en": {
+    "Отключить Power Throttling для всех программ": "Turn off Power Throttling for all apps",
+    "Windows перестаёт замедлять фоновые программы ради экономии энергии.": "Windows stops slowing down background apps to save energy.",
+    "Записывает PowerThrottlingOff=1. Игре в активном окне это не помогает: Windows не замедляет активную программу. Фоновые программы начинают потреблять больше. Нужна перезагрузка. Отмена — откатом в Lycoris.": "Writes PowerThrottlingOff=1. It does not help a game in the active window: Windows does not slow down the active app. Background apps start using more power. A restart is required. Undo it with a rollback in Lycoris.",
+    "Lycoris это не рекомендует: игре не помогает, на ноутбуке батарея садится быстрее.": "Lycoris does not recommend this: it does not help games, and a laptop battery drains faster.",
+    "Общий системный таймер, как в Windows 10": "Global system timer, as in Windows 10",
+    "Запрос точного таймера одной программой снова действует на все программы.": "A precise-timer request from one app affects all apps again.",
+    "Записывает GlobalTimerResolutionRequests=1 (Windows 11). Игры сами запрашивают точный таймер для себя, поэтому им это не нужно. Пригодится только старым программам, которые рассчитывали на общий таймер. Нужна перезагрузка. Отмена — откатом в Lycoris.": "Writes GlobalTimerResolutionRequests=1 (Windows 11). Games request a precise timer for themselves, so they do not need it. Useful only for old apps that relied on the global timer. A restart is required. Undo it with a rollback in Lycoris.",
+    "Lycoris это не рекомендует: FPS не растёт, компьютер тратит больше энергии.": "Lycoris does not recommend this: FPS does not grow, and the PC uses more energy.",
+    "Сон S3 вместо Modern Standby": "S3 sleep instead of Modern Standby",
+    "Просит Windows использовать старый режим сна S3 вместо современного режима ожидания.": "Asks Windows to use the old S3 sleep state instead of Modern Standby.",
+    "Записывает PlatformAoAcOverride=0. Работает только если прошивка компьютера поддерживает S3; на многих новых ноутбуках S3 нет. Нужна перезагрузка. Отмена — откатом в Lycoris.": "Writes PlatformAoAcOverride=0. Works only when the PC firmware supports S3; many new laptops have no S3. A restart is required. Undo it with a rollback in Lycoris.",
+    "Lycoris это не рекомендует: ноутбук может перестать засыпать или просыпаться. Если так случилось — сделайте откат.": "Lycoris does not recommend this: the laptop may stop going to sleep or waking up. If that happens, roll it back.",
+    "Запретить фоновую работу всем приложениям из Store": "Deny background activity to all Store apps",
+    "Политика Windows: приложения из Microsoft Store не работают в фоне.": "Windows policy: Microsoft Store apps do not run in the background.",
+    "Записывает политику LetAppsRunInBackground=2. Переключатели фоновой работы в Параметрах станут недоступны. Отмена — откатом в Lycoris.": "Writes the LetAppsRunInBackground=2 policy. The background-activity switches in Settings become unavailable. Undo it with a rollback in Lycoris.",
+    "Lycoris это не рекомендует: перестанут приходить уведомления и срабатывать будильники, не будут работать «Связь с телефоном» и Xbox.": "Lycoris does not recommend this: notifications and alarms stop, Phone Link and Xbox stop working.",
+    "Снять «резерв 20 % полосы» (QoS)": "Remove the \"20% bandwidth reserve\" (QoS)",
+    "Политика Windows: планировщик пакетов не резервирует полосу для приоритетного трафика.": "Windows policy: the packet scheduler reserves no bandwidth for prioritised traffic.",
+    "Записывает политику NonBestEffortLimit=0. Резерв используется только когда программа сама просит приоритет, в остальное время вся полоса и так доступна. Отмена — откатом в Lycoris.": "Writes the NonBestEffortLimit=0 policy. The reserve is used only when an app asks for priority; otherwise the whole bandwidth is available anyway. Undo it with a rollback in Lycoris.",
+    "Lycoris это не рекомендует: скорость и пинг не меняются.": "Lycoris does not recommend this: speed and ping do not change.",
+    "Выключить все уведомления Windows": "Turn off all Windows notifications",
+    "Всплывающие уведомления всех программ перестают показываться.": "Toast notifications from all apps stop appearing.",
+    "Записывает ToastEnabled=0 для текущего пользователя. Мягче — режим «Не беспокоить» в Windows: он сам включается в играх. Отмена — откатом в Lycoris.": "Writes ToastEnabled=0 for the current user. A gentler option is Do Not Disturb in Windows: it turns on by itself in games. Undo it with a rollback in Lycoris.",
+    "Lycoris это не рекомендует: пропадут все уведомления, включая будильники и напоминания.": "Lycoris does not recommend this: all notifications disappear, including alarms and reminders."
+  }
+}

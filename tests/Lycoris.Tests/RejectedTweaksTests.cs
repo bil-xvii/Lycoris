@@ -87,8 +87,30 @@ public sealed class RejectedTweaksTests
         Assert.All(rejected, v => Assert.False(string.IsNullOrWhiteSpace(v)));
         foreach (var expected in SpecValueNames) Assert.Contains(expected, rejected);
 
-        var written = TweakCatalog.All.OfType<RegistryTweak>().SelectMany(t => t.Values.Select(v => (t.Id, v.Name))).ToList();
+        // Expert-only settings (ids «expert-…», ADVANCED) may write them: closed in «Простой», warned, reversible.
+        var written = TweakCatalog.All.OfType<RegistryTweak>().Where(t => !IsExpertOnly(t)).SelectMany(t => t.Values.Select(v => (t.Id, v.Name))).ToList();
         Assert.DoesNotContain(written, w => rejected.Contains(w.Name));
+    }
+
+    private static bool IsExpertOnly(Tweak t) => t.Id.StartsWith(TweakCatalog.ExpertPrefix, StringComparison.Ordinal) && t.Risk == TweakRisk.Advanced;
+
+    [Fact]
+    public void Expert_only_settings_are_closed_in_simple_mode_warned_and_never_in_a_profile()
+    {
+        var expert = TweakCatalog.All.Where(t => t.Id.StartsWith(TweakCatalog.ExpertPrefix, StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(expert);
+        foreach (var t in expert)
+        {
+            Assert.Equal(TweakRisk.Advanced, t.Risk);
+            Assert.False(Lycoris.Modules.Optimize.OptimizeLogic.CanApplyRisk(t.Risk, expertMode: false));
+            Assert.True(Lycoris.Modules.Optimize.OptimizeLogic.CanApplyRisk(t.Risk, expertMode: true));
+            Assert.False(string.IsNullOrWhiteSpace(t.Warning));
+            Assert.Contains("не рекомендует", t.Warning); // loc:ignore
+            Assert.Equal(default, t.DefaultIn);
+        }
+        // Protection stays off-limits in both modes.
+        string[] protection = ["DisableAntiSpyware", "EnableLUA", "EnableFirewall", "SmartScreenEnabled", "NoAutoUpdate", "FeatureSettingsOverride", "DisableRealtimeMonitoring"];
+        Assert.DoesNotContain(expert.OfType<RegistryTweak>().SelectMany(t => t.Values), v => protection.Contains(v.Name, StringComparer.OrdinalIgnoreCase));
     }
 
     [Fact]

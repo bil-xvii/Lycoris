@@ -270,7 +270,7 @@ public sealed class TweakCatalogTests : IDisposable
             foreach (var v in t.Values)
             {
                 Assert.False(string.IsNullOrWhiteSpace(v.Path), t.Id);
-                Assert.False(IsForbidden(v), $"{t.Id} touches a forbidden area: {v.Hive}\\{v.Path}\\{v.Name}");
+                Assert.False(IsForbidden(v, t), $"{t.Id} touches a forbidden area: {v.Hive}\\{v.Path}\\{v.Name}");
             }
         }
     }
@@ -734,7 +734,7 @@ public sealed class TweakCatalogTests : IDisposable
             "DisableWindowsSpotlightFeatures", "DisableWindowsConsumerFeatures", "DisableSoftLanding", "DisableCloudOptimizedContent",
             "RefsDisableDeleteNotification", "DisableGraphRecentItems", "ActiveOverlayAcPowerScheme",
         ];
-        Assert.DoesNotContain(TweakCatalog.All.OfType<RegistryTweak>().SelectMany(t => t.Values), v => rejected.Contains(v.Name));
+        Assert.DoesNotContain(TweakCatalog.All.OfType<RegistryTweak>().Where(t => !t.Id.StartsWith(TweakCatalog.ExpertPrefix, StringComparison.Ordinal)).SelectMany(t => t.Values), v => rejected.Contains(v.Name));
     }
 
     private static SystemProfile Profile(int build, int ubr = 0, string edition = "Professional", string cpu = "AMD Ryzen 7 9800X3D 8-Core Processor", int cores = 8)
@@ -1404,9 +1404,14 @@ public sealed class TweakCatalogTests : IDisposable
         "PlatformAoAcOverride", "AllowGameDVR", "LetAppsRunInBackground",
     ];
 
-    private static bool IsForbidden(RegSet v) =>
+    // Not protection, just "not recommended": allowed only in expert-only tweaks (ids «expert-…», ADVANCED, warned, reversible).
+    private static readonly string[] ExpertAllowedValueNames = ["GlobalTimerResolutionRequests", "PlatformAoAcOverride", "LetAppsRunInBackground"];
+
+    private static bool IsForbidden(RegSet v, Tweak? owner = null) =>
         ForbiddenPathFragments.Any(f => v.Path.Contains(f, StringComparison.OrdinalIgnoreCase)) ||
-        ForbiddenValueNames.Any(n => string.Equals(v.Name, n, StringComparison.OrdinalIgnoreCase));
+        ForbiddenValueNames.Any(n => string.Equals(v.Name, n, StringComparison.OrdinalIgnoreCase)
+            && !(owner is { Risk: TweakRisk.Advanced } && owner.Id.StartsWith(TweakCatalog.ExpertPrefix, StringComparison.Ordinal)
+                 && ExpertAllowedValueNames.Contains(n)));
 }
 
 /// <summary>

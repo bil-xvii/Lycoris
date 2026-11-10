@@ -1,5 +1,9 @@
 # Lycoris: rejected tweaks («Что Lycoris не делает и почему»)
 
+> **Режим «Эксперт» (10.11.2026).** Часть пунктов ниже доступна эксперту как настройки `expert-…` (с предупреждением и откатом):
+> power-throttling-off, global-timer-resolution, s3-override, bg-apps-global-win11, streaming-network-priority (только резерв QoS),
+> global-notifications-off. Оценка «не рекомендуем» не меняется. Отключение защиты Windows и необратимые действия закрыты в обоих режимах.
+
 Single source for the list in `src/Monolith/Tweaks/RejectedTweaks.cs`: every entry there must have a section here, and every
 section here names the registry values the catalog must never write (enforced by `RejectedTweaksTests` and
 `TweakCatalogTests.Rejected_research_items_are_not_in_the_catalog`). Competitor and product names are allowed in this file only;
