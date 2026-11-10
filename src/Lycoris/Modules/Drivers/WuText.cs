@@ -50,6 +50,28 @@ internal static partial class WuText
 
     public static bool IsSuccess(int resultCode) => resultCode is OrcSucceeded or OrcSucceededWithErrors;
 
+    public const int DownloadFailed = unchecked((int)0x80240034);   // WU_E_DOWNLOAD_FAILED
+    public const int FileNotFound = unchecked((int)0x80070002);     // ERROR_FILE_NOT_FOUND (the payload vanished from the cache)
+
+    // Download failures that a second try usually fixes (owner's PC 10.11.2026: three Realtek drivers failed with 0x80240034 /
+    // 0x80070002 and installed fine one minute later). Not retried: cancel, policy, rights, EULA, service disabled.
+    private static readonly int[] TransientDownloadErrors =
+    [
+        DownloadFailed, FileNotFound,
+        unchecked((int)0x80246007), // WU_E_DM_NOTDOWNLOADED
+        unchecked((int)0x80246008), // WU_E_DM_FAILTOCONNECTTOBITS
+        unchecked((int)0x8024200D), // WU_E_UH_NEEDANOTHERDOWNLOAD
+        unchecked((int)0x80240021), // WU_E_TIME_OUT
+    ];
+
+    /// <summary>
+    /// True when one automatic retry of the download is worth it: the item failed (not aborted by the user) with a network or
+    /// transient download error, or with no error code at all.
+    /// </summary>
+    public static bool IsRetryableDownload(int resultCode, int hresult) =>
+        !IsSuccess(resultCode) && resultCode != OrcAborted
+        && (hresult == 0 || IsNetworkError(hresult) || TransientDownloadErrors.Contains(hresult));
+
     /// <summary>OperationResultCode → short Russian status.</summary>
     public static string ResultText(int resultCode) => resultCode switch
     {
@@ -85,6 +107,7 @@ internal static partial class WuText
             OperationInProgress or ExclusiveInstallConflict => Loc.T("Windows Update уже выполняет другую операцию. Повторите позже."),
             EulasDeclined => Loc.T("Лицензионное соглашение драйвера не принято — установка пропущена."),
             unchecked((int)0x80240021) => Loc.T("Windows Update не ответил вовремя. Повторите позже."),
+            DownloadFailed or FileNotFound => Loc.T("Файл драйвера не скачался с серверов Windows Update (Lycoris уже повторил загрузку). Повторите позже; если ошибка не уходит — «Сброс Центра обновления Windows» в «Обслуживании»."),
             unchecked((int)0x8024001E) => Loc.T("Операция прервана: служба Windows Update останавливается или компьютер завершает работу."),
             unchecked((int)0x8024002E) => Loc.T("Доступ к серверам Windows Update запрещён политикой организации."),
             unchecked((int)0x80240044) => Loc.T("Недостаточно прав для операции с обновлениями всего компьютера."),

@@ -114,6 +114,8 @@ internal static class WindowsUpdateDrivers
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(30);
+    /// <summary>Pause before the one automatic retry of failed downloads (lets a CDN hiccup pass).</summary>
+    public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan AbortGrace = TimeSpan.FromMinutes(2);
 
     // ───────────── Public API ─────────────
@@ -207,26 +209,53 @@ internal static class WindowsUpdateDrivers
 
             dynamic installColl = New("Microsoft.Update.UpdateColl");
             var toInstall = new List<string>();
+            var failed = new List<(string Id, int Index, int Rc, int Hr)>();
             for (var i = 0; i < order.Count; i++)
             {
-                var id = order[i];
                 var index = i;
                 object? r = Try<object?>(() => dres.GetUpdateResult(index));
                 int rc = r is null ? WuText.OrcFailed : Try(() => (int)((dynamic)r).ResultCode, WuText.OrcFailed);
                 int hr = r is null ? 0 : Try(() => (int)((dynamic)r).HResult);
                 dynamic u = coll[index];
-                if (WuText.IsSuccess(rc) && Try(() => (bool)u.IsDownloaded))
+                if (WuText.IsSuccess(rc) && Try(() => (bool)u.IsDownloaded)) { installColl.Add(u); toInstall.Add(order[i]); }
+                else failed.Add((order[i], index, rc, hr));
+            }
+
+            // 2b. One automatic retry of the downloads that failed for a transient reason (a dropped CDN file, a network blip):
+            // without it the user had to press the button again (10.11.2026). Only the failed items are downloaded again.
+            var retry = dlCancelled || dlTimedOut ? [] : failed.Where(f => WuText.IsRetryableDownload(f.Rc, f.Hr)).ToList();
+            if (retry.Count > 0)
+            {
+                Log.Info("Windows Update: повтор загрузки ({0}) после ошибки {1}", retry.Count, string.Join(", ", retry.Select(f => $"0x{unchecked((uint)f.Hr):X8}").Distinct()));
+                token.WaitHandle.WaitOne(RetryDelay);
+                token.ThrowIfCancellationRequested();
+                dynamic retryColl = New("Microsoft.Update.UpdateColl");
+                foreach (var f in retry) retryColl.Add(coll[f.Index]);
+                downloader.Updates = retryColl;
+                progress.Report(new WuProgress(WuStage.Downloading, 0, 1, retry.Count));
+                var (rres, rCancelled, rTimedOut) = RunJob(
+                    cb => downloader.BeginDownload(new UnknownWrapper(cb), new UnknownWrapper(cb), null),
+                    job => downloader.EndDownload(job),
+                    () => downloader.Download(),
+                    DownloadTimeout, token,
+                    args => ReportProgress(progress, WuStage.Downloading, args, retry.Count));
+                dlCancelled |= rCancelled; dlTimedOut |= rTimedOut;
+                for (var k = 0; k < retry.Count; k++)
                 {
-                    installColl.Add(u);
-                    toInstall.Add(id);
-                }
-                else
-                {
-                    results[id] = new WuItemResult(id, titles[id], rc == WuText.OrcSucceeded ? WuText.OrcFailed : rc, hr, false,
-                        dlCancelled ? Loc.T("Загрузка отменена.") : dlTimedOut ? Loc.T("Загрузка не завершилась за отведённое время.")
-                            : Loc.Tf("Не удалось загрузить: {0}", hr != 0 ? WuText.DescribeHResult(hr) : WuText.ResultText(rc).ToLowerInvariant()));
+                    var index = k;
+                    object? r = Try<object?>(() => rres.GetUpdateResult(index));
+                    int rc = r is null ? WuText.OrcFailed : Try(() => (int)((dynamic)r).ResultCode, WuText.OrcFailed);
+                    int hr = r is null ? 0 : Try(() => (int)((dynamic)r).HResult);
+                    dynamic u = coll[retry[k].Index];
+                    var at = failed.FindIndex(f => f.Id == retry[index].Id);
+                    if (WuText.IsSuccess(rc) && Try(() => (bool)u.IsDownloaded)) { installColl.Add(u); toInstall.Add(retry[k].Id); failed.RemoveAt(at); }
+                    else failed[at] = (retry[k].Id, retry[k].Index, rc, hr);
                 }
             }
+            foreach (var (id, _, rc, hr) in failed)
+                results[id] = new WuItemResult(id, titles[id], rc == WuText.OrcSucceeded ? WuText.OrcFailed : rc, hr, false,
+                    dlCancelled ? Loc.T("Загрузка отменена.") : dlTimedOut ? Loc.T("Загрузка не завершилась за отведённое время.")
+                        : Loc.Tf("Не удалось загрузить: {0}", hr != 0 ? WuText.DescribeHResult(hr) : WuText.ResultText(rc).ToLowerInvariant()));
             if (dlCancelled || toInstall.Count == 0)
                 return new WuInstallResult(Ordered(results, wanted), false, dlCancelled);
 
