@@ -1,5 +1,7 @@
 using Microsoft.Win32;
 using Lycoris.Core;
+using Lycoris.Modules.Optimize;
+using Lycoris.Modules.Services;
 using Lycoris.Modules.Startup;
 using Lycoris.Tweaks;
 
@@ -18,6 +20,19 @@ public static class DriftReapply
     public const string BatchTitle = "Повторное применение: изменено вне Lycoris"; // loc:ignore stored as the journal batch title (Russian on disk); shown through Loc.Sink
 
     public static bool CanReapply(DriftItem d) => d.Fix != DriftFix.None;
+
+    public static IReadOnlyList<DriftItem> FilterForMode(IEnumerable<DriftItem> items, bool expertMode, bool servicesExpertMode) =>
+        items.Where(d => d.Fix switch
+        {
+            DriftFix.Tweak => d.TweakId is { } id && TweakCatalog.Find(id) is { } tweak && OptimizeLogic.CanApplyRisk(tweak.Risk, expertMode),
+            DriftFix.Service => ServiceGuard.CanReapplyService(
+                ServiceCatalog.Services.Any(s => string.Equals(s.Name, ServiceName(d.Record), StringComparison.OrdinalIgnoreCase)),
+                expertMode, servicesExpertMode),
+            _ => true,
+        }).ToList();
+
+    private static string ServiceName(ChangeRecord record) => record.Service?.Name
+        ?? (record.Target.StartsWith("svc:", StringComparison.OrdinalIgnoreCase) ? record.Target[4..] : "");
 
     /// <summary>Confirmation lines: exactly what will be written.</summary>
     public static List<string> DescribeForConfirm(IReadOnlyList<DriftItem> items, Func<string, string?> tweakTitle)

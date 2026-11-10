@@ -12,6 +12,8 @@
   ],
   "ignore": [],
   "en": {
+    "Требуется режим Эксперт": "Expert mode is required",
+    "ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ": "ENABLE EXPERT MODE",
     "Системное имя": "System name",
     "Ядро Windows (RPC/COM): от неё зависит вся система.": "Windows core (RPC/COM): the whole system depends on it.",
     "Вход в систему, профили, UAC и учётные записи.": "Sign-in, profiles, UAC and user accounts.",

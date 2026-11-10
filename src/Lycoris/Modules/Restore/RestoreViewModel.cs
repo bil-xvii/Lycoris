@@ -385,23 +385,32 @@ public sealed partial class RestoreViewModel : PageViewModel
         for (var i = 0; i < 100 && _driftRunning; i++) await Task.Delay(100);
     }
 
-    private Task ReapplyAsync(IReadOnlyList<DriftItem> items) => RunBusyAsync(OperationClass.JournalChange, Loc.T("Повторное применение…"), async () =>
+    private Task ReapplyAsync(IReadOnlyList<DriftItem> items)
     {
-        if (items.Count == 0) return;
-        var lines = DriftReapply.DescribeForConfirm(items, id => Lycoris.Tweaks.TweakCatalog.Find(id)?.Title);
-        if (!await Ui.ConfirmAsync("ПРИМЕНИТЬ СНОВА?",
+        var allowed = DriftReapply.FilterForMode(items, ExpertMode, AppSettings.Current.ServicesExpertMode);
+        var skipped = items.Count - allowed.Count;
+        if (skipped > 0) Ui.Toast(Loc.N(skipped,
+            "Пропущена {0} настройка уровня ЭКСПЕРТ — включите режим Эксперт.",
+            "Пропущены {0} настройки уровня ЭКСПЕРТ — включите режим Эксперт.",
+            "Пропущено {0} настроек уровня ЭКСПЕРТ — включите режим Эксперт."), ToastKind.Info);
+        if (allowed.Count == 0) return Task.CompletedTask;
+        return RunBusyAsync(OperationClass.JournalChange, Loc.T("Повторное применение…"), async () =>
+        {
+            var lines = DriftReapply.DescribeForConfirm(allowed, id => Lycoris.Tweaks.TweakCatalog.Find(id)?.Title);
+            if (!await Ui.ConfirmAsync("ПРИМЕНИТЬ СНОВА?",
                 Loc.T("Lycoris снова запишет значения, которые он ставил раньше, отдельным пакетом. Откат этого пакета вернёт нынешние значения, а «ОТКАТИТЬ ВСЁ» — исходные (до Lycoris)."),
                 lines, confirmText: Loc.T("ПРИМЕНИТЬ СНОВА"),
                 footnote: Loc.T("Если Windows снова сбросит настройку после обновления, Lycoris покажет это при следующем запуске.")))
-            return;
+                return;
 
-        var result = await Task.Run(() => DriftReapply.ApplyAsync(items));
-        if (result.Errors.Count == 0)
-            Ui.Toast(Loc.Tf("Применено снова: {0}.", result.Applied), ToastKind.Success);
-        else
-            await Ui.AlertAsync("Часть настроек не применена", Loc.T("Остальные записаны; ошибки — ниже и в консоли."), result.Errors);
-        await RefreshDriftAsync();
-    });
+            var result = await Task.Run(() => DriftReapply.ApplyAsync(allowed));
+            if (result.Errors.Count == 0)
+                Ui.Toast(Loc.Tf("Применено снова: {0}.", result.Applied), ToastKind.Success);
+            else
+                await Ui.AlertAsync("Часть настроек не применена", Loc.T("Остальные записаны; ошибки — ниже и в консоли."), result.Errors);
+            await RefreshDriftAsync();
+        });
+    }
 
     /// <summary>«ЗАБЫТЬ»: accept the new value. Only a per-user note; the journal record (and its revert) stays as is.</summary>
     [RelayCommand]

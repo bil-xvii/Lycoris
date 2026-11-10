@@ -97,11 +97,12 @@ public sealed partial class OptimizeViewModel
         }
 
         // Expert and data-loss tweaks have their own warning, so a file never checks them.
-        var catalog = _items.Select(i => new ProfileCatalogEntry(i.Id, i.IsApplicable, i.IsAdvanced || i.HasDataLoss));
+        var advancedSkipped = !ExpertMode ? data.Ids.Count(id => _items.FirstOrDefault(i => i.Id == id)?.IsAdvanced == true) : 0;
+        var catalog = _items.Select(i => new ProfileCatalogEntry(i.Id, i.IsApplicable, i.HasDataLoss || (i.IsAdvanced && !ExpertMode)));
         var plan = OptimizeProfileFile.Classify(data.Ids, data.InvalidIds, catalog);
 
         var chosen = plan.Selected.ToHashSet(StringComparer.Ordinal);
-        foreach (var i in _items) i.SetChecked(chosen.Contains(i.Id) && i.IsApplicable && !i.IsAdvanced && !i.HasDataLoss);
+        foreach (var i in _items) i.SetChecked(chosen.Contains(i.Id) && i.IsApplicable && (!i.IsAdvanced || ExpertMode) && !i.HasDataLoss);
         // Same rules as a profile tile: one checked member per exclusive group (a file may list two — hand-edited or from an
         // older build), then dependent rows the file lists that are applicable only through a now-pending dependency.
         EnforceExclusiveGroups();
@@ -109,7 +110,7 @@ public sealed partial class OptimizeViewModel
         foreach (var i in _items)
         {
             if (i.IsApplicable || i.Tweak.Requires.Count == 0) continue;
-            i.SetChecked(listed.Contains(i.Id) && i.IsApplicableNow && !i.IsAdvanced && !i.HasDataLoss);
+            i.SetChecked(listed.Contains(i.Id) && i.IsApplicableNow && (!i.IsAdvanced || ExpertMode) && !i.HasDataLoss);
         }
         EnforceExclusiveGroups();
         SyncDependents();
@@ -142,10 +143,14 @@ public sealed partial class OptimizeViewModel
         AddGroup(details, Loc.T("НЕ ПОДХОДЯТ ЭТОМУ ПК"), plan.NotApplicable, TitleOf);
         AddGroup(details, Loc.T("ТРЕБУЮТ РУЧНОГО ВЫБОРА"), plan.Manual, TitleOf);
         AddGroup(details, Loc.T("ВЗАИМОИСКЛЮЧАЮЩИЕ — ОСТАВЛЕН ПЕРВЫЙ ПУНКТ ГРУППЫ"), surplus, TitleOf);
+        if (advancedSkipped > 0) details.Add(Loc.Tf("{0} настроек уровня ЭКСПЕРТ пропущено — включите режим Эксперт.", advancedSkipped));
 
         var message = OptimizeProfileFile.Summary(plan) +
                       Loc.T(" Ничего не применено — проверьте список и нажмите «ПРИМЕНИТЬ».") +
-                      (plan.Manual.Count > 0 ? Loc.T(" Экспертные и необратимые пункты отметьте вручную: у каждого своё предупреждение.") : "");
+                      (plan.Manual.Count > 0 ? ExpertMode
+                          ? Loc.T(" Экспертные и необратимые пункты отметьте вручную: у каждого своё предупреждение.")
+                          : Loc.T(" Необратимые пункты отметьте вручную: у каждого своё предупреждение.")
+                          : "");
         await Ui.AlertAsync("ПРОФИЛЬ ЗАГРУЖЕН", message, details);
     }
 

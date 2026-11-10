@@ -57,10 +57,10 @@ public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEn
         Selected = Results[i];
     }
 
-    public void OpenSelected() => Activate(Selected);
+    public void OpenSelected() => _ = ActivateAsync(Selected);
 
     [RelayCommand]
-    private void Activate(PaletteResultItem? item)
+    private async Task ActivateAsync(PaletteResultItem? item)
     {
         if (item is null) return;
         var e = item.Entry;
@@ -68,7 +68,8 @@ public sealed partial class CommandPaletteViewModel(Func<IReadOnlyList<PaletteEn
         if (e.FocusId == "action:problem-report") { runAction?.Invoke(e.FocusId); return; }
         if (e.FocusId is "mode:simple" or "mode:expert")
         {
-            AppSettings.Current.ExpertMode = e.FocusId == "mode:expert";
+            if (e.FocusId == "mode:expert" && Ui.Host is MainViewModel shell) await shell.RequestExpertModeAsync();
+            else AppSettings.Current.ExpertMode = false;
             Ui.Navigate("home");
             return;
         }

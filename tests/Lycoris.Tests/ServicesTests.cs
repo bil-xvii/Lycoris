@@ -8,6 +8,22 @@ namespace Lycoris.Tests;
 
 public sealed class ServicesTests
 {
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public void Services_expert_mode_requires_both_master_and_local_switch(bool expertMode, bool servicesExpertMode, bool expected) =>
+        Assert.Equal(expected, ServiceGuard.ExpertModeEnabled(expertMode, servicesExpertMode));
+
+    [Theory]
+    [InlineData(true, false, false, true)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, true, true, true)]
+    [InlineData(true, true, true, true)]
+    public void Reapplying_a_service_change_respects_its_access_level(bool curated, bool expertMode, bool servicesExpertMode, bool expected) =>
+        Assert.Equal(expected, ServiceGuard.CanReapplyService(curated, expertMode, servicesExpertMode));
+
     private static readonly ProfileSet[] Profiles = [ProfileSet.Normal, ProfileSet.Recommended, ProfileSet.Gaming];
 
     // ───────────────────────────── Curated services ─────────────────────────────

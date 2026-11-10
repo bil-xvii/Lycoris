@@ -53,7 +53,7 @@ public sealed partial class ServicesViewModel
     private void BuildAllServices(List<ServiceInfo> infos)
     {
         _scannedServices = infos;
-        var expert = _builtExpertMode = AppSettings.Current.ServicesExpertMode;
+        var expert = _builtExpertMode = ServiceGuard.ExpertModeEnabled(AppSettings.Current.ExpertMode, AppSettings.Current.ServicesExpertMode);
         var previous = SelectedService?.Name;
         var can = CanModify;
         var items = infos

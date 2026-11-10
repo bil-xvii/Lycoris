@@ -1,12 +1,31 @@
 using System.Text;
 using System.Text.Json;
 using Lycoris.Modules.Optimize;
+using Lycoris.Tweaks;
 
 namespace Lycoris.Tests;
 
 /// <summary>Optimize profile export/import: the file is untrusted input. Pure logic only.</summary>
 public sealed class OptimizeProfileFileTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void Import_selection_uses_the_same_mode_gate_as_application(bool expertMode, bool expectSelected)
+    {
+        var ids = new[] { "advanced" };
+        var catalog = new[]
+        {
+            new ProfileCatalogEntry("advanced", IsApplicable: true,
+                NeedsManualPick: !OptimizeLogic.CanApplyRisk(TweakRisk.Advanced, expertMode)),
+        };
+
+        var plan = OptimizeProfileFile.Classify(ids, 0, catalog);
+
+        Assert.Equal(expectSelected ? ids : [], plan.Selected);
+        Assert.Equal(expectSelected ? [] : ids, plan.Manual);
+    }
+
     private static byte[] Utf8(string s) => Encoding.UTF8.GetBytes(s);
 
     private static ProfileFileData Ok(string json)

@@ -110,7 +110,8 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// Can be checked and applied right now: applicable, or made applicable by a pending dependency (<see cref="OptimizeLogic.IsApplicableNow"/>).
     /// A row the PC's hardware/OS rules out (AppliesTo) never becomes applicable through a dependency.
     /// </summary>
-    public bool IsApplicableNow => !_owner.IsHardwareExcluded(Id) && OptimizeLogic.IsApplicableNow(State, Tweak, _owner.IsPendingRow);
+    public bool IsApplicableNow => OptimizeLogic.CanApplyRisk(Tweak.Risk, _owner.ExpertMode)
+        && !_owner.IsHardwareExcluded(Id) && OptimizeLogic.IsApplicableNow(State, Tweak, _owner.IsPendingRow);
     public bool WillChange => State is { } s && (OptimizeLogic.WillChange(s) || DependencySatisfiedByPending);
     public bool IsPending => IsChecked && WillChange;
 

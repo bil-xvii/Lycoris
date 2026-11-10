@@ -20,6 +20,12 @@ public sealed record PlannedChange(string Target, string NewValue, Func<string>?
 /// <summary>Pure helpers of the Optimize page (no UI, no writes). Covered by OptimizeTests.</summary>
 internal static class OptimizeLogic
 {
+    public static bool CanApplyRisk(TweakRisk risk, bool expertMode) => expertMode || risk != TweakRisk.Advanced;
+    public static bool CanRevert(bool hasJournalEntry, bool expertMode) => hasJournalEntry;
+
+    public static IReadOnlyList<T> FilterApplicable<T>(IEnumerable<T> items, Func<T, TweakRisk> risk, bool expertMode) =>
+        items.Where(item => CanApplyRisk(risk(item), expertMode)).ToList();
+
     public static OptimizeProfile ParseProfile(string? value) =>
         Enum.TryParse<OptimizeProfile>(value?.Trim(), true, out var p) && Enum.IsDefined(p) && !int.TryParse(value, out _)
             ? p

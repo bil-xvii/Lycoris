@@ -8,6 +8,10 @@ namespace Lycoris.Modules.Services;
 /// </summary>
 public static class ServiceGuard
 {
+    public static bool ExpertModeEnabled(bool expertMode, bool servicesExpertMode) => expertMode && servicesExpertMode;
+    public static bool CanReapplyService(bool isCurated, bool expertMode, bool servicesExpertMode) =>
+        isCurated || ExpertModeEnabled(expertMode, servicesExpertMode);
+
     private static readonly string Core = Loc.T("Ядро Windows (RPC/COM): от неё зависит вся система.");
     private static readonly string Session = Loc.T("Вход в систему, профили, UAC и учётные записи.");
     private static readonly string Platform = Loc.T("Платформа Windows: WMI, журналы, планировщик, устройства, питание.");

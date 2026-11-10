@@ -201,6 +201,14 @@ Owner: «чтобы при выполнении много задач однов
 
 ## Conventions
 
+## Простои и экспертный режимы
+
+- Источник режима — `AppSettings.Current.ExpertMode`: «Простой» применяет только SAFE и OPTIONAL, «Эксперт» открывает все настройки.
+- Переход в «Эксперт» проходит через единый `MainViewModel.RequestExpertModeAsync` с подтверждением; отказ оставляет простой режим, возврат не спрашивает.
+- В «Простом» запрет настроек ADVANCED проверяется в логике Optimize при выборе и непосредственно перед применением; импорт профиля пропускает их.
+- `ServicesExpertMode` действует только вместе с `ExpertMode`; сохранённое значение не стирается. Откат журнала разрешён в обоих режимах.
+- Защитные настройки Windows из списка DO-NOT-INCLUDE остаются недоступны в обоих режимах.
+
 - **MVVM** with CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`, `partial` classes).
   Each page VM derives from `Shell/PageViewModel`: override `LoadAsync` (first visit) / `OnReturnAsync`,
   `Deactivate` (stop timers). Long work: `await RunBusyAsync(OperationClass.X, "Текст…", async () => …)` — the class is
