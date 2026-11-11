@@ -60,6 +60,24 @@ public static class SecurityCorpus
             Expect($"replay parameter refused (len {p.Length})", () => AdminIntent.Parse(["--replay-page", "optimize", "--replay-command", "Apply", "--replay-param", p]) is null);
         Expect("replay: a valid intent still parses", () => AdminIntent.Parse(["--replay-page", "restore", "--replay-command", "RevertBatch", "--replay-param", "3f2504e0-4f89-11d3-9a0c-0305e82c3301"]) is not null);
 
+        // ── Command line «--apply-profile» (only three profile names, only known switches, nothing echoed raw) ──
+        string[][] badProfileArgs =
+        [
+            ["--apply-profile"], ["--apply-profile", "Gaming"], ["--apply-profile", "custom"], ["--apply-profile", "..\\gaming"],
+            ["--apply-profile", "gaming\0"], ["--apply-profile", "gaming", "--yes", "--yes"], ["--apply-profile", "gaming", "--force"],
+            ["--apply-profile", "gaming", "--lang", "..\\x"], ["--apply-profile", "gaming", "--replay-command", "Apply"],
+            ["--apply-profile", "gaming", "--apply-profile", "normal"], ["--apply-profile", new string('g', 5000)],
+            [.. Enumerable.Repeat("--yes", 100)],
+        ];
+        foreach (var a in badProfileArgs)
+            Expect($"apply-profile refused: «{ProfileCommandLine.Printable(string.Join(' ', a))}»", () => ProfileCommandLine.Parse(a, out _) is null);
+        Expect("apply-profile echoes no control/bidi characters", () =>
+        {
+            ProfileCommandLine.Parse(["--apply-profile", "\u001b[2J\u202Ex\r\ny"], out var error);
+            return error is not null && !error.Any(c => char.IsControl(c) || c == '\u202E') && error.Length < 200;
+        });
+        Expect("apply-profile: a valid command still parses", () => ProfileCommandLine.Parse(["--apply-profile", "recommended", "--dry-run"], out _) is { Apply: false });
+
         // ── Relaunch arguments never carry a remembered action, a language override or the parent id of another run ──
         Expect("relaunch strips replay args", () =>
         {

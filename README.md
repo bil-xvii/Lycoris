@@ -39,6 +39,18 @@
 - Рядом с файлом в релизе лежит `Lycoris.exe.sha256` — сверьте контрольную сумму: `Get-FileHash Lycoris.exe -Algorithm SHA256`.
 - Файл пока **не подписан** цифровой подписью, поэтому Windows SmartScreen / окно UAC может писать «Издатель: неизвестно» (см. `docs/signing.md`). Это не означает, что файл опасен; исходный код открыт в этом репозитории.
 
+## Командная строка
+
+Сценарии раздела «Оптимизация» можно применить из консоли — тем же механизмом, что и кнопка (журнал, точка восстановления, откат в «Восстановлении»):
+
+```
+start /wait "" Lycoris.exe --apply-profile gaming            :: только план: каждый пункт «сейчас → станет», ничего не меняется
+start /wait "" Lycoris.exe --apply-profile gaming --yes      :: применить (консоль от имени администратора, окно Lycoris закрыто)
+echo %errorlevel%
+```
+
+Сценарии: `normal` («Работа и учёба»), `gaming` («Игры»), `recommended` («Рекомендуемый»). `--dry-run` всегда только показывает план. В PowerShell: `Start-Process .\Lycoris.exe '--apply-profile gaming' -NoNewWindow -Wait -PassThru`. Коды выхода: 0 — готово (или менять нечего), 1 — ошибки при применении, 2 — неверные параметры, 3 — нужны права администратора, 4 — Lycoris уже открыт, 5 — применено не всё, 6 — сбой.
+
 ## Сборка из исходников (нужен .NET 10 SDK)
 
 ```
@@ -71,4 +83,4 @@ powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сбо�
 | **10 Recovery** | Journal of all changes, undo one / batch / all at once, Windows restore points. |
 | **11 Settings** | Program behavior, data folders, information. |
 
-**Download:** grab `Lycoris.exe` from the [latest release](../../releases/latest) — a single self-contained file, no installer, no .NET needed (Windows 10 2004+/11, 64-bit). It opens read-only without a UAC prompt and asks for administrator rights only when you press a button that changes something, then continues the same action. Interface language: Russian / English (Settings → Language; default follows Windows). Verify the download with `Lycoris.exe.sha256`. The file is not code-signed yet, so Windows may show "Unknown publisher" (see `docs/signing.md`).
+**Download:** grab `Lycoris.exe` from the [latest release](../../releases/latest) — a single self-contained file, no installer, no .NET needed (Windows 10 2004+/11, 64-bit). It opens read-only without a UAC prompt and asks for administrator rights only when you press a button that changes something, then continues the same action. Interface language: Russian / English (Settings → Language; default follows Windows). Verify the download with `Lycoris.exe.sha256`. The file is not code-signed yet, so Windows may show "Unknown publisher" (see `docs/signing.md`). **Command line:** `Lycoris.exe --apply-profile normal|gaming|recommended [--dry-run] [--yes]` prints the scenario's plan (every change, current → new); only `--yes` in an administrator console applies it through the same journal/restore-point/undo engine (run it with `start /wait` in cmd; exit codes as in the Russian section above).

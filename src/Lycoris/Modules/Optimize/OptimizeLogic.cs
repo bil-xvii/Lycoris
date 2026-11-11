@@ -17,6 +17,12 @@ public enum OptimizeProfile { Normal, Gaming, Recommended, Streaming, Efficiency
 /// <summary>One line of the "what will change" preview: target, current value (read lazily) and new value.</summary>
 public sealed record PlannedChange(string Target, string NewValue, Func<string>? ReadCurrent);
 
+/// <summary>One applied row for <see cref="OptimizeLogic.BuildApplyReport"/>: its state read back after the apply.</summary>
+public sealed record ApplyReportRow(string Id, string Title, TweakState? State, string NotApplicableText);
+
+/// <summary>The apply-result report: title («ГОТОВО» / «ГОТОВО ЧАСТИЧНО» / «ГОТОВО С ОШИБКАМИ»), summary, lines, rows confirmed applied.</summary>
+public sealed record ApplyReport(string Title, string Message, IReadOnlyList<string> Lines, int Verified);
+
 /// <summary>Pure helpers of the Optimize page (no UI, no writes). Covered by OptimizeTests.</summary>
 internal static class OptimizeLogic
 {
@@ -151,6 +157,46 @@ internal static class OptimizeLogic
 
     /// <summary>Header line of the manual-steps block in the apply-result dialog.</summary>
     public static readonly string ManualStepsHeader = Loc.T("ВРУЧНУЮ");
+
+    /// <summary>
+    /// The apply-result report (dialog of the page, and the «--apply-profile --yes» console output): one line per target
+    /// with its state read back after the apply, the engine's dependency skips, errors and the scenario's manual steps.
+    /// <paramref name="rows"/> carry the states detected AFTER the apply. Pure.
+    /// </summary>
+    public static ApplyReport BuildApplyReport(TweakRunResult result, IReadOnlyList<ApplyReportRow> rows, OptimizeProfile scenario, bool laptop)
+    {
+        var lines = new List<string>
+        {
+            string.IsNullOrWhiteSpace(result.RestorePoint)
+                ? Loc.T("Точка восстановления не создавалась (отключено в разделе «Восстановление»). Откат — через журнал Lycoris.")
+                : Loc.Sink(result.RestorePoint), // a failure is stored as a Russian key (ChangeSession)
+        };
+        foreach (var t in rows)
+        {
+            if (result.SkippedIds.Contains(t.Id)) continue; // listed below with the reason the engine gave
+            lines.Add(t.State switch
+            {
+                TweakState.Applied => Loc.Tf("ПРИМЕНЕНО — {0}", t.Title),
+                TweakState.Partial => Loc.Tf("ЧАСТИЧНО — {0}", t.Title),
+                TweakState.NotApplicable => Loc.Tf("ПРОПУЩЕНО — {0}: {1}", t.Title, t.NotApplicableText),
+                _ => Loc.Tf("НЕ ПОДТВЕРЖДЕНО — {0}", t.Title),
+            });
+        }
+        lines.AddRange(result.SkippedReasons.Select(r => Loc.Tf("ПРОПУЩЕНО — {0}", r)));
+        lines.AddRange(result.Errors.Select(e => Loc.Tf("ОШИБКА — {0}", e)));
+        // What the scenario leaves to the user because Lycoris must not write it (vendor fan curves, charge limits, DND blobs).
+        // Each line carries the «ВРУЧНУЮ —» label, like the «ПРИМЕНЕНО —» lines above it (the dialog lists bullets, not headers).
+        lines.AddRange(ManualSteps(scenario, laptop).Select(m => ManualStepsHeader + " — " + m));
+
+        var verified = rows.Count(t => t.State == TweakState.Applied);
+        var title = result.Errors.Count > 0 ? Loc.T("ГОТОВО С ОШИБКАМИ") : verified == rows.Count ? Loc.T("ГОТОВО") : Loc.T("ГОТОВО ЧАСТИЧНО");
+        var message = Loc.Tf("Подтверждено {0} из {1}, изменено параметров системы: {2}.",
+                          verified, Loc.N(rows.Count, "{0} пункта", "{0} пунктов", "{0} пунктов"), result.Applied) +
+                      (result.Skipped > 0 ? Loc.Tf(" Пропущено как неподходящие для этого ПК: {0}.", result.Skipped) : "") +
+                      (result.SkippedReasons.Count > 0 ? Loc.Tf(" Пропущено из-за зависимостей: {0}.", result.SkippedReasons.Count) : "") +
+                      Loc.T(" Откатить можно кнопкой «ОТКАТИТЬ» у пункта или в разделе «Восстановление».");
+        return new ApplyReport(title, message, lines, verified);
+    }
 
     /// <summary>
     /// Whether the efficiency tile («Тихий ПК» / «Ноутбук: автономность») is shown: only once the hardware facts are known, and
