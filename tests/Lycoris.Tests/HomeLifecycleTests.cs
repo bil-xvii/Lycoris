@@ -1,5 +1,6 @@
 using System.Reflection;
 using Lycoris.Core;
+using Lycoris.Core.Security;
 using Lycoris.Modules.Dashboard;
 using Lycoris.Modules.Home;
 using Lycoris.Shell;
@@ -15,6 +16,7 @@ public sealed class HomeLifecycleTests
     [Fact]
     public async Task Returning_home_resumes_updates_once_and_leaving_stops_them()
     {
+        using var owner = ExpertAccessPolicy.OverrideFingerprintForTests(() => ExpertAccessPolicy.OwnerFingerprint);
         using var language = Loc.UseLanguage("ru");
         var previousSettings = AppSettings.Current;
         var settingsProperty = typeof(AppSettings).GetProperty(nameof(AppSettings.Current))!;

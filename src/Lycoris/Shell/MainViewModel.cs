@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
 using Lycoris.Core.Devices;
+using Lycoris.Core.Security;
 using Lycoris.Modules.Apps;
 using Lycoris.Modules.Dashboard;
 using Lycoris.Modules.Devices;
@@ -51,6 +52,10 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     public string UndoButtonText => ActiveChanges > 0 ? Loc.Tf("ОТКАТ · {0}", ActiveChanges) : Loc.T("ОТКАТ");
     public bool ExpertMode { get => AppSettings.Current.ExpertMode; set { if (!value) SetExpertMode(false); else _ = RequestExpertModeAsync(); } }
     public string ExpertModeText => ExpertMode ? Loc.T("ЭКСПЕРТ") : Loc.T("ПРОСТОЙ");
+    public bool CanUseExpertMode => ExpertAccessPolicy.CanUseExpertMode;
+    public string ExpertModeHelpText => CanUseExpertMode
+        ? Loc.T("Экспертный режим: дополнительные настройки и технические детали")
+        : Loc.T("Режим «Эксперт» пока доступен только автору на его компьютере.");
 
     [RelayCommand] private void SetSimpleMode() => SetExpertMode(false);
     [RelayCommand] private Task SetExpertModeCommand() => RequestExpertModeAsync();
@@ -59,6 +64,11 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
 
     public async Task<bool> RequestExpertModeAsync()
     {
+        if (!CanUseExpertMode)
+        {
+            Ui.Toast(ExpertModeHelpText, ToastKind.Info);
+            return false;
+        }
         if (AppSettings.Current.ExpertMode) return true;
         if (_confirmingExpertMode) return false;
         _confirmingExpertMode = true;
@@ -71,7 +81,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                 confirmText: Loc.T("ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ"), cancelText: Loc.T("ОСТАТЬСЯ В ПРОСТОМ РЕЖИМЕ"), danger: true);
             if (!accepted) return false;
             SetExpertMode(true);
-            return true;
+            return AppSettings.Current.ExpertMode;
         }
         finally
         {

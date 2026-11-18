@@ -4,6 +4,8 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
+using Lycoris.Core.Assistant;
+using Lycoris.Core.Diagnostics;
 using Lycoris.Modules.Dashboard.Checks;
 using Lycoris.Modules.Dashboard.Monitoring;
 using Lycoris.Shell;
@@ -20,7 +22,6 @@ public sealed partial class DashboardViewModel : PageViewModel
     private readonly LiveMonitor _monitor = new();
     private bool _firstSample;
     private DateTime _lastCheck = DateTime.MinValue;
-    private bool _checking;
     private SystemRow? _uptimeRow;
 
     public override string Key => "dashboard";
@@ -194,30 +195,9 @@ public sealed partial class DashboardViewModel : PageViewModel
     [RelayCommand]
     private Task RefreshChecks() => RefreshAsync(showBusy: true);
 
-    private async Task RefreshAsync(bool showBusy)
+    private async Task<AssistantDiagnosticSnapshot?> CheckCoreAsync()
     {
-        if (_checking) return;
-        _checking = true;
-        IsChecking = true;
-        try
-        {
-            if (showBusy) await RunBusyAsync(OperationClass.Measure, Loc.Key("Проверка системы…"), CheckCoreAsync);
-            else
-            {
-                try { await CheckCoreAsync(); }
-                catch (Exception ex) { Log.Error("Проверка системы", ex); }
-            }
-        }
-        finally
-        {
-            _checking = false;
-            IsChecking = false;
-        }
-    }
-
-    private async Task CheckCoreAsync()
-    {
-        var snapshot = await SystemInspector.CollectAsync();
+        var snapshot = await InspectAsync();
         _lastSnapshot = snapshot;
         var results = await Task.Run(() => HealthRules.Evaluate(snapshot));
         var profile = SystemProfile.Current;
@@ -256,6 +236,14 @@ public sealed partial class DashboardViewModel : PageViewModel
         StartupTiming.Mark("dashboard checks done");
         if (WarningCount > 0) Log.Info("Панель: оценка {0}/100, проблем: {1}.", Score, WarningCount);
         else Log.Success("Панель: оценка {0}/100, проблем не найдено.", Score);
+
+        if (!HasResults) return null;
+        var verified = await Task.Run(() => results.Where(c => IsAssistantFixApplicable(c, snapshot, tweak => TweakEngine.Applicability(tweak, profile)))
+            .Select(c => c.Id).ToHashSet(StringComparer.Ordinal));
+        return new AssistantDiagnosticSnapshot(snapshot.Now, results, verified)
+        {
+            System = SystemRows.Select(r => new HealthReportRow(r.Label, r.Value, r.Detail)).ToArray(),
+        };
     }
 
     private void BuildSystemRows(SystemProfile p, SystemSnapshot s)

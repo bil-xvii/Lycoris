@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
 
@@ -44,12 +46,14 @@ public sealed class RegistryValueSnapshot
 /// <summary>Registry access helpers (always the 64-bit view).</summary>
 public static class RegistryHelper
 {
-    public static RegistryKey OpenBase(RegHive hive) => hive switch
+    public static RegistryKey OpenBase(RegHive hive) => RegistryKey.OpenBaseKey(WindowsHive(hive), RegistryView.Registry64);
+
+    private static RegistryHive WindowsHive(RegHive hive) => hive switch
     {
-        RegHive.HKLM => RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64),
-        RegHive.HKCU => RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64),
-        RegHive.HKCR => RegistryKey.OpenBaseKey(RegistryHive.ClassesRoot, RegistryView.Registry64),
-        RegHive.HKU => RegistryKey.OpenBaseKey(RegistryHive.Users, RegistryView.Registry64),
+        RegHive.HKLM => RegistryHive.LocalMachine,
+        RegHive.HKCU => RegistryHive.CurrentUser,
+        RegHive.HKCR => RegistryHive.ClassesRoot,
+        RegHive.HKU => RegistryHive.Users,
         _ => throw new ArgumentOutOfRangeException(nameof(hive)),
     };
 
@@ -116,6 +120,31 @@ public static class RegistryHelper
         string s when int.TryParse(s, out var v) => v,
         _ => null,
     };
+
+    /// <summary>Strict 64-bit DWORD read. Only a confirmed missing value or key returns null.</summary>
+    internal static uint? ReadDwordOrMissing(RegHive hive, string path, string name)
+    {
+        const uint regDword = 0x00000010; // RRF_RT_REG_DWORD, excludes REG_BINARY
+        const uint wow64Native = 0x00010000; // RRF_SUBKEY_WOW6464KEY
+        const int fileNotFound = 2;
+        const int invalidData = 13;
+
+        Map(ref hive, ref path);
+        // RegistryHive enum values are the signed predefined Win32 HKEY constants.
+        var handle = (nint)(int)WindowsHive(hive);
+        uint size = sizeof(uint);
+        var error = RegGetValueW(handle, path, name, regDword | wow64Native, 0, out var value, ref size);
+        return error switch
+        {
+            0 when size == sizeof(uint) => value,
+            fileNotFound => null,
+            _ => throw new Win32Exception(error == 0 ? invalidData : error),
+        };
+    }
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegGetValueW(nint key, string subKey, string valueName, uint flags, nint valueType,
+        out uint data, ref uint dataSize);
 
     public static string? ReadString(RegHive hive, string path, string name) => Read(hive, path, name)?.ToString();
 

@@ -121,6 +121,8 @@ public sealed record SystemSnapshot
     public bool? GameModeOn { get; init; }
     public bool? BackgroundRecordingOn { get; init; }
     public HagsState Hags { get; init; }
+    /// <summary>Fresh WDDM capability of the primary GPU. Null if the adapter or its capability could not be identified.</summary>
+    public bool? PrimaryGpuSupportsHags { get; init; }
 
     public PowerPlanKind PowerPlan { get; init; }
     public string PowerPlanName { get; init; } = "";
@@ -163,6 +165,8 @@ public sealed record SystemSnapshot
 
     /// <summary>NTFS DisableDeleteNotify: true = TRIM off. Null = unknown.</summary>
     public bool? TrimDisabled { get; init; }
+    /// <summary>True only when a successful registry query confirmed no NTFS delete-notification policy.</summary>
+    public bool? TrimPolicyAbsent { get; init; }
 
     public GpuInfo? PrimaryGpu { get; init; }
 

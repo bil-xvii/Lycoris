@@ -249,7 +249,7 @@ public static class Elevation
     private static extern bool GetTokenInformation(IntPtr token, int infoClass, IntPtr info, int length, out int returned);
 
     /// <summary>The account SID of a process (its token's user), or null.</summary>
-    private static string? OwnerSid(int pid)
+    internal static string? OwnerSid(int pid)
     {
         var process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
         if (process == IntPtr.Zero) return null;
