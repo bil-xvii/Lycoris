@@ -143,13 +143,15 @@ public static partial class HealthRules
         if (!v.BelowRated)
             return new("ram-speed", Loc.T("ПАМЯТЬ НА НОМИНАЛЬНОЙ ЧАСТОТЕ"), Loc.Tf("{0} — частота соответствует маркировке модулей.", kit), CheckSeverity.Ok, 10);
 
-        var detail = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с. Скорее всего, в BIOS выключен профиль " +
-                     "XMP (Intel) или EXPO (AMD) — в играх, чувствительных к памяти, это заметная потеря FPS. Включите профиль в BIOS/UEFI " +
-                     "(раздел настроек памяти → XMP/EXPO → сохранить F10). Lycoris настройки BIOS не меняет; если система станет " +
-                     "нестабильной, верните там значение «Auto».", v.Rated, v.Configured);
-        if (s.IsLaptop)
-            detail += " " + Loc.T("На ноутбуках профиль часто недоступен — тогда это нормальная работа.");
-        return new("ram-speed", Loc.T("ПАМЯТЬ РАБОТАЕТ НИЖЕ НОМИНАЛА"), detail, s.IsLaptop ? CheckSeverity.Info : CheckSeverity.Warning, 10);
+        var detail = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с. Разница частот сама по себе не доказывает " +
+            "неисправность или необходимость менять настройки памяти.", v.Rated, v.Configured);
+        // Firmware controls and overclocking support cannot be inferred from !IsLaptop (AIO, VM, unknown).
+        var desktop = s.Identity.IsKnown && s.Identity.Kind == ComputerKind.Desktop;
+        if (desktop)
+            detail += " " + Loc.T("Если производители компьютера, платы и памяти допускают профиль XMP/EXPO, его можно проверить " +
+                "вручную в BIOS/UEFI по их инструкции. Это необязательная настройка; при нестабильности верните прежнее значение. " +
+                "Lycoris настройки BIOS не меняет.");
+        return new("ram-speed", Loc.T("ПАМЯТЬ РАБОТАЕТ НИЖЕ НОМИНАЛА"), detail, desktop ? CheckSeverity.Warning : CheckSeverity.Info, 10);
     }
 
     // ───────────────────────────── Refresh rate ─────────────────────────────

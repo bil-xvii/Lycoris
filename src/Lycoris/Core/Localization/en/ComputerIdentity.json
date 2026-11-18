@@ -1,0 +1,24 @@
+{
+  "area": "ComputerIdentity",
+  "translated": true,
+  "sources": ["Core/ComputerIdentity.cs"],
+  "ignore": [],
+  "en": {
+    "Настольный компьютер": "Desktop computer",
+    "Ноутбук": "Laptop",
+    "Моноблок": "All-in-one",
+    "Планшет": "Tablet",
+    "Ноутбук-трансформер": "Convertible laptop",
+    "Планшет со съёмной клавиатурой": "Detachable tablet",
+    "Сервер": "Server",
+    "Виртуальная машина": "Virtual machine",
+    "Тип компьютера не определён": "Computer type unknown",
+    "Данные SMBIOS о типе компьютера противоречат друг другу.": "SMBIOS computer type data is conflicting.",
+    "Нет достоверных данных SMBIOS для определения типа компьютера.": "No reliable SMBIOS data to determine the computer type.",
+    "Производитель и модель SMBIOS указывают на виртуальную машину.": "The SMBIOS manufacturer and model identify a virtual machine.",
+    "Тип подтверждён данными SMBIOS; наличие батареи не использовалось.": "The type is confirmed by SMBIOS data; battery presence was not used.",
+    "Данные SMBIOS: PCSystemType = {0}; ChassisTypes = {1}.": "SMBIOS data: PCSystemType = {0}; ChassisTypes = {1}.",
+    "нет данных": "no data",
+    "Производитель и модель не указаны": "Manufacturer and model not provided"
+  }
+}

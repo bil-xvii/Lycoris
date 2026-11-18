@@ -30,11 +30,11 @@ public sealed partial class OptimizeViewModel : PageViewModel
     private readonly Dictionary<OptimizeProfile, HashSet<string>> _profileDefaults = [];
     /// <summary>Every tile in order; <see cref="Profiles"/> holds the visible ones (the efficiency tile may be hidden).</summary>
     private readonly List<ProfileTileViewModel> _allTiles;
-    /// <summary>SystemProfile.HardwareFactsKnown as of the last detection (tests set it through <see cref="MarkDetected"/>).</summary>
+    /// <summary>Hardware facts and strict computer identity as of the last detection (tests use <see cref="MarkDetected"/>).</summary>
     private bool _hardwareFactsKnown;
     private bool _laptop;
     /// <summary>
-    /// Ids whose AppliesTo rule rejects this PC (Windows 10, laptop-only, dual-CCD X3D…). Such a row stays not applicable even
+    /// Ids whose AppliesTo rule rejects this PC or cannot be verified (Windows 10, laptop-only, unknown identity…). Such a row stays not applicable even
     /// while a tweak it requires is pending: a pending Balanced plan does not bring the Windows 11 power mode to Windows 10.
     /// </summary>
     private HashSet<string> _hardwareExcluded = new(StringComparer.Ordinal);
@@ -341,13 +341,13 @@ public sealed partial class OptimizeViewModel : PageViewModel
             await RunBusyAsync(OperationClass.Measure, Loc.T("Проверка текущего состояния…"), async () =>
             {
                 var sp = await SystemProfile.LoadAsync();
-                _hardwareFactsKnown = sp.HardwareFactsKnown;
-                _laptop = sp.HardwareFactsKnown && sp.IsLaptop;
+                _hardwareFactsKnown = sp.HardwareFactsKnown && sp.Identity.IsKnown;
+                _laptop = _hardwareFactsKnown && sp.IsLaptop;
                 var tweaks = _items.Select(i => i.Tweak).ToList();
                 // Off the UI thread: some rules enumerate network adapters, read the registry or probe the display (~100 ms in all,
                 // several times more on a PC without a GPU driver — the self-test saw the page stall there).
                 _hardwareExcluded = await Task.Run(() =>
-                    tweaks.Where(t => TweakEngine.Applicability(t, sp) == false).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
+                    tweaks.Where(t => TweakEngine.Applicability(t, sp) is not true).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
                 var states = await TweakEngine.DetectAllAsync(tweaks);
                 var revertable = await Task.Run(() => tweaks.Where(TweakEngine.CanRevert).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
                 _protectionOn = await Task.Run(RestorePointService.IsEnabled);
@@ -483,7 +483,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     {
         foreach (var i in _items)
         {
-            var want = ids.Contains(i.Id) && i.IsApplicable && OptimizeLogic.CanApplyRisk(i.Tweak.Risk, ExpertMode)
+            var want = ids.Contains(i.Id) && !IsHardwareExcluded(i.Id) && i.IsApplicable && OptimizeLogic.CanApplyRisk(i.Tweak.Risk, ExpertMode)
                 && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id));
             i.SetChecked(want);
         }
@@ -492,7 +492,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         foreach (var i in _items)
         {
             if (i.IsApplicable || i.Tweak.Requires.Count == 0) continue;
-            i.SetChecked(ids.Contains(i.Id) && i.IsApplicableNow && OptimizeLogic.CanApplyRisk(i.Tweak.Risk, ExpertMode)
+            i.SetChecked(ids.Contains(i.Id) && !IsHardwareExcluded(i.Id) && i.IsApplicableNow && OptimizeLogic.CanApplyRisk(i.Tweak.Risk, ExpertMode)
                 && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id)));
         }
         EnforceExclusiveGroups();

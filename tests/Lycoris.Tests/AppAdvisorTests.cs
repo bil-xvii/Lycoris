@@ -107,7 +107,11 @@ public sealed class AppAdvisorTests
             Assert.DoesNotContain('\n', advice.Reason);
             Assert.True(advice.Reason.Length <= 170, $"{e.Id}: reason too long ({advice.Reason.Length})");
         }
-        Assert.Equal(Enum.GetValues<AdviceLevel>().Length, seen.Count);
+        Assert.Contains(AdviceLevel.Required, seen);
+        Assert.Contains(AdviceLevel.Optional, seen);
+        Assert.Contains(AdviceLevel.NotNow, seen);
+        Assert.Contains(AdviceLevel.NotNeeded, seen);
+        Assert.DoesNotContain(AdviceLevel.Recommended, seen); // no verified consumer currently justifies this level
     }
 
     [Fact]
@@ -131,13 +135,8 @@ public sealed class AppAdvisorTests
     public void Safety_clamp_lowers_any_flagged_suggestion_to_optional()
     {
         // Drives the clamp itself: today's rules happen to suggest no flagged entry, a later catalog edit might.
-        var logitech = Pc() with { Peripherals = new HashSet<PeripheralBrand> { PeripheralBrand.Logitech } };
         var suggested = new (string Id, AdviceContext Ctx, AdviceLevel Unflagged)[]
         {
-            ("Valve.Steam", Pc(), AdviceLevel.Recommended),
-            ("Microsoft.VCRedist.2015+.x64", Pc(), AdviceLevel.Required),
-            ("Microsoft.DotNet.DesktopRuntime.10", Pc(), AdviceLevel.Recommended),
-            ("Logitech.GHUB", logitech, AdviceLevel.Recommended),
             (GamingServices, Pc(Xbox), AdviceLevel.Required),
         };
         var flags = Enum.GetValues<AppFlags>().Where(f => f != AppFlags.None && (AppAdvisor.NeverSuggested & f) == f).ToList();
@@ -156,7 +155,7 @@ public sealed class AppAdvisorTests
             }
         }
         // Unflagged, the same runtime is in the kit.
-        Assert.Single(AppAdvisor.Kit([E("Microsoft.VCRedist.2015+.x64")], Pc()));
+        Assert.Single(AppAdvisor.Kit([E(GamingServices)], Pc(Xbox)));
     }
 
     [Fact]
@@ -169,14 +168,20 @@ public sealed class AppAdvisorTests
             Assert.Null(AppAdvisor.Assess(edge, ctx));
         }
 
-        // Installed: no advice on the card, but the need is still judged (the gamer kit counts it as installed).
+        // Installed: no advice on the card. Assess still supports the kit's installed / needed counter.
         var installed = Pc("Valve.Steam", "Microsoft.VCRedist.2015+.x64", WebView2, "RiotGames.Valorant.NA");
         Assert.Null(AppAdvisor.Advise(E("Valve.Steam"), installed));
         Assert.Null(AppAdvisor.Advise(E("Microsoft.VCRedist.2015+.x64"), installed));
         Assert.Null(AppAdvisor.Advise(E(WebView2), installed));
         Assert.Null(AppAdvisor.Advise(E("RiotGames.Valorant.EU"), installed)); // a regional variant counts
-        Assert.Equal(AdviceLevel.Required, Assess("Microsoft.VCRedist.2015+.x64", installed).Level);
-        Assert.Equal(AdviceLevel.Recommended, AppAdvisor.Advise(E("Discord.Discord"), installed)!.Level);
+        Assert.False(Assess("Microsoft.VCRedist.2015+.x64", installed).IsSuggested);
+        Assert.Equal(AdviceLevel.Optional, AppAdvisor.Advise(E("Discord.Discord"), installed)!.Level);
+        Assert.Empty(AppAdvisor.Kit(AppCatalog.All, installed));
+
+        var xbox = Pc(Xbox, GamingServices);
+        Assert.Null(AppAdvisor.Advise(E(GamingServices), xbox));
+        Assert.Equal(AdviceLevel.Required, Assess(GamingServices, xbox).Level);
+        Assert.Equal(GamingServices, Assert.Single(AppAdvisor.Kit(AppCatalog.All, xbox)).Id);
     }
 
     [Fact]
@@ -187,6 +192,7 @@ public sealed class AppAdvisorTests
         foreach (var e in AppCatalog.All)
         {
             var advice = AppAdvisor.Assess(e, ctx);
+            Assert.False(advice?.IsSuggested == true, $"{e.Id}: unknown PC received a suggestion");
             // The only "НЕ НУЖНО" that needs no fact about the PC: Process Lasso fights Lycoris's own game mode.
             if (advice is { Level: AdviceLevel.NotNeeded }) Assert.Equal("BitSum.ProcessLasso", e.Id);
         }
@@ -216,7 +222,7 @@ public sealed class AppAdvisorTests
         Assert.Equal("Видеокарта NVIDIA не найдена.", none.Reason);
 
         var nvidia = Assess(id, Pc() with { GpuVendors = new HashSet<GpuVendor> { GpuVendor.Nvidia, GpuVendor.Intel } });
-        Assert.Equal(AdviceLevel.NotNow, nvidia.Level);
+        Assert.Equal(id == "9NF8H0H7WMLT" ? AdviceLevel.Optional : AdviceLevel.NotNow, nvidia.Level);
         Assert.False(string.IsNullOrWhiteSpace(nvidia.Reason));
 
         var unknown = Assess(id, Pc() with { GpuKnown = false, GpuVendors = new HashSet<GpuVendor>() });
@@ -229,7 +235,7 @@ public sealed class AppAdvisorTests
     {
         var nvidia = Pc() with { GpuVendors = new HashSet<GpuVendor> { GpuVendor.Nvidia } };
         Assert.Contains("Драйвер NVIDIA уже содержит PhysX", Assess("Nvidia.PhysX", nvidia).Reason);
-        Assert.Contains("вместе с драйвером", Assess("9NF8H0H7WMLT", nvidia).Reason);
+        Assert.Contains("Для настройки найденной видеокарты NVIDIA", Assess("9NF8H0H7WMLT", nvidia).Reason);
         Assert.Contains("для опытных", Assess("Orbmu2k.nvidiaProfileInspector", nvidia).Reason);
         Assert.Contains("для опытных", Assess("TechPowerUp.NVCleanstall", nvidia).Reason);
     }
@@ -248,7 +254,7 @@ public sealed class AppAdvisorTests
         Assert.Equal(brand, AppAdvisor.PeripheralApps[id]);
 
         var found = Assess(id, Pc() with { Peripherals = new HashSet<PeripheralBrand> { brand } });
-        Assert.Equal(AdviceLevel.Recommended, found.Level);
+        Assert.Equal(AdviceLevel.Optional, found.Level);
         Assert.Contains(brandName, found.Reason);
 
         // Other makers' devices change nothing.
@@ -262,12 +268,10 @@ public sealed class AppAdvisorTests
     [Theory]
     [InlineData("Logitech.GHUB", "NotNeeded", "Logitech")]
     [InlineData("RazerInc.RazerInstaller.Synapse4", "NotNeeded", "Razer")]
-    // The scan sees USB/Bluetooth devices only: Sonar works with any headset, iCUE also drives Corsair RGB memory (SMBus),
-    // and the Stream Deck app also serves Stream Deck Mobile on a phone.
-    [InlineData("SteelSeries.GG", "Optional", "Sonar")]
-    [InlineData("Corsair.iCUE.5", "Optional", "память Corsair")]
-    [InlineData("Elgato.StreamDeck", "NotNow", "Stream Deck Mobile")]
-    public void Peripheral_software_without_the_device_is_not_needed_only_when_it_has_no_other_use(string id, string expected, string reason)
+    [InlineData("SteelSeries.GG", "NotNeeded", "SteelSeries")]
+    [InlineData("Corsair.iCUE.5", "NotNeeded", "Corsair")]
+    [InlineData("Elgato.StreamDeck", "NotNeeded", "Elgato")]
+    public void Peripheral_software_without_a_confirmed_device_is_not_needed(string id, string expected, string reason)
     {
         var none = Assess(id, Pc());
         Assert.Equal(Level(expected), none.Level);
@@ -325,6 +329,17 @@ public sealed class AppAdvisorTests
     // ─────────────────────────── launchers and runtimes ───────────────────────────
 
     [Fact]
+    public void Empty_pc_does_not_need_generic_runtimes_or_popular_apps()
+    {
+        var pc = Pc();
+        var candidates = AppCatalog.All.Where(e => e.Category == AppCategory.Runtimes
+            || e.Id is "Valve.Steam" or "Discord.Discord");
+        var speculative = candidates.Where(e => AppAdvisor.Assess(e, pc) is { IsSuggested: true }).Select(e => e.Id);
+        Assert.Empty(speculative);
+        Assert.Empty(AppAdvisor.Kit(AppCatalog.All, pc));
+    }
+
+    [Fact]
     public void Gaming_services_are_needed_only_with_the_xbox_app()
     {
         Assert.Equal(AdviceLevel.Required, Assess(GamingServices, Pc(Xbox)).Level);
@@ -332,17 +347,20 @@ public sealed class AppAdvisorTests
         Assert.Equal(AdviceLevel.Optional, Assess(GamingServices, Pc() with { InstalledKnown = false }).Level);
         // Fast detection pass, Store apps not checked yet: the Xbox app may still be there — no "ПОКА НЕ НУЖНО" claim.
         Assert.Equal(AdviceLevel.Optional, Assess(GamingServices, Pc() with { StoreKnown = false }).Level);
-        Assert.Equal(AdviceLevel.Required, Assess(GamingServices, Pc(Xbox) with { StoreKnown = false }).Level);
+        Assert.Equal(AdviceLevel.Optional, Assess(GamingServices, Pc(Xbox) with { StoreKnown = false }).Level);
+        Assert.Equal(AdviceLevel.Optional, Assess(GamingServices, Pc(Xbox) with { InstalledKnown = false }).Level);
+        Assert.DoesNotContain(E(GamingServices), AppAdvisor.Kit(AppCatalog.All, Pc(Xbox) with { StoreKnown = false }));
         Assert.DoesNotContain(E(GamingServices), AppAdvisor.Kit(AppCatalog.All, Pc() with { StoreKnown = false }));
         Assert.False(AdviceContext.Unknown.StoreKnown);
     }
 
     [Fact]
-    public void Webview2_is_required_when_missing()
+    public void Missing_webview2_does_not_prove_a_consumer_needs_it()
     {
         var missing = Assess(WebView2, Pc());
-        Assert.Equal(AdviceLevel.Required, missing.Level);
-        Assert.Contains("не найден", missing.Reason);
+        Assert.Equal(AdviceLevel.Optional, missing.Level);
+        Assert.Contains("Teams", missing.Reason);
+        Assert.Contains("Outlook", missing.Reason);
         // Steam and other CEF-based launchers do not use WebView2: the reason must not claim they do.
         Assert.DoesNotContain("Steam", missing.Reason);
         Assert.Null(AppAdvisor.Advise(E(WebView2), Pc(WebView2)));
@@ -351,10 +369,10 @@ public sealed class AppAdvisorTests
 
     [Theory]
     [InlineData("", "NotNow", "NotNow", "NotNow")]
-    [InlineData(Prism, "Recommended", "Optional", "NotNow")]
+    [InlineData(Prism, "Optional", "Optional", "NotNow")]
     [InlineData(CurseForge, "NotNow", "NotNow", "NotNow")]
-    [InlineData(Prism + "|" + CurseForge, "Recommended", "Optional", "NotNow")]
-    public void Java_is_advised_only_for_prism_launcher(string installed, string java21, string java17, string java8)
+    [InlineData(Prism + "|" + CurseForge, "Optional", "Optional", "NotNow")]
+    public void Prism_alone_does_not_prove_which_java_version_is_needed(string installed, string java21, string java17, string java8)
     {
         var ctx = Pc(installed.Split('|', StringSplitOptions.RemoveEmptyEntries));
         Assert.Equal(Level(java21), Assess("EclipseAdoptium.Temurin.21.JRE", ctx).Level);
@@ -372,8 +390,8 @@ public sealed class AppAdvisorTests
     }
 
     [Theory]
-    [InlineData("Microsoft.DotNet.DesktopRuntime.10", "2026-10-27", "Recommended")]
-    [InlineData("Microsoft.DotNet.DesktopRuntime.10", "2028-11-13", "Recommended")]
+    [InlineData("Microsoft.DotNet.DesktopRuntime.10", "2026-10-27", "Optional")]
+    [InlineData("Microsoft.DotNet.DesktopRuntime.10", "2028-11-13", "Optional")]
     [InlineData("Microsoft.DotNet.DesktopRuntime.10", "2028-11-14", "NotNow")]
     [InlineData("Microsoft.DotNet.DesktopRuntime.9", "2026-10-27", "Optional")]
     [InlineData("Microsoft.DotNet.DesktopRuntime.9", "2026-11-09", "Optional")]
@@ -404,33 +422,33 @@ public sealed class AppAdvisorTests
     }
 
     [Theory]
-    [InlineData(19045, "Recommended")]
-    [InlineData(19044, "Recommended")]
-    [InlineData(22000, "Recommended")]
+    [InlineData(19045, "Optional")]
+    [InlineData(19044, "Optional")]
+    [InlineData(22000, "Optional")]
     [InlineData(19041, "NotNeeded")] // the installer refuses builds before 20H2
     [InlineData(22621, "NotNeeded")] // built in
     [InlineData(0, "Optional")]
-    public void Dotnet_framework_481_is_recommended_where_it_is_offered(int build, string expected) =>
+    public void Dotnet_framework_481_respects_windows_support_without_assuming_a_consumer(int build, string expected) =>
         Assert.Equal(Level(expected), Assess("Microsoft.DotNet.Framework.Runtime", Pc() with { OsBuild = build }).Level);
 
     [Fact]
     public void Game_runtimes_and_main_programs()
     {
         var pc = Pc();
-        Assert.Equal(AdviceLevel.Required, Assess("Microsoft.VCRedist.2015+.x64", pc).Level);
-        Assert.Equal(AdviceLevel.Required, Assess("Microsoft.VCRedist.2015+.x86", pc).Level);
+        Assert.Equal(AdviceLevel.Optional, Assess("Microsoft.VCRedist.2015+.x64", pc).Level);
+        Assert.Equal(AdviceLevel.Optional, Assess("Microsoft.VCRedist.2015+.x86", pc).Level);
         foreach (var year in new[] { "2005", "2008", "2010", "2012", "2013" })
         foreach (var arch in new[] { "x86", "x64" })
         {
             var old = Assess($"Microsoft.VCRedist.{year}.{arch}", pc);
-            Assert.Equal(AdviceLevel.Recommended, old.Level);
+            Assert.Equal(AdviceLevel.NotNow, old.Level);
             // Out of Microsoft support (2016–2024) without the Eol flag — nothing replaces them — and the reason says so.
             Assert.Contains("больше не обновляет", old.Reason);
             Assert.False(E($"Microsoft.VCRedist.{year}.{arch}").Has(AppFlags.Eol));
         }
-        Assert.Equal(AdviceLevel.Recommended, Assess("Microsoft.DirectX", pc).Level);
-        Assert.Equal(AdviceLevel.Recommended, Assess("Valve.Steam", pc).Level);
-        Assert.Equal(AdviceLevel.Recommended, Assess("Discord.Discord", pc).Level);
+        Assert.Equal(AdviceLevel.NotNow, Assess("Microsoft.DirectX", pc).Level);
+        Assert.Equal(AdviceLevel.Optional, Assess("Valve.Steam", pc).Level);
+        Assert.Equal(AdviceLevel.Optional, Assess("Discord.Discord", pc).Level);
         Assert.Equal(AdviceLevel.NotNeeded, Assess("BitSum.ProcessLasso", pc).Level);
         Assert.Contains("Lycoris", Assess("BitSum.ProcessLasso", pc).Reason);
         Assert.Contains("Автозапуск и службы", Assess("Microsoft.Sysinternals.Autoruns", pc).Reason);
@@ -479,9 +497,9 @@ public sealed class AppAdvisorTests
     // ─────────────────────────── archives ───────────────────────────
 
     [Theory]
-    [InlineData(19045, 6456, "Recommended")] // Windows 10
-    [InlineData(22000, 3260, "Recommended")] // Windows 11 21H2
-    [InlineData(22621, 2283, "Recommended")] // 22H2 before KB5030310
+    [InlineData(19045, 6456, "Optional")] // Windows 10
+    [InlineData(22000, 3260, "Optional")] // Windows 11 21H2
+    [InlineData(22621, 2283, "Optional")] // 22H2 before KB5030310
     [InlineData(22621, 2428, "Optional")]    // 22H2 with KB5031354: there, but on only with "get the latest updates"
     [InlineData(22621, 2600, "Optional")]    // 22H2 between the preview and the November 2023 update: can't tell
     [InlineData(22621, 2715, "Optional")]    // 22H2 with KB5032190
@@ -535,13 +553,14 @@ public sealed class AppAdvisorTests
         foreach (var ctx in ManyContexts().Where((_, i) => i % 7 == 0))
         {
             var kit = AppAdvisor.Kit(AppCatalog.All, ctx);
-            Assert.NotEmpty(kit);
             foreach (var e in kit)
             {
                 Assert.Equal(AppCategory.Runtimes, e.Category);
                 Assert.True(e.CanInstall);
                 Assert.True(AppAdvisor.Assess(e, ctx)!.IsSuggested);
                 Assert.Equal(AppFlags.None, e.Flags & AppAdvisor.NeverSuggested);
+                Assert.Equal(GamingServices, e.Id);
+                Assert.True(ctx.InstalledKnown && ctx.StoreKnown && ctx.IsInstalled(Xbox));
             }
             // Every suggested runtime is in it.
             Assert.All(AppCatalog.All.Where(e => e.Category == AppCategory.Runtimes && e.CanInstall && AppAdvisor.Assess(e, ctx) is { IsSuggested: true }),
@@ -554,16 +573,7 @@ public sealed class AppAdvisorTests
     {
         var ctx = Pc(Xbox) with { OsBuild = 19045, OsUbr = 6456 };
         var kit = AppAdvisor.Kit(AppCatalog.ForBuild(ctx.OsBuild), ctx).Select(e => e.Id).ToList();
-        Assert.Contains(WebView2, kit);
-        Assert.Contains(GamingServices, kit);
-        Assert.Contains("Microsoft.DotNet.Framework.Runtime", kit);
-        Assert.Contains("Microsoft.DotNet.DesktopRuntime.10", kit);
-        Assert.Contains("Microsoft.DirectX", kit);
-        Assert.Equal(12, kit.Count(id => id.StartsWith("Microsoft.VCRedist.", StringComparison.Ordinal)));
-        Assert.Equal(17, kit.Count);
-        foreach (var notNeeded in new[] { "Microsoft.DotNet.DesktopRuntime.9", "Microsoft.DotNet.DesktopRuntime.8", "Microsoft.DotNet.DesktopRuntime.6",
-                     "Microsoft.XNARedist", "CreativeTechnology.OpenAL", "Nvidia.PhysX", "EclipseAdoptium.Temurin.21.JRE" })
-            Assert.DoesNotContain(notNeeded, kit);
+        Assert.Equal(GamingServices, Assert.Single(kit));
     }
 
     [Fact]
@@ -572,21 +582,38 @@ public sealed class AppAdvisorTests
         // Without the Xbox app: no Gaming Services. After .NET 10's end of support: no .NET at all.
         var later = Pc(WebView2) with { Today = new DateOnly(2028, 11, 14) };
         var kit = AppAdvisor.Kit(AppCatalog.ForBuild(later.OsBuild), later).Select(e => e.Id).ToList();
-        Assert.DoesNotContain(GamingServices, kit);
-        Assert.DoesNotContain(kit, id => id.StartsWith("Microsoft.DotNet.", StringComparison.Ordinal));
-        Assert.Equal(14, kit.Count);
+        Assert.Empty(kit);
 
-        // Prism Launcher: Java 21 joins (17 and 8 stay out).
+        // Prism alone does not identify a Minecraft instance or its Java requirement.
         var prism = AppAdvisor.Kit(AppCatalog.All, Pc(Prism)).Select(e => e.Id).ToList();
-        Assert.Contains("EclipseAdoptium.Temurin.21.JRE", prism);
-        Assert.DoesNotContain("EclipseAdoptium.Temurin.17.JRE", prism);
-        Assert.DoesNotContain("EclipseAdoptium.Temurin.8.JRE", prism);
+        Assert.Empty(prism);
 
-        // Before the first detection: only what every PC needs (no WebView2 / Gaming Services claims).
+        // Before detection there is no verified need, including for generic runtimes.
         var unknown = AppAdvisor.Kit(AppCatalog.All, AdviceContext.Unknown with { Today = Today }).Select(e => e.Id).ToList();
-        Assert.DoesNotContain(WebView2, unknown);
-        Assert.DoesNotContain(GamingServices, unknown);
-        Assert.Equal(14, unknown.Count); // 12 Visual C++, DirectX, .NET 10
+        Assert.Empty(unknown);
+    }
+
+    [Fact]
+    public void Suggested_entries_require_a_verified_consumer_and_known_installed_state()
+    {
+        foreach (var ctx in ManyContexts())
+        foreach (var e in AppCatalog.All)
+        {
+            if (AppAdvisor.Assess(e, ctx) is not { IsSuggested: true }) continue;
+            Assert.True(ctx.InstalledKnown && ctx.StoreKnown);
+            Assert.True(ctx.IsInstalled(Xbox));
+            Assert.Equal(GamingServices, e.Id);
+        }
+
+        // Stale ids and matching hardware do not turn an unknown installed inventory into evidence.
+        var stale = Pc(Xbox, Prism) with
+        {
+            InstalledKnown = false,
+            GpuVendors = new HashSet<GpuVendor> { GpuVendor.Nvidia },
+            Peripherals = Enum.GetValues<PeripheralBrand>().ToHashSet(),
+        };
+        Assert.All(AppCatalog.All, e => Assert.False(AppAdvisor.Assess(e, stale)?.IsSuggested == true));
+        Assert.Empty(AppAdvisor.Kit(AppCatalog.All, stale));
     }
 
     // ─────────────────────────── peripheral scan (pure part) ───────────────────────────
@@ -698,15 +725,23 @@ public sealed class AppAdvisorTests
     [Fact]
     public void Card_advice_looks()
     {
-        var vc = new AppItemViewModel(E("Microsoft.VCRedist.2015+.x64")) { IsKnown = true, Advice = Assess("Microsoft.VCRedist.2015+.x64", Pc()) };
-        Assert.Equal(TagKind.Solid, vc.DisplayTags[0].Kind);
-        Assert.True(vc.IsSuggested);
-        Assert.True(vc.HasAdviceCaption);
+        var services = new AppItemViewModel(E(GamingServices)) { IsKnown = true, Advice = Assess(GamingServices, Pc(Xbox)) };
+        Assert.Equal(TagKind.Solid, services.DisplayTags[0].Kind);
+        Assert.True(services.IsSuggested);
+        Assert.True(services.HasAdviceCaption);
 
         var steam = new AppItemViewModel(E("Valve.Steam")) { IsKnown = true, Advice = Assess("Valve.Steam", Pc()) };
-        Assert.Equal("РЕКОМЕНДУЕТСЯ", steam.DisplayTags[0].Text);
-        Assert.Equal(TagKind.Normal, steam.DisplayTags[0].Kind);
-        Assert.True(steam.IsSuggested);
+        Assert.Equal("ПО ЖЕЛАНИЮ", steam.DisplayTags[0].Text);
+        Assert.Equal(TagKind.Muted, steam.DisplayTags[0].Kind);
+        Assert.False(steam.IsSuggested);
+        Assert.Equal(Assess("Valve.Steam", Pc()).Reason, steam.DisplayTags[0].ToolTip);
+
+        // Rendering supports future evidence-backed recommendations independently of today's rules.
+        var recommended = new AppItemViewModel(E("Valve.Steam"))
+            { IsKnown = true, Advice = new AppAdvice(AdviceLevel.Recommended, "Тест.") };
+        Assert.Equal("РЕКОМЕНДУЕТСЯ", recommended.DisplayTags[0].Text);
+        Assert.Equal(TagKind.Normal, recommended.DisplayTags[0].Kind);
+        Assert.True(recommended.IsSuggested);
 
         // "ПО ЖЕЛАНИЮ": tag with a tooltip, no caption line.
         var epic = new AppItemViewModel(E("EpicGames.EpicGamesLauncher")) { IsKnown = true, Advice = Assess("EpicGames.EpicGamesLauncher", Pc()) };
@@ -729,18 +764,20 @@ public sealed class AppAdvisorTests
         var tab = new CategoryFilterViewModel(null, "РЕКОМЕНДУЕМ", isRecommended: true);
         var all = new CategoryFilterViewModel(null, "ВСЕ");
         var runtimes = new CategoryFilterViewModel(AppCategory.Runtimes, "БИБЛИОТЕКИ ДЛЯ ИГР");
+        var services = new AppItemViewModel(E(GamingServices)) { IsKnown = true, Advice = Assess(GamingServices, Pc(Xbox)) };
         var vc = new AppItemViewModel(E("Microsoft.VCRedist.2015+.x64")) { IsKnown = true, Advice = Assess("Microsoft.VCRedist.2015+.x64", Pc()) };
         var xna = new AppItemViewModel(E("Microsoft.XNARedist")) { IsKnown = true, Advice = Assess("Microsoft.XNARedist", Pc()) };
 
-        Assert.True(tab.Includes(vc));
+        Assert.True(tab.Includes(services));
+        Assert.False(tab.Includes(vc));
         Assert.False(tab.Includes(xna));
         Assert.True(all.Includes(xna));
         Assert.True(runtimes.Includes(xna));
         Assert.NotNull(tab.ToolTip);
         Assert.Null(all.ToolTip);
 
-        vc.InstalledVersion = "14.44";
-        Assert.False(tab.Includes(vc));
+        services.InstalledVersion = "1.0";
+        Assert.False(tab.Includes(services));
     }
 
     [Fact]
@@ -796,14 +833,29 @@ public sealed class AppAdvisorTests
     [Fact]
     public void Kit_tooltip_names_what_is_in_and_what_is_left_out()
     {
-        var pc = Pc(WebView2);
+        var pc = Pc(Xbox, WebView2);
         var kit = AppAdvisor.Kit(AppCatalog.ForBuild(pc.OsBuild), pc);
         var left = AppCatalog.ForBuild(pc.OsBuild).Where(e => e.Category == AppCategory.Runtimes && e.CanInstall && !kit.Contains(e)).ToList();
         var text = AppTexts.KitToolTip(kit, left);
-        Assert.Contains(".NET Desktop Runtime 10", text);
-        Assert.Contains("Не входят", text);
+        Assert.Contains(E(GamingServices).Name, text);
+        Assert.Contains("Необходимость не подтверждена", text);
         Assert.Contains(".NET Desktop Runtime 6", text);
         Assert.Contains("XNA Framework 4.0", text);
-        Assert.DoesNotContain("Не входят", AppTexts.KitToolTip(kit, []));
+        Assert.DoesNotContain("Необходимость не подтверждена", AppTexts.KitToolTip(kit, []));
+    }
+
+    [Fact]
+    public void Conditional_advice_reasons_have_english_translations()
+    {
+        using var language = Loc.UseLanguage("en");
+        var pc = Pc(Prism) with { OsBuild = 19045, GpuVendors = new HashSet<GpuVendor> { GpuVendor.Nvidia } };
+        foreach (var id in new[] { "Valve.Steam", "Discord.Discord", WebView2, "Microsoft.DirectX", "Microsoft.VCRedist.2015+.x64",
+                     "Microsoft.VCRedist.2015+.x86", "Microsoft.VCRedist.2005.x86", "Microsoft.DotNet.DesktopRuntime.10",
+                     "Microsoft.DotNet.Framework.Runtime", "EclipseAdoptium.Temurin.21.JRE", "9NF8H0H7WMLT", "Logitech.GHUB" })
+        {
+            var reason = Assess(id, pc).Reason;
+            Assert.NotEmpty(reason);
+            Assert.DoesNotMatch("[А-Яа-яЁё]", reason);
+        }
     }
 }

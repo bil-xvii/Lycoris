@@ -70,11 +70,16 @@ public sealed partial class AppItemViewModel : ObservableObject
         nameof(CanUpgrade), nameof(ShownAdvice), nameof(HasAdviceCaption), nameof(AdviceReason), nameof(IsDimmed), nameof(IsSuggested))]
     private string? _installedVersion;
 
-    /// <summary>At least one detection pass (or the cache) has been applied.</summary>
+    /// <summary>The current pass verified this state; cached presence never authorizes an install or update.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRunAction), nameof(CanSelect), nameof(IsChecking), nameof(DisplayTags),
-        nameof(ShownAdvice), nameof(HasAdviceCaption), nameof(AdviceReason), nameof(IsDimmed), nameof(IsSuggested))]
+        nameof(ShownAdvice), nameof(HasAdviceCaption), nameof(AdviceReason), nameof(IsDimmed), nameof(IsSuggested),
+        nameof(CanUpgrade), nameof(Action), nameof(ActionText), nameof(HasMainAction), nameof(InstalledText))]
     private bool _isKnown;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayTags))]
+    private DateTime _lastSeenAt;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRunAction), nameof(CanSelect))]
@@ -82,7 +87,7 @@ public sealed partial class AppItemViewModel : ObservableObject
 
     /// <summary>The install queue is running (all install buttons wait for it).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanRunAction))]
+    [NotifyPropertyChangedFor(nameof(CanRunAction), nameof(CanSelect))]
     private bool _queueBusy;
 
     [ObservableProperty]
@@ -111,7 +116,7 @@ public sealed partial class AppItemViewModel : ObservableObject
     public bool IsChecking => !IsKnown;
 
     /// <summary>Installed through winget and allowed to be upgraded by it.</summary>
-    public bool CanUpgrade => IsInstalled && Entry.CanUpgrade && !IsUnmanaged;
+    public bool CanUpgrade => IsKnown && IsInstalled && Entry.CanUpgrade && !IsUnmanaged;
 
     /// <summary>The advice on the card: only when the state is known and the program is not installed (never for Edge).</summary>
     public AppAdvice? ShownAdvice => IsKnown && !IsInstalled && !Entry.SystemComponent ? Advice : null;
@@ -132,7 +137,11 @@ public sealed partial class AppItemViewModel : ObservableObject
         get
         {
             var list = new List<AppTagInfo>(Tags.Count + 1);
-            if (IsChecking)
+            if (IsInstalled && !IsKnown)
+                list.Add(new(Loc.T("РАНЕЕ НАЙДЕНО"), TagKind.Muted, LastSeenAt == DateTime.MinValue
+                    ? Loc.T("Программа найдена ранее; текущее состояние ещё не подтверждено.")
+                    : Loc.Tf("Программа найдена {0:dd.MM HH:mm}; текущее состояние ещё не подтверждено.", LastSeenAt)));
+            else if (IsChecking)
                 list.Add(new(Loc.T("ПРОВЕРКА…"), TagKind.Muted, Loc.T("Проверяем, установлена ли программа.")));
             else if (IsInstalled)
                 list.Add(new(InstalledText, TagKind.Solid, Entry.Id == "Microsoft.DirectX"
@@ -205,7 +214,7 @@ public sealed partial class AppItemViewModel : ObservableObject
     };
 
     /// <summary>Can be ticked for the batch queue (install or upgrade through winget).</summary>
-    public bool CanSelect => Action is AppAction.Install or AppAction.Upgrade && IsKnown && WingetReady;
+    public bool CanSelect => Action is AppAction.Install or AppAction.Upgrade && IsKnown && WingetReady && !QueueBusy;
 
     public string ActionToolTip => AppTexts.ActionToolTip(this);
 
@@ -217,6 +226,16 @@ public sealed partial class AppItemViewModel : ObservableObject
     partial void OnWingetReadyChanged(bool value)
     {
         if (!value && IsSelected) IsSelected = false;
+    }
+
+    partial void OnIsKnownChanged(bool value)
+    {
+        if (!value && IsSelected) IsSelected = false;
+    }
+
+    partial void OnQueueBusyChanged(bool value)
+    {
+        if (value && IsSelected) IsSelected = false;
     }
 
     /// <summary>Became "installed outside winget" with the same version: a ticked card would stay counted but do nothing.</summary>

@@ -46,11 +46,14 @@ public sealed class HardwareTests
         IReadOnlyList<DiskDetail>? disks = null,
         IReadOnlyList<UninstallEntry>? apps = null,
         bool laptop = false,
-        string cpu = "AMD Ryzen 7 9800X3D 8-Core Processor") => new()
+        string cpu = "AMD Ryzen 7 9800X3D 8-Core Processor",
+        ComputerIdentity? identity = null) => new()
     {
         When = Now,
         Cpu = new CpuInfo(cpu, cpu.Contains("Intel") ? "GenuineIntel" : "AuthenticAMD", 8, 16, 4700),
         IsLaptop = laptop,
+        Identity = identity ?? ComputerIdentity.FromFacts("Micro-Star International Co., Ltd.", "MS-7E47",
+            (ushort)(laptop ? 2 : 1), [(ushort)(laptop ? 10 : 3)]),
         Board = board ?? new BoardInfo("Micro-Star International Co., Ltd.", "PRO X870-P WIFI (MS-7E47)",
             "American Megatrends International, LLC.", "1.A92", new DateTime(2026, 6, 29), "Micro-Star International Co., Ltd.", "MS-7E47"),
         Gpus = gpus ?? [Nvidia(), AmdIgpu()],
@@ -392,6 +395,8 @@ public sealed class HardwareTests
         Assert.Equal(HwSource.Manual, a.Source);
         Assert.False(a.IsInstallable);
         Assert.Contains("только вручную", a.Reason);
+        Assert.Equal("https://www.msi.com/support", a.Url);
+        Assert.Equal("MSI MAG B550 TOMAHAWK (MS-7C91)", c.Name);
     }
 
     [Fact]
@@ -401,6 +406,120 @@ public sealed class HardwareTests
         Assert.Equal(HwStatus.Info, c.Status);
         Assert.Equal("MSI PRO X870-P WIFI (MS-7E47)", c.Name);
         Assert.DoesNotContain(c.Actions, a => a.IsInstallable);
+    }
+
+    [Theory]
+    [InlineData("Dell Inc.", "Latitude 7450", 2, 10, "https://www.dell.com/support/home")]
+    [InlineData("HP", "EliteBook 840 G11", 2, 10, "https://support.hp.com/us-en/drivers")]
+    [InlineData("LENOVO", "ThinkPad T14 Gen 5", 2, 10, "https://pcsupport.lenovo.com/")]
+    [InlineData("Acer", "Aspire C27", 1, 13, "https://www.acer.com/support")]
+    [InlineData("ASUSTeK COMPUTER INC.", "Zenbook Flip", 2, 31, "https://www.asus.com/support/download-center/")]
+    [InlineData("Micro-Star International Co., Ltd.", "Prestige 14", 2, 10, "https://www.msi.com/support")]
+    [InlineData("Microsoft Corporation", "Surface Pro 11", 2, 30, "https://support.microsoft.com/surface")]
+    [InlineData("Microsoft Corporation", "Surface Pro 11", 2, 32, "https://support.microsoft.com/surface")]
+    [InlineData("Dell Inc.", "OptiPlex 7020", 1, 3, "https://www.dell.com/support/home")]
+    public void Oem_bios_uses_system_support_even_with_an_msi_board(string manufacturer, string model,
+        int pcType, int chassis, string supportUrl)
+    {
+        var identity = ComputerIdentity.FromFacts(manufacturer, model, (ushort)pcType, [(ushort)chassis]);
+        var board = new BoardInfo("Micro-Star International Co., Ltd.", "MS-7E47", "AMI", "1.0",
+            new DateTime(2022, 3, 1), manufacturer, model);
+        var report = HardwareAdvisor.Build(Snapshot(board: board, identity: identity), Context());
+        var c = Component(report, "board");
+        Assert.Equal(HwStatus.ManualOnly, c.Status);
+        Assert.Contains(model, c.Name);
+        Assert.DoesNotContain("MS-7E47", c.Name);
+        Assert.Equal("КОМПЬЮТЕР И BIOS", c.Kind);
+        var action = Assert.Single(c.Actions);
+        Assert.Equal(supportUrl, action.Url);
+        Assert.Equal(HwActionKind.OpenPage, action.Kind);
+        Assert.False(action.IsInstallable);
+        var computer = Component(report, "computer");
+        Assert.Equal(HwStatus.Info, computer.Status);
+        Assert.Equal(identity.Summary, computer.Name);
+        Assert.Equal(identity.EvidenceText, computer.Details);
+        Assert.Equal(identity.Reason, computer.Note);
+    }
+
+    [Fact]
+    public void Uncertain_or_placeholder_identity_never_guesses_a_bios_page()
+    {
+        ComputerIdentity[] identities =
+        [
+            ComputerIdentity.Unknown,
+            ComputerIdentity.FromFacts("Dell Inc.", "Latitude 7450", 1, [10]),
+            ComputerIdentity.FromFacts("Dell Inc.", "To Be Filled By O.E.M.", 2, [10]),
+            ComputerIdentity.FromFacts("System Manufacturer", "Latitude 7450", 2, [10]),
+            ComputerIdentity.FromFacts("Other vendor", "Notebook 1", 2, [10]),
+            ComputerIdentity.FromFacts("Other vendor", "OEM Desktop 1", 1, [3]),
+        ];
+        var oldBoard = new BoardInfo("Micro-Star International Co., Ltd.", "MAG B550 TOMAHAWK", "AMI", "1.0",
+            new DateTime(2022, 3, 1), "Dell Inc.", "Latitude 7450");
+        foreach (var identity in identities)
+        {
+            var snapshot = Snapshot(board: oldBoard, identity: identity);
+            Assert.Null(HardwareCatalog.Support(snapshot));
+            var c = Component(HardwareAdvisor.Build(snapshot, Context()), "board");
+            Assert.Equal(HwStatus.Info, c.Status);
+            Assert.Empty(c.Actions);
+            Assert.Contains("не подтверждены", c.Note);
+        }
+    }
+
+    [Fact]
+    public void Virtual_machine_has_no_physical_board_or_chipset_advice()
+    {
+        var identity = ComputerIdentity.FromFacts("Microsoft Corporation", "Virtual Machine", 1, [3]);
+        var report = HardwareAdvisor.Build(Snapshot(identity: identity), Context());
+        Assert.Equal(ComputerKind.VirtualMachine, identity.Kind);
+        Assert.DoesNotContain(report.Components, c => c.Key is "board" or "chipset");
+        Assert.Empty(Component(report, "computer").Actions);
+    }
+
+    [Fact]
+    public void Default_hardware_snapshot_has_unknown_identity_without_a_bios_guess()
+    {
+        var snapshot = new HardwareSnapshot();
+        Assert.Same(ComputerIdentity.Unknown, snapshot.Identity);
+        var report = HardwareAdvisor.Build(snapshot, Context());
+        Assert.Equal(HwStatus.Info, Component(report, "computer").Status);
+        Assert.Empty(Component(report, "board").Actions);
+        Assert.Equal(0, report.RecommendationCount);
+    }
+
+    [Fact]
+    public void Placeholder_retail_board_model_has_no_bios_support_action()
+    {
+        var board = new BoardInfo("Micro-Star International Co., Ltd.", "To Be Filled By O.E.M.", "AMI", "1.0",
+            new DateTime(2022, 3, 1), "Micro-Star International Co., Ltd.", "MS-7E47");
+        var snapshot = Snapshot(board: board);
+        Assert.Null(HardwareCatalog.Support(snapshot));
+        Assert.Empty(Component(HardwareAdvisor.Build(snapshot, Context()), "board").Actions);
+    }
+
+    [Fact]
+    public void Oem_realtek_network_and_audio_use_the_same_system_support()
+    {
+        const string audioId = @"HDAUDIO\FUNC_01&VEN_10EC&DEV_0897\1";
+        var identity = ComputerIdentity.FromFacts("Dell Inc.", "Latitude 7450", 2, [10]);
+        var snapshot = Snapshot(identity: identity,
+            network: [new NetAdapter("Realtek Ethernet", "Realtek", RealtekNicPnp, false)]) with
+        {
+            Audio = [new SoundDevice("Realtek Audio", "Realtek", audioId)],
+        };
+        SignedDriverInfo[] drivers =
+        [
+            new("Realtek Ethernet", RealtekNicPnp, "Net", "1.0", Now, "Microsoft", "Microsoft", "net.inf", false, "Microsoft", ""),
+            new("Realtek Audio", audioId, "MEDIA", "1.0", Now, "Microsoft", "Microsoft", "audio.inf", false, "Microsoft", ""),
+        ];
+        var report = HardwareAdvisor.Build(snapshot, Context(drivers: drivers));
+        foreach (var key in new[] { "net:", "audio:" })
+        {
+            var action = Assert.Single(Component(report, key).Actions);
+            Assert.Equal("https://www.dell.com/support/home", action.Url);
+            Assert.True(action.Optional);
+            Assert.False(action.IsInstallable);
+        }
     }
 
     [Fact]
@@ -433,14 +552,19 @@ public sealed class HardwareTests
     // ───────────────────────────── Memory / monitors ─────────────────────────────
 
     [Fact]
-    public void Memory_below_rated_speed_asks_for_expo_in_bios()
+    public void Memory_below_rated_speed_offers_a_conditional_manual_profile_check()
     {
         RamModule[] ram = [new("F5-6000J3636F16G", 4800, 4800, 34, 16UL << 30), new("F5-6000J3636F16G", 4800, 4800, 34, 16UL << 30)];
         var c = Component(HardwareAdvisor.Build(Snapshot(ram: ram), Context()), "ram");
         Assert.Equal(HwStatus.ManualOnly, c.Status);
         var a = Assert.Single(c.Actions);
         Assert.Equal(HwActionKind.Note, a.Kind);
-        Assert.Contains("EXPO", a.Title);
+        Assert.Equal(HwSource.Manual, a.Source);
+        Assert.False(a.IsInstallable);
+        Assert.False(a.PreSelect);
+        Assert.Contains("EXPO", a.Reason);
+        Assert.Contains("Если", a.Reason);
+        Assert.DoesNotContain("скорее всего", a.Reason);
         Assert.Contains("6000", a.Reason);
         Assert.Contains("4800", a.Reason);
     }
@@ -452,6 +576,33 @@ public sealed class HardwareTests
         var c = Component(HardwareAdvisor.Build(Snapshot(ram: ram, laptop: true), Context()), "ram");
         Assert.Equal(HwStatus.Info, c.Status);
         Assert.Empty(c.Actions);
+    }
+
+    [Fact]
+    public void Memory_profile_advice_requires_a_confirmed_desktop_and_ignores_the_legacy_battery_flag()
+    {
+        RamModule[] ram = [new("F5-6000J3636F16G", 4800, 4800, 34, 16UL << 30)];
+        ComputerIdentity[] uncertainOrNonDesktop =
+        [
+            ComputerIdentity.Unknown,
+            ComputerIdentity.FromFacts("Dell Inc.", "Latitude 7450", 1, [10]),
+            ComputerIdentity.FromFacts("Acer", "Aspire C27", 1, [13]),
+            ComputerIdentity.FromFacts("Microsoft Corporation", "Virtual Machine", 1, [3]),
+        ];
+        foreach (var identity in uncertainOrNonDesktop)
+        {
+            var c = Component(HardwareAdvisor.Build(Snapshot(ram: ram, identity: identity), Context()), "ram");
+            Assert.Equal(HwStatus.Info, c.Status);
+            Assert.Empty(c.Actions);
+            Assert.Contains("4800", c.Details);
+            Assert.DoesNotContain("Включите", c.Note);
+        }
+
+        // A UPS can set the legacy battery/laptop flag on a physical desktop.
+        var desktop = ComputerIdentity.FromFacts("Micro-Star International Co., Ltd.", "MS-7E47", 1, [3]);
+        var realDesktop = Component(HardwareAdvisor.Build(Snapshot(ram: ram, laptop: true, identity: desktop), Context()), "ram");
+        Assert.Equal(HwStatus.ManualOnly, realDesktop.Status);
+        Assert.Equal(HwActionKind.Note, Assert.Single(realDesktop.Actions).Kind);
     }
 
     [Fact]
@@ -658,15 +809,27 @@ public sealed class HardwareTests
     // ───────────────────────────── Game runtimes ─────────────────────────────
 
     [Fact]
-    public void Missing_runtimes_are_preselected_with_catalog_packages()
+    public void Missing_runtimes_without_a_consumer_are_optional_with_catalog_packages()
     {
         var s = Snapshot(runtimes: new RuntimeInfo(null, null, false, new Dictionary<int, string>()));
         var r = HardwareAdvisor.Build(s, Context());
         var group = r.Groups.First(g => g.Kind == HwGroupKind.Runtimes);
-        Assert.All(group.Components, c => Assert.Equal(HwStatus.NotInstalled, c.Status));
+        Assert.All(group.Components, c =>
+        {
+            Assert.Equal(HwStatus.Info, c.Status);
+            Assert.Equal("ПО ЖЕЛАНИЮ", c.StatusText);
+        });
+        Assert.Equal(0, r.RecommendationCount);
 
-        var ids = group.Components.SelectMany(c => c.Actions).Where(a => a.PreSelect).Select(a => a.Winget!.Id).ToList();
-        Assert.Equal([HardwareCatalog.VcX64, HardwareCatalog.VcX86, HardwareCatalog.DirectX], ids);
+        var actions = group.Components.SelectMany(c => c.Actions).ToList();
+        Assert.All(actions, a =>
+        {
+            Assert.True(a.Optional);
+            Assert.False(a.PreSelect);
+            Assert.True(a.IsInstallable);
+        });
+        Assert.Equal([HardwareCatalog.VcX64, HardwareCatalog.VcX86, HardwareCatalog.DirectX,
+            HardwareCatalog.DesktopRuntimePrefix + HardwareCatalog.DesktopRuntimeLts], actions.Select(a => a.Winget!.Id).ToList());
 
         var dx = group.Components.SelectMany(c => c.Actions).Single(a => a.Winget?.Id == HardwareCatalog.DirectX);
         Assert.Equal("exe", dx.Winget!.InstallerType); // the MSIX "DirectXRuntime" framework lacks d3dx9 / XAudio 2.7
@@ -677,13 +840,19 @@ public sealed class HardwareTests
     }
 
     [Fact]
-    public void Outdated_vc_runtime_is_an_update_but_not_preselected()
+    public void Outdated_vc_runtime_without_a_consumer_offers_an_optional_update()
     {
         var s = Snapshot(runtimes: AllRuntimes() with { VcX86 = "14.29.30139.0" });
-        var c = Component(HardwareAdvisor.Build(s, Context()), "rt:vcx86");
-        Assert.Equal(HwStatus.UpdateAvailable, c.Status);
+        var report = HardwareAdvisor.Build(s, Context());
+        var c = Component(report, "rt:vcx86");
+        Assert.Equal(HwStatus.Info, c.Status);
+        Assert.Equal("ПО ЖЕЛАНИЮ", c.StatusText);
+        Assert.Contains("14.29.30139.0", c.Details);
+        Assert.Equal(0, report.RecommendationCount);
         var a = Assert.Single(c.Actions);
+        Assert.True(a.Optional);
         Assert.False(a.PreSelect);
+        Assert.True(a.IsInstallable);
         Assert.Equal(HardwareCatalog.VcX86, a.Winget!.Id);
     }
 
@@ -693,15 +862,54 @@ public sealed class HardwareTests
         var group = HardwareAdvisor.Build(Snapshot(), Context()).Groups.First(g => g.Kind == HwGroupKind.Runtimes);
         Assert.DoesNotContain(group.Components, c => HardwareRules.NeedsAttention(c.Status));
         Assert.Equal(HwStatus.Current, group.Components.Single(c => c.Key == "rt:dx").Status);
+        Assert.Equal(HwStatus.Installed, group.Components.Single(c => c.Key == "rt:net").Status);
+        Assert.Equal(HwStatus.Installed, group.Components.Single(c => c.Key == "rt:vcx64").Status);
+        Assert.Contains("14.51.36247.0", group.Components.Single(c => c.Key == "rt:vcx64").Details);
+        Assert.All(group.Components, c => Assert.Empty(c.Actions));
+    }
+
+    [Fact]
+    public void Unknown_vc_versions_are_installed_without_an_update_offer()
+    {
+        var report = HardwareAdvisor.Build(Snapshot(runtimes: AllRuntimes() with { VcX64 = "", VcX86 = "" }), Context());
+        foreach (var key in new[] { "rt:vcx64", "rt:vcx86" })
+        {
+            var c = Component(report, key);
+            Assert.Equal(HwStatus.Installed, c.Status);
+            Assert.Equal("установлен, версия неизвестна", c.Details);
+            Assert.Empty(c.Actions);
+        }
+    }
+
+    [Fact]
+    public void Another_dotnet_major_does_not_require_the_catalog_runtime()
+    {
+        var report = HardwareAdvisor.Build(Snapshot(runtimes: AllRuntimes() with
+        {
+            DesktopRuntimes = new Dictionary<int, string> { [8] = "8.0.22" },
+        }), Context());
+        var c = Component(report, "rt:net");
+        Assert.Equal(HwStatus.Installed, c.Status);
+        Assert.Contains("8.0.22", c.Details);
+        Assert.Equal(0, report.RecommendationCount);
+        var action = Assert.Single(c.Actions);
+        Assert.True(action.Optional);
+        Assert.False(action.PreSelect);
+        Assert.Equal(HardwareCatalog.DesktopRuntimePrefix + HardwareCatalog.DesktopRuntimeLts, action.Winget!.Id);
     }
 
     [Fact]
     public void Without_winget_runtimes_fall_back_to_the_microsoft_page()
     {
         var s = Snapshot(runtimes: new RuntimeInfo(null, "14.42.0.0", true, new Dictionary<int, string> { [10] = "10.0.1" })) with { WingetAvailable = false };
-        var a = Component(HardwareAdvisor.Build(s, Context()), "rt:vcx64").Actions.Single();
+        var c = Component(HardwareAdvisor.Build(s, Context()), "rt:vcx64");
+        Assert.Equal(HwStatus.Info, c.Status);
+        var a = Assert.Single(c.Actions);
         Assert.Equal(HwActionKind.OpenPage, a.Kind);
+        Assert.True(a.Optional);
+        Assert.False(a.PreSelect);
         Assert.False(a.IsInstallable);
+        Assert.StartsWith("https://", a.Url);
     }
 
     // ───────────────────────────── Safety invariants ─────────────────────────────
@@ -755,9 +963,9 @@ public sealed class HardwareTests
         var actions = BusyReport().Components.SelectMany(c => c.Actions).ToList();
         Assert.All(actions.Where(a => a.Optional), a => Assert.False(a.PreSelect));
         Assert.All(actions.Where(a => a.PreSelect), a => Assert.True(a.IsInstallable));
-        // Pre-selected = missing/outdated GPU driver and missing runtimes only.
+        // Only the confirmed GPU update is pre-selected; absent runtimes have no known consumer.
         var pre = actions.Where(a => a.PreSelect).Select(a => a.Kind == HwActionKind.DriverPackage ? "gpu" : a.Winget!.Id).ToList();
-        Assert.Equal(["gpu", HardwareCatalog.VcX64, HardwareCatalog.DirectX], pre.OrderBy(x => x == "gpu" ? 0 : 1).ToList());
+        Assert.Equal(["gpu"], pre);
     }
 
     [Fact]
@@ -783,7 +991,7 @@ public sealed class HardwareTests
         var r = BusyReport();
         Assert.Equal(r.Groups.Sum(g => g.Components.Count), r.ComponentCount);
         Assert.Equal(r.Components.Count(c => c.Status is HwStatus.UpdateAvailable or HwStatus.NotInstalled or HwStatus.ManualOnly), r.RecommendationCount);
-        Assert.True(r.RecommendationCount >= 5); // GPU, VC x64, VC x86, DirectX, .NET, RAM, monitor
+        Assert.Equal(2, r.RecommendationCount); // GPU update and RAM profile; runtimes need a known consumer.
         Assert.Equal(["ПРОЦЕССОР И ПЛАТФОРМА", "ВИДЕОКАРТЫ", "ПАМЯТЬ", "НАКОПИТЕЛИ", "МОНИТОРЫ", "ПЕРИФЕРИЯ", "БИБЛИОТЕКИ ДЛЯ ИГР"],
             r.Groups.Select(g => g.Title).ToList());
     }
@@ -828,13 +1036,13 @@ public sealed class HardwareTests
         var group = report1.Groups.First(g => g.Kind == HwGroupKind.Runtimes);
         var item = new HwGroupItem(group, 9, _ => calls++);
         var vc = item.Components.Single(c => c.Kind == "VISUAL C++ X64").Actions.Single();
-        Assert.True(vc.IsSelected);
-        vc.IsSelected = false;
+        Assert.False(vc.IsSelected);
+        vc.IsSelected = true;
         Assert.Equal(1, calls);
 
         item.Update(group, 9);
         Assert.Same(vc, item.Components.Single(c => c.Kind == "VISUAL C++ X64").Actions.Single());
-        Assert.False(vc.IsSelected);
+        Assert.True(vc.IsSelected);
 
         // The runtime got installed: its action disappears, the other components stay.
         var installed = group with

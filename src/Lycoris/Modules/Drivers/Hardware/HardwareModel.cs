@@ -58,6 +58,7 @@ internal sealed record HardwareSnapshot
     public DateTime When { get; init; } = DateTime.Now;
     public CpuInfo Cpu { get; init; } = new("", "", 0, 0, 0);
     public bool IsLaptop { get; init; }
+    public ComputerIdentity Identity { get; init; } = ComputerIdentity.Unknown;
     public BoardInfo Board { get; init; } = new("", "", "", "", null, "", "");
     public IReadOnlyList<GpuInfo> Gpus { get; init; } = [];
     public string? NvidiaPackageVersion { get; init; }
@@ -157,7 +158,7 @@ internal sealed record HwAction(
 {
     /// <summary>Not required — vendor suites can be heavy ("ПО ЖЕЛАНИЮ").</summary>
     public bool Optional { get; init; }
-    /// <summary>Checked by default: only clearly needed and safe items (missing/outdated GPU driver, missing runtimes).</summary>
+    /// <summary>Checked by default: only clearly needed and safe items (missing/outdated GPU driver).</summary>
     public bool PreSelect { get; init; }
     /// <summary>The program is already on this PC (the action then only opens it / its page).</summary>
     public bool AlreadyInstalled { get; init; }

@@ -10,6 +10,17 @@ public sealed record InstalledSnapshot(IReadOnlyDictionary<string, string> Packa
 {
     public static InstalledSnapshot Empty { get; } = new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), DateTime.MinValue, false);
 
+    /// <summary>Only a fresh successful export can confirm absence of a non-Store package.</summary>
+    public bool ExportComplete { get; init; }
+    public bool StoreComplete { get; init; }
+    /// <summary>Individual successful Store probes, including confirmed missing packages.</summary>
+    public IReadOnlySet<string> VerifiedIds { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    public bool IsComplete => !FromCache && ExportComplete && StoreComplete;
+
+    internal bool Knows(CatalogEntry entry) => !FromCache &&
+        (entry.AllIds.Any(Packages.ContainsKey) || (entry.Source != PackageSource.MsStore && ExportComplete)
+            || entry.AllIds.All(VerifiedIds.Contains));
+
     /// <summary>
     /// Ids found only by the read-only cross-checks, not by winget: the component is on the PC, but winget does not
     /// list it as its package (e.g. the .NET Desktop Runtime that the .NET SDK or Visual Studio brought along — winget
@@ -46,45 +57,46 @@ public static class InstalledDetector
     {
         var ids = new HashSet<string>(catalog.SelectMany(e => e.AllIds), StringComparer.OrdinalIgnoreCase);
 
-        var exported = await WingetClient.ExportInstalledAsync(ct).ConfigureAwait(false);
+        var exported = await WingetClient.ExportInstalledWithStatusAsync(ct).ConfigureAwait(false);
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (id, version) in exported)
+        foreach (var (id, version) in exported.Packages)
             if (ids.Contains(id)) map[id] = version;
         var managed = new HashSet<string>(map.Keys, StringComparer.OrdinalIgnoreCase);
-        // An empty export means "winget export" failed (a working winget always lists something). Then "found only by
-        // the cross-checks" would wrongly mark every runtime as not managed by winget: keep the last known list instead.
-        var exportOk = exported.Count > 0;
-        IReadOnlySet<string> Unmanaged() => exportOk ? UnmanagedIds(map, managed) : PreviousUnmanaged();
+        var exportOk = exported.Success;
+        IReadOnlySet<string> Unmanaged() => UnmanagedIds(map, managed);
 
         await Task.Run(() => ApplyCrossChecks(map), ct).ConfigureAwait(false);
         progress?.Invoke(new InstalledSnapshot(new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase), DateTime.Now, false)
         {
             Unmanaged = Unmanaged(),
+            ExportComplete = exportOk,
         });
 
         // Store apps are often missing from the export; "winget list --id X -e" exit 0 = installed (verified).
+        var verified = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var storeComplete = true;
         foreach (var store in catalog.Where(e => e.Source == PackageSource.MsStore))
         {
             ct.ThrowIfCancellationRequested();
-            if (map.ContainsKey(store.Id)) continue;
-            if (await WingetClient.IsInstalledAsync(store.Id, ct).ConfigureAwait(false))
+            if (map.ContainsKey(store.Id)) { verified.Add(store.Id); continue; }
+            var installed = await WingetClient.ProbeInstalledAsync(store.Id, ct).ConfigureAwait(false);
+            if (installed is null) { storeComplete = false; continue; }
+            verified.Add(store.Id);
+            if (installed == true)
             {
                 map[store.Id] = "";
                 managed.Add(store.Id);
             }
         }
 
-        var snapshot = new InstalledSnapshot(map, DateTime.Now, false) { Unmanaged = Unmanaged() };
+        var snapshot = new InstalledSnapshot(map, DateTime.Now, false)
+        {
+            Unmanaged = Unmanaged(), ExportComplete = exportOk, StoreComplete = storeComplete, VerifiedIds = verified,
+        };
         // A failed export (no network, sources not set up yet) gives a degraded list: it must not replace the last good one.
-        if (exportOk) SaveCache(snapshot);
-        else Log.Warn("winget export не вернул списка — результат проверки не сохранён в кэш.");
+        if (snapshot.IsComplete) SaveCache(snapshot);
+        else Log.Warn("Проверка программ неполная — результат проверки не сохранён в кэш.");
         return snapshot;
-    }
-
-    private static IReadOnlySet<string> PreviousUnmanaged()
-    {
-        try { return LoadCache()?.Unmanaged ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
-        catch { return new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
     }
 
     /// <summary>Installed ids that winget itself did not report (found only by the cross-checks).</summary>

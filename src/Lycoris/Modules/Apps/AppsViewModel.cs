@@ -25,6 +25,7 @@ public sealed partial class AppsViewModel : PageViewModel
     private int _busyDepth;
     private DateTime _lastCheck = DateTime.MinValue;
     private bool _detecting;
+    private long _detectionRevision;
 
     // Inputs of the install advice (docs/research/apps_catalog.md §14); unknown until read.
     private bool _gpuKnown;
@@ -33,8 +34,9 @@ public sealed partial class AppsViewModel : PageViewModel
     private int _osUbr;
     private PeripheralScanResult _peripherals = PeripheralScanResult.Unknown;
     private bool _scanningPeripherals;
-    /// <summary>A full detection result (or the cache) is applied: Store apps were checked too, not only the fast pass.</summary>
+    /// <summary>All Store entries were verified in the current pass; cache never sets this flag.</summary>
     private bool _storeKnown;
+    private bool _installedKnown;
 
     public override string Key => "apps";
     public override string Index => "08";
@@ -78,7 +80,7 @@ public sealed partial class AppsViewModel : PageViewModel
     public ObservableCollection<QueueItemViewModel> Queue { get; } = new();
     public ObservableCollection<string> QueueLog { get; } = new();
 
-    /// <summary>"НАБОР ГЕЙМЕРА": runtime libraries this PC needs (<see cref="AppAdvisor.Kit"/>), recomputed with the advice.</summary>
+    /// <summary>Runtime components with a confirmed need (<see cref="AppAdvisor.Kit"/>), recomputed with the advice.</summary>
     public IReadOnlyList<AppItemViewModel> KitItems { get; private set; } = [];
 
     // ─────────────────────────── state ───────────────────────────
@@ -101,6 +103,8 @@ public sealed partial class AppsViewModel : PageViewModel
     [ObservableProperty] private bool _wingetOutdated;
     [ObservableProperty] private string _detectionText = Loc.T("Проверка ещё не выполнялась");
     [ObservableProperty] private bool _hasDetection;
+    [ObservableProperty] private string _computerSummary = ComputerIdentity.Unknown.Summary;
+    [ObservableProperty] private string _computerToolTip = ComputerIdentity.Unknown.Reason;
 
     [ObservableProperty] private int _kitInstalled;
     [ObservableProperty] private int _kitTotal;
@@ -122,27 +126,25 @@ public sealed partial class AppsViewModel : PageViewModel
     public bool WingetMissing => WingetState == WingetState.Missing;
     public bool WingetReady => WingetState == WingetState.Available;
     public bool WingetChecking => WingetState == WingetState.Checking;
-    public bool CanStartQueue => !IsQueueRunning && !IsVendorDownloadRunning;
+    public bool CanStartQueue => !_detecting && !_installWaiting && !IsQueueRunning && !IsVendorDownloadRunning;
     public bool CanCloseQueue => !IsQueueRunning && !IsVendorDownloadRunning;
     public bool HasSelection => SelectedCount > 0;
     public bool HasNoResults => VisibleCount == 0;
     public bool HasSearch => SearchText.Trim().Length > 0;
 
     /// <summary>
-    /// The «РЕКОМЕНДУЕМ» tab without a search is empty: everything it would show is installed — or nothing is known yet
-    /// (the advice needs the list of installed programs).
+    /// Empty-state copy for the «РЕКОМЕНДУЕМ» tab without a search; absence of advice does not prove everything is installed.
     /// </summary>
     private bool EmptyRecommendedTab => SelectedCategory is { IsRecommended: true } && !HasSearch;
 
     public string NoResultsTitle => !EmptyRecommendedTab ? Loc.T("Ничего не найдено")
-        : HasDetection ? Loc.T("Всё рекомендуемое уже установлено")
-        : WingetMissing ? Loc.T("Советов пока нет")
-        : Loc.T("Советы появятся после проверки");
+        : HasDetection ? Loc.T("Подтверждённых рекомендаций нет")
+        : Loc.T("Проверка не завершена");
 
     public string NoResultsText => !EmptyRecommendedTab
         ? Loc.T("Попробуйте другое название или ID пакета либо выберите вкладку «ВСЕ». В каталоге только проверенные пакеты winget и Microsoft Store.")
         : HasDetection
-            ? Loc.T("Программ с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ, которых нет на этом ПК, не осталось. Остальное — во вкладке «ВСЕ».")
+            ? Loc.T("Проверка не выявила программ, необходимость которых подтверждена. Другие программы доступны во вкладке «ВСЕ».")
             : WingetMissing
                 ? Loc.T("Без winget Lycoris не может проверить, что уже установлено. Установите «Установщик приложений» и нажмите «Обновить».")
                 : Loc.T("Lycoris ещё не знает, что уже установлено на этом ПК: советы появятся, когда winget закончит проверку установленных программ.");
@@ -201,13 +203,23 @@ public sealed partial class AppsViewModel : PageViewModel
 
     partial void OnIsQueueRunningChanged(bool value) => UpdateBusyItems();
 
-    /// <summary>Install buttons wait while the queue or a direct vendor download runs.</summary>
+    /// <summary>All modifying actions wait while detection, an install or a vendor download is in progress.</summary>
     private void UpdateBusyItems()
     {
-        var busy = IsQueueRunning || IsVendorDownloadRunning;
+        var busy = !CanStartQueue;
         foreach (var item in _items) item.QueueBusy = busy;
+        OnPropertyChanged(nameof(CanStartQueue));
         RefreshCommandStates();
     }
+
+    internal void SetDetecting(bool value)
+    {
+        if (value && !_detecting) _detectionRevision++;
+        _detecting = value;
+        UpdateBusyItems();
+    }
+
+    private bool DetectionUnchanged(long revision) => !_detecting && _detectionRevision == revision;
 
     private void RefreshCommandStates()
     {
@@ -249,7 +261,6 @@ public sealed partial class AppsViewModel : PageViewModel
         var item = _items.FirstOrDefault(i => i.Entry.AllIds.Contains(id, StringComparer.OrdinalIgnoreCase));
         if (item is null) return false;
 
-        _tabChosen = true;
         SearchText = "";
         if (Categories.FirstOrDefault(c => c.Category is null && !c.IsRecommended) is { } all) ShowCategory(all);
 
@@ -317,6 +328,8 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private void ApplyProfile(SystemProfile profile)
     {
+        ComputerSummary = profile.Identity.Summary;
+        ComputerToolTip = profile.Identity.Reason + Environment.NewLine + profile.Identity.EvidenceText;
         // The build number is known before the profile is collected (Environment.OSVersion); the rest is not.
         _osBuild = profile.OsBuild;
         if (!profile.IsLoaded) return;
@@ -349,10 +362,10 @@ public sealed partial class AppsViewModel : PageViewModel
         GpuVendors = _gpuVendors,
         OsBuild = _osBuild,
         OsUbr = _osUbr,
-        InstalledKnown = HasDetection,
+        InstalledKnown = _installedKnown,
         StoreKnown = _storeKnown,
         // Every id of an installed entry (regional variants too), including components found outside winget.
-        InstalledIds = _items.Where(i => i.IsInstalled).SelectMany(i => i.Entry.AllIds).ToHashSet(StringComparer.OrdinalIgnoreCase),
+        InstalledIds = _items.Where(i => i.IsKnown && i.IsInstalled).SelectMany(i => i.Entry.AllIds).ToHashSet(StringComparer.OrdinalIgnoreCase),
         PeripheralsKnown = _peripherals.Known,
         Peripherals = _peripherals.Brands,
         Today = DateOnly.FromDateTime(DateTime.Today),
@@ -405,15 +418,16 @@ public sealed partial class AppsViewModel : PageViewModel
 
     private async Task CheckWingetAndDetectAsync()
     {
-        if (_detecting) return;
-        _detecting = true;
+        if (!CanRefresh()) return;
+        SetDetecting(true);
         BeginBusy(Loc.T("Проверка winget…"));
         try
         {
-            // A re-check keeps the current state (and the user's selection) until the answer is known.
+            // Keep the last facts visible; SetDetecting prevents them from authorizing writes during this pass.
             var version = await Task.Run(WingetClient.GetVersionAsync);
             if (version is null)
             {
+                ApplySnapshot(InstalledSnapshot.Empty, partial: false);
                 WingetState = WingetState.Missing;
                 WingetVersionText = Loc.T("winget не найден");
                 DetectionText = Loc.T("winget не найден — установка недоступна");
@@ -431,12 +445,13 @@ public sealed partial class AppsViewModel : PageViewModel
         catch (Exception ex)
         {
             Log.Error("Приложения: проверка winget", ex);
+            ApplySnapshot(InstalledSnapshot.Empty, partial: false);
             Ui.Toast(ex.Message, ToastKind.Error, Loc.T("Проверка установленных программ"));
             if (WingetState == WingetState.Checking) WingetState = WingetState.Missing;
         }
         finally
         {
-            _detecting = false;
+            SetDetecting(false);
             EndBusy();
         }
     }
@@ -444,6 +459,8 @@ public sealed partial class AppsViewModel : PageViewModel
     /// <summary>Re-reads installed packages (used after the queue and by CheckWingetAndDetectAsync).</summary>
     private async Task DetectCoreAsync()
     {
+        var ownsDetection = !_detecting;
+        if (ownsDetection) SetDetecting(true);
         DetectionText = Loc.T("Проверяем установленные программы…");
         try
         {
@@ -455,52 +472,61 @@ public sealed partial class AppsViewModel : PageViewModel
         catch (Exception ex)
         {
             Log.Error("Приложения: проверка установленных программ", ex);
-            DetectionText = Loc.T("Не удалось проверить установленные программы");
+            ApplySnapshot(InstalledSnapshot.Empty, partial: false);
             Ui.Toast(ex.Message, ToastKind.Error, Loc.T("Проверка установленных программ"));
+        }
+        finally
+        {
+            if (ownsDetection) SetDetecting(false);
         }
     }
 
-    /// <summary>Applies a detection result. Partial results skip Store entries (they are checked one by one later).</summary>
-    private void ApplySnapshot(InstalledSnapshot snapshot, bool partial)
+    /// <summary>Applies verified facts; missing entries in cache or failed passes remain unknown.</summary>
+    internal void ApplySnapshot(InstalledSnapshot snapshot, bool partial)
     {
         foreach (var item in _items)
         {
-            if (partial && item.Entry.Source == PackageSource.MsStore && item.IsKnown) continue;
-
-            string? found = null;
-            AppVariant? variant = null;
-            var unmanaged = false;
-            foreach (var id in item.Entry.AllIds)
-            {
-                if (!snapshot.Packages.TryGetValue(id, out var version)) continue;
-                found = InstalledDetector.CleanVersion(version);
-                variant = item.Variants.FirstOrDefault(v => string.Equals(v.Id, id, StringComparison.OrdinalIgnoreCase));
-                unmanaged = snapshot.Unmanaged.Contains(id);
-                break;
-            }
-            item.IsUnmanaged = unmanaged;
-            item.InstalledVersion = found;
-            if (variant is not null) item.SelectedVariant = variant;
-            item.IsKnown = true;
+            ApplyInstalledState(item, snapshot);
         }
 
         foreach (var g in Groups) g.InstalledCount = g.Items.Count(i => i.IsVisible && i.IsInstalled);
         InstalledCount = _items.Count(i => i.IsInstalled);
         SelectedCount = _items.Count(i => i.IsSelected);
-        HasDetection = true;
-        if (!partial) _storeKnown = true;
+        _installedKnown = !snapshot.FromCache && snapshot.ExportComplete;
+        _storeKnown = !snapshot.FromCache && snapshot.StoreComplete && !partial;
+        HasDetection = snapshot.IsComplete && !partial;
         UpdateAdvice();
 
         if (!partial)
         {
-            CheckedAt = snapshot.CheckedAt; // the header's «проверено HH:MM» is the time of the data, also when it came from the cache
-            if (!snapshot.FromCache) LeaveEmptyRecommendedTab();
-            _lastCheck = snapshot.FromCache ? DateTime.MinValue : snapshot.CheckedAt;
+            if (snapshot.FromCache || snapshot.IsComplete) CheckedAt = snapshot.CheckedAt;
+            _lastCheck = snapshot.IsComplete ? snapshot.CheckedAt : DateTime.MinValue;
             DetectionText = snapshot.FromCache
                 ? Loc.Tf("По данным проверки {0:dd.MM HH:mm} · обновляется", snapshot.CheckedAt)
-                : "";
+                : snapshot.IsComplete ? "" : Loc.T("Проверка неполная — рекомендации ограничены");
         }
         RefreshCommandStates();
+    }
+
+    /// <summary>Unknown results retain prior presence for display, but never retain permission to modify the package.</summary>
+    internal static void ApplyInstalledState(AppItemViewModel item, InstalledSnapshot snapshot)
+    {
+        var known = snapshot.Knows(item.Entry);
+        var matched = item.Entry.AllIds.FirstOrDefault(snapshot.Packages.ContainsKey);
+        if (matched is not null)
+        {
+            item.InstalledVersion = InstalledDetector.CleanVersion(snapshot.Packages[matched]);
+            item.IsUnmanaged = snapshot.Unmanaged.Contains(matched);
+            item.LastSeenAt = snapshot.CheckedAt;
+            if (item.Variants.FirstOrDefault(v => string.Equals(v.Id, matched, StringComparison.OrdinalIgnoreCase)) is { } variant)
+                item.SelectedVariant = variant;
+        }
+        else if (known)
+        {
+            item.InstalledVersion = null;
+            item.IsUnmanaged = false;
+        }
+        item.IsKnown = known;
     }
 
     private void UpdateKit()
@@ -509,8 +535,11 @@ public sealed partial class AppsViewModel : PageViewModel
         KitInstalled = KitItems.Count(i => i.IsInstalled);
         KitComplete = KitTotal > 0 && KitInstalled == KitTotal;
         var left = KitTotal - KitInstalled;
-        KitStatusText = KitComplete ? Loc.T("Все библиотеки на месте") : Loc.Tf("Не хватает: {0}", AppTexts.Packages(left));
-        KitButtonText = KitComplete ? Loc.T("НАБОР УСТАНОВЛЕН") : Loc.Tf("УСТАНОВИТЬ НАБОР · {0}", left);
+        KitStatusText = KitTotal == 0 ? Loc.T("Подтверждённых компонентов нет")
+            : KitComplete ? Loc.T("Все библиотеки на месте") : Loc.Tf("Не хватает: {0}", AppTexts.Packages(left));
+        KitButtonText = KitTotal == 0 ? Loc.T("Подтверждённых компонентов нет")
+            : KitComplete ? Loc.T("НАБОР УСТАНОВЛЕН") : Loc.Tf("УСТАНОВИТЬ НАБОР · {0}", left);
+        OnPropertyChanged(nameof(HasKit));
         InstallKitCommand.NotifyCanExecuteChanged();
     }
 
@@ -520,7 +549,6 @@ public sealed partial class AppsViewModel : PageViewModel
     private void SelectCategory(CategoryFilterViewModel? filter)
     {
         if (filter is null) return;
-        _tabChosen = true; // the user picked a tab: the automatic switch from an empty «РЕКОМЕНДУЕМ» no longer applies
         ShowCategory(filter);
     }
 
@@ -529,16 +557,6 @@ public sealed partial class AppsViewModel : PageViewModel
         foreach (var c in Categories) c.IsSelected = ReferenceEquals(c, filter);
         SelectedCategory = filter;
         ApplyFilter();
-    }
-
-    private bool _tabChosen;
-
-    /// <summary>The first complete check found nothing to recommend: open the whole catalog instead of an empty tab (once, unless the user already chose a tab).</summary>
-    private void LeaveEmptyRecommendedTab()
-    {
-        if (_tabChosen || HasSearch || SelectedCategory is not { IsRecommended: true } || VisibleCount > 0) return;
-        _tabChosen = true;
-        if (Categories.FirstOrDefault(c => c.Category is null && !c.IsRecommended) is { } all) ShowCategory(all);
     }
 
     /// <summary>«ПОКАЗАТЬ ВСЕ ПРОГРАММЫ» on the empty «РЕКОМЕНДУЕМ» tab.</summary>
@@ -596,12 +614,12 @@ public sealed partial class AppsViewModel : PageViewModel
         return CheckWingetAndDetectAsync();
     }
 
-    private bool CanRefresh() => !IsQueueRunning;
+    private bool CanRefresh() => CanStartQueue;
 
     [RelayCommand]
     private async Task RunAction(AppItemViewModel? item)
     {
-        if (item is null) return;
+        if (item is null || !item.CanRunAction) return;
         switch (item.Action)
         {
             case AppAction.Website:
@@ -628,21 +646,21 @@ public sealed partial class AppsViewModel : PageViewModel
         await StartQueueAsync(picked, QueueKind.Selection);
     }
 
-    private bool CanInstallSelected() => SelectedCount > 0 && WingetReady && !IsQueueRunning;
+    private bool CanInstallSelected() => SelectedCount > 0 && WingetReady && CanStartQueue;
 
     [RelayCommand(CanExecute = nameof(CanInstallKit))]
     private async Task InstallKit()
     {
-        var missing = KitItems.Where(i => !i.IsInstalled && i.Entry.CanInstall).Select(i => (i, QueueOperation.Install)).ToList();
+        var missing = KitItems.Where(i => !i.IsInstalled && i.CanSelect).Select(i => (i, QueueOperation.Install)).ToList();
         if (missing.Count == 0)
         {
-            Ui.Toast("Все библиотеки набора уже установлены.", ToastKind.Success, Loc.T("НАБОР ГЕЙМЕРА"));
             return;
         }
         await StartQueueAsync(missing, QueueKind.Kit);
     }
 
-    private bool CanInstallKit() => WingetReady && !IsQueueRunning && HasDetection && !KitComplete;
+    public bool HasKit => KitTotal > 0;
+    private bool CanInstallKit() => WingetReady && CanStartQueue && HasKit && KitItems.Any(i => !i.IsInstalled && i.CanSelect);
 
     [RelayCommand(CanExecute = nameof(CanUpdateAll))]
     private async Task UpdateAll()
@@ -661,7 +679,7 @@ public sealed partial class AppsViewModel : PageViewModel
         await StartQueueAsync(candidates, QueueKind.UpdateAll);
     }
 
-    private bool CanUpdateAll() => WingetReady && !IsQueueRunning && HasDetection;
+    private bool CanUpdateAll() => WingetReady && CanStartQueue && HasDetection;
 
     /// <summary>«ОБНОВИТЬ ПРОГРАММЫ · N»: N = installed catalog programs winget can update (a number, so it is not a twin of «ОБНОВИТЬ»).</summary>
     public string UpdateAllText => Loc.Tf("ОБНОВИТЬ ПРОГРАММЫ · {0}", _items.Count(i => i.CanUpgrade && !string.Equals(i.PackageId, AppCatalog.AppInstallerId, StringComparison.OrdinalIgnoreCase)));
@@ -693,9 +711,10 @@ public sealed partial class AppsViewModel : PageViewModel
 
     // ─────────────────────────── queue ───────────────────────────
 
-    private enum QueueKind { Single, Selection, Kit, UpdateAll }
+    internal enum QueueKind { Single, Selection, Kit, UpdateAll }
 
-    private async Task StartQueueAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind)
+    internal async Task StartQueueAsync(IReadOnlyList<(AppItemViewModel Item, QueueOperation Op)> plan, QueueKind kind,
+        Func<Task<bool>>? confirmation = null, Func<Task>? runConfirmed = null)
     {
         if (plan.Count == 0) return;
         if (IsQueueRunning || IsVendorDownloadRunning || _installWaiting)
@@ -711,7 +730,20 @@ public sealed partial class AppsViewModel : PageViewModel
             return;
         }
 
-        if (!await ConfirmAsync(plan, kind)) return;
+        // Freeze the operation and the exact package/version the user is about to see, before yielding to the dialog.
+        plan = plan.ToArray();
+        var detectionRevision = _detectionRevision;
+        var expected = plan.Select(p => (p.Item.PackageId, p.Item.InstalledVersion)).ToArray();
+        bool CurrentPlan() => CanStartQueue && DetectionUnchanged(detectionRevision) && WingetReady && plan.Select((p, i) =>
+            p.Item.IsKnown && p.Item.CanSelect && p.Item.PackageId == expected[i].PackageId
+            && p.Item.InstalledVersion == expected[i].InstalledVersion
+            && (p.Op == QueueOperation.Upgrade ? p.Item.IsInstalled && p.Item.CanUpgrade : !p.Item.IsInstalled)).All(current => current);
+        if (!CurrentPlan()) { NotifyStalePlan(); return; }
+        if (!await (confirmation?.Invoke() ?? ConfirmAsync(plan, kind))) return;
+        // Detection and selections may change while the confirmation is open. Reject the whole old plan, never a subset.
+        if (!CurrentPlan()) { NotifyStalePlan(); return; }
+        // Tests exercise this same confirmation/write boundary without acquiring a lease or launching an installer.
+        if (runConfirmed is not null) { await runConfirmed(); return; }
 
         foreach (var old in Queue) if (ReferenceEquals(old.App.Job, old)) old.App.Job = null;
         Queue.Clear();
@@ -726,7 +758,7 @@ public sealed partial class AppsViewModel : PageViewModel
         HasQueue = true;
         QueueTitle = kind switch
         {
-            QueueKind.Kit => Loc.T("НАБОР ГЕЙМЕРА"),
+            QueueKind.Kit => Loc.T("НУЖНЫЕ КОМПОНЕНТЫ"),
             QueueKind.UpdateAll => Loc.T("ОБНОВЛЕНИЕ ВСЕГО"),
             _ => plan.All(p => p.Op == QueueOperation.Upgrade) ? Loc.T("ОБНОВЛЕНИЕ") : Loc.T("УСТАНОВКА"),
         };
@@ -747,6 +779,9 @@ public sealed partial class AppsViewModel : PageViewModel
         }
     }
 
+    private static void NotifyStalePlan() => Ui.Toast(
+        Loc.T("Проверка или состав установки изменились. Дождитесь проверки и подтвердите список заново."), ToastKind.Warning);
+
     /// <summary>True while this page waits in the global install queue (the buttons treat it like a running queue).</summary>
     private bool _installWaiting;
 
@@ -760,6 +795,7 @@ public sealed partial class AppsViewModel : PageViewModel
         var request = new OperationRequest(OperationClass.Install, OperationName(name)) { Owner = Key };
         var queued = Coordinator.Check(request).Verdict == OperationVerdict.Queue;
         _installWaiting = true;
+        UpdateBusyItems();
         if (queued)
         {
             BeginBusy(Loc.Tf("В очереди: {0}", request.Name));
@@ -786,6 +822,7 @@ public sealed partial class AppsViewModel : PageViewModel
         finally
         {
             _installWaiting = false;
+            UpdateBusyItems();
             if (queued) EndBusy();
         }
     }
@@ -802,7 +839,7 @@ public sealed partial class AppsViewModel : PageViewModel
         var upgradeOnly = plan.All(p => p.Op == QueueOperation.Upgrade);
         var title = kind switch
         {
-            QueueKind.Kit => Loc.T("НАБОР ГЕЙМЕРА"),
+            QueueKind.Kit => Loc.T("НУЖНЫЕ КОМПОНЕНТЫ"),
             QueueKind.UpdateAll => Loc.T("ОБНОВИТЬ ВСЁ"),
             _ => upgradeOnly ? Loc.T("ОБНОВЛЕНИЕ ПРОГРАММ") : Loc.T("УСТАНОВКА ПРОГРАММ"),
         };

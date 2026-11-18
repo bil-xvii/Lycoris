@@ -7,7 +7,7 @@ namespace Lycoris.Modules.Drivers.Hardware;
 /// Decides, for every detected component, which OFFICIAL component it needs and why (pure: snapshot + context → report).
 /// Sources, in this order of preference: the vendor's own server with a signature check (GPU drivers), verified winget
 /// packages, Windows Update, and otherwise the vendor's page for a manual step. Never third-party driver databases.
-/// Only clearly needed and safe items are pre-selected (missing/outdated GPU driver, missing game runtimes).
+/// Only clearly needed and safe items are pre-selected (missing/outdated GPU driver).
 /// </summary>
 internal static class HardwareAdvisor
 {
@@ -232,13 +232,16 @@ internal static class HardwareAdvisor
     {
         var list = new List<HwComponent>();
         var cpu = s.Cpu;
+        list.Add(new HwComponent("computer", Loc.T("КОМПЬЮТЕР"), s.Identity.Summary,
+            s.Identity.EvidenceText, HwStatus.Info, []) { Note = s.Identity.Reason });
 
         // CPU
         var x3d = ChipsetAdvisor.IsX3D(cpu.Name);
+        var virtualMachine = s.Identity.Kind == ComputerKind.VirtualMachine;
         string? cpuNote = null;
-        if (ChipsetAdvisor.IsDualCcdX3D(cpu.Name))
+        if (!virtualMachine && ChipsetAdvisor.IsDualCcdX3D(cpu.Name))
             cpuNote = Loc.T("Ryzen X3D с двумя CCD: драйвер чипсета AMD переводит игры на блок ядер с 3D V-Cache. Для этого нужны драйвер чипсета, «Игровой режим» и Xbox Game Bar — не отключайте их.");
-        else if (x3d)
+        else if (!virtualMachine && x3d)
             cpuNote = Loc.T("X3D с одним блоком ядер: кэш 3D V-Cache доступен всем ядрам, специальная настройка не нужна. Оптимизатор V-Cache из пакета чипсета безвреден — не отключайте его службы.");
         list.Add(new HwComponent("cpu", Loc.T("ПРОЦЕССОР"), cpu.Name.Length > 0 ? cpu.Name : Loc.T("Процессор не определён"),
             Join(cpu.Cores > 0 ? Loc.N(cpu.Cores, "{0} ядро", "{0} ядра", "{0} ядер") : null,
@@ -248,11 +251,14 @@ internal static class HardwareAdvisor
             HwStatus.Info, [])
         { Note = cpuNote });
 
+        if (virtualMachine)
+            return new HwGroup(HwGroupKind.Platform, Loc.T("ПРОЦЕССОР И ПЛАТФОРМА"), list);
+
         // Board + BIOS
         var b = s.Board;
-        var vendor = HardwareCatalog.Board(b.Manufacturer) ?? HardwareCatalog.Board(b.SystemManufacturer);
-        var boardName = $"{vendor?.ShortName ?? b.Manufacturer} {b.Product}".Trim();
-        if (s.IsLaptop || boardName.Length == 0) boardName = $"{b.SystemManufacturer} {b.SystemModel}".Trim();
+        var support = HardwareCatalog.Support(s);
+        var vendor = support?.Vendor;
+        var boardName = support?.Name ?? Loc.T("Модель для поддержки не подтверждена");
         var chipsetVendor = ChipsetVendor(s);
         var biosAge = HardwareRules.BiosAgeMonths(b.BiosDate, ctx.Now);
         var details = Join(
@@ -263,14 +269,19 @@ internal static class HardwareAdvisor
         var boardActions = new List<HwAction>();
         HwStatus boardStatus;
         string? boardNote;
-        if (HardwareRules.BiosIsOld(b.BiosDate, ctx.Now))
+        if (support is null)
+        {
+            boardStatus = HwStatus.Info;
+            boardNote = Loc.T("Тип или модель для выбора BIOS не подтверждены. Драйверы можно проверить в Windows Update.");
+        }
+        else if (HardwareRules.BiosIsOld(b.BiosDate, ctx.Now))
         {
             boardStatus = HwStatus.ManualOnly;
             boardNote = null;
             boardActions.Add(new HwAction("bios", vendor is null ? HwActionKind.Note : HwActionKind.OpenPage, HwSource.Manual,
                 Loc.T("Проверить обновление BIOS"),
                 Loc.Tf("BIOS выпущен {0} назад. Новые версии исправляют совместимость с процессорами и памятью и закрывают уязвимости. ", DriverAge.Format(biosAge)) +
-                Loc.T("Обновление BIOS — только вручную с сайта производителя платы, строго по его инструкции: сбой прошивки может вывести плату из строя. Lycoris BIOS не прошивает."),
+                Loc.T("Обновление BIOS — только вручную с сайта производителя компьютера или платы, строго для своей модели и по его инструкции. Lycoris BIOS не прошивает."),
                 vendor?.ShortName ?? (b.Manufacturer.Length > 0 ? b.Manufacturer : Loc.T("производитель платы")))
             {
                 Url = vendor?.SupportUrl,
@@ -282,9 +293,10 @@ internal static class HardwareAdvisor
             boardStatus = HwStatus.Info;
             boardNote = b.BiosDate is null
                 ? Loc.T("Дата BIOS неизвестна. Lycoris не проверяет новые версии BIOS и никогда не прошивает его.")
-                : Loc.T("BIOS моложе двух лет. Lycoris не проверяет новые версии BIOS и никогда не прошивает его — обновление только вручную с сайта производителя платы.");
+                : Loc.T("BIOS моложе двух лет. Lycoris не проверяет новые версии BIOS и никогда не прошивает его — обновление только вручную с официальной страницы своей модели.");
             if (vendor is not null)
-                boardActions.Add(new HwAction("board-page", HwActionKind.OpenPage, HwSource.Manual, Loc.T("Страница поддержки платы"),
+                boardActions.Add(new HwAction("board-page", HwActionKind.OpenPage, HwSource.Manual,
+                    support.IsSystem ? Loc.T("Страница поддержки компьютера") : Loc.T("Страница поддержки платы"),
                     Loc.Tf("Драйверы, утилиты и BIOS для {0} — на странице поддержки производителя (найдите свою модель).", boardName), vendor.ShortName)
                 {
                     Optional = true,
@@ -293,7 +305,7 @@ internal static class HardwareAdvisor
                 });
         }
         if (boardName.Length > 0 || b.BiosVersion.Length > 0)
-            list.Add(new HwComponent("board", s.IsLaptop ? Loc.T("НОУТБУК И BIOS") : Loc.T("ПЛАТА И BIOS"), boardName.Length > 0 ? boardName : Loc.T("Плата не определена"),
+            list.Add(new HwComponent("board", support?.IsSystem == true ? Loc.T("КОМПЬЮТЕР И BIOS") : Loc.T("ПЛАТА И BIOS"), boardName,
                 details, boardStatus, boardActions) { Note = boardNote });
 
         list.Add(Chipset(s, ctx, wu));
@@ -622,16 +634,15 @@ internal static class HardwareAdvisor
         }
         else if (v.BelowRated)
         {
-            var advice = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с — скорее всего, в BIOS выключен профиль {2}. ", v.Rated, v.Configured, profile) +
-                         Loc.T("Включите его в BIOS/UEFI (раздел настроек памяти → профиль → сохранить и перезагрузить). " +
-                         "Lycoris настройки BIOS не меняет; если система станет нестабильной, верните там значение «Auto».");
-            if (s.IsLaptop)
+            var advice = Loc.Tf("Модули рассчитаны на {0} МТ/с, а работают на {1} МТ/с. Разница частот сама по себе не доказывает неисправность или необходимость менять настройки памяти. ", v.Rated, v.Configured) +
+                         Loc.Tf("Если производители компьютера, платы и памяти допускают профиль {0}, его можно проверить вручную в BIOS/UEFI по их инструкции. Это необязательная настройка; при нестабильности верните прежнее значение. Lycoris настройки BIOS не меняет.", profile);
+            if (!s.Identity.IsKnown || s.Identity.Kind != ComputerKind.Desktop)
                 list.Add(new HwComponent("ram", Loc.T("ОПЕРАТИВНАЯ ПАМЯТЬ"), name, details, HwStatus.Info, [])
-                { Note = Loc.Tf("{0} На ноутбуках профиль часто недоступен — тогда это нормальная работа.", advice) });
+                { Note = Loc.Tf("Модули рассчитаны на {0} МТ/с, сейчас работают на {1} МТ/с. Возможность включить профиль памяти зависит от модели компьютера и BIOS.", v.Rated, v.Configured) });
             else
                 list.Add(new HwComponent("ram", Loc.T("ОПЕРАТИВНАЯ ПАМЯТЬ"), name, details, HwStatus.ManualOnly,
                 [
-                    new HwAction("xmp", HwActionKind.Note, HwSource.Manual, Loc.Tf("Включить {0} в BIOS", profile), advice, Loc.T("настройка BIOS")),
+                    new HwAction("xmp", HwActionKind.Note, HwSource.Manual, Loc.T("Проверить профиль памяти в BIOS"), advice, Loc.T("настройка BIOS")),
                 ]));
         }
         else
@@ -683,7 +694,7 @@ internal static class HardwareAdvisor
     private static HwGroup Network(HardwareSnapshot s, HardwareContext ctx, WuIndex wu)
     {
         var list = new List<HwComponent>();
-        var board = HardwareCatalog.Board(s.Board.Manufacturer);
+        var board = HardwareCatalog.Support(s)?.Vendor;
         foreach (var a in s.Network.OrderBy(n => n.IsBluetooth).ThenBy(n => HardwareRules.IsWireless(n.Name)))
         {
             var device = Device(s, a.PnpDeviceId);
@@ -701,8 +712,8 @@ internal static class HardwareAdvisor
                     optional: verdict.Status != HwStatus.NotInstalled) is { } dsa)
                 actions.Add(dsa);
             else if (vid == "10EC" && !a.IsBluetooth && driver is { IsOem: false } && board is not null)
-                actions.Add(PageAction("realtek-net", Loc.T("Драйвер Realtek с сайта платы"), board.ShortName, board.SupportUrl,
-                    Loc.Tf("Сейчас работает встроенный драйвер Windows ({0}). Он рабочий; драйвер Realtek для вашей платы — в разделе поддержки {1} ", driver.Version, board.ShortName) +
+                actions.Add(PageAction("realtek-net", Loc.T("Драйвер Realtek с официального сайта"), board.ShortName, board.SupportUrl,
+                    Loc.Tf("Сейчас работает встроенный драйвер Windows ({0}). Он рабочий; подходящий драйвер Realtek ищите для своей модели в разделе поддержки {1} ", driver.Version, board.ShortName) +
                     Loc.T("(или придёт через Windows Update)."), optional: true, Loc.Tf("САЙТ {0}", board.ShortName.ToUpperInvariant())));
 
             var details = Join(vendorName, DriverText(driver), verdict.Status == HwStatus.NotInstalled ? null : WuDetail(wu));
@@ -717,7 +728,7 @@ internal static class HardwareAdvisor
     private static HwGroup Audio(HardwareSnapshot s, HardwareContext ctx, WuIndex wu)
     {
         var list = new List<HwComponent>();
-        var board = HardwareCatalog.Board(s.Board.Manufacturer);
+        var board = HardwareCatalog.Support(s)?.Vendor;
         foreach (var a in s.Audio)
         {
             var device = Device(s, a.PnpDeviceId);
@@ -740,9 +751,9 @@ internal static class HardwareAdvisor
                 else if (isUsb) note = Loc.T("USB-аудио работает на стандартном драйвере Windows; программа производителя (если есть) — в разделе «Периферия».");
             }
             if (codec is not null && driver is { IsOem: false } && board is not null)
-                actions.Add(PageAction("realtek-audio", Loc.T("Драйвер Realtek Audio с сайта платы"), board.ShortName, board.SupportUrl,
+                actions.Add(PageAction("realtek-audio", Loc.T("Драйвер Realtek Audio с официального сайта"), board.ShortName, board.SupportUrl,
                     Loc.T("Сейчас работает стандартный драйвер Windows High Definition Audio: звук есть, но без панели Realtek (назначение гнёзд, эффекты). ") +
-                    Loc.Tf("Драйвер для вашей платы — в разделе поддержки {0}.", board.ShortName), optional: true, Loc.Tf("САЙТ {0}", board.ShortName.ToUpperInvariant())));
+                    Loc.Tf("Драйвер для своей модели ищите в разделе поддержки {0}.", board.ShortName), optional: true, Loc.Tf("САЙТ {0}", board.ShortName.ToUpperInvariant())));
 
             var vendorName = isUsb ? HardwareCatalog.PeripheralByVid(HardwareRules.UsbId(a.PnpDeviceId)?.Vid)?.Name : DeviceNaming.VendorName(a.PnpDeviceId);
             var details = Join(vendorName ?? (a.Manufacturer.StartsWith('(') ? null : a.Manufacturer), DriverText(driver),
@@ -900,31 +911,31 @@ internal static class HardwareAdvisor
             ? new HwComponent("rt:dx", "DIRECTX 9–11", dxEntry?.Name ?? "DirectX End-User Runtime", Loc.T("d3dx9_43.dll и xaudio2_7.dll на месте  ·  июнь 2010 — последняя версия"),
                 HwStatus.Current, [])
             : new HwComponent("rt:dx", "DIRECTX 9–11", dxEntry?.Name ?? "DirectX End-User Runtime", Loc.T("нет d3dx9_43.dll / xaudio2_7.dll"),
-                HwStatus.NotInstalled,
+                HwStatus.Info,
                 [
                     RuntimeAction(HardwareCatalog.DirectX, s,
-                        Loc.T("Старым играм на DirectX 9–11 нужны d3dx9, xinput 1.3 и XAudio 2.7 — в Windows их нет. Без них игра пишет «d3dx9_43.dll не найден»."),
-                        preselect: true, optional: false),
-                ]));
+                        Loc.T("Нужен, только если игра требует старые библиотеки d3dx9, xinput 1.3 или XAudio 2.7 (например, сообщает «d3dx9_43.dll не найден»). Этот пакет не обновляет DirectX в Windows."),
+                        preselect: false, optional: true),
+                ]) { StatusText = Loc.T("ПО ЖЕЛАНИЮ") });
 
         // .NET Desktop Runtime
         var majors = r.DesktopRuntimes.OrderByDescending(kv => kv.Key).ToList();
         var lts = HardwareCatalog.DesktopRuntimeLts;
         var ltsId = HardwareCatalog.DesktopRuntimePrefix + lts;
+        var netReason = Loc.Tf("Нужен только программе, которая требует .NET Desktop Runtime {0}; другие версии среды не всегда подходят. Выпуск Lycoris включает свою среду .NET и отдельной установки не требует.", lts);
         if (majors.Count == 0)
         {
             list.Add(new HwComponent("rt:net", ".NET DESKTOP", $".NET Desktop Runtime {lts}", Loc.T("не установлен ни один .NET Desktop Runtime"),
-                HwStatus.NotInstalled,
+                HwStatus.Info,
                 [
-                    RuntimeAction(ltsId, s, Loc.T("Нужен программам на .NET: лаунчерам модов, утилитам, части лаунчеров игр. Без него они просят скачать .NET при запуске."),
-                        preselect: false, optional: false),
-                ]));
+                    RuntimeAction(ltsId, s, netReason, preselect: false, optional: true),
+                ]) { StatusText = Loc.T("ПО ЖЕЛАНИЮ") });
         }
         else
         {
             var actions = new List<HwAction>();
             if (!r.DesktopRuntimes.ContainsKey(lts))
-                actions.Add(RuntimeAction(ltsId, s, Loc.Tf("Текущая версия с долгой поддержкой. Нужна, только если программа просит .NET {0}: среды разных версий не заменяют друг друга.", lts),
+                actions.Add(RuntimeAction(ltsId, s, netReason,
                     preselect: false, optional: true));
             list.Add(new HwComponent("rt:net", ".NET DESKTOP", ".NET Desktop Runtime",
                 Loc.Tf("установлены: {0}", string.Join(", ", majors.Select(kv => kv.Value.Length > 0 ? kv.Value : kv.Key + ".x"))),
@@ -940,21 +951,21 @@ internal static class HardwareAdvisor
         var kind = $"VISUAL C++ {arch.ToUpperInvariant()}";
         if (version is null)
         {
-            return new HwComponent("rt:vc" + arch, kind, name, Loc.T("не установлен"), HwStatus.NotInstalled,
+            return new HwComponent("rt:vc" + arch, kind, name, Loc.T("не установлен"), HwStatus.Info,
             [
-                RuntimeAction(id, s, Loc.T("Без неё многие игры и лаунчеры не запускаются (ошибка «MSVCP140.dll / VCRUNTIME140.dll не найден»).") +
-                    (arch == "x86" ? Loc.T(" Версия x86 нужна 32-битным играм даже в 64-битной Windows.") : ""), preselect: true, optional: false),
-            ]);
+                RuntimeAction(id, s, Loc.Tf("Устанавливайте, только если программа или игра требует Visual C++ для {0} (например, сообщает об отсутствующем MSVCP140.dll / VCRUNTIME140.dll). Архитектура пакета должна совпадать с архитектурой программы.", arch),
+                    preselect: false, optional: true),
+            ]) { StatusText = Loc.T("ПО ЖЕЛАНИЮ") };
         }
         if (version.Length == 0)
             return new HwComponent("rt:vc" + arch, kind, name, Loc.T("установлен, версия неизвестна"), HwStatus.Installed, []);
         if (HardwareRules.VcIsOutdated(version))
         {
-            return new HwComponent("rt:vc" + arch, kind, name, Loc.Tf("версия {0}", version), HwStatus.UpdateAvailable,
+            return new HwComponent("rt:vc" + arch, kind, name, Loc.Tf("версия {0}", version), HwStatus.Info,
             [
-                RuntimeAction(id, s, Loc.Tf("Установлена {0}. Программы, собранные Visual Studio 2022 17.10 и новее, требуют {1}.{2} или новее — со старой версией они могут вылетать при запуске. Обновление ставится поверх.", version, HardwareRules.VcMinimum.Major, HardwareRules.VcMinimum.Minor),
-                    preselect: false, optional: false),
-            ]);
+                RuntimeAction(id, s, Loc.Tf("Установлена {0}. Обновление нужно, если программа или игра требует Visual C++ {1}.{2} или новее для {3}. Версию и архитектуру выбирают по требованиям программы; обновление ставится поверх.", version, HardwareRules.VcMinimum.Major, HardwareRules.VcMinimum.Minor, arch),
+                    preselect: false, optional: true),
+            ]) { StatusText = Loc.T("ПО ЖЕЛАНИЮ") };
         }
         return new HwComponent("rt:vc" + arch, kind, name, Loc.Tf("версия {0}", version), HwStatus.Installed, []);
     }

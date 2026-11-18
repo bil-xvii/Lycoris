@@ -223,18 +223,17 @@ public static class AppTexts
     };
 
     public static string KitCaption =>
-        Loc.T("Библиотеки, которые нужны этому ПК: Visual C++, DirectX June 2010, .NET и другие с пометкой НУЖНО или РЕКОМЕНДУЕТСЯ. Установленное пропускается.");
+        Loc.T("Только компоненты с подтверждённой необходимостью для установленных программ. Установленное пропускается.");
 
     /// <summary>Tooltip of the gamer kit row: what is in it on this PC and which runtimes are deliberately left out.</summary>
     public static string KitToolTip(IEnumerable<CatalogEntry> kit, IEnumerable<CatalogEntry> leftOut)
     {
         var names = string.Join(", ", kit.Select(e => e.Name));
         var left = string.Join(", ", leftOut.Select(e => e.Name));
-        return Loc.T("Библиотеки, без которых игры не запускаются или падают с ошибками вроде «MSVCP140.dll не найден» и «d3dx9_43.dll отсутствует». ") +
-               (names.Length > 0
-                   ? Loc.Tf("В набор входит то, что этому ПК НУЖНО или РЕКОМЕНДУЕТСЯ: {0}. ", names)
-                   : Loc.T("Состав набора появится после проверки установленных программ. ")) +
-               (left.Length > 0 ? Loc.Tf("Не входят — этому ПК они не обязательны: {0}. Их ставят по одной, если игра или программа попросит.", left) : "");
+        return (names.Length > 0
+                   ? Loc.Tf("Подтверждённые компоненты: {0}. ", names)
+                   : Loc.T("Необходимость дополнительных компонентов пока не подтверждена. ")) +
+               (left.Length > 0 ? Loc.Tf("Необходимость не подтверждена: {0}. Устанавливайте компонент, если его запросит программа или игра.", left) : "");
     }
 
     /// <summary>True when the entry should be dangerous-styled in the confirmation (hatched header).</summary>
@@ -345,7 +344,7 @@ public static class AppTexts
         if (code == unchecked((int)0x8A150113))
             return Loc.T("Программа не поддерживает эту версию Windows. Проверьте системные требования на официальном сайте.");
         if (code is unchecked((int)0x8A150104) or unchecked((int)0x8A150110))
-            return Loc.T("Не удалось поставить то, что нужно пакету для работы (например, .NET или Visual C++). Установите «Набор геймера» на этой странице и повторите.");
+            return Loc.T("Не удалось установить зависимость пакета (например, .NET или Visual C++). Проверьте требования программы на её официальном сайте и повторите.");
         if (code == unchecked((int)0x8A150114))
             return Loc.T("Установщик не умеет обновлять поверх установленной версии. Обновите программу её встроенным средством обновления " +
                    "или удалите её в «Параметры → Приложения» и установите заново.");

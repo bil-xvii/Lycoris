@@ -1,3 +1,4 @@
+using Lycoris.Core;
 using Lycoris.Modules.Apps;
 
 namespace Lycoris.Modules.Drivers.Hardware;
@@ -42,6 +43,9 @@ internal sealed record PeripheralVendor(string Vid, string Name, IReadOnlyList<V
 
 /// <summary>A motherboard vendor: short name and official support page (BIOS, chipset and audio drivers).</summary>
 internal sealed record BoardVendor(string ShortName, string SupportUrl);
+
+/// <summary>Verified support landing page and the system or retail board it applies to.</summary>
+internal sealed record HardwareSupport(BoardVendor Vendor, string Name, bool IsSystem);
 
 /// <summary>Verified vendor ids, packages and official pages used by the hardware analysis.</summary>
 internal static class HardwareCatalog
@@ -219,6 +223,47 @@ internal static class HardwareCatalog
             return new("GIGABYTE", "https://www.gigabyte.com/Support");
         if (m.Contains("ASRock", StringComparison.OrdinalIgnoreCase))
             return new("ASRock", "https://www.asrock.com/support/index.asp");
+        return null;
+    }
+
+    /// <summary>OEM systems use system support, never the support page of a board supplier.</summary>
+    public static HardwareSupport? Support(HardwareSnapshot snapshot)
+    {
+        var identity = snapshot.Identity;
+        if (!identity.IsKnown || identity.Manufacturer.Length == 0 || identity.Model.Length == 0 ||
+            identity.Kind is ComputerKind.VirtualMachine or ComputerKind.Server)
+            return null;
+
+        var system = SystemVendor(identity.Manufacturer, identity.Model);
+        if (system is not null && (identity.Kind != ComputerKind.Desktop || system.ShortName is not ("MSI" or "ASUS")))
+            return new(system, $"{system.ShortName} {identity.Model}", true);
+        if (identity.Kind != ComputerKind.Desktop) return null;
+        if (system is null && Board(identity.Manufacturer) is null) return null;
+
+        // Reuse the identity classifier's SMBIOS placeholder normalization for BaseBoard fields.
+        var board = ComputerIdentity.FromFacts(snapshot.Board.Manufacturer, snapshot.Board.Product, null, null);
+        var vendor = Board(board.Manufacturer);
+        return vendor is not null && board.Model.Length > 0
+            ? new(vendor, $"{vendor.ShortName} {board.Model}", false) : null;
+    }
+
+    private static BoardVendor? SystemVendor(string manufacturer, string model)
+    {
+        if (manufacturer.Equals("Dell Inc.", StringComparison.OrdinalIgnoreCase) || manufacturer.Equals("Dell Computer Corporation", StringComparison.OrdinalIgnoreCase))
+            return new("Dell", "https://www.dell.com/support/home");
+        if (manufacturer.Equals("HP", StringComparison.OrdinalIgnoreCase) || manufacturer.Equals("HP Inc.", StringComparison.OrdinalIgnoreCase) ||
+            manufacturer.Equals("Hewlett-Packard", StringComparison.OrdinalIgnoreCase))
+            return new("HP", "https://support.hp.com/us-en/drivers");
+        if (manufacturer.Equals("LENOVO", StringComparison.OrdinalIgnoreCase))
+            return new("Lenovo", "https://pcsupport.lenovo.com/");
+        if (manufacturer.Equals("Acer", StringComparison.OrdinalIgnoreCase) || manufacturer.Equals("Acer Inc.", StringComparison.OrdinalIgnoreCase))
+            return new("Acer", "https://www.acer.com/support");
+        if (manufacturer.Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase) && model.StartsWith("Surface", StringComparison.OrdinalIgnoreCase))
+            return new("Microsoft Surface", "https://support.microsoft.com/surface");
+        if (manufacturer.Equals("ASUSTeK COMPUTER INC.", StringComparison.OrdinalIgnoreCase) || manufacturer.Equals("ASUS", StringComparison.OrdinalIgnoreCase))
+            return new("ASUS", "https://www.asus.com/support/download-center/");
+        if (manufacturer.Equals("Micro-Star International Co., Ltd.", StringComparison.OrdinalIgnoreCase) || manufacturer.Equals("MSI", StringComparison.OrdinalIgnoreCase))
+            return new("MSI", "https://www.msi.com/support");
         return null;
     }
 }

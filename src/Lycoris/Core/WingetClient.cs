@@ -11,9 +11,13 @@ public sealed record WingetResult(int ExitCode, string Output, bool Cancelled = 
     /// the result is unknown and has to be re-detected later.
     /// </summary>
     public bool StillRunning { get; init; }
-    public bool Success => !StillRunning && (ExitCode is 0 || WingetClient.IsBenign(ExitCode));
+    public bool TimedOut { get; init; }
+    public bool Success => !Cancelled && !TimedOut && !StillRunning && (ExitCode is 0 || WingetClient.IsBenign(ExitCode));
     public string Message => Cancelled ? Loc.T("Отменено") : StillRunning ? Loc.T("ещё выполняется — результат проверим заново") : WingetClient.Describe(ExitCode);
 }
+
+/// <summary>A successful, structurally valid export may contain no matched packages.</summary>
+public sealed record WingetInstalledExport(bool Success, IReadOnlyDictionary<string, string> Packages);
 
 /// <summary>One package to install or upgrade, plus the optional installer filters.</summary>
 public sealed record WingetPackageRequest(string Id, string Source = "winget")
@@ -286,31 +290,41 @@ public static partial class WingetClient
     private static partial Regex PackageIdRegex();
 
     /// <summary>Exit code of "winget list --id X -e": 0 = installed.</summary>
-    public static async Task<bool> IsInstalledAsync(string id, CancellationToken ct = default)
+    public static async Task<bool> IsInstalledAsync(string id, CancellationToken ct = default) =>
+        await ProbeInstalledAsync(id, ct).ConfigureAwait(false) == true;
+
+    /// <summary>True = found, false = confirmed missing, null = the read-only check failed.</summary>
+    public static async Task<bool?> ProbeInstalledAsync(string id, CancellationToken ct = default)
     {
         var args = new List<string> { "list", "--id", id, "--exact" };
         args.AddRange(Common);
         var r = await RunAsync(args, null, ct, log: false).ConfigureAwait(false);
-        return r.ExitCode == 0;
+        return InstalledState(r);
     }
+
+    internal static bool? InstalledState(WingetResult result) => result.Cancelled || result.StillRunning || result.TimedOut ? null
+        : result.ExitCode == 0 ? true : result.ExitCode == NoApplicationsFound ? false : null;
 
     /// <summary>
     /// Installed packages that winget can match to a source: id → version.
     /// Uses "winget export" (structured JSON) — never parses the localized table output.
     /// </summary>
-    public static async Task<Dictionary<string, string>> ExportInstalledAsync(CancellationToken ct = default)
+    public static async Task<Dictionary<string, string>> ExportInstalledAsync(CancellationToken ct = default) =>
+        new((await ExportInstalledWithStatusAsync(ct).ConfigureAwait(false)).Packages, StringComparer.OrdinalIgnoreCase);
+
+    public static async Task<WingetInstalledExport> ExportInstalledWithStatusAsync(CancellationToken ct = default)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var failed = new WingetInstalledExport(false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         // A private folder (admin-only when elevated), never the shared %TEMP%: nobody can swap the file between winget's write and our read.
         var file = Security.SafeIo.NewPrivateTempFile(".json");
-        if (file is null) return result;
+        if (file is null) return failed;
         try
         {
             var args = new List<string> { "export", "-o", file, "--include-versions" };
             args.AddRange(Common);
-            await RunAsync(args, null, ct, log: false).ConfigureAwait(false);
-            if (!File.Exists(file)) return result;
-            return ParseExport(Security.SafeIo.ReadText(file, 16 * 1024 * 1024));
+            var run = await RunAsync(args, null, ct, log: false).ConfigureAwait(false);
+            if (run.ExitCode != 0 || run.Cancelled || run.StillRunning || run.TimedOut || !File.Exists(file)) return failed;
+            return ExportState(run, Security.SafeIo.ReadText(file, 16 * 1024 * 1024));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -320,38 +334,49 @@ public static partial class WingetClient
         {
             try { File.Delete(file); } catch { }
         }
-        return result;
+        return failed;
     }
 
     /// <summary>
     /// Parses a "winget export" file (schema https://aka.ms/winget-packages.schema.2.0.json):
     /// Sources[].Packages[].PackageIdentifier / Version. Malformed input gives an empty map.
     /// </summary>
-    public static Dictionary<string, string> ParseExport(string json)
+    public static Dictionary<string, string> ParseExport(string json) =>
+        new(ParseExportWithStatus(json).Packages, StringComparer.OrdinalIgnoreCase);
+
+    internal static WingetInstalledExport ExportState(WingetResult run, string? json) =>
+        run.ExitCode == 0 && !run.Cancelled && !run.StillRunning && !run.TimedOut && json is not null
+            ? ParseExportWithStatus(json)
+            : new(false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+    internal static WingetInstalledExport ParseExportWithStatus(string json)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        WingetInstalledExport Invalid() => new(false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         try
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("Sources", out var sources)
-                || sources.ValueKind != JsonValueKind.Array) return result;
+                || sources.ValueKind != JsonValueKind.Array) return Invalid();
             foreach (var s in sources.EnumerateArray())
             {
-                if (s.ValueKind != JsonValueKind.Object || !s.TryGetProperty("Packages", out var pkgs) || pkgs.ValueKind != JsonValueKind.Array) continue;
+                if (s.ValueKind != JsonValueKind.Object || !s.TryGetProperty("Packages", out var pkgs) || pkgs.ValueKind != JsonValueKind.Array) return Invalid();
                 foreach (var p in pkgs.EnumerateArray())
                 {
-                    if (p.ValueKind != JsonValueKind.Object) continue;
+                    if (p.ValueKind != JsonValueKind.Object) return Invalid();
                     var id = p.TryGetProperty("PackageIdentifier", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() : null;
                     var ver = p.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : "";
-                    if (!string.IsNullOrEmpty(id)) result[id] = ver ?? "";
+                    if (!IsValidPackageId(id) || p.TryGetProperty("Version", out var rawVersion) && rawVersion.ValueKind != JsonValueKind.String) return Invalid();
+                    result[id!] = ver ?? "";
                 }
             }
         }
         catch (JsonException ex)
         {
             Log.Warn("winget export: повреждённый JSON ({0})", ex.Message);
+            return Invalid();
         }
-        return result;
+        return new(true, result);
     }
 
     /// <summary>
@@ -431,7 +456,7 @@ public static partial class WingetClient
                     if (r.ExitCode == 0 || IsBenign(r.ExitCode)) Log.Success($"winget {list.FirstOrDefault()} {ArgId(list)}: {Describe(r.ExitCode)}");
                     else Log.Warn($"winget {list.FirstOrDefault()} {ArgId(list)}: {Describe(r.ExitCode)}");
                 }
-                return new WingetResult(r.ExitCode, text);
+                return new WingetResult(r.ExitCode, text) { TimedOut = r.TimedOut };
             }
             return new WingetResult(InternalError, "");
         }
