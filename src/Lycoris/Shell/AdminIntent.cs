@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Windows.Input;
+using Lycoris.Core.Assistant;
+using Lycoris.Core.Services;
 
 namespace Lycoris.Shell;
 
@@ -20,6 +22,8 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     public const string PageArg = "--replay-page";
     public const string CommandArg = "--replay-command";
     public const string ParameterArg = "--replay-param";
+    internal const string RunServiceAction = "RunServiceAction";
+    internal const string RemoveServiceResidue = "RemoveServiceResidue";
 
     /// <summary>Launch arguments for the elevated copy.</summary>
     public IReadOnlyList<string> ToArgs()
@@ -33,17 +37,32 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     public static AdminIntent? Parse(IReadOnlyList<string> args)
     {
         string? page = null, command = null, parameter = null;
+        var repeated = false;
         for (var i = 0; i < args.Count - 1; i++)
         {
-            if (args[i].Equals(PageArg, StringComparison.OrdinalIgnoreCase)) page = args[++i];
-            else if (args[i].Equals(CommandArg, StringComparison.OrdinalIgnoreCase)) command = args[++i];
-            else if (args[i].Equals(ParameterArg, StringComparison.OrdinalIgnoreCase)) parameter = args[++i];
+            if (args[i].Equals(PageArg, StringComparison.OrdinalIgnoreCase))
+            {
+                repeated |= page is not null;
+                page = args[++i];
+            }
+            else if (args[i].Equals(CommandArg, StringComparison.OrdinalIgnoreCase))
+            {
+                repeated |= command is not null;
+                command = args[++i];
+            }
+            else if (args[i].Equals(ParameterArg, StringComparison.OrdinalIgnoreCase))
+            {
+                repeated |= parameter is not null;
+                parameter = args[++i];
+            }
         }
         if (string.IsNullOrWhiteSpace(page) || string.IsNullOrWhiteSpace(command) || !IsCommandName(command) || !IsReplayable(command)) return null;
         // The arguments of an elevated copy are text anybody who can start the exe can write: the page is a plain key and the
         // parameter a short line without control characters — nothing else is ever handed to a command.
         if (!IsPageKey(page.Trim())) return null;
         if (!string.IsNullOrEmpty(parameter) && !IsParameter(parameter)) return null;
+        if (!IsValidServiceReplay(page, command, parameter) ||
+            (command is RunServiceAction or RemoveServiceResidue && (repeated || IsReplayFlag(args[^1])))) return null;
         return new AdminIntent(page.Trim(), command.Trim(), string.IsNullOrEmpty(parameter) ? null : parameter);
     }
 
@@ -76,10 +95,22 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         "EnableProtection", "EnableSelectedStartup", "ExportBackup", "FixSafe", "GpuDownload", "InstallHardware", "InstallUpdates",
         "AddPriorityRule", "MeasureFps", "PlayBoostedGame", "ReapplyAllDrift", "ReapplyDrift", "RepairWindows", "RestoreBackup", "RestoreStale", "RevertAll", "RevertBatch",
         "RevertItem", "RevertLastBatch", "RevertRecord", "RevertService", "RevertSetting", "RemovePriorityRule", "RevertTask", "RunCheck", "RunTool", "ScheduleMaintenance", "ShowPoints",
-        "SetBackgroundStartup", "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
+        RunServiceAction, RemoveServiceResidue, "SetBackgroundStartup", "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
     };
 
     public static bool IsReplayable(string name) => Replayable.Contains(name.Trim());
+
+    private static bool IsValidServiceReplay(string page, string command, string? parameter) => command switch
+    {
+        RunServiceAction => page == "assistant" && ServiceRequestParser.ParseReplay(parameter) is not null,
+        RemoveServiceResidue => page == "services" && ServiceRemoval.IsSupportedName(parameter),
+        _ => true,
+    };
+
+    private static bool IsReplayFlag(string arg) =>
+        arg.Equals(PageArg, StringComparison.OrdinalIgnoreCase) ||
+        arg.Equals(CommandArg, StringComparison.OrdinalIgnoreCase) ||
+        arg.Equals(ParameterArg, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Command names are identifiers: letters and digits only (an argument can never name a member path).</summary>
     public static bool IsCommandName(string name) => name.Length is > 0 and <= 64 && name.All(char.IsAsciiLetterOrDigit);
@@ -99,7 +130,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     /// <summary>The ICommand property «{Command}Command» of <paramref name="target"/>, or null.</summary>
     public ICommand? FindCommand(object target)
     {
-        if (!IsCommandName(Command)) return null;
+        if (!IsCommandName(Command) || !IsValidServiceReplay(PageKey, Command, Parameter)) return null;
         var property = target.GetType().GetProperty(Command + "Command", BindingFlags.Public | BindingFlags.Instance);
         return property is not null && typeof(ICommand).IsAssignableFrom(property.PropertyType) ? property.GetValue(target) as ICommand : null;
     }

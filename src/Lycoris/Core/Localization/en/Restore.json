@@ -6,6 +6,7 @@
   ],
   "ignore": [],
   "en": {
+    "УДАЛЕНИЕ СЛУЖБЫ": "SERVICE REMOVAL",
     "Пропущена {0} настройка уровня ЭКСПЕРТ — включите режим Эксперт.": "Skipped {0} EXPERT setting — enable Expert mode.",
     "Пропущены {0} настройки уровня ЭКСПЕРТ — включите режим Эксперт.": "Skipped {0} EXPERT settings — enable Expert mode.",
     "Пропущено {0} настроек уровня ЭКСПЕРТ — включите режим Эксперт.": "Skipped {0} EXPERT settings — enable Expert mode.",

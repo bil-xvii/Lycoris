@@ -1,5 +1,6 @@
 using System.Globalization;
 using Lycoris.Core;
+using Lycoris.Core.Services;
 
 namespace Lycoris.Modules.Restore;
 
@@ -23,6 +24,7 @@ public static class RestoreFormat
     {
         ChangeKind.Registry => Loc.T("РЕЕСТР"),
         ChangeKind.Service => Loc.T("СЛУЖБА"),
+        ChangeKind.ServiceRemoval => Loc.T("УДАЛЕНИЕ СЛУЖБЫ"),
         ChangeKind.PowerScheme => Loc.T("ПИТАНИЕ"),
         ChangeKind.ScheduledTask => Loc.T("ЗАДАЧА"),
         ChangeKind.Command => Loc.T("КОМАНДА"),
@@ -46,7 +48,7 @@ public static class RestoreFormat
         var rest = target[(colon + 1)..];
         return prefix switch
         {
-            "reg" or "svc" or "task" or "cmd" => rest.Length == 0 ? target : rest,
+            "reg" or "svc" or "service-removal" or "task" or "cmd" => rest.Length == 0 ? target : rest,
             "power" when rest.Equals("active", StringComparison.OrdinalIgnoreCase) => Loc.T("Активная схема питания"),
             "power" => Loc.Tf("Схема питания {0}", rest),
             _ => target,
@@ -183,7 +185,8 @@ public static class RestoreFormat
         const string prefix = "tweak:";
         if (source.StartsWith(prefix, StringComparison.Ordinal))
             return Tweaks.TweakCatalog.Find(source[prefix.Length..])?.Title is { } t ? $"«{t}»" : $"«{source[prefix.Length..]}»";
-        return Loc.Tf("изменение раздела «{0}»", Optimize.OptimizeLogic.SourceLabel(source));
+        var label = source == ServiceRemoval.Source ? Loc.T("Остатки удалённых программ") : Optimize.OptimizeLogic.SourceLabel(source);
+        return Loc.Tf("изменение раздела «{0}»", label);
     }
 
     /// <summary>

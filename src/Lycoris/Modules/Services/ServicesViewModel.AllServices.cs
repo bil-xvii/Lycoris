@@ -147,8 +147,10 @@ public sealed partial class ServicesViewModel
     {
         if (string.IsNullOrEmpty(spec)) return null;
         var parts = spec.Split('|');
-        if (parts.Length < 3 || !Enum.TryParse<ServiceStartMode>(parts[^2], out var mode)) return null;
-        return (string.Join('|', parts[..^2]), mode, parts[^1] == "1");
+        if (parts.Length < 3 || !Enum.TryParse<ServiceStartMode>(parts[^2], out var mode) || !Enum.IsDefined(mode) ||
+            parts[^1] is not ("0" or "1")) return null;
+        var name = string.Join('|', parts[..^2]);
+        return string.IsNullOrWhiteSpace(name) ? null : (name, mode, parts[^1] == "1");
     }
 
     internal static string StartSpec(string name, ServiceStartMode mode, bool delayed) => $"{name}|{mode}|{(delayed ? 1 : 0)}";
@@ -161,10 +163,13 @@ public sealed partial class ServicesViewModel
     private async Task ApplyStartTypeAsync(string? spec)
     {
         if (!ExpertMode) return;
-        if (ParseStartSpec(spec) is { } replayed)
+        if (spec is not null)
         {
-            if (SelectForReplay(replayed.Name) is { } target)
-                target.PendingStart = StartOptions.FirstOrDefault(o => o.Mode == replayed.Mode && o.Delayed == replayed.Delayed) ?? target.PendingStart;
+            if (ParseStartSpec(spec) is not { } replayed || string.IsNullOrWhiteSpace(replayed.Name) ||
+                StartOptions.FirstOrDefault(o => o.Mode == replayed.Mode && o.Delayed == replayed.Delayed) is not { } replayedOption ||
+                SelectForReplay(replayed.Name) is not { } target)
+                return;
+            target.PendingStart = replayedOption;
         }
         var item = SelectedService;
         var option = item?.PendingStart;

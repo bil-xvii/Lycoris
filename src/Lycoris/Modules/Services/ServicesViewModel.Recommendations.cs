@@ -236,24 +236,30 @@ public sealed partial class ServicesViewModel
         var selected = _recByName.Values.Where(i => i.IsSelected && i.CanSelect).ToList();
         if (selected.Count == 0) return;
 
-        // Build the plan from a fresh read: show exactly "current → new".
-        var live = await Task.Run(() => selected.ToDictionary(i => i.Name, i => ServiceScanner.ReadLiveState(i.Name), StringComparer.OrdinalIgnoreCase));
-        var plan = selected
-            .Where(i => live[i.Name].Exists)
-            .Select(i => (Item: i, State: live[i.Name]))
-            .Where(p => !(p.State.StartMode == p.Item.Entry.Target ||
-                          (p.Item.Entry.Target == ServiceStartMode.Manual && p.State.StartMode == ServiceStartMode.Disabled)))
-            .ToList();
-        if (plan.Count == 0)
+        var selectedNames = selected.Select(item => item.Name).ToArray();
+        var plan = await Task.Run(() => CaptureRecommendations(selectedNames));
+        if (plan is null)
+        {
+            Ui.Toast(Loc.T("Выбранные рекомендации недоступны: проверьте настройки служб, разрешения и зависимости."), ToastKind.Warning);
+            return;
+        }
+        if (plan.Changes.Count == 0)
         {
             Ui.Toast("Выбранные службы уже настроены как нужно.", ToastKind.Info);
             await RefreshStatesAsync();
             return;
         }
 
-        var details = plan.Select(p =>
-            $"{p.Item.Title} ({p.Item.Name}): {ServiceText.Start(p.State.StartMode, p.State.Delayed, p.State.HasTriggers)} → {p.Item.TargetText}").ToList();
-        var disabling = plan.Count(p => p.Item.Entry.Target == ServiceStartMode.Disabled);
+        var details = new List<string>();
+        foreach (var change in plan.Changes)
+        {
+            details.Add($"{change.Facts.Identity.DisplayName} ({change.Facts.Identity.Name}): " +
+                $"{ServiceText.Start(change.Facts.Start, change.Facts.RawDelayed == true, change.Facts.TriggerVersion is not null)} " +
+                $"→ {ServiceText.Start(change.Entry.Target, false)}");
+            if (change.Entry.Conditional) details.Add(change.Entry.Condition);
+            details.Add(change.Entry.Impact);
+        }
+        var disabling = plan.Changes.Count(change => change.Entry.Target == ServiceStartMode.Disabled);
         var message = Loc.T("Изменится только тип запуска. Работающие службы не останавливаются — изменения вступят в силу после перезагрузки. " +
                       "Перед изменением создаётся точка восстановления, исходные значения сохраняются в журнале.");
         if (disabling > 0)
@@ -265,19 +271,90 @@ public sealed partial class ServicesViewModel
 
         await RunBusyAsync(OperationClass.JournalChange, Loc.T("Изменение служб…"), async () =>
         {
-            var session = await BeginSessionAsync(BatchTitle(Loc.Keep("Службы"), plan.Select(p => p.Item.RuTitle).ToList()),
-                BatchTitle(Loc.T("Службы"), plan.Select(p => p.Item.Title).ToList(), localized: true));
-            if (session is null) return;
-            await Task.Run(() =>
+            if (!await Task.Run(() => plan.Matches(CaptureRecommendations(selectedNames))))
             {
-                foreach (var (item, _) in plan)
-                    if (ServiceGuard.CanApplyRisk(item.Risk, ExpertMode))
-                    session.SetServiceStart(item.Name, item.Entry.Target, ServiceSource, string.Format(Loc.Keep("Служба «{0}»"), item.RuTitle));
-                session.Complete();
+                ReportStaleRecommendations();
+                return;
+            }
+            var session = await BeginSessionAsync(BatchTitle(Loc.Keep("Службы"), plan.Changes.Select(change => change.Entry.Title).ToList()),
+                BatchTitle(Loc.T("Службы"), plan.Changes.Select(change => Loc.Sink(change.Entry.Title)).ToList(), localized: true));
+            if (session is null) return;
+            var appliedPlan = await Task.Run(() =>
+            {
+                var current = false;
+                var observedNames = plan.Observed.Select(facts => facts.Identity.Name).ToArray();
+                try
+                {
+                    session.Exclusive(() => current = plan.ApplyIfCurrent(ServiceScanner.HoldActionServices,
+                        () => CaptureRecommendations(selectedNames, observedNames), ReadServiceActionSettings,
+                        change => WriteRecommendation(session, change)));
+                }
+                finally
+                {
+                    session.Complete();
+                }
+                return current;
             });
+            if (!appliedPlan)
+            {
+                ReportStaleRecommendations(session.Applied);
+                if (session.Applied > 0) await RefreshStatesAsync();
+                return;
+            }
             await ReportSessionAsync(session, Loc.Tf("Изменено служб: {0}. Новый тип запуска сработает после перезагрузки.", session.Applied));
             await RefreshStatesAsync();
         });
+    }
+
+    private static ServiceActionFacts? WriteRecommendation(ChangeSession session, ServiceRecommendationChange change)
+    {
+        var identity = change.Facts.Identity;
+        var title = string.Format(Loc.Keep("Служба «{0}»"), change.Entry.Title);
+        var errorCount = session.Errors.Count;
+        if (session.SetServiceStart(identity.Name, change.Entry.Target, ServiceSource, title) &&
+            session.Journal.FindActive("svc:" + identity.Name) is { Kind: ChangeKind.Service, Source: ServiceSource } record &&
+            record.BatchId == session.Batch.Id)
+        {
+            try
+            {
+                var written = ServiceScanner.ReadActionFacts(identity, ServiceAction.Disable, elevated: true);
+                if (written.Start == change.Entry.Target && written.ActiveRecordId == record.Id) return written;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Проверка записи рекомендации службы: {0}", ex.GetType().Name);
+            }
+        }
+
+        if (session.Errors.Count == errorCount)
+            session.Errors.Add(Loc.Tf("Не удалось подтвердить новый тип запуска службы «{0}».", identity.Name));
+        return null;
+    }
+
+    private static ServiceRecommendationPlan? CaptureRecommendations(string[] selectedNames, IReadOnlyList<string>? observedNames = null)
+    {
+        try
+        {
+            var settings = ReadServiceActionSettings();
+            if (settings.Locked || settings.Demo || !settings.Elevated || ServiceScanner.ReadActionManaged()) return null;
+            var identities = ServiceScanner.ScanActionIdentities().ToDictionary(identity => identity.Name, StringComparer.OrdinalIgnoreCase);
+            var plan = ServiceRecommendationPlan.Capture(selectedNames, settings, name => identities.TryGetValue(name, out var identity)
+                ? ServiceScanner.ReadActionFacts(identity, ServiceAction.Disable, elevated: true, managed: false) : null, observedNames);
+            return ReadServiceActionSettings() == settings ? plan : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Проверка рекомендаций служб: {0}", ex.GetType().Name);
+            return null;
+        }
+    }
+
+    private static void ReportStaleRecommendations(int applied = 0)
+    {
+        var message = Loc.T("Данные служб или разрешения изменились после подтверждения. Снова проверьте рекомендации.");
+        if (applied > 0)
+            message = Loc.Tf("Изменено служб: {0}. Новый тип запуска сработает после перезагрузки.", applied) + " " + message;
+        Ui.Toast(message, ToastKind.Warning);
     }
 
     [RelayCommand(CanExecute = nameof(CanClearRecommendationSelection))]

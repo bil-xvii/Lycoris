@@ -1,0 +1,56 @@
+name: Service removal integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/services-integration.yml'
+      - 'src/Lycoris/Core/Services/ServiceRemoval*.cs'
+      - 'src/Lycoris/Core/ChangeJournal.cs'
+      - 'src/Lycoris/Core/ChangeSession.cs'
+      - 'tests/Lycoris.Tests/ServiceRemovalNativeTests.cs'
+
+permissions:
+  contents: read
+
+jobs:
+  scm-roundtrip:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-11-arm
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          architecture: x64
+      - name: Exercise SCM round trip on the disposable Windows runner
+        shell: pwsh
+        env:
+          LYCORIS_SERVICE_REMOVAL_INTEGRATION: '1'
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+            throw 'A GitHub-hosted disposable runner is required.'
+          }
+
+          $results = Join-Path $env:RUNNER_TEMP 'service-removal-native'
+          dotnet test tests/Lycoris.Tests/Lycoris.Tests.csproj -c Release --filter 'FullyQualifiedName~ServiceRemovalNativeTests' --results-directory $results --logger 'trx;LogFileName=service-removal.trx'
+          if ($LASTEXITCODE -ne 0) { throw "Native SCM test failed with exit $LASTEXITCODE." }
+
+          [xml] $trx = Get-Content -Raw -LiteralPath (Join-Path $results 'service-removal.trx')
+          $counters = $trx.TestRun.ResultSummary.Counters
+          if ([int] $counters.executed -ne 1 -or [int] $counters.passed -ne 1 -or [int] $counters.notExecuted -ne 0) {
+            throw 'Expected exactly one executed and passed SCM round-trip test.'
+          }
+
+      - name: Upload native SCM test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: service-removal-native-results
+          path: ${{ runner.temp }}/service-removal-native/*.trx
+          if-no-files-found: ignore
+          retention-days: 7

@@ -8,6 +8,7 @@
   "ignore": [],
   "en": {
     "некорректная запись задачи автозапуска Lycoris": "invalid Lycoris startup task record",
+    "некорректная запись об удалении службы": "invalid service removal record",
     "Записи автозапуска относятся к разным папкам Lycoris. Сначала отмените более позднее изменение «{0}».": "The startup records belong to different Lycoris folders. Undo the newer change “{0}” first.",
     "Задача автозапуска изменилась. Обновите её состояние и повторите действие.": "The startup task has changed. Refresh its status and try again.",
     "удалено": "deleted",

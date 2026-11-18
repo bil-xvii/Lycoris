@@ -3,6 +3,7 @@ using System.ServiceProcess;
 using Microsoft.Win32;
 using Lycoris.Core.Background;
 using Lycoris.Core.Devices;
+using Lycoris.Core.Services;
 
 namespace Lycoris.Core;
 
@@ -132,6 +133,14 @@ public sealed class ChangeSession
     }
 
     // ───────────────────────────── Services ─────────────────────────────
+
+    internal ServiceRemovalResult RemoveService(ServiceRemovalRequest request, string title) =>
+        _journal.Exclusive(() =>
+        {
+            var result = _journal.ServiceRemovalAccess.Remove(_journal, Batch.Id, request, title);
+            if (result.Outcome is ServiceRemovalOutcome.Removed or ServiceRemovalOutcome.PendingDeletion) Applied++;
+            return result;
+        });
 
     public bool SetServiceStart(string service, ServiceStartMode mode, string source, string title, bool delayed = false) =>
         _journal.Exclusive(() => SetServiceStartCore(service, mode, source, title, delayed));
