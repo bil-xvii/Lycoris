@@ -29,7 +29,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     public override string Key => "tools";
     public override string Index => "09";
     public override string Title => Loc.T("РЕМОНТ И ДИСКИ");
-    public override string Subtitle => Loc.T("Проверка и восстановление Windows, диски, сеть и системные утилиты.");
+    public override string Subtitle => Loc.T("Проверка и восстановление Windows. Полный сброс сети — в режиме «Эксперт».");
     public override string Glyph => Glyphs.Repair;
 
     public string SystemDrive { get; } = (Environment.GetEnvironmentVariable("SystemDrive") ?? "C:").TrimEnd('\\').ToUpperInvariant();
@@ -78,6 +78,11 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     public ToolsViewModel()
     {
+        AppSettings.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AppSettings.ExpertMode)) return;
+            Ui.Post(() => { RefreshExpertMode(); Sections = BuildSections(); });
+        };
         Sections = BuildSections();
         QuickLinks = BuildQuickLinks();
 
@@ -148,7 +153,8 @@ public sealed partial class ToolsViewModel : PageViewModel
     // ═════════════════════════════ Commands ═════════════════════════════
 
     // Read-only mode does not disable the buttons: a click asks for rights and repeats the action after the relaunch.
-    private bool CanRun(ToolCardAction? action) => action is not null && !IsRunning;
+    internal static bool CanRunInMode(ToolOp op, bool expertMode) => op != ToolOp.NetworkReset || expertMode;
+    private bool CanRun(ToolCardAction? action) => action is not null && !IsRunning && CanRunInMode(action.Op, ExpertMode);
 
     /// <summary>The stable text id of a button (the admin intent carries it across the relaunch): «Sfc», «DefragVolume:C:».</summary>
     internal static string ActionId(ToolCardAction action) =>
@@ -162,7 +168,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRunById))]
     private Task RunTool(string? id) => FindAction(id) is { } action ? RunAsync(action) : Task.CompletedTask;
 
-    private bool CanRunById(string? id) => !IsRunning && FindAction(id) is not null;
+    private bool CanRunById(string? id) => !IsRunning && FindAction(id) is { } action && CanRunInMode(action.Op, ExpertMode);
 
     /// <summary>The page's one main button: DISM restore, then SFC, with one confirmation listing both steps.</summary>
     [RelayCommand(CanExecute = nameof(CanRunPlain))]
@@ -198,6 +204,7 @@ public sealed partial class ToolsViewModel : PageViewModel
     private async Task RunAsync(ToolCardAction? action)
     {
         if (action is null) return;
+        if (!CanRunInMode(action.Op, ExpertMode)) return;
         if (action.RequiresAdmin && !RequireAdmin(action.Label, "RunTool", ActionId(action))) return;
         switch (action.Op)
         {
@@ -444,6 +451,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
     private async Task RunNetworkResetAsync()
     {
+        if (!ExpertMode) return;
         if (!CanStartNow(OperationClass.SystemRepair, Loc.T("Сброс сетевых настроек"))) return;
         var restoreNote = AppSettings.Current.CreateRestorePoints
             ? Loc.T("Перед сбросом будет создана точка восстановления Windows — только через неё можно вернуть прежние сетевые параметры")
@@ -464,6 +472,7 @@ public sealed partial class ToolsViewModel : PageViewModel
 
         await ExecuteAsync(Loc.T("СБРОС СЕТЕВЫХ НАСТРОЕК"), "netsh winsock reset · netsh int ip reset", cancellable: false, Loc.T("Сброс сетевых настроек…"), async ct =>
         {
+            if (!ExpertMode) return ToolOutcome.Fail(Loc.T("Доступно в режиме «Эксперт»."));
             RestorePointResult? rp = null;
             if (AppSettings.Current.CreateRestorePoints)
             {
@@ -477,6 +486,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                     return ToolOutcome.Cancel(Loc.T("Сброс отменён: точка восстановления не создана."));
             }
 
+            if (!ExpertMode) return ToolOutcome.Fail(Loc.T("Доступно в режиме «Эксперт»."));
             var session = await ChangeSession.BeginAsync("Сброс сетевых настроек", createRestorePoint: false); // loc:ignore the journal title stays Russian (translated where shown)
             session.Batch.RestorePoint = rp?.Message ?? "Создание точек восстановления выключено в разделе «Восстановление»."; // loc:ignore stored in the journal
             ChangeJournal.Instance.UpdateBatch(session.Batch);
@@ -489,6 +499,7 @@ public sealed partial class ToolsViewModel : PageViewModel
                 Path.Combine(session.BackupDir, "Tcpip_Parameters.reg"));
 
             var netsh = ProcessRunner.Sys("netsh.exe");
+            if (!ExpertMode) { session.Complete(); return ToolOutcome.Fail(Loc.T("Доступно в режиме «Эксперт».")); }
             var winsock = await RunProcessAsync(netsh, ["winsock", "reset"], OutputEncoding.Oem, TimeSpan.FromMinutes(3), ct);
             var ip = await RunProcessAsync(netsh, ["int", "ip", "reset", Path.Combine(session.BackupDir, "netsh-int-ip-reset.log")],
                 OutputEncoding.Oem, TimeSpan.FromMinutes(3), ct);

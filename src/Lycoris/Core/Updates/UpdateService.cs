@@ -251,7 +251,8 @@ public sealed class UpdateService
     private static DateTime RateLimitReset(HttpResponseMessage resp, DateTime now)
     {
         if (resp.Headers.TryGetValues("X-RateLimit-Reset", out var values) &&
-            long.TryParse(values.FirstOrDefault(), NumberStyles.None, CultureInfo.InvariantCulture, out var unix))
+            long.TryParse(values.FirstOrDefault(), NumberStyles.None, CultureInfo.InvariantCulture, out var unix) &&
+            unix is >= -62135596800 and <= 253402300799)
         {
             var at = DateTimeOffset.FromUnixTimeSeconds(unix).UtcDateTime;
             if (at > now && at < now.AddHours(2)) return at.AddSeconds(5);

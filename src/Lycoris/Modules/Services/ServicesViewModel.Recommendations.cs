@@ -215,6 +215,9 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanApplyRecommendations))]
     private async Task ApplyRecommendationsAsync(string? names)
     {
+        var requested = IntentList.Unpack(names);
+        if (!_recByName.Values.Any(i => ServiceGuard.CanApplyRisk(i.Risk, ExpertMode) &&
+            (requested is { Count: > 0 } ? requested.Contains(i.Name, StringComparer.OrdinalIgnoreCase) : i.IsSelected))) return;
         if (!RequireAdmin(Loc.T("изменение служб"), "ApplyRecommendations", SelectedRecommendationNames())) return;
         if (IntentList.Unpack(names) is { Count: > 0 } replayed)
         {
@@ -268,6 +271,7 @@ public sealed partial class ServicesViewModel
             await Task.Run(() =>
             {
                 foreach (var (item, _) in plan)
+                    if (ServiceGuard.CanApplyRisk(item.Risk, ExpertMode))
                     session.SetServiceStart(item.Name, item.Entry.Target, ServiceSource, string.Format(Loc.Keep("Служба «{0}»"), item.RuTitle));
                 session.Complete();
             });

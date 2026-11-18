@@ -155,9 +155,12 @@ public sealed partial class ServicesViewModel
 
     private bool CanApplyStartType(string? spec) => !IsBusy && (spec is not null || SelectedService?.CanApplyStart == true);
 
+    private bool CanManageService(ServiceItem item) => ExpertMode && !item.IsLocked && (item.IsCurated || ServicesExpertMode);
+
     [RelayCommand(CanExecute = nameof(CanApplyStartType))]
     private async Task ApplyStartTypeAsync(string? spec)
     {
+        if (!ExpertMode) return;
         if (ParseStartSpec(spec) is { } replayed)
         {
             if (SelectForReplay(replayed.Name) is { } target)
@@ -210,10 +213,12 @@ public sealed partial class ServicesViewModel
 
         await RunBusyAsync(OperationClass.JournalChange, Loc.T("Изменение типа запуска…"), async () =>
         {
+            if (!CanManageService(item)) return;
             var session = await BeginSessionAsync(string.Format(Loc.Keep("Службы: {0} → {1}"), item.DisplayName, newText), Loc.Tf("Службы: {0} → {1}", item.DisplayName, newText));
             if (session is null) return;
             await Task.Run(() =>
             {
+                if (!CanManageService(item)) { session.Complete(); return; }
                 session.SetServiceStart(item.Name, option.Mode, ServiceSource, string.Format(Loc.Keep("Служба «{0}»"), item.DisplayName), option.Delayed);
                 session.Complete();
             });
@@ -234,6 +239,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanStartService))]
     private async Task StartServiceAsync(string? name)
     {
+        if (!ExpertMode) return;
         var item = SelectForReplay(name);
         if (item is null || item.IsLocked || item.MustStayDisabled) return;
         if (!RequireAdmin(Loc.T("запуск службы"), "StartService", item.Name)) return;
@@ -246,7 +252,8 @@ public sealed partial class ServicesViewModel
 
         await RunBusyAsync(OperationClass.JournalChange, Loc.T("Запуск службы…"), async () =>
         {
-            var ok = await Task.Run(() => ServiceControl.StartAsync(item.Name, TimeSpan.FromSeconds(30)));
+            if (!CanManageService(item)) return;
+            var ok = await Task.Run(() => CanManageService(item) ? ServiceControl.StartAsync(item.Name, TimeSpan.FromSeconds(30)) : Task.FromResult(false));
             if (ok)
             {
                 Log.Success("Служба запущена: {0} ({1})", item.DisplayName, item.Name);
@@ -265,6 +272,7 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanStopService))]
     private async Task StopServiceAsync(string? name)
     {
+        if (!ExpertMode) return;
         var item = SelectForReplay(name);
         if (item is null || item.IsLocked) return;
         if (!RequireAdmin(Loc.T("остановка службы"), "StopService", item.Name)) return;
@@ -289,7 +297,8 @@ public sealed partial class ServicesViewModel
 
         await RunBusyAsync(OperationClass.JournalChange, Loc.T("Остановка службы…"), async () =>
         {
-            var ok = await Task.Run(() => ServiceControl.StopAsync(item.Name, TimeSpan.FromSeconds(30)));
+            if (!CanManageService(item)) return;
+            var ok = await Task.Run(() => CanManageService(item) ? ServiceControl.StopAsync(item.Name, TimeSpan.FromSeconds(30)) : Task.FromResult(false));
             if (ok)
             {
                 Log.Success("Служба остановлена: {0} ({1})", item.DisplayName, item.Name);

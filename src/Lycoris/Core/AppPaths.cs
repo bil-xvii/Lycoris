@@ -17,22 +17,25 @@ public static class AppPaths
     public static string LegacyMachineDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "MONOLITH");
     public static string LegacyUserDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MONOLITH");
     public static bool MachineMigrationFailed { get; private set; }
-    public static string MachineReadDir => MachineMigrationFailed ? LegacyMachineDir : ReadDirectory(MachineDir, LegacyMachineDir);
-    public static string UserReadDir => ReadDirectory(UserDir, LegacyUserDir);
+    private static bool LegacyDataAllowed => TestRoot is null;
+    public static string MachineReadDir => LegacyDataAllowed && MachineMigrationFailed
+        ? LegacyMachineDir : ReadDirectory(MachineDir, LegacyMachineDir, LegacyDataAllowed);
+    public static string UserReadDir => ReadDirectory(UserDir, LegacyUserDir, LegacyDataAllowed);
     public static string SettingsReadFile => File.Exists(SettingsFile) ? SettingsFile : Path.Combine(UserReadDir, "settings.json");
 
     static AppPaths() => MigrateUserDir();
 
     private static void MigrateUserDir()
     {
-        try { MigrateDirectory(LegacyUserDir, UserDir); }
+        try { MigrateDirectory(LegacyUserDir, UserDir, LegacyDataAllowed); }
         catch (Exception ex) { Log.Warn("User data migration failed; legacy data remains available: {0}", ex.Message); }
     }
 
-    internal static string ReadDirectory(string current, string legacy) => Directory.Exists(current) ? current : legacy;
+    internal static string ReadDirectory(string current, string legacy, bool allowLegacy = true) =>
+        !allowLegacy || Directory.Exists(current) ? current : legacy;
 
     internal static string MapLegacyMachinePath(string path)
-        => MapLegacyMachinePath(path, LegacyMachineDir, MachineDir);
+        => LegacyDataAllowed ? MapLegacyMachinePath(path, LegacyMachineDir, MachineDir) : path;
 
     internal static string MapLegacyMachinePath(string path, string legacyRoot, string currentRoot)
     {
@@ -44,8 +47,9 @@ public static class AppPaths
         return File.Exists(moved) || Directory.Exists(moved) ? moved : path;
     }
 
-    internal static void MigrateDirectory(string legacy, string current)
+    internal static void MigrateDirectory(string legacy, string current, bool allowLegacy = true)
     {
+        if (!allowLegacy) return;
         try
         {
             if (!Directory.Exists(legacy)) return;
@@ -113,28 +117,27 @@ public static class AppPaths
         }
     }
 
+    /// <summary>
+    /// Crash tests (tools/crash-test.ps1) point a DEBUG build at a throwaway folder instead of the owner's data.
+    /// Never in Release: an elevated Lycoris must not read a journal from a folder another process chose.
+    /// </summary>
+    internal static string? TestRoot { get; } = ReadTestRoot();
+
+    private static string? ReadTestRoot()
+    {
+#if DEBUG
+        var root = Environment.GetEnvironmentVariable("LYCORIS_TEST_ROOT");
+        return string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root);
+#else
+        return null;
+#endif
+    }
+
     public static string MachineDir { get; } = TestRoot is { } t ? Path.Combine(t, "machine") : Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), AppName);
 
     public static string UserDir { get; } = TestRoot is { } t ? Path.Combine(t, "user") : Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
-
-    /// <summary>
-    /// Crash tests (tools/crash-test.ps1) point a DEBUG build at a throwaway folder instead of the owner's data.
-    /// Never in Release: an elevated Lycoris must not read a journal from a folder another process chose.
-    /// </summary>
-    internal static string? TestRoot
-    {
-        get
-        {
-#if DEBUG
-            var root = Environment.GetEnvironmentVariable("LYCORIS_TEST_ROOT");
-            return string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root);
-#else
-            return null;
-#endif
-        }
-    }
 
     public static string JournalFile => Path.Combine(MachineDir, "journal.json");
     public static string BackupsDir => Path.Combine(MachineDir, "Backups");
@@ -207,7 +210,7 @@ public static class AppPaths
             if (_secured) return;
             try
             {
-                if (!Directory.Exists(MachineDir) && Directory.Exists(LegacyMachineDir))
+                if (LegacyDataAllowed && !Directory.Exists(MachineDir) && Directory.Exists(LegacyMachineDir))
                 {
                     try
                     {

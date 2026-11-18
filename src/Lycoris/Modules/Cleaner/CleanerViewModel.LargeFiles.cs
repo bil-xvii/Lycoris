@@ -13,6 +13,7 @@ public sealed partial class CleanerViewModel
 {
     public CleanerViewModel()
     {
+        HookExpertMode();
         // «--page cleaner --focus large-files» (QA snapshots, command palette): runs the read-only search, like the dashboard's «doctor» focus
         Ui.FocusRequested += request =>
         {

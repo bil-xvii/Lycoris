@@ -37,9 +37,9 @@
             </ItemsControl>
             <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}" Padding="10" Margin="0,0,0,8">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                    <StackPanel Grid.ColumnSpan="2" VerticalAlignment="Center">
                         <TextBlock Text="{loc:T Замер до / после}" Style="{StaticResource T.H3}" Foreground="{StaticResource B.Text}"/>
                         <TextBlock Text="{Binding MeasurementSummary}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0"/>
                         <TextBlock Text="{Binding MeasurementDetails}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="{Binding ExpertMode, Converter={StaticResource BoolToVis}}"/>
@@ -49,9 +49,12 @@
                         <TextBlock Text="{Binding MeasurementNote}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.WarningText}" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="{Binding MeasurementNote, Converter={StaticResource NullToVis}}"/>
                         <TextBlock Text="{loc:T Замер только читает данные и хранится на этом ПК}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"/>
                     </StackPanel>
-                    <Button Grid.Column="1" Style="{StaticResource Btn}" Content="{loc:T ЗАПИСАТЬ ЗАМЕР}" Command="{Binding RecordMeasurementCommand}" VerticalAlignment="Center"/>
+                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,6,0,0">
+                        <Button Style="{StaticResource Btn}" Content="{loc:T ЗАПИСАТЬ ЗАМЕР}" Command="{Binding RecordMeasurementCommand}" Margin="0,0,8,4"/>
+                        <Button Style="{StaticResource Btn}" Content="{loc:T ЭКСПОРТ ИСТОРИИ CSV}" Command="{Binding ExportMeasurementsCommand}" Margin="0,0,0,4"/>
+                    </WrapPanel>
                     <!-- History: newest first, «дата · показатели · изменение к предыдущему»; differences inside the noise are said so. -->
-                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,8,0,0">
                         <StackPanel.Resources>
                         <DataTemplate x:Key="MeasurementRow">
                             <Border BorderBrush="{StaticResource B.Line}" BorderThickness="0,1,0,0" Padding="0,5,0,5">

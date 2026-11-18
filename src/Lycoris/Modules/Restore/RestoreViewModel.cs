@@ -151,6 +151,12 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(AppSettings.ExpertMode) or nameof(AppSettings.ServicesExpertMode))
+            Ui.Post(() =>
+            {
+                HasReapplicableDrift = DriftReapply.FilterForMode(_drift.Values.Where(DriftReapply.CanReapply), ExpertMode, AppSettings.Current.ServicesExpertMode).Count > 0;
+                Rebuild();
+            });
         if (e.PropertyName == nameof(AppSettings.CreateRestorePoints) && !_confirmingRestorePoints)
             Ui.Post(() => OnPropertyChanged(nameof(CreateRestorePoints)));
     }
@@ -287,7 +293,7 @@ public sealed partial class RestoreViewModel : PageViewModel
                 _drift = list.ToDictionary(d => d.Record.Id);
                 DriftCount = list.Count;
                 HasDrift = list.Count > 0;
-                HasReapplicableDrift = list.Any(DriftReapply.CanReapply);
+                HasReapplicableDrift = DriftReapply.FilterForMode(list.Where(DriftReapply.CanReapply), ExpertMode, AppSettings.Current.ServicesExpertMode).Count > 0;
                 DriftLine = list.Count == 0 ? "" :
                     Loc.T("Windows или другая программа изменила эти настройки после Lycoris.");
                 if (!HasDrift && Filter == JournalFilter.Drifted) Filter = JournalFilter.All; // rebuilds

@@ -86,7 +86,7 @@ public static class ScheduledTasks
     /// Creates or replaces a task from its XML (TASK_CREATE_OR_UPDATE). The principal comes from the XML; the logon type is
     /// InteractiveToken: the task runs only while that user is signed in, with no stored password.
     /// </summary>
-    public static void RegisterXml(string taskPath, string xml)
+    public static void RegisterXml(string taskPath, string xml, bool createOnly = false)
     {
         SafetyLock.ThrowIfLocked(Loc.T("изменение задачи планировщика"));
         Elevation.Demand(Loc.T("изменение задач планировщика"));
@@ -97,8 +97,8 @@ public static class ScheduledTasks
             service = CreateService();
             dynamic svc = service;
             dynamic f = svc.GetFolder(folder);
-            const int CreateOrUpdate = 6, InteractiveToken = 3;
-            f.RegisterTask(name, xml, CreateOrUpdate, null, null, InteractiveToken, null);
+            const int Create = 2, CreateOrUpdate = 6, InteractiveToken = 3;
+            f.RegisterTask(name, xml, createOnly ? Create : CreateOrUpdate, null, null, InteractiveToken, null);
         }
         finally
         {

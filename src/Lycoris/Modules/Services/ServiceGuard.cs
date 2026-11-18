@@ -9,8 +9,16 @@ namespace Lycoris.Modules.Services;
 public static class ServiceGuard
 {
     public static bool ExpertModeEnabled(bool expertMode, bool servicesExpertMode) => expertMode && servicesExpertMode;
-    public static bool CanReapplyService(bool isCurated, bool expertMode, bool servicesExpertMode) =>
-        isCurated || ExpertModeEnabled(expertMode, servicesExpertMode);
+    public static bool CanApplyRisk(Lycoris.Tweaks.TweakRisk risk, bool expertMode) =>
+        Lycoris.Modules.Optimize.OptimizeLogic.CanApplyRisk(risk, expertMode);
+
+    public static bool CanReapplyService(string name, bool expertMode, bool servicesExpertMode) =>
+        ServiceCatalog.Services.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)) is { } entry
+            ? CanApplyRisk(entry.Risk, expertMode) : ExpertModeEnabled(expertMode, servicesExpertMode);
+
+    public static bool CanReapplyTask(string path, bool expertMode) => ServiceCatalog.Tasks.FirstOrDefault(t =>
+        t.IsPrefix ? path.StartsWith(t.Path, StringComparison.OrdinalIgnoreCase) : path.Equals(t.Path, StringComparison.OrdinalIgnoreCase))
+        is not { } entry || CanApplyRisk(entry.Risk, expertMode);
 
     private static readonly string Core = Loc.T("Ядро Windows (RPC/COM): от неё зависит вся система.");
     private static readonly string Session = Loc.T("Вход в систему, профили, UAC и учётные записи.");

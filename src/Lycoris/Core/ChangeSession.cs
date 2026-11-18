@@ -1,6 +1,7 @@
 using System.IO;
 using System.ServiceProcess;
 using Microsoft.Win32;
+using Lycoris.Core.Background;
 using Lycoris.Core.Devices;
 
 namespace Lycoris.Core;
@@ -313,6 +314,50 @@ public sealed class ChangeSession
     /// <summary>Journal wording (Russian on disk, a fixed key translated where shown) of a maintenance task state.</summary>
     internal static string MaintenanceStateText(Maintenance.MaintenanceTaskSnapshot s) =>
         s.Exists ? Loc.Keep("Задача по расписанию") : Loc.Keep("Нет задачи");
+
+    internal bool SetBackgroundStartup(BackgroundStartupState expected, BackgroundStartupState desired, string title,
+        BackgroundStartupRegistration? testRegistration = null) => _journal.Exclusive(() =>
+    {
+        ChangeRecord? record = null;
+        BackgroundStartupRegistration? startup = null;
+        bool isNew = false;
+        try
+        {
+            SafetyLock.ThrowIfLocked(title);
+            if (!BypassElevationForTests) Elevation.Demand(title);
+            startup = BypassElevationForTests && testRegistration is not null
+                ? testRegistration : BackgroundStartupRegistration.ForInteractiveUser();
+            var before = startup.ReadState();
+            if (before != expected)
+                throw new InvalidOperationException(Loc.T("Задача автозапуска изменилась. Обновите её состояние и повторите действие."));
+            if (before == desired) return true;
+            var incoming = new ChangeRecord
+            {
+                BatchId = Batch.Id, Source = BackgroundStartupRegistration.Source, Title = title, Kind = ChangeKind.ScheduledTask,
+                UserSid = startup.Sid, Target = BackgroundStartupRegistration.TargetFor(startup.Sid),
+                TaskPath = BackgroundStartupRegistration.PathFor(startup.Sid), BackgroundStartup = startup.Snapshot(before),
+                OldValue = BackgroundStartupRegistration.StateText(before), NewValue = BackgroundStartupRegistration.StateText(desired),
+            };
+            RefuseUntrusted(incoming);
+            (record, isNew) = _journal.Add(incoming);
+            startup.Apply(before, desired);
+            if (!isNew) _journal.MergeInto(record, incoming);
+            Applied++;
+            Log.Info("{0}: {1} → {2}", title, incoming.OldValue, incoming.NewValue);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // A scheduler or connection failure can occur after the write. Keep undo unless we can still see the original.
+            if (record is not null && isNew && startup is not null)
+            {
+                try { if (startup.ReadState() == expected) _journal.Remove(record); }
+                catch { }
+            }
+            Fail(title, ex);
+            return false;
+        }
+    });
 
     // ───────────────────────────── Commands ─────────────────────────────
 

@@ -107,6 +107,9 @@ public sealed partial class ServicesViewModel
     [RelayCommand(CanExecute = nameof(CanApplyTasks))]
     private async Task ApplyTasksAsync(string? paths)
     {
+        var requested = IntentList.Unpack(paths);
+        if (!TaskItems.Any(t => ServiceGuard.CanApplyRisk(t.Risk, ExpertMode) &&
+            (requested is { Count: > 0 } ? requested.Contains(t.Path, StringComparer.OrdinalIgnoreCase) : t.IsSelected))) return;
         if (!RequireAdmin(Loc.T("отключение задач планировщика"), "ApplyTasks", IntentList.Pack(TaskItems.Where(t => t.IsSelected && t.CanSelect).Select(t => t.Path)))) return;
         if (IntentList.Unpack(paths) is { Count: > 0 } replayed)
         {
@@ -150,6 +153,7 @@ public sealed partial class ServicesViewModel
             await Task.Run(() =>
             {
                 foreach (var t in plan)
+                    if (ServiceGuard.CanApplyRisk(t.Risk, ExpertMode))
                     session.SetTaskEnabled(t.Path, false, TaskSource, string.Format(Loc.Keep("Задача «{0}»"), t.RuTitle));
                 session.Complete();
             });

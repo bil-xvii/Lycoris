@@ -270,7 +270,7 @@ public static class NetworkCards
                 var title = kw switch { "*EEE" => Loc.T("Энергосберегающий Ethernet (EEE)"), "EEE" => Loc.T("Энергосберегающий Ethernet (Realtek)"), _ => Loc.T("Расширенный EEE (Realtek)") };
                 card.Settings.Add(new DeviceSetting
                 {
-                    Id = "nic:" + kw, Title = title, Order = order++, Control = SettingControl.Toggle,
+                    Id = "nic:" + kw, Title = title, Order = order++, Control = SettingControl.Toggle, RequiresExpertMode = true,
                     Hint = Loc.T("Выключение — обходной путь при обрывах на Intel I225/I226 и Killer. Сначала обновите драйвер"),
                     Default = p.DefaultValue is { } d && long.TryParse(d, out var dn) ? DeviceValue.Of(dn) : null, AppliesWhen = Loc.T("ПЕРЕЗАПУСК АДАПТЕРА"),
                     JournalTarget = DeviceTargets.NicProperty(a.InterfaceGuid, kw), ReadCurrent = () => ReadNumber(a.InterfaceGuid, kw),
@@ -330,6 +330,8 @@ public static class NetworkCards
     internal static Func<ChangeSession, DeviceValue, CancellationToken, Task<ApplyOutcome>> NicApply(NetAdapterInfo a, string keyword, string title,
         Func<DeviceValue, string> describe, DeviceResultStore results) => async (session, value, ct) =>
     {
+        var needsExpert = keyword is "*EEE" or "EEE" or "AdvancedEEE";
+        if (needsExpert && !AppSettings.Current.ExpertMode) return ApplyOutcome.Blocked;
         var name = NetFindings.Short(a.Description);
         if (NetGames.RunningGame() is { } game)
         {
@@ -346,8 +348,9 @@ public static class NetworkCards
             Loc.Tf("{0}: «{1}» → {2}. Драйвер перезапустит адаптер: связь пропадёт на 1–6 секунд, загрузки, голосовой чат " +
             "и онлайн-матч прервутся. Вернуть прежнее значение можно кнопкой «ОТКАТИТЬ».", name, title, describe(value)), confirmText: Loc.T("ПЕРЕЗАПУСТИТЬ"));
         if (!ok) return ApplyOutcome.Declined;
+        if (needsExpert && !AppSettings.Current.ExpertMode) return ApplyOutcome.Blocked;
         var target = value.Key;
-        var applied = await Task.Run(() => session.SetNicAdvancedProperty(a.InterfaceGuid, keyword, target, DeviceTargets.Source, $"{name}: {title}"),
+        var applied = await Task.Run(() => (!needsExpert || AppSettings.Current.ExpertMode) && session.SetNicAdvancedProperty(a.InterfaceGuid, keyword, target, DeviceTargets.Source, $"{name}: {title}"),
             CancellationToken.None);
         if (!applied) return ApplyOutcome.Failed;
         if (keyword == "*SpeedDuplex") await CheckLinkAsync(a.InterfaceGuid, name, results).ConfigureAwait(false);

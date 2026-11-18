@@ -157,6 +157,21 @@ public sealed partial class DeviceSetting : ObservableObject
 {
     public required string Id { get; init; }
     public required string Title { get; init; }
+    /// <summary>Advanced manual controls only; reading and undo stay available in both modes.</summary>
+    public bool RequiresExpertMode { get; init; }
+    public bool IsModeAllowed => !RequiresExpertMode || AppSettings.Current.ExpertMode;
+    public bool IsModeVisible => IsModeAllowed || CanRevert;
+    public bool ShowApply => IsModeAllowed && !IsReadOnly;
+    internal void RefreshMode()
+    {
+        if (!IsModeAllowed) Staged = null;
+        OnPropertyChanged(nameof(IsModeAllowed));
+        OnPropertyChanged(nameof(IsModeVisible));
+        OnPropertyChanged(nameof(CanApply));
+        OnPropertyChanged(nameof(ControlsEnabled));
+        OnPropertyChanged(nameof(ShowApply));
+    }
+    partial void OnCanRevertChanged(bool value) => OnPropertyChanged(nameof(IsModeVisible));
     /// <summary>One line: what it does, why, when it applies (≤ 120 characters).</summary>
     public string Hint { get; init; } = "";
     public SettingControl Control { get; init; } = SettingControl.Info;
@@ -281,9 +296,9 @@ public sealed partial class DeviceSetting : ObservableObject
     public string? StagedKey => Staged?.Key;
 
     public bool IsDirty => Staged is { } s && (Current is not { } c || !SameValue(s, c));
-    public bool CanApply => !IsReadOnly && IsDirty && DisabledReason is null && !IsApplying;
+    public bool CanApply => IsModeAllowed && !IsReadOnly && IsDirty && DisabledReason is null && !IsApplying;
     /// <summary>The row's control can be used (moving it only stages a value; ПРИМЕНИТЬ applies).</summary>
-    public bool ControlsEnabled => !IsReadOnly && DisabledReason is null && !IsApplying;
+    public bool ControlsEnabled => IsModeAllowed && !IsReadOnly && DisabledReason is null && !IsApplying;
     /// <summary>
     /// The live value. An Info row whose only value comes from its own measurement (DPI, polling rate, ping) says «не измерено»
     /// until it ran; a row with a Windows value and a measurement beside it (the microphone level) shows that value or «—».

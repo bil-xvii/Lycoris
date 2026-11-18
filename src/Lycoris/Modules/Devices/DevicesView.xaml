@@ -114,7 +114,7 @@
 
         <!-- ─────────────── One setting (ВРУЧНУЮ) ─────────────── -->
         <DataTemplate x:Key="SettingRow" DataType="{x:Type local:DeviceSetting}">
-            <Border Style="{StaticResource Dev.Row}">
+            <Border Style="{StaticResource Dev.Row}" Visibility="{Binding IsModeVisible, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -130,6 +130,8 @@
                             <TextBlock Text="{Binding Title}" Style="{StaticResource T.BodyStrong}" FontSize="13" TextWrapping="Wrap" />
                             <TextBlock Text="{Binding Hint}" Style="{StaticResource Dev.Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
                                        Visibility="{Binding Hint, Converter={StaticResource NullToVis}}" />
+                            <TextBlock Text="{loc:T 'Доступно в режиме «Эксперт».'}" Style="{StaticResource Dev.Caption}" TextWrapping="Wrap"
+                                       Visibility="{Binding IsModeAllowed, Converter={StaticResource InverseBoolToVis}}" />
                             <!-- the reason a row is grey: text, not a tooltip -->
                             <TextBlock Text="{Binding DisabledReason}" Style="{StaticResource Dev.Caption}" Foreground="{StaticResource B.Text}" Margin="0,2,0,0" TextWrapping="Wrap"
                                        Visibility="{Binding DisabledReason, Converter={StaticResource NullToVis}}" />
@@ -165,7 +167,7 @@
                         </StackPanel>
 
                         <!-- The control (never applies by itself: only ПРИМЕНИТЬ does) -->
-                        <Grid Grid.Column="1" VerticalAlignment="Center" IsEnabled="{Binding ControlsEnabled}">
+                        <Grid Grid.Column="1" VerticalAlignment="Center" IsEnabled="{Binding ControlsEnabled}" Visibility="{Binding IsModeAllowed, Converter={StaticResource BoolToVis}}">
                             <!-- Slider -->
                             <StackPanel Visibility="{Binding Control, Converter={StaticResource EqualsToVis}, ConverterParameter=Slider}">
                                 <Grid>
@@ -216,7 +218,7 @@
                             <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Margin="6,0,0,0" IsEnabled="{Binding CanApply}"
                                         Command="{Binding DataContext.ApplySettingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                        Visibility="{Binding IsReadOnly, Converter={StaticResource InverseBoolToVis}}" ToolTip="{loc:T 'Применить только эту настройку (через журнал)'}">
+                                        Visibility="{Binding ShowApply, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Применить только эту настройку (через журнал)'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                                         <TextBlock Text="{loc:T 'ПРИМЕНИТЬ'}" VerticalAlignment="Center" />

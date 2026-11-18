@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Lycoris.Core.Background;
 using Lycoris.Core.Devices;
 using Lycoris.Modules.Services;
 using Lycoris.Tweaks;
@@ -78,6 +79,7 @@ public sealed class ChangeRecord
     public string? TaskPath { get; init; }
     /// <summary>Lycoris's own maintenance task (source "maintenance"): its state before this change (absent = the undo deletes it).</summary>
     public Lycoris.Core.Maintenance.MaintenanceTaskSnapshot? MaintenanceTask { get; set; }
+    public BackgroundStartupSnapshot? BackgroundStartup { get; set; }
     public string? RevertFile { get; set; }
     public string? RevertArgs { get; set; }
 
@@ -193,6 +195,7 @@ public static class UserScope
     {
         ChangeKind.Registry => reg is not null ? reg.Hive == RegHive.HKCU : target.StartsWith(@"reg:HKCU\", StringComparison.OrdinalIgnoreCase),
         ChangeKind.Command => target.StartsWith("cmd:", StringComparison.Ordinal) && IsPerUserCommand(target[4..]),
+        ChangeKind.ScheduledTask => BackgroundStartupRegistration.IsTarget(target),
         ChangeKind.UserParameter => true,
         _ => false,
     };
@@ -735,11 +738,12 @@ public sealed class ChangeJournal
     private readonly record struct RestoreInputs(string OldValue, RegistryValueSnapshot? Registry, ServiceStartSnapshot? Service,
         Guid? PlanOriginal, Guid? PlanCreated, string PlansMore, bool? TaskWasEnabled, string? RevertFile, string? RevertArgs,
         SpiSnapshot? Spi, DisplayModeSnapshot? DisplayMode, DisplayHdrSnapshot? DisplayHdr, MonitorVcpSnapshot? Monitor,
-        AudioLevelSnapshot? Audio, NicPropertySnapshot? Nic, Lycoris.Core.Maintenance.MaintenanceTaskSnapshot? MaintenanceTask)
+        AudioLevelSnapshot? Audio, NicPropertySnapshot? Nic, Lycoris.Core.Maintenance.MaintenanceTaskSnapshot? MaintenanceTask,
+        BackgroundStartupSnapshot? BackgroundStartup)
     {
         public static RestoreInputs Of(ChangeRecord r) => new(r.OldValue, r.Registry, r.Service, r.PowerSchemeOriginal,
             r.PowerSchemeCreated, string.Join(",", r.PowerSchemesCreatedMore ?? []), r.TaskWasEnabled, r.RevertFile, r.RevertArgs,
-            r.Spi, r.DisplayMode, r.DisplayHdr, r.Monitor, r.Audio, r.Nic, r.MaintenanceTask);
+            r.Spi, r.DisplayMode, r.DisplayHdr, r.Monitor, r.Audio, r.Nic, r.MaintenanceTask, r.BackgroundStartup);
     }
 
     private async Task<RevertResult> RevertCoreAsync(IEnumerable<ChangeRecord> records, Func<ChangeRecord, RevertCheck>? verify)
@@ -899,8 +903,13 @@ public sealed class ChangeJournal
         bool saved;
         lock (_lock)
         {
+            if (r.BackgroundStartup is { } startup && startup.ExecutableHash != newer.BackgroundStartup?.ExecutableHash)
+                throw new InvalidOperationException(Loc.Tf(
+                    "Записи автозапуска относятся к разным папкам Lycoris. Сначала отмените более позднее изменение «{0}».", newer.Title));
+
             var backup = (newer.OldValue, newer.Registry, newer.Service, newer.PowerSchemeOriginal, newer.PowerSchemeCreated,
-                More: newer.PowerSchemesCreatedMore?.ToList(), newer.TaskWasEnabled, newer.RevertFile, newer.RevertArgs, newer.MaintenanceTask);
+                More: newer.PowerSchemesCreatedMore?.ToList(), newer.TaskWasEnabled, newer.RevertFile, newer.RevertArgs,
+                newer.MaintenanceTask, newer.BackgroundStartup);
             var deviceBackup = (newer.Spi, newer.DisplayMode, newer.DisplayHdr, newer.Monitor, newer.Audio, newer.Nic);
             newer.OldValue = r.OldValue;
             switch (r.Kind)
@@ -911,6 +920,7 @@ public sealed class ChangeJournal
                 case ChangeKind.ScheduledTask:
                     newer.TaskWasEnabled = r.TaskWasEnabled;
                     newer.MaintenanceTask = r.MaintenanceTask;
+                    newer.BackgroundStartup = r.BackgroundStartup;
                     break;
                 case ChangeKind.Command:
                     newer.RevertFile = r.RevertFile;
@@ -956,6 +966,7 @@ public sealed class ChangeJournal
                 newer.PowerSchemesCreatedMore = backup.More;
                 newer.TaskWasEnabled = backup.TaskWasEnabled;
                 newer.MaintenanceTask = backup.MaintenanceTask;
+                newer.BackgroundStartup = backup.BackgroundStartup;
                 newer.RevertFile = backup.RevertFile;
                 newer.RevertArgs = backup.RevertArgs;
                 (newer.Spi, newer.DisplayMode, newer.DisplayHdr, newer.Monitor, newer.Audio, newer.Nic) = deviceBackup;
@@ -1355,6 +1366,10 @@ internal sealed class WindowsJournalSystem : IJournalSystem
                 Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Apply(original);
                 return RevertOutcome.Done;
 
+            case ChangeKind.ScheduledTask when r.Source == BackgroundStartupRegistration.Source && r.BackgroundStartup is { } startup:
+                BackgroundStartupRegistration.ForInteractiveUser().Restore(r.UserSid!, startup);
+                return RevertOutcome.Done;
+
             case ChangeKind.ScheduledTask when r.TaskPath is not null && r.TaskWasEnabled is { } wasEnabled:
                 var taskNow = ScheduledTasks.Query(r.TaskPath);
                 // The scheduler not answering is not «the task is gone»: closing the record would leave the task changed for good.
@@ -1439,7 +1454,7 @@ internal static class JournalTrust
     private static readonly HashSet<string> ModuleSources = new(StringComparer.Ordinal)
     {
         "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers", "games", DeviceTargets.Source,
-        Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source,
+        Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source, BackgroundStartupRegistration.Source,
     };
 
     /// <summary>Kinds only the «Устройства и сеть» page writes (and the only kinds it writes).</summary>
@@ -1466,7 +1481,8 @@ internal static class JournalTrust
         ChangeKind? expected = r.Source switch
         {
             "services" => ChangeKind.Service,
-            "services-tasks" or "startup-tasks" or Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source => ChangeKind.ScheduledTask,
+            "services-tasks" or "startup-tasks" or Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source
+                or BackgroundStartupRegistration.Source => ChangeKind.ScheduledTask,
             "startup" or "games" => ChangeKind.Registry,
             // The game session switches the plan or, where no plan switch is possible, the Windows 11 AC power mode.
             "gameboost" => r.Kind == ChangeKind.Command ? ChangeKind.Command : ChangeKind.PowerScheme,
@@ -1478,6 +1494,11 @@ internal static class JournalTrust
         if (r.Source == DeviceTargets.Source && !deviceKind) return Loc.Tf("источник «{0}» не создаёт записи типа {1}", r.Source, r.Kind);
         if (deviceKind && (r.Source != DeviceTargets.Source || r.AlsoSources.Count > 0))
             return Loc.Tf("записи типа {0} создаёт только раздел «Устройства и сеть»", r.Kind);
+
+        if (r.Source == BackgroundStartupRegistration.Source || r.BackgroundStartup is not null
+            || BackgroundStartupRegistration.IsTarget(r.Target) || BackgroundStartupRegistration.IsReservedTask(r.TaskPath)
+            || r.AlsoSources.Contains(BackgroundStartupRegistration.Source))
+            return CheckBackgroundStartup(r);
 
         // An account is recorded only for changes in one account's profile.
         if (r.UserSid is { } sid)
@@ -1567,6 +1588,16 @@ internal static class JournalTrust
         if (r.TaskWasEnabled is not null) return Loc.T("лишние данные в записи задачи обслуживания");
         if (r.MaintenanceTask is not { } original) return Loc.T("в записи задачи обслуживания нет исходного состояния");
         return original.Problem();
+    }
+
+    private static string? CheckBackgroundStartup(ChangeRecord r)
+    {
+        if (r.Kind == ChangeKind.ScheduledTask && r.Source == BackgroundStartupRegistration.Source && r.AlsoSources.Count == 0
+            && r.UserSid is { } sid && UserScope.SidPattern.IsMatch(sid)
+            && r.Target == BackgroundStartupRegistration.TargetFor(sid) && r.TaskPath == BackgroundStartupRegistration.PathFor(sid)
+            && r.BackgroundStartup is { IsValid: true } original && r.OldValue == BackgroundStartupRegistration.StateText(original.State)
+            && r.TaskWasEnabled is null && r.MaintenanceTask is null && r.RevertFile is null && r.RevertArgs is null) return null;
+        return Loc.T("некорректная запись задачи автозапуска Lycoris");
     }
 
     // ───────────────────────────── Device records ─────────────────────────────

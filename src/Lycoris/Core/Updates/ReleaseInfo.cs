@@ -50,7 +50,7 @@ public static class ReleaseParser
     public const string ShaAssetName = "Lycoris.exe.sha256";
     public const string SigAssetName = "Lycoris.exe.sig";
 
-    private static readonly JsonSerializerOptions CacheOptions = new() { WriteIndented = false };
+    private static readonly JsonSerializerOptions CacheOptions = new() { WriteIndented = false, RespectNullableAnnotations = true };
 
     /// <summary>
     /// Reads the answer of GET /repos/…/releases/latest. A draft, a pre-release, a tag that is not a version or a release

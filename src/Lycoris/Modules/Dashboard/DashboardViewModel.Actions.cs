@@ -372,11 +372,7 @@ public sealed partial class DashboardViewModel
         try
         {
             var last = new Lycoris.Core.Measurements.MeasurementStore().Read().LastOrDefault();
-            if (last is not null)
-                measurement = Loc.Tf("Последний замер {0}: автозапуск — {1}, свободная память — {2} МБ, время загрузки — {3}",
-                    last.RecordedAt.ToLocalTime().ToString("g"), last.Conditions.EnabledStartupItems,
-                    (last.Conditions.FreeMemoryBytes ?? 0) / 1024 / 1024,
-                    last.Conditions.BootTimeSeconds is { } s ? Loc.Tf("{0} с", s.ToString("0.0")) : Loc.T("недоступно"));
+            measurement = FormatHealthReportMeasurement(last);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         // The FPS «до / после» of the Games page (PresentMon) joins the same section of the report.
@@ -385,5 +381,14 @@ public sealed partial class DashboardViewModel
         if (fpsLine.Length > 0) measurement = string.IsNullOrEmpty(measurement) ? fpsLine : measurement + ". " + fpsLine;
         var version = typeof(DashboardViewModel).Assembly.GetName().Version?.ToString(3) ?? "?";
         return new(DateTime.Now, version, Score, Verdict, checks, system, measurement);
+    }
+
+    internal static string? FormatHealthReportMeasurement(Lycoris.Core.Measurements.Measurement? measurement)
+    {
+        if (measurement is null) return null;
+        return Loc.Tf("Последний замер {0}: автозапуск — {1}, свободная память — {2}, время загрузки — {3}",
+            measurement.RecordedAt.ToLocalTime().ToString("g"), measurement.Conditions.EnabledStartupItems,
+            measurement.Conditions.FreeMemoryBytes is { } bytes ? Loc.Tf("{0} МБ", bytes / 1024 / 1024) : Loc.T("недоступно"),
+            measurement.Conditions.BootTimeSeconds is { } s ? Loc.Tf("{0} с", s.ToString("0.0")) : Loc.T("недоступно"));
     }
 }

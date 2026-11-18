@@ -76,7 +76,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         "EnableProtection", "EnableSelectedStartup", "ExportBackup", "FixSafe", "GpuDownload", "InstallHardware", "InstallUpdates",
         "AddPriorityRule", "MeasureFps", "PlayBoostedGame", "ReapplyAllDrift", "ReapplyDrift", "RepairWindows", "RestoreBackup", "RestoreStale", "RevertAll", "RevertBatch",
         "RevertItem", "RevertLastBatch", "RevertRecord", "RevertService", "RevertSetting", "RemovePriorityRule", "RevertTask", "RunCheck", "RunTool", "ScheduleMaintenance", "ShowPoints",
-        "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
+        "SetBackgroundStartup", "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
     };
 
     public static bool IsReplayable(string name) => Replayable.Contains(name.Trim());

@@ -22,6 +22,7 @@ public static class SettingsDefaults
         target.ServicesExpertMode = d.ServicesExpertMode;
         target.ExpertMode = d.ExpertMode;
         target.ShowConsole = d.ShowConsole;
+        target.CloseToTray = d.CloseToTray;
         target.AutoCheckUpdates = d.AutoCheckUpdates;
         target.MonitorIntervalMs = d.MonitorIntervalMs;
         target.LastProfile = d.LastProfile;
@@ -41,6 +42,7 @@ public static class SettingsDefaults
             Loc.Tf("Экспертный режим служб — {0}", OnOff(d.ServicesExpertMode)),
             Loc.Tf("Режим подробностей интерфейса — {0}", d.ExpertMode ? Loc.T("экспертный") : Loc.T("простой")),
             Loc.Tf("Консоль операций — {0}", d.ShowConsole ? Loc.T("показана") : Loc.T("скрыта")),
+            Loc.T("Сворачивание в область уведомлений при закрытии — выключено"),
             Loc.Tf("Автоматическая проверка обновлений — {0}", OnOff(d.AutoCheckUpdates)),
             Loc.Tf("Интервал обновления мониторинга — {0}", FormatInterval(d.MonitorIntervalMs)),
             Loc.Tf("Игровой сеанс: план питания — {0}, приоритет игры — {1}, очистка памяти ожидания — {2}", OnOff(d.GameBoostPowerPlan), OnOff(d.GameBoostPriority), OnOff(d.GameBoostPurgeStandby)),

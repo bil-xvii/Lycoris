@@ -9,6 +9,7 @@
     "Shell/CommandPalette*",
     "Shell/Glossary.cs",
     "Shell/AdminIntent.cs",
+    "Shell/Background*.cs",
     "UI/**",
     "Core/Elevation.cs",
     "Core/OperationCoordinator.cs",
@@ -18,6 +19,9 @@
   ],
   "ignore": [],
   "en": {
+    "Открыть Lycoris": "Open Lycoris",
+    "Выйти из Lycoris": "Exit Lycoris",
+    "Значок Lycoris недоступен. Окно останется на экране.": "The Lycoris notification icon is unavailable. The window will stay visible.",
     "Включить режим Эксперт?": "Enable Expert mode?",
     "Откроются настройки уровня ЭКСПЕРТ и полный список служб. Они могут ухудшить безопасность, совместимость и работу ПК.": "EXPERT settings and the full service list will become available. They may reduce security, compatibility or PC stability.",
     "Изменения по-прежнему записываются в журнал и откатываются в разделе «Восстановление».": "Changes will still be recorded in the journal and can be reverted in Restore.",

@@ -37,7 +37,7 @@ public sealed partial class DevicesViewModel : PageViewModel
     public override string Key => PageKey;
     public override string Index => "07";
     public override string Title => Loc.T("УСТРОЙСТВА И СЕТЬ");
-    public override string Subtitle => Loc.T("Мышь, клавиатура, мониторы, звук и сеть: автонастройка и ручные параметры.");
+    public override string Subtitle => Loc.T("Мышь, клавиатура, экран, звук и сеть. Расширенные параметры Ethernet — в режиме «Эксперт».");
     public override string Glyph => Glyphs.Mouse;
 
     private readonly DeviceResultStore _results = new();
@@ -51,6 +51,16 @@ public sealed partial class DevicesViewModel : PageViewModel
 
     public DevicesViewModel()
     {
+        AppSettings.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AppSettings.ExpertMode)) return;
+            DeviceUi.Post(() =>
+            {
+                RefreshExpertMode();
+                foreach (var setting in Cards.SelectMany(c => c.Settings)) setting.RefreshMode();
+                foreach (var item in PlanItems.Concat(OptionalItems).Where(p => !p.Setting.IsModeAllowed)) item.IsSelected = false;
+            });
+        };
         _selectedTab = AppSettings.Current.DevicesTab == TabManual ? TabManual : TabAuto;
         Ui.FocusRequested += r =>
         {
@@ -496,6 +506,7 @@ public sealed partial class DevicesViewModel : PageViewModel
     [RelayCommand]
     private async Task ApplySettingAsync(object? parameter)
     {
+        if (parameter is DeviceSetting { IsModeAllowed: false }) return;
         // Read-only: the intent carries «card|setting|value» (text); the elevated copy validates the value against the row's own
         // options before staging it, then applies it through this same command.
         if (parameter is DeviceSetting clicked)

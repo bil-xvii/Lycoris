@@ -8,6 +8,8 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Lycoris.Core;
+using Lycoris.Core.Background;
 using Lycoris.Modules.Maintenance;
 using Lycoris.Core.Localization;
 using Lycoris.UI;
@@ -73,6 +75,8 @@ public partial class MainWindow : Window
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.CurrentPage)) PlayPageEnter();
+            if (e.PropertyName == nameof(MainViewModel.Dialog) && _vm.Dialog is not null && _hiddenInBackground)
+                RestoreFromBackground();
         };
         // Scroll after the list has finished handling the change (never a layout pass inside CollectionChanged).
         ((INotifyCollectionChanged)ConsoleList.Items).CollectionChanged += (_, e) =>
@@ -87,6 +91,110 @@ public partial class MainWindow : Window
 
     private bool _wasMinimized;
     private bool _exitConfirmed;
+    private bool _confirmingExit;
+    private bool _explicitExit;
+    private bool _closed;
+    private bool _hiddenInBackground;
+    private bool _startupTray;
+    private PageViewModel? _suspendedPage;
+    private BackgroundTray? _tray;
+
+    private bool CanHide => BackgroundModePolicy.CanHideOnClose(AppSettings.Current.CloseToTray,
+        _tray?.Ready == true, HasOpenDialog, _explicitExit || _exitConfirmed || _closed || Dispatcher.HasShutdownStarted);
+
+    private bool HasOpenDialog => _vm.Dialog is not null || Wizard.IsOpen || !IsEnabled
+        || OwnedWindows.Cast<Window>().Any(window => window.IsVisible);
+
+    internal bool InitializeBackgroundMode(BackgroundWindowActivation activation, bool logonLaunch)
+    {
+        var handle = new WindowInteropHelper(this).EnsureHandle();
+        if (HwndSource.FromHwnd(handle) is not { } source) return false;
+        _tray = new BackgroundTray(source, activation, RestoreFromBackground, ExitFromTray, TrayUnavailable);
+        _startupTray = logonLaunch;
+        UpdateTray();
+        AppSettings.Current.PropertyChanged += BackgroundSettingChanged;
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            AppSettings.Current.PropertyChanged -= BackgroundSettingChanged;
+            _tray.Dispose();
+        };
+        _hiddenInBackground = BackgroundModePolicy.CanStartHidden(logonLaunch, _tray.Ready, HasOpenDialog);
+        if (!_hiddenInBackground && _startupTray)
+        {
+            _startupTray = false;
+            if (!AppSettings.Current.CloseToTray) _tray.RemoveIcon();
+        }
+        return _hiddenInBackground;
+    }
+
+    internal void BeginSessionExit() => _explicitExit = true;
+
+    private void BackgroundSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(AppSettings.CloseToTray)) return;
+        if (Dispatcher.CheckAccess()) ApplyBackgroundPreference();
+        else Dispatcher.BeginInvoke((Action)ApplyBackgroundPreference);
+    }
+
+    private void ApplyBackgroundPreference()
+    {
+        if (!AppSettings.Current.CloseToTray) _startupTray = false;
+        UpdateTray();
+    }
+
+    private void UpdateTray()
+    {
+        if (_closed || _tray is null) return;
+        if (AppSettings.Current.CloseToTray || _startupTray)
+        {
+            if (!_tray.ShowIcon()) TrayUnavailable();
+            return;
+        }
+        if (BackgroundModePolicy.ShouldReveal(_hiddenInBackground, trayReady: false)) RestoreFromBackground();
+        _tray.RemoveIcon();
+    }
+
+    private void TrayUnavailable()
+    {
+        if (BackgroundModePolicy.ShouldReveal(_hiddenInBackground, _tray?.Ready == true)) RestoreFromBackground();
+        Ui.Toast(Loc.T("Значок Lycoris недоступен. Окно останется на экране."), ToastKind.Warning);
+    }
+
+    private void RestoreFromBackground()
+    {
+        if (_closed || Dispatcher.HasShutdownStarted) return;
+        _hiddenInBackground = false;
+        if (!IsVisible) Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        _suspendedPage?.ResumeFromMinimize();
+        _suspendedPage = null;
+        Activate();
+        if (!_startupTray) return;
+        _startupTray = false;
+        if (!AppSettings.Current.CloseToTray) _tray?.RemoveIcon();
+    }
+
+    private void HideInBackground()
+    {
+        if (!IsVisible || !CanHide) return;
+        if (WindowState != WindowState.Minimized)
+        {
+            _suspendedPage = _vm.CurrentPage;
+            _suspendedPage?.SuspendForMinimize();
+        }
+        _hiddenInBackground = true;
+        Hide();
+    }
+
+    private void ExitFromTray()
+    {
+        RestoreFromBackground();
+        if (_closed || HasOpenDialog) return;
+        _explicitExit = true;
+        try { Close(); }
+        finally { _explicitExit = false; }
+    }
 
     /// <summary>
     /// Closing with operations running (an install, a repair, a queued change): one dialog lists them — wait / cancel the safe
@@ -95,13 +203,20 @@ public partial class MainWindow : Window
     /// </summary>
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        if (CanHide)
+        {
+            e.Cancel = true;
+            // WPF disallows Hide during a Closing event. A managed shutdown ignores cancellation and closes first.
+            Dispatcher.BeginInvoke((Action)HideInBackground);
+            return;
+        }
         if (!_exitConfirmed && !Dispatcher.HasShutdownStarted && Lycoris.UI.Ui.AutoAnswer is null)
         {
             var plan = Lycoris.Core.ExitPlan.From(Lycoris.Core.OperationCoordinator.Instance.Snapshot());
             if (plan.NeedsDialog)
             {
                 e.Cancel = true;
-                _ = ConfirmExitAndCloseAsync();
+                if (!_confirmingExit) _ = ConfirmExitAndCloseAsync();
                 return;
             }
         }
@@ -110,6 +225,7 @@ public partial class MainWindow : Window
 
     private async Task ConfirmExitAndCloseAsync()
     {
+        _confirmingExit = true;
         bool leave;
         try { leave = await _vm.ConfirmExitAsync(); }
         catch (Exception ex)
@@ -117,7 +233,8 @@ public partial class MainWindow : Window
             Lycoris.Core.Log.Warn("Диалог выхода не показан: {0}", ex.Message);
             leave = true;
         }
-        if (!leave) return;
+        finally { _confirmingExit = false; }
+        if (!leave || _closed) return;
         _exitConfirmed = true;
         Close();
     }

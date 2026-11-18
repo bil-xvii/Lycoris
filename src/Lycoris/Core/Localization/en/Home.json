@@ -6,6 +6,11 @@
   ],
   "ignore": [],
   "en": {
+    "ЭКСПОРТ ИСТОРИИ CSV": "EXPORT HISTORY CSV",
+    "Сохранить историю замеров": "Save measurement history",
+    "CSV-файл (*.csv)": "CSV file (*.csv)",
+    "История замеров сохранена.": "Measurement history saved.",
+    "История замеров не сохранена: {0}": "Measurement history not saved: {0}",
     "Замер до / после": "Before / after measurement",
     "ЗАПИСАТЬ ЗАМЕР": "RECORD MEASUREMENT",
     "Замер только читает данные и хранится на этом ПК": "The measurement only reads data and is stored on this PC",

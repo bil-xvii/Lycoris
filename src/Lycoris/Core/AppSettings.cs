@@ -38,6 +38,8 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>Show the operations console at the bottom of the window (collapsed by default to leave room for content).</summary>
     [ObservableProperty] private bool _showConsole;
 
+    [ObservableProperty] private bool _closeToTray;
+
     /// <summary>Dashboard refresh interval in milliseconds.</summary>
     [ObservableProperty] private int _monitorIntervalMs = 1000;
 
@@ -73,6 +75,9 @@ public sealed partial class AppSettings : ObservableObject
 
     /// <summary>Extra folders with games the user added manually.</summary>
     [ObservableProperty] private List<string> _customGameFolders = [];
+
+    /// <summary>Stable library ids of favorite games, retained when a game or disk is temporarily absent.</summary>
+    [ObservableProperty] private List<string> _favoriteGameIds = [];
 
     [ObservableProperty] private bool _firstRunCompleted;
     [ObservableProperty] private bool _firstRunWizardInProgress;

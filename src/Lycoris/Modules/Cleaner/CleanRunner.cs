@@ -467,6 +467,7 @@ public static class SystemCleanup
     /// </summary>
     public static async Task<ComponentCleanupOutcome> RunComponentCleanupAsync(Action<string, double?> progress, CancellationToken ct)
     {
+        if (!AppSettings.Current.ExpertMode) return new(0, Loc.T("Доступно в режиме «Эксперт»."), null);
         var dism = ProcessRunner.Sys("Dism.exe");
         if (!File.Exists(dism)) return new(0, null, Loc.T("DISM не найден в System32."));
 
@@ -490,6 +491,7 @@ public static class SystemCleanup
         var before = FreeSpace(drive);
         progress(Loc.T("DISM очищает хранилище компонентов — не выключайте ПК…"), null);
         // Servicing is never killed: after the wait limit Lycoris stops waiting and leaves DISM to finish.
+        if (!AppSettings.Current.ExpertMode) return new(0, Loc.T("Доступно в режиме «Эксперт»."), null);
         var run = await ProcessRunner.RunAsync(dism, "/Online /English /Cleanup-Image /StartComponentCleanup",
             new ProcessRunOptions
             {

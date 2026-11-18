@@ -116,7 +116,7 @@
 
         <!-- ─────────────── Recommendation row ─────────────── -->
         <DataTemplate x:Key="RecRow" DataType="{x:Type local:RecommendationItem}">
-            <Border Style="{StaticResource Row}" Padding="0,11,12,11">
+            <Border Style="{StaticResource Row}" Padding="0,11,12,11" Visibility="{Binding IsModeVisible, Converter={StaticResource BoolToVis}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="56" />
@@ -269,7 +269,7 @@
 
         <!-- ─────────────── Scheduled task row ─────────────── -->
         <DataTemplate x:Key="TaskRow" DataType="{x:Type local:TaskItem}">
-            <Border Style="{StaticResource Row}" Padding="0,10,12,10">
+            <Border Style="{StaticResource Row}" Padding="0,10,12,10" Visibility="{Binding IsModeVisible, Converter={StaticResource BoolToVis}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="56" />
@@ -518,7 +518,7 @@
             </TabItem>
 
             <!-- ═══════════════ ВСЕ СЛУЖБЫ ═══════════════ -->
-            <TabItem>
+            <TabItem Visibility="{Binding ExpertMode, Converter={StaticResource BoolToVis}}">
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{loc:T ВСЕ СЛУЖБЫ}" />

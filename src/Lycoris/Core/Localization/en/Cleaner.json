@@ -17,6 +17,8 @@
   ],
   "ignore": [],
   "en": {
+    "Доступно в режиме «Эксперт».": "Available in Expert mode.",
+    "Анализ и удаление временных файлов и кэшей. Очистка WinSxS — в режиме «Эксперт».": "Analyze and remove temporary files and caches. WinSxS cleanup is available in Expert mode.",
     "файл": "file|files",
     "объект": "object|objects",
     "ЗАКРОЙТЕ ПРИЛОЖЕНИЕ": "CLOSE THE APP",

@@ -24,6 +24,12 @@ public sealed partial class GameCardViewModel : ObservableObject
     public bool IsAvailable => Entry.IsAvailable;
     public bool IsMissing => !Entry.IsAvailable;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FavoriteActionText))]
+    private bool _isFavorite;
+
+    public string FavoriteActionText => IsFavorite ? Loc.T("УБРАТЬ ИЗ ИЗБРАННОГО") : Loc.T("В ИЗБРАННОЕ");
+
     /// <summary>0 = dot grid, 1 = diagonal hatch, 2 = plain raised block (deterministic per game).</summary>
     public int CoverVariant { get; }
 

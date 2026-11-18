@@ -24,10 +24,28 @@ public sealed partial class CleanerViewModel : PageViewModel
     private bool _lastAnalysisCancelled;
     private long _lastProgressTicks;
 
+    private void HookExpertMode()
+    {
+        AppSettings.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(AppSettings.ExpertMode)) return;
+            void UpdateMode()
+            {
+                RefreshExpertMode();
+                foreach (var item in _items) item.RefreshMode();
+                RecalcSummary();
+            }
+            if (System.Windows.Application.Current is null) UpdateMode();
+            else Ui.Post(UpdateMode);
+        };
+    }
+
+    internal static bool CanCleanInMode(CleanItem item, bool expertMode) => item.Tier != CleanTier.Expert || expertMode;
+
     public override string Key => "cleaner";
     public override string Index => "04";
     public override string Title => Loc.T("ОЧИСТКА");
-    public override string Subtitle => Loc.T("Анализ и удаление временных файлов, кэшей и мусора — только из безопасных мест.");
+    public override string Subtitle => Loc.T("Анализ и удаление временных файлов и кэшей. Очистка WinSxS — в режиме «Эксперт».");
     public override string Glyph => Glyphs.Delete;
 
     public ObservableCollection<CleanGroup> Groups { get; } = [];
@@ -133,7 +151,7 @@ public sealed partial class CleanerViewModel : PageViewModel
             Ui.Toast(Loc.T("Идёт игровая сессия — очистка не запущена, чтобы не мешать игре. Повторите после выхода из игры."), ToastKind.Warning);
             return;
         }
-        var selected = _items.Where(i => i.IsChecked && i.IsSelectable).ToList();
+        var selected = _items.Where(i => i.IsChecked && i.IsSelectable && CanCleanInMode(i, ExpertMode)).ToList();
         if (selected.Count == 0)
         {
             Ui.Toast(Loc.T("Отметьте хотя бы один пункт для очистки."), ToastKind.Warning);
@@ -152,7 +170,7 @@ public sealed partial class CleanerViewModel : PageViewModel
             if (!ran || _lastAnalysisCancelled) return;
         }
 
-        selected = _items.Where(i => i.IsChecked && i.IsSelectable).ToList();
+        selected = _items.Where(i => i.IsChecked && i.IsSelectable && CanCleanInMode(i, ExpertMode)).ToList();
         var work = selected.Where(i => i.Analysis is { } a && a.HasWork(i.Definition.Method)).ToList();
         var idle = selected.Except(work).ToList();
 
@@ -223,7 +241,7 @@ public sealed partial class CleanerViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRun))]
     private void ResetSelection()
     {
-        foreach (var i in _items) i.IsChecked = i.Definition.DefaultChecked && i.IsSelectable;
+        foreach (var i in _items) i.IsChecked = i.Definition.DefaultChecked && i.IsSelectable && CanCleanInMode(i, ExpertMode);
         RecalcSummary();
     }
 
@@ -329,7 +347,7 @@ public sealed partial class CleanerViewModel : PageViewModel
                 {
                     item = new CleanItem(def);
                     item.ApplyAccess(env);
-                    item.IsChecked = def.DefaultChecked && item.IsSelectable;
+                    item.IsChecked = def.DefaultChecked && item.IsSelectable && CanCleanInMode(item, ExpertMode);
                     item.PropertyChanged += OnItemPropertyChanged;
                     _items.Add(item);
                     group.Items.Insert(Math.Min(k, group.Items.Count), item);
@@ -479,7 +497,9 @@ public sealed partial class CleanerViewModel : PageViewModel
 
     private async Task<List<(CleanItem Item, ItemCleanResult Result)>> CleanItemsAsync(List<CleanItem> work)
     {
+        work = work.Where(i => CanCleanInMode(i, ExpertMode)).ToList();
         var results = new List<(CleanItem, ItemCleanResult)>();
+        if (work.Count == 0) return results;
         if (_guard is not { } guard) return results;
         // The first check ran before the re-analysis and the confirmation dialog: a game session may have started since.
         if (GameBoostState.IsActive)
@@ -508,6 +528,7 @@ public sealed partial class CleanerViewModel : PageViewModel
         for (var k = 0; k < work.Count; k++)
         {
             var item = work[k];
+            if (!CanCleanInMode(item, ExpertMode)) continue;
             if (ct.IsCancellationRequested)
             {
                 foreach (var rest in work.Skip(k)) rest.SetCancelled();
@@ -542,6 +563,7 @@ public sealed partial class CleanerViewModel : PageViewModel
                         r = await CleanRunner.CleanDeliveryOptimizationAsync(item.Definition, a, env, ct);
                         break;
                     case CleanMethod.ComponentStore:
+                        if (!CanCleanInMode(item, ExpertMode)) continue;
                         CanCancel = false;
                         WorkIndeterminate = true;
                         r = await CleanRunner.CleanComponentStoreAsync(item.Definition, env, (text, pct) => Ui.Post(() =>
@@ -667,7 +689,7 @@ public sealed partial class CleanerViewModel : PageViewModel
             FoundCaption = Loc.Tf("{0} в {1}", CleanFormat.Files(files), Loc.N(places, "{0} месте", "{0} местах", "{0} местах"));
         }
 
-        var selected = _items.Where(i => i.IsChecked && i.IsSelectable).ToList();
+        var selected = _items.Where(i => i.IsChecked && i.IsSelectable && CanCleanInMode(i, ExpertMode)).ToList();
         if (selected.Any(i => i.Analysis is not null))
             (SelectedValue, SelectedUnit) = CleanFormat.Split(selected.Sum(i => i.CleanableBytes));
         else

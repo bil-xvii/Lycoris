@@ -33,7 +33,7 @@
 
         <!-- ═══════════════ One cleanup item ═══════════════ -->
         <DataTemplate x:Key="ItemRow" DataType="{x:Type local:CleanItem}">
-            <Grid>
+            <Grid Visibility="{Binding IsModeAllowed, Converter={StaticResource BoolToVis}}">
                 <Border Padding="14,11,15,11" MouseLeftButtonUp="Row_MouseLeftButtonUp">
                     <Border.Style>
                         <Style TargetType="Border" BasedOn="{StaticResource Row}">
