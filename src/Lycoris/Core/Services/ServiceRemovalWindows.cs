@@ -10,6 +10,19 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Lycoris.Core.Services;
 
+internal readonly record struct ServiceManagementObservation<T>(int? ReturnCode, T? Value, string? ExceptionType) where T : struct;
+
+internal readonly record struct ServiceManagementEvidence(
+    ServiceManagementObservation<int> Domain, ServiceManagementObservation<bool> Entra, ServiceManagementObservation<bool> Mdm)
+{
+    internal bool ProvenUnmanaged =>
+        Domain is { ReturnCode: 0, Value: 1 or 2, ExceptionType: null }
+        // NetGetAadJoinInformation has returned S_FALSE with null join info on an unmanaged Windows client.
+        // S_FALSE is an HRESULT success: https://learn.microsoft.com/windows/win32/learnwin32/error-handling-in-com
+        && Entra is { ReturnCode: 0 or 1, Value: false, ExceptionType: null }
+        && Mdm is { ReturnCode: 0, Value: false, ExceptionType: null };
+}
+
 internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
 {
     private const uint Connect = 1, CreateAccess = 2;
@@ -38,20 +51,42 @@ internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
             throw new UnauthorizedAccessException(Loc.T("Изменение службы недоступно."));
     }
 
-    internal static bool CanProveUnmanaged()
+    internal static bool CanProveUnmanaged() => ReadManagementEvidence().ProvenUnmanaged;
+
+    internal static ServiceManagementEvidence ReadManagementEvidence() =>
+        new(Observe<int>(ReadDomainJoin), Observe<bool>(ReadEntraJoin), Observe<bool>(ReadMdmRegistration));
+
+    private static ServiceManagementObservation<T> Observe<T>(Func<(int ReturnCode, T Value)> read) where T : struct
     {
-        try { return ReadUnmanaged(); }
-        catch (Exception ex) when (ServiceRemoval.IsExpectedFailure(ex)) { return false; }
+        try
+        {
+            var (code, value) = read();
+            return new(code, value, null);
+        }
+        catch (Exception ex) when (ServiceRemoval.IsExpectedFailure(ex))
+        {
+            return new(null, null, ex.GetType().Name);
+        }
     }
 
-    private static bool ReadUnmanaged()
+    private static (int ReturnCode, int JoinStatus) ReadDomainJoin()
     {
-        var joinResult = NetGetJoinInformation(null, out var name, out var status);
+        var code = NetGetJoinInformation(null, out var name, out var status);
         if (name != 0) _ = NetApiBufferFree(name);
-        if (joinResult != 0 || status is not (1 or 2)) return false;
-        var aadResult = NetGetAadJoinInformation(null, out var aad);
-        if (aad != 0) NetFreeAadJoinInformation(aad);
-        return aadResult == 0 && aad == 0 && IsDeviceRegisteredWithManagement(out var registered, 0, 0) == 0 && registered == 0;
+        return (code, status);
+    }
+
+    private static (int ReturnCode, bool HasJoinInfo) ReadEntraJoin()
+    {
+        var code = NetGetAadJoinInformation(null, out var joinInfo);
+        if (joinInfo != 0) NetFreeAadJoinInformation(joinInfo);
+        return (code, joinInfo != 0);
+    }
+
+    private static (int ReturnCode, bool Registered) ReadMdmRegistration()
+    {
+        var code = IsDeviceRegisteredWithManagement(out var registered, 0, 0);
+        return (code, registered != 0);
     }
 
     public IServiceRemovalHandle Open(string name, bool deleteAccess)

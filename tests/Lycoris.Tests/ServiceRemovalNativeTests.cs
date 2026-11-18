@@ -20,7 +20,8 @@ public sealed class ServiceRemovalNativeTests
         Assert.Equal("true", Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
         Assert.Equal("github-hosted", Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT"));
         Assert.True(Elevation.IsElevated, "The disposable Windows runner must be elevated.");
-        Assert.True(ServiceRemoval.CanProveUnmanaged(), "Native checks must confirm the disposable VM is unmanaged.");
+        var management = ServiceRemovalWindows.ReadManagementEvidence();
+        Assert.True(management.ProvenUnmanaged, ManagementDiagnostic(management));
 
         using var registry = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
         using (var previous = registry.OpenSubKey(BackupRegistryPath))
@@ -92,6 +93,14 @@ public sealed class ServiceRemovalNativeTests
             }
         }
     }
+
+    private static string ManagementDiagnostic(ServiceManagementEvidence evidence) =>
+        $"Native checks must confirm the disposable VM is unmanaged.{Environment.NewLine}"
+        + $"AD | code {Code(evidence.Domain.ReturnCode)} | join status {evidence.Domain.Value} | exception {evidence.Domain.ExceptionType}{Environment.NewLine}"
+        + $"Entra | code {Code(evidence.Entra.ReturnCode)} | has join info {evidence.Entra.Value} | exception {evidence.Entra.ExceptionType}{Environment.NewLine}"
+        + $"MDM | code {Code(evidence.Mdm.ReturnCode)} | registered {evidence.Mdm.Value} | exception {evidence.Mdm.ExceptionType}";
+
+    private static string Code(int? result) => result is int code ? $"0x{code:X8}" : "unavailable";
 
     private static async Task CreateDisabledService(string display, string image)
     {

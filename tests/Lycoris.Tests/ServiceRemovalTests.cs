@@ -333,6 +333,28 @@ public sealed class ServiceRemovalTests : IDisposable
         Assert.Equal(reproducible, ServiceRemovalWindows.IsDefaultServiceSecurity(new RawSecurityDescriptor(trustees + standardDacl)));
     }
 
+    [Theory]
+    [InlineData(0, 1, 0, false, 0, false, true)]
+    [InlineData(0, 2, 0, false, 0, false, true)]
+    [InlineData(0, 3, 0, false, 0, false, false)]
+    [InlineData(0, 0, 0, false, 0, false, false)]
+    [InlineData(5, 2, 0, false, 0, false, false)]
+    [InlineData(0, 2, 0, true, 0, false, false)]
+    [InlineData(0, 2, 1, false, 0, false, true)]
+    [InlineData(0, 2, 1, true, 0, false, false)]
+    [InlineData(0, 2, 2, false, 0, false, false)]
+    [InlineData(0, 2, unchecked((int)0x80070005), false, 0, false, false)]
+    [InlineData(0, 2, 0, false, 0, true, false)]
+    [InlineData(0, 2, 0, false, 5, false, false)]
+    [InlineData(0, 2, 0, false, null, null, false)]
+    public void Management_probe_requires_all_three_successful_negative_checks(int domainCode, int joinStatus, int entraCode,
+        bool hasEntraInfo, int? mdmCode, bool? mdmRegistered, bool unmanaged)
+    {
+        var evidence = new ServiceManagementEvidence(new(domainCode, joinStatus, null), new(entraCode, hasEntraInfo, null),
+            new(mdmCode, mdmRegistered, mdmCode is null ? nameof(DllNotFoundException) : null));
+        Assert.Equal(unmanaged, evidence.ProvenUnmanaged);
+    }
+
     private ChangeJournal NewJournal(string? path = null)
     {
         var journal = ChangeJournal.ForTests(path);
