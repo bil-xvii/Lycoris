@@ -69,6 +69,15 @@
             <Setter Property="Margin" Value="0,0,8,0" />
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         </Style>
+        <Style x:Key="ExpertModeSegment" TargetType="RadioButton" BasedOn="{StaticResource Segment}">
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.65" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Border x:Name="RootBorder" BorderBrush="{StaticResource B.Line2}" BorderThickness="1">
@@ -111,8 +120,11 @@
                     </Button>
                     <Border Style="{StaticResource SegmentBar}" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource Segment}" Content="{loc:T ПРОСТОЙ}" Command="{Binding SetSimpleModeCommand}" IsChecked="{Binding ExpertMode, Converter={StaticResource InverseBool}}" />
-                            <RadioButton Style="{StaticResource Segment}" Content="{loc:T ЭКСПЕРТ}" Command="{Binding SetExpertModeCommandCommand}" IsChecked="{Binding ExpertMode}" />
+                            <RadioButton Style="{StaticResource Segment}" Content="{loc:T ПРОСТОЙ}" ToolTip="{loc:T 'Простой режим: основные настройки с короткими пояснениями'}"
+                                         AutomationProperties.HelpText="{loc:T 'Простой режим: основные настройки с короткими пояснениями'}" Command="{Binding SetSimpleModeCommand}" IsChecked="{Binding ExpertMode, Converter={StaticResource InverseBool}}" />
+                            <RadioButton Style="{StaticResource ExpertModeSegment}" Content="{loc:T ЭКСПЕРТ}" ToolTip="{Binding ExpertModeHelpText}"
+                                         AutomationProperties.HelpText="{Binding ExpertModeHelpText}" IsEnabled="{Binding CanUseExpertMode}"
+                                         Command="{Binding SetExpertModeCommandCommand}" IsChecked="{Binding ExpertMode}" />
                         </StackPanel>
                     </Border>
                     <!-- Visible search: the one entry to the command palette besides Ctrl+K -->
@@ -356,12 +368,26 @@
                             <StackPanel><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Step}" Value="2"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
                                 <Border Style="{StaticResource SegmentBar}" HorizontalAlignment="Stretch"><UniformGrid Columns="2">
                                     <RadioButton Style="{StaticResource Segment}" GroupName="WizMode" Content="{loc:T ПРОСТОЙ}" IsChecked="{Binding Simple}"/>
-                                    <RadioButton Style="{StaticResource Segment}" GroupName="WizMode" Content="{loc:T ЭКСПЕРТ}" IsChecked="{Binding Expert}"/>
+                                    <RadioButton Style="{StaticResource ExpertModeSegment}" GroupName="WizMode" Content="{loc:T ЭКСПЕРТ}" IsChecked="{Binding Expert}"
+                                                 IsEnabled="{Binding DataContext.CanUseExpertMode, ElementName=RootBorder}"
+                                                 ToolTip="{Binding DataContext.ExpertModeHelpText, ElementName=RootBorder}"
+                                                 AutomationProperties.HelpText="{Binding DataContext.ExpertModeHelpText, ElementName=RootBorder}"/>
                                 </UniformGrid></Border>
                                 <Grid Margin="2,8,2,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                     <TextBlock Text="{loc:T Понятные названия и короткие пояснения}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="8,0,8,0"/>
-                                    <TextBlock Grid.Column="1" Text="{loc:T Технические детали и риски}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="8,0,8,0"/>
+                                    <TextBlock Grid.Column="1" TextWrapping="Wrap" Margin="8,0,8,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+                                                <Setter Property="Text" Value="{loc:T Технические детали и риски}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.CanUseExpertMode, ElementName=RootBorder}" Value="False">
+                                                        <Setter Property="Text" Value="{Binding DataContext.ExpertModeHelpText, ElementName=RootBorder}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </Grid>
                                 <Border Style="{StaticResource Callout.Ok}" Padding="16,12" Margin="0,16,0,0"><StackPanel>
                                     <TextBlock Text="{loc:T Как мы гарантируем безопасность}" FontWeight="SemiBold" Margin="0,0,0,6"/>

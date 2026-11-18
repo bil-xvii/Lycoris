@@ -105,7 +105,7 @@ public sealed partial class DashboardViewModel
     /// The tweak behind a check button, matched to this PC: the check looks at the primary GPU, the catalog at every GPU,
     /// so HAGS falls back to the sibling item that fits. Never a dead button: no match = an explanation.
     /// </summary>
-    private static async Task<FixPlan> ResolveFixAsync(Tweak tweak, string id)
+    private static async Task<FixPlan> ResolveFixAsync(Tweak tweak, string id, bool allowSibling = true)
     {
         var profile = await SystemProfile.LoadAsync();
         var applies = TweakEngine.Applicability(tweak, profile);
@@ -113,10 +113,10 @@ public sealed partial class DashboardViewModel
             return new(null, Loc.T("Не удалось определить характеристики компьютера — настройку пока нельзя проверить. Попробуйте позже."), ToastKind.Warning, false);
         if (applies is true) return new(tweak, null, ToastKind.Info, false);
 
-        var sibling = id switch
+        var sibling = (allowSibling, id) switch
         {
-            HealthRules.TweakHags => TweakCatalog.Find(HealthRules.TweakHagsOther),
-            HealthRules.TweakHagsOther => TweakCatalog.Find(HealthRules.TweakHags),
+            (true, HealthRules.TweakHags) => TweakCatalog.Find(HealthRules.TweakHagsOther),
+            (true, HealthRules.TweakHagsOther) => TweakCatalog.Find(HealthRules.TweakHags),
             _ => null,
         };
         if (sibling is not null && sibling.Risk != TweakRisk.Advanced && TweakEngine.Applicability(sibling, profile) == true)
@@ -135,24 +135,26 @@ public sealed partial class DashboardViewModel
         ? Loc.T("Перед изменением будет создана точка восстановления (если защита системы включена)")
         : Loc.T("Точка восстановления не создаётся — это выключено в разделе «Восстановление»");
 
-    private async Task ApplyTweakAsync(string id, string checkId)
+    private async Task<TweakRunResult?> ApplyTweakAsync(string id, string checkId, Func<Task<bool>>? checkCurrent = null,
+        Func<string, bool>? requestAdmin = null)
     {
         var tweak = TweakCatalog.Find(id);
+        if (checkCurrent is not null && tweak?.Risk != TweakRisk.Safe) return null;
         if (tweak is null || tweak.Risk == TweakRisk.Advanced)
         {
             Ui.Toast("Эта настройка находится в разделе «Оптимизация».", ToastKind.Info);
             Ui.Navigate("optimize");
-            return;
+            return null;
         }
         // Read-only mode: relaunch with rights and press this same button again.
-        if (!RequireAdmin(tweak.Title, "RunCheck", checkId)) return;
+        if (!(requestAdmin?.Invoke(tweak.Title) ?? RequireAdmin(tweak.Title, "RunCheck", checkId))) return null;
 
-        var plan = await ResolveFixAsync(tweak, id);
+        var plan = await ResolveFixAsync(tweak, id, allowSibling: checkCurrent is null);
         if (plan.Tweak is not { } resolved)
         {
             Ui.Toast(plan.Message!, plan.Kind, tweak.Title);
             if (plan.OpenOptimize) Ui.Navigate("optimize");
-            return;
+            return null;
         }
         tweak = resolved;
 
@@ -163,10 +165,14 @@ public sealed partial class DashboardViewModel
         var confirmed = await Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",
             Loc.Tf("Lycoris применит настройку «{0}» через журнал изменений. Будет сделано следующее:", tweak.Title),
             details, footnote: "Изменение обратимо.");
-        if (!confirmed) return;
+        if (!confirmed) return null;
 
         TweakRunResult? result = null;
-        await RunBusyAsync(OperationClass.JournalChange, Loc.Tf("Применение: {0}…", tweak.Title), async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
+        await RunBusyAsync(OperationClass.JournalChange, Loc.Tf("Применение: {0}…", tweak.Title), async () =>
+        {
+            if (checkCurrent is null || await checkCurrent())
+                result = await TweakEngine.ApplyAsync([tweak], tweak.Title);
+        });
         if (result is { } r)
         {
             if (r.Errors.Count > 0)
@@ -179,7 +185,8 @@ public sealed partial class DashboardViewModel
             else
                 Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
         }
-        await RefreshAsync(showBusy: false);
+        if (checkCurrent is null) await RefreshAsync(showBusy: false);
+        return result;
     }
 
     /// <summary>
@@ -361,13 +368,14 @@ public sealed partial class DashboardViewModel
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException) { return ""; }
     }
 
-    internal Lycoris.Core.Diagnostics.HealthReportData BuildHealthReportData()
+    internal Lycoris.Core.Diagnostics.HealthReportData BuildHealthReportData(Lycoris.Core.Assistant.AssistantDiagnosticSnapshot? fresh = null)
     {
-        var checks = _all.OrderBy(i => i.IsOk).ThenByDescending(i => i.Severity)
+        var results = fresh?.Checks ?? _all.Select(i => i.Result).ToArray();
+        var checks = HealthScore.Ordered(results)
             .Select(i => new Lycoris.Core.Diagnostics.HealthReportCheck(i.Title, i.Detail,
-                i.IsOk ? "ok" : i.Severity == CheckSeverity.Warning ? "warn" : "info"))
+                i.Severity == CheckSeverity.Ok ? "ok" : i.Severity == CheckSeverity.Warning ? "warn" : "info"))
             .ToList();
-        var system = SystemRows.Select(r => new Lycoris.Core.Diagnostics.HealthReportRow(r.Label, r.Value, r.Detail)).ToList();
+        var system = fresh?.System ?? SystemRows.Select(r => new Lycoris.Core.Diagnostics.HealthReportRow(r.Label, r.Value, r.Detail)).ToArray();
         string? measurement = null;
         try
         {
@@ -380,7 +388,8 @@ public sealed partial class DashboardViewModel
         var fpsLine = Lycoris.Modules.Games.FpsMeasure.Summary(fps.Before, fps.After);
         if (fpsLine.Length > 0) measurement = string.IsNullOrEmpty(measurement) ? fpsLine : measurement + ". " + fpsLine;
         var version = typeof(DashboardViewModel).Assembly.GetName().Version?.ToString(3) ?? "?";
-        return new(DateTime.Now, version, Score, Verdict, checks, system, measurement);
+        var score = fresh is null ? Score : HealthScore.Calculate(results);
+        return new(fresh?.ObservedAt ?? DateTime.Now, version, score, fresh is null ? Verdict : HealthScore.Verdict(score), checks, system, measurement);
     }
 
     internal static string? FormatHealthReportMeasurement(Lycoris.Core.Measurements.Measurement? measurement)

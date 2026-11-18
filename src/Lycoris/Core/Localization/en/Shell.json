@@ -293,6 +293,10 @@
     "ПОЧЕМУ ТОРМОЗИТ?": "WHY IS IT SLOW?",
     "Замер 10 секунд: кто грузит процессор и память, занят ли диск, и что с этим делать — раздел «Панель».": "A 10-second measurement: what loads the CPU and memory, whether the disk is busy, and what to do about it — the Dashboard page.",
     "Обслуживание по расписанию: непредвиденная ошибка": "Scheduled maintenance: unexpected error",
-    "Обслуживание по расписанию: итог не проверен — {0}": "Scheduled maintenance: the result wasn't checked — {0}"
+    "Обслуживание по расписанию: итог не проверен — {0}": "Scheduled maintenance: the result wasn't checked — {0}",
+    "Простой режим: основные настройки с короткими пояснениями": "Simple mode: essential settings with short explanations",
+    "Экспертный режим: дополнительные настройки и технические детали": "Expert mode: additional settings and technical details",
+    "Режим «Эксперт» пока доступен только автору на его компьютере.": "For now, Expert mode is available only to the author on their own PC.",
+    "Обновить данные этого раздела": "Refresh the data in this section"
   }
 }

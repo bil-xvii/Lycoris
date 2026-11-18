@@ -392,7 +392,7 @@ public static partial class TweakCatalog
     private const string EdgePolicy = @"SOFTWARE\Policies\Microsoft\Edge";
     private const string FileSystemKey = @"SYSTEM\CurrentControlSet\Control\FileSystem";
     /// <summary>ADMX_FileSys «Disable delete notifications on all volumes»: when set, the machine is managed.</summary>
-    private const string FileSystemPolicy = @"SYSTEM\CurrentControlSet\Policies";
+    internal const string FileSystemPolicy = @"SYSTEM\CurrentControlSet\Policies";
 
     /// <summary>NTFS delete notifications (TRIM) are off: DisableDeleteNotification is set and not 0. Absent = on (default).</summary>
     private static bool NtfsTrimDisabled() => LmInt(FileSystemKey, "DisableDeleteNotification") is { } v && v != 0;

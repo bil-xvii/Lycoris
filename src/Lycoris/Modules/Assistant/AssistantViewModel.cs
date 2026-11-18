@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
 using Lycoris.Core.Assistant;
+using Lycoris.Core.Diagnostics;
 using Lycoris.Modules.Dashboard;
 using Lycoris.Shell;
 using Lycoris.UI;
@@ -26,21 +27,31 @@ public sealed partial class AssistantMessage : ObservableObject
 }
 
 /// <summary>
-/// «Помощник»: questions about this PC in plain words, answered by a local model (Ollama on this computer — nothing leaves the PC).
-/// It only explains and opens the right place; every change is made with Lycoris's own buttons, confirmation and undo
-/// (see <see cref="AssistantBrain"/> for the rules and the place list).
+/// «Помощник»: health checks with deterministic guidance, and optional questions answered by a local model.
+/// The model can point to places in Lycoris. The diagnostic cards offer selected fixes through the dashboard's own workflow.
 /// </summary>
 public sealed partial class AssistantViewModel : PageViewModel
 {
-    private readonly DashboardViewModel _dashboard;
+    private readonly Func<Task<HealthReportData?>> _refreshContext;
     private CancellationTokenSource? _cts;
 
-    public AssistantViewModel(DashboardViewModel dashboard) => _dashboard = dashboard;
+    public AssistantViewModel(DashboardViewModel dashboard)
+        : this(dashboard.RefreshForAssistantAsync, dashboard.FixFromAssistantAsync, OpenLocation, dashboard.RefreshAssistantContextAsync) { }
+
+    internal AssistantViewModel(Func<Task<AssistantDiagnosticSnapshot?>> refreshDiagnostics,
+        Func<string, Func<string, bool>, Task<AssistantFixResult>> fixDiagnostic, Action<string, string?> open,
+        Func<Task<HealthReportData?>> refreshContext)
+    {
+        _refreshDiagnostics = refreshDiagnostics;
+        _fixDiagnostic = fixDiagnostic;
+        _open = open;
+        _refreshContext = refreshContext;
+    }
 
     public override string Key => "assistant";
     public override string Index => "12";
     public override string Title => Loc.T("Помощник");
-    public override string Subtitle => Loc.T("Ответы о вашем ПК простыми словами. Работает на этом компьютере — ничего не уходит в интернет.");
+    public override string Subtitle => Loc.T("Проверьте компьютер и узнайте, что делать с результатами.");
     public override string Glyph => Glyphs.Assistant;
 
     /// <summary>QA only: «--snapshot … --demo-assistant» fills a sample conversation (see <see cref="AssistantDemo"/>).</summary>
@@ -69,18 +80,20 @@ public sealed partial class AssistantViewModel : PageViewModel
 
     public string StateText => State switch
     {
-        AssistantState.Ready => Loc.T("Модель работает на этом ПК. Помощник только советует и открывает нужное место — изменения вы делаете кнопками Lycoris, с подтверждением и откатом."),
-        AssistantState.NoOllama => Loc.T("Нужна бесплатная программа Ollama — она запускает модель прямо на вашем ПК. Установите её в «Приложениях», затем нажмите «ОБНОВИТЬ»."),
-        AssistantState.NoModels => Loc.T("Ollama работает, но модели нет. Скачайте одну командой «ollama pull qwen3:8b» (около 5 ГБ) и нажмите «ОБНОВИТЬ»."),
+        AssistantState.Ready => Loc.T("Чат работает на этом ПК. Модель объясняет результаты и может открыть раздел Lycoris."),
+        AssistantState.NoOllama => Loc.T("Для чата установите Ollama в разделе «Приложения» и нажмите «Проверить модель»."),
+        AssistantState.NoModels => Loc.T("Для чата скачайте модель командой «ollama pull qwen3:8b» (около 5 ГБ), затем нажмите «Проверить модель»."),
         _ => Loc.T("Ищем Ollama на этом ПК…"),
     };
+
+    private static string ExplainProblemsQuestion => Loc.T("Объясни найденные проблемы");
 
     /// <summary>Ready-made questions: one click asks them.</summary>
     public IReadOnlyList<string> QuickQuestions { get; } =
     [
         Loc.T("Почему ПК может тормозить?"),
         Loc.T("Что улучшить для игр?"),
-        Loc.T("Объясни найденные проблемы"),
+        ExplainProblemsQuestion,
         Loc.T("Что Lycoris уже менял?"),
     ];
 
@@ -104,7 +117,7 @@ public sealed partial class AssistantViewModel : PageViewModel
     protected override async Task LoadAsync()
     {
         if (Demo) { AssistantDemo.Fill(this); MarkChecked(); return; }
-        await CheckAsync();
+        await Task.WhenAll(RefreshDiagnosticsAsync(), CheckAsync());
     }
 
     protected override Task OnReturnAsync() => State == AssistantState.Ready || IsAnswering ? Task.CompletedTask : CheckAsync();
@@ -136,13 +149,18 @@ public sealed partial class AssistantViewModel : PageViewModel
 
     internal void AddMessage(AssistantMessage message) { Messages.Add(message); OnPropertyChanged(nameof(HasMessages)); ClearCommand.NotifyCanExecuteChanged(); }
 
-    private bool CanAsk(string? preset) => IsReady && !IsAnswering && !string.IsNullOrWhiteSpace(preset ?? Question);
+    private static bool IsExplainProblemsPreset(string? preset) => string.Equals(preset, ExplainProblemsQuestion, StringComparison.Ordinal);
+
+    private bool CanAsk(string? preset) =>
+        !IsAnswering && (IsExplainProblemsPreset(preset) || (IsReady && !string.IsNullOrWhiteSpace(preset ?? Question)));
 
     [RelayCommand(CanExecute = nameof(CanAsk))]
     private async Task AskAsync(string? preset)
     {
+        var explainProblems = IsExplainProblemsPreset(preset);
+        var model = SelectedModel;
+        if (!CanAsk(preset) || (!explainProblems && model is null)) return;
         var question = (preset ?? Question).Trim();
-        if (question.Length == 0 || SelectedModel is not { } model) return;
         if (question.Length > 1000) question = question[..1000];
         Question = "";
         AddMessage(new AssistantMessage { IsUser = true, Text = question });
@@ -153,23 +171,28 @@ public sealed partial class AssistantViewModel : PageViewModel
         var ct = _cts.Token;
         try
         {
-            // The facts come from the checks of «Панель» (read-only); run them once if they never ran.
-            if (!_dashboard.HasResults) await _dashboard.RefreshChecksCommand.ExecuteAsync(null);
-            var pc = _dashboard.HasResults ? _dashboard.BuildHealthReportData() : null;
+            if (explainProblems)
+            {
+                await ExplainProblemsAsync(answer, ct);
+                return;
+            }
+
+            var pc = await _refreshContext().WaitAsync(ct);
             var index = Ui.Host is MainViewModel shell ? CommandPaletteIndex.Build(shell.Pages) : [];
-            var issueTitles = pc?.Checks.Where(c => c.Status != "ok").Select(c => c.Title).Take(3) ?? [];
+            var issueTitles = pc?.Checks.Where(c => c.Status == "warn").Select(c => c.Title).Take(3) ?? [];
             var places = AssistantBrain.SelectPlaces(index, question, issueTitles);
             var changes = ChangeJournal.Instance.Records.Where(r => !r.Reverted).OrderByDescending(r => r.TimestampUtc).Select(r => Loc.Sink(r.Title)).Distinct().Take(6).ToList();
 
             var turns = new List<ChatTurn> { new("system", AssistantBrain.SystemPrompt(Loc.IsEnglish) + "\n\n" + AssistantBrain.Context(pc, places, changes)) };
             // A short memory of the conversation (the last two exchanges), so «а подробнее?» works.
-            foreach (var m in Messages.Take(Messages.Count - 2).TakeLast(4))
-                turns.Add(new ChatTurn(m.IsUser ? "user" : "assistant", m.Text));
+            if (pc is not null)
+                foreach (var m in Messages.Take(Messages.Count - 2).TakeLast(4))
+                    turns.Add(new ChatTurn(m.IsUser ? "user" : "assistant", m.Text));
             turns.Add(new ChatTurn("user", question));
 
             var raw = new System.Text.StringBuilder();
             using var client = new LocalModelClient();
-            var full = await Task.Run(() => client.ChatAsync(model, turns, piece =>
+            var full = await Task.Run(() => client.ChatAsync(model!, turns, piece =>
             {
                 string text;
                 lock (raw) { raw.Append(piece); text = AssistantBrain.ParseReply(raw.ToString(), places).Text; }
@@ -188,7 +211,7 @@ public sealed partial class AssistantViewModel : PageViewModel
         catch (HttpRequestException ex)
         {
             Log.Warn("Помощник: Ollama не ответил: {0}", ex.Message);
-            answer.Text = Loc.T("Ollama не ответил. Проверьте, что он запущен, и нажмите «ОБНОВИТЬ».");
+            answer.Text = Loc.T("Ollama не ответил. Проверьте, что он запущен, и нажмите «Проверить модель».");
             answer.Note = ex.Message;
         }
         finally
@@ -219,17 +242,14 @@ public sealed partial class AssistantViewModel : PageViewModel
     [RelayCommand]
     private void OpenPlace(PaletteEntry? place)
     {
-        if (place is null) return;
-        if (place.FocusId is { } id) Ui.RequestFocus(place.PageKey, id);
-        Ui.Navigate(place.PageKey);
+        if (place is not null) _open(place.PageKey, place.FocusId);
     }
 
     /// <summary>Ollama is installed the usual way: its card in «Приложения» (winget, the installer's signature is checked there).</summary>
     [RelayCommand]
     private void InstallOllama()
     {
-        Ui.RequestFocus("apps", "app:" + OllamaWingetId);
-        Ui.Navigate("apps");
+        _open("apps", "app:" + OllamaWingetId);
     }
 
     public const string OllamaWingetId = "Ollama.Ollama";

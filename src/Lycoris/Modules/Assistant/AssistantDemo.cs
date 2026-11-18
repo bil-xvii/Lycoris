@@ -1,3 +1,5 @@
+using Lycoris.Core.Assistant;
+using Lycoris.Modules.Dashboard.Checks;
 using Lycoris.Shell;
 using Lycoris.UI;
 
@@ -16,6 +18,7 @@ public static class AssistantDemo
 
     internal static void Fill(AssistantViewModel vm)
     {
+        FillDiagnostics(vm);
         vm.ShowDemoState(["qwen3:8b", "llama3.2:3b"], "qwen3:8b");
         vm.AddMessage(new AssistantMessage { IsUser = true, Text = Loc.T("Почему игры иногда подтормаживают?") });
         var answer = new AssistantMessage
@@ -31,5 +34,14 @@ public static class AssistantDemo
         {
             Text = Loc.T("Нет. Защитник почти не влияет на FPS в играх, а без него ПК остаётся без защиты от вирусов. Lycoris намеренно не отключает его."),
         });
+    }
+
+    internal static void FillDiagnostics(AssistantViewModel vm)
+    {
+        var facts = new SystemSnapshot { GameModeOn = false, StartupCount = 14, WindowedGamesOptimization = false };
+        vm.ShowDiagnostics(new AssistantDiagnosticSnapshot(new DateTime(2026, 11, 18, 18, 42, 0),
+            [HealthRules.CheckGameMode(facts)!, HealthRules.CheckStartup(facts)!, HealthRules.CheckWindowedGames(facts)!],
+            new HashSet<string>(StringComparer.Ordinal) { "game-mode" }));
+        vm.DiagnosticStatus = Loc.T("Демонстрационные результаты.");
     }
 }

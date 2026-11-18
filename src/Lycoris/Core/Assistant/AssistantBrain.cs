@@ -82,7 +82,7 @@ public static partial class AssistantBrain
     private static readonly string[] PromptRu =
     [
         "Ты — помощник внутри Lycoris, безопасного оптимизатора Windows. Отвечай по-русски, коротко (до 8 предложений), простыми словами, для неспециалиста.", // loc:ignore
-        "Опирайся ТОЛЬКО на сведения о ПК ниже; если сведений нет — так и скажи, не выдумывай.", // loc:ignore
+        "Опирайся ТОЛЬКО на актуальные сведения о ПК ниже. Если данных нет, скажи об этом. Советы не означают, что обнаружена неисправность.", // loc:ignore
         "Сам ты ничего не меняешь. Чтобы показать место в Lycoris, пиши его номер в квадратных скобках, например [2].", // loc:ignore
         "Используй только номера из списка МЕСТА. Изменения пользователь делает кнопками Lycoris — с подтверждением и возможностью отката.", // loc:ignore
         "Никогда не советуй: отключать Защитник Windows, брандмауэр, UAC, SmartScreen или Центр обновления; чистить реестр; удалять системные файлы;", // loc:ignore
@@ -92,7 +92,7 @@ public static partial class AssistantBrain
     private static readonly string[] PromptEn =
     [
         "You are the assistant inside Lycoris, a safe Windows PC optimizer. Answer in English, briefly (up to 8 sentences), plainly, for a non-expert.",
-        "Use ONLY the PC facts below; if a fact is missing, say so instead of guessing.",
+        "Use ONLY the current PC facts below. If data is missing, say so. Recommendations do not indicate a fault.",
         "You cannot change anything yourself. To point the user to a place in Lycoris, write its number in square brackets, e.g. [2].",
         "Use only numbers from the PLACES list. The user then changes things with Lycoris buttons, which ask for confirmation and can be undone.",
         "Never advise: turning off Windows Defender, the firewall, UAC, SmartScreen or Windows Update; registry cleaners; deleting system files;",
@@ -116,16 +116,24 @@ public static partial class AssistantBrain
         var sb = new StringBuilder();
         sb.AppendLine(Loc.T("СВЕДЕНИЯ О ПК (собраны Lycoris, только чтение):"));
         if (pc is null)
-            sb.AppendLine(Loc.T("- Проверки ещё не запускались."));
+            sb.AppendLine(Loc.T("- Свежие результаты проверки недоступны."));
         else
         {
+            sb.Append("- ").AppendLine(Loc.Tf("Проверка от {0}", Loc.DateTimeText(pc.CreatedAt)));
             sb.Append("- ").AppendLine(Loc.Tf("Оценка ПК: {0} / 100 — {1}", pc.Score, Clean(pc.Verdict)));
             foreach (var row in pc.System.Take(14)) sb.Append("- ").Append(Clean(row.Label, 40)).Append(": ").AppendLine(Clean(row.Value + (string.IsNullOrWhiteSpace(row.Detail) ? "" : " (" + row.Detail + ")")));
-            var problems = pc.Checks.Where(c => c.Status != "ok").Take(10).ToList();
-            sb.AppendLine(Loc.T("Проблемы, найденные проверками:"));
-            if (problems.Count == 0) sb.AppendLine(Loc.T("- нет"));
-            foreach (var c in problems) sb.Append("- ").Append(Clean(c.Title, 80)).Append(": ").AppendLine(Clean(c.Detail));
+            sb.AppendLine(Loc.T("В списках только доступные результаты проверок."));
+            AppendChecks("warn", Loc.T("Предупреждения по результатам проверок:"));
+            AppendChecks("info", Loc.T("Рекомендации по результатам проверок:"));
             if (!string.IsNullOrWhiteSpace(pc.Measurement)) sb.Append("- ").AppendLine(Clean(pc.Measurement, 300));
+
+            void AppendChecks(string status, string heading)
+            {
+                sb.AppendLine(heading);
+                var checks = pc.Checks.Where(c => c.Status == status).Take(10).ToArray();
+                if (checks.Length == 0) sb.AppendLine(Loc.T("- нет"));
+                foreach (var c in checks) sb.Append("- ").Append(Clean(c.Title, 80)).Append(": ").AppendLine(Clean(c.Detail));
+            }
         }
         var changes = (recentChanges ?? []).Take(6).ToList();
         if (changes.Count > 0)

@@ -9,24 +9,153 @@
              xmlns:shell="clr-namespace:Lycoris.Shell"
              xmlns:local="clr-namespace:Lycoris.Modules.Assistant"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:AssistantViewModel}">
-    <!--
-        Obvious UI anatomy: header (title · проверено · ОБНОВИТЬ) → status of the local model (tag + plain reason + model choice
-        or «УСТАНОВИТЬ OLLAMA») → ready-made questions → the conversation (the only ScrollViewer) → the question bar outside the scroll.
-        Answers carry labelled «ОТКРЫТЬ …» buttons: navigation only, never a change.
-    -->
+    <!-- Verified checks are the default workflow. The optional chat uses the same bounded
+         viewport, so both scroll areas have a finite height and never nest. -->
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}" RefreshCommand="{Binding CheckCommand}" />
+        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
 
-        <!-- ═══════════ The local model: state, why, and the one thing to do ═══════════ -->
-        <Border Grid.Row="1" Margin="0,12,0,0" Style="{StaticResource Card}" Padding="14,11">
+        <Border Grid.Row="1" Margin="0,12,0,0" Style="{StaticResource Card}" Padding="14,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DiagnosticSummary}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:T 'Проверка без интернета. Выберите проблему и следующий шаг.'}" Style="{StaticResource T.Caption}"
+                               Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding DiagnosticsTimestamp}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
+                               Visibility="{Binding DiagnosticsTimestamp, Converter={StaticResource NullToVis}}" />
+                    <TextBlock Text="{Binding DiagnosticStatus}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               AutomationProperties.LiveSetting="Polite" Visibility="{Binding DiagnosticStatus, Converter={StaticResource NullToVis}}" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Command="{Binding RefreshDiagnosticsCommand}"
+                        IsEnabled="{Binding IsDiagnosticBusy, Converter={StaticResource InverseBool}}" VerticalAlignment="Center"
+                        ToolTip="{loc:T 'Заново проверить компьютер без изменения настроек'}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{x:Static ui:Glyphs.Diagnostic}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="{loc:T 'Проверить компьютер'}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,42"
+                          Visibility="{Binding IsExpanded, ElementName=ChatExpander, Converter={StaticResource InverseBoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{loc:T 'Что делать дальше'}" Style="{StaticResource T.BodyStrong}" Margin="0,0,0,8"
+                               AutomationProperties.HeadingLevel="Level2" />
+                    <ItemsControl ItemsSource="{Binding DiagnosticCards}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <WrapPanel Margin="0,0,0,6">
+                                            <TextBlock x:Name="SeverityIcon" Text="{x:Static ui:Glyphs.Info}" FontFamily="{StaticResource F.Icons}"
+                                                       FontSize="13" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                            <TextBlock Text="{Binding SeverityLabel}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                            <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        </WrapPanel>
+                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Body}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding NextStep}" Style="{StaticResource T.Body}" TextWrapping="Wrap" Margin="0,7,0,0" />
+                                        <TextBlock Text="{Binding PathText}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,7,0,0"
+                                                   Visibility="{Binding PathText, Converter={StaticResource NullToVis}}" />
+                                        <WrapPanel Margin="0,8,0,0">
+                                            <StackPanel Margin="0,0,14,0" Visibility="{Binding CanOpen, Converter={StaticResource BoolToVis}}">
+                                                <Button Style="{StaticResource Btn.Link}" HorizontalAlignment="Left"
+                                                        Command="{Binding DataContext.OpenDiagnosticCommand, ElementName=Root}" CommandParameter="{Binding}"
+                                                        ToolTip="{loc:T 'Открыть раздел — без изменения настроек'}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{x:Static ui:Glyphs.Folder}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                                        <TextBlock Text="{Binding OpenLabel}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <TextBlock Text="{loc:T 'Открыть раздел — без изменений'}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                            <StackPanel Visibility="{Binding CanFix, Converter={StaticResource BoolToVis}}">
+                                                <Button Style="{StaticResource Btn}" HorizontalAlignment="Left"
+                                                        Command="{Binding DataContext.FixDiagnosticCommand, ElementName=Root}" CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{x:Static ui:Glyphs.Repair}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                                        <TextBlock Text="{Binding FixLabel}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <TextBlock Text="{loc:T 'Исправление — с подтверждением'}" Style="{StaticResource T.Caption}" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                                        <Setter TargetName="SeverityIcon" Property="Text" Value="{x:Static ui:Glyphs.Warning}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Expander x:Name="ChatExpander">
+                <Expander.Style>
+                    <Style TargetType="Expander">
+                        <Setter Property="VerticalAlignment" Value="Bottom" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Expander">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <ToggleButton x:Name="ChatToggle" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                      HorizontalAlignment="Left" Cursor="Hand" FocusVisualStyle="{StaticResource FocusVisual.Mono}"
+                                                      AutomationProperties.Name="{loc:T 'Чат с локальной моделью (необязательно)'}">
+                                            <ToggleButton.Template>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Border x:Name="Plate" Background="Transparent" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
+                                                            CornerRadius="{StaticResource R.Md}" Height="30" Padding="12,0">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="{x:Static ui:Glyphs.Assistant}" FontFamily="{StaticResource F.Icons}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                            <TextBlock x:Name="ChatLabel" Text="{loc:T 'Чат с локальной моделью (необязательно)'}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" /></Trigger>
+                                                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="ChatLabel" Property="Text" Value="{loc:T 'Скрыть чат и вернуться к проверке'}" /></Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </ToggleButton.Template>
+                                        </ToggleButton>
+                                        <ContentPresenter x:Name="ChatBody" Grid.Row="1" Visibility="Collapsed" />
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsExpanded" Value="True"><Setter TargetName="ChatBody" Property="Visibility" Value="Visible" /></Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsExpanded" Value="True"><Setter Property="VerticalAlignment" Value="Stretch" /></Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Expander.Style>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+        <Border Grid.Row="0" Margin="0,10,0,0" Style="{StaticResource Card}" Padding="14,11">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -47,22 +176,28 @@
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsReady, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Style="{StaticResource T.Label}" Text="{loc:T МОДЕЛЬ}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Style="{StaticResource T.Caption}" Text="{loc:T Модель}" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" MinWidth="170" IsEnabled="{Binding IsAnswering, Converter={StaticResource InverseBool}}"
                                   ToolTip="{loc:T 'Модели, скачанные в Ollama. Побольше — умнее, поменьше — быстрее.'}" />
                     </StackPanel>
-                    <Button Style="{StaticResource Btn.Primary}" Command="{Binding InstallOllamaCommand}" Visibility="{Binding NeedsOllama, Converter={StaticResource BoolToVis}}">
+                    <Button Style="{StaticResource Btn}" Command="{Binding InstallOllamaCommand}" Visibility="{Binding NeedsOllama, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
                             <TextBlock Text="{loc:T УСТАНОВИТЬ OLLAMA}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn}" Command="{Binding CheckCommand}" Margin="8,0,0,0"
+                            ToolTip="{loc:T 'Проверить подключение к Ollama и список моделей'}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{loc:T 'Проверить модель'}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ═══════════ Ready-made questions: one click asks ═══════════ -->
-        <ItemsControl Grid.Row="2" Margin="0,10,0,0" ItemsSource="{Binding QuickQuestions}" Focusable="False">
+        <ItemsControl Grid.Row="1" Margin="0,10,0,0" ItemsSource="{Binding QuickQuestions}" Focusable="False">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
@@ -74,8 +209,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- ═══════════ The conversation (the page's only ScrollViewer) ═══════════ -->
-        <Border Grid.Row="3" Margin="0,4,0,0" Style="{StaticResource Card.Flush}">
+        <Border Grid.Row="2" Margin="0,4,0,0" Style="{StaticResource Card.Flush}">
             <Grid>
                 <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" Padding="14,12">
                     <ItemsControl x:Name="Conversation" ItemsSource="{Binding Messages}" Focusable="False">
@@ -131,41 +265,43 @@
             </Grid>
         </Border>
 
-        <!-- ═══════════ The question bar (outside the scroll) ═══════════ -->
-        <Border Grid.Row="4" Margin="0,10,0,0" Style="{StaticResource Card}" Padding="12,10">
+        <Border Grid.Row="3" Margin="0,10,0,0" Style="{StaticResource Card}" Padding="12,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="Input" Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" MinHeight="38" MaxLength="1000"
+                <TextBox x:Name="Input" Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" MinHeight="30" MaxLength="1000"
                          AutomationProperties.Name="{loc:T 'Ваш вопрос'}" ToolTip="{loc:T 'Enter — спросить'}">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Enter" Command="{Binding AskCommand}" />
                     </TextBox.InputBindings>
                 </TextBox>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
-                    <Button Style="{StaticResource Btn}" Command="{Binding ClearCommand}" Margin="0,0,8,0" Height="38">
+                    <Button Style="{StaticResource Btn}" Command="{Binding ClearCommand}" Margin="0,0,8,0" Height="30">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="{loc:T ОЧИСТИТЬ}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T 'Очистить чат'}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Btn}" Command="{Binding StopCommand}" Margin="0,0,8,0" Height="38"
+                    <Button Style="{StaticResource Btn}" Command="{Binding StopCommand}" Margin="0,0,8,0" Height="30"
                             Visibility="{Binding IsAnswering, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="{loc:T СТОП}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T Остановить}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource Btn.Hero}" Command="{Binding AskCommand}">
+                    <Button Style="{StaticResource Btn}" Command="{Binding AskCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Assistant}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
-                            <TextBlock Text="{loc:T СПРОСИТЬ}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T Спросить}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
             </Grid>
         </Border>
+                </Grid>
+            </Expander>
+        </Grid>
     </Grid>
 </UserControl>

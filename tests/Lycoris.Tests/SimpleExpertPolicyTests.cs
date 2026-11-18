@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.ServiceProcess;
 using Lycoris.Core;
+using Lycoris.Core.Security;
 using Lycoris.Modules.Cleaner;
 using Lycoris.Modules.Devices;
 using Lycoris.Modules.Services;
@@ -83,6 +84,7 @@ public sealed class SimpleExpertPolicyTests : IDisposable
     [Fact]
     public void Mode_downgrade_clears_advanced_device_staging_and_service_selections()
     {
+        using var owner = ExpertAccessPolicy.OverrideFingerprintForTests(() => ExpertAccessPolicy.OwnerFingerprint);
         _settings.ExpertMode = true;
         var devices = new DevicesViewModel();
         var row = new DeviceSetting { Id = "nic:*EEE", Title = "EEE", RequiresExpertMode = true,
@@ -104,6 +106,7 @@ public sealed class SimpleExpertPolicyTests : IDisposable
     [Fact]
     public void Expert_cleaner_rows_cannot_be_selected_in_simple_and_downgrade_clears_them()
     {
+        using var owner = ExpertAccessPolicy.OverrideFingerprintForTests(() => ExpertAccessPolicy.OwnerFingerprint);
         _settings.ExpertMode = true;
         var vm = new CleanerViewModel();
         var expert = new CleanItem(CleanCatalog.All.Single(d => d.Tier == CleanTier.Expert)) { IsChecked = true };
@@ -148,6 +151,7 @@ public sealed class SimpleExpertPolicyTests : IDisposable
         await vm.ApplyRecommendationsCommand.ExecuteAsync(service.Name);
         await vm.ApplyTasksCommand.ExecuteAsync(task.Path);
         Assert.Empty(Ui.AutoAnswered);
+        using var owner = ExpertAccessPolicy.OverrideFingerprintForTests(() => ExpertAccessPolicy.OwnerFingerprint);
         _settings.ExpertMode = true;
         Assert.True(service.CanSelect);
         Assert.True(task.CanSelect);

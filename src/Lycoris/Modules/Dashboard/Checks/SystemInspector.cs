@@ -74,6 +74,7 @@ public static class SystemInspector
         var (free, total) = SystemProfile.SystemDriveSpace();
         var (onAc, energySaver) = Safe(ReadPowerStatus, ((bool?)null, (bool?)null));
         var (pagefileBytes, pagefileElsewhere) = Safe(ReadPagefiles, ((ulong?)null, (bool?)null));
+        var (hags, primaryGpuSupportsHags) = Safe(() => ReadHags(p.PrimaryGpu?.Name), (HagsState.Unknown, (bool?)null));
         return new SystemSnapshot
         {
             Now = DateTime.Now,
@@ -97,7 +98,9 @@ public static class SystemInspector
             ProblemDevices = Safe<IReadOnlyList<ProblemDevice>?>(ReadProblemDevices, null),
             GameModeOn = Safe(ReadGameMode, null),
             BackgroundRecordingOn = Safe(ReadBackgroundRecording, null),
-            Hags = Safe(ReadHags, HagsState.Unknown),
+            Hags = hags,
+            PrimaryGpuSupportsHags = primaryGpuSupportsHags,
+            TrimPolicyAbsent = Safe(ReadTrimPolicyAbsent, null),
             PowerPlan = Safe(ReadPowerPlanKind, PowerPlanKind.Unknown),
             PowerPlanName = Safe(() => PowerSchemes.GetName(PowerSchemes.GetActive()), ""),
             OnAcPower = onAc,
@@ -241,13 +244,22 @@ public static class SystemInspector
     private static bool? ReadGameMode()
     {
         const string key = @"Software\Microsoft\GameBar";
-        var v = RegistryHelper.ReadInt(RegHive.HKCU, key, "AutoGameModeEnabled") ?? RegistryHelper.ReadInt(RegHive.HKCU, key, "AllowAutoGameMode");
-        return v is null || v != 0;
+        var value = RegistryHelper.ReadDwordOrMissing(RegHive.HKCU, key, "AutoGameModeEnabled")
+            ?? RegistryHelper.ReadDwordOrMissing(RegHive.HKCU, key, "AllowAutoGameMode");
+        return value switch { null or 1 => true, 0 => false, _ => null };
     }
 
     /// <summary>"Record what happened": HistoricalCaptureEnabled = 1 means on; absent means off.</summary>
     private static bool? ReadBackgroundRecording() =>
-        RegistryHelper.ReadInt(RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled") == 1;
+        RegistryHelper.ReadDwordOrMissing(RegHive.HKCU, @"Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled") switch
+        {
+            null or 0 => false,
+            1 => true,
+            _ => null,
+        };
+
+    private static bool? ReadTrimPolicyAbsent() =>
+        RegistryHelper.ReadDwordOrMissing(RegHive.HKLM, TweakCatalog.FileSystemPolicy, "DisableDeleteNotification") is null;
 
     private static IReadOnlyList<string> ReadPendingReboot()
     {
@@ -381,35 +393,43 @@ public static class SystemInspector
         return new GpuLinkFacts(gpuName, l.Bar1Total, l.VramTotal, l.CurrentGen, l.CurrentWidth, l.MaxGen, l.MaxWidth, l.GpuMaxGen, l.UnderLoad);
     }
 
-    /// <summary>HAGS from the WDDM 2.7 caps of every hardware adapter; registry HwSchMode only as a fallback.</summary>
-    private static HagsState ReadHags()
+    /// <summary>System HAGS state and the primary GPU's live WDDM capability. The registry fallback only describes state.</summary>
+    private static (HagsState State, bool? PrimarySupported) ReadHags(string? primaryGpuName)
     {
         var adapters = D3dkmt.OpenAdapters();
         try
         {
             bool anySupported = false, anyEnabled = false, anyAnswer = false;
+            bool? primarySupported = null;
+            var primaryMatches = 0;
             foreach (var a in adapters.Where(a => !a.IsSoftware))
             {
+                var primary = MonitorMath.SameGpuName(primaryGpuName, a.Name);
+                if (primary) primaryMatches++;
                 if (D3dkmt.QueryWddm27Caps(a.Handle) is not { } caps) continue;
                 anyAnswer = true;
-                if ((caps & 0x1) != 0) anySupported = true;
+                var supported = (caps & 0x1) != 0;
+                anySupported |= supported;
                 if ((caps & 0x2) != 0) anyEnabled = true;
+                if (primary) primarySupported = supported;
             }
             if (anyAnswer)
-                return anyEnabled ? HagsState.On : anySupported ? HagsState.Off : HagsState.Unsupported;
+                return (anyEnabled ? HagsState.On : anySupported ? HagsState.Off : HagsState.Unsupported,
+                    primaryMatches == 1 ? primarySupported : null);
         }
         finally
         {
             D3dkmt.Close(adapters);
         }
 
-        if (Environment.OSVersion.Version.Build < 19041) return HagsState.Unsupported;
-        return RegistryHelper.ReadInt(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", "HwSchMode") switch
+        if (Environment.OSVersion.Version.Build < 19041) return (HagsState.Unsupported, null);
+        var state = RegistryHelper.ReadInt(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", "HwSchMode") switch
         {
             2 => HagsState.On,
             1 => HagsState.Off,
             _ => HagsState.Unknown,
         };
+        return (state, null);
     }
 
     private static PowerPlanKind ReadPowerPlanKind()
@@ -430,7 +450,7 @@ public static class SystemInspector
         {
             var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("fsutil.exe"), ["behavior", "query", "DisableDeleteNotify"],
                 new ProcessRunOptions { Encoding = OutputEncoding.Oem, Timeout = TimeSpan.FromSeconds(15), LogCommand = false }).ConfigureAwait(false);
-            if (HealthRules.ParseTrimDisabled(r.StdOut) is { } parsed) return parsed;
+            if (r.Success && HealthRules.ParseTrimDisabled(r.StdOut) is { } parsed) return parsed;
         }
         catch (Exception ex)
         {

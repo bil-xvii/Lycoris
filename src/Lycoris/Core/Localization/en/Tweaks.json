@@ -32,6 +32,7 @@
     "{0}: «{1}» применено, но пункт по-прежнему неприменим на этом ПК": "{0}: “{1}” was applied, but the item is still not applicable on this PC",
     "{0}: зависит от «{1}», которое не применилось": "{0}: depends on “{1}”, which was not applied",
     "{0} — пропущено: не удалось определить характеристики компьютера.": "{0} — skipped: could not determine the PC's specs.",
+    "{0} — пропущено: требуется режим «Эксперт».": "{0} — skipped: requires Expert mode.",
     "{0} — пропущено.": "{0} — skipped.",
     "{0} — ошибка": "{0} — error",
     "ПРОИЗВОДИТЕЛЬНОСТЬ": "PERFORMANCE",

@@ -57,7 +57,8 @@
                        VerticalAlignment="Center" Margin="0,0,10,0" Visibility="{Binding HasChecked, ElementName=Root, Converter={StaticResource BoolToVis}}" />
             <!-- The one word «ОБНОВИТЬ» -->
             <Button Style="{StaticResource Btn}" Command="{Binding RefreshCommand, ElementName=Root}" Margin="0,0,8,0"
-                    Visibility="{Binding HasRefresh, ElementName=Root, Converter={StaticResource BoolToVis}}">
+                    Visibility="{Binding HasRefresh, ElementName=Root, Converter={StaticResource BoolToVis}}"
+                    ToolTip="{loc:T 'Обновить данные этого раздела'}" AutomationProperties.HelpText="{loc:T 'Обновить данные этого раздела'}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="&#xE72C;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                     <TextBlock Text="{Binding RefreshText, ElementName=Root}" VerticalAlignment="Center" />

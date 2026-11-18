@@ -300,6 +300,7 @@ public sealed class ServicesTests
     [Fact]
     public void Global_expert_mode_defaults_to_simple_and_migrates_previous_services_expert_preference()
     {
+        using var owner = ExpertAccessPolicy.OverrideFingerprintForTests(() => ExpertAccessPolicy.OwnerFingerprint);
         var fresh = new AppSettings();
         Assert.False(fresh.ExpertMode);
         Assert.Equal(0, SettingsValidator.Sanitize(fresh));

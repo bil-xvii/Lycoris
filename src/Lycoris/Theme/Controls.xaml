@@ -280,6 +280,7 @@
         <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MinHeight" Value="30" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
@@ -330,6 +331,8 @@
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
@@ -339,7 +342,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <!-- Fill under a separate outline (no antialiasing seam when on); knob sits 3 px inside the 1.5 px outline -->
-                        <Grid Width="40" Height="20" SnapsToDevicePixels="True">
+                        <Grid Width="40" Height="20" VerticalAlignment="Center" SnapsToDevicePixels="True">
                             <Border x:Name="Fill" Background="Transparent" CornerRadius="{StaticResource R.Md}" />
                             <Border x:Name="Track" BorderThickness="1.5" BorderBrush="{StaticResource B.Outline}" CornerRadius="{StaticResource R.Md}" />
                             <Border x:Name="Knob" Width="12" Height="12" Background="{StaticResource B.Text2}" HorizontalAlignment="Left" Margin="4.5,0,0,0"
@@ -702,6 +705,7 @@
     </Style>
 
     <Style TargetType="ComboBox">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontSize" Value="13" />
@@ -1052,6 +1056,8 @@
                     <Setter Property="Cursor" Value="Hand" />
                     <!-- Items are PageViewModel objects: without a name a screen reader reads the class name -->
                     <Setter Property="AutomationProperties.Name" Value="{Binding DisplayTitle, Converter={StaticResource Sentence}}" />
+                    <Setter Property="ToolTip" Value="{Binding DisplaySubtitle}" />
+                    <Setter Property="AutomationProperties.HelpText" Value="{Binding DisplaySubtitle}" />
                     <!-- Keyboard-only focus ring (Tab / arrows), drawn on the inset plate like FocusVisual.Mono -->
                     <Setter Property="FocusVisualStyle">
                         <Setter.Value>

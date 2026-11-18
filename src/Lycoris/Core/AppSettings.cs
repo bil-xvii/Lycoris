@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Lycoris.Core.Security;
 
 namespace Lycoris.Core;
 
@@ -30,8 +31,21 @@ public sealed partial class AppSettings : ObservableObject
     /// </summary>
     [ObservableProperty] private bool _servicesExpertMode;
 
-    /// <summary>Global detail mode; simple mode is the default for new installations.</summary>
-    [ObservableProperty] private bool _expertMode;
+    private volatile bool _expertMode;
+
+    /// <summary>Effective detail mode. Only an authorized Windows account and installation can enable Expert.</summary>
+    public bool ExpertMode
+    {
+        get => _expertMode && ExpertAccessPolicy.CanUseExpertMode;
+        set
+        {
+            value = value && ExpertAccessPolicy.CanUseExpertMode;
+            if (_expertMode == value) return;
+            OnPropertyChanging();
+            _expertMode = value;
+            OnPropertyChanged();
+        }
+    }
 
     [ObservableProperty] private UserGoal _userGoal = UserGoal.Recommended;
 
@@ -177,7 +191,7 @@ public sealed partial class AppSettings : ObservableObject
 
     internal static void MigrateLegacyPreferences(AppSettings settings, bool hasExpertMode)
     {
-        // Existing users who explicitly enabled the former expert-services option keep expert detail mode.
+        // Migrate the preference for users who are still eligible for Expert.
         if (!hasExpertMode && settings.ServicesExpertMode) settings.ExpertMode = true;
     }
 

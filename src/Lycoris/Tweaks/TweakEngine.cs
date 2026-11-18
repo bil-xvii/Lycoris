@@ -180,7 +180,16 @@ public static class TweakEngine
             {
                 // The journal gate covers the whole tweak: it reads the live state (DNS servers, the active plan…)
                 // before it calls the session, and no revert may change that state in between.
-                session.Exclusive(() => t.Apply(new TweakContext { Session = session, System = sp, Tweak = t }));
+                session.Exclusive(() =>
+                {
+                    if (t.Risk == TweakRisk.Advanced && !AppSettings.Current.ExpertMode)
+                    {
+                        skipped++;
+                        Log.Warn("{0} — пропущено: требуется режим «Эксперт».", t.Title);
+                        return;
+                    }
+                    t.Apply(new TweakContext { Session = session, System = sp, Tweak = t });
+                });
             }
             catch (Exception ex)
             {
