@@ -34,6 +34,10 @@ public static class SettingsValidator
         var folders = CleanList(s.CustomGameFolders, IsLocalAbsoluteFolder, ref fixes);
         if (folders is not null) s.CustomGameFolders = folders;
 
+        var favorites = CleanList(s.FavoriteGameIds,
+            id => !string.IsNullOrWhiteSpace(id) && id.Length <= 700 && !id.Any(char.IsControl), ref fixes);
+        if (favorites is not null) s.FavoriteGameIds = favorites;
+
         var drift = CleanList(s.DriftAccepted, item => SafeIo.IsPlainText(item, 700), ref fixes, maxItems: 4000);
         if (drift is not null) s.DriftAccepted = drift;
 

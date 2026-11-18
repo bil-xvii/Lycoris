@@ -130,6 +130,10 @@
                                 </StackPanel>
                             </Button>
                         </Grid>
+                        <Button Content="{Binding FavoriteActionText}" Margin="0,6,0,0" Padding="8,0"
+                                HorizontalAlignment="Left"
+                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
+                                CommandParameter="{Binding}" />
                         <!-- Secondary actions, labelled -->
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Style="{StaticResource Btn.Ghost}" Padding="10,0" Margin="0,0,6,0"
@@ -303,6 +307,8 @@
                             </Grid>
                             <Button Content="{loc:T 'ОЧИСТИТЬ'}" Command="{Binding ClearSearchCommand}" Margin="0,0,8,0" VerticalAlignment="Center"
                                     Visibility="{Binding SearchText, Converter={StaticResource NullToVis}}" />
+                            <ToggleButton Content="{loc:T 'ИЗБРАННОЕ'}" Style="{StaticResource Chip.Toggle}" Height="30"
+                                          IsChecked="{Binding FavoritesOnly, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <ItemsControl ItemsSource="{Binding Platforms}" Focusable="False" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -366,9 +372,9 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="{loc:T 'Ничего не найдено'}" Style="{StaticResource T.H1}" FontSize="17" />
-                                <TextBlock Text="{loc:T 'Ни одна игра не подходит под запрос и выбранный лаунчер.'}" Style="{StaticResource T.Body}" Margin="0,4,0,0" />
+                                <TextBlock Text="{loc:T 'Нет игр по выбранным фильтрам. Измените запрос, лаунчер или фильтр избранного.'}" Style="{StaticResource T.Body}" Margin="0,4,12,0" TextWrapping="Wrap" />
                             </StackPanel>
-                            <Button Grid.Column="1" Content="{loc:T 'СБРОСИТЬ ПОИСК'}" Command="{Binding ClearSearchCommand}" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="{loc:T 'СБРОСИТЬ ФИЛЬТРЫ'}" Command="{Binding ResetFiltersCommand}" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
 

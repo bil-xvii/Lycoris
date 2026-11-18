@@ -37,6 +37,7 @@ public sealed class ToolCardAction
 /// <summary>One repair / maintenance tool: what it does, how long it takes, whether it needs admin rights.</summary>
 public sealed class ToolCard
 {
+    public bool IsModeAllowed => !Actions.Any(a => a.Op == ToolOp.NetworkReset) || Lycoris.Core.AppSettings.Current.ExpertMode;
     public required string Glyph { get; init; }
     public required string Title { get; init; }
     public required string Command { get; init; }

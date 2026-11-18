@@ -168,6 +168,45 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,17,0">
+                                        <TextBlock Text="{loc:T Сворачивать при закрытии окна}" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="{loc:T 'Lycoris продолжит работу в области уведомлений, в том числе во время игрового сеанса. Чтобы завершить работу, выберите «Выйти из Lycoris» в меню значка.'}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource ToggleState}" DataContext="{Binding Settings.CloseToTray}" />
+                                        <CheckBox Style="{StaticResource Toggle}" VerticalAlignment="Center" IsChecked="{Binding Settings.CloseToTray}"
+                                                  AutomationProperties.Name="{loc:T Сворачивать при закрытии окна}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingRow}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,17,0">
+                                        <TextBlock Text="{loc:T Автозапуск Windows}" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Style="{StaticResource RowText}"
+                                                   Text="{loc:T 'При входе в Windows Lycoris запустится в области уведомлений без запроса прав администратора.'}" />
+                                        <TextBlock Text="{Binding BackgroundStartupDetail}" Style="{StaticResource T.Caption}" Margin="0,5,0,0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <Button Style="{StaticResource Btn}" Content="{Binding BackgroundStartupButton}"
+                                                Command="{Binding SetBackgroundStartupCommand}" CommandParameter="{Binding BackgroundStartupAction}"
+                                                Visibility="{Binding CanSetBackgroundStartup, Converter={StaticResource BoolToVis}}" />
+                                        <Button Style="{StaticResource Btn}" Content="{loc:T ОБНОВИТЬ}" Command="{Binding RefreshBackgroundStartupCommand}"
+                                                HorizontalAlignment="Right" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                             <Border x:Name="Row_confirm" Style="{StaticResource SettingRow}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>

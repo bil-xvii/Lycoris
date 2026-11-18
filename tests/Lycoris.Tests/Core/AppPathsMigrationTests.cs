@@ -109,6 +109,38 @@ public sealed class AppPathsMigrationTests
     }
 
     [Fact]
+    public void Isolation_blocks_migration_and_fallback_even_with_legacy_data_and_no_current_directory()
+    {
+        var legacy = Path.Combine(_root, "legacy");
+        var current = Path.Combine(_root, "qa");
+        Directory.CreateDirectory(legacy);
+        File.WriteAllText(Path.Combine(legacy, "settings.json"), "legacy settings");
+        File.WriteAllText(Path.Combine(legacy, "journal.json"), "legacy journal");
+
+        try
+        {
+            AppPaths.MigrateDirectory(legacy, current, allowLegacy: false);
+            var read = AppPaths.ReadDirectory(current, legacy, allowLegacy: false);
+            Assert.Equal(current, read);
+            Assert.False(Directory.Exists(current));
+            Assert.Equal("legacy settings", File.ReadAllText(Path.Combine(legacy, "settings.json")));
+            Assert.Equal("legacy journal", File.ReadAllText(Path.Combine(legacy, "journal.json")));
+        }
+        finally { Directory.Delete(_root, true); }
+    }
+
+    [Fact]
+    public void Configured_debug_root_keeps_all_read_aliases_inside_the_test_root()
+    {
+        if (AppPaths.TestRoot is not { } root) return;
+        Assert.Equal(Path.Combine(root, "user"), AppPaths.UserReadDir);
+        Assert.Equal(Path.Combine(root, "user", "settings.json"), AppPaths.SettingsReadFile);
+        Assert.Equal(Path.Combine(root, "machine"), AppPaths.MachineReadDir);
+        Assert.Equal(Path.Combine(root, "machine", "Backups"), AppPaths.BackupsReadDir);
+        Assert.Equal(Path.Combine(root, "machine", "DriverBackups"), AppPaths.DriverBackupsReadDir);
+    }
+
+    [Fact]
     public void Journal_path_from_legacy_machine_folder_maps_to_moved_backup()
     {
         var oldPath = Path.Combine(_root, "old");

@@ -35,8 +35,10 @@ public static class DeviceApply
     public static async Task<PlanApplyResult?> ApplyPlanAsync(IReadOnlyList<PlanItem> selected, IProgress<string>? progress, CancellationToken ct,
         Func<Func<Task<bool>>, Task<bool>>? ask = null)
     {
+        if (selected.Count > 0 && selected.All(i => !i.Setting.IsModeAllowed))
+            return new PlanApplyResult(0, 0, 0, selected.Count, 0, [Loc.T("Доступно в режиме «Эксперт».")], RestartRequirement.None, []);
         if (!Elevation.IsElevated) return null;
-        var items = selected.Where(i => i is { Selectable: true, IsSelected: true, HasChange: true }).ToList();
+        var items = selected.Where(i => i is { Selectable: true, IsSelected: true, HasChange: true } && i.Setting.IsModeAllowed).ToList();
         if (items.Count == 0) return null;
 
         // The question is asked without holding the operation lease (the caller passes 'ask' to release it meanwhile).
@@ -46,6 +48,8 @@ public static class DeviceApply
             PlanLines(items), confirmText: "НАСТРОИТЬ",
             footnote: "Каждое изменение откатывается по одному — в «Вручную» или в «Восстановлении»."));
         if (!confirmed) return null;
+        items = items.Where(i => i.Setting.IsModeAllowed).ToList();
+        if (items.Count == 0) return null;
 
         var session = await Task.Run(() => ChangeSession.BeginAsync(PlanTitle, createRestorePoint: true, progress), CancellationToken.None);
         int applied = 0, declined = 0, unchanged = 0, blocked = 0, failed = 0;
@@ -116,10 +120,11 @@ public static class DeviceApply
     /// <summary>A setting's Apply on the thread pool; an exception is a failure, never a crash.</summary>
     private static async Task<ApplyOutcome> RunApplyAsync(ChangeSession session, DeviceSetting s, DeviceValue value, CancellationToken ct)
     {
+        if (!s.IsModeAllowed) return ApplyOutcome.Blocked;
         if (s.Apply is not { } apply) return ApplyOutcome.Failed;
         try
         {
-            return await Task.Run(() => apply(session, value, ct), CancellationToken.None);
+            return await Task.Run(() => s.IsModeAllowed ? apply(session, value, ct) : Task.FromResult(ApplyOutcome.Blocked), CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -137,6 +142,7 @@ public static class DeviceApply
     /// </summary>
     public static async Task<(ApplyOutcome Outcome, IReadOnlyList<string> Errors)> ApplyOneAsync(DeviceSetting s, DeviceValue value, CancellationToken ct)
     {
+        if (!s.IsModeAllowed) return (ApplyOutcome.Blocked, [Loc.T("Доступно в режиме «Эксперт».")]);
         try
         {
             return await OperationCoordinator.Instance.RunAsync(
@@ -151,6 +157,7 @@ public static class DeviceApply
 
     private static async Task<(ApplyOutcome Outcome, IReadOnlyList<string> Errors)> ApplyOneCoreAsync(DeviceSetting s, DeviceValue value, CancellationToken ct)
     {
+        if (!s.IsModeAllowed) return (ApplyOutcome.Blocked, [Loc.T("Доступно в режиме «Эксперт».")]);
         if (!Elevation.IsElevated) return (ApplyOutcome.Blocked, [Loc.T("Нужны права администратора.")]);
         if (s.IsReadOnly) return (ApplyOutcome.Failed, [Loc.T("Эту настройку здесь не меняют.")]);
         if (s.PerUser && await Task.Run(() => Elevation.InteractiveUserProblem) is { } account) return (ApplyOutcome.Blocked, [account]);

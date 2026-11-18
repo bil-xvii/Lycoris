@@ -81,7 +81,14 @@ _ => Loc.T("ЭКСПЕРТ"),
     [ObservableProperty] private string? _note;
     [ObservableProperty] private bool _isWorking;
 
-    public bool CanToggle => IsSelectable && !IsLocked;
+    public bool IsModeAllowed => !IsExpertTier || AppSettings.Current.ExpertMode;
+    internal void RefreshMode()
+    {
+        if (!IsModeAllowed) IsChecked = false;
+        OnPropertyChanged(nameof(IsModeAllowed));
+        OnPropertyChanged(nameof(CanToggle));
+    }
+    public bool CanToggle => IsModeAllowed && IsSelectable && !IsLocked;
 
     /// <summary>The status chip follows the checkbox ("К ОЧИСТКЕ" / "НЕ ВЫБРАНО") while the item has work.</summary>
     private bool _ready;

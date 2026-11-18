@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Threading;
 using Lycoris.Core;
+using Lycoris.Core.Background;
 using Lycoris.Shell;
 using Lycoris.UI;
 
@@ -19,6 +20,7 @@ namespace Lycoris;
 ///  3. Collect system info in the background, open the main window.
 /// Command line:
 ///  --no-elevate            stay in read-only mode (no UAC prompt, even with the setting on)
+///  --background            from the per-user logon task: show only the notification icon when available, no UAC
 ///  --page &lt;key&gt;           open a specific page
 ///  --tab &lt;key&gt;            with --page: open that page's tab ("--page devices --tab manual", "--page services --tab tasks")
 ///  --replay-page &lt;key&gt; --replay-command &lt;Name&gt; [--replay-param &lt;text&gt;]
@@ -57,10 +59,13 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
     private bool _ownsMutex;
-    // A DEBUG crash-test copy (AppPaths.TestRoot) gets its own lock, so it neither hands over to nor blocks the owner's Lycoris.
-    private static readonly string SingleInstanceName = AppPaths.TestRoot is { } testRoot
-        ? @"Local\Lycoris.SingleInstance.Test." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(testRoot.ToLowerInvariant())))[..16]
-        : @"Local\Lycoris.SingleInstance";
+    // Read the DEBUG scope without triggering AppPaths' legacy-data migration at type initialization.
+#if DEBUG
+    private static readonly string SingleInstanceName = BackgroundModePolicy.InstanceNameFor(Environment.GetEnvironmentVariable("LYCORIS_TEST_ROOT"));
+#else
+    private static readonly string SingleInstanceName = BackgroundModePolicy.NormalInstanceName;
+#endif
+    private static readonly Lazy<BackgroundWindowActivation> WindowActivation = new(() => new(SingleInstanceName));
     /// <summary>The display guard's marker, held for the life of the guard process.</summary>
     private static IDisposable? _guardMarker;
 
@@ -156,7 +161,8 @@ public partial class App : Application
         }
         var snapshot = snapshotDir is not null || selfTestDir is not null;
         var timingRun = StartupTiming.Enabled; // QA: a read-only extra copy that ignores the instance lock
-        var noElevate = snapshot || timingRun || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
+        var logonLaunch = BackgroundModePolicy.IsLogonLaunch(args, snapshot || timingRun, Elevation.IsElevated);
+        var noElevate = snapshot || timingRun || logonLaunch || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
         if (selfTestDir is not null)
         {
             // Lock every system-changing API before anything else runs.
@@ -174,7 +180,8 @@ public partial class App : Application
 
         // Already running? Bring that window up instead of asking for admin rights again. A copy that is still
         // closing (or hangs without a window) is waited for / offered to be ended — never a silent exit.
-        if (!snapshot && !timingRun && !HasArg(args, "--elevated") && SingleInstanceMutexExists() && !HandOverToExistingInstance())
+        if (!snapshot && !timingRun && !HasArg(args, "--elevated") && SingleInstanceMutexExists()
+            && (logonLaunch || !HandOverToExistingInstance()))
         {
             Shutdown();
             return;
@@ -209,11 +216,11 @@ public partial class App : Application
                 Log.Error("Не удалось проверить, запущен ли Lycoris", ex);
                 _singleInstance?.Dispose();
                 _singleInstance = null;
-                ActivateExistingInstance();
+                if (!logonLaunch) ActivateExistingInstance();
                 Shutdown();
                 return;
             }
-            if (!acquired && HandOverToExistingInstance())
+            if (!acquired && !logonLaunch && HandOverToExistingInstance())
             {
                 // The other copy has gone (it was closing, or the user ended a hung one): take over now.
                 try { acquired = _singleInstance!.WaitOne(TimeSpan.FromSeconds(5)); }
@@ -349,7 +356,7 @@ public partial class App : Application
 
         StartupTiming.Mark("before window.Show");
         window.ContentRendered += (_, _) => { StartupTiming.Mark("first frame rendered"); };
-        window.Show();
+        if (timingRun || !window.InitializeBackgroundMode(WindowActivation.Value, logonLaunch)) window.Show();
         _ = vm.RunStartupChecksAsync();
         if (StartupTiming.Enabled && int.TryParse(ArgValue(args, "--cycle-pages"), out var cycles) && cycles > 0)
             window.Dispatcher.InvokeAsync(() => StartupTiming.CyclePagesAsync(vm, cycles), DispatcherPriority.ApplicationIdle);
@@ -428,6 +435,12 @@ public partial class App : Application
         }
         _singleInstance?.Dispose();
         base.OnExit(e);
+    }
+
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        base.OnSessionEnding(e);
+        if (!e.Cancel && MainWindow is MainWindow window) window.BeginSessionExit();
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
@@ -517,15 +530,30 @@ public partial class App : Application
     /// </summary>
     private static IEnumerable<Process> OtherInstances()
     {
-        var current = Process.GetCurrentProcess();
+        using var current = Process.GetCurrentProcess();
+        var session = current.SessionId;
         return Process.GetProcessesByName(current.ProcessName)
-            .Where(p => p.Id != current.Id && !Lycoris.Core.Devices.DisplayGuardProcess.IsGuard(p.Id));
+            .Where(p => p.Id != Environment.ProcessId && IsInSession(p, session)
+                && !Lycoris.Core.Devices.DisplayGuardProcess.IsGuard(p.Id)
+                && (SingleInstanceName == BackgroundModePolicy.NormalInstanceName || WindowActivation.Value.HasMarkedWindow(p)));
+    }
+
+    private static bool IsInSession(Process p, int session)
+    {
+        try { return p.SessionId == session; }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
     }
 
     private static bool SafeHasNoWindow(Process p)
     {
-        try { p.Refresh(); return p.MainWindowHandle == IntPtr.Zero && !p.HasExited; }
-        catch { return true; }
+        try
+        {
+            p.Refresh();
+            if (p.MainWindowHandle != IntPtr.Zero || p.HasExited) return false;
+        }
+        catch (InvalidOperationException) { return false; }
+        catch (System.ComponentModel.Win32Exception) { } // A privileged process can still answer a window probe.
+        return WindowActivation.Value.CanOfferWindowlessRecovery(p);
     }
 
     /// <summary>Ends a hung copy: directly when allowed, else (elevated copy) taskkill with a UAC prompt.</summary>
@@ -582,6 +610,7 @@ public partial class App : Application
         {
             foreach (var p in OtherInstances())
             {
+                if (WindowActivation.Value.TryShow(p)) return true;
                 if (p.MainWindowHandle == IntPtr.Zero) continue;
                 ShowWindow(p.MainWindowHandle, 9); // SW_RESTORE
                 SetForegroundWindow(p.MainWindowHandle);

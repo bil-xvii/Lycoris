@@ -27,7 +27,7 @@ public sealed partial class ServicesViewModel : PageViewModel
     public override string Key => "services";
     public override string Index => "06";
     public override string Title => Loc.T("АВТОЗАПУСК И СЛУЖБЫ");
-    public override string Subtitle => Loc.T("Что запускается вместе с Windows: программы, службы и задачи.");
+    public override string Subtitle => Loc.T("Автозапуск и рекомендуемые настройки. Ручное управление службами — в режиме «Эксперт».");
     public override string Glyph => Glyphs.Services;
 
     public const int TabStartup = 0;
@@ -143,6 +143,7 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     partial void OnSelectedTabChanged(int value)
     {
+        if (value == TabAll && !ExpertMode) { SelectedTab = TabStartup; return; }
         RaisePrimary();
         if (StartupTabShown) _ = EnsureStartupAsync();
     }
@@ -349,13 +350,29 @@ public sealed partial class ServicesViewModel : PageViewModel
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is not (nameof(AppSettings.ServicesExpertMode) or nameof(AppSettings.ExpertMode))) return;
-        Ui.Post(() =>
+        void UpdateMode()
         {
+            RefreshExpertMode();
+            foreach (var item in _recByName.Values)
+            {
+                if (!ServiceGuard.CanApplyRisk(item.Risk, ExpertMode)) item.IsSelected = false;
+                item.RefreshMode();
+            }
+            foreach (var item in TaskItems)
+            {
+                if (!ServiceGuard.CanApplyRisk(item.Risk, ExpertMode)) item.IsSelected = false;
+                item.RefreshMode();
+            }
+            if (!ExpertMode && SelectedTab == TabAll) SelectedTab = TabStartup;
+            UpdateRecommendationStats();
+            UpdateTaskStats();
             OnPropertyChanged(nameof(ServicesExpertMode));
             // Re-apply the locks to the last scan (no rescan needed).
             if (_scannedServices.Count > 0 && _builtExpertMode != ServicesExpertMode)
                 BuildAllServices(_scannedServices);
-        });
+        }
+        if (Application.Current is null) UpdateMode();
+        else Ui.Post(UpdateMode);
     }
 
     /// <summary>«→ ОПТИМИЗАЦИЯ» on a service that only Optimize changes (DiagTrack).</summary>

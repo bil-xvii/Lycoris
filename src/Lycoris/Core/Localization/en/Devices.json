@@ -7,6 +7,8 @@
   ],
   "ignore": [],
   "en": {
+    "Мышь, клавиатура, экран, звук и сеть. Расширенные параметры Ethernet — в режиме «Эксперт».": "Mouse, keyboard, display, sound and network. Advanced Ethernet settings are available in Expert mode.",
+    "Доступно в режиме «Эксперт».": "Available in Expert mode.",
     "Устройства и сеть: автонастройка": "Devices & network: auto-tune",
     "{0} · {1}: пункт «Оптимизации», {2} → {3}": "{0} · {1}: Optimize item, {2} → {3}",
     " (подтвердите на экране за 15 с)": " (confirm on screen within 15 s)",

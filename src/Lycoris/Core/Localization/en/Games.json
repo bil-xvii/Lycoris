@@ -6,6 +6,12 @@
   ],
   "ignore": [],
   "en": {
+    "В ИЗБРАННОЕ": "ADD TO FAVORITES",
+    "УБРАТЬ ИЗ ИЗБРАННОГО": "REMOVE FROM FAVORITES",
+    "ИЗБРАННОЕ": "FAVORITES",
+    "СБРОСИТЬ ФИЛЬТРЫ": "RESET FILTERS",
+    "Нет игр по выбранным фильтрам. Измените запрос, лаунчер или фильтр избранного.": "No games match these filters. Change the search, launcher or favorites filter.",
+    "В избранном уже 500 игр. Уберите одну, чтобы добавить другую.": "You already have 500 favorite games. Remove one to add another.",
     "План питания не меняется: ": "Power plan not changed: ",
     "План питания: ": "Power plan: ",
     "Режим питания от сети: ": "Power mode on AC: ",

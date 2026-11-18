@@ -6,6 +6,8 @@
   ],
   "ignore": [],
   "en": {
+    "Проверка и восстановление Windows. Полный сброс сети — в режиме «Эксперт».": "Check and repair Windows. Full network reset is available in Expert mode.",
+    "Доступно в режиме «Эксперт».": "Available in Expert mode.",
     "ПОДРОБНЕЕ": "MORE DETAILS",
     "КОМАНДА": "COMMAND",
     "ОПИСАНИЕ": "DESCRIPTION",

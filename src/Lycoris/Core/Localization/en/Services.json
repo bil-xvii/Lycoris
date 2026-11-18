@@ -12,6 +12,7 @@
   ],
   "ignore": [],
   "en": {
+    "Автозапуск и рекомендуемые настройки. Ручное управление службами — в режиме «Эксперт».": "Startup and recommended settings. Manual service management is available in Expert mode.",
     "ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ": "ENABLE EXPERT MODE",
     "Системное имя": "System name",
     "Ядро Windows (RPC/COM): от неё зависит вся система.": "Windows core (RPC/COM): the whole system depends on it.",

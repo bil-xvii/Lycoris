@@ -26,8 +26,9 @@ public static class DriftReapply
         {
             DriftFix.Tweak => d.TweakId is { } id && TweakCatalog.Find(id) is { } tweak && OptimizeLogic.CanApplyRisk(tweak.Risk, expertMode),
             DriftFix.Service => ServiceGuard.CanReapplyService(
-                ServiceCatalog.Services.Any(s => string.Equals(s.Name, ServiceName(d.Record), StringComparison.OrdinalIgnoreCase)),
+                ServiceName(d.Record),
                 expertMode, servicesExpertMode),
+            DriftFix.Task => ServiceGuard.CanReapplyTask(d.Record.TaskPath ?? d.Record.Target.Replace("task:", "", StringComparison.OrdinalIgnoreCase), expertMode),
             _ => true,
         }).ToList();
 
@@ -50,6 +51,7 @@ public static class DriftReapply
 
     public static async Task<ReapplyResult> ApplyAsync(IReadOnlyList<DriftItem> items)
     {
+        items = FilterForMode(items, AppSettings.Current.ExpertMode, AppSettings.Current.ServicesExpertMode);
         var errors = new List<string>();
         var applied = 0;
 
@@ -58,7 +60,11 @@ public static class DriftReapply
         {
             var session = await ChangeSession.BeginAsync(BatchTitle).ConfigureAwait(false);
             // Under the journal gate: a packaged task's live state is checked right before it is written.
-            foreach (var d in direct) session.Exclusive(() => ApplyDirect(session, d));
+            foreach (var d in direct) session.Exclusive(() =>
+            {
+                if (FilterForMode([d], AppSettings.Current.ExpertMode, AppSettings.Current.ServicesExpertMode).Count > 0)
+                    ApplyDirect(session, d);
+            });
             session.Complete();
             applied += session.Applied;
             errors.AddRange(session.Errors);
@@ -66,7 +72,8 @@ public static class DriftReapply
 
         var tweaks = items.Where(d => d.Fix == DriftFix.Tweak && d.TweakId is not null)
                           .Select(d => d.TweakId!).Distinct(StringComparer.Ordinal)
-                          .Select(TweakCatalog.Find).OfType<Tweak>().ToList();
+                          .Select(TweakCatalog.Find).OfType<Tweak>()
+                          .Where(t => OptimizeLogic.CanApplyRisk(t.Risk, AppSettings.Current.ExpertMode)).ToList();
         if (tweaks.Count > 0)
         {
             var r = await TweakEngine.ApplyAsync(tweaks, BatchTitle).ConfigureAwait(false);

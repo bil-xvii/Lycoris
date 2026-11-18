@@ -17,12 +17,12 @@ public sealed class ServicesTests
         Assert.Equal(expected, ServiceGuard.ExpertModeEnabled(expertMode, servicesExpertMode));
 
     [Theory]
-    [InlineData(true, false, false, true)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, true, true, true)]
-    [InlineData(true, true, true, true)]
-    public void Reapplying_a_service_change_respects_its_access_level(bool curated, bool expertMode, bool servicesExpertMode, bool expected) =>
-        Assert.Equal(expected, ServiceGuard.CanReapplyService(curated, expertMode, servicesExpertMode));
+    [InlineData("XblGameSave", false, false, false)]
+    [InlineData("XblGameSave", true, false, true)]
+    [InlineData("SomeWindowsService", false, true, false)]
+    [InlineData("SomeWindowsService", true, true, true)]
+    public void Reapplying_a_service_change_respects_its_access_level(string name, bool expertMode, bool servicesExpertMode, bool expected) =>
+        Assert.Equal(expected, ServiceGuard.CanReapplyService(name, expertMode, servicesExpertMode));
 
     private static readonly ProfileSet[] Profiles = [ProfileSet.Normal, ProfileSet.Recommended, ProfileSet.Gaming];
 
@@ -288,10 +288,10 @@ public sealed class ServicesTests
     }
 
     [Fact]
-    public void Curated_services_are_never_expert_locked()
+    public void Curated_services_respect_catalog_risk_in_simple_mode()
     {
         foreach (var s in ServiceCatalog.Services)
-            Assert.Null(ServiceGuard.NotCuratedLockReason(s.Name, false, expertMode: false));
+            Assert.Equal(s.Risk != TweakRisk.Advanced, ServiceGuard.CanReapplyService(s.Name, expertMode: false, servicesExpertMode: false));
     }
 
     [Fact]

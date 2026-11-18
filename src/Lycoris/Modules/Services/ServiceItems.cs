@@ -83,8 +83,11 @@ public sealed partial class RecommendationItem : ObservableObject
 
     public bool IsBlocked => BlockReason is not null;
     public bool IsChanged => Journal is not null;
-    public bool CanSelect => CanModify && Exists && !IsAtTarget && !IsBlocked;
-    public bool IsSelectable => Exists && !IsAtTarget && !IsBlocked;
+    public bool IsModeAllowed => ServiceGuard.CanApplyRisk(Risk, AppSettings.Current.ExpertMode);
+    public bool IsModeVisible => IsModeAllowed || IsChanged;
+    internal void RefreshMode() { RaiseComputed(); OnPropertyChanged(nameof(IsSelectable)); OnPropertyChanged(nameof(IsModeAllowed)); OnPropertyChanged(nameof(IsModeVisible)); }
+    public bool CanSelect => CanModify && IsSelectable;
+    public bool IsSelectable => IsModeAllowed && Exists && !IsAtTarget && !IsBlocked;
 
     public RowMark Mark => IsBlocked ? RowMark.Locked : IsAtTarget ? RowMark.Done : RowMark.Check;
 
@@ -250,8 +253,11 @@ public sealed partial class TaskItem : ObservableObject
 
     public bool IsAtTarget => !Enabled;
     public bool IsChanged => Journal is not null;
-    public bool CanSelect => CanModify && Enabled;
-    public bool IsSelectable => Enabled;
+    public bool IsModeAllowed => ServiceGuard.CanApplyRisk(Risk, AppSettings.Current.ExpertMode);
+    public bool IsModeVisible => IsModeAllowed || IsChanged;
+    internal void RefreshMode() { RaiseComputed(); OnPropertyChanged(nameof(IsSelectable)); OnPropertyChanged(nameof(IsModeAllowed)); OnPropertyChanged(nameof(IsModeVisible)); }
+    public bool CanSelect => CanModify && IsSelectable;
+    public bool IsSelectable => IsModeAllowed && Enabled;
     public RowMark Mark => IsAtTarget ? RowMark.Done : RowMark.Check;
 
     public RowBadge Badge =>

@@ -2,6 +2,7 @@ using System.Text;
 using Lycoris.Modules.Games;
 using Lycoris.Modules.Optimize;
 using Lycoris.Shell;
+using Lycoris.Core.Background;
 using Lycoris.Core.Diagnostics;
 
 namespace Lycoris.Core.Security;
@@ -126,6 +127,18 @@ public static class SecurityCorpus
         Expect("settings: a null list does not crash", () => { var s = new AppSettings { GameBoostCloseList = null! }; SettingsValidator.Sanitize(s); return s.GameBoostCloseList is { Count: 0 }; });
 
         // ── Undo journal (forged records) ──
+        Expect("background startup: modified principal, action and path are refused", () =>
+        {
+            const string sid = "S-1-5-21-1-2-3-1001", exe = @"C:\Tools\Lycoris.exe";
+            var registration = BackgroundStartupRegistration.TryCreate(sid, exe);
+            if (registration is null) return false;
+            var xml = registration.BuildDefinition(BackgroundStartupState.Enabled);
+            return registration.ParseDefinition(xml) == BackgroundStartupState.Enabled
+                && registration.ParseDefinition(xml.Replace("LeastPrivilege", "HighestAvailable")) is null
+                && registration.ParseDefinition(xml.Replace(sid, "S-1-5-18")) is null
+                && registration.ParseDefinition(xml.Replace(exe, @"C:\Users\Public\Lycoris.exe")) is null
+                && registration.ParseDefinition(xml.Replace("--no-elevate", "--e2e x")) is null;
+        });
         Expect("journal: Run key is a forbidden restore target", () =>
             ChangeJournal.IsForbiddenRestoreTarget(new RegistryValueSnapshot { Hive = RegHive.HKCU, Path = @"Software\Microsoft\Windows\CurrentVersion\Run", Name = "x" }));
         Expect("journal: user Environment is a forbidden restore target", () =>

@@ -19,7 +19,8 @@ public sealed class RecordItem(ChangeRecord record, DriftItem? drift = null, str
     public DriftItem? Drift { get; } = drift;
     public bool IsDrifted => Drift is not null && !Record.Reverted;
     public string DriftText => Drift is null ? "" : DriftDetector.RowText(Drift);
-    public bool CanReapply => IsDrifted && DriftReapply.CanReapply(Drift!);
+    public bool CanReapply => IsDrifted && DriftReapply.CanReapply(Drift!) &&
+        DriftReapply.FilterForMode([Drift!], AppSettings.Current.ExpertMode, AppSettings.Current.ServicesExpertMode).Count > 0;
     /// <summary>No direct re-apply, but the owning page can show it.</summary>
     public bool CanShowOwner => IsDrifted && !CanReapply && Drift!.OwnerPage is not null;
     public string Title => Record.Title.Length > 0 ? Loc.Sink(Record.Title) : Loc.T("Без названия");

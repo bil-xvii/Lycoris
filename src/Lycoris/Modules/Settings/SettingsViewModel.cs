@@ -140,6 +140,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         MarkChecked();
         Updates.Refresh();
         _ = RefreshProtectionAsync();
+        _ = RefreshBackgroundStartupAsync();
         return RefreshPathsAsync();
     }
 
@@ -147,6 +148,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     {
         RaiseSettingProperties();
         _ = RefreshProtectionAsync();
+        _ = RefreshBackgroundStartupAsync();
         ApplyFocus(Ui.TakeFocusRequest(Key));
         return RefreshPathsAsync();
     }

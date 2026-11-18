@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using Lycoris.Core;
+using Lycoris.Core.Security;
 using Lycoris.Shell;
 using Lycoris.UI;
 
@@ -54,6 +55,7 @@ public sealed partial class GamesViewModel : PageViewModel
     public ObservableCollection<SourceStatus> Sources { get; } = [];
 
     [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private bool _favoritesOnly;
     [ObservableProperty] private bool _isScanning;
     [ObservableProperty] private bool _hasLibrary;
     [ObservableProperty] private int _totalCount;
@@ -68,6 +70,7 @@ public sealed partial class GamesViewModel : PageViewModel
     public bool HasGames => TotalCount > 0;
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
+    partial void OnFavoritesOnlyChanged(bool value) => ApplyFilter();
     partial void OnIsScanningChanged(bool value) => OnPropertyChanged(nameof(ShowFirstScan));
     partial void OnHasLibraryChanged(bool value) => NotifyLibraryState();
     partial void OnTotalCountChanged(int value) => NotifyLibraryState();
@@ -254,6 +257,7 @@ public sealed partial class GamesViewModel : PageViewModel
     private void ApplyScan(LibraryScan scan)
     {
         _all = scan.Games.Select(g => new GameCardViewModel(g)).ToList();
+        SyncFavorites();
         TotalCount = _all.Count;
         BadgeText = TotalCount > 0 ? TotalCount.ToString() : null; // the sidebar badge = games in the library
 
@@ -292,10 +296,11 @@ public sealed partial class GamesViewModel : PageViewModel
         var platform = Platforms.FirstOrDefault(p => p.IsSelected)?.Platform;
         var q = SearchText?.Trim() ?? "";
         VisibleGames.Clear();
-        foreach (var c in _all)
+        foreach (var c in _all.OrderByDescending(c => c.IsFavorite).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase))
         {
             if (platform is not null && c.Entry.Platform != platform) continue;
             if (q.Length > 0 && !c.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase)) continue;
+            if (FavoritesOnly && !c.IsFavorite) continue;
             VisibleGames.Add(c);
         }
         NotifyLibraryState();
@@ -321,6 +326,42 @@ public sealed partial class GamesViewModel : PageViewModel
 
     [RelayCommand]
     private void ClearSearch() => SearchText = "";
+
+    [RelayCommand]
+    private void ResetFilters()
+    {
+        SearchText = "";
+        FavoritesOnly = false;
+        var allPlatforms = Platforms.FirstOrDefault(p => p.Platform is null);
+        if (allPlatforms is not null) allPlatforms.IsSelected = true;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    private void ToggleFavorite(GameCardViewModel? card)
+    {
+        if (card is null || !_all.Contains(card)) return;
+        var ids = (Settings.FavoriteGameIds ?? []).ToList();
+        if (ids.Contains(card.Entry.Id, StringComparer.OrdinalIgnoreCase))
+            ids.RemoveAll(id => string.Equals(id, card.Entry.Id, StringComparison.OrdinalIgnoreCase));
+        else
+        {
+            if (ids.Count >= SettingsValidator.MaxListItems)
+            {
+                Ui.Toast("В избранном уже 500 игр. Уберите одну, чтобы добавить другую.", ToastKind.Warning);
+                return;
+            }
+            ids.Add(card.Entry.Id);
+        }
+        // A new list raises PropertyChanged and uses the existing settings autosave.
+        Settings.FavoriteGameIds = ids;
+    }
+
+    private void SyncFavorites()
+    {
+        var ids = new HashSet<string>(Settings.FavoriteGameIds ?? [], StringComparer.OrdinalIgnoreCase);
+        foreach (var card in _all) card.IsFavorite = ids.Contains(card.Entry.Id);
+    }
 
     [RelayCommand]
     private async Task AddGame()
@@ -736,6 +777,10 @@ public sealed partial class GamesViewModel : PageViewModel
     {
         switch (e.PropertyName)
         {
+            case nameof(AppSettings.FavoriteGameIds):
+                SyncFavorites();
+                ApplyFilter();
+                break;
             case nameof(AppSettings.GameBoostPowerPlan):
                 _ = RefreshPowerNoteAsync();
                 break;
