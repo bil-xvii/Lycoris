@@ -132,6 +132,30 @@ public sealed class ReleaseParserTests
         Assert.Null(ReleaseParser.Deserialize(""));
         Assert.Null(ReleaseParser.Deserialize("{\"Tag\":\"zzz\"}"));
     }
+
+    [Theory]
+    [InlineData("Tag")]
+    [InlineData("Name")]
+    [InlineData("Notes")]
+    [InlineData("PageUrl")]
+    [InlineData("ExeUrl")]
+    [InlineData("ExeDigest")]
+    [InlineData("ShaUrl")]
+    [InlineData("SigUrl")]
+    public void A_cached_release_with_any_null_string_is_rejected(string property)
+    {
+        var cache = System.Text.Json.Nodes.JsonNode.Parse(ReleaseParser.Serialize(Kit.Release()))!;
+        cache[property] = null;
+        Assert.Null(ReleaseParser.Deserialize(cache.ToJsonString()));
+    }
+
+    [Fact]
+    public void Omitted_optional_cache_strings_keep_their_empty_defaults()
+    {
+        var expected = new ReleaseInfo { Tag = "v1.0.1", ExeUrl = Kit.BaseUrl + "v1.0.1/Lycoris.exe" };
+        var cache = "{\"Tag\":\"v1.0.1\",\"ExeUrl\":\"" + expected.ExeUrl + "\"}";
+        Assert.Equal(expected, ReleaseParser.Deserialize(cache));
+    }
 }
 
 public sealed class UpdateServiceTests
@@ -223,24 +247,62 @@ public sealed class UpdateServiceTests
         Assert.Equal("1.0.1", s.Available!.VersionText);
     }
 
-    [Fact]
-    public async Task Rate_limit_is_not_an_error_and_backs_off_until_the_reset_time()
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task Rate_limit_is_not_an_error_and_backs_off_until_the_reset_time(HttpStatusCode status)
     {
         var reset = new DateTimeOffset(T0.AddMinutes(40)).ToUnixTimeSeconds();
         var (s, store, clock, h) = Make(_ =>
         {
-            var r = FakeHandler.Status(HttpStatusCode.Forbidden);
+            var r = FakeHandler.Status(status);
             r.Headers.Add("X-RateLimit-Reset", reset.ToString());
             return r;
         });
         var r1 = await s.CheckAsync(false);
         Assert.Equal(UpdateCheckStatus.Failed, r1.Status);
         Assert.Null(store.LastCheckUtc); // a failure is not a successful check
-        clock.Now = T0.AddMinutes(20);
+        clock.Now = T0.AddMinutes(40).AddSeconds(4);
         Assert.Equal(UpdateCheckStatus.Skipped, (await s.CheckAsync(false)).Status); // still backing off
         Assert.Single(h.Requests);
-        clock.Now = T0.AddMinutes(41);
+        clock.Now = T0.AddMinutes(40).AddSeconds(5);
         await s.CheckAsync(false);
+        Assert.Equal(2, h.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, "9223372036854775807")]
+    [InlineData(HttpStatusCode.TooManyRequests, "9223372036854775807")]
+    [InlineData(HttpStatusCode.Forbidden, "253402300800")]
+    [InlineData(HttpStatusCode.TooManyRequests, "253402300800")]
+    [InlineData(HttpStatusCode.Forbidden, "253402300799")]
+    [InlineData(HttpStatusCode.TooManyRequests, "-9223372036854775808")]
+    [InlineData(HttpStatusCode.Forbidden, "-62135596801")]
+    [InlineData(HttpStatusCode.TooManyRequests, "not-a-timestamp")]
+    [InlineData(HttpStatusCode.Forbidden, "0")]
+    [InlineData(HttpStatusCode.TooManyRequests, null)]
+    public async Task An_unusable_rate_limit_reset_keeps_the_cache_and_backs_off_for_one_hour(HttpStatusCode status, string? reset)
+    {
+        var (s, store, clock, h) = Make(_ =>
+        {
+            var response = FakeHandler.Status(status);
+            if (reset is not null) response.Headers.Add("X-RateLimit-Reset", reset);
+            return response;
+        });
+        store.CachedRelease = ReleaseParser.Serialize(Kit.Release());
+        s.Reevaluate();
+
+        var result = await s.CheckAsync(false);
+        Assert.Equal(UpdateCheckStatus.Failed, result.Status);
+        Assert.True(result.Contacted);
+        Assert.Equal("1.0.1", result.Release!.VersionText);
+        Assert.Null(store.LastCheckUtc);
+
+        clock.Now = T0.AddHours(1).AddSeconds(-1);
+        Assert.Equal(UpdateCheckStatus.Skipped, (await s.CheckAsync(false)).Status);
+        Assert.Single(h.Requests);
+        clock.Now = T0.AddHours(1);
+        Assert.Equal(UpdateCheckStatus.Failed, (await s.CheckAsync(false)).Status);
         Assert.Equal(2, h.Requests.Count);
     }
 
@@ -344,6 +406,17 @@ public sealed class UpdateServiceTests
         var handler = new FakeHandler(_ => throw new InvalidOperationException("no network allowed"));
         var s = new UpdateService(new HttpClient(handler), store, () => new SemVer(1, 0, 0, 0, ""), () => T0);
         Assert.True(s.ShouldAnnounce);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public void A_corrupt_cache_is_ignored_when_the_service_is_constructed()
+    {
+        var store = new FakeStore { CachedRelease = "{\"Tag\":\"v1.0.1\",\"ExeUrl\":null}" };
+        var handler = new FakeHandler(_ => throw new InvalidOperationException("no network allowed"));
+        var s = new UpdateService(new HttpClient(handler), store, () => new SemVer(1, 0, 0, 0, ""), () => T0);
+        Assert.Null(s.Available);
+        Assert.False(s.ShouldAnnounce);
         Assert.Empty(handler.Requests);
     }
 }

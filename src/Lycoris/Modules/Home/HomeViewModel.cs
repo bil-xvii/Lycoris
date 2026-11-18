@@ -131,24 +131,35 @@ public sealed partial class HomeViewModel : PageViewModel
     }
 
     private readonly Func<string, Task> _runDoctorCheck;
+    private readonly Action<Action> _dispatch;
 
     public HomeViewModel(DashboardViewModel dashboard, Func<string, Task>? runDoctorCheck = null)
+        : this(dashboard, runDoctorCheck, Ui.Post) { }
+
+    internal HomeViewModel(DashboardViewModel dashboard, Func<string, Task>? runDoctorCheck, Action<Action> dispatch)
     {
         _dashboard = dashboard;
         _runDoctorCheck = runDoctorCheck ?? (id => dashboard.RunCheckCommand.ExecuteAsync(id));
+        _dispatch = dispatch;
     }
-    protected override async Task LoadAsync()
+    private void AttachListeners()
     {
-        _dashboardChangedHandler = (_, _) => Ui.Post(RefreshDoctor);
+        if (_dashboardChangedHandler is not null) return;
+        _dashboardChangedHandler = (_, _) => _dispatch(RefreshDoctor);
         _dashboard.PropertyChanged += _dashboardChangedHandler;
-        _journalChangedHandler = () => Ui.Post(RefreshJournal);
+        _journalChangedHandler = () => _dispatch(RefreshJournal);
         ChangeJournal.Instance.Changed += _journalChangedHandler;
         _settingsChangedHandler = (_, e) =>
         {
-            if (e.PropertyName == nameof(AppSettings.ExpertMode)) Ui.Post(() => ExpertMode = AppSettings.Current.ExpertMode);
-            if (e.PropertyName == nameof(AppSettings.FirstRunCompleted)) Ui.Post(() => OnPropertyChanged(nameof(ShowWizardPrompt)));
+            if (e.PropertyName == nameof(AppSettings.ExpertMode)) _dispatch(() => ExpertMode = AppSettings.Current.ExpertMode);
+            if (e.PropertyName == nameof(AppSettings.FirstRunCompleted)) _dispatch(() => OnPropertyChanged(nameof(ShowWizardPrompt)));
         };
         AppSettings.Current.PropertyChanged += _settingsChangedHandler;
+    }
+
+    protected override async Task LoadAsync()
+    {
+        AttachListeners();
         try
         {
             if (!_dashboard.HasResults) await _dashboard.RefreshChecksCommand.ExecuteAsync(null);
@@ -174,6 +185,9 @@ public sealed partial class HomeViewModel : PageViewModel
 
     protected override Task OnReturnAsync()
     {
+        AttachListeners();
+        ExpertMode = AppSettings.Current.ExpertMode;
+        OnPropertyChanged(nameof(ShowWizardPrompt));
         RefreshFacts(); RefreshJournal(); RefreshDoctor(); RefreshMeasurements();
         return Task.CompletedTask;
     }
