@@ -22,6 +22,8 @@ internal sealed class ProfileCommandLineHost(Func<bool> tryLockInstance) : IProf
 
         var page = new OptimizeViewModel();
         page.BuildCatalog(tweaks);
+        var hardwareFactsKnown = sp.HardwareFactsKnown && sp.Identity.IsKnown;
+        page.MarkDetected(hardwareFactsKnown, hardwareFactsKnown && sp.IsLaptop);
         var pending = page.PendingForProfile(profile, states, excluded);
         var defaults = TweakCatalog.DefaultsFor(OptimizeLogic.ToKind(profile)!.Value).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
         var pendingIds = pending.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
@@ -33,7 +35,7 @@ internal sealed class ProfileCommandLineHost(Func<bool> tryLockInstance) : IProf
             else if (s == TweakState.NotApplicable) notApplicable++;
         }
         return new ProfileCliSelection(pending.Select(p => new ProfileCliTarget(p.Tweak, p.State ?? TweakState.Unknown)).ToList(),
-            applied, notApplicable, sp.HardwareFactsKnown && sp.Identity.IsKnown && sp.IsLaptop);
+            applied, notApplicable, hardwareFactsKnown && sp.IsLaptop);
     }
 
     public IReadOnlyList<ProfileCliLine> ReadChanges(Tweak tweak) =>

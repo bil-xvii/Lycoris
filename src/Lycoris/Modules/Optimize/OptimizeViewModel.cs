@@ -316,7 +316,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     }
 
     /// <summary>
-    /// Test hook: counts as if detection has finished (tile «изменений» figures are shown only then) with the given hardware facts
+    /// Sets detected hardware context for CLI selection or tests (tile «изменений» figures are shown only then)
     /// (the efficiency tile is retitled for a laptop and shown only when it has a member beyond a plan switch).
     /// </summary>
     internal void MarkDetected(bool hardwareFactsKnown = true, bool laptop = false)

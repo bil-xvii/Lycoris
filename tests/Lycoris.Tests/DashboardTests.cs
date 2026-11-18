@@ -715,8 +715,10 @@ public sealed class DashboardRulesTests
     public void Low_space_lists_system_files_and_offers_the_one_safe_lever()
     {
         const ulong gb = 1UL << 30;
+        var desktopIdentity = ComputerIdentity.FromFacts("Vendor", "Desktop", 1, [3]);
         var desktop = HealthRules.CheckDiskSpace(new SystemSnapshot
         {
+            Identity = desktopIdentity,
             SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileBytes = 9 * gb, PagefileSystemManaged = true,
         })!;
         Assert.Equal(CheckSeverity.Warning, desktop.Severity);
@@ -748,6 +750,7 @@ public sealed class DashboardRulesTests
         Assert.Equal(HealthRules.TweakPagefileSystemManaged, manual.SecondaryAction!.Target);
         var twoLevers = HealthRules.CheckDiskSpace(new SystemSnapshot
         {
+            Identity = desktopIdentity,
             SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileSystemManaged = false, PagefileOnOtherDrive = false,
         })!;
         Assert.Equal(HealthRules.TweakHibernationOff, twoLevers.SecondaryAction!.Target);

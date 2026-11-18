@@ -147,6 +147,40 @@ public sealed class OptimizeTests
         Assert.Equal(["ordinary", laptop ? "laptop" : "desktop"], pending.Select(p => p.Id));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Programmatic_efficiency_selection_uses_the_detected_laptop_context(bool laptop)
+    {
+        using var settings = new LastProfileScope();
+        const string acId = "power-mode-best-efficiency-ac";
+        var identity = ComputerIdentity.FromFacts("Vendor", "Model", laptop ? (ushort)2 : (ushort)1,
+            laptop ? new ushort[] { 9 } : [3]);
+        var system = ProfileWithIdentity(identity, laptop);
+        var plan = new CustomTweak
+        {
+            Id = "plan", Title = "Plan", Description = "", ExclusiveGroup = TweakGroups.PowerPlan,
+            DetectFunc = () => TweakState.NotApplied, ApplyAction = _ => { },
+        };
+        var ac = new CustomTweak
+        {
+            Id = acId, Title = "AC mode", Description = "", ExclusiveGroup = TweakGroups.PowerModeAc, Requires = ["plan"],
+            DetectFunc = () => TweakState.NotApplied, ApplyAction = _ => { },
+        };
+        Tweak[] tweaks = [plan, ac, Tweak("dc", "DC mode")];
+        var page = new OptimizeViewModel();
+        page.BuildCatalog(tweaks);
+        page.SetProfileDefaults(OptimizeProfile.Efficiency, tweaks.Select(t => t.Id));
+        var hardwareKnown = system.HardwareFactsKnown && system.Identity.IsKnown;
+        page.MarkDetected(hardwareKnown, hardwareKnown && system.IsLaptop);
+        var states = tweaks.ToDictionary(t => t.Id, _ => TweakState.NotApplied);
+
+        var pending = page.PendingForProfile(OptimizeProfile.Efficiency, states, []);
+
+        Assert.Equal(laptop ? new[] { "plan", "dc" } : ["plan", acId, "dc"], pending.Select(p => p.Id));
+        Assert.Equal(!laptop, page.Items.Single(i => i.Id == acId).IsChecked);
+    }
+
     [Fact]
     public void Notebook_identified_only_by_chassis_is_not_eligible_for_desktop_rules_without_battery()
     {

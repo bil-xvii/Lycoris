@@ -388,7 +388,8 @@ public sealed class HardwareTests
     public void Old_bios_is_a_manual_step_with_the_board_support_page()
     {
         var board = new BoardInfo("Micro-Star International Co., Ltd.", "MAG B550 TOMAHAWK (MS-7C91)", "AMI", "A.60", new DateTime(2022, 3, 1), "", "");
-        var c = Component(HardwareAdvisor.Build(Snapshot(board: board), Context()), "board");
+        var identity = ComputerIdentity.FromFacts("Micro-Star International Co., Ltd.", "MS-7C91", 1, [3]);
+        var c = Component(HardwareAdvisor.Build(Snapshot(board: board, identity: identity), Context()), "board");
         Assert.Equal(HwStatus.ManualOnly, c.Status);
         var a = Assert.Single(c.Actions);
         Assert.Equal(HwActionKind.OpenPage, a.Kind);
@@ -418,6 +419,10 @@ public sealed class HardwareTests
     [InlineData("Microsoft Corporation", "Surface Pro 11", 2, 30, "https://support.microsoft.com/surface")]
     [InlineData("Microsoft Corporation", "Surface Pro 11", 2, 32, "https://support.microsoft.com/surface")]
     [InlineData("Dell Inc.", "OptiPlex 7020", 1, 3, "https://www.dell.com/support/home")]
+    [InlineData("Micro-Star International Co., Ltd.", "Aegis RS 10th", 1, 3, "https://www.msi.com/support")]
+    [InlineData("MSI", "MEG Trident 3 12th", 1, 3, "https://www.msi.com/support")]
+    [InlineData("ASUSTeK COMPUTER INC.", "ROG STRIX G15DK", 1, 3, "https://www.asus.com/support/download-center/")]
+    [InlineData("ASUSTeK COMPUTER INC.", "G15DK_G15DK", 1, 3, "https://www.asus.com/support/download-center/")]
     public void Oem_bios_uses_system_support_even_with_an_msi_board(string manufacturer, string model,
         int pcType, int chassis, string supportUrl)
     {
@@ -439,6 +444,48 @@ public sealed class HardwareTests
         Assert.Equal(identity.Summary, computer.Name);
         Assert.Equal(identity.EvidenceText, computer.Details);
         Assert.Equal(identity.Reason, computer.Note);
+    }
+
+    [Theory]
+    [InlineData("MSI", "MS-7E47", "MSI", "PRO X870-P WIFI (MS-7E47)", true)]
+    [InlineData("MSI", "ms-7e47", "MSI", "PRO X870-P WIFI (MS-7E47)", true)]
+    [InlineData("MSI", "PRO X870-P WIFI (MS-7E47)", "MSI", "PRO X870-P WIFI (MS-7E47)", true)]
+    [InlineData("ASUS", "ROG STRIX B650E-F GAMING WIFI", "ASUS", "ROG STRIX B650E-F GAMING WIFI", true)]
+    [InlineData("MSI", "Custom Desktop", "MSI", "PRO X870-P WIFI (MS-7E47)", false)]
+    [InlineData("ASUS", "ROG Desktop", "ASUS", "ROG STRIX B650E-F GAMING WIFI", false)]
+    [InlineData("MSI", "MS-7E4", "MSI", "PRO X870-P WIFI (MS-7E47)", false)]
+    [InlineData("MSI", "7E47", "MSI", "PRO X870-P WIFI (MS-7E47)", false)]
+    [InlineData("MSI", "MS-7E47", "MSI", "MAG B550 TOMAHAWK (MS-7C91)", false)]
+    [InlineData("MSI", "MS-7E47", "ASUS", "Board (MS-7E47)", false)]
+    [InlineData("Gigabyte Technology Co., Ltd.", "X870 AORUS ELITE WIFI7", "Gigabyte Technology Co., Ltd.", "X870 AORUS ELITE WIFI7", true)]
+    [InlineData("ASRock", "X870 Steel Legend WiFi", "ASRock", "X870 Steel Legend WiFi", true)]
+    [InlineData("Gigabyte Technology Co., Ltd.", "Desktop 1", "Gigabyte Technology Co., Ltd.", "X870 AORUS ELITE WIFI7", false)]
+    [InlineData("ASRock", "Desktop 1", "ASRock", "X870 Steel Legend WiFi", false)]
+    [InlineData("Gigabyte Technology Co., Ltd.", "X870 AORUS ELITE WIFI7", "MSI", "X870 AORUS ELITE WIFI7", false)]
+    [InlineData("ASRock", "X870 Steel Legend WiFi", "ASUS", "X870 Steel Legend WiFi", false)]
+    public void Retail_board_support_requires_correlated_system_and_board_identity(string systemMaker, string systemModel,
+        string boardMaker, string boardModel, bool matches)
+    {
+        var identity = ComputerIdentity.FromFacts(systemMaker, systemModel, 1, [3]);
+        var board = new BoardInfo(boardMaker, boardModel, "AMI", "1.0", new DateTime(2022, 3, 1), systemMaker, systemModel);
+        var snapshot = Snapshot(board: board, identity: identity);
+        var support = HardwareCatalog.Support(snapshot);
+        var component = Component(HardwareAdvisor.Build(snapshot, Context()), "board");
+        if (matches)
+        {
+            Assert.NotNull(support);
+            Assert.False(support.IsSystem);
+            Assert.EndsWith(boardModel, component.Name);
+            Assert.Equal("ПЛАТА И BIOS", component.Kind);
+            Assert.Equal(HwStatus.ManualOnly, component.Status);
+            Assert.Equal(HwActionKind.OpenPage, Assert.Single(component.Actions).Kind);
+        }
+        else
+        {
+            Assert.Null(support);
+            Assert.Equal(HwStatus.Info, component.Status);
+            Assert.Empty(component.Actions);
+        }
     }
 
     [Fact]
@@ -497,11 +544,15 @@ public sealed class HardwareTests
         Assert.Empty(Component(HardwareAdvisor.Build(snapshot, Context()), "board").Actions);
     }
 
-    [Fact]
-    public void Oem_realtek_network_and_audio_use_the_same_system_support()
+    [Theory]
+    [InlineData("Dell Inc.", "Latitude 7450", 2, 10, "https://www.dell.com/support/home")]
+    [InlineData("MSI", "Aegis RS 10th", 1, 3, "https://www.msi.com/support")]
+    [InlineData("ASUS", "ROG STRIX G15DK", 1, 3, "https://www.asus.com/support/download-center/")]
+    public void Oem_realtek_network_and_audio_use_the_same_system_support(string manufacturer, string model,
+        int pcType, int chassis, string supportUrl)
     {
         const string audioId = @"HDAUDIO\FUNC_01&VEN_10EC&DEV_0897\1";
-        var identity = ComputerIdentity.FromFacts("Dell Inc.", "Latitude 7450", 2, [10]);
+        var identity = ComputerIdentity.FromFacts(manufacturer, model, (ushort)pcType, [(ushort)chassis]);
         var snapshot = Snapshot(identity: identity,
             network: [new NetAdapter("Realtek Ethernet", "Realtek", RealtekNicPnp, false)]) with
         {
@@ -516,7 +567,7 @@ public sealed class HardwareTests
         foreach (var key in new[] { "net:", "audio:" })
         {
             var action = Assert.Single(Component(report, key).Actions);
-            Assert.Equal("https://www.dell.com/support/home", action.Url);
+            Assert.Equal(supportUrl, action.Url);
             Assert.True(action.Optional);
             Assert.False(action.IsInstallable);
         }

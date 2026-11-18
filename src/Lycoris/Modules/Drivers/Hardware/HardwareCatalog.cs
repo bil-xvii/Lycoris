@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Lycoris.Core;
 using Lycoris.Modules.Apps;
 
@@ -235,17 +236,41 @@ internal static class HardwareCatalog
             return null;
 
         var system = SystemVendor(identity.Manufacturer, identity.Model);
-        if (system is not null && (identity.Kind != ComputerKind.Desktop || system.ShortName is not ("MSI" or "ASUS")))
+        if (system is not null && (identity.Kind != ComputerKind.Desktop || system.ShortName is not ("MSI" or "ASUS") ||
+            IsNamedOemDesktop(system.ShortName, identity.Model)))
             return new(system, $"{system.ShortName} {identity.Model}", true);
         if (identity.Kind != ComputerKind.Desktop) return null;
-        if (system is null && Board(identity.Manufacturer) is null) return null;
+        var systemBoardVendor = Board(identity.Manufacturer);
+        if (systemBoardVendor is null) return null;
 
         // Reuse the identity classifier's SMBIOS placeholder normalization for BaseBoard fields.
         var board = ComputerIdentity.FromFacts(snapshot.Board.Manufacturer, snapshot.Board.Product, null, null);
         var vendor = Board(board.Manufacturer);
-        return vendor is not null && board.Model.Length > 0
-            ? new(vendor, $"{vendor.ShortName} {board.Model}", false) : null;
+        if (vendor is null || board.Model.Length == 0) return null;
+        // The system name must identify this board;
+        // a named/ambiguous desktop must not inherit a retail BIOS just because its board supplier is known.
+        if (systemBoardVendor.ShortName != vendor.ShortName || !MatchesRetailBoard(identity.Model, board.Model))
+            return null;
+        return new(vendor, $"{vendor.ShortName} {board.Model}", false);
     }
+
+    private static bool IsNamedOemDesktop(string vendor, string model)
+    {
+        // Match the system model only. ROG also appears in retail motherboard names.
+        var pattern = vendor switch
+        {
+            "MSI" => @"^(?:MSI\s+)?(?:(?:MEG|MPG|MAG)\s+)?(?:Aegis|Trident)(?:\s|$)",
+            "ASUS" => @"^(?:ASUS\s+)?(?:ROG(?:\s+STRIX)?\s+)?(?:G15DK|G10DK)(?:[ _-]|$)",
+            _ => null,
+        };
+        return pattern is not null && Regex.IsMatch(model, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(250));
+    }
+
+    private static bool MatchesRetailBoard(string systemModel, string boardModel) =>
+        systemModel.Equals(boardModel, StringComparison.OrdinalIgnoreCase) ||
+        Regex.IsMatch(systemModel, @"^MS-[A-Z0-9]{4,8}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(250)) && boardModel.EndsWith($"({systemModel})", StringComparison.OrdinalIgnoreCase);
 
     private static BoardVendor? SystemVendor(string manufacturer, string model)
     {

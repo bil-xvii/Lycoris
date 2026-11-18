@@ -282,10 +282,11 @@ public static partial class HealthRules
     }
 
     /// <summary>
-    /// Hibernation off is DO-NOT-INCLUDE on laptops, and the catalog marks it not applicable when the laptop fact is
-    /// unknown (SystemProfile.HardwareFactsKnown == false) — the dashboard must not point there in either case.
+    /// Offer this desktop-specific tradeoff only with confirmed identity and hardware facts. A default false laptop
+    /// flag, a VM or an all-in-one does not establish an applicable desktop; keep their file sizes as facts only.
     /// </summary>
-    private static bool CanOfferHibernationOff(SystemSnapshot s) => !s.IsLaptop && s.HardwareFactsKnown;
+    private static bool CanOfferHibernationOff(SystemSnapshot s) => s.HardwareFactsKnown && s.Identity.IsKnown
+        && s.Identity.Kind == ComputerKind.Desktop && !s.IsLaptop;
 
     /// <summary>"Enabled" → true, "Disabled" → false, anything else → null.</summary>
     public static bool? ReservedStorageOn(string? state) => state?.Trim().ToLowerInvariant() switch
