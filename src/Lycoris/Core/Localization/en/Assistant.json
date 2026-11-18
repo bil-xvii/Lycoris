@@ -139,6 +139,21 @@
     "Проверяем компьютер…": "Checking your computer…",
     "Свежие результаты недоступны. Дождитесь завершения текущей задачи или повторите проверку.": "Fresh results are unavailable. Wait for the current task to finish or run the check again.",
     "Среди доступных проверок · Предупреждения: {0} · Советы: {1} · В норме: {2}": "Available checks · Warnings: {0} · Recommendations: {1} · OK: {2}",
-    "Демонстрационные результаты.": "Demo results."
+    "Демонстрационные результаты.": "Demo results.",
+    "Чат и команды служб": "Chat and service commands",
+    "«Включи службу Spooler» разрешает запуск, «запусти службу Spooler» запускает её. Модель для этих команд не нужна.": "“Enable service Spooler” allows it to start. “Start service Spooler” starts it. These commands work without a model.",
+    "Вопрос или команда": "Question or command",
+    "Какую службу? Укажите её отображаемое или системное имя, например Spooler.": "Which service? Enter its display name or system name, for example Spooler.",
+    "Укажите одну службу и одно действие. Например, «отключи службу Spooler».": "Enter one service and one action. For example, “disable service Spooler”.",
+    "Управление службами сейчас недоступно.": "Service management is currently unavailable.",
+    "Изменение типа запуска службы {0}": "Change the startup type of service {0}",
+    "Запуск службы {0}": "Start service {0}",
+    "Остановка службы {0}": "Stop service {0}",
+    "Запись изменения": "Change record",
+    "Служба {0}": "Service {0}",
+    "Включи службу {0}": "Enable service {0}",
+    "Отключи службу {0}": "Disable service {0}",
+    "Запусти службу {0}": "Start service {0}",
+    "Останови службу {0}": "Stop service {0}"
   }
 }

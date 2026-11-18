@@ -407,6 +407,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         }
         if (_pendingServiceFocus is { } focus) ApplyFocus(focus);
 
+        await ScanServiceResidueAsync();
         RefreshJournal();
         MarkChecked();
         Log.Info("Службы: найдено {0} служб, рекомендаций {1}, задач {2}.", AllServices.Count, RecommendationCount, TaskItems.Count);
@@ -564,6 +565,7 @@ public sealed partial class ServicesViewModel : PageViewModel
     {
         base.OnPropertyChanged(e);
         if (e.PropertyName is nameof(IsBusy) or nameof(Machine)) NotifyCommands();
+        else if (e.PropertyName == nameof(ServicesExpertMode)) NotifyCleanupCommands();
         // Our own work ended while the hosted scan still runs: keep the shell busy (after RunBusyAsync clears the text).
         if (e.PropertyName == nameof(IsBusy) && !IsBusy && !_mirroringStartup && Startup.IsBusy)
             Application.Current?.Dispatcher.BeginInvoke(SyncStartupBusy);
@@ -582,6 +584,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         ApplyTasksCommand.NotifyCanExecuteChanged();
         ClearTaskSelectionCommand.NotifyCanExecuteChanged();
         RevertTaskCommand.NotifyCanExecuteChanged();
+        NotifyCleanupCommands();
     }
 
     partial void OnMachineChanged(ServiceEnvironment? value)

@@ -47,7 +47,7 @@ public sealed record ServiceEnvironment(bool IsDomainJoined, bool IsMdmEnrolled,
 public sealed record DependentInfo(string Name, string DisplayName, bool IsRunning);
 
 /// <summary>Read-only access to services: WMI, registry and the SCM. Never changes anything.</summary>
-public static class ServiceScanner
+public static partial class ServiceScanner
 {
     private const string ServicesKey = @"SYSTEM\CurrentControlSet\Services";
 
@@ -351,13 +351,8 @@ public static class ServiceScanner
     private static bool CanChangeConfig(IntPtr scm, string name)
     {
         // Opening a handle with SERVICE_CHANGE_CONFIG access changes nothing; it only asks the SCM whether we could.
-        var h = OpenService(scm, name, SERVICE_CHANGE_CONFIG);
-        if (h != IntPtr.Zero)
-        {
-            CloseServiceHandle(h);
-            return true;
-        }
-        return Marshal.GetLastWin32Error() != ERROR_ACCESS_DENIED;
+        using var service = OpenService(scm, name, SERVICE_CHANGE_CONFIG);
+        return !service.IsInvalid;
     }
 
     private static int? AsInt(object? v) => v switch
@@ -378,13 +373,12 @@ public static class ServiceScanner
 
     private const uint SC_MANAGER_CONNECT = 0x0001;
     private const uint SERVICE_CHANGE_CONFIG = 0x0002;
-    private const int ERROR_ACCESS_DENIED = 5;
 
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "OpenSCManagerW")]
     private static extern IntPtr OpenSCManager(string? machineName, string? databaseName, uint access);
 
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "OpenServiceW")]
-    private static extern IntPtr OpenService(IntPtr scm, string serviceName, uint access);
+    private static extern ServiceHandle OpenService(IntPtr scm, string serviceName, uint access);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

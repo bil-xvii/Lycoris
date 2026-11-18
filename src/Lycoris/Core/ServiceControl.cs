@@ -250,15 +250,19 @@ public static class ServiceControl
         return ChangeServiceConfig2(svc, SERVICE_CONFIG_DELAYED_AUTO_START_INFO, ref info);
     }
 
-    public static async Task<bool> StopAsync(string name, TimeSpan timeout)
+    public static Task<bool> StopAsync(string name, TimeSpan timeout) => StopCoreAsync(name, timeout, exactName: false);
+
+    internal static Task<bool> StopExactAsync(string name, TimeSpan timeout) => StopCoreAsync(name, timeout, exactName: true);
+
+    private static async Task<bool> StopCoreAsync(string name, TimeSpan timeout, bool exactName)
     {
         if (IsProtected(name) || SafetyLock.IsLocked) return false;
         try
         {
-            using var sc = new ServiceController(name);
+            using var sc = exactName ? new ServiceController { ServiceName = name } : new ServiceController(name);
             if (sc.Status is ServiceControllerStatus.Stopped or ServiceControllerStatus.StopPending) return true;
             if (!sc.CanStop) return false;
-            sc.Stop();
+            sc.Stop(stopDependentServices: !exactName);
             await Task.Run(() => sc.WaitForStatus(ServiceControllerStatus.Stopped, timeout)).ConfigureAwait(false);
             return true;
         }
@@ -269,12 +273,16 @@ public static class ServiceControl
         }
     }
 
-    public static async Task<bool> StartAsync(string name, TimeSpan timeout)
+    public static Task<bool> StartAsync(string name, TimeSpan timeout) => StartCoreAsync(name, timeout, exactName: false);
+
+    internal static Task<bool> StartExactAsync(string name, TimeSpan timeout) => StartCoreAsync(name, timeout, exactName: true);
+
+    private static async Task<bool> StartCoreAsync(string name, TimeSpan timeout, bool exactName)
     {
         if (SafetyLock.IsLocked) return false;
         try
         {
-            using var sc = new ServiceController(name);
+            using var sc = exactName ? new ServiceController { ServiceName = name } : new ServiceController(name);
             if (sc.Status is ServiceControllerStatus.Running or ServiceControllerStatus.StartPending) return true;
             sc.Start();
             await Task.Run(() => sc.WaitForStatus(ServiceControllerStatus.Running, timeout)).ConfigureAwait(false);

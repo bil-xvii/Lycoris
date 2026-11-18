@@ -488,6 +488,58 @@
 
                     <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="0,0,10,10">
+                            <Border Style="{StaticResource Callout}" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Command="{Binding CheckServiceResidueCommand}" Margin="12,0,0,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:T ПРОВЕРИТЬ ОСТАТКИ}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock Text="{loc:T Остатки удалённых программ}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap"
+                                                   VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level2" />
+                                    </DockPanel>
+                                    <TextBlock Text="{loc:T Проверяется служба Everything. Пропажа файла сама по себе не подтверждает удаление программы.}"
+                                               Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                    <TextBlock Text="{Binding CleanupStatus}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                    <Button HorizontalAlignment="Left" Style="{StaticResource Btn}" Margin="0,8,0,0"
+                                            Command="{Binding RemoveServiceResidueCommand}" CommandParameter="Everything"
+                                            Visibility="{Binding CleanupNeedsAdministrator, Converter={StaticResource BoolToVis}}"
+                                            ToolTip="{loc:T 'Для удаления нужны оба экспертных режима и неуправляемый ПК.'}" ToolTipService.ShowOnDisabled="True">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{x:Static ui:Glyphs.Shield}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:T 'ПРОВЕРИТЬ С ПРАВАМИ'}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <DockPanel Visibility="{Binding CleanupCandidateName, Converter={StaticResource NullToVis}}" Margin="0,8,0,0">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Btn.Danger}" Command="{Binding RemoveServiceResidueCommand}"
+                                                CommandParameter="{Binding CleanupCandidateName}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                ToolTip="{loc:T 'Для удаления нужны оба экспертных режима и неуправляемый ПК.'}" ToolTipService.ShowOnDisabled="True">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:T 'УДАЛИТЬ РЕГИСТРАЦИЮ'}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding CleanupCandidateTitle}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding CleanupCandidatePath}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding CleanupResult}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                               Visibility="{Binding CleanupResult, Converter={StaticResource NullToVis}}" />
+                                    <Button HorizontalAlignment="Left" Style="{StaticResource Btn.Link}" Margin="0,8,0,0"
+                                            Command="{Binding OpenServiceResidueRecordCommand}"
+                                            Visibility="{Binding CleanupRecordId, Converter={StaticResource NullToVis}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{x:Static ui:Glyphs.Restore}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:T 'ОТКРЫТЬ ЗАПИСЬ ОТКАТА'}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="{loc:T 'Службы, которые могут понадобиться позже'}" Style="{StaticResource T.BodyStrong}"
+                                       AutomationProperties.HeadingLevel="Level2" Margin="0,0,0,6" />
                             <ItemsControl ItemsSource="{Binding RecommendationGroups}" ItemTemplate="{StaticResource RecGroup}" />
 
                             <TextBlock Text="{Binding MissingServicesText}" Style="{StaticResource T.Caption}" Margin="0,11,0,0"

@@ -52,6 +52,44 @@ public class AdminIntentTests
     }
 
     [Theory]
+    [InlineData("enable:Spooler")]
+    [InlineData("disable:Acme-agent_12")]
+    [InlineData("start:\"Acme Helper\"")]
+    [InlineData("stop:Spooler")]
+    public void Service_replay_round_trips_one_operation_and_scm_name(string parameter)
+    {
+        var intent = new AdminIntent("assistant", "RunServiceAction", parameter);
+        Assert.Equal(intent, AdminIntent.Parse(intent.ToArgs()));
+    }
+
+    [Theory]
+    [InlineData("services", "enable:Spooler")]
+    [InlineData("assistant", null)]
+    [InlineData("assistant", "restart:Spooler")]
+    [InlineData("assistant", "Enable:Spooler")]
+    [InlineData("assistant", "enable:Spooler:W32Time")]
+    [InlineData("assistant", "enable:Spooler disable:W32Time")]
+    [InlineData("assistant", "enable:Spooler --force")]
+    [InlineData("assistant", "enable:\"Spooler\" \"W32Time\"")]
+    [InlineData("assistant", "enable:Spooler\n")]
+    public void Service_replay_refuses_the_wrong_page_or_malformed_parameters(string page, string? parameter)
+    {
+        var intent = new AdminIntent(page, "RunServiceAction", parameter);
+        Assert.Null(AdminIntent.Parse(intent.ToArgs()));
+    }
+
+    [Theory]
+    [InlineData("--replay-param|disable:Spooler")]
+    [InlineData("--replay-command|RunServiceAction")]
+    [InlineData("--replay-page|assistant")]
+    [InlineData("--replay-param")]
+    public void Service_replay_refuses_duplicate_or_dangling_flags(string extra)
+    {
+        var args = new AdminIntent("assistant", "RunServiceAction", "enable:Spooler").ToArgs();
+        Assert.Null(AdminIntent.Parse([.. args, .. extra.Split('|')]));
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("--replay-page|optimize")]
     [InlineData("--replay-command|Apply")]

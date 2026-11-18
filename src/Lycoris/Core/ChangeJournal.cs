@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Lycoris.Core.Background;
 using Lycoris.Core.Devices;
+using Lycoris.Core.Services;
 using Lycoris.Modules.Services;
 using Lycoris.Tweaks;
 
@@ -30,6 +31,7 @@ public enum ChangeKind
     AudioLevel,
     /// <summary>An NDIS advanced property of a network adapter (speed/duplex, EEE).</summary>
     NicProperty,
+    ServiceRemoval,
 }
 
 /// <summary>
@@ -62,6 +64,7 @@ public sealed class ChangeRecord
 
     public RegistryValueSnapshot? Registry { get; set; }
     public ServiceStartSnapshot? Service { get; set; }
+    public Guid? ServiceRemovalToken { get; init; }
     public Guid? PowerSchemeOriginal { get; set; }
     /// <summary>A scheme Lycoris created (Ultimate Performance copy) and deletes on revert.</summary>
     public Guid? PowerSchemeCreated { get; set; }
@@ -286,6 +289,7 @@ public sealed class ChangeJournal
 
     /// <summary>The system side of an undo (tests replace it).</summary>
     internal IJournalSystem SystemAccess { get; set; } = WindowsJournalSystem.Instance;
+    internal ServiceRemovalOperations ServiceRemovalAccess { get; set; } = ServiceRemoval.Windows;
 
     /// <summary>Set when the journal had to be quarantined because its folder was writable by non-admins.</summary>
     public string? QuarantinedFile { get; private set; }
@@ -627,7 +631,8 @@ public sealed class ChangeJournal
 
     /// <summary>The same change written twice in one action (same batch, source, account): one record keeps the first original.</summary>
     internal static bool CanMerge(ChangeRecord top, ChangeRecord incoming) =>
-        top.BatchId == incoming.BatchId && top.Source == incoming.Source && top.Kind == incoming.Kind
+        top.Kind != ChangeKind.ServiceRemoval
+        && top.BatchId == incoming.BatchId && top.Source == incoming.Source && top.Kind == incoming.Kind
         && UserScope.Same(top.UserSid, incoming.UserSid) && !top.IsLegacyMerged
         && (incoming.PowerSchemeCreated is null || top.PowerSchemeCreated is null || top.PowerSchemeCreated == incoming.PowerSchemeCreated);
 
@@ -780,8 +785,8 @@ public sealed class ChangeJournal
                 ChangeRecord? newer, shadow;
                 lock (_lock)
                 {
-                    newer = NewerLayer(_data.Records, r);
-                    shadow = newer is null ? ShadowOf(_data.Records, r, sid) : null;
+                    newer = r.Kind == ChangeKind.ServiceRemoval ? null : NewerLayer(_data.Records, r);
+                    shadow = r.Kind != ChangeKind.ServiceRemoval && newer is null ? ShadowOf(_data.Records, r, sid) : null;
                 }
                 if (newer is not null)
                 {
@@ -852,6 +857,7 @@ public sealed class ChangeJournal
     /// </summary>
     private async Task<RevertOutcome> RestoreCheckedAsync(ChangeRecord r)
     {
+        if (r.Kind == ChangeKind.ServiceRemoval) return ServiceRemovalAccess.Restore(r);
         for (var attempt = 1; ; attempt++)
         {
             RestoreInputs before;
@@ -1100,6 +1106,7 @@ public sealed class ChangeJournal
     /// </summary>
     internal static bool IsForbiddenRestoreTarget(RegistryValueSnapshot s)
     {
+        if (ServiceRemovalRegistryProtection.IsReserved(s.Hive, s.Path)) return true;
         // The one IFEO value Lycoris writes: a program's CPU priority rule (PerfOptions\CpuPriorityClass of a non-system exe,
         // original absent or a known level). Debugger, GlobalFlag, MitigationOptions… and every other IFEO value stay refused.
         if (Lycoris.Modules.Games.PriorityRules.IsRuleValue(s)) return false;
@@ -1454,7 +1461,7 @@ internal static class JournalTrust
     private static readonly HashSet<string> ModuleSources = new(StringComparer.Ordinal)
     {
         "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers", "games", DeviceTargets.Source,
-        Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source, BackgroundStartupRegistration.Source,
+        Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source, BackgroundStartupRegistration.Source, ServiceRemoval.Source,
     };
 
     /// <summary>Kinds only the «Устройства и сеть» page writes (and the only kinds it writes).</summary>
@@ -1472,6 +1479,13 @@ internal static class JournalTrust
     /// <summary>Null when the record may be reverted; otherwise a short Russian reason.</summary>
     internal static string? Check(ChangeRecord r)
     {
+        if (r.AlsoSources is null || r.Target is null)
+            return Loc.T("Запись журнала не содержит данных для отката.");
+        if (r.Kind == ChangeKind.ServiceRemoval || r.Source == ServiceRemoval.Source || r.ServiceRemovalToken is not null
+            || r.Target.StartsWith("service-removal:", StringComparison.OrdinalIgnoreCase)
+            || r.AlsoSources.Contains(ServiceRemoval.Source))
+            return ServiceRemoval.IsRecord(r) ? null : Loc.T("некорректная запись об удалении службы");
+
         if (!IsKnownSource(r.Source)) return Loc.Tf("неизвестный источник записи «{0}»", r.Source);
         foreach (var s in r.AlsoSources)
             if (!IsKnownSource(s)) return Loc.Tf("неизвестный источник записи «{0}»", s);

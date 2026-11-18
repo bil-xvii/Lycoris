@@ -138,14 +138,15 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     public MainViewModel()
     {
         var dashboard = new DashboardViewModel();
+        var services = new ServicesViewModel();
         Pages =
         [
             new HomeViewModel(dashboard),
             dashboard,
-            new Lycoris.Modules.Assistant.AssistantViewModel(dashboard),
+            new Lycoris.Modules.Assistant.AssistantViewModel(dashboard, services),
             new OptimizeViewModel(),
             new GamesViewModel(),
-            new ServicesViewModel(),
+            services,
             Maintenance = new MaintenanceViewModel(),
             new DriversViewModel(),
             Devices = new DevicesViewModel(),
@@ -353,9 +354,13 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
                 return false;
             }
             NavigateTo(intent.PageKey);
-            await page.EnsureLoadedAsync();
-            // Let the page settle its lists (tab focus requests, collection rebuilds) before the command's CanExecute is read.
-            await Task.Delay(250);
+            if (intent.Command != AdminIntent.RunServiceAction)
+            {
+                await page.EnsureLoadedAsync();
+                // Let the page settle its lists before reading the command's CanExecute.
+                await Task.Delay(250);
+            }
+            // Service actions scan their own target and can run while Assistant's model and health checks load.
             var target = intent.FindCommand(page) is not null ? (object)page : this;
             // A busy page (a background refresh, the cleaner warm-up) is waited for: poll up to ~10 s instead of losing the click.
             // The user may have pressed the same button by hand while the relaunch was settling: never run it a second time.

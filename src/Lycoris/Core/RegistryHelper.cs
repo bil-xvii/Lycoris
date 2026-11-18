@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
+using Lycoris.Core.Services;
 
 namespace Lycoris.Core;
 
@@ -95,6 +96,7 @@ public static class RegistryHelper
         {
             using var b = OpenBase(hive);
             using var k = b.OpenSubKey(path, false);
+            if (k is not null) ServiceRemovalRegistryProtection.RequirePublicHandle(k);
             return k?.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
         }
         catch { return null; }
@@ -151,6 +153,7 @@ public static class RegistryHelper
     public static RegistryValueSnapshot Snapshot(RegHive hive, string path, string name)
     {
         // The snapshot keeps the logical (unmapped) location; Restore maps it again.
+        ServiceRemovalRegistryProtection.RequirePublicName(hive, path);
         RegHive h = hive; string p = path;
         Map(ref h, ref p);
         using var b = OpenBase(h);
@@ -162,6 +165,7 @@ public static class RegistryHelper
                 CreatedKeyRoot = ShallowestMissing(path, logical => KeyExists(hive, logical)),
             };
 
+        ServiceRemovalRegistryProtection.RequirePublicHandle(k);
         var value = k.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
         if (value is null)
             return new RegistryValueSnapshot { Hive = hive, Path = path, Name = name, KeyExisted = true, ValueExisted = false };
@@ -179,7 +183,7 @@ public static class RegistryHelper
         if (Redirect is null) SafetyLock.ThrowIfLocked(Loc.T("запись в реестр"));
         Map(ref hive, ref path);
         using var b = OpenBase(hive);
-        using var k = b.CreateSubKey(path, true) ?? throw new IOException(Loc.Tf("Не удалось открыть {0}\\{1}", hive, path));
+        using var k = ServiceRemovalRegistryProtection.OpenForMutation(b, hive, path, create: true) ?? throw new IOException(Loc.Tf("Не удалось открыть {0}\\{1}", hive, path));
         k.SetValue(name, Normalize(kind, value), kind);
     }
 
@@ -188,7 +192,7 @@ public static class RegistryHelper
         if (Redirect is null) SafetyLock.ThrowIfLocked(Loc.T("удаление из реестра"));
         Map(ref hive, ref path);
         using var b = OpenBase(hive);
-        using var k = b.OpenSubKey(path, true);
+        using var k = ServiceRemovalRegistryProtection.OpenForMutation(b, hive, path, create: false);
         k?.DeleteValue(name, false);
     }
 
@@ -234,7 +238,14 @@ public static class RegistryHelper
         try
         {
             if (Redirect is not null) return false; // tests: no .reg exports of redirected keys
-            if (!KeyExists(hive, path)) return false;
+            ServiceRemovalRegistryProtection.RequirePublicName(hive, path);
+            // Never export a containing SOFTWARE subtree with the private store below it.
+            if (hive == RegHive.HKLM && path.Replace('/', '\\').Trim('\\').Equals("SOFTWARE", StringComparison.OrdinalIgnoreCase))
+                return false;
+            using var b = OpenBase(hive);
+            using var k = b.OpenSubKey(path, false);
+            if (k is null) return false;
+            ServiceRemovalRegistryProtection.RequirePublicHandle(k);
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(file)!);
             var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("reg.exe"),
                 ["export", $"{HiveName(hive)}\\{path}", file, "/y"],
@@ -264,7 +275,8 @@ public static class RegistryHelper
                     RegHive h = hive; string p = logical;
                     Map(ref h, ref p);
                     using var b = OpenBase(h);
-                    b.DeleteSubKey(p, false);
+                    using var k = ServiceRemovalRegistryProtection.OpenForMutation(b, h, p, create: false, delete: true);
+                    if (k is not null) ServiceRemovalRegistryProtection.DeleteEmpty(k);
                 });
         }
         catch (Exception ex)
