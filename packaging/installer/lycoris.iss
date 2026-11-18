@@ -2,6 +2,9 @@
 #ifndef AppVersion
   #error Pass /DAppVersion=x.y.z from build-installer.ps1
 #endif
+#ifndef PublishDirectory
+  #define PublishDirectory "..\..\publish"
+#endif
 
 [Setup]
 AppId={{7E6D9A23-748C-4D62-9E36-6632D452A1F0}
@@ -11,10 +14,10 @@ AppPublisher=Lycoris
 DefaultDirName={localappdata}\Programs\Lycoris
 DefaultGroupName=Lycoris
 PrivilegesRequired=lowest
-OutputDir=..\..\publish
+OutputDir={#PublishDirectory}
 OutputBaseFilename=Lycoris-Setup-{#AppVersion}
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64os
+ArchitecturesInstallIn64BitMode=x64os
 UninstallDisplayIcon={app}\Lycoris.exe
 #ifdef Sign
 SignTool=LycorisSign
@@ -31,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе / Create a desktop shortcut"; GroupDescription: "Дополнительно / Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "..\..\publish\Lycoris.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PublishDirectory}\Lycoris.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Lycoris"; Filename: "{app}\Lycoris.exe"

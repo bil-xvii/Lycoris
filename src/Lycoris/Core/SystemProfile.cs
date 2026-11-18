@@ -37,9 +37,9 @@ public sealed class SystemProfile
     /// <summary>An incomplete profile is collected again on a later request, at most this often.</summary>
     private static readonly TimeSpan RetryIncompleteAfter = TimeSpan.FromSeconds(60);
 
-    /// <summary>Sections of <see cref="Collect"/>: os, cpu, memory, gpu, disks, chassis, board, battery → true = read without errors.</summary>
+    /// <summary>Sections of <see cref="Collect"/>: os, cpu, memory, gpu, disks, chassis, enclosure, board, battery → true = read without errors.</summary>
     private readonly ConcurrentDictionary<string, bool> _sections = new();
-    private static readonly string[] AllSections = ["os", "cpu", "memory", "gpu", "disks", "chassis", "board", "battery"];
+    private static readonly string[] AllSections = ["os", "cpu", "memory", "gpu", "disks", "chassis", "enclosure", "board", "battery"];
     /// <summary>Sections that tweak applicability rules depend on (laptop/battery/chassis, CPU model, GPUs).</summary>
     private static readonly string[] HardwareSections = ["cpu", "gpu", "chassis", "battery"];
 
@@ -77,8 +77,19 @@ public sealed class SystemProfile
     public bool SystemDriveIsSsd { get; private set; } = true;
 
     public bool HasBattery { get; private set; }
-    public bool IsLaptop => HasBattery || ChassisIsPortable;
+    /// <summary>
+    /// A confirmed SMBIOS identity takes precedence: a notebook can have no battery, and a desktop's
+    /// fallback Win32_Battery instance may be a UPS. Preserve the old battery/mobile fallback only while
+    /// identity is unknown; TweakEngine separately prevents hardware rules from applying in that state.
+    /// </summary>
+    public bool IsLaptop => Identity.IsKnown ? Identity.IsPortable : HasBattery || ChassisIsPortable;
     private bool ChassisIsPortable { get; set; }
+    /// <summary>Strict SMBIOS identity shared by recommendations and hardware applicability.</summary>
+    public ComputerIdentity Identity { get; private set; } = ComputerIdentity.Unknown;
+    private ushort? _pcSystemType;
+    private ushort[] _chassisTypes = [];
+    private bool _computerSystemRead;
+    private bool _enclosureRead;
     /// <summary>Modern Standby (S0 low-power idle, SYSTEM_POWER_CAPABILITIES.AoAc): only the Balanced plan exists there. Read-only fact.</summary>
     public bool IsModernStandby { get; private set; }
 
@@ -161,7 +172,10 @@ public sealed class SystemProfile
         Safe("gpu", ReadGpus);
         Safe("disks", ReadDisks);
         Safe("board", ReadBoard);
+        Safe("enclosure", ReadEnclosure);
         Safe("battery", ReadBattery);
+        Identity = ComputerIdentity.FromFacts(Manufacturer, Model, _pcSystemType, _chassisTypes,
+            _computerSystemRead, _enclosureRead);
         IsLoaded = true;
     }
 
@@ -318,17 +332,31 @@ public sealed class SystemProfile
 
     private void ReadBoard()
     {
-        foreach (var mo in Query("chassis", "SELECT Manufacturer, Model, PCSystemType FROM Win32_ComputerSystem"))
+        var computers = Query("chassis", "SELECT Manufacturer, Model, PCSystemType FROM Win32_ComputerSystem");
+        foreach (var mo in computers)
         {
             Manufacturer = mo["Manufacturer"]?.ToString() ?? "";
             Model = mo["Model"]?.ToString() ?? "";
-            ChassisIsPortable = Convert.ToUInt16(mo["PCSystemType"] ?? 0) == 2; // Mobile
+            _pcSystemType = mo["PCSystemType"] is { } type ? Convert.ToUInt16(type) : null;
+            ChassisIsPortable = _pcSystemType == 2; // Mobile: preserve legacy applicability.
         }
+        _computerSystemRead = computers.Count == 1
+            && (_pcSystemType.HasValue || !string.IsNullOrWhiteSpace(Manufacturer) || !string.IsNullOrWhiteSpace(Model))
+            && (!_sections.TryGetValue("chassis", out var ok) || ok);
         _sections.TryAdd("chassis", true); // stays false when the query above failed
         foreach (var mo in Query("board", "SELECT Manufacturer, Product FROM Win32_BaseBoard"))
             Motherboard = $"{mo["Manufacturer"]} {mo["Product"]}".Trim();
         foreach (var mo in Query("board", "SELECT SMBIOSBIOSVersion FROM Win32_BIOS"))
             BiosVersion = mo["SMBIOSBIOSVersion"]?.ToString() ?? "";
+    }
+
+    private void ReadEnclosure()
+    {
+        var enclosures = Query("enclosure", "SELECT ChassisTypes FROM Win32_SystemEnclosure");
+        _chassisTypes = enclosures.SelectMany(mo => mo["ChassisTypes"] as ushort[] ?? []).ToArray();
+        _enclosureRead = enclosures.Count > 0 && _chassisTypes.Length > 0
+            && (!_sections.TryGetValue("enclosure", out var ok) || ok);
+        if (!_enclosureRead) _sections["enclosure"] = false;
     }
 
     /// <summary>

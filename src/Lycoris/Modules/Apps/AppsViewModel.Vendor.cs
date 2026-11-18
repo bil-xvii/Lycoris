@@ -46,7 +46,7 @@ public sealed partial class AppsViewModel
     }
 
     private bool CanRunFallback(QueueItemViewModel? job) =>
-        job is not null && (job.IsDownloading || job.Fallback == QueueFallback.Website || (!IsQueueRunning && !IsVendorDownloadRunning));
+        job is not null && (job.IsDownloading || job.Fallback == QueueFallback.Website || CanStartQueue);
 
     /// <summary>
     /// Downloads the vendor's installer for <paramref name="item"/>, verifies its signature and starts it as the
@@ -75,6 +75,9 @@ public sealed partial class AppsViewModel
             return;
         }
 
+        if (_detecting) { NotifyStalePlan(); return; }
+        var detectionRevision = _detectionRevision;
+
         var restore = AppSettings.Current.CreateRestorePoints && await Task.Run(RestorePointService.IsEnabled);
         // Started from the card: the ПОКА НЕ НУЖНО / НЕ НУЖНО reason goes first, as in the winget confirmation (a queue row
         // already went through it). The download is never blocked.
@@ -88,11 +91,13 @@ public sealed partial class AppsViewModel
             confirmText: Loc.T("СКАЧАТЬ И ЗАПУСТИТЬ"), cancelText: Loc.T("ОТМЕНА"),
             footnote: Loc.T("Если подпись не подтвердится, файл будет удалён и не запустится."));
         if (!confirmed || IsQueueRunning || IsVendorDownloadRunning || _installWaiting) return;
+        if (!DetectionUnchanged(detectionRevision)) { NotifyStalePlan(); return; }
 
         // One installer at a time across the whole app: waits in the visible queue behind a running winget queue or driver install.
         // The lease is released in the finally below; the signed installer, once started for the user, runs on its own.
         var lease = await AcquireInstallAsync(Loc.Tf("Загрузка установщика {0}", entry.Name), () => Ui.Post(() => _vendorCts?.Cancel()));
         if (lease is null) return;
+        if (!DetectionUnchanged(detectionRevision)) { lease.Dispose(); NotifyStalePlan(); return; }
         var scope = lease.Scope();
         CurrentLease = lease;
 

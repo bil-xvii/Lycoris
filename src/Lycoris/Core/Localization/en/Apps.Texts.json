@@ -199,6 +199,22 @@
     "Нужно свободного места на системном диске: не меньше {0}": "Free space needed on the system drive: at least {0}",
     "Удалить программу потом можно в «Параметры → Приложения»": "You can remove the program later in “Settings → Apps → Installed apps”",
     "{0} программа": "{0} program|{0} programs",
-    "{0} пакет": "{0} package|{0} packages"
+    "{0} пакет": "{0} package|{0} packages",
+    "Проверка или состав установки изменились. Дождитесь проверки и подтвердите список заново.": "The check or installation list has changed. Wait for the check to finish and confirm the list again.",
+    "Подтверждённых рекомендаций нет": "No confirmed recommendations",
+    "Проверка не завершена": "Check incomplete",
+    "Проверка не выявила программ, необходимость которых подтверждена. Другие программы доступны во вкладке «ВСЕ».": "The check found no programs with a confirmed need. Other programs are available in the ALL tab.",
+    "Проверка неполная — рекомендации ограничены": "The check is incomplete — recommendations are limited",
+    "Подтверждённых компонентов нет": "No confirmed components",
+    "НУЖНЫЕ КОМПОНЕНТЫ": "NEEDED COMPONENTS",
+    "Нужные компоненты": "Needed components",
+    "РАНЕЕ НАЙДЕНО": "PREVIOUSLY FOUND",
+    "Программа найдена ранее; текущее состояние ещё не подтверждено.": "The program was found previously; its current state has not been verified yet.",
+    "Программа найдена {0:dd.MM HH:mm}; текущее состояние ещё не подтверждено.": "The program was found on {0:dd.MM HH:mm}; its current state has not been verified yet.",
+    "Только компоненты с подтверждённой необходимостью для установленных программ. Установленное пропускается.": "Only components with a confirmed need for installed programs. Installed components are skipped.",
+    "Подтверждённые компоненты: {0}. ": "Confirmed components: {0}. ",
+    "Необходимость дополнительных компонентов пока не подтверждена. ": "The need for additional components has not been confirmed yet. ",
+    "Необходимость не подтверждена: {0}. Устанавливайте компонент, если его запросит программа или игра.": "No confirmed need: {0}. Install a component if a program or game requests it.",
+    "Не удалось установить зависимость пакета (например, .NET или Visual C++). Проверьте требования программы на её официальном сайте и повторите.": "A package dependency could not be installed (for example, .NET or Visual C++). Check the program's requirements on its official website and try again."
   }
 }

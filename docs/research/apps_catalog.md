@@ -408,14 +408,18 @@ For a fast UI, cross-check against the Uninstall registry keys (HKLM, WOW6432Nod
 
 Owner request (27.10.2026): show what to install on this PC, what is recommended, what is not needed yet and what is not
 needed at all. Code: `Modules/Apps/AppAdvisor.cs` (pure rules), `Modules/Apps/PeripheralScan.cs` (read-only device scan),
-tests `tests/Monolith.Tests/AppAdvisorTests.cs`. The advice never blocks anything: every package can still be installed.
+tests `tests/Lycoris.Tests/AppAdvisorTests.cs`. The advice never blocks anything: every package can still be installed.
+
+Owner clarification (14.11.2026): recommend only a demonstrated need on this PC. Popularity, an empty inventory, a matching
+hardware brand or an up-to-date runtime version does not prove that need. No dependency-file scan is performed; conditional
+advice names the use case instead of inferring installed games or their requirements.
 
 ### Levels
 
 | Level | Tag on the card | Look | Meaning |
 |---|---|---|---|
-| Required | **НУЖНО** | `Tag.Solid` (white block) | Games or common programs fail without it on this PC |
-| Recommended | **РЕКОМЕНДУЕТСЯ** | `Tag` (outline) | Worth having on this PC; counted in «РЕКОМЕНДУЕМ» |
+| Required | **НУЖНО** | `Tag.Solid` (white block) | A detected consumer requires this component on this PC |
+| Recommended | **РЕКОМЕНДУЕТСЯ** | `Tag` (outline) | A verified need supports the suggestion; counted in «РЕКОМЕНДУЕМ» |
 | Optional | **ПО ЖЕЛАНИЮ** | `Tag.Muted` | Install if you want it; also the fallback whenever a needed fact is unknown |
 | NotNow | **ПОКА НЕ НУЖНО** | `Tag.Muted` | Only for a specific situation (a program asks, a problem to diagnose, expert use) |
 | NotNeeded | **НЕ НУЖНО** | `Tag.Muted`, card at 0.55 opacity (full on hover) | Useless or counter-productive on this PC |
@@ -433,10 +437,11 @@ neutral sentence.
   one adapter. An incomplete profile (slow WMI after a cold boot) is read again on «Проверить» and on return to the page.
 - **Windows build and UBR**: `SystemProfile` (CurrentBuildNumber, UBR); the UBR counts only when the "os" section was read.
 - **Installed programs** (`InstalledKnown`, `InstalledIds`): every id of every installed catalog entry from the detection
-  snapshot (§10), regional variants included, also components found outside winget ("unmanaged"). Known after the first
-  detection pass or the cached one.
+  snapshot (§10), regional variants included, also components found outside winget ("unmanaged"). Known after a successful
+  fresh export. Failed export, invalid output and cached data do not establish that an unlisted program is absent.
 - **Store apps checked** (`StoreKnown`): the fast detection pass comes before the one-by-one Microsoft Store checks; until a
-  full result (or the cache) is applied, a Store app missing from the list (the Xbox app) may still be installed.
+  successful fresh Store result is applied, a Store app missing from the list may still be installed. Cached or partial
+  results do not establish absence. Gaming Services needs both `InstalledKnown` and `StoreKnown` before it can be suggested.
 - **Peripherals** (`PeripheralsKnown`, `Peripherals`): `PeripheralScan` reads `Win32_PnPEntity.DeviceID` and `PNPClass`
   (read-only WMI, off the UI thread), parses the USB-IF vendor and product id with the Drivers page's `HardwareRules.UsbId`
   (USB/HID `VID_xxxx`, Bluetooth `VID&0002xxxx` classic and `VID&02xxxx` LE — vendor id source 2 = USB-IF; source 1 =
@@ -468,37 +473,41 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
 4. Anything else → ПО ЖЕЛАНИЮ.
 5. **Hard safety rule:** an entry flagged KernelDriver, Anticheat, RemoteAccess, Expert, Trialware, Paid or Eol is never НУЖНО
    or РЕКОМЕНДУЕТСЯ — a rule result above is lowered to ПО ЖЕЛАНИЮ (`AppAdvisor.NeverSuggested`). Tested over all entries and
-   2 772 input combinations, and the clamp itself with synthetic flagged copies of Steam, Visual C++ 2015+, .NET 10, G HUB and
-   Gaming Services (each of the 7 flags → ПО ЖЕЛАНИЮ, out of the kit).
+   2 772 input combinations, and the clamp itself with synthetic flagged copies of Gaming Services (each of the 7 flags →
+   ПО ЖЕЛАНИЮ, out of the kit). An unknown installed inventory also clamps any suggestion to ПО ЖЕЛАНИЮ.
    **Gaming Services is a deliberate, documented case:** it installs Microsoft's own drivers xvdd.sys ("XVD Disk Driver",
    virtual disks of Xbox game packages) and gameflt.sys ("Gaming Install Filter"). They are the component itself, signed by
    Microsoft and required by the Xbox app, not a third-party driver risk like Vanguard, WinRing0 or a virtual audio driver, so
-   the entry carries no KernelDriver flag and is НУЖНО when the Xbox app is installed (Game Pass games do not install or start
-   without it); without the Xbox app it is ПОКА НЕ НУЖНО.
+   the entry carries no KernelDriver flag and is НУЖНО when the Xbox app is detected and both inventory checks are known;
+   without the Xbox app it is ПОКА НЕ НУЖНО, and with an incomplete check it is ПО ЖЕЛАНИЮ.
+
+| Observed fact | What it supports | What remains unknown |
+|---|---|---|
+| Fresh inventory detects Xbox; export and Store checks succeeded | Suggest Gaming Services if missing | Other game-library dependencies |
+| No runtime listed, or a failed / cached check | Conditional runtime advice only | Whether a specific installed program needs it |
+| Matching peripheral or NVIDIA card | Optional configuration app for that device | Whether the user needs extra settings |
+| Prism detected | Java advice tied to Minecraft versions | Installed instances and their chosen Java |
 
 ### Rules
 
 | Entry | Condition | Level |
 |---|---|---|
-| Visual C++ 2015–2022 x64 and x86 | always | НУЖНО |
-| Visual C++ 2005–2013 x86/x64 | always — out of Microsoft support, and the reason says so («Microsoft её больше не обновляет, но замены для таких игр нет»); no Eol flag on purpose, see fact 10 | РЕКОМЕНДУЕТСЯ |
-| DirectX End-User Runtime (June 2010) | always (Windows ships no D3DX9, XAudio 2.7, XInput 1.3) | РЕКОМЕНДУЕТСЯ |
-| WebView2 Runtime | not installed (installed programs known) / unknown / installed | НУЖНО / ПО ЖЕЛАНИЮ / no advice |
-| Gaming Services | Xbox app installed / not installed (Store apps checked) / installed programs or Store apps not checked yet | НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
-| .NET Desktop Runtime 10 | before its end of support (14.11.2028) / after | РЕКОМЕНДУЕТСЯ («её просят новые программы, а другие версии .NET её не заменяют») / ПОКА НЕ НУЖНО |
+| Visual C++ 2015+ x64 and x86 | only if a specific game or program needs this runtime and architecture; not inferred from Windows architecture | ПО ЖЕЛАНИЮ |
+| Visual C++ 2005–2013 x86/x64 | only if a specific game requires that version; out of support, reason says Microsoft no longer updates it | ПОКА НЕ НУЖНО |
+| DirectX End-User Runtime (June 2010) | only if a specific older game requires D3DX9, XAudio 2.7 or XInput 1.3 | ПОКА НЕ НУЖНО |
+| WebView2 Runtime | absent or unknown, without evidence of a consumer / installed | ПО ЖЕЛАНИЮ / no advice |
+| Gaming Services | Xbox detected and fresh installed + Store inventories known / Xbox absent with both checks known / either inventory unknown | НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| .NET Desktop Runtime 10 | before its end of support (14.11.2028), only if a specific program requests it / after | ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
 | .NET Desktop Runtime 8 and 9 | before 10.11.2026 / from that date (reason names the date) | ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
 | .NET Desktop Runtime 6 | ended 12.11.2024 | ПОКА НЕ НУЖНО |
-| .NET Framework 4.8.1 | Windows 10 20H2+ or Windows 11 21H2 (where the catalog offers it) / build too old / 22H2+ (built in) / unknown | РЕКОМЕНДУЕТСЯ / НЕ НУЖНО / НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| .NET Framework 4.8.1 | Windows 10 20H2+ or Windows 11 21H2, only if a program requests it / build too old / 22H2+ (built in) / unknown | ПО ЖЕЛАНИЮ / НЕ НУЖНО / НЕ НУЖНО / ПО ЖЕЛАНИЮ |
 | XNA Framework 4.0, OpenAL | only if a game asks (Steam installs them per game) | ПОКА НЕ НУЖНО |
-| Java 21 / 17 / 8 | Prism Launcher installed | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
+| Java 21 / 17 / 8 | Prism Launcher installed; no inference about installed Minecraft instances, Prism can download Java | ПО ЖЕЛАНИЮ / ПО ЖЕЛАНИЮ / ПОКА НЕ НУЖНО |
 | Java 21 / 17 / 8 | CurseForge only, or neither (official launcher) / unknown | ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
-| NVIDIA PhysX, NVIDIA Control Panel, Profile Inspector, NVCleanstall | no NVIDIA card («Видеокарта NVIDIA не найдена.») / NVIDIA present / cards unknown | НЕ НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
-| Logitech G HUB, Razer Synapse 4, Corsair iCUE 5, SteelSeries GG, Elgato Stream Deck | a device of that maker connected (Elgato: a Stream Deck) / scan unknown | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ |
-| Logitech G HUB, Razer Synapse 4 | scan known, no device of that maker | НЕ НУЖНО |
-| SteelSeries GG | scan known, no SteelSeries device — the Sonar mixer is free and works with any headset (fact 7) | ПО ЖЕЛАНИЮ |
-| Corsair iCUE 5 | scan known, no Corsair USB device — iCUE also drives Corsair RGB memory, which is on SMBus, not USB (fact 7) | ПО ЖЕЛАНИЮ |
-| Elgato Stream Deck | scan known, no Stream Deck — the app is also needed for Stream Deck Mobile on a phone (fact 7) | ПОКА НЕ НУЖНО |
-| 7-Zip | Windows 10, Windows 11 21H2, 22H2 before 22621.2361 / 22H2 ≥ 2715, 23H2 ≥ 2506, 24H2+ / 22H2 2361–2714 (toggle-gated), 23H2 before 2506 (pre-release), Insider 2262x, UBR unknown | РЕКОМЕНДУЕТСЯ / ПО ЖЕЛАНИЮ «Windows уже открывает RAR и 7z» / ПО ЖЕЛАНИЮ (neutral) |
+| NVIDIA Control Panel | no NVIDIA card / NVIDIA present, for settings / cards unknown | НЕ НУЖНО / ПО ЖЕЛАНИЮ / ПО ЖЕЛАНИЮ |
+| NVIDIA PhysX, Profile Inspector, NVCleanstall | no NVIDIA card / NVIDIA present, for a specific game or expert task / cards unknown | НЕ НУЖНО / ПОКА НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| Logitech G HUB, Razer Synapse 4, Corsair iCUE 5, SteelSeries GG, Elgato Stream Deck | matching device connected / scan known, no matching device / scan unknown | ПО ЖЕЛАНИЮ / НЕ НУЖНО / ПО ЖЕЛАНИЮ |
+| 7-Zip | no duplicate archiver; Windows version changes the native-archive explanation, not whether an archiver is necessary | ПО ЖЕЛАНИЮ |
 | WinRAR | no other archiver (paid after the trial; 7-Zip is free) | ПОКА НЕ НУЖНО |
 | Process Lasso | always (both it and Lycoris's game mode change process priorities, §5) | НЕ НУЖНО |
 | Autoruns | expert; the basics are on «Автозапуск и службы» | ПОКА НЕ НУЖНО |
@@ -512,8 +521,8 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
 | Voicemeeter, Voicemeeter Banana | virtual audio driver + reboot, only for audio mixing | ПОКА НЕ НУЖНО |
 | Sunshine | installs a service and opens network ports | ПОКА НЕ НУЖНО |
 | AnyDesk, TeamViewer | only while someone you trust helps you — scammers often ask to install them | ПОКА НЕ НУЖНО |
-| Steam | the largest PC store | РЕКОМЕНДУЕТСЯ |
-| Discord | the main voice chat of players | РЕКОМЕНДУЕТСЯ |
+| Steam | for the user's Steam library | ПО ЖЕЛАНИЮ |
+| Discord | for the user's conversations and communities in Discord | ПО ЖЕЛАНИЮ |
 | everything else | — | ПО ЖЕЛАНИЮ |
 
 ### Where it shows (no new rows, pages or hero blocks)
@@ -522,12 +531,13 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
   trimmed caption line with the reason for every level except ПО ЖЕЛАНИЮ; НЕ НУЖНО cards dimmed. Cards are not reordered.
   The former «NVIDIA НЕ НАЙДЕНА» badge is replaced by this advice.
 - **Tab «РЕКОМЕНДУЕМ · N»** next to «ВСЕ»: not installed, installable НУЖНО + РЕКОМЕНДУЕТСЯ cards; empty groups hidden.
-  Before the first detection it says the advice appears after the check (no "everything installed" claim); without winget it
-  says that nothing can be checked until «Установщик приложений» is installed.
-- **«Набор геймера»:** the same row and button; its set is computed: runtime-category entries that are НУЖНО or
-  РЕКОМЕНДУЕТСЯ for this PC (`AppAdvisor.Kit`). So no end-of-life .NET 6/8/9, WebView2 only once installed programs are
-  known, Gaming Services only with the Xbox app, .NET Framework 4.8.1 only where offered, Java 21 only with Prism Launcher.
-  The tooltip names what is in the kit and which runtimes are left out.
+  Before a successful check it says the advice needs current data (no "everything installed" claim). An empty result stays
+  empty with an explanation; it does not automatically switch to the full catalog.
+- **Runtime kit:** runtime-category entries that are НУЖНО or РЕКОМЕНДУЕТСЯ for this PC (`AppAdvisor.Kit`). The only current
+  consumer-backed case is Gaming Services for detected Xbox after both fresh inventory checks. A clean PC without a consumer
+  has an empty kit; generic Visual C++, DirectX, .NET, WebView2 and Java are not included speculatively. `Assess` retains a
+  needed installed component for the installed / needed counter, `Advise` hides its card advice, and installation skips it.
+  The tooltip names included components and conditional libraries left out.
 - **Install confirmation:** ПОКА НЕ НУЖНО / НЕ НУЖНО packages of the plan are listed first with their reason
   («НЕ НУЖНО — NVIDIA PhysX: Видеокарта NVIDIA не найдена.»), with one lead sentence; the install is never blocked. For those
   packages the warning lines that would repeat the reason (expert tool, end of support, paid/trial) are left out; the
@@ -561,7 +571,8 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
    **Correction to the task text:** CurseForge alone does not make a separate JRE recommended — Java stays ПОКА НЕ НУЖНО.
    https://support.curseforge.com/support/solutions/articles/9000218572-getting-started
 5. **Prism Launcher** runs Minecraft on an installed Java unless "Auto-download Mojang Java" is switched on in Settings → Java,
-   so Java 21 stays РЕКОМЕНДУЕТСЯ for Prism users and the reason mentions the option.
+   so Prism alone cannot prove a separate Java installation is needed; Java 21 remains optional and the reason mentions
+   its Minecraft versions and Prism's download option.
    https://prismlauncher.org/wiki/getting-started/installing-java, https://prismlauncher.org/wiki/help-pages/java-settings
 6. **PhysX ships inside the NVIDIA driver:** NVIDIA's standalone PhysX System Software 9.26.0703 is "the PhysX System Software
    bundled with NVIDIA Release 615 GA1 drivers". https://www.nvidia.com/en-us/drivers/physx/physx-9-26-0703-driver/
@@ -570,10 +581,11 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
    python-elgato-streamdeck the newer ones (0080 MK.2, 0084 Plus, 0086 Pedal, 008f XL V2, 0090 Mini MK.2, 009a Neo, 00a5, 00aa
    Studio, 00b3, 00b8, 00b9, 00ba, 00c6 Plus XL). 0fd9 also covers Elgato capture cards and cameras, 1b1c Corsair flash drives
    (Flash Voyager), 046d Logitech webcams and office devices — hence the class and PID filters. The scan cannot see three uses
-   of the makers' software, so those cases are not НЕ НУЖНО: **SteelSeries Sonar** (in GG) is free and works with any headset
+   of the makers' software: **SteelSeries Sonar** (in GG) is free and works with any headset
    and mic; **Corsair iCUE** controls Vengeance RGB / Dominator memory over SMBus, without a USB device; **Stream Deck Mobile**
-   on a phone needs the Stream Deck app on the PC. **G HUB** configures Blue Yeti microphones (Blue VO!CE, Logitech, 28 Sep
-   2021), which carry the Blue vendor id b58e. The РЕКОМЕНДУЕТСЯ sentence for Logitech says G HUB is for Logitech G devices
+   on a phone needs the Stream Deck app on the PC. These are possible manual uses, not detected needs: no matching device
+   means НЕ НУЖНО for the scanned hardware, and unknown devices remain ПО ЖЕЛАНИЮ. **G HUB** configures Blue Yeti microphones
+   (Blue VO!CE, Logitech, 28 Sep 2021), which carry the Blue vendor id b58e. The optional Logitech reason says G HUB is for Logitech G devices
    and Yeti mics (Logitech office mice use Logi Options+). https://github.com/usbids/usbids/blob/master/usb.ids,
    https://github.com/abcminiuser/python-elgato-streamdeck/blob/master/src/StreamDeck/ProductIDs.py,
    https://steelseries.com/gg/sonar, https://help.elgato.com/hc/en-us/articles/17162153663117-Elgato-Stream-Deck-Mobile-System-Requirements
@@ -587,23 +599,30 @@ The advice is recomputed (pure, cheap) whenever an input changes: profile loaded
    https://windowsreport.com/xvdd-scsi-miniport/
 10. **Visual C++ 2005–2013 are out of Microsoft support:** Visual Studio 2013 ended 9 Apr 2024, 2012 on 10 Jan 2023, 2010 on
     14 Jul 2020, 2008 on 10 Apr 2018, 2005 on 12 Apr 2016; Microsoft's redistributable page marks 2013 and older "no longer
-    supported". They are still the only way to run games built with them, so they stay РЕКОМЕНДУЕТСЯ (and in the kit) and the
-    reason says Microsoft no longer updates them. The Eol flag is deliberately not set: it would push them below the games'
-    needs through the hard safety rule, while .NET 6 (Eol) has a supported successor programs can move to.
+    supported". Games built with them may require the corresponding version, but this scan does not identify those games.
+    Therefore they are ПОКА НЕ НУЖНО, outside the automatic kit, with a reason that Microsoft no longer updates them.
+    The existing catalog flags and manual installation remain unchanged.
     https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist, https://learn.microsoft.com/lifecycle/faq/visual-c-faq,
     https://www.neowin.net/news/microsoft-reminds-us-that-visual-studio-2013-support-ends-on-april-9-2024/
 11. Gaming Services for Xbox / Game Pass (§4), Process Lasso vs Lycoris's priorities (§5), DirectX June 2010 contents (§4),
     remote-access scams (§7), Sunshine service and ports (§6) — from this report.
 
+Advice policy rechecked 14.11.2026 against official documentation: [Visual C++ redistributables](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
+are selected for applications built with the relevant toolset; [DirectX June 2010](https://www.microsoft.com/en-us/download/details.aspx?id=8109)
+supplies optional legacy libraries used by some games; [.NET version selection](https://learn.microsoft.com/en-us/dotnet/core/versions/selection)
+depends on an application's deployment and runtime configuration. None establishes a universal installation requirement.
+
 ### Known limits
 
-- Peripherals are matched by maker (Elgato: by Stream Deck model), not by model: a Logitech office mouse or its Unifying
-  receiver also makes G HUB РЕКОМЕНДУЕТСЯ; the sentence says who the program is for.
-- **Drivers page alignment (open):** «Драйверы → Подбор для вашего ПК» still words the same components its own way — the
-  peripheral note says the maker's program is «по желанию», and .NET 10 next to another installed .NET is offered as optional
-  «только если программа просит». The levels should come from `AppAdvisor.Assess` (same tag strings) so both pages agree; this
-  is a change in `Modules/Drivers/Hardware/HardwareAdvisor.cs`, outside the Apps module. The Apps .NET 10 reason already
-  states the Drivers page's fact (other .NET versions do not replace it).
+- Peripherals are matched by maker (Elgato: by Stream Deck model), not every supported model: an office mouse or receiver
+  may match Logitech, so even a positive match gives only optional G HUB advice with its intended devices named.
+- USB/Bluetooth scanning does not prove whether Corsair RGB memory, a Sonar workflow or Stream Deck Mobile is used.
+  A negative result describes the scanned hardware; the catalog stays available for those deliberate manual choices.
+- Runtime consumers and their files are not inspected. Missing runtime packages, Prism alone and hardware brands cannot
+  establish dependencies. The Drivers page also treats runtime installation as optional for a concrete program.
+- Computer identity elsewhere in the UI uses [PCSystemType](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-computersystem)
+  and [ChassisTypes](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemenclosure), with unknown/conflicting
+  SMBIOS values stated explicitly. A known form factor alone does not prove an application dependency.
 
 ## Sources
 - https://learn.microsoft.com/en-us/windows/package-manager/winget/

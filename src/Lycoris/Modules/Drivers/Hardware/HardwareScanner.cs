@@ -50,6 +50,7 @@ internal static class HardwareScanner
             When = DateTime.Now,
             Cpu = cpu,
             IsLaptop = profile.IsLaptop,
+            Identity = profile.Identity,
             Board = board,
             Gpus = gpus,
             NvidiaPackageVersion = Safe(Loc.T("версия пакета NVIDIA"), DriverInventory.ReadNvidiaPackageVersion, null),

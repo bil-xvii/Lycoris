@@ -104,7 +104,7 @@ public static class AppAdvisor
         ["Microsoft.DotNet.DesktopRuntime.6"] = new(2024, 11, 12),
     };
 
-    /// <summary>The current .NET LTS: recommended until its end of support.</summary>
+    /// <summary>The current .NET LTS; support alone does not prove that a program on this PC needs it.</summary>
     public const string CurrentDotNetId = "Microsoft.DotNet.DesktopRuntime.10";
 
     /// <summary>
@@ -166,9 +166,10 @@ public static class AppAdvisor
     {
         if (e.SystemComponent) return null;
         var advice = Duplicate(e, ctx) ?? Rule(e, ctx) ?? Optional();
-        // Hard safety rule: drivers, anti-cheat, remote access, expert tools, paid/trial and end-of-life packages
-        // are never pushed, whatever a rule above says.
-        if (advice.IsSuggested && (e.Flags & NeverSuggested) != 0) advice = advice with { Level = AdviceLevel.Optional };
+        // An incomplete inventory cannot establish a need. Drivers, anti-cheat, remote access, expert tools,
+        // paid/trial and end-of-life packages are never pushed, whatever a rule above says.
+        if (advice.IsSuggested && (!ctx.InstalledKnown || (e.Flags & NeverSuggested) != 0))
+            advice = advice with { Level = AdviceLevel.Optional };
         return advice;
     }
 
@@ -182,7 +183,6 @@ public static class AppAdvisor
     // ─────────────────────────── rules ───────────────────────────
 
     private static AppAdvice Required(string reason) => new(AdviceLevel.Required, reason);
-    private static AppAdvice Recommended(string reason) => new(AdviceLevel.Recommended, reason);
     private static AppAdvice Optional(string reason = "") => new(AdviceLevel.Optional, reason);
     private static AppAdvice NotNow(string reason) => new(AdviceLevel.NotNow, reason);
     private static AppAdvice NotNeeded(string reason) => new(AdviceLevel.NotNeeded, reason);
@@ -217,36 +217,34 @@ public static class AppAdvisor
         switch (e.Id)
         {
             case "Microsoft.DirectX":
-                return Recommended(Loc.T("Старым играм нужны D3DX9, XAudio 2.7 и XInput 1.3 — в Windows их нет, без них такие игры не запускаются."));
+                return NotNow(Loc.T("Ставьте, только если конкретная старая игра требует D3DX9, XAudio 2.7 или XInput 1.3 — в Windows этих компонентов нет."));
             case WebView2Id:
                 // Steam draws its windows with its own Chromium (CEF, steamwebhelper), and no source shows that Battle.net
                 // or the EA app need WebView2: the reason names only programs documented as WebView2-based.
-                return ctx.InstalledKnown
-                    ? Required(Loc.T("Веб-движок Windows: на нём работают окна многих программ (новые Teams и Outlook, Microsoft 365), а здесь он не найден."))
-                    : Optional(Loc.T("Веб-движок Windows для окон многих программ; в Windows 11 он встроен, в Windows 10 обычно уже установлен."));
+                return Optional(Loc.T("Нужен программам на WebView2, например новым Teams и Outlook; отсутствие среды само по себе не означает, что её нужно ставить."));
             case GamingServicesId:
                 // Gaming Services installs Microsoft's own drivers (xvdd.sys "XVD Disk Driver", gameflt.sys "Gaming Install
                 // Filter") for Xbox game packages. That is the component itself, not a third-party risk, so the entry has no
                 // KernelDriver flag and may be НУЖНО: the installed Xbox app cannot install or start games without it (§14).
+                // A missing Store component is not established by a partial or unknown inventory.
+                if (!ctx.InstalledKnown || !ctx.StoreKnown) return Optional(Loc.T("Нужны для игр из приложения Xbox и Game Pass."));
                 if (ctx.IsInstalled(XboxAppId))
                     return Required(Loc.T("Установлено приложение Xbox: без игровых служб игры Game Pass не устанавливаются и не запускаются."));
-                // The Xbox app is a Store app: "not installed" counts only once the Store checks have finished.
-                if (!ctx.InstalledKnown || !ctx.StoreKnown) return Optional(Loc.T("Нужны для игр из приложения Xbox и Game Pass."));
                 return NotNow(Loc.T("Нужны только для игр из приложения Xbox и Game Pass — приложение Xbox само предложит их поставить."));
             case "Microsoft.DotNet.Framework.Runtime":
                 if (ctx.OsBuild <= 0) return Optional(Loc.T("Последняя версия .NET Framework для старых программ и лаунчеров."));
                 if (ctx.OsBuild >= 22621) return NotNeeded(Loc.T("Уже встроен в эту версию Windows."));
                 if (ctx.OsBuild < e.MinOsBuild) return NotNeeded(Loc.T("Не устанавливается на эту версию Windows: нужна Windows 10 20H2 или новее."));
-                return Recommended(Loc.T("Последняя версия .NET Framework для старых программ и лаунчеров; в эту Windows встроена более ранняя."));
+                return Optional(Loc.T("Ставьте, только если конкретная программа требует .NET Framework 4.8.1; более ранняя версия в Windows сама по себе не повод обновлять."));
             case "Microsoft.XNARedist":
                 return NotNow(Loc.T("Нужна лишь некоторым старым инди-играм; Steam обычно ставит её сам вместе с игрой."));
             case "CreativeTechnology.OpenAL":
                 return NotNow(Loc.T("Нужна лишь некоторым старым играм; Steam обычно ставит её сам вместе с игрой."));
 
             case "Valve.Steam":
-                return Recommended(Loc.T("Крупнейший магазин игр для ПК — нужен большинству игроков."));
+                return Optional(Loc.T("Нужен для игр из вашей библиотеки Steam; популярность магазина не означает, что он нужен этому ПК."));
             case "Discord.Discord":
-                return Recommended(Loc.T("Главный голосовой и текстовый чат игроков."));
+                return Optional(Loc.T("Нужен, если вы общаетесь в Discord; наличие игрового ПК не означает, что этот чат вам нужен."));
 
             case "BitSum.ProcessLasso":
                 return NotNeeded(Loc.T("Спорит с игровым режимом Lycoris: обе программы меняют приоритеты процессов."));
@@ -289,11 +287,11 @@ public static class AppAdvisor
     {
         if (id.StartsWith("Microsoft.VCRedist.2015+", StringComparison.OrdinalIgnoreCase))
             return id.EndsWith(".x86", StringComparison.OrdinalIgnoreCase)
-                ? Required(Loc.T("Её требуют 32-битные игры и программы — их много даже на 64-битной Windows."))
-                : Required(Loc.T("Без неё не запускается большинство современных игр и программ (ошибка «MSVCP140.dll не найден»)."));
+                ? Optional(Loc.T("Ставьте, если конкретная 32-битная игра или программа требует Visual C++ 2015+; разрядность Windows не доказывает эту потребность."))
+                : Optional(Loc.T("Ставьте, если конкретная 64-битная игра или программа требует Visual C++ 2015+ (например, сообщает об отсутствии MSVCP140.dll)."));
         // Visual Studio 2005–2013 are out of Microsoft support (2013: 09.04.2024), but nothing replaces them for the old games
-        // built with them, so they stay РЕКОМЕНДУЕТСЯ without the Eol flag — and the reason says so (§14).
-        return Recommended(Loc.T("Старые игры ищут именно эту версию Visual C++, а в Windows её нет. Microsoft её больше не обновляет, но замены для таких игр нет."));
+        // built with them. Keep them available for a concrete dependency, without recommending all versions in advance.
+        return NotNow(Loc.T("Только если конкретная игра требует именно эту версию Visual C++; Microsoft её больше не обновляет, другие версии её не заменяют."));
     }
 
     private static AppAdvice Nvidia(CatalogEntry e, AdviceContext ctx)
@@ -303,7 +301,7 @@ public static class AppAdvisor
         return e.Id switch
         {
             "Nvidia.PhysX" => NotNow(Loc.T("Драйвер NVIDIA уже содержит PhysX — отдельный пакет нужен, только если игра на него жалуется.")),
-            "9NF8H0H7WMLT" => NotNow(Loc.T("Обычно ставится вместе с драйвером NVIDIA — нужна, только если панели нет.")),
+            "9NF8H0H7WMLT" => Optional(Loc.T("Для настройки найденной видеокарты NVIDIA; обычно панель уже ставится с драйвером, отдельная установка нужна только по вашей задаче.")),
             "Orbmu2k.nvidiaProfileInspector" => NotNow(Loc.T("Инструмент для опытных: меняет скрытые настройки драйвера NVIDIA.")),
             "TechPowerUp.NVCleanstall" => NotNow(Loc.T("Инструмент для опытных: собирает урезанный установщик драйвера NVIDIA.")),
             _ => Optional(Loc.T("Для видеокарт NVIDIA.")),
@@ -324,7 +322,7 @@ public static class AppAdvisor
         var name = BrandName(b);
         if (!ctx.PeripheralsKnown) return Optional(Loc.Tf("Нужна только владельцам устройств {0}.", name));
         if (ctx.Peripherals.Contains(b))
-            return Recommended(b switch
+            return Optional(b switch
             {
                 PeripheralBrand.Logitech => Loc.T("Найдено устройство Logitech: G HUB настраивает игровые мыши, клавиатуры, гарнитуры Logitech G и микрофоны Yeti (офисным моделям и веб-камерам не нужен)."),
                 PeripheralBrand.Razer => Loc.T("Найдено устройство Razer: Synapse настраивает его кнопки, подсветку и прошивку."),
@@ -332,14 +330,8 @@ public static class AppAdvisor
                 PeripheralBrand.SteelSeries => Loc.T("Найдено устройство SteelSeries: GG настраивает его и добавляет звуковой микшер Sonar."),
                 _ => Loc.T("Найден пульт Elgato Stream Deck: программа назначает действия его кнопкам."),
             });
-        // The scan sees USB/Bluetooth devices only. "НЕ НУЖНО" only where the program has no use without them.
-        return b switch
-        {
-            PeripheralBrand.SteelSeries => Optional(Loc.T("Устройств SteelSeries нет, но микшер Sonar в GG бесплатен и работает с любыми наушниками.")),
-            PeripheralBrand.Corsair => Optional(Loc.T("USB-устройств Corsair нет; iCUE пригодится, если в ПК стоит память Corsair с подсветкой — она подключена не по USB.")),
-            PeripheralBrand.Elgato => NotNow(Loc.T("Пульт Stream Deck не найден: программа нужна только для него или для Stream Deck Mobile на телефоне.")),
-            _ => NotNeeded(Loc.Tf("Устройства {0} сейчас не подключены — программа нужна только для них.", name)),
-        };
+        // No confirmed matching device: do not infer a separate need for RGB, Sonar or a phone app.
+        return NotNeeded(Loc.Tf("Подходящее устройство {0} не обнаружено — оснований ставить программу для его настройки нет.", name));
     }
 
     private static AppAdvice DotNet(string id, DateOnly end, AdviceContext ctx)
@@ -347,7 +339,7 @@ public static class AppAdvisor
         if (ctx.Today >= end)
             return NotNow(Loc.Tf("Без обновлений безопасности с {0} — ставьте, только если программа просит именно эту версию.", FormatDate(end)));
         return string.Equals(id, CurrentDotNetId, StringComparison.OrdinalIgnoreCase)
-            ? Recommended(Loc.Tf("Актуальная версия .NET (поддержка Microsoft до {0}): её просят новые программы, а другие версии .NET её не заменяют.", FormatDate(end)))
+            ? Optional(Loc.Tf("Поддержка .NET до {0}; ставьте, только если конкретная программа просит .NET Desktop Runtime 10.", FormatDate(end)))
             : Optional(Loc.Tf("Поддержка Microsoft заканчивается {0} — ставьте, если программа просит именно эту версию.", FormatDate(end)));
     }
 
@@ -363,7 +355,7 @@ public static class AppAdvisor
         if (ctx.IsInstalled(PrismLauncherId))
         {
             if (id.Contains(".21.", StringComparison.Ordinal))
-                return Recommended(Loc.T("Prism Launcher запускает Minecraft на установленной Java: Java 21 нужна сборкам 1.20.5–1.21 (или включите в Prism автозагрузку Java)."));
+                return Optional(Loc.T("Java 21 нужна сборкам Minecraft 1.20.5–1.21 в Prism; наличие Prism не доказывает, что такие сборки есть, а Java можно загрузить из Prism."));
             if (id.Contains(".17.", StringComparison.Ordinal))
                 return Optional(Loc.T("Для сборок Minecraft 1.18–1.20.4 в Prism Launcher."));
             return NotNow(Loc.T("Только для старых сборок Minecraft (1.16.5 и раньше) в Prism Launcher."));
@@ -388,7 +380,7 @@ public static class AppAdvisor
     private static AppAdvice SevenZip(AdviceContext ctx) => HasNativeArchives(ctx.OsBuild, ctx.OsUbr) switch
     {
         true => Optional(Loc.T("Windows уже открывает RAR и 7z (кроме архивов с паролем).")),
-        false => Recommended(ctx.OsBuild < 22000
+        false => Optional(ctx.OsBuild < 22000
             ? Loc.T("Бесплатный архиватор: Windows 10 сама не открывает RAR и 7z.")
             : Loc.T("Бесплатный архиватор: эта сборка Windows сама не открывает RAR и 7z.")),
         _ => Optional(Loc.T("Бесплатный архиватор для RAR, 7z и архивов с паролем.")),

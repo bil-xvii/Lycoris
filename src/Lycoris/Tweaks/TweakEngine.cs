@@ -203,13 +203,13 @@ public static class TweakEngine
 
     /// <summary>
     /// Whether <paramref name="t"/> applies to this PC: null = cannot tell, because the tweak has an
-    /// applicability rule and the hardware facts (laptop/battery/chassis, CPU, GPUs) could not be read.
+    /// applicability rule and hardware facts could not be read, or the strict computer identity is unknown/conflicting.
     /// The profile defaults (e.g. IsLaptop = false) are never used to decide.
     /// </summary>
     public static bool? Applicability(Tweak t, SystemProfile sp)
     {
         if (t.AppliesTo is null) return true;
-        if (!sp.HardwareFactsKnown) return null;
+        if (!sp.HardwareFactsKnown || !sp.Identity.IsKnown) return null;
         try
         {
             return t.IsApplicable(sp);

@@ -379,8 +379,12 @@
             <TextBlock Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center">
                 <Run Text="{Binding VisibleText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{loc:T 'УСТАНОВЛЕНО '}" /><Run Text="{Binding InstalledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
             </TextBlock>
-            <TextBlock Grid.Column="1" Text="{Binding DetectionText}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" Margin="14,0,0,0"
-                       TextTrimming="CharacterEllipsis" ToolTip="{Binding WingetVersionText}" />
+            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding ComputerSummary}" Style="{StaticResource T.Caption}"
+                           TextTrimming="CharacterEllipsis" ToolTip="{Binding ComputerToolTip}" />
+                <TextBlock Text="{Binding DetectionText}" Style="{StaticResource T.Caption}"
+                           TextTrimming="CharacterEllipsis" ToolTip="{Binding WingetVersionText}" />
+            </StackPanel>
         </Grid>
 
         <Grid Grid.Row="3" Margin="0,10,0,0">
@@ -452,21 +456,26 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="{loc:T Набор геймера}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T Нужные компоненты}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Style="{StaticResource T.Caption}" Margin="10,1,10,0" VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis" Text="{Binding KitCaption, Mode=OneTime}"
                                        ToolTip="{Binding KitToolTip}" ToolTipService.ShowDuration="30000" />
                             <TextBlock Grid.Column="2" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center"
-                                       Margin="0,0,10,0" ToolTip="{Binding KitStatusText}">
+                                       Margin="0,0,10,0" ToolTip="{Binding KitStatusText}"
+                                       Visibility="{Binding HasKit, Converter={StaticResource BoolToVis}}">
                                 <Run Text="{Binding KitInstalled, Mode=OneWay}" /><Run Text=" / " Foreground="{StaticResource B.Text3}" /><Run Text="{Binding KitTotal, Mode=OneWay}" Foreground="{StaticResource B.Text3}" />
                             </TextBlock>
                             <Button Grid.Column="3" Command="{Binding InstallKitCommand}"
+                                    Visibility="{Binding HasKit, Converter={StaticResource BoolToVis}}"
                                     ToolTip="{loc:T 'Показать список пакетов и установить недостающие библиотеки, которые нужны этому ПК'}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <TextBlock Text="{Binding KitButtonText}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
+                            <TextBlock Grid.Column="2" Grid.ColumnSpan="2" Text="{Binding KitStatusText}"
+                                       Style="{StaticResource T.Caption}" VerticalAlignment="Center"
+                                       Visibility="{Binding HasKit, Converter={StaticResource InverseBoolToVis}}" />
                         </Grid>
                     </Border>
 

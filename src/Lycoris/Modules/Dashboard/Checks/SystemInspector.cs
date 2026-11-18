@@ -84,6 +84,7 @@ public static class SystemInspector
             InstalledGames = Safe(ReadGameNames, []),
             Uptime = TimeSpan.FromMilliseconds(Environment.TickCount64),
             IsLaptop = p.IsLaptop,
+            Identity = p.Identity,
             HardwareFactsKnown = p.HardwareFactsKnown,
             OnBattery = p.IsLaptop && Safe(Lycoris.Modules.Games.GamesNative.IsOnBattery, false),
             CpuName = p.CpuName,

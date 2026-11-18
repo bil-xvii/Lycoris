@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
+using System.Reflection;
 using System.ServiceProcess;
 using Microsoft.Win32;
 using Lycoris.Core;
@@ -40,6 +42,188 @@ public sealed class OptimizeTests
         DetectFunc = () => TweakState.NotApplied,
         ApplyAction = _ => { },
     };
+
+    private static SystemProfile ProfileWithIdentity(ComputerIdentity identity, bool laptop = false)
+    {
+        var profile = new SystemProfile();
+        typeof(SystemProfile).GetProperty(nameof(SystemProfile.Identity))!.SetValue(profile, identity);
+        typeof(SystemProfile).GetProperty("ChassisIsPortable", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(profile, laptop);
+        var sections = (ConcurrentDictionary<string, bool>)typeof(SystemProfile)
+            .GetField("_sections", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(profile)!;
+        foreach (var section in new[] { "cpu", "gpu", "chassis", "battery" }) sections[section] = true;
+        return profile;
+    }
+
+    private static CustomTweak HardwareTweak(string id, bool laptop = false, params string[] requires) => new()
+    {
+        Id = id, Title = id, Description = "", Risk = TweakRisk.Safe, Requires = requires,
+        AppliesTo = sp => sp.IsLaptop == laptop,
+        DetectFunc = () => TweakState.NotApplied,
+        ApplyAction = _ => throw new InvalidOperationException("This selection test must not apply changes."),
+    };
+
+    // Profile selection updates the shared preference even without saving a settings file. Always restore it,
+    // including after a failed assertion, so Dashboard power advice cannot inherit another test's scenario.
+    private sealed class LastProfileScope : IDisposable
+    {
+        private readonly string _before = AppSettings.Current.LastProfile;
+        public void Dispose() => AppSettings.Current.LastProfile = _before;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Uncertain_identity_blocks_hardware_rules_even_when_legacy_facts_were_read(bool conflict)
+    {
+        var identity = conflict ? ComputerIdentity.FromFacts("Vendor", "Model", 1, [9]) : ComputerIdentity.Unknown;
+        var profile = ProfileWithIdentity(identity);
+        Assert.True(profile.HardwareFactsKnown);
+        Assert.False(profile.IsLaptop);
+        Assert.Equal(conflict, identity.HasConflict);
+
+        Assert.Null(TweakEngine.Applicability(HardwareTweak("desktop"), profile));
+        Assert.Null(TweakEngine.Applicability(TweakCatalog.Find("power-plan-performance")!, profile));
+        Assert.True(TweakEngine.Applicability(Tweak("ordinary", "Ordinary"), profile));
+    }
+
+    [Theory]
+    [InlineData(OptimizeProfile.Normal, false)]
+    [InlineData(OptimizeProfile.Gaming, false)]
+    [InlineData(OptimizeProfile.Recommended, false)]
+    [InlineData(OptimizeProfile.Streaming, false)]
+    [InlineData(OptimizeProfile.Efficiency, false)]
+    [InlineData(OptimizeProfile.Normal, true)]
+    [InlineData(OptimizeProfile.Gaming, true)]
+    [InlineData(OptimizeProfile.Recommended, true)]
+    [InlineData(OptimizeProfile.Streaming, true)]
+    [InlineData(OptimizeProfile.Efficiency, true)]
+    public void Scenario_and_cli_selection_never_check_hardware_rows_with_uncertain_identity(OptimizeProfile scenario, bool conflict)
+    {
+        using var settings = new LastProfileScope();
+        var identity = conflict ? ComputerIdentity.FromFacts("Vendor", "Model", 1, [9]) : ComputerIdentity.Unknown;
+        var profile = ProfileWithIdentity(identity);
+        Tweak[] tweaks = [Tweak("ordinary", "Ordinary"), HardwareTweak("desktop"), HardwareTweak("dependent", false, "ordinary")];
+        var page = new OptimizeViewModel();
+        page.BuildCatalog(tweaks);
+        page.SetProfileDefaults(scenario, tweaks.Select(t => t.Id));
+        var excluded = tweaks.Where(t => TweakEngine.Applicability(t, profile) is not true).Select(t => t.Id).ToArray();
+        var states = new Dictionary<string, TweakState>
+        {
+            ["ordinary"] = TweakState.NotApplied, ["desktop"] = TweakState.Unknown, ["dependent"] = TweakState.NotApplicable,
+        };
+
+        // The command-line host uses this same selection path; no detection or Windows mutation is needed here.
+        var pending = page.PendingForProfile(scenario, states, excluded);
+
+        Assert.Equal(["ordinary"], pending.Select(p => p.Id));
+        Assert.All(page.Items.Where(i => i.Id != "ordinary"), i =>
+        {
+            Assert.False(i.IsChecked);
+            Assert.False(i.IsPending);
+            Assert.False(i.IsApplicableNow);
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Compatible_known_desktop_and_laptop_keep_their_applicable_profile_rows(bool laptop)
+    {
+        using var settings = new LastProfileScope();
+        var identity = ComputerIdentity.FromFacts("Vendor", "Model", laptop ? (ushort)2 : (ushort)1,
+            laptop ? new ushort[] { 9 } : [3]);
+        var profile = ProfileWithIdentity(identity, laptop);
+        Tweak[] tweaks = [Tweak("ordinary", "Ordinary"), HardwareTweak("desktop"), HardwareTweak("laptop", true)];
+        var page = new OptimizeViewModel();
+        page.BuildCatalog(tweaks);
+        page.SetProfileDefaults(OptimizeProfile.Gaming, tweaks.Select(t => t.Id));
+        var excluded = tweaks.Where(t => TweakEngine.Applicability(t, profile) is not true).Select(t => t.Id).ToArray();
+        var states = tweaks.ToDictionary(t => t.Id, t => TweakEngine.Applicability(t, profile) is true
+            ? TweakState.NotApplied : TweakState.NotApplicable);
+
+        var pending = page.PendingForProfile(OptimizeProfile.Gaming, states, excluded);
+
+        Assert.Equal(["ordinary", laptop ? "laptop" : "desktop"], pending.Select(p => p.Id));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Programmatic_efficiency_selection_uses_the_detected_laptop_context(bool laptop)
+    {
+        using var settings = new LastProfileScope();
+        const string acId = "power-mode-best-efficiency-ac";
+        var identity = ComputerIdentity.FromFacts("Vendor", "Model", laptop ? (ushort)2 : (ushort)1,
+            laptop ? new ushort[] { 9 } : [3]);
+        var system = ProfileWithIdentity(identity, laptop);
+        var plan = new CustomTweak
+        {
+            Id = "plan", Title = "Plan", Description = "", ExclusiveGroup = TweakGroups.PowerPlan,
+            DetectFunc = () => TweakState.NotApplied, ApplyAction = _ => { },
+        };
+        var ac = new CustomTweak
+        {
+            Id = acId, Title = "AC mode", Description = "", ExclusiveGroup = TweakGroups.PowerModeAc, Requires = ["plan"],
+            DetectFunc = () => TweakState.NotApplied, ApplyAction = _ => { },
+        };
+        Tweak[] tweaks = [plan, ac, Tweak("dc", "DC mode")];
+        var page = new OptimizeViewModel();
+        page.BuildCatalog(tweaks);
+        page.SetProfileDefaults(OptimizeProfile.Efficiency, tweaks.Select(t => t.Id));
+        var hardwareKnown = system.HardwareFactsKnown && system.Identity.IsKnown;
+        page.MarkDetected(hardwareKnown, hardwareKnown && system.IsLaptop);
+        var states = tweaks.ToDictionary(t => t.Id, _ => TweakState.NotApplied);
+
+        var pending = page.PendingForProfile(OptimizeProfile.Efficiency, states, []);
+
+        Assert.Equal(laptop ? new[] { "plan", "dc" } : ["plan", acId, "dc"], pending.Select(p => p.Id));
+        Assert.Equal(!laptop, page.Items.Single(i => i.Id == acId).IsChecked);
+    }
+
+    [Fact]
+    public void Notebook_identified_only_by_chassis_is_not_eligible_for_desktop_rules_without_battery()
+    {
+        var profile = ProfileWithIdentity(ComputerIdentity.FromFacts("Vendor", "Notebook", 0, [9]));
+
+        Assert.False(profile.HasBattery);
+        Assert.True(profile.Identity.IsPortable);
+        Assert.True(profile.IsLaptop);
+        Assert.False(TweakEngine.Applicability(HardwareTweak("desktop"), profile));
+        Assert.True(TweakEngine.Applicability(HardwareTweak("laptop", true), profile));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Confirmed_desktop_or_vm_with_fallback_battery_does_not_become_a_laptop(bool virtualMachine)
+    {
+        var identity = virtualMachine ? ComputerIdentity.FromFacts("Microsoft Corporation", "Virtual Machine", 1, [3])
+            : ComputerIdentity.FromFacts("Vendor", "Desktop", 1, [3]);
+        var profile = ProfileWithIdentity(identity);
+        typeof(SystemProfile).GetProperty(nameof(SystemProfile.HasBattery))!.SetValue(profile, true);
+
+        Assert.True(profile.HasBattery);
+        Assert.False(identity.IsPortable);
+        Assert.False(profile.IsLaptop);
+        Assert.True(TweakEngine.Applicability(HardwareTweak("desktop"), profile));
+        Assert.False(TweakEngine.Applicability(HardwareTweak("laptop", true), profile));
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    public void Unknown_identity_preserves_legacy_portability_but_blocks_hardware_rules(bool battery, bool mobile, bool expected)
+    {
+        var profile = ProfileWithIdentity(ComputerIdentity.Unknown, mobile);
+        typeof(SystemProfile).GetProperty(nameof(SystemProfile.HasBattery))!.SetValue(profile, battery);
+
+        Assert.Equal(expected, profile.IsLaptop);
+        Assert.Null(TweakEngine.Applicability(HardwareTweak("desktop"), profile));
+        Assert.Null(TweakEngine.Applicability(HardwareTweak("laptop", true), profile));
+    }
 
     // ───────────────────────────── Profiles ─────────────────────────────
 

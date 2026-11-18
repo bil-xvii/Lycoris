@@ -277,6 +277,19 @@
     "Не удалось прервать winget: {0}": "Could not stop winget: {0}",
     "ОБНОВИТЬ{0}": "UPDATE{0}",
     "winget.exe в профиле пользователя — не ссылка Windows, а обычный файл; с правами администратора он не запускается.": "winget.exe in the user profile is a plain file, not a Windows link; it is not run with administrator rights.",
-    "winget export не вернул списка — результат проверки не сохранён в кэш.": "winget export returned no list — the result was not saved to the cache."
+    "winget export не вернул списка — результат проверки не сохранён в кэш.": "winget export returned no list — the result was not saved to the cache.",
+    "Ставьте, только если конкретная старая игра требует D3DX9, XAudio 2.7 или XInput 1.3 — в Windows этих компонентов нет.": "Install only if a specific older game requires D3DX9, XAudio 2.7 or XInput 1.3; Windows does not include these components.",
+    "Нужен программам на WebView2, например новым Teams и Outlook; отсутствие среды само по себе не означает, что её нужно ставить.": "Used by WebView2-based apps, such as the new Teams and Outlook; a missing runtime alone does not mean it needs to be installed.",
+    "Ставьте, только если конкретная программа требует .NET Framework 4.8.1; более ранняя версия в Windows сама по себе не повод обновлять.": "Install only if a specific app requires .NET Framework 4.8.1; an older version included in Windows alone is not a reason to upgrade.",
+    "Нужен для игр из вашей библиотеки Steam; популярность магазина не означает, что он нужен этому ПК.": "Used for games in your Steam library; the store's popularity does not mean this PC needs it.",
+    "Нужен, если вы общаетесь в Discord; наличие игрового ПК не означает, что этот чат вам нужен.": "Used if you chat on Discord; owning a gaming PC does not mean you need this chat app.",
+    "Ставьте, если конкретная 32-битная игра или программа требует Visual C++ 2015+; разрядность Windows не доказывает эту потребность.": "Install if a specific 32-bit game or app requires Visual C++ 2015+; the Windows architecture does not establish that need.",
+    "Ставьте, если конкретная 64-битная игра или программа требует Visual C++ 2015+ (например, сообщает об отсутствии MSVCP140.dll).": "Install if a specific 64-bit game or app requires Visual C++ 2015+ (for example, it reports that MSVCP140.dll is missing).",
+    "Только если конкретная игра требует именно эту версию Visual C++; Microsoft её больше не обновляет, другие версии её не заменяют.": "Only if a specific game requires this exact Visual C++ version; Microsoft no longer updates it, and other versions do not replace it.",
+    "Для настройки найденной видеокарты NVIDIA; обычно панель уже ставится с драйвером, отдельная установка нужна только по вашей задаче.": "For configuring the detected NVIDIA graphics card; the panel usually comes with the driver, so install it separately only for a specific task.",
+    "Подходящее устройство {0} не обнаружено — оснований ставить программу для его настройки нет.": "No matching {0} device was detected, so there is no established need for its configuration app.",
+    "Поддержка .NET до {0}; ставьте, только если конкретная программа просит .NET Desktop Runtime 10.": ".NET is supported until {0}; install only if a specific app requests .NET Desktop Runtime 10.",
+    "Java 21 нужна сборкам Minecraft 1.20.5–1.21 в Prism; наличие Prism не доказывает, что такие сборки есть, а Java можно загрузить из Prism.": "Java 21 is used by Minecraft 1.20.5–1.21 instances in Prism; Prism alone does not prove these are present, and it can download Java.",
+    "Проверка программ неполная — результат проверки не сохранён в кэш.": "The app check is incomplete, so its results were not saved to the cache."
   }
 }

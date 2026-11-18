@@ -95,6 +95,8 @@ public sealed record SystemSnapshot
     public DateTime Now { get; init; } = DateTime.Now;
     public TimeSpan Uptime { get; init; }
     public bool IsLaptop { get; init; }
+    /// <summary>Strict form factor used by advice that assumes a desktop and accessible firmware settings.</summary>
+    public ComputerIdentity Identity { get; init; } = ComputerIdentity.Unknown;
     /// <summary>
     /// False when the battery/chassis facts behind <see cref="IsLaptop"/> could not be read (SystemProfile.HardwareFactsKnown):
     /// the default «desktop» must then not be used to offer laptop-forbidden levers such as hibernation off.

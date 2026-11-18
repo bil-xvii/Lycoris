@@ -301,8 +301,10 @@ public sealed class DashboardRamTests
     public void Laptops_get_information_instead_of_a_warning()
     {
         var modules = new[] { new RamModule("", 5600, 4800, 34, 0) };
-        Assert.Equal(CheckSeverity.Warning, HealthRules.CheckRam(new SystemSnapshot { RamModules = modules })!.Severity);
-        Assert.Equal(CheckSeverity.Info, HealthRules.CheckRam(new SystemSnapshot { RamModules = modules, IsLaptop = true })!.Severity);
+        var desktop = ComputerIdentity.FromFacts("Vendor", "Desktop", 1, [3]);
+        var laptop = ComputerIdentity.FromFacts("Vendor", "Notebook", 2, [9]);
+        Assert.Equal(CheckSeverity.Warning, HealthRules.CheckRam(new SystemSnapshot { RamModules = modules, Identity = desktop })!.Severity);
+        Assert.Equal(CheckSeverity.Info, HealthRules.CheckRam(new SystemSnapshot { RamModules = modules, Identity = laptop, IsLaptop = true })!.Severity);
         Assert.Null(HealthRules.CheckRam(new SystemSnapshot { RamModules = modules })!.Action); // BIOS only: never an automatic action
     }
 }
@@ -713,8 +715,10 @@ public sealed class DashboardRulesTests
     public void Low_space_lists_system_files_and_offers_the_one_safe_lever()
     {
         const ulong gb = 1UL << 30;
+        var desktopIdentity = ComputerIdentity.FromFacts("Vendor", "Desktop", 1, [3]);
         var desktop = HealthRules.CheckDiskSpace(new SystemSnapshot
         {
+            Identity = desktopIdentity,
             SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileBytes = 9 * gb, PagefileSystemManaged = true,
         })!;
         Assert.Equal(CheckSeverity.Warning, desktop.Severity);
@@ -746,6 +750,7 @@ public sealed class DashboardRulesTests
         Assert.Equal(HealthRules.TweakPagefileSystemManaged, manual.SecondaryAction!.Target);
         var twoLevers = HealthRules.CheckDiskSpace(new SystemSnapshot
         {
+            Identity = desktopIdentity,
             SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileSystemManaged = false, PagefileOnOtherDrive = false,
         })!;
         Assert.Equal(HealthRules.TweakHibernationOff, twoLevers.SecondaryAction!.Target);
