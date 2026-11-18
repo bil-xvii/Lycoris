@@ -23,10 +23,13 @@ internal sealed record ServiceRemovalResult(ServiceRemovalOutcome Outcome, Servi
 // Only SCM settings the v1 recipe can restore are represented. Own-process, LocalSystem, stopped and
 // disabled with no extended configuration are fixed invariants, checked again by the Windows backend.
 internal sealed record ServiceRemovalSnapshot(string Name, string DisplayName, string ImageCommand, string Executable,
-    string Description, int ErrorControl, string ServiceSddl, string RegistrySddl)
+    string Description, int ErrorControl, string ServiceSddl, string RegistrySddl,
+    ServiceRemovalPreferredNodeProof PreferredNodeProof = ServiceRemovalPreferredNodeProof.Unverified)
 {
     [System.Text.Json.Serialization.JsonIgnore] internal string Fingerprint => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(this)));
 }
+
+internal enum ServiceRemovalPreferredNodeProof { Unverified, ReportedUnset, QueryUnavailableOnNodeZero }
 
 internal enum RemovalPathState { Missing, Present, Unknown }
 internal enum RemovalServiceState { Absent, Present, PendingDeletion, Unknown }

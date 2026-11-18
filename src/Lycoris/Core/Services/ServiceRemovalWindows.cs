@@ -28,8 +28,11 @@ internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
     private const uint Connect = 1, CreateAccess = 2;
     private const uint QueryAccess = 0x2000D, DeleteAccess = 0x10000, ChangeConfigAccess = 2;
     private const int OwnProcess = 0x10, Disabled = 4, Stopped = 1, DescriptionLevel = 1;
-    private const int InsufficientBuffer = 122, ServiceDoesNotExist = 1060, ServiceMarkedForDelete = 1072;
+    private const int InvalidParameter = 87, InsufficientBuffer = 122, ServiceDoesNotExist = 1060, ServiceMarkedForDelete = 1072;
     private const string DefaultDacl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
+
+    // The default service descriptor observed on the clean Windows 11 SCM fixture audits failed access.
+    private const string DefaultSacl = "S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)";
 
     public bool CanDelete() => ServiceRemovalAuthorization.CanDelete(Elevation.IsElevated, SafetyLock.IsLocked,
         AppSettings.Current.ExpertMode, AppSettings.Current.ServicesExpertMode, CanProveUnmanaged());
@@ -139,8 +142,11 @@ internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
             if (InspectService(snapshot.Name) != RemovalServiceState.Absent || InspectPath(snapshot) != RemovalPathState.Missing)
                 throw new InvalidOperationException(Loc.T("Не удалось подтвердить, что имя службы свободно."));
 
+            var highestNumaNode = snapshot.PreferredNodeProof == ServiceRemovalPreferredNodeProof.QueryUnavailableOnNodeZero
+                ? ReadHighestNumaNode() : null;
             using var parent = OpenServicesKey(audit: true);
-            if (!IsInheritedKeySecurity(new RawSecurityDescriptor(snapshot.RegistrySddl), parent)
+            if (!CanRestorePreferredNode(snapshot.PreferredNodeProof, highestNumaNode)
+                || !IsInheritedKeySecurity(new RawSecurityDescriptor(snapshot.RegistrySddl), parent)
                 || !IsDefaultServiceSecurity(new RawSecurityDescriptor(snapshot.ServiceSddl))
                 || !SafeMetadata(snapshot.DisplayName, 256) || !SafeMetadata(snapshot.Description, 1024, allowEmpty: true)
                 || snapshot.ErrorControl is not (0 or 1))
@@ -230,11 +236,16 @@ internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
         if (sddl is null) return null;
         using var parent = OpenServicesKey(audit: true);
         using var key = ServiceRemovalRegistry.Open(parent, name, audit: true);
-        if (key is null || parent.SubKeyCount > 8192 || !parent.GetSubKeyNames().Contains(name, StringComparer.Ordinal)
-            || key.SubKeyCount != 0 || !RegistryValuesMatch(key, command, display, desc, config.ErrorControl)) return null;
+        if (key is null || parent.SubKeyCount > 8192 || !parent.GetSubKeyNames().Contains(name, StringComparer.Ordinal))
+            return null;
+        var exactRegistryShape = key.SubKeyCount == 0 && RegistryValuesMatch(key, command, display, desc, config.ErrorControl);
+        if (!exactRegistryShape) return null;
         var descriptor = ServiceRemovalRegistry.RequireAcl(key, exclusive: false, audit: true);
         if (!IsInheritedKeySecurity(descriptor, parent)) return null;
-        return new(name, display, command, executable, desc, config.ErrorControl, sddl, descriptor.GetSddlForm(AccessControlSections.All));
+        var preferredNode = InspectPreferredNode(handle, exactRegistryShape);
+        if (preferredNode == ServiceRemovalPreferredNodeProof.Unverified) return null;
+        return new(name, display, command, executable, desc, config.ErrorControl, sddl,
+            descriptor.GetSddlForm(AccessControlSections.All), preferredNode);
     }
 
     private static bool DefaultOptionalConfig(ScmHandle handle)
@@ -252,10 +263,41 @@ internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
         using var privileges = QueryConfig2(handle, 6);
         if (privileges.Text(privileges.Read<nint>()).Length != 0) return false;
         using var triggers = QueryConfig2(handle, 8);
-        if (triggers.Read<int>() != 0) return false;
-        using var preferred = QueryConfig2(handle, 9);
-        return preferred.Read<ushort>() == ushort.MaxValue;
+        return triggers.Read<int>() == 0;
     }
+
+    private static ServiceRemovalPreferredNodeProof InspectPreferredNode(ScmHandle handle, bool exactRegistryShape)
+    {
+        try
+        {
+            using var buffer = QueryConfig2(handle, 9);
+            return ClassifyPreferredNode(0, buffer.Read<ushort>(), null, exactRegistryShape);
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == InvalidParameter)
+        {
+            return ClassifyPreferredNode(ex.NativeErrorCode, null, ReadHighestNumaNode(), exactRegistryShape);
+        }
+    }
+
+    internal static ServiceRemovalPreferredNodeProof ClassifyPreferredNode(int queryCode, ushort? reportedNode,
+        uint? highestNumaNode, bool exactRegistryShape)
+    {
+        // Error 87 is ambiguous. The exact trusted service key excludes any persisted node preference.
+        // Only allow the observed query failure on a machine where Windows reports no node above 0.
+        // https://learn.microsoft.com/windows/win32/services/database-of-installed-services
+        // https://learn.microsoft.com/windows/win32/api/systemtopologyapi/nf-systemtopologyapi-getnumahighestnodenumber
+        if (!exactRegistryShape) return ServiceRemovalPreferredNodeProof.Unverified;
+        if (queryCode == 0 && reportedNode == ushort.MaxValue) return ServiceRemovalPreferredNodeProof.ReportedUnset;
+        if (queryCode == InvalidParameter && reportedNode is null && highestNumaNode == 0)
+            return ServiceRemovalPreferredNodeProof.QueryUnavailableOnNodeZero;
+        return ServiceRemovalPreferredNodeProof.Unverified;
+    }
+
+    internal static bool CanRestorePreferredNode(ServiceRemovalPreferredNodeProof proof, uint? highestNumaNode) =>
+        proof == ServiceRemovalPreferredNodeProof.ReportedUnset
+        || (proof == ServiceRemovalPreferredNodeProof.QueryUnavailableOnNodeZero && highestNumaNode == 0);
+
+    internal static uint? ReadHighestNumaNode() => GetNumaHighestNodeNumber(out var node) ? node : null;
 
     private static bool RegistryValuesMatch(RegistryKey key, string command, string display, string desc, int error)
     {
@@ -289,17 +331,30 @@ internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
 
     private static string? ReadDefaultServiceSecurity(ScmHandle handle)
     {
+        var descriptor = ReadServiceSecurity(handle);
+        return IsDefaultServiceSecurity(descriptor) ? descriptor.GetSddlForm(AccessControlSections.All) : null;
+    }
+
+    private static RawSecurityDescriptor ReadServiceSecurity(ScmHandle handle)
+    {
         using var security = Query((nint buffer, int size, out int needed) =>
             QueryServiceObjectSecurity(handle, 15, buffer, size, out needed));
-        var descriptor = new RawSecurityDescriptor(security.Bytes(), 0);
-        return IsDefaultServiceSecurity(descriptor) ? descriptor.GetSddlForm(AccessControlSections.All) : null;
+        return new RawSecurityDescriptor(security.Bytes(), 0);
+    }
+
+    internal static string ReadSupportedServiceSecurityForDiagnostics()
+    {
+        using var manager = OpenManager(Connect);
+        using var handle = ServiceRemovalAudit.Open(() =>
+            OpenService(manager, ServiceRemoval.SupportedName, QueryAccess | ServiceRemovalAudit.Access));
+        return ReadServiceSecurity(handle).GetSddlForm(AccessControlSections.All);
     }
 
     internal static bool IsDefaultServiceSecurity(RawSecurityDescriptor descriptor) =>
         descriptor.Owner?.IsWellKnown(WellKnownSidType.LocalSystemSid) == true
         && descriptor.Group?.IsWellKnown(WellKnownSidType.LocalSystemSid) == true
         && descriptor.GetSddlForm(AccessControlSections.Access) == DefaultDacl
-        && descriptor.SystemAcl is null;
+        && descriptor.GetSddlForm(AccessControlSections.Audit) == DefaultSacl;
 
     private static RegistryKey OpenServicesKey(bool audit = false)
     {
@@ -495,6 +550,10 @@ internal sealed class ServiceRemovalWindows : IServiceRemovalWindows
 
     [DllImport("netapi32.dll", ExactSpelling = true)]
     private static extern void NetFreeAadJoinInformation(nint joinInfo);
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetNumaHighestNodeNumber(out uint highestNodeNumber);
 
     [DllImport("mdmregistration.dll", ExactSpelling = true)]
     private static extern int IsDeviceRegisteredWithManagement(out int registered, uint upnLength, nint upn);

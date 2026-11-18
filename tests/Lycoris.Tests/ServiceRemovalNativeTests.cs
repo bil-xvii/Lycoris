@@ -128,14 +128,15 @@ public sealed class ServiceRemovalNativeTests
 
     private static async Task<ServiceRemovalCandidate> InspectOwnFixture(RegistryKey registry, string display, string command)
     {
+        var details = ReadOwnFixtureDetails(registry, display, command);
         var probe = ServiceRemoval.Probe(Name);
         if (probe.Candidate is { } candidate) return candidate;
 
-        var details = await FixtureDiagnostics(registry, display, command);
-        throw new Xunit.Sdk.XunitException($"Fixture did not pass the native inspection ({probe.Reason}).{Environment.NewLine}{details}");
+        await AppendScDiagnostics(details);
+        throw new Xunit.Sdk.XunitException($"Fixture did not pass the native inspection ({probe.Reason}).{Environment.NewLine}{string.Join(Environment.NewLine, details)}");
     }
 
-    private static async Task<string> FixtureDiagnostics(RegistryKey registry, string display, string command)
+    private static List<string> ReadOwnFixtureDetails(RegistryKey registry, string display, string command)
     {
         var details = new List<string>();
         using (var key = registry.OpenSubKey(ServiceRegistryPath))
@@ -143,7 +144,7 @@ public sealed class ServiceRemovalNativeTests
             if (key is null
                 || !Equals(display, key.GetValue("DisplayName", null, RegistryValueOptions.DoNotExpandEnvironmentNames))
                 || !Equals(command, key.GetValue("ImagePath", null, RegistryValueOptions.DoNotExpandEnvironmentNames)))
-                return "The test service identity could not be verified for diagnostics.";
+                throw new Xunit.Sdk.XunitException("The test service identity could not be verified for diagnostics.");
 
             details.Add("Registry value names and kinds | " + Bounded(string.Join(", ",
                 key.GetValueNames().Take(16).Select(name => $"{name} ({key.GetValueKind(name)})"))));
@@ -159,13 +160,33 @@ public sealed class ServiceRemovalNativeTests
             }
         }
 
-        string[] queries = ["qc", "queryex", "qfailure", "qsidtype", "qprivs", "qtriggerinfo", "qpreferrednode", "qpreshutdowninfo", "sdshow"];
+        try
+        {
+            var descriptor = ServiceRemovalWindows.ReadSupportedServiceSecurityForDiagnostics();
+            details.Add("SCM owner, group, DACL and SACL SDDL | " + Bounded(descriptor));
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            details.Add($"SCM full security descriptor unavailable | Win32 {ex.NativeErrorCode}");
+        }
+        catch (Exception ex) when (ServiceRemoval.IsExpectedFailure(ex))
+        {
+            details.Add("SCM full security descriptor unavailable | " + ex.GetType().Name);
+        }
+
+        var highestNode = ServiceRemovalWindows.ReadHighestNumaNode();
+        details.Add("Highest NUMA node | " + (highestNode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unavailable"));
+        return details;
+    }
+
+    private static async Task AppendScDiagnostics(List<string> details)
+    {
+        string[] queries = ["qc", "queryex", "qfailure", "qsidtype", "qprivs", "qtriggerinfo", "qpreferrednode", "sdshow"];
         foreach (var query in queries)
         {
             var result = await Sc([query, Name], TimeSpan.FromSeconds(4));
             details.Add($"sc {query} | exit {result.ExitCode} | {Bounded(result.Combined)}");
         }
-        return string.Join(Environment.NewLine, details);
     }
 
     private static string Bounded(string value) => value.Length <= 1200 ? value : value[..1200] + " …";

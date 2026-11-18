@@ -232,28 +232,8 @@ public static class RegistryHelper
         };
     }
 
-    /// <summary>Exports a key into a .reg file (extra safety copy the user can double-click). Best-effort.</summary>
-    public static async Task<bool> ExportKeyAsync(RegHive hive, string path, string file)
-    {
-        try
-        {
-            if (Redirect is not null) return false; // tests: no .reg exports of redirected keys
-            ServiceRemovalRegistryProtection.RequirePublicName(hive, path);
-            // Never export a containing SOFTWARE subtree with the private store below it.
-            if (hive == RegHive.HKLM && path.Replace('/', '\\').Trim('\\').Equals("SOFTWARE", StringComparison.OrdinalIgnoreCase))
-                return false;
-            using var b = OpenBase(hive);
-            using var k = b.OpenSubKey(path, false);
-            if (k is null) return false;
-            ServiceRemovalRegistryProtection.RequirePublicHandle(k);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(file)!);
-            var r = await ProcessRunner.RunAsync(ProcessRunner.Sys("reg.exe"),
-                ["export", $"{HiveName(hive)}\\{path}", file, "/y"],
-                new ProcessRunOptions { LogCommand = false, Timeout = TimeSpan.FromSeconds(20) }).ConfigureAwait(false);
-            return r.Success;
-        }
-        catch { return false; }
-    }
+    /// <summary>Recursive registry export is disabled because it can expose protected recovery data. Undo uses journal snapshots.</summary>
+    public static Task<bool> ExportKeyAsync(RegHive hive, string path, string file) => Task.FromResult(false);
 
     /// <summary>Deletes the empty keys from <paramref name="path"/> up to and including <paramref name="root"/> (logical paths).</summary>
     private static void DeleteEmptyKeys(RegHive hive, string path, string root)

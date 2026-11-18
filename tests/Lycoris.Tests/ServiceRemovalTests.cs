@@ -9,9 +9,13 @@ namespace Lycoris.Tests;
 [Collection("ExpertAccessPolicy")]
 public sealed class ServiceRemovalTests : IDisposable
 {
+    private const string StandardServiceDacl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
+    private const string StandardServiceSacl = "S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)";
+
     private static readonly ServiceRemovalSnapshot Original = new("Everything", "Everything",
         "\"C:\\Program Files\\Everything\\Everything.exe\" -svc", @"C:\Program Files\Everything\Everything.exe",
-        "File indexing", 1, "D:(A;;GA;;;SY)", "O:BAD:(A;;GA;;;BA)");
+        "File indexing", 1, "O:SYG:SY" + StandardServiceDacl + StandardServiceSacl,
+        "O:BAG:SYD:AI(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)", ServiceRemovalPreferredNodeProof.ReportedUnset);
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "Lycoris-ServiceRemoval-" + Guid.NewGuid().ToString("N"));
     private readonly bool _bypass = ChangeSession.BypassElevationForTests;
@@ -329,8 +333,65 @@ public sealed class ServiceRemovalTests : IDisposable
     [InlineData("", false)]
     public void Service_security_requires_reproducible_owner_and_group_even_with_default_dacl(string trustees, bool reproducible)
     {
-        const string standardDacl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
-        Assert.Equal(reproducible, ServiceRemovalWindows.IsDefaultServiceSecurity(new RawSecurityDescriptor(trustees + standardDacl)));
+        var descriptor = new RawSecurityDescriptor(trustees + StandardServiceDacl + StandardServiceSacl);
+        Assert.Equal(reproducible, ServiceRemovalWindows.IsDefaultServiceSecurity(descriptor));
+    }
+
+    [Theory]
+    [InlineData("", false)]
+    [InlineData(StandardServiceSacl, true)]
+    [InlineData("S:(AU;SA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)", false)]
+    [InlineData("S:(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BU)", false)]
+    [InlineData(StandardServiceSacl + "(AU;FA;RC;;;WD)", false)]
+    [InlineData("S:P(AU;FA;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;WD)", false)]
+    public void Service_security_requires_exactly_the_standard_failure_audit_ace(string sacl, bool reproducible)
+    {
+        var descriptor = new RawSecurityDescriptor("O:SYG:SY" + StandardServiceDacl + sacl);
+        Assert.Equal(reproducible, ServiceRemovalWindows.IsDefaultServiceSecurity(descriptor));
+    }
+
+    [Theory]
+    [InlineData(87, null, 0, true, "QueryUnavailableOnNodeZero")]
+    [InlineData(87, null, 0, false, "Unverified")]
+    [InlineData(87, null, 1, true, "Unverified")]
+    [InlineData(87, null, null, true, "Unverified")]
+    [InlineData(87, 0, 0, true, "Unverified")]
+    [InlineData(5, null, 0, true, "Unverified")]
+    [InlineData(124, null, 0, true, "Unverified")]
+    [InlineData(0, 65535, null, true, "ReportedUnset")]
+    [InlineData(0, 65535, null, false, "Unverified")]
+    [InlineData(0, 0, 0, true, "Unverified")]
+    [InlineData(0, null, 0, true, "Unverified")]
+    public void Preferred_node_proof_requires_a_known_api_observation_and_an_exact_registry_shape(
+        int queryCode, int? reportedNode, int? highestNode, bool exactRegistryShape, string expected)
+    {
+        var proof = ServiceRemovalWindows.ClassifyPreferredNode(queryCode, (ushort?)reportedNode, (uint?)highestNode, exactRegistryShape);
+        Assert.Equal(expected, proof.ToString());
+    }
+
+    [Theory]
+    [InlineData("ReportedUnset", null, true)]
+    [InlineData("QueryUnavailableOnNodeZero", 0, true)]
+    [InlineData("QueryUnavailableOnNodeZero", 1, false)]
+    [InlineData("QueryUnavailableOnNodeZero", null, false)]
+    [InlineData("Unverified", 0, false)]
+    [InlineData("47", 0, false)]
+    public void Restore_requires_the_original_preferred_node_proof_to_remain_applicable(string evidence, int? highestNode, bool expected)
+    {
+        var proof = Enum.Parse<ServiceRemovalPreferredNodeProof>(evidence);
+        Assert.Equal(expected, ServiceRemovalWindows.CanRestorePreferredNode(proof, (uint?)highestNode));
+    }
+
+    [Fact]
+    public void Preferred_node_proof_is_part_of_the_approved_fingerprint_and_authenticated_snapshot()
+    {
+        var snapshot = Original with { PreferredNodeProof = ServiceRemovalPreferredNodeProof.QueryUnavailableOnNodeZero };
+        Assert.NotEqual(Original.Fingerprint, snapshot.Fingerprint);
+        var key = new byte[32];
+        var machine = Guid.NewGuid();
+        var binding = new ServiceRemovalBinding(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), ServiceRemoval.Target("Everything"));
+        var envelope = ServiceRemovalEnvelope.Seal(key, machine, binding, snapshot);
+        Assert.Equal(snapshot, ServiceRemovalEnvelope.Open(key, machine, binding, envelope));
     }
 
     [Theory]

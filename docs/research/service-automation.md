@@ -42,10 +42,26 @@ Program Files и документированный аргумент `-svc`. Э�
 права, непроверенный путь, существующий EXE, недоступный том или ошибка проверки запрещают операцию.
 Пользователь видит точное имя и путь; файлы программы при этом не удаляются.
 
+Нативная проверка на одноразовой Windows 11 показала два ограничения платформы. Запрос preferred NUMA node
+может вернуть Win32 `87`; этот код сам по себе не означает отсутствия настройки. Допускается только совокупность
+этого ответа, успешного определения максимального NUMA-узла `0` и точного штатного набора значений реестра
+без дополнительных значений и подразделов. Вид подтверждения входит в аутентифицированный снимок;
+перед восстановлением топология проверяется снова. Неизвестный ответ или изменившаяся топология запрещают создание.
+
+Поддерживаемый дескриптор службы содержит владельца и группу SYSTEM, точный штатный DACL и единственную
+наблюдавшуюся у свежей службы запись SACL об отказах доступа Everyone. Пустой или изменённый SACL не допускается.
+Lycoris не переписывает права: после обычного `CreateService` сверяется полный дескриптор и остальная конфигурация.
+Другой системный вариант остаётся неподдержанным, пока его воспроизводимость не доказана отдельно.
+
 До `DeleteService` записываются типизированная запись журнала и аутентифицированная резервная конфигурация.
 Журнал не получает права восстанавливать произвольные `ImagePath`, `ServiceDll` или команды. Конфигурация хранится
 отдельно в HKLM с проверенными правами Administrators/SYSTEM и привязкой к записи, пакету изменений и компьютеру.
 Существующие небезопасные права хранилища не исправляются с последующим доверием к старым данным.
+
+Вспомогательный рекурсивный экспорт реестра через `reg.exe` отключён: повторное открытие текстового пути
+внешним процессом нельзя привязать к уже проверенному дескриптору. Это исключает экспорт закрытого хранилища
+через подменённые ссылки. Обычный откат настроек реестра и SPI использует типизированные снимки журнала,
+а не дополнительные `.reg`-файлы, и сохраняется.
 
 SCM может лишь пометить службу для удаления: завершение ожидает закрытия дескрипторов. Это отдельный результат,
 не сообщение «удалена». Откат разрешён только при подтверждённо свободном имени и проверенной резервной записи;
@@ -64,6 +80,9 @@ SCM может лишь пометить службу для удаления: �
 - [Microsoft: ChangeServiceConfigW](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfigw)
 - [Microsoft: DeleteService и ожидание удаления](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-deleteservice)
 - [Microsoft: конфигурация служб](https://learn.microsoft.com/en-us/windows/win32/services/service-configuration)
+- [Microsoft: SERVICE_PREFERRED_NODE_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/3767259f-f054-4076-acd3-9f7ecb79cab3)
+- [Microsoft: GetNumaHighestNodeNumber](https://learn.microsoft.com/en-us/windows/win32/api/systemtopologyapi/nf-systemtopologyapi-getnumahighestnodenumber)
+- [Microsoft: права и безопасность служб](https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights)
 - [voidtools: служба Everything](https://www.voidtools.com/support/everything/everything_service/)
 - [voidtools: удаление Everything](https://www.voidtools.com/support/everything/uninstalling_everything/)
 - [voidtools: аргументы командной строки](https://www.voidtools.com/support/everything/command_line_options/)

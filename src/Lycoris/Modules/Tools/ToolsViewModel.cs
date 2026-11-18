@@ -465,7 +465,6 @@ public sealed partial class ToolsViewModel : PageViewModel
                     Loc.T("VPN-клиенты и сетевое ПО может понадобиться переустановить"),
                     Loc.T("Потребуется перезагрузка компьютера"),
                     restoreNote,
-                    Loc.T("Копии разделов реестра Winsock и TCP/IP сохраняются в папку резервных копий Lycoris"),
                 ],
                 confirmText: Loc.T("СБРОСИТЬ"), danger: true, footnote: Loc.T("Кнопкой «Откатить» в журнале это действие не отменяется.")))
             return;
@@ -491,8 +490,8 @@ public sealed partial class ToolsViewModel : PageViewModel
             session.Batch.RestorePoint = rp?.Message ?? "Создание точек восстановления выключено в разделе «Восстановление»."; // loc:ignore stored in the journal
             ChangeJournal.Instance.UpdateBatch(session.Batch);
 
+            // The TCP/IP reset command writes its report to this directory.
             AppPaths.TryEnsureDir(session.BackupDir);
-            Emit(Loc.Tf("Резервные копии реестра → {0}", session.BackupDir), ConsoleLineKind.Info);
             await RegistryHelper.ExportKeyAsync(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Services\WinSock2\Parameters",
                 Path.Combine(session.BackupDir, "WinSock2_Parameters.reg"));
             await RegistryHelper.ExportKeyAsync(RegHive.HKLM, @"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters",
