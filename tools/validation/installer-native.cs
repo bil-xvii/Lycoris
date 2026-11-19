@@ -165,6 +165,23 @@ public static class InstallerNative
 
     public static void RequirePrivateDesktop(string runName) => VerifiedDesktop(runName);
 
+    public readonly record struct DesktopEnumeration(bool ReturnedTrue, int Win32Error, int CallbackCount);
+
+    public static DesktopEnumeration ProbePrivateDesktop(string runName) => EnumerateDesktop(VerifiedDesktop(runName));
+
+    private static DesktopEnumeration EnumerateDesktop(IntPtr desktop, Action<IntPtr> observeWindow = null)
+    {
+        var callbackCount = 0;
+        var returnedTrue = EnumDesktopWindows(desktop, (window, _) =>
+        {
+            callbackCount++;
+            observeWindow?.Invoke(window);
+            return true;
+        }, IntPtr.Zero);
+        var error = Marshal.GetLastWin32Error();
+        return new DesktopEnumeration(returnedTrue, error, callbackCount);
+    }
+
     private static IntPtr VerifiedDesktop(string runName)
     {
         RequireHosted(runName);
@@ -214,18 +231,28 @@ public static class InstallerNative
         var dialogs = new List<(IntPtr Handle, uint Pid, uint Tid)>();
         int ownedWindows = 0;
         Observe(observations, $"private enumeration starting ownedProcesses={count}");
-        Check(EnumDesktopWindows(desktop, (window, _) =>
+        var enumeration = EnumerateDesktop(desktop, window =>
         {
             var tid = GetWindowThreadProcessId(window, out var pid);
-            if (tid == 0 || !owners.Contains(pid)) return true;
+            if (tid == 0 || !owners.Contains(pid)) return;
             ownedWindows++;
             var windowClass = ClassName(window);
             Observe(observations, $"private window pid={pid} tid={tid} hwnd={window.ToInt64():X} class={windowClass} visible={IsWindowVisible(window)}");
             // The private desktop is inactive and a hidden owner can affect IsWindowVisible.
             // Act only on the same owned native dialog and its exact enabled choice below.
             if (windowClass == "#32770") dialogs.Add((window, pid, tid));
-            return true;
-        }, IntPtr.Zero), "Enumerate verified private desktop");
+        });
+        if (!enumeration.ReturnedTrue)
+        {
+            if (enumeration.Win32Error != 0 || enumeration.CallbackCount != 0)
+                throw new Win32Exception(enumeration.Win32Error,
+                    $"Enumerate verified private desktop failed (Win32 {enumeration.Win32Error}, callbacks {enumeration.CallbackCount}).");
+
+            // A live installer can have no windows during startup or a silent operation.
+            // This observation only defers HWND handling. The process snapshot still controls exit.
+            Observe(observations, $"private scan ownedProcesses={count} enumerationReturnedFalse win32=0 callbacks=0 pollDeferred");
+            return count;
+        }
         Observe(observations, $"private scan ownedProcesses={count} ownedWindows={ownedWindows} nativeDialogs={dialogs.Count}");
         foreach (var (dialog, owner, tid) in dialogs)
         {

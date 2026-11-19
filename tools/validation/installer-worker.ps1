@@ -24,6 +24,7 @@ $report = [ordered]@{
     Version = $fixture.Version
     StandardUser = $false
     PrivateDesktop = $false
+    DesktopEnumeration = $null
     Status = 'Running'
     Phase = 'Verify private desktop and user'
     SelfTest = $null
@@ -245,6 +246,19 @@ try {
         }
     }
     finally { $identity.Dispose() }
+    if ($fixture.Mode -eq 'Fixture') {
+        $report.Phase = 'Probe private desktop before launching a package'
+        $observed = [InstallerNative]::ProbePrivateDesktop($RunName)
+        $report.DesktopEnumeration = [ordered]@{
+            ReturnedTrue = $observed.ReturnedTrue
+            Win32Error = $observed.Win32Error
+            CallbackCount = $observed.CallbackCount
+        }
+        if (-not $observed.ReturnedTrue -and ($observed.Win32Error -ne 0 -or $observed.CallbackCount -ne 0)) {
+            throw "Unexpected failure before package launch (Win32 $($observed.Win32Error), callbacks $($observed.CallbackCount))."
+        }
+        $report.Phase = 'Verify the loaded standard-user profile'
+    }
     $profileKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
         "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$($fixture.AccountSid)")
     if ($null -eq $profileKey) { throw 'The standard account profile was not loaded.' }
