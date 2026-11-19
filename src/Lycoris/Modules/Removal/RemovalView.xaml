@@ -84,10 +84,10 @@
                                     <StackPanel Margin="0,14,0,0" Visibility="{Binding ShowProgramAction, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{loc:T 'Сверьте имя, издателя и версию. Если решите удалить программу, подтвердите это в Параметрах Windows.'}"
                                                    Style="{StaticResource T.Caption}" Margin="0,0,0,8" />
-                                        <Button Content="{loc:T СВЕРИТЬ В WINDOWS}" Style="{StaticResource Btn.Ghost}" HorizontalAlignment="Left"
+                                        <Button Content="{loc:T Сверить в Windows}" Style="{StaticResource Btn.Ghost}" HorizontalAlignment="Left"
                                                 Command="{Binding OpenSelectedProgramCommand}" />
                                     </StackPanel>
-                                    <Button Content="{loc:T НАЙТИ ЗАПИСЬ В АВТОЗАПУСКЕ}" Margin="0,14,0,0" Style="{StaticResource Btn.Ghost}"
+                                    <Button Content="{loc:T Найти запись в автозапуске}" Margin="0,14,0,0" Style="{StaticResource Btn.Ghost}"
                                             HorizontalAlignment="Left" Command="{Binding OpenSelectedStartupCommand}"
                                             Visibility="{Binding ShowStartupAction, Converter={StaticResource BoolToVis}}" />
                                 </StackPanel>
@@ -113,10 +113,10 @@
                         <WrapPanel Grid.Row="1" Margin="0,0,0,4">
                             <TextBlock Text="{Binding BatchSelectionText}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center"
                                        Margin="0,0,12,4" AutomationProperties.AutomationId="RemovalBatchSelectionCount" />
-                            <Button Content="{loc:T ВЫБРАТЬ ВСЕ}" Style="{StaticResource Btn.Ghost}"
+                            <Button Content="{loc:T Выбрать все}" Style="{StaticResource Btn.Ghost}"
                                     Visibility="{Binding CanSelectAllBatchRows, Converter={StaticResource BoolToVis}}"
                                     Command="{Binding SelectAllBatchCommand}" Margin="0,0,6,4" />
-                            <Button Content="{loc:T СНЯТЬ ВЫБОР}" Style="{StaticResource Btn.Ghost}"
+                            <Button Content="{loc:T Снять выбор}" Style="{StaticResource Btn.Ghost}"
                                     Command="{Binding ClearBatchSelectionCommand}" Margin="0,0,0,4" />
                         </WrapPanel>
                         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -148,7 +148,7 @@
                                         AutomationProperties.AutomationId="RemovalExecuteBatch"
                                         Visibility="{Binding IsUninstallPreview, Converter={StaticResource BoolToVis}}"
                                         Style="{StaticResource Btn.Danger}" />
-                                <Button Content="{loc:T ОТМЕНА}" Style="{StaticResource Btn.Ghost}" Command="{Binding CancelBatchPreviewCommand}"
+                                <Button Content="{loc:T Отмена}" Style="{StaticResource Btn.Ghost}" Command="{Binding CancelBatchPreviewCommand}"
                                         AutomationProperties.AutomationId="RemovalCancelBatchPreview" />
                             </WrapPanel>
                         </StackPanel>
@@ -167,23 +167,23 @@
         <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}"
                       RefreshCommand="{Binding RefreshCommand}" />
 
-        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,10,0,10" Padding="12,8">
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,12,0,10" Padding="14,10">
             <StackPanel>
                 <WrapPanel Margin="0,0,0,4">
-                    <Button Content="{loc:T ПРОВЕРИТЬ И УДАЛИТЬ}" Style="{StaticResource Btn.Primary}"
+                    <Button Content="{loc:T Проверить и удалить}" Style="{StaticResource Btn.Primary}"
                             Command="{Binding AutoUninstallCommand}" Margin="0,0,6,4" AutomationProperties.AutomationId="RemovalAutoUninstall" />
-                    <Button Content="{loc:T ПРОВЕРИТЬ И ОТКЛЮЧИТЬ АВТОЗАПУСК}" Style="{StaticResource Btn.Primary}"
+                    <Button Content="{loc:T Проверить и отключить автозапуск}" Style="{StaticResource Btn}"
                             Command="{Binding AutoDisableStartupCommand}" Margin="0,0,0,4" AutomationProperties.AutomationId="RemovalAutoDisableStartup" />
                 </WrapPanel>
                 <TextBlock Text="{loc:T 'Lycoris подберёт подходящие записи и попросит подтвердить список. Чтобы сначала изменить выбор, откройте предпросмотр.'}"
                            Style="{StaticResource T.Caption}" Margin="1,0,0,5" />
                 <WrapPanel Margin="0,0,0,4">
-                    <Button Content="{loc:T ПРЕДПРОСМОТР УДАЛЕНИЯ}" Style="{StaticResource Btn.Ghost}"
+                    <Button Content="{loc:T Предпросмотр удаления}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding PrepareUninstallCommand}" Margin="0,0,6,4" AutomationProperties.AutomationId="RemovalPrepareUninstall" />
-                    <Button Content="{loc:T ВЫБРАТЬ ПРИЛОЖЕНИЯ STORE}" Style="{StaticResource Btn.Ghost}"
+                    <Button Content="{loc:T Выбрать приложения Store}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding PrepareWindowsAppsUninstallCommand}" Margin="0,0,6,4"
                             AutomationProperties.AutomationId="RemovalPrepareWindowsAppsUninstall" />
-                    <Button Content="{loc:T ПРЕДПРОСМОТР ОТКЛЮЧЕНИЯ}" Style="{StaticResource Btn.Ghost}"
+                    <Button Content="{loc:T Предпросмотр отключения}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding PrepareDisableStartupCommand}" Margin="0,0,0,4" AutomationProperties.AutomationId="RemovalPrepareDisableStartup" />
                 </WrapPanel>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
@@ -192,11 +192,11 @@
                                AutomationProperties.AutomationId="RemovalBatchMessage" />
                 </ScrollViewer>
                 <WrapPanel>
-                    <Button Content="{loc:T ПРИЛОЖЕНИЯ WINDOWS}" Style="{StaticResource Btn.Ghost}" Command="{Binding OpenWindowsAppsCommand}"
+                    <Button Content="{loc:T Приложения Windows}" Style="{StaticResource Btn.Ghost}" Command="{Binding OpenWindowsAppsCommand}"
                             Margin="0,0,6,4" />
-                    <Button Content="{loc:T ДОПОЛНИТЕЛЬНЫЕ КОМПОНЕНТЫ WINDOWS}" Style="{StaticResource Btn.Ghost}"
+                    <Button Content="{loc:T Дополнительные компоненты Windows}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding OpenWindowsFeaturesCommand}" Margin="0,0,6,4" />
-                    <Button Content="{loc:T ПРОВЕРИТЬ СЛУЖБЫ}" Style="{StaticResource Btn.Ghost}" Command="{Binding OpenServicesCommand}"
+                    <Button Content="{loc:T Проверить службы}" Style="{StaticResource Btn.Ghost}" Command="{Binding OpenServicesCommand}"
                             Margin="0,0,0,4" />
                 </WrapPanel>
                 <TextBlock Text="{loc:T 'Дополнительные компоненты меняются в Windows. Перед отключением проверьте, где используется компонент.'}"
@@ -216,13 +216,13 @@
                             <TabPanel IsItemsHost="True" />
                         </Border>
                         <!-- WPF's selected tab automation peer looks up this named content host. -->
-                        <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent" Margin="0,16,0,0" />
+                        <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent" Margin="0,12,0,0" />
                     </Grid>
                 </ControlTemplate>
             </TabControl.Template>
-            <TabItem Header="{loc:T ПРОГРАММЫ}" Content="{Binding}" ContentTemplate="{StaticResource RemovalBrowser}"
+            <TabItem Header="{loc:T Программы}" Content="{Binding}" ContentTemplate="{StaticResource RemovalBrowser}"
                      HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-            <TabItem Header="{loc:T АВТОЗАПУСК}" Content="{Binding}" ContentTemplate="{StaticResource RemovalBrowser}"
+            <TabItem Header="{loc:T Автозапуск}" Content="{Binding}" ContentTemplate="{StaticResource RemovalBrowser}"
                      HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
         </TabControl>
     </Grid>

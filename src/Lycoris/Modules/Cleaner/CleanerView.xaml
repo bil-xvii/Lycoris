@@ -10,10 +10,7 @@
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:CleanerViewModel}">
     <UserControl.Resources>
         <!-- Size readout: bright when the row is selected -->
-        <Style x:Key="RowSize" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="FontStretch" Value="Condensed" />
+        <Style x:Key="RowSize" TargetType="TextBlock" BasedOn="{StaticResource T.Stat}">
             <Setter Property="FontSize" Value="19" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
@@ -58,7 +55,7 @@
                         <StackPanel Grid.Column="1" MaxWidth="820" HorizontalAlignment="Left">
                             <WrapPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" FontSize="15.5"
-                                           FontStretch="SemiCondensed" VerticalAlignment="Center" Margin="0,0,9,0" />
+                                           VerticalAlignment="Center" Margin="0,0,9,0" />
                                 <!-- Risk: БЕЗОПАСНО · ПО ЖЕЛАНИЮ · ЭКСПЕРТ (the theme's Tag styles) -->
                                 <Border Style="{StaticResource Tag.Ok}" Margin="0,2,6,2" Visibility="{Binding IsSafeTier, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding TierText}" />
@@ -115,7 +112,7 @@
                                     ToolTip="{loc:T 'Lycoris перезапустится с правами администратора и продолжит очистку — перед удалением снова покажет список.'}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Admin}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="{loc:T 'ПОЛУЧИТЬ ПРАВА'}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'Получить права'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -155,14 +152,14 @@
                         Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{loc:T ОТМЕНА}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T Отмена}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource Btn}" Command="{Binding ResetSelectionCommand}"
                         ToolTip="{loc:T 'Вернуть рекомендуемый набор пунктов'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{loc:T 'РЕКОМЕНДУЕМЫЙ НАБОР'}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T 'Рекомендуемый набор'}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </WrapPanel>
@@ -170,7 +167,7 @@
                     ToolTip="{loc:T 'Удалить отмеченное — после подтверждения со списком. Если анализ устарел, он выполнится заново.'}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Static ui:Glyphs.Delete}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
-                    <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding PrimaryText, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
         </Grid>
@@ -188,7 +185,7 @@
                             </Grid.ColumnDefinitions>
                             <Border Padding="14,8" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,1,0">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:T НАЙДЕНО}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="{loc:T Найдено}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
                                     <TextBlock Text="{Binding FoundValue}" Style="{StaticResource T.Stat}" VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding FoundUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
@@ -196,14 +193,14 @@
                             <!-- Emphasis without white fill (white = clickable only): a raised plate with a white edge -->
                             <Border Grid.Column="1" Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.White}" BorderThickness="0,2,0,0" Padding="14,8">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:T 'К ОЧИСТКЕ'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="{loc:T 'К очистке'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" Margin="0,0,10,0" />
                                     <TextBlock Text="{Binding SelectedValue}" Style="{StaticResource T.Stat}" VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding SelectedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Column="2" Padding="14,8" BorderBrush="{StaticResource B.Line}" BorderThickness="0,0,0,1">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:T ОСВОБОЖДЕНО}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="{loc:T Освобождено}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
                                     <TextBlock Text="{Binding FreedValue}" Style="{StaticResource T.Stat}" VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding FreedUnit}" Style="{StaticResource T.StatUnit}" Margin="4,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
@@ -261,19 +258,18 @@
                         <DataTemplate DataType="{x:Type local:DriveCard}">
                             <Border Style="{StaticResource Card}" Padding="14,10,14,11" Margin="0,0,10,0">
                                 <StackPanel>
-                                    <TextBlock Text="{loc:T 'СВОБОДНОЕ МЕСТО'}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T 'Свободное место'}" Style="{StaticResource T.Label}" />
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Name, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
-                                                   FontSize="19" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" />
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource T.H2}" VerticalAlignment="Bottom" />
                                         <TextBlock Grid.Column="1" Text="{Binding Label}" Style="{StaticResource T.Label}" Margin="10,0,10,5"
                                                    VerticalAlignment="Bottom" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="2" Text="{Binding FreeText}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
-                                                   FontStretch="Condensed" FontSize="17" Foreground="{StaticResource B.Text}" VerticalAlignment="Bottom" Margin="0,0,0,1" />
+                                        <TextBlock Grid.Column="2" Text="{Binding FreeText}" Style="{StaticResource T.Stat}"
+                                                   FontSize="17" VerticalAlignment="Bottom" Margin="0,0,0,1" />
                                     </Grid>
                                     <c:Meter Value="{Binding UsedPercent}" Segments="32" Gap="2" Height="8" WarnThreshold="75" HotThreshold="90" Margin="0,10,0,0" />
                                     <TextBlock Text="{Binding Caption}" Style="{StaticResource T.Caption}" Margin="0,7,0,0" />
@@ -311,10 +307,10 @@
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                             <StackPanel Orientation="Horizontal" Visibility="{Binding ScheduleShowPicker, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{loc:T ДЕНЬ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="{loc:T День}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <ComboBox Width="140" MinWidth="0" ItemsSource="{Binding ScheduleDays}" SelectedItem="{Binding ScheduleDay}" DisplayMemberPath="Name"
                                           VerticalAlignment="Center" ToolTip="{loc:T 'День недели запуска'}" />
-                                <TextBlock Text="{loc:T ВРЕМЯ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                                <TextBlock Text="{loc:T Время}" Style="{StaticResource T.Label}" VerticalAlignment="Center" Margin="12,0,8,0" />
                                 <ComboBox Width="84" MinWidth="0" ItemsSource="{Binding ScheduleTimes}" SelectedItem="{Binding ScheduleTime}"
                                           VerticalAlignment="Center" ToolTip="{loc:T 'Время запуска по часам этого ПК'}" Margin="0,0,10,0" />
                             </StackPanel>
@@ -323,14 +319,14 @@
                                     ToolTip="{loc:T 'Создать еженедельную задачу — после подтверждения со списком'}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <TextBlock Text="{loc:T ВКЛЮЧИТЬ}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T Включить}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource Btn}" Command="{Binding EnableScheduleCommand}" Margin="0,0,8,0"
                                     Visibility="{Binding ScheduleChanged, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Save}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <TextBlock Text="{loc:T 'СОХРАНИТЬ ВРЕМЯ'}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'Сохранить время'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource Btn}" Command="{Binding FixScheduleCommand}" Margin="0,0,8,0"
@@ -338,7 +334,7 @@
                                     ToolTip="{loc:T 'Задача будет запускать эту копию Lycoris'}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Repair}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <TextBlock Text="{loc:T ИСПРАВИТЬ}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T Исправить}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource Btn}" Command="{Binding DisableScheduleCommand}"
@@ -346,7 +342,7 @@
                                     ToolTip="{loc:T 'Удалить задачу из планировщика — после подтверждения'}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <TextBlock Text="{loc:T ВЫКЛЮЧИТЬ}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T Выключить}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -416,19 +412,19 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{loc:T 'Что занимает место'}" Style="{StaticResource T.H2}" FontFamily="{StaticResource F.Body}" FontWeight="Bold" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T 'Что занимает место'}" Style="{StaticResource T.H2}" VerticalAlignment="Center" />
                         <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" VerticalAlignment="Center" Margin="11,3,11,0" />
                         <Button Grid.Column="2" Style="{StaticResource Btn}" Command="{Binding FindLargeFilesCommand}"
                                 ToolTip="{loc:T 'Только поиск и показ: Lycoris не удаляет ваши файлы'}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{x:Static ui:Glyphs.Search}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock Text="{loc:T 'НАЙТИ КРУПНЫЕ ФАЙЛЫ'}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T 'Найти крупные файлы'}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                     </Grid>
                     <TextBlock Text="{loc:T 'Самые крупные файлы в вашей папке пользователя (от 100 МБ). Это ваши данные: Lycoris их только показывает, удалить или перенести — решаете вы в Проводнике.'}"
                                Style="{StaticResource T.Caption}" Margin="0,6,0,6" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding LargeFilesSummary}" Style="{StaticResource T.Mono}" FontSize="11.5" Foreground="{StaticResource B.Text2}" Margin="0,0,0,10" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LargeFilesSummary}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,0,0,10" TextWrapping="Wrap" />
                     <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True" Visibility="{Binding LargeFilesFound, Converter={StaticResource BoolToVis}}">
                         <ItemsControl ItemsSource="{Binding LargeFilesList}" Focusable="False" Margin="0,0,0,-1">
                             <ItemsControl.ItemTemplate>
@@ -441,15 +437,15 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
                                             <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
                                                 <TextBlock Text="{Binding Folder}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Folder}" />
                                                 <TextBlock Text="{Binding Hint}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.WarningText}" Margin="0,3,0,0" TextWrapping="Wrap"
                                                            Visibility="{Binding HasHint, Converter={StaticResource BoolToVis}}" />
                                             </StackPanel>
-                                            <TextBlock Grid.Column="2" Text="{Binding DateText}" Style="{StaticResource T.Mono}" FontSize="11" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="{loc:T 'ПОКАЗАТЬ'}" VerticalAlignment="Center"
+                                            <TextBlock Grid.Column="2" Text="{Binding DateText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="{loc:T 'Показать'}" VerticalAlignment="Center"
                                                     ToolTip="{loc:T 'Открыть в Проводнике с выделенным файлом'}"
                                                     Command="{Binding DataContext.RevealLargeFileCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
                                         </Grid>
@@ -463,7 +459,7 @@
                 <!-- ═══════════════ Bottom: what is never deleted (secondary text only) ═══════════════ -->
                 <Expander Margin="0,22,0,0">
                     <Expander.Header>
-                        <TextBlock Text="{loc:T 'ЧТО НИКОГДА НЕ УДАЛЯЕТСЯ'}" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{loc:T 'Что никогда не удаляется'}" Style="{StaticResource T.Label}" />
                     </Expander.Header>
                     <ItemsControl ItemsSource="{Binding NeverTouched}" Focusable="False">
                         <ItemsControl.ItemsPanel>

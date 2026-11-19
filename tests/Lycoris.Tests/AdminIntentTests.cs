@@ -161,14 +161,35 @@ public class AdminIntentTests
     [Theory]
     [InlineData("home", MainViewModel.GroupOverview)]
     [InlineData("dashboard", MainViewModel.GroupOverview)]
-    [InlineData("optimize", MainViewModel.GroupBoost)]
+    [InlineData("assistant", MainViewModel.GroupOverview)]
     [InlineData("games", MainViewModel.GroupBoost)]
-    [InlineData("services", MainViewModel.GroupBoost)]
-    [InlineData("devices", MainViewModel.GroupBoost)]
-    [InlineData("maintenance", MainViewModel.GroupMaintenance)]
+    [InlineData("optimize", MainViewModel.GroupBoost)]
+    [InlineData("apps", MainViewModel.GroupApps)]
+    [InlineData("removal", MainViewModel.GroupApps)]
+    [InlineData("services", MainViewModel.GroupMaintenance)]
+    [InlineData("devices", MainViewModel.GroupMaintenance)]
     [InlineData("drivers", MainViewModel.GroupMaintenance)]
-    [InlineData("apps", MainViewModel.GroupMaintenance)]
+    [InlineData("maintenance", MainViewModel.GroupMaintenance)]
     [InlineData("restore", MainViewModel.GroupProtection)]
     [InlineData("settings", "")]
     public void Sidebar_groups_cover_every_page(string key, string group) => Assert.Equal(group, MainViewModel.NavGroupOf(key));
+
+    [Fact]
+    public void Sidebar_order_covers_all_sidebar_pages_without_ties()
+    {
+        string[] registeredPages =
+        [
+            "home", "dashboard", "assistant", "optimize", "games", "services", "maintenance", "drivers",
+            "devices", "apps", "removal", "restore",
+        ];
+        string[] expected =
+        [
+            "home", "dashboard", "assistant", "games", "optimize", "apps", "removal",
+            "services", "devices", "drivers", "maintenance", "restore",
+        ];
+
+        Assert.Equal(expected, registeredPages.OrderBy(MainViewModel.NavOrderOf).ToArray());
+        Assert.Equal(expected.Length, registeredPages.Select(MainViewModel.NavOrderOf).Distinct().Count());
+        Assert.True(registeredPages.All(key => MainViewModel.NavOrderOf(key) < MainViewModel.NavOrderOf("settings")));
+    }
 }

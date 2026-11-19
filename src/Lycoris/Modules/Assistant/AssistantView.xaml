@@ -13,28 +13,17 @@
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" />
-
-        <Border Grid.Row="1" Margin="0,12,0,0" Style="{StaticResource Card}" Padding="14,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding DiagnosticSummary}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
-                    <TextBlock Text="{loc:T 'Проверка без интернета. Выберите проблему и следующий шаг.'}" Style="{StaticResource T.Caption}"
-                               Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                    <TextBlock Text="{Binding DiagnosticsTimestamp}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
-                               Visibility="{Binding DiagnosticsTimestamp, Converter={StaticResource NullToVis}}" />
-                    <TextBlock Text="{Binding DiagnosticStatus}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
-                               AutomationProperties.LiveSetting="Polite" Visibility="{Binding DiagnosticStatus, Converter={StaticResource NullToVis}}" />
-                </StackPanel>
-                <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Command="{Binding RefreshDiagnosticsCommand}"
+        <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}">
+            <c:PageHeader.Actions>
+                <TextBlock Text="{Binding DiagnosticStatus}" Style="{StaticResource T.Caption}" TextWrapping="Wrap"
+                           MaxWidth="260" Margin="0,0,4,0" VerticalAlignment="Center"
+                           AutomationProperties.LiveSetting="Polite" Visibility="{Binding DiagnosticStatus, Converter={StaticResource NullToVis}}" />
+            </c:PageHeader.Actions>
+            <c:PageHeader.Primary>
+                <Button Style="{StaticResource Btn.Primary}" Command="{Binding RefreshDiagnosticsCommand}"
                         IsEnabled="{Binding IsDiagnosticBusy, Converter={StaticResource InverseBool}}" VerticalAlignment="Center"
                         ToolTip="{loc:T 'Заново проверить компьютер без изменения настроек'}">
                     <StackPanel Orientation="Horizontal">
@@ -42,14 +31,23 @@
                         <TextBlock Text="{loc:T 'Проверить компьютер'}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-            </Grid>
-        </Border>
+            </c:PageHeader.Primary>
+        </c:PageHeader>
 
-        <Grid Grid.Row="2" Margin="0,12,0,0">
+        <Grid Grid.Row="1" Margin="0,12,0,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,42"
                           Visibility="{Binding IsExpanded, ElementName=ChatExpander, Converter={StaticResource InverseBoolToVis}}">
                 <StackPanel>
-                    <TextBlock Text="{loc:T 'Что делать дальше'}" Style="{StaticResource T.BodyStrong}" Margin="0,0,0,8"
+                    <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="{Binding DiagnosticSummary}" Style="{StaticResource T.H3}" TextWrapping="Wrap" />
+                            <TextBlock Text="{loc:T 'Проверка без интернета. Выберите проблему и следующий шаг.'}" Style="{StaticResource T.Caption}"
+                                       Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding DiagnosticsTimestamp}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
+                                       Visibility="{Binding DiagnosticsTimestamp, Converter={StaticResource NullToVis}}" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{loc:T 'Что делать дальше'}" Style="{StaticResource T.H2}" Margin="0,0,0,9"
                                AutomationProperties.HeadingLevel="Level2" />
                     <ItemsControl ItemsSource="{Binding DiagnosticCards}" Focusable="False">
                         <ItemsControl.ItemTemplate>
@@ -60,11 +58,11 @@
                                             <TextBlock x:Name="SeverityIcon" Text="{x:Static ui:Glyphs.Info}" FontFamily="{StaticResource F.Icons}"
                                                        FontSize="13" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" Margin="0,0,7,0" />
                                             <TextBlock Text="{Binding SeverityLabel}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                            <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                         </WrapPanel>
                                         <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Body}" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding NextStep}" Style="{StaticResource T.Body}" TextWrapping="Wrap" Margin="0,7,0,0" />
-                                        <TextBlock Text="{Binding PathText}" Style="{StaticResource T.Caption}" TextWrapping="Wrap" Margin="0,7,0,0"
+                                        <TextBlock Text="{Binding PathText}" Style="{StaticResource T.Mono}" TextWrapping="Wrap" Margin="0,7,0,0"
                                                    Visibility="{Binding PathText, Converter={StaticResource NullToVis}}" />
                                         <WrapPanel Margin="0,8,0,0">
                                             <StackPanel Margin="0,0,14,0" Visibility="{Binding CanOpen, Converter={StaticResource BoolToVis}}">
@@ -94,6 +92,7 @@
                                 <DataTemplate.Triggers>
                                     <DataTrigger Binding="{Binding IsWarning}" Value="True">
                                         <Setter TargetName="SeverityIcon" Property="Text" Value="{x:Static ui:Glyphs.Warning}" />
+                                        <Setter TargetName="SeverityIcon" Property="Foreground" Value="{StaticResource B.WarningText}" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>
@@ -122,9 +121,11 @@
                                                     <Border x:Name="Plate" Background="Transparent" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
                                                             CornerRadius="{StaticResource R.Md}" Height="30" Padding="12,0">
                                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                            <TextBlock Text="{x:Static ui:Glyphs.Assistant}" FontFamily="{StaticResource F.Icons}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{x:Static ui:Glyphs.Assistant}" FontFamily="{StaticResource F.Icons}" FontSize="13" Margin="0,0,8,0"
+                                                                       Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
                                                             <TextBlock x:Name="ChatLabel" Text="{loc:T 'Открыть чат'}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center" />
-                                                            <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="8,0,0,0"
+                                                                       Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
@@ -154,7 +155,7 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-        <Border Grid.Row="0" Margin="0,10,0,0" Style="{StaticResource Card}" Padding="14,11">
+        <Border Grid.Row="0" Margin="0,8,0,0" Style="{StaticResource Card}" Padding="14,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -182,7 +183,7 @@
                     <Button Style="{StaticResource Btn}" Command="{Binding InstallOllamaCommand}" Visibility="{Binding NeedsOllama, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,9,0" />
-                            <TextBlock Text="{loc:T УСТАНОВИТЬ OLLAMA}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T Установить Ollama}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource Btn}" Command="{Binding CheckCommand}" Margin="8,0,0,0"
@@ -196,13 +197,13 @@
             </Grid>
         </Border>
 
-        <ItemsControl Grid.Row="1" Margin="0,10,0,0" ItemsSource="{Binding QuickQuestions}" Focusable="False">
+        <ItemsControl Grid.Row="1" Margin="0,8,0,0" ItemsSource="{Binding QuickQuestions}" Focusable="False">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Button Style="{StaticResource Btn}" Margin="0,0,8,6" Content="{Binding}"
+                    <Button Style="{StaticResource Btn}" Margin="0,0,8,4" Content="{Binding}"
                             Command="{Binding DataContext.AskCommand, ElementName=Root}" CommandParameter="{Binding}" />
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
@@ -210,7 +211,7 @@
 
         <Border Grid.Row="2" Margin="0,4,0,0" Style="{StaticResource Card.Flush}">
             <Grid>
-                <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" Padding="14,12">
+                <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" Padding="12,8">
                     <ItemsControl x:Name="Conversation" ItemsSource="{Binding Messages}" Focusable="False">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type local:AssistantMessage}">
@@ -218,8 +219,8 @@
                                         Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" HorizontalAlignment="Left" MaxWidth="760">
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                            <TextBlock Style="{StaticResource T.Label}" Text="{Binding Author}" Foreground="{StaticResource B.Text3}" />
-                                            <TextBlock Style="{StaticResource T.Label}" Text="{loc:T ' · ПЕЧАТАЕТ…'}" Foreground="{StaticResource B.Text3}"
+                                            <TextBlock Style="{StaticResource T.Label}" Text="{Binding Author, Converter={StaticResource Sentence}}" Foreground="{StaticResource B.Text3}" />
+                                            <TextBlock Style="{StaticResource T.Label}" Text="{loc:T ' · печатает…'}" Foreground="{StaticResource B.Text3}"
                                                        Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVis}}" />
                                         </StackPanel>
                                         <TextBlock Style="{StaticResource T.Body}" Text="{Binding Text}" TextWrapping="Wrap" />
@@ -234,8 +235,8 @@
                                                     <Button Style="{StaticResource Btn.Link}" Margin="0,6,8,0" ToolTip="{Binding Description}"
                                                             Command="{Binding DataContext.OpenPlaceCommand, ElementName=Root}" CommandParameter="{Binding}">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{loc:T 'ОТКРЫТЬ: '}" VerticalAlignment="Center" />
-                                                            <TextBlock Text="{Binding Title, Converter={StaticResource Upper}}" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{loc:T 'Открыть: '}" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
                                                             <TextBlock Text=" →" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </Button>
@@ -247,7 +248,7 @@
                                 <DataTemplate.Triggers>
                                     <DataTrigger Binding="{Binding IsUser}" Value="True">
                                         <Setter TargetName="Bubble" Property="HorizontalAlignment" Value="Right" />
-                                        <Setter TargetName="Bubble" Property="Background" Value="{StaticResource B.Surface3}" />
+                                        <Setter TargetName="Bubble" Property="Background" Value="{StaticResource B.Selected}" />
                                         <Setter TargetName="Bubble" Property="MaxWidth" Value="560" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>

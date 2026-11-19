@@ -58,15 +58,15 @@
             </DoubleAnimation>
         </Storyboard>
 
-        <!-- Title-bar buttons: outlined like every action, 28 px to fit the 40 px caption, clickable inside the chrome -->
+        <!-- Keep title-bar actions clickable inside the window caption. -->
         <Style x:Key="Btn.TitleBar" TargetType="Button" BasedOn="{StaticResource Btn}">
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Height" Value="30" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Margin" Value="0,0,8,0" />
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         </Style>
         <Style x:Key="Btn.TitleBar.Primary" TargetType="Button" BasedOn="{StaticResource Btn.Primary}">
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Height" Value="30" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Margin" Value="0,0,8,0" />
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
@@ -89,7 +89,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="34" />
+                <RowDefinition Height="38" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="226" />
@@ -97,34 +97,38 @@
             </Grid.ColumnDefinitions>
 
             <!-- ═══════════════ Title bar ═══════════════ -->
-            <Grid Grid.ColumnSpan="2" Background="{StaticResource B.Base}">
-                <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line}" />
+            <Grid Grid.ColumnSpan="2" Background="{StaticResource B.Surface}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Rectangle Grid.ColumnSpan="3" Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line}" />
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
                     <!-- Logo: Lycoris mark (Theme/Brand.xaml) -->
-                    <Path Data="{StaticResource G.LycorisMark}" Fill="{StaticResource B.Red}" Stretch="Uniform" Width="26" Height="26" VerticalAlignment="Center" />
+                    <Path Data="{StaticResource G.LycorisMark}" Fill="{StaticResource B.Red}" Stretch="Uniform" Width="22" Height="22" VerticalAlignment="Center" />
                     <!-- Wordmark (Theme/Brand.xaml): vector letters with rounded ends, not a font, so it reads as the brand. -->
                     <Path Data="{StaticResource G.LycorisWordmark}" AutomationProperties.Name="Lycoris" Stroke="{StaticResource B.Text}" StrokeThickness="2.1"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" Height="15" Margin="13,0,0,0" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Version}" Margin="10,3,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" Height="14" Margin="11,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Version}" Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Caption}"
                                FontSize="12" Foreground="{StaticResource B.Text3}" />
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <!-- «ОБНОВЛЕНИЕ 1.0.1»: a newer version exists (Core/Updates). White = clickable; opens the confirmation with what will happen. -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- The update button opens the update confirmation. -->
                     <Button Style="{StaticResource Btn.TitleBar.Primary}" Command="{Binding Updates.UpdateNowCommand}"
                             Visibility="{Binding Updates.ButtonVisible, Converter={StaticResource BoolToVis}}"
                             ToolTip="{loc:T 'Вышла новая версия Lycoris. Нажмите, чтобы посмотреть, что изменится, и обновить.'}">
                         <StackPanel Orientation="Horizontal">
-                            <Border Style="{StaticResource Dot.Red}" Margin="0,0,8,0" />
                             <TextBlock Text="&#xE896;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding Updates.ButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Updates.ButtonText, Converter={StaticResource Sentence}}" Margin="7,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Border Style="{StaticResource SegmentBar}" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource Segment}" Content="{loc:T ПРОСТОЙ}" ToolTip="{loc:T 'Простой режим: основные настройки с короткими пояснениями'}"
+                            <RadioButton Style="{StaticResource Segment}" Content="{loc:T Простой}" ToolTip="{loc:T 'Простой режим: основные настройки с короткими пояснениями'}"
                                          AutomationProperties.HelpText="{loc:T 'Простой режим: основные настройки с короткими пояснениями'}" Command="{Binding SetSimpleModeCommand}" IsChecked="{Binding ExpertMode, Converter={StaticResource InverseBool}}" />
-                            <RadioButton Style="{StaticResource ExpertModeSegment}" Content="{loc:T ЭКСПЕРТ}" ToolTip="{Binding ExpertModeHelpText}"
+                            <RadioButton Style="{StaticResource ExpertModeSegment}" Content="{loc:T Эксперт}" ToolTip="{Binding ExpertModeHelpText}"
                                          AutomationProperties.HelpText="{Binding ExpertModeHelpText}" IsEnabled="{Binding CanUseExpertMode}"
                                          Command="{Binding SetExpertModeCommandCommand}" IsChecked="{Binding ExpertMode}" />
                         </StackPanel>
@@ -133,7 +137,7 @@
                     <Button Style="{StaticResource Btn.TitleBar}" Command="{Binding OpenSearchCommand}" ToolTip="{loc:T 'Поиск настроек, разделов и инструментов (Ctrl+K)'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE721;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
-                            <TextBlock Text="{loc:T ПОИСК}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T Поиск}" Margin="7,0,0,0" VerticalAlignment="Center" />
                             <TextBlock Text="Ctrl+K" Margin="8,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource F.Mono}" FontSize="12"
                                        FontWeight="Normal" FontStretch="Normal" Foreground="{StaticResource B.Text3}" />
                         </StackPanel>
@@ -142,13 +146,13 @@
                     <Button x:Name="UndoButton" Style="{StaticResource Btn.TitleBar}" Click="Undo_Click" ToolTip="{loc:T Откатить последний пакет изменений или открыть журнал}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE7A7;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding UndoButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding UndoButtonText, Converter={StaticResource Sentence}}" Margin="7,0,0,0" VerticalAlignment="Center" />
                             <TextBlock Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="7,1,0,0" Foreground="{StaticResource B.Text2}" />
                         </StackPanel>
                         <Button.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Placement="Bottom">
                                 <MenuItem Header="{Binding LastBatchMenuText}" IsEnabled="{Binding HasLastBatch}" Command="{Binding RevertLastBatchCommand}" />
-                                <MenuItem Header="{loc:T ОТКРЫТЬ ЖУРНАЛ ИЗМЕНЕНИЙ}" Command="{Binding OpenRestoreCenterCommand}" />
+                                <MenuItem Header="{Binding Source={loc:T ОТКРЫТЬ ЖУРНАЛ ИЗМЕНЕНИЙ}, Converter={StaticResource Sentence}}" Command="{Binding OpenRestoreCenterCommand}" />
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -160,9 +164,9 @@
             </Grid>
 
             <!-- ═══════════════ Read-only strip (the one place that explains read-only mode) ═══════════════ -->
-            <!-- One 28 px line: honest text (any change button asks for rights by itself and continues the action) + the shortcut. -->
+            <!-- Explains when actions request elevation and provides the elevation shortcut. -->
             <StackPanel Grid.Row="1" Grid.ColumnSpan="2">
-            <Border Margin="10,6,10,2" Padding="9,0" Height="28" Background="{StaticResource B.Surface2}"
+            <Border Margin="10,6,10,2" Padding="9,3" Height="38" Background="{StaticResource B.Surface2}"
                     BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}"
                     Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}">
                 <Grid>
@@ -176,7 +180,7 @@
                         <Run Text="{loc:T РЕЖИМ ПРОСМОТРА}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource B.Text}" />
                         <Run Text="{loc:T ' — смотреть и проверять можно сразу; любая кнопка изменения сама попросит права и продолжит действие.'}" FontSize="12" Foreground="{StaticResource B.Text2}" />
                     </TextBlock>
-                    <Button Grid.Column="2" Style="{StaticResource Btn}" Height="22" Padding="8,0" FontSize="12" Command="{Binding RestartAsAdminCommand}"
+                    <Button Grid.Column="2" Style="{StaticResource Btn}" Height="30" Padding="8,0" FontSize="12" Command="{Binding RestartAsAdminCommand}"
                             ToolTip="{loc:T Перезапустить Lycoris с правами администратора сейчас (запрос UAC)}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xEA18;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
@@ -187,7 +191,7 @@
             </Border>
 
             <!-- ═══════════════ Operation note: why something did not start / is waiting (text, never only a tooltip) ═══════════════ -->
-            <Border Margin="10,6,10,2" Padding="9,3" MinHeight="28" Background="{StaticResource B.Surface2}"
+            <Border Margin="10,6,10,2" Padding="9,3" MinHeight="38" Background="{StaticResource B.Surface2}"
                     BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}"
                     Visibility="{Binding CurrentPage.OperationNote, Converter={StaticResource NullToVis}, FallbackValue=Collapsed}">
                 <Grid>
@@ -200,13 +204,13 @@
                     <TextBlock Grid.Column="1" Margin="10,0,12,0" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource B.Text}"
                                Text="{Binding CurrentPage.OperationNote}" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Style="{StaticResource Btn}" Height="22" Padding="8,0" FontSize="12" Margin="0,0,6,0" Command="{Binding ToggleTasksCommand}">
+                        <Button Style="{StaticResource Btn}" Height="30" Padding="8,0" FontSize="12" Margin="0,0,6,0" Command="{Binding ToggleTasksCommand}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8FD;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                                 <TextBlock Text="{loc:T ОТКРЫТЬ ЗАДАЧИ}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource Btn}" Height="22" Padding="8,0" FontSize="12" Command="{Binding DismissOperationNoteCommand}">
+                        <Button Style="{StaticResource Btn}" Height="30" Padding="8,0" FontSize="12" Command="{Binding DismissOperationNoteCommand}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE711;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
                                 <TextBlock Text="{loc:T ЗАКРЫТЬ}" VerticalAlignment="Center" />
@@ -220,16 +224,21 @@
             <!-- ═══════════════ Sidebar ═══════════════ -->
             <Grid Grid.Row="2" Grid.RowSpan="2" Background="{StaticResource B.Surface}">
                 <Rectangle Width="1" HorizontalAlignment="Right" Fill="{StaticResource B.Line}" />
-                <DockPanel Margin="0,6,1,0">
+                <DockPanel Margin="0,3,1,0">
                     <!-- Footer: settings -->
-                    <Grid DockPanel.Dock="Bottom" Margin="0,0,0,14">
+                    <Grid DockPanel.Dock="Bottom" Margin="0,6,0,10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Rectangle Style="{StaticResource Divider}" Margin="12,0,12,8" />
                         <!-- Same plate and marker as a selected nav item while Settings is open -->
-                        <Border Margin="10,0,8,0" Height="34" Background="{StaticResource B.Surface2}" CornerRadius="{StaticResource R.Md}"
+                        <Border Grid.Row="1" Margin="10,0,8,0" Height="34" Background="{StaticResource B.Selected}" CornerRadius="{StaticResource R.Md}"
                                 Visibility="{Binding IsSettingsOpen, Converter={StaticResource BoolToVis}}">
-                            <Rectangle Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.Red}"
+                            <Rectangle Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.Accent}"
                                        RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
                         </Border>
-                        <Button Command="{Binding NavigateCommand}" CommandParameter="settings" ToolTip="{loc:T Настройки Lycoris}"
+                        <Button Grid.Row="1" Command="{Binding NavigateCommand}" CommandParameter="settings" ToolTip="{loc:T Настройки Lycoris}"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="10,0,8,0" Height="34" BorderThickness="0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -271,14 +280,15 @@
                         </Button>
                     </Grid>
 
-                    <!-- Groups ОБЗОР · УСКОРЕНИЕ · ОБСЛУЖИВАНИЕ · ЗАЩИТА; a badge on the right = the page's own fact (PageViewModel.BadgeText) -->
+                    <!-- Group captions describe tasks. Each page provides its own icon and status badge. -->
                     <ListBox x:Name="NavList" Style="{StaticResource Nav.List}" ItemsSource="{Binding NavView}" SelectedItem="{Binding NavSelection}"
                              IsSynchronizedWithCurrentItem="False">
                         <ListBox.GroupStyle>
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Name, Converter={x:Static loc:LocConverter.Instance}}" Style="{StaticResource T.Label}" Margin="20,12,0,4" />
+                                        <TextBlock Text="{Binding Name, Converter={x:Static loc:LocConverter.Instance}}"
+                                                   Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" Margin="20,4,12,2" />
                                     </DataTemplate>
                                 </GroupStyle.HeaderTemplate>
                             </GroupStyle>
@@ -309,16 +319,16 @@
             <Grid Grid.Row="2" Grid.Column="1" ClipToBounds="True">
                 <ProgressBar VerticalAlignment="Top" IsIndeterminate="True" Height="2" Panel.ZIndex="5"
                              Visibility="{Binding CurrentPage.IsBusy, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}" />
-                <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" Margin="24,16,24,14" Focusable="False">
+                <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" Margin="24,18,24,14" Focusable="False">
                     <ContentControl.RenderTransform>
                         <TranslateTransform />
                     </ContentControl.RenderTransform>
                 </ContentControl>
             </Grid>
 
-            <Grid x:Name="WizardLayer" Grid.RowSpan="4" Grid.ColumnSpan="2" Panel.ZIndex="40" Background="#B8000000"
+            <Grid x:Name="WizardLayer" Grid.RowSpan="4" Grid.ColumnSpan="2" Panel.ZIndex="40" Background="{StaticResource B.Scrim}"
                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}">
-                <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Outline}" BorderThickness="1" CornerRadius="12"
+                <Border Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Outline}" BorderThickness="1" CornerRadius="{StaticResource R.Lg}"
                         Width="760" MaxHeight="640" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -489,17 +499,21 @@
                 </Grid>
             </Border>
 
-            <!-- ═══════════════ Status bar (34 px) ═══════════════ -->
-            <Grid Grid.Row="4" Grid.ColumnSpan="2" Background="{StaticResource B.Base}">
-                <Rectangle Height="1" VerticalAlignment="Top" Fill="{StaticResource B.Line}" />
-                <StackPanel Orientation="Horizontal" Margin="20,0,0,0" VerticalAlignment="Center">
-                    <Border Width="6" Height="6" VerticalAlignment="Center">
+            <!-- ═══════════════ Status bar ═══════════════ -->
+            <Grid Grid.Row="4" Grid.ColumnSpan="2" Background="{StaticResource B.Surface}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Rectangle Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Fill="{StaticResource B.Line}" />
+                <StackPanel Orientation="Horizontal" Margin="20,0,12,0" VerticalAlignment="Center">
+                    <Border Width="6" Height="6" CornerRadius="{StaticResource R.Xs}" VerticalAlignment="Center">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background" Value="{StaticResource B.Text3}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding CurrentPage.IsBusy}" Value="True">
-                                        <Setter Property="Background" Value="{StaticResource B.White}" />
+                                        <Setter Property="Background" Value="{StaticResource B.Accent}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -507,8 +521,8 @@
                     </Border>
                     <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12">
                         <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource T.Mono}">
-                                <Setter Property="Text" Value="{loc:T ГОТОВ}" />
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource T.Caption}">
+                                <Setter Property="Text" Value="{Binding Source={loc:T ГОТОВ}, Converter={StaticResource Sentence}}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding CurrentPage.IsBusy}" Value="True">
                                         <Setter Property="Text" Value="{Binding CurrentPage.BusyText}" />
@@ -518,18 +532,17 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Mono}" FontSize="12" Foreground="{StaticResource B.Text3}"
+                    <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource T.Caption}" FontSize="12" Foreground="{StaticResource B.Text3}"
                                Text="{Binding CurrentPage.CheckedText, StringFormat=· {0}}"
                                Visibility="{Binding CurrentPage.CheckedText, Converter={StaticResource NullToVis}, FallbackValue=Collapsed}" />
                 </StackPanel>
-                <!-- The in-app log: an outlined button («ЖУРНАЛ ДЕЙСТВИЙ · 2 ▴»), 26 px inside the 34 px bar -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,12,0" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                 <!-- «ЗАДАЧИ · N»: running and queued operations (installs, repairs, changes, cleanup); opens the list above the bar -->
-                <Button Style="{StaticResource Btn}" Height="26" Padding="10,0" FontSize="12" Margin="0,0,8,0"
+                <Button Style="{StaticResource Btn}" Height="30" Padding="10,0" FontSize="12" Margin="0,0,8,0"
                         Command="{Binding ToggleTasksCommand}" ToolTip="{loc:T Что сейчас выполняется и что ждёт очереди}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE8FD;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                        <TextBlock Text="{Binding TasksButtonText}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding TasksButtonText, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                         <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="7,1,0,0" Foreground="{StaticResource B.Text2}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -544,11 +557,11 @@
                         </TextBlock>
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource Btn}" Height="26" Padding="10,0" FontSize="12" VerticalAlignment="Center"
+                <Button Style="{StaticResource Btn}" Height="30" Padding="10,0" FontSize="12" VerticalAlignment="Center"
                         Command="{Binding ToggleConsoleCommand}" ToolTip="{loc:T Показать или скрыть журнал действий Lycoris}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE756;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                        <TextBlock Text="{Binding LogEntries.Count, StringFormat={loc:T 'ЖУРНАЛ ДЕЙСТВИЙ · {0}'}}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding LogEntries.Count, StringFormat={loc:T 'Журнал действий · {0}'}}" VerticalAlignment="Center" />
                         <TextBlock FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="7,1,0,0" Foreground="{StaticResource B.Text2}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -568,7 +581,7 @@
 
             <!-- ═══════════════ Task list (opened by «ЗАДАЧИ · N»): an R.Xl panel above the status bar ═══════════════ -->
             <Border Grid.Row="2" Grid.RowSpan="3" Grid.Column="1" Width="480" MaxHeight="460" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                    Margin="0,0,12,40" Panel.ZIndex="25" Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1"
+                    Margin="0,0,12,44" Panel.ZIndex="25" Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1"
                     CornerRadius="{StaticResource R.Xl}" ui:RoundClip.Content="True"
                     Visibility="{Binding TasksOpen, Converter={StaticResource BoolToVis}}">
                 <Border.Effect>
@@ -580,7 +593,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Rectangle Height="4" Fill="{StaticResource B.White}" VerticalAlignment="Top" />
+                    <Rectangle Height="2" Fill="{StaticResource B.Accent}" VerticalAlignment="Top" />
                     <Grid Margin="16,16,12,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="{loc:T ЗАДАЧИ}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
@@ -657,7 +670,7 @@
                                 <Rectangle>
                                     <Rectangle.Style>
                                         <Style TargetType="Rectangle">
-                                            <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                            <Setter Property="Fill" Value="{StaticResource B.Accent}" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Kind}" Value="Success"><Setter Property="Fill" Value="{StaticResource B.Success}" /></DataTrigger>
                                                 <DataTrigger Binding="{Binding Kind}" Value="Info"><Setter Property="Fill" Value="{StaticResource B.Info}" /></DataTrigger>
@@ -793,9 +806,14 @@
             <!-- ═══════════════ Dialog ═══════════════ -->
             <Grid Grid.Row="1" Grid.RowSpan="4" Grid.ColumnSpan="2" Panel.ZIndex="30" Background="{StaticResource B.Scrim}"
                   Visibility="{Binding Dialog, Converter={StaticResource NullToVis}}">
-                <Border Width="560" MaxHeight="640" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{StaticResource B.Surface2}"
+                <Border Width="620" MaxHeight="640" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{StaticResource B.Surface2}"
                         BorderBrush="{StaticResource B.Line3}" BorderThickness="1" CornerRadius="{StaticResource R.Xl}" ui:RoundClip.Content="True"
                         DataContext="{Binding Dialog}">
+                    <Border.Resources>
+                        <DataTemplate x:Key="Dialog.WrappedLabel">
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                        </DataTemplate>
+                    </Border.Resources>
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="40" ShadowDepth="10" Opacity="0.8" Color="Black" />
                     </Border.Effect>
@@ -805,10 +823,10 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Rectangle Height="6" VerticalAlignment="Top">
+                        <Rectangle Height="2" VerticalAlignment="Top">
                             <Rectangle.Style>
                                 <Style TargetType="Rectangle">
-                                    <Setter Property="Fill" Value="{StaticResource B.White}" />
+                                    <Setter Property="Fill" Value="{StaticResource B.Accent}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsDanger}" Value="True">
                                             <Setter Property="Fill" Value="{StaticResource B.Red}" />
@@ -822,6 +840,7 @@
                             <TextBlock Text="{Binding Message}" Style="{StaticResource T.Body}" Margin="0,10,0,0" />
                             <!-- Optional checkbox («Всегда запускать с правами») -->
                             <CheckBox Margin="0,14,0,0" IsChecked="{Binding OptionChecked}" Content="{Binding OptionText}"
+                                      ContentTemplate="{StaticResource Dialog.WrappedLabel}"
                                       Visibility="{Binding HasOption, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                         <Border Grid.Row="1" Margin="28,16,28,0" BorderBrush="{StaticResource B.Line2}" BorderThickness="1" Background="{StaticResource B.Surface}"
@@ -844,20 +863,24 @@
                                 </ItemsControl>
                             </ScrollViewer>
                         </Border>
-                        <Grid Grid.Row="2" Margin="28,22,28,26">
-                            <TextBlock Text="{Binding Footnote}" Style="{StaticResource T.Caption}" VerticalAlignment="Center" MaxWidth="250" HorizontalAlignment="Left" />
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="{Binding CancelText}" Command="{Binding CancelCommand}" Margin="0,0,10,0" MinWidth="110" IsCancel="True"
+                        <StackPanel Grid.Row="2" Margin="28,16,28,20">
+                            <TextBlock Text="{Binding Footnote}" Style="{StaticResource T.Caption}" />
+                            <WrapPanel HorizontalAlignment="Right" Margin="0,6,0,0">
+                                <Button Content="{Binding CancelText}" Command="{Binding CancelCommand}" IsCancel="True"
+                                        ContentTemplate="{StaticResource Dialog.WrappedLabel}" Height="Auto" MinHeight="30" MinWidth="110" Padding="12,5" Margin="0,0,10,6"
                                         Visibility="{Binding ShowCancel, Converter={StaticResource BoolToVis}}" />
-                                <Button Content="{Binding ExtraText}" Command="{Binding ExtraCommand}" Margin="0,0,10,0" MinWidth="110"
+                                <Button Content="{Binding ExtraText}" Command="{Binding ExtraCommand}"
+                                        ContentTemplate="{StaticResource Dialog.WrappedLabel}" Height="Auto" MinHeight="30" MinWidth="110" Padding="12,5" Margin="0,0,10,6"
                                         Visibility="{Binding HasExtra, Converter={StaticResource BoolToVis}}" />
-                                <!-- A destructive confirmation is a red outline (not the white main button) and is not the Enter default -->
-                                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" MinWidth="140" IsDefault="True" Style="{StaticResource Btn.Primary}"
+                                <!-- A destructive confirmation keeps its danger style and requires explicit activation. -->
+                                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" IsDefault="True" Style="{StaticResource Btn.Primary}"
+                                        ContentTemplate="{StaticResource Dialog.WrappedLabel}" Height="Auto" MinHeight="32" MinWidth="140" Padding="12,5" Margin="0,0,0,6"
                                         Visibility="{Binding IsDanger, Converter={StaticResource InverseBoolToVis}}" />
-                                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" MinWidth="140" Style="{StaticResource Btn.Danger}"
+                                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}" Style="{StaticResource Btn.Danger}"
+                                        ContentTemplate="{StaticResource Dialog.WrappedLabel}" Height="Auto" MinHeight="30" MinWidth="140" Padding="12,5" Margin="0,0,0,6"
                                         Visibility="{Binding IsDanger, Converter={StaticResource BoolToVis}}" />
-                            </StackPanel>
-                        </Grid>
+                            </WrapPanel>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>

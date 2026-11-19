@@ -101,7 +101,7 @@ public sealed class SentenceCaseConverter : IValueConverter
         "SFC", "DISM", "CBS", "TEMP", "ID", "PC", "OS", "AI", "UAC", "TPM", "VBS", "HVCI", "BIOS", "UEFI", "XMP", "EXPO",
         "FPS", "HDR", "VRR", "HAGS", "DLSS", "RTX", "GTX", "AMD", "NVIDIA", "DDU", "OEM", "MSI", "OBS", "MDM", "CCD", "X3D",
         "IFEO", "MMCSS", "SMB", "LLMNR", "QOS", "NTFS", "WSL", "DX", "DXGI", "BAR", "ACPI", "WU", "UWP", "MS", "EA", "GOG",
-        "CPU-Z", "GPU-Z", "HWINFO", "VR", "4K", "HTML", "JSON", "WMI", "COM", "PDF", "LTSC", "KB",
+        "CPU-Z", "GPU-Z", "HWINFO", "VR", "4K", "HTML", "JSON", "WMI", "COM", "PDF", "LTSC", "KB", "MB", "GB", "TB",
     };
 
     private static readonly Dictionary<string, string> Brands = new(StringComparer.Ordinal)

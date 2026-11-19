@@ -6,7 +6,7 @@
   ],
   "ignore": [],
   "en": {
-    "ЭКСПОРТ ИСТОРИИ CSV": "EXPORT HISTORY CSV",
+    "Экспорт истории CSV": "Export history CSV",
     "Сохранить историю замеров": "Save measurement history",
     "CSV-файл (*.csv)": "CSV file (*.csv)",
     "История замеров сохранена.": "Measurement history saved.",

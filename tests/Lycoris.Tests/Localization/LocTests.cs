@@ -259,6 +259,15 @@ public sealed class LocTests
             Assert.Equal("Временные файлы Windows", SentenceCaseConverter.Apply("ВРЕМЕННЫЕ ФАЙЛЫ WINDOWS"));
     }
 
+    [Theory]
+    [InlineData("en", "CLEAN UP · 1 KB · 69.9 MB · 2 GB · 3 TB", "Clean up · 1 KB · 69.9 MB · 2 GB · 3 TB")]
+    [InlineData("ru", "ОЧИСТИТЬ · 1 КБ · 69,9 МБ · 2 ГБ · 3 ТБ", "Очистить · 1 КБ · 69,9 МБ · 2 ГБ · 3 ТБ")]
+    public void Sentence_case_converter_keeps_size_units_uppercase(string language, string caption, string expected)
+    {
+        using var _ = Loc.UseLanguage(language);
+        Assert.Equal(expected, SentenceCaseConverter.Apply(caption));
+    }
+
     [Fact]
     public void Bytes_are_written_in_the_language_units()
     {
