@@ -24,36 +24,46 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 
 ## Как выглядит
 
-**Главная — состояние системы и ближайшие действия.**
+В версии **1.0.34** интерфейс оформлен в приглушённых графитовых и серо-синих тонах. На главной собраны состояние ПК и ближайшие действия. Боковое меню сгруппировано по задачам.
 
-<img src="docs/branding/screenshots/home.png" width="100%" alt="Lycoris 1.0.26: Главная со сводкой состояния ПК и рекомендуемыми действиями">
+- **Главное** — Главная, Панель, Помощник.
+- **Игры и производительность** — Игры, Оптимизация.
+- **Программы** — Приложения, Удаление и отключение.
+- **Windows и устройства** — Автозапуск и службы, Устройства и сеть, Драйверы, Обслуживание.
+- **Восстановление** — Восстановление.
 
-**Панель — точный путь, следующий шаг и открытие нужного раздела.**
+**Настройки** находятся внизу бокового меню.
 
-<img src="docs/branding/screenshots/dashboard-guidance.png" width="100%" alt="Lycoris 1.0.32: советы с путями к журналу надёжности и изоляции ядра Windows, пояснениями и кнопками открытия">
+**Главная — быстрые действия и история замеров.**
+
+<img src="docs/branding/screenshots/home.png" width="100%" alt="Главная Lycoris с быстрыми действиями для игр, автозапуска, очистки и драйверов и демонстрационной историей замеров">
+
+**Панель — сводка ПК, игровой сеанс, инструменты и результаты проверок.**
+
+<img src="docs/branding/screenshots/dashboard-guidance.png" width="100%" alt="Панель Lycoris с оценкой состояния ПК, игровым сеансом, инструментами, проблемами и монитором ресурсов">
 
 <details>
 <summary>Удаление, помощник, приложения и игровая библиотека</summary>
 
-**Удаление и отключение — решения с объяснениями и отдельный список автозапуска.**
+**Удаление и отключение — проверка, предпросмотр и выбор программ.**
 
-<img src="docs/branding/screenshots/removal.png" width="100%" alt="Lycoris 1.0.28: панель удаления и отключения со статусами программ, поиском и фильтром">
+<img src="docs/branding/screenshots/removal.png" width="100%" alt="Удаление и отключение в Lycoris с кнопками проверки и предпросмотра и вкладками программ и автозапуска">
 
 **Помощник — объяснения проблем и доступные действия.**
 
-<img src="docs/branding/screenshots/assistant.png" width="100%" alt="Lycoris 1.0.32: демонстрационный диалог помощника, локальная модель, быстрые вопросы и переходы к действиям">
+<img src="docs/branding/screenshots/assistant.png" width="100%" alt="Помощник Lycoris с демонстрационным диалогом и быстрыми вопросами">
 
-**Приложения — рекомендации по подтверждённой потребности.**
+**Приложения — поиск, фильтры и статус проверки.**
 
-<img src="docs/branding/screenshots/apps.png" width="100%" alt="Lycoris 1.0.26: Приложения с результатом проверки рекомендаций для этого ПК">
+<img src="docs/branding/screenshots/apps.png" width="100%" alt="Каталог приложений Lycoris с поиском, фильтрами и сообщением «Проверка не завершена»">
 
-**Игры — библиотека, избранное и GameBoost.**
+**Игры — библиотека и настройки игрового сеанса.**
 
-<img src="docs/branding/screenshots/games.png" width="100%" alt="Lycoris 1.0.26: игровая библиотека и управление GameBoost">
+<img src="docs/branding/screenshots/games.png" width="100%" alt="Пустая игровая библиотека Lycoris с кнопкой «Добавить игру» и настройками игрового сеанса">
 
 </details>
 
-Советы панели и помощник показаны в **1.0.32** (диалог демонстрационный), удаление — в **1.0.28**, остальные скриншоты — из **1.0.26**. Показатели и рекомендации зависят от компьютера.
+Снимки сделаны в тестовой среде с Lycoris **1.0.34**. История замеров на Главной и диалог Помощника демонстрационные. Показатели, списки и рекомендации зависят от компьютера.
 
 ## Перед запуском
 
@@ -119,6 +129,20 @@ Windows 10 2004+ / Windows 11 x64; .NET included; RU/EN interface. Simple mode i
 
 Dashboard advice includes the exact destination, next step and an Open button. Supported fixes require confirmation and a fresh result check. Selected current-user Store applications can be removed after identity and dependency checks; Xbox and Game Bar infrastructure remain protected. Visible software and service lists refresh when idle, and release checks continue during long tray sessions. Update installation remains confirmed and signature-verified.
 
-Dashboard advice and Assistant screenshots show **1.0.32** (a demo conversation); the uninstall panel shows **1.0.28**, and the remaining screenshots show **1.0.26**. The app has no Authenticode certificate yet, so Windows may show “Unknown publisher”. Verify the release SHA-256; ECDSA update verification is separate from Windows publisher signing.
+### Interface in 1.0.34
+
+Version **1.0.34** uses muted graphite and slate tones. Home brings together PC status and suggested actions. The sidebar groups pages by task.
+
+- **Overview** — Home, Dashboard, Assistant.
+- **Gaming and performance** — Games, Optimize.
+- **Programs** — Apps, Remove & disable.
+- **Windows and devices** — Startup & services, Devices & network, Drivers, Maintenance.
+- **Restore** — Restore.
+
+**Settings** is at the bottom of the sidebar.
+
+The screenshots show Lycoris **1.0.34** in a test environment. The measurement history on Home and the Assistant conversation are demos. Readings, lists and recommendations vary by PC.
+
+The app has no Authenticode certificate yet, so Windows may show “Unknown publisher”. Verify the release SHA-256; ECDSA update verification is separate from Windows publisher signing.
 
 [Лицензия / License](LICENSE.md)
