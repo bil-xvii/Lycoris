@@ -5,8 +5,8 @@ namespace Lycoris.Tweaks;
 public sealed record TweakRunResult(int Applied, int Skipped, IReadOnlyList<string> Errors, string? RestorePoint, RestartRequirement Restart)
 {
     /// <summary>
-    /// Tweaks left out of this run because a dependency (<see cref="Tweak.Requires"/>) did not get applied first, as
-    /// ready-to-show lines: «{title}: зависит от «…», которое не применилось». Not counted in <see cref="Skipped"/>.
+    /// Ready-to-show reasons for skipped tweaks whose prerequisite tweak or power plan could not be confirmed.
+    /// Not counted in <see cref="Skipped"/>.
     /// </summary>
     public IReadOnlyList<string> SkippedReasons { get; init; } = [];
     /// <summary>Ids of the tweaks in <see cref="SkippedReasons"/>.</summary>
@@ -17,9 +17,11 @@ public sealed record TweakRunResult(int Applied, int Skipped, IReadOnlyList<stri
 public static class TweakEngine
 {
     /// <summary>Detects the state of every tweak in parallel-safe sequence (registry/service reads are cheap).</summary>
-    public static Task<Dictionary<string, TweakState>> DetectAllAsync(IEnumerable<Tweak> tweaks) => Task.Run(async () =>
+    public static async Task<Dictionary<string, TweakState>> DetectAllAsync(IEnumerable<Tweak> tweaks) =>
+        await DetectAllAsync(tweaks, await SystemProfile.LoadAsync().ConfigureAwait(false)).ConfigureAwait(false);
+
+    internal static Task<Dictionary<string, TweakState>> DetectAllAsync(IEnumerable<Tweak> tweaks, SystemProfile sp) => Task.Run(() =>
     {
-        var sp = await SystemProfile.LoadAsync().ConfigureAwait(false);
         var result = new Dictionary<string, TweakState>();
         foreach (var t in tweaks)
         {
@@ -40,21 +42,85 @@ public static class TweakEngine
         return result;
     });
 
-    public static async Task<TweakRunResult> ApplyAsync(IReadOnlyList<Tweak> tweaks, string title, IProgress<string>? progress = null)
+    public static Task<TweakRunResult> ApplyAsync(IReadOnlyList<Tweak> tweaks, string title, IProgress<string>? progress = null) =>
+        ApplyWithPowerPlanAsync(tweaks, title, CaptureBatchPowerPlan(tweaks, PowerSchemes.GetActive), progress);
+
+    internal static async Task<TweakRunResult> ApplyWithPowerPlanAsync(IReadOnlyList<Tweak> tweaks, string title,
+        PowerPlanIntent? powerPlan, IProgress<string>? progress = null, Action? prepareJournal = null)
     {
         var sp = await SystemProfile.LoadAsync().ConfigureAwait(false);
-        return await Task.Run(async () =>
+        return await Task.Run(() => ApplyCapturedAsync(tweaks, sp, powerPlan, PowerSchemes.GetActive, () =>
         {
-            var session = await ChangeSession.BeginAsync(title, createRestorePoint: true, progress).ConfigureAwait(false);
-            var (skipped, restart, skippedReasons, skippedIds) = ApplyInSession(session, tweaks, sp, progress); // ordered inside
-            session.Complete();
-            return new TweakRunResult(session.Applied, skipped, session.Errors, session.Batch.RestorePoint, restart)
-            {
-                SkippedReasons = skippedReasons,
-                SkippedIds = skippedIds,
-            };
-        }).ConfigureAwait(false);
+            prepareJournal?.Invoke();
+            return ChangeSession.BeginAsync(title, createRestorePoint: true, progress);
+        }, progress)).ConfigureAwait(false);
     }
+
+    internal static async Task<TweakRunResult> ApplyCapturedAsync(IReadOnlyList<Tweak> tweaks, SystemProfile sp,
+        PowerPlanIntent? powerPlan, Func<Guid> readActiveScheme, Func<Task<ChangeSession>> beginSession,
+        IProgress<string>? progress = null)
+    {
+        var blocked = new List<Tweak>();
+        if (tweaks.Any(IsPowerPlanOperation) && !IsCurrentScheme(powerPlan?.OriginalScheme, readActiveScheme))
+        {
+            blocked.AddRange(tweaks.Where(IsPowerPlanOperation));
+            tweaks = tweaks.Where(t => !IsPowerPlanOperation(t)).ToList();
+        }
+        if (tweaks.Count == 0 && blocked.Count > 0)
+        {
+            return new TweakRunResult(0, 0, [], Loc.Key("Точка восстановления не создавалась: изменения схемы питания пропущены."),
+                RestartRequirement.None)
+            {
+                SkippedReasons = blocked.Select(PowerPlanDriftReason).ToList(),
+                SkippedIds = blocked.Select(t => t.Id).ToHashSet(StringComparer.Ordinal),
+            };
+        }
+
+        var session = await beginSession().ConfigureAwait(false);
+        var (skipped, restart, reasons, ids) = ApplyInSession(session, tweaks, sp, powerPlan, readActiveScheme, progress);
+        session.Complete();
+        foreach (var tweak in blocked)
+        {
+            reasons.Add(PowerPlanDriftReason(tweak));
+            ids.Add(tweak.Id);
+        }
+        return new TweakRunResult(session.Applied, skipped, session.Errors, session.Batch.RestorePoint, restart)
+        {
+            SkippedReasons = reasons,
+            SkippedIds = ids,
+        };
+    }
+
+    internal static PowerPlanIntent? CapturePowerPlanIntent(IReadOnlyList<Tweak> targets, Tweak? selectedPlan,
+        Func<Guid> readActiveScheme)
+    {
+        if (!targets.Any(IsPowerPlanOperation)) return null;
+        var switches = targets.Where(t => t.ExclusiveGroup == TweakGroups.PowerPlan).ToList();
+        var switchPending = switches.Count == 1 && ReferenceEquals(switches[0], selectedPlan);
+        var active = switches.Count == 0 || switchPending ? ReadActiveScheme(readActiveScheme) : Guid.Empty;
+        if (active != Guid.Empty && !switchPending && selectedPlan is not null
+            && (DetectSafe(selectedPlan) != TweakState.Applied || !IsCurrentScheme(active, readActiveScheme)))
+            active = Guid.Empty;
+        return new PowerPlanIntent(active, selectedPlan, switchPending);
+    }
+
+    private static PowerPlanIntent? CaptureBatchPowerPlan(IReadOnlyList<Tweak> tweaks, Func<Guid> readActiveScheme) =>
+        CapturePowerPlanIntent(tweaks, tweaks.FirstOrDefault(t => t.ExclusiveGroup == TweakGroups.PowerPlan), readActiveScheme);
+
+    private static bool IsPowerPlanOperation(Tweak tweak) =>
+        tweak.UsesActivePowerPlan || tweak.ExclusiveGroup == TweakGroups.PowerPlan;
+
+    private static Guid ReadActiveScheme(Func<Guid> readActiveScheme)
+    {
+        try { return readActiveScheme(); }
+        catch { return Guid.Empty; }
+    }
+
+    private static bool IsCurrentScheme(Guid? expected, Func<Guid> readActiveScheme) =>
+        expected is { } scheme && scheme != Guid.Empty && ReadActiveScheme(readActiveScheme) == scheme;
+
+    private static string PowerPlanDriftReason(Tweak tweak) =>
+        Loc.Tf("{0}: активная схема питания изменилась или её не удалось подтвердить. Обновите список и повторите.", tweak.Title);
 
     private static TweakState DetectSafe(Tweak t)
     {
@@ -147,9 +213,23 @@ public static class TweakEngine
     /// whatever order the caller collected it in (plan switches first, dependencies before dependents). Blocking: call off the UI thread.
     /// </summary>
     public static (int Skipped, RestartRequirement Restart, List<string> SkippedReasons, HashSet<string> SkippedIds) ApplyInSession(
-        ChangeSession session, IReadOnlyList<Tweak> tweaks, SystemProfile sp, IProgress<string>? progress = null)
+        ChangeSession session, IReadOnlyList<Tweak> tweaks, SystemProfile sp, IProgress<string>? progress = null) =>
+        ApplyInSession(session, tweaks, sp, PowerSchemes.GetActive, progress);
+
+    internal static (int Skipped, RestartRequirement Restart, List<string> SkippedReasons, HashSet<string> SkippedIds) ApplyInSession(
+        ChangeSession session, IReadOnlyList<Tweak> tweaks, SystemProfile sp, Func<Guid> readActiveScheme, IProgress<string>? progress = null)
+    {
+        return ApplyInSession(session, tweaks, sp, CaptureBatchPowerPlan(tweaks, readActiveScheme), readActiveScheme, progress);
+    }
+
+    internal static (int Skipped, RestartRequirement Restart, List<string> SkippedReasons, HashSet<string> SkippedIds) ApplyInSession(
+        ChangeSession session, IReadOnlyList<Tweak> tweaks, SystemProfile sp, PowerPlanIntent? powerPlan,
+        Func<Guid> readActiveScheme, IProgress<string>? progress = null)
     {
         tweaks = OrderForApply(tweaks);
+        var pendingPlan = powerPlan?.SwitchPending == true ? powerPlan.SelectedPlan : null;
+        var confirmedScheme = pendingPlan is null ? powerPlan?.OriginalScheme : null;
+        var planDrifted = false;
         int skipped = 0;
         var skippedReasons = new List<string>();
         var skippedIds = new HashSet<string>(StringComparer.Ordinal);
@@ -161,17 +241,6 @@ public static class TweakEngine
                 if (!sp.HardwareFactsKnown && t.AppliesTo is not null)
                     Log.Warn("{0} — пропущено: не удалось определить характеристики компьютера.", t.Title);
                 skipped++;
-                continue;
-            }
-            // A dependent tweak was selected on the promise that its dependency gets applied first (e.g. a power mode
-            // on the Balanced plan). Its dependency has run by now (OrderForApply): read the live state again and skip
-            // instead of forcing it when the dependency failed.
-            if (t.Requires.Count > 0 && DetectSafe(t) == TweakState.NotApplicable)
-            {
-                var reason = DependencySkipReason(t, tweaks, AnyDependencyApplied(t, tweaks));
-                skippedReasons.Add(reason);
-                skippedIds.Add(t.Id);
-                Log.Warn("{0} — пропущено.", reason);
                 continue;
             }
             progress?.Report(t.Title);
@@ -188,8 +257,60 @@ public static class TweakEngine
                         Log.Warn("{0} — пропущено: требуется режим «Эксперт».", t.Title);
                         return;
                     }
-                    t.Apply(new TweakContext { Session = session, System = sp, Tweak = t });
+                    var switchesPlan = ReferenceEquals(t, pendingPlan);
+                    Guid? requiredScheme = null;
+                    if (IsPowerPlanOperation(t))
+                    {
+                        if (!planDrifted && t.UsesActivePowerPlan && pendingPlan is not null && confirmedScheme is null)
+                        {
+                            Skip(t, Loc.Tf("{0}: не подтверждено включение выбранной схемы «{1}»", t.Title, pendingPlan.Title));
+                            return;
+                        }
+
+                        requiredScheme = switchesPlan ? powerPlan!.OriginalScheme : confirmedScheme;
+                        if (planDrifted || (!switchesPlan && t.ExclusiveGroup == TweakGroups.PowerPlan)
+                            || !IsCurrentScheme(requiredScheme, readActiveScheme))
+                        {
+                            planDrifted = true;
+                            Skip(t, PowerPlanDriftReason(t));
+                            return;
+                        }
+                    }
+                    if (t.Requires.Count > 0 && DetectSafe(t) == TweakState.NotApplicable)
+                    {
+                        Skip(t, DependencySkipReason(t, tweaks, AnyDependencyApplied(t, tweaks)));
+                        return;
+                    }
+                    var errorsBefore = session.Errors.Count;
+                    var context = new TweakContext
+                    {
+                        Session = session, System = sp, Tweak = t,
+                        ConfirmedPowerScheme = t.UsesActivePowerPlan ? requiredScheme : null,
+                        IsPowerSchemeCurrent = requiredScheme is { } schemeBeforeWrite
+                            ? () => IsCurrentScheme(schemeBeforeWrite, readActiveScheme) : null,
+                    };
+                    t.Apply(context);
+                    if (context.PowerSchemeDrifted)
+                    {
+                        planDrifted = true;
+                        Skip(t, PowerPlanDriftReason(t));
+                        return;
+                    }
+                    if (switchesPlan && session.Errors.Count == errorsBefore)
+                    {
+                        // A no-op may keep the original OEM plan. Only a recorded request can confirm another GUID.
+                        var expected = context.RequestedPowerScheme ?? requiredScheme;
+                        var scheme = ReadActiveScheme(readActiveScheme);
+                        if (scheme != Guid.Empty && scheme == expected && DetectSafe(t) == TweakState.Applied
+                            && IsCurrentScheme(scheme, readActiveScheme))
+                            confirmedScheme = scheme;
+                    }
                 });
+            }
+            catch (ActivePowerSchemeChangedException)
+            {
+                planDrifted = true;
+                Skip(t, PowerPlanDriftReason(t));
             }
             catch (Exception ex)
             {
@@ -199,6 +320,13 @@ public static class TweakEngine
             if (session.Applied > before && t.Restart > restart) restart = t.Restart;
         }
         return (skipped, restart, skippedReasons, skippedIds);
+
+        void Skip(Tweak tweak, string reason)
+        {
+            skippedReasons.Add(reason);
+            skippedIds.Add(tweak.Id);
+            Log.Warn("{0} — пропущено.", reason);
+        }
     }
 
     /// <summary>

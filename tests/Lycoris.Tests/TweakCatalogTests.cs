@@ -124,12 +124,9 @@ public sealed class TweakCatalogTests : IDisposable
     }
 
     [Fact]
-    public void Work_scenario_is_within_recommended_except_the_active_hours()
+    public void Work_scenario_is_within_recommended()
     {
-        // Deliberate change of wave 3 (was «Normal ⊆ Recommended»): «Работа и учёба» pre-checks the SAFE-OPTIONAL wu-active-hours
-        // (no automatic restart 08:00–02:00), which the all-purpose Recommended set leaves to the user. Nothing else may differ.
         var recommended = TweakCatalog.DefaultsFor(ProfileKind.Recommended).Select(t => t.Id).ToHashSet();
-        recommended.Add("wu-active-hours");
         Assert.All(TweakCatalog.DefaultsFor(ProfileKind.Normal), t => Assert.Contains(t.Id, recommended));
     }
 
@@ -137,9 +134,9 @@ public sealed class TweakCatalogTests : IDisposable
     public void Work_scenario_pre_checks_the_office_items_and_no_gaming_or_privacy_preferences()
     {
         var work = TweakCatalog.DefaultsFor(ProfileKind.Normal).Select(t => t.Id).ToHashSet();
-        foreach (var id in new[] { "ads-suggestions-off", "advertising-id-off", "file-extensions-show", "storage-sense-on", "bing-start-search-off",
+        foreach (var id in new[] { "ads-suggestions-off", "advertising-id-off", "file-extensions-show", "bing-start-search-off",
                      "search-highlights-off", "widgets-off", "news-interests-off", "feedback-requests-off", "delivery-optimization-local",
-                     "tcp-autotuning-normal", "trim-on", "power-plan-balanced", "power-plan-balanced-x3d", "fast-startup-off", "wu-active-hours" })
+                     "tcp-autotuning-normal", "trim-on", "power-plan-balanced", "power-plan-balanced-x3d" })
             Assert.Contains(id, work);
         // Not a gaming set, not a privacy preference (Find My Device / time zone), not the screen-sharing item (a productivity feature stays).
         foreach (var id in new[] { "game-mode", "hags", "hags-off", "gamedvr-off", "gamedvr-capture-off", "windowed-games-optimization",
@@ -149,17 +146,14 @@ public sealed class TweakCatalogTests : IDisposable
     }
 
     [Fact]
-    public void Streaming_scenario_leaves_hags_and_delivery_optimization_alone()
+    public void Streaming_scenario_disables_background_capture_and_preserves_manual_capture()
     {
         var streaming = TweakCatalog.DefaultsFor(ProfileKind.Streaming).Select(t => t.Id).ToHashSet();
-        // OBS KB: Game DVR off next to OBS (no second encoder, no Win+Alt+R conflicts); recent files never go on air.
-        foreach (var id in new[] { "game-mode", "gamedvr-off", "gamedvr-capture-off", "windowed-games-optimization", "wifi-power-saving-off",
+        foreach (var id in new[] { "game-mode", "gamedvr-off", "windowed-games-optimization", "power-plan-balanced",
                      "power-plan-balanced-x3d", "mouse-acceleration-off", "accessibility-hotkeys-off", "explorer-home-private" })
             Assert.Contains(id, streaming);
-        // OBS KB /kb/hags: HAGS may break capture — the driver default stays; hags-off is a troubleshooting row. No uplink promise
-        // from delivery-optimization-local (review #41), no plan switch except the X3D steering.
-        foreach (var id in new[] { "hags", "hags-off", "delivery-optimization-local", "power-plan-performance", "power-plan-ultimate",
-                     "power-plan-balanced", "power-mode-best-performance", "usb-selective-suspend-off" })
+        foreach (var id in new[] { "gamedvr-capture-off", "hags", "hags-off", "delivery-optimization-local", "power-plan-performance",
+                     "power-plan-ultimate", "power-mode-best-performance", "usb-selective-suspend-off" })
             Assert.DoesNotContain(id, streaming);
     }
 
@@ -225,7 +219,7 @@ public sealed class TweakCatalogTests : IDisposable
     {
         var gaming = TweakCatalog.DefaultsFor(ProfileKind.Gaming).Select(t => t.Id).ToHashSet();
         foreach (var id in new[] { "game-mode", "hags", "gamedvr-off", "windowed-games-optimization", "mouse-acceleration-off",
-                     "power-plan-performance", "power-plan-balanced-x3d" })
+                     "power-plan-balanced", "power-plan-balanced-x3d" })
             Assert.Contains(id, gaming);
     }
 
@@ -248,14 +242,16 @@ public sealed class TweakCatalogTests : IDisposable
     }
 
     [Fact]
-    public void Profiles_never_preselect_two_different_power_plans_for_the_same_hardware()
+    public void Profiles_preselect_only_the_balanced_plan_for_the_cpu_topology()
     {
-        // Balanced (non-X3D) and Balanced-X3D are mutually exclusive by CPU; High performance never shares a profile with Balanced.
+        var singleCcd = Profile(26100, cpu: "AMD Ryzen 7 9800X3D 8-Core Processor", cores: 8);
+        var dualCcd = Profile(26100, cpu: "AMD Ryzen 9 9950X3D 16-Core Processor", cores: 16);
+
         foreach (var kind in Enum.GetValues<ProfileKind>())
         {
-            var plans = TweakCatalog.DefaultsFor(kind).Select(t => t.Id).Where(id => id.StartsWith("power-plan-", StringComparison.Ordinal)).ToList();
-            Assert.False(plans.Contains("power-plan-performance") && plans.Contains("power-plan-balanced"), kind.ToString());
-            Assert.DoesNotContain("power-plan-ultimate", plans);
+            var plans = TweakCatalog.DefaultsFor(kind).Where(t => t.ExclusiveGroup == TweakGroups.PowerPlan).ToList();
+            Assert.Equal("power-plan-balanced", Assert.Single(plans, t => t.IsApplicable(singleCcd)).Id);
+            Assert.Equal("power-plan-balanced-x3d", Assert.Single(plans, t => t.IsApplicable(dualCcd)).Id);
         }
     }
 

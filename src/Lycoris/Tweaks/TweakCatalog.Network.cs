@@ -50,16 +50,16 @@ public static partial class TweakCatalog
             Values = [RegSet.Dword(RegHive.HKU, DeliveryOptimizationSettings, "DownloadMode", 0)],
         };
 
-        // SAFE-DEFAULT for AC (Recommended); the battery value is never touched.
+        // SAFE-OPTIONAL for AC; the battery value is never touched.
         yield return PowerSettingTweak(
             id: "wifi-power-saving-off",
             title: Loc.Key("Wi-Fi без энергосбережения"),
             description: Loc.T("При питании от сети адаптер Wi-Fi работает в режиме максимальной производительности."),
-            details: Loc.T("Убирает задержки и скачки пинга, когда адаптер «засыпает» между пакетами. Меняется только значение «от сети» текущей " +
-                     "схемы питания; работа от батареи на ноутбуке не меняется."),
+            details: Loc.T("Настройка для проверки скачков задержки Wi-Fi, если их вызывает энергосбережение адаптера. Меняется только " +
+                     "значение «от сети» текущей схемы питания."),
             category: TweakCategory.Network,
-            risk: TweakRisk.Safe,
-            defaults: ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
+            risk: TweakRisk.Optional,
+            defaults: ProfileSet.None,
             subgroup: SubWireless,
             setting: WirelessPowerMode,
             target: 0,

@@ -13,13 +13,14 @@ public sealed class TweakSelectionTests
 {
     private static CustomTweak Tweak(string id, string? group = null, IReadOnlyList<string>? requires = null,
         Func<TweakState>? detect = null, TweakCategory category = TweakCategory.Power, Func<SystemProfile, bool>? appliesTo = null,
-        string? notApplicableReason = null) => new()
+        string? notApplicableReason = null, bool usesActivePowerPlan = false) => new()
     {
         Id = id,
         Title = "Пункт " + id.ToUpperInvariant(),
         Description = "",
         Category = category,
         ExclusiveGroup = group,
+        UsesActivePowerPlan = usesActivePowerPlan,
         Requires = requires ?? [],
         AppliesTo = appliesTo,
         NotApplicableReason = notApplicableReason,
@@ -550,12 +551,32 @@ public sealed class TweakSelectionTests
     }
 
     [Fact]
+    public void Only_checked_settings_are_rechecked_when_a_plan_switch_is_pending()
+    {
+        var vm = Page(Tweak("plan", TweakGroups.PowerPlan), Tweak("chosen", usesActivePowerPlan: true),
+            Tweak("unchosen", usesActivePowerPlan: true));
+        vm.SetProfileDefaults(OptimizeProfile.Gaming, ["plan", "chosen"]);
+        var states = new Dictionary<string, TweakState>
+        {
+            ["plan"] = TweakState.NotApplied, ["chosen"] = TweakState.Applied, ["unchosen"] = TweakState.Applied,
+        };
+        Assert.Equal(["plan", "chosen"], vm.PendingForProfile(OptimizeProfile.Gaming, states, []).Select(i => i.Id));
+        Assert.False(Row(vm, "unchosen").IsChecked);
+
+        states["plan"] = TweakState.Applied;
+        Assert.Empty(vm.PendingForProfile(OptimizeProfile.Gaming, states, []));
+        Assert.True(Row(vm, "chosen").IsChecked);
+    }
+
+    [Fact]
     public void Catalog_applies_plan_switches_before_every_plan_scoped_power_setting()
     {
         // PowerSettingTweak items write to the ACTIVE plan: a plan switch later in the batch would leave them on the old plan.
         var ordered = TweakEngine.OrderForApply(TweakCatalog.All);
         var lastPlan = ordered.FindLastIndex(t => t.Id.StartsWith("power-plan-", StringComparison.Ordinal) || t.ExclusiveGroup == TweakGroups.PowerPlan);
-        var firstSetting = ordered.FindIndex(t => t.Details.Contains(TweakCatalog.PowerSettingUndoNote, StringComparison.Ordinal));
+        var firstSetting = ordered.FindIndex(t => t.UsesActivePowerPlan);
+        Assert.All(ordered.Where(t => t.Details.Contains(TweakCatalog.PowerSettingUndoNote, StringComparison.Ordinal)),
+            t => Assert.True(t.UsesActivePowerPlan, t.Id));
         Assert.True(lastPlan >= 0 && firstSetting >= 0, "the catalog has plan switches and plan-scoped settings");
         Assert.True(lastPlan < firstSetting, $"plan switch at {lastPlan} ({ordered[lastPlan].Id}) after setting at {firstSetting} ({ordered[firstSetting].Id})");
     }

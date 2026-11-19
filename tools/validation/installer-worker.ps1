@@ -138,8 +138,8 @@ function Get-InstalledSelfTestResult {
         $homeTitle = if ($Language -eq 'ru') { 'Главная' } else { 'Home' }
         $localizedHome = @($result.Sections | Where-Object { $_.Key -ceq 'home' -and $_.Title -ceq $homeTitle }).Count -eq 1
         $critical = @($result.Sections | Where-Object { $_.ErrorsCount -or $_.BindingErrorsCount -or $_.UnhandledCount })
-        if ($ExitCode -ne 0 -or $result.Sections.Count -ne 19 -or $result.RowCounts.FAIL -ne 0 -or $critical.Count -ne 0) {
-            throw 'Expected 19 sections with no failed section, logged error, binding error or unhandled exception.'
+        if ($ExitCode -ne 0 -or $result.Sections.Count -ne 20 -or $result.RowCounts.FAIL -ne 0 -or $critical.Count -ne 0) {
+            throw 'Expected 20 sections with no failed section, logged error, binding error or unhandled exception.'
         }
         if (-not $standardUser -or -not $localizedHome -or -not $result.BindingDetectorVerified -or $result.SnapshotCount -lt 1) {
             throw 'The self-test did not verify its standard-user context, language, binding detector and snapshots.'

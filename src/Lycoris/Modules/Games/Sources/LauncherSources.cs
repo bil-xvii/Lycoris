@@ -16,6 +16,17 @@ public sealed record UninstallEntry(
     long EstimatedSizeKb,
     bool SystemComponent);
 
+internal enum UninstallScope { Machine64, Machine32, DesktopUser }
+internal enum UninstallReadState { Complete, Partial, Failed }
+
+/// <summary>Read-only identity and installer metadata. Command text, paths and icons are not retained.</summary>
+internal sealed record UninstallRegistration(
+    UninstallScope Scope, string KeyName, string DisplayName, string? Publisher, string? Version,
+    bool? NoRemove, bool? SystemComponent, bool ParentOrUpdate, bool HasUninstallRegistration);
+
+internal sealed record UninstallInventory(
+    IReadOnlyList<UninstallRegistration> Entries, UninstallReadState State, DateTime CheckedAt);
+
 /// <summary>Reads uninstall entries (read-only).</summary>
 public static class UninstallEntries
 {
@@ -33,22 +44,61 @@ public static class UninstallEntries
         return list;
     }
 
-    private static void Read(RegistryHive hive, RegistryView view, string path, List<UninstallEntry> into)
+    internal static UninstallInventory ReadInventory()
     {
+        var entries = new List<UninstallRegistration>();
+        var machine64 = Read(RegistryHive.LocalMachine, RegistryView.Registry64, UninstallPath, null, entries, UninstallScope.Machine64);
+        var machine32 = Read(RegistryHive.LocalMachine, RegistryView.Registry32, UninstallPath, null, entries, UninstallScope.Machine32);
+        var desktop = ReadDesktopUser(entries);
+        return new UninstallInventory(entries, InventoryState(machine64, machine32, desktop), DateTime.Now);
+    }
+
+    internal static UninstallReadState InventoryState(UninstallReadState machine64, UninstallReadState machine32, UninstallReadState desktop) =>
+        machine64 == desktop && machine32 == desktop ? desktop : UninstallReadState.Partial;
+
+    private static UninstallReadState ReadDesktopUser(List<UninstallRegistration> entries)
+    {
+        var desktopAccount = Elevation.InteractiveUserState;
+        if (desktopAccount == true)
+            return Read(RegistryHive.CurrentUser, RegistryView.Registry64, UninstallPath, null, entries, UninstallScope.DesktopUser);
+
+        // The legacy games scanner can fall back to its own HKCU. The removal panel needs verified desktop-user scope.
+        if (desktopAccount == false && InteractiveUser.Hive is (RegHive.HKU, var prefix))
+            return Read(RegistryHive.Users, RegistryView.Registry64, UninstallPath, null, entries, UninstallScope.DesktopUser, prefix.TrimEnd('\\'));
+
+        return UninstallReadState.Failed;
+    }
+
+    private static UninstallReadState Read(RegistryHive hive, RegistryView view, string path, List<UninstallEntry>? into,
+        List<UninstallRegistration>? inventory = null, UninstallScope scope = default, string? userSubKey = null)
+    {
+        var state = UninstallReadState.Complete;
         try
         {
             using var b = RegistryKey.OpenBaseKey(hive, view);
-            using var root = b.OpenSubKey(path);
-            if (root is null) return;
+            using var user = userSubKey is null ? null : b.OpenSubKey(userSubKey, writable: false);
+            if (userSubKey is not null && user is null) return UninstallReadState.Failed;
+            using var root = (user ?? b).OpenSubKey(path, writable: false);
+            if (root is null) return UninstallReadState.Complete;
             foreach (var name in root.GetSubKeyNames())
             {
                 try
                 {
                     using var k = root.OpenSubKey(name);
-                    var display = k?.GetValue("DisplayName")?.ToString();
-                    if (k is null || string.IsNullOrWhiteSpace(display)) continue;
+                    if (k is null)
+                    {
+                        state = UninstallReadState.Partial;
+                        continue;
+                    }
+                    if (inventory is not null)
+                    {
+                        if (ReadRegistration(k, name, scope) is { } registration) inventory.Add(registration);
+                        continue;
+                    }
+                    var display = k.GetValue("DisplayName")?.ToString();
+                    if (string.IsNullOrWhiteSpace(display)) continue;
                     long size = k.GetValue("EstimatedSize") switch { int i => (uint)i, long l => l, _ => 0 };
-                    into.Add(new UninstallEntry(
+                    into!.Add(new UninstallEntry(
                         name, display.Trim(),
                         k.GetValue("Publisher")?.ToString(),
                         k.GetValue("InstallLocation")?.ToString(),
@@ -57,13 +107,36 @@ public static class UninstallEntries
                         size,
                         k.GetValue("SystemComponent") is int sc && sc == 1));
                 }
-                catch { /* one broken entry must not stop the scan */ }
+                catch { state = UninstallReadState.Partial; }
             }
         }
         catch (Exception ex)
         {
-            Log.Warn("Список программ ({0}): {1}", hive, ex.Message);
+            Log.Warn("Список программ ({0}): {1}", hive, inventory is null ? ex.Message : ex.GetType().Name);
+            return UninstallReadState.Failed;
         }
+        return state;
+    }
+
+    private static UninstallRegistration? ReadRegistration(RegistryKey key, string name, UninstallScope scope)
+    {
+        object? ReadValue(string value) => key.GetValue(value, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+
+        if (ReadValue("DisplayName") is not string display || string.IsNullOrWhiteSpace(display)) return null;
+        return new UninstallRegistration(scope, name, InventoryText(display) ?? "—",
+            InventoryText(ReadValue("Publisher")), InventoryText(ReadValue("DisplayVersion")),
+            InstallerFlag(ReadValue("NoRemove")), InstallerFlag(ReadValue("SystemComponent")),
+            ReadValue("ParentKeyName") is not null || ReadValue("ReleaseType") is not null,
+            ReadValue("UninstallString") is string hook && !string.IsNullOrWhiteSpace(hook));
+    }
+
+    internal static bool? InstallerFlag(object? value) => value switch { null or 0 => false, 1 => true, _ => null };
+
+    internal static string? InventoryText(object? value)
+    {
+        if (value is not string raw || string.IsNullOrWhiteSpace(raw)) return null;
+        return string.Concat(raw.Trim().Take(300).Select(c => char.IsControl(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format
+            ? ' ' : c));
     }
 }
 

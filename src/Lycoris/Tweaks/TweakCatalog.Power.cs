@@ -42,18 +42,16 @@ public static partial class TweakCatalog
 
     private static IEnumerable<Tweak> PowerTweaks()
     {
-        // SAFE-OPTIONAL: desktop, not dual-CCD X3D (DO-NOT-INCLUDE there). Pre-checked only in the Gaming profile.
+        // SAFE-OPTIONAL: desktop, not dual-CCD X3D.
         yield return new CustomTweak
         {
             Id = "power-plan-performance",
             Title = Loc.Key("Схема «Высокая производительность»"),
-            Description = Loc.T("Включает стандартную схему питания «Высокая производительность»: процессор не уходит в глубокое энергосбережение в простое."),
-            Details = Loc.T("На современных процессорах прирост среднего FPS — 0–2 %, зато растёт потребление и нагрев в простое. На Ryzen X3D " +
-                      "с одним CCD (5800X3D, 7800X3D, 9800X3D) разницы в FPS нет, и AMD рекомендует сбалансированную схему ради меньшего " +
-                      "потребления — пункт можно снять. Прежняя схема запоминается и возвращается при откате."),
+            Description = Loc.T("Включает стандартную схему питания «Высокая производительность», которая отдаёт приоритет производительности."),
+            Details = Loc.T("Схема повышает энергопотребление и может увеличить нагрев в простое. Эффект в играх зависит от системы и нагрузки. " +
+                      "Прежняя схема запоминается и возвращается при откате."),
             Category = TweakCategory.Power,
             Risk = TweakRisk.Optional,
-            DefaultIn = ProfileSet.Gaming,
             ExclusiveGroup = TweakGroups.PowerPlan,
             AppliesTo = sp => !sp.IsLaptop && !IsDualCcdX3D(sp),
             NotApplicableReason = Loc.T("Не для ноутбуков и Ryzen X3D с двумя CCD: им нужна сбалансированная схема."),
@@ -103,23 +101,21 @@ public static partial class TweakCatalog
             },
         };
 
-        // SAFE-DEFAULT in Recommended, «Работа и учёба» and the efficiency scenario everywhere (dual-CCD X3D systems use the
-        // dedicated item below). A vendor plan derived from Balanced («AMD Ryzen Balanced», OEM Recommended) already counts as
+        // SAFE-DEFAULT in every preset (dual-CCD X3D systems use the dedicated item below).
+        // A vendor plan derived from Balanced («AMD Ryzen Balanced», OEM Recommended) already counts as
         // applied: Microsoft's power-mode slider exists on «Balanced or any plan derived from it», and replacing an OEM plan
         // can cost battery life — the opposite of the scenario's goal (scenario-efficiency review, 01.11).
         yield return new CustomTweak
         {
             Id = "power-plan-balanced",
             Title = Loc.Key("Сбалансированная схема питания"),
-            Description = Loc.T("Включает стандартную схему «Сбалансированная», рекомендованную Microsoft и производителями процессоров."),
-            Details = Loc.T("Современные процессоры (CPPC/EPP) сами мгновенно повышают частоту под нагрузкой, поэтому в играх разница с " +
-                      "«Высокой производительностью» почти незаметна, а в простое компьютер тише и экономичнее. Для Ryzen X3D с одним CCD " +
-                      "это рекомендация AMD. Если активна схема производителя на основе сбалансированной («AMD Ryzen Balanced», " +
-                      "OEM Recommended), пункт считается применённым: схема уже сбалансированная (вариант производителя), Lycoris её " +
-                      "не заменяет. Прежняя схема возвращается при откате."),
+            Description = Loc.T("Использует схему, которая автоматически подстраивает производительность и энергопотребление под нагрузку."),
+            Details = Loc.T("Если активна схема на основе сбалансированной («AMD Ryzen Balanced», OEM Recommended), Lycoris считает " +
+                      "пункт применённым и сохраняет вариант производителя. При переключении на сбалансированную схему Lycoris запоминает " +
+                      "прежнюю и возвращает её при откате."),
             Category = TweakCategory.Power,
             Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended | ProfileSet.Efficiency,
+            DefaultIn = ProfileSet.Normal | ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming | ProfileSet.Efficiency,
             ExclusiveGroup = TweakGroups.PowerPlan,
             AppliesTo = sp => !IsDualCcdX3D(sp),
             NotApplicableReason = Loc.T("Для Ryzen X3D с двумя CCD используется пункт «Схема питания для Ryzen X3D (2 CCD)»."),
@@ -388,7 +384,7 @@ public static partial class TweakCatalog
             notApplicableReason: Loc.T("Только для ноутбуков: это значение «от батареи». Для настольного ПК — пункт «Сон через 30 минут от сети»."),
             onlyShorten: true);
 
-        // Desktops: SAFE-DEFAULT (Recommended). Laptops: SAFE-OPTIONAL (separate item below).
+        // SAFE-OPTIONAL on desktops and laptops (separate items).
         yield return new RegistryTweak
         {
             Id = "fast-startup-off",
@@ -396,8 +392,7 @@ public static partial class TweakCatalog
             Description = Loc.T("Выключение становится полным: ядро и драйверы при включении стартуют заново, а не из файла гибернации."),
             Details = FastStartupDetails + Loc.T(" На настольном ПК с NVMe-диском включение дольше лишь на несколько секунд."),
             Category = TweakCategory.Power,
-            Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
+            Risk = TweakRisk.Optional,
             AppliesTo = sp => !sp.IsLaptop,
             NotApplicableReason = Loc.T("На ноутбуках используется необязательный пункт «Отключить быстрый запуск (ноутбук)»."),
             Values = [Lm(SessionPower, "HiberbootEnabled", 0)],

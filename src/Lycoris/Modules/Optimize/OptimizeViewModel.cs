@@ -341,28 +341,20 @@ public sealed partial class OptimizeViewModel : PageViewModel
             await RunBusyAsync(OperationClass.Measure, Loc.T("Проверка текущего состояния…"), async () =>
             {
                 var sp = await SystemProfile.LoadAsync();
-                _hardwareFactsKnown = sp.HardwareFactsKnown && sp.Identity.IsKnown;
-                _laptop = _hardwareFactsKnown && sp.IsLaptop;
                 var tweaks = _items.Select(i => i.Tweak).ToList();
                 // Off the UI thread: some rules enumerate network adapters, read the registry or probe the display (~100 ms in all,
                 // several times more on a PC without a GPU driver — the self-test saw the page stall there).
-                _hardwareExcluded = await Task.Run(() =>
+                var excluded = await Task.Run(() =>
                     tweaks.Where(t => TweakEngine.Applicability(t, sp) is not true).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
-                var states = await TweakEngine.DetectAllAsync(tweaks);
+                var states = await TweakEngine.DetectAllAsync(tweaks, sp);
                 var revertable = await Task.Run(() => tweaks.Where(TweakEngine.CanRevert).Select(t => t.Id).ToHashSet(StringComparer.Ordinal));
                 _protectionOn = await Task.Run(RestorePointService.IsEnabled);
+                var hardwareFactsKnown = sp.HardwareFactsKnown && sp.Identity.IsKnown;
+                ApplyDetectedStates(states, excluded, hardwareFactsKnown, sp.IsLaptop);
                 foreach (var i in _items)
                 {
-                    i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
                     i.CanRevert = OptimizeLogic.CanRevert(revertable.Contains(i.Id), ExpertMode);
                 }
-                // Only after every state is known: a not-applicable row loses its check — unless it is a dependent row
-                // whose dependency is checked and pending (SyncDependents re-checks those once more, for chains).
-                foreach (var i in _items)
-                {
-                    if (i.IsChecked && !i.IsApplicableNow) i.SetChecked(false);
-                }
-                SyncDependents();
                 // «сейчас → станет» is always visible on a row that would change: read the current values for those too.
                 foreach (var i in _items)
                 {
@@ -381,6 +373,34 @@ public sealed partial class OptimizeViewModel : PageViewModel
         }
     }
 
+    /// <summary>Reconcile the selection that is current when detection completes.</summary>
+    internal void ApplyDetectedStates(IReadOnlyDictionary<string, TweakState> states, IEnumerable<string> hardwareExcluded,
+        bool hardwareFactsKnown, bool laptop)
+    {
+        _hardwareFactsKnown = hardwareFactsKnown;
+        _laptop = hardwareFactsKnown && laptop;
+        SetDetectedStates(states, hardwareExcluded);
+
+        if (Profile != OptimizeProfile.Custom)
+        {
+            // Before detection the first member of an exclusive group can win provisionally. Choose the profile again
+            // with the detected facts so another hardware-specific member can become the checked one.
+            ApplySelection(DefaultsOf(Profile));
+            return;
+        }
+        foreach (var i in _items)
+        {
+            if (i.IsChecked && !i.IsApplicableNow) i.SetChecked(false);
+        }
+        SyncDependents();
+    }
+
+    private void SetDetectedStates(IReadOnlyDictionary<string, TweakState> states, IEnumerable<string> hardwareExcluded)
+    {
+        _hardwareExcluded = hardwareExcluded.ToHashSet(StringComparer.Ordinal);
+        foreach (var i in _items) i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
+    }
+
     /// <summary>
     /// After detection: the efficiency tile gets its laptop/desktop wording and joins or leaves the row (UpdateCounts); when
     /// it leaves while selected — e.g. the saved scenario from another PC — the page falls back to the default scenario.
@@ -390,8 +410,6 @@ public sealed partial class OptimizeViewModel : PageViewModel
         foreach (var t in _allTiles) t.RetitleEfficiency(_laptop);
         UpdateCounts();
         if (Profile == OptimizeProfile.Efficiency && !IsEfficiencyTileVisible) SelectProfile(OptimizeProfile.Recommended);
-        // A saved scenario is checked before the hardware is known: on a laptop the AC mode is not part of it.
-        if (Profile == OptimizeProfile.Efficiency && _laptop && FindItem(EfficiencyAcId) is { IsChecked: true } ac) ac.SetChecked(false);
         UpdateTileSelection();
         OnPropertyChanged(nameof(ApplyButtonText));
     }
@@ -441,15 +459,15 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     /// <summary>
     /// The command line («Lycoris.exe --apply-profile …», <see cref="ProfileCommandLine"/>): with the states already detected,
-    /// selects <paramref name="profile"/> exactly like a click on its tile and returns the rows the page's «ПРИМЕНИТЬ» would
-    /// apply (pending, risk allowed in the current mode). The selection rules stay in one place — this page.
+    /// resolves <paramref name="profile"/> with the same selection rules as its tile and returns the pending rows.
+    /// Planning a command-line run does not update the saved tile or custom selection.
     /// </summary>
     internal IReadOnlyList<TweakItemViewModel> PendingForProfile(OptimizeProfile profile, IReadOnlyDictionary<string, TweakState> states,
         IEnumerable<string> hardwareExcluded)
     {
-        _hardwareExcluded = hardwareExcluded.ToHashSet(StringComparer.Ordinal);
-        foreach (var i in _items) i.State = states.TryGetValue(i.Id, out var s) ? s : TweakState.Unknown;
-        SelectProfile(profile);
+        SetDetectedStates(states, hardwareExcluded);
+        ApplySelection(DefaultsOf(profile));
+        UpdateCounts();
         return OptimizeLogic.FilterApplicable(_items.Where(i => i.IsPending), i => i.Tweak.Risk, ExpertMode);
     }
 
@@ -491,7 +509,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         // Second pass: dependent rows that are not applicable on their own but whose dependency is now pending.
         foreach (var i in _items)
         {
-            if (i.IsApplicable || i.Tweak.Requires.Count == 0) continue;
+            if (i.IsApplicable || (i.Tweak.Requires.Count == 0 && !i.Tweak.UsesActivePowerPlan)) continue;
             i.SetChecked(ids.Contains(i.Id) && !IsHardwareExcluded(i.Id) && i.IsApplicableNow && OptimizeLogic.CanApplyRisk(i.Tweak.Risk, ExpertMode)
                 && (!i.IsAdvanced || _acceptedExpert.Contains(i.Id)));
         }
@@ -533,7 +551,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
     /// </summary>
     internal void SyncDependents()
     {
-        var dependents = _items.Where(i => i.Tweak.Requires.Count > 0).ToList();
+        var dependents = _items.Where(i => i.Tweak.Requires.Count > 0 || i.Tweak.UsesActivePowerPlan).ToList();
         for (var guard = 0; guard <= dependents.Count; guard++)
         {
             var changed = false;
@@ -567,6 +585,20 @@ public sealed partial class OptimizeViewModel : PageViewModel
 
     /// <summary>Whether this PC's hardware/OS rules out the tweak (its AppliesTo), so no pending dependency can make it applicable.</summary>
     internal bool IsHardwareExcluded(string id) => _hardwareExcluded.Contains(id);
+
+    /// <summary>The checked plan that may change in this apply. Look at its own state to avoid dependency recursion.</summary>
+    internal TweakItemViewModel? PendingPowerPlan => _items.FirstOrDefault(i => i.IsChecked && CanSelectProfilePowerPlan(i)
+        && i.State is { } state && OptimizeLogic.WillChange(state));
+
+    internal PowerPlanIntent? CapturePowerPlanIntent(IReadOnlyList<Tweak> targets, Func<Guid>? readActiveScheme = null)
+    {
+        var selectedPlan = _items.FirstOrDefault(i => i.IsChecked && CanSelectProfilePowerPlan(i))?.Tweak;
+        return TweakEngine.CapturePowerPlanIntent(targets, selectedPlan, readActiveScheme ?? PowerSchemes.GetActive);
+    }
+
+    private bool CanSelectProfilePowerPlan(TweakItemViewModel item) => item.Tweak.ExclusiveGroup == TweakGroups.PowerPlan
+        && !IsHardwareExcluded(item.Id) && item.IsApplicable && OptimizeLogic.CanApplyRisk(item.Tweak.Risk, ExpertMode)
+        && (!item.IsAdvanced || _acceptedExpert.Contains(item.Id));
 
     /// <summary>Test hook: ids whose AppliesTo rejects the PC (the real set comes from detection).</summary>
     internal void SetHardwareExcluded(params string[] ids) => _hardwareExcluded = ids.ToHashSet(StringComparer.Ordinal);
@@ -746,14 +778,21 @@ public sealed partial class OptimizeViewModel : PageViewModel
         foreach (var tile in _allTiles)
         {
             var defaults = DefaultsOf(tile.Kind);
-            var members = tile.Kind == OptimizeProfile.Custom
+            var custom = tile.Kind == OptimizeProfile.Custom;
+            var planPending = custom ? PendingPowerPlan is not null
+                : _items.FirstOrDefault(i => defaults.Contains(i.Id) && CanSelectProfilePowerPlan(i)) is { State: { } planState }
+                    && OptimizeLogic.WillChange(planState);
+            var members = custom
                 ? _items.Where(i => i.IsChecked).ToList()
-                : _items.Where(i => !i.IsAdvanced && !IsHardwareExcluded(i.Id) && OptimizeLogic.IsProfileMember(i.Tweak, i.IsApplicable, defaults,
-                    rid => FindItem(rid) is { IsApplicable: true, IsAdvanced: false, State: { } s } && OptimizeLogic.WillChange(s))).ToList();
+                : _items.Where(i => !i.IsAdvanced && !IsHardwareExcluded(i.Id) &&
+                    (OptimizeLogic.IsProfileMember(i.Tweak, i.IsApplicable, defaults,
+                        rid => FindItem(rid) is { IsApplicable: true, IsAdvanced: false, State: { } s } && OptimizeLogic.WillChange(s))
+                     || (planPending && i.Tweak.UsesActivePowerPlan && defaults.Contains(i.Id)))).ToList();
             tile.Total = members.Count;
-            // A member that is not applicable on its own is there through its dependency: selecting the profile changes it too.
-            tile.ToChange = _detected ? members.Count(i => i.WillChange || !i.IsApplicable) : null;
-            tile.Applied = _detected ? members.Count(i => i.IsApplied) : null;
+            // A setting can look applied on the current plan and still need a read on the profile's target plan.
+            tile.ToChange = _detected ? members.Count(i => (i.State is { } s && OptimizeLogic.WillChange(s))
+                || !i.IsApplicable || (i.Tweak.UsesActivePowerPlan && planPending)) : null;
+            tile.Applied = _detected ? members.Count(i => i.IsApplied && !(i.Tweak.UsesActivePowerPlan && planPending)) : null;
             // The efficiency tile needs a member that makes something quieter (not only a plan switch) and known hardware facts.
             if (tile.Kind != OptimizeProfile.Efficiency
                 || (_detected && OptimizeLogic.EfficiencyTileVisible(_hardwareFactsKnown, members.Select(m => m.Tweak))))
@@ -869,7 +908,9 @@ public sealed partial class OptimizeViewModel : PageViewModel
             Ui.Toast("Все выбранные пункты уже применены — менять нечего.", ToastKind.Info);
             return;
         }
-        var alreadyApplied = _items.Count(i => i.IsChecked && i.IsApplied);
+        var alreadyApplied = _items.Count(i => i.IsChecked && i.IsApplied && !i.IsPending);
+        var tweaks = targets.Select(t => t.Tweak).ToList();
+        var powerPlan = CapturePowerPlanIntent(tweaks);
 
         // Irreversible data loss is always confirmed, even when the user turned confirmations off.
         var lossy = targets.Where(t => t.HasDataLoss).ToList();
@@ -894,7 +935,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
         await RunBusyAsync(OperationClass.JournalChange, Loc.T("Применение изменений…"), async () =>
         {
             var progress = new Progress<string>(p => BusyText = p.EndsWith('…') ? p : Loc.Tf("Применение: {0}", p));
-            result = await TweakEngine.ApplyAsync(targets.Select(t => t.Tweak).ToList(), batchTitle, progress);
+            result = await TweakEngine.ApplyWithPowerPlanAsync(tweaks, batchTitle, powerPlan, progress);
         });
 
         await RefreshStatesAsync();
@@ -919,6 +960,7 @@ public sealed partial class OptimizeViewModel : PageViewModel
             && OptimizeLogic.ReplacesNote(_items.Where(i => i.CanRevert && t.Tweak.SharesGroupWith(i.Tweak)).Select(i => i.Title)) is { } replaces)
             parts.Add(replaces);
         if (t.DependencySatisfiedByPending && t.PendingDependency is { } dependency) parts.Add(Loc.Tf("после «{0}»", dependency.Title));
+        if (t.PowerPlanRecheckNote is { } planNote) parts.Add(planNote);
         return string.Join(" · ", parts);
     }
 

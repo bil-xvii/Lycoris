@@ -36,19 +36,26 @@ public sealed partial class ServicesViewModel : PageViewModel
     public const int TabTasks = 3;
 
     private bool _journalHooked;
+    private readonly Func<Task> _activateStartup;
 
-    public ServicesViewModel()
+    public ServicesViewModel() : this(new StartupViewModel())
+    {
+    }
+
+    internal ServicesViewModel(StartupViewModel startup, Func<Task>? activateStartup = null)
     {
         // The services profile follows the Optimize scenario (LastProfile holds an OptimizeProfile name; unknown → Recommended).
         _selectedProfile = ProfileFromScenario(AppSettings.Current.LastProfile);
         _servicesView = CreateServicesView(_allServices);
 
-        Startup = new StartupViewModel { IsHostBusy = () => IsBusy && !_mirroringStartup };
+        Startup = startup;
+        _activateStartup = activateStartup ?? Startup.ActivateAsync;
+        Startup.IsHostBusy = () => IsBusy && !_mirroringStartup;
         Startup.PropertyChanged += OnStartupPropertyChanged;
         AppSettings.Current.PropertyChanged += OnSettingsChanged;
         Ui.FocusRequested += r =>
         {
-            if (r.PageKey == Key) ApplyFocus(Ui.TakeFocusRequest(Key));
+            if (r.PageKey == Key) _ = ApplyFocusAsync(Ui.TakeFocusRequest(Key));
         };
     }
 
@@ -98,17 +105,18 @@ public sealed partial class ServicesViewModel : PageViewModel
         }
         // Start the service scan first: it marks the page busy before the autostart scan (and a focused tab) begins.
         var services = ReloadAsync();
-        ApplyFocus(Ui.TakeFocusRequest(Key));
+        var focus = ApplyFocusAsync(Ui.TakeFocusRequest(Key));
         // The autostart scan always runs on the first visit (read-only and quick): the АВТОЗАПУСК and ЗАДАЧИ tab
         // badges count its results even when the page opens on another tab.
-        await Task.WhenAll(services, EnsureStartupAsync());
+        await Task.WhenAll(services, EnsureStartupAsync(), focus);
     }
 
     /// <summary>Changes made elsewhere (Restore center, other pages) show up when the user comes back.</summary>
     protected override async Task OnReturnAsync()
     {
-        ApplyFocus(Ui.TakeFocusRequest(Key));
+        var focus = ApplyFocusAsync(Ui.TakeFocusRequest(Key));
         if (StartupTabShown) await EnsureStartupAsync();
+        await focus;
         if (IsBusy) return;
         // Expert mode was toggled elsewhere: re-apply the locks to the last scan (no rescan needed).
         if (_builtExpertMode != ServicesExpertMode) BuildAllServices(_scannedServices);
@@ -119,6 +127,7 @@ public sealed partial class ServicesViewModel : PageViewModel
     {
         Startup.Leave();
         _startupStale = true;
+        ClearStartupFocus();
     }
 
     // ───────────────────────────── Hosted АВТОЗАПУСК ─────────────────────────────
@@ -137,13 +146,27 @@ public sealed partial class ServicesViewModel : PageViewModel
         if (_startupTask is { IsCompleted: false } running) return running;
         if (_startupShown && !_startupStale) return Task.CompletedTask;
         _startupShown = true;
+        return StartStartupScan(_activateStartup);
+    }
+
+    private Task StartStartupScan(Func<Task> scan)
+    {
         _startupStale = false;
-        return _startupTask = Startup.ActivateAsync();
+        return _startupTask = TrackStartupScanAsync(scan);
+    }
+
+    private async Task TrackStartupScanAsync(Func<Task> scan)
+    {
+        var previous = Startup.CheckedAt;
+        await scan();
+        // Busy work can be refused or fail without publishing a new snapshot.
+        if (Startup.CheckedAt is null || Startup.CheckedAt == previous) _startupStale = true;
     }
 
     partial void OnSelectedTabChanged(int value)
     {
         if (value == TabAll && !ExpertMode) { SelectedTab = TabStartup; return; }
+        if (value != TabStartup) ClearStartupFocus();
         RaisePrimary();
         if (StartupTabShown) _ = EnsureStartupAsync();
     }
@@ -161,6 +184,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         else if (e.PropertyName == nameof(BadgeText)) BadgeText = Startup.BadgeText;
         else if (e.PropertyName == nameof(CheckedAt)) CheckedAt = Startup.CheckedAt;
         else if (e.PropertyName == nameof(StartupViewModel.ExtraCount)) RaisePrimary();
+        else if (e.PropertyName is nameof(StartupViewModel.Search) or nameof(StartupViewModel.Filter)) _pendingStartupFocus = null;
     }
 
     // ───────────────────────────── Shortcut targets (Dashboard tiles, admin-intent replay) ─────────────────────────────
@@ -219,27 +243,38 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     /// <summary>A service name requested before the list was read; applied after the scan.</summary>
     private string? _pendingServiceFocus;
+    private string? _pendingStartupFocus;
 
     /// <summary>Set (null → item) to make the view scroll ВСЕ СЛУЖБЫ to this service.</summary>
     [ObservableProperty] private ServiceItem? _focusedService;
 
     /// <summary>"tab:startup" / "tab:services" / "tab:all" / "tab:tasks" switch tabs; anything else is a service name.</summary>
-    private void ApplyFocus(string? id)
+    internal async Task ApplyFocusAsync(string? id)
     {
         if (string.IsNullOrWhiteSpace(id)) return;
         var tab = FocusTab(id);
         if (tab is not null)
         {
+            ClearStartupFocus();
             SelectedTab = tab.Value;
             return;
         }
-        // «startup:<entry key>» from the search: the АВТОЗАПУСК tab, filtered to that entry (when the scan knows it).
+        // «startup:<entry key>» from a link or the palette: resolve only against a current startup snapshot.
         if (id.StartsWith(CommandPaletteIndex.StartupFocusPrefix, StringComparison.Ordinal))
         {
-            SelectedTab = TabStartup;
             var key = id[CommandPaletteIndex.StartupFocusPrefix.Length..];
-            if (Startup.Items.FirstOrDefault(i => string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase)) is { } entry)
-                Startup.Search = entry.DisplayName;
+            var checkedBefore = Startup.CheckedAt;
+            Startup.ClearEntryFocus();
+            _pendingStartupFocus = key;
+            SelectedTab = TabStartup;
+            await EnsureStartupAsync();
+            if (_pendingStartupFocus != key) return;
+            _pendingStartupFocus = null;
+            if (Startup.CheckedAt is null || (_startupStale && Startup.CheckedAt == checkedBefore) || !Startup.FocusEntry(key))
+            {
+                Startup.ClearEntryFocus();
+                StartupViewModel.NotifyFocusUnavailable();
+            }
             return;
         }
 
@@ -260,6 +295,12 @@ public sealed partial class ServicesViewModel : PageViewModel
         SelectedService = item;
         FocusedService = null;
         FocusedService = item;
+    }
+
+    private void ClearStartupFocus()
+    {
+        _pendingStartupFocus = null;
+        Startup.ClearEntryFocus();
     }
 
     /// <summary>Tab for a "tab:…" focus id; null = the id is a service name.</summary>
@@ -405,7 +446,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         {
             IsServicesLoading = false;
         }
-        if (_pendingServiceFocus is { } focus) ApplyFocus(focus);
+        if (_pendingServiceFocus is { } focus) _ = ApplyFocusAsync(focus);
 
         await ScanServiceResidueAsync();
         RefreshJournal();
@@ -553,8 +594,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         // Sequential: while the hosted scan runs this page is busy (mirrored) and would skip its own reload.
         if (_startupShown)
         {
-            _startupStale = false;
-            await Startup.RefreshCommand.ExecuteAsync(null);
+            await StartStartupScan(() => Startup.RefreshCommand.ExecuteAsync(null));
         }
         await ReloadAsync();
     }

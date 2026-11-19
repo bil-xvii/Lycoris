@@ -86,22 +86,13 @@ public sealed class SelfTestRunner
         Directory.CreateDirectory(_outDir);
         ChangeSession.Locked = true;
         Ui.AutoAnswer = false;
-        // A locked or unreadable settings file must not stop the self-test before it starts (crash test, 03.11.2026):
-        // then there is nothing to restore, and the run itself shows how the app copes with that folder.
-        string? settingsBackup = null;
-        try { if (File.Exists(AppPaths.SettingsFile)) settingsBackup = await File.ReadAllTextAsync(AppPaths.SettingsFile); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Warn("Самопроверка: настройки не прочитаны для восстановления — {0}", ex.Message); }
+        AppSettings.SaveSuspended = true;
         try
         {
             return await RunPagesAsync();
         }
         finally
         {
-            // Also after an exception: a crashed self-test must not leave its UI clicks in the owner's settings.
-            if (settingsBackup is not null)
-            {
-                try { await File.WriteAllTextAsync(AppPaths.SettingsFile, settingsBackup); } catch { }
-            }
             IsRunning = false;
         }
     }

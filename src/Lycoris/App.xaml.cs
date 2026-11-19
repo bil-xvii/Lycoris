@@ -120,16 +120,23 @@ public partial class App : Application
         // no UAC prompt: it prints the plan and applies only with --yes when the console already runs as administrator.
         if (Lycoris.Modules.Optimize.ProfileCommandLine.IsRequested(e.Args))
         {
+            AppSettings.SaveSuspended = true; // the page view-model remembers the scenario only in memory
             base.OnStartup(e);
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             AppSettings.Load();
-            AppSettings.SaveSuspended = true; // the page view-model remembers the scenario in memory; this run never saves settings
             Loc.Initialize(ArgValue(e.Args, "--lang") is "ru" or "en" or "auto" ? ArgValue(e.Args, "--lang") : AppSettings.Current.Language);
             var cliArgs = e.Args;
             Dispatcher.InvokeAsync(async () => Shutdown(await RunProfileCommandLineAsync(cliArgs)));
             return;
         }
+
+        var args = e.Args;
+        var snapshotDir = ArgValue(args, "--snapshot");
+        var selfTestDir = ArgValue(args, "--selftest");
+        var e2eDir = ArgValue(args, "--e2e");
+        var snapshot = snapshotDir is not null || selfTestDir is not null;
+        if (snapshot && e2eDir is null) AppSettings.SaveSuspended = true;
 
         if (ArgValue(e.Args, "--startup-timing") is { } timingFile) { StartupTiming.Enable(timingFile); StartupTiming.Mark("OnStartup"); }
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -143,10 +150,6 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        var args = e.Args;
-        var snapshotDir = ArgValue(args, "--snapshot");
-        var selfTestDir = ArgValue(args, "--selftest");
-        var e2eDir = ArgValue(args, "--e2e");
         if (e2eDir is not null)
         {
             // «--e2e» applies and reverts REAL tweaks (and asks for rights itself): any program could start it with the user's
@@ -159,7 +162,6 @@ public partial class App : Application
             RunEndToEnd(args, e2eDir);
             return;
         }
-        var snapshot = snapshotDir is not null || selfTestDir is not null;
         var timingRun = StartupTiming.Enabled; // QA: a read-only extra copy that ignores the instance lock
         var logonLaunch = BackgroundModePolicy.IsLogonLaunch(args, snapshot || timingRun, Elevation.IsElevated);
         var noElevate = snapshot || timingRun || logonLaunch || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
@@ -257,12 +259,9 @@ public partial class App : Application
         // QA: a sample «Помощник» conversation (CI has no Ollama); nothing is sent anywhere.
         Lycoris.Modules.Assistant.AssistantViewModel.Demo = Lycoris.Modules.Assistant.AssistantDemo.Resolve(snapshotDir is not null, args);
 
-        // QA: «--mode simple|expert» shows the chosen mode on the screenshots; settings are not saved for the whole run.
+        // QA: «--mode simple|expert» shows the chosen mode on the screenshots.
         if (snapshotDir is not null && ArgValue(args, "--mode") is "simple" or "expert")
-        {
-            AppSettings.SaveSuspended = true;
             AppSettings.Current.ExpertMode = ArgValue(args, "--mode") == "expert";
-        }
         StartupTiming.Mark("before MainViewModel");
         var vm = new MainViewModel();
         StartupTiming.Mark("MainViewModel built");

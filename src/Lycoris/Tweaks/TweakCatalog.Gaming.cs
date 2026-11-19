@@ -14,7 +14,7 @@ public static partial class TweakCatalog
             Title = Loc.Key("Игровой режим Windows"),
             Description = Loc.T("Во время игры Windows не ставит драйверы через Центр обновления, не предлагает перезагрузку и отдаёт игре приоритет."),
             Details = Loc.T("Штатная функция (Параметры → Игры → Игровой режим), по умолчанию включена — пункт проверяет, что её никто не отключил, " +
-                      "и при необходимости включает обратно. Прирост среднего FPS в независимых тестах около нуля; польза — меньше фоновых помех во время игры. " +
+                      "и при необходимости включает обратно, чтобы уменьшить фоновые помех во время игры. " +
                       "На Ryzen X3D с двумя CCD игровой режим нужен драйверу AMD, чтобы переводить игру на ядра с 3D-кэшем. " +
                       "Отмена — откатом в Lycoris или тем же переключателем в Параметрах."),
             Category = TweakCategory.Gaming,
@@ -35,41 +35,40 @@ public static partial class TweakCatalog
             },
         };
 
-        // SAFE-DEFAULT only for RTX 40/50 when the driver reports HwSchSupported.
+        // SAFE-DEFAULT on systems with RTX 40/50 and confirmed HAGS support.
         yield return new CustomTweak
         {
             Id = "hags",
             Title = Loc.Key("Аппаратное планирование GPU"),
             Description = Loc.T("Видеокарта сама управляет очередью своих задач (HAGS). Без этого не работает генерация кадров DLSS на GeForce RTX 40/50."),
-            Details = Loc.T("Параметры → Дисплей → Графика → «Аппаратное ускорение планирования GPU». На средний FPS влияет в пределах погрешности (±5 %), " +
-                      "но DLSS Frame Generation и Multi Frame Generation требуют включённого HAGS. Встречаются единичные жалобы на рывки, VR и звук — " +
-                      "если заметите их, откатите пункт. Вступает в силу после перезагрузки."),
+            Details = Loc.T("Параметры → Дисплей → Графика → «Аппаратное ускорение планирования GPU». DLSS Frame Generation и Multi Frame Generation " +
+                      "требуют включённого HAGS. Если после включения появились рывки или проблемы с захватом, откатите пункт. " +
+                      "Вступает в силу после перезагрузки."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Gaming,
             Restart = RestartRequirement.Reboot,
             ExclusiveGroup = TweakGroups.Hags,
-            AppliesTo = sp => HasRtx40Or50(sp) && GpuScheduling?.Supported != false,
-            NotApplicableReason = Loc.T("По умолчанию включается только на GeForce RTX 40/50 с поддержкой в драйвере. Для других видеокарт есть отдельный необязательный пункт."),
+            AppliesTo = sp => HasRtx40Or50(sp) && HagsSupported(GpuScheduling),
+            NotApplicableReason = Loc.T("Нужна GeForce RTX 40/50, а Windows должна подтвердить поддержку аппаратного планирования GPU."),
             DetectFunc = DetectHags,
             ApplyAction = ApplyHags,
         };
 
-        // SAFE-OPTIONAL on every other GPU whose driver reports support.
+        // SAFE-OPTIONAL on other systems with confirmed HAGS support.
         yield return new CustomTweak
         {
             Id = "hags-other-gpu",
             Title = Loc.Key("Аппаратное планирование GPU (другие видеокарты)"),
-            Description = Loc.T("Включает HAGS на видеокарте, драйвер которой его поддерживает (кроме RTX 40/50 — для них основной пункт)."),
-            Details = Loc.T("Эффект на FPS — в пределах погрешности. Некоторые технологии генерации кадров требуют HAGS. На старых видеокартах и в VR " +
-                      "иногда появляются рывки — тогда откатите пункт. Lycoris предлагает его только если драйвер сам сообщает о поддержке. " +
-                      "Вступает в силу после перезагрузки."),
+            Description = Loc.T("Включает аппаратное планирование GPU на ПК с подтверждённой поддержкой HAGS."),
+            Details = Loc.T("Некоторые технологии генерации кадров требуют HAGS. Если после включения появились рывки или проблемы с захватом, " +
+                      "откатите пункт. Вступает в силу после перезагрузки."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.Reboot,
             ExclusiveGroup = TweakGroups.Hags,
-            AppliesTo = sp => !HasRtx40Or50(sp) && GpuScheduling?.Supported == true,
-            NotApplicableReason = Loc.T("Драйвер видеокарты не сообщает о поддержке аппаратного планирования, либо установлена RTX 40/50 — для неё основной пункт."),
+            AppliesTo = sp => !HasRtx40Or50(sp) && HagsSupported(GpuScheduling),
+            NotApplicableReason = Loc.T("Нужна подтверждённая Windows поддержка HAGS. На ПК с GeForce RTX 40/50 используется основной пункт."),
             DetectFunc = DetectHags,
             ApplyAction = ApplyHags,
         };
@@ -90,8 +89,8 @@ public static partial class TweakCatalog
             Risk = TweakRisk.Optional,
             Restart = RestartRequirement.Reboot,
             ExclusiveGroup = TweakGroups.Hags,
-            AppliesTo = _ => GpuScheduling?.Supported == true,
-            NotApplicableReason = Loc.T("Драйвер не поддерживает аппаратное планирование — отключать нечего."),
+            AppliesTo = _ => HagsSupported(GpuScheduling),
+            NotApplicableReason = Loc.T("Windows не подтвердила поддержку аппаратного планирования GPU."),
             DetectFunc = DetectHagsOff,
             ApplyAction = ApplyHagsOff,
         };
@@ -146,8 +145,8 @@ public static partial class TweakCatalog
             Id = "gamedvr-off",
             Title = Loc.Key("Фоновая запись игр выключена"),
             Description = Loc.T("Отключает «Записывать последние моменты» — постоянную фоновую запись видео во время игры."),
-            Details = Loc.T("Фоновая запись непрерывно кодирует видео (NVENC/AMF) и занимает видеопамять — это 1–5 % FPS. В Windows 11 она выключена " +
-                      "по умолчанию, поэтому пункт чаще всего лишь подтверждает это. Ручная запись (Win+Alt+R) и скриншоты продолжают работать."),
+            Details = Loc.T("Фоновая запись использует ресурсы на кодирование видео, даже если вы не сохраняете клип. В Windows 11 она выключена " +
+                      "по умолчанию. Ручная запись (Win+Alt+R) и скриншоты работают по вашим настройкам Game Bar."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Safe,
             DefaultIn = ProfileSet.Gaming | ProfileSet.Recommended | ProfileSet.Streaming,
@@ -158,7 +157,7 @@ public static partial class TweakCatalog
             },
         };
 
-        // SAFE-OPTIONAL; pre-checked only in «Стриминг и запись» (OBS KB: Game DVR off next to OBS — no second encoder, no Win+Alt+R conflicts).
+        // SAFE-OPTIONAL: disables manual capture, which is a separate preference from background recording.
         yield return new RegistryTweak
         {
             Id = "gamedvr-capture-off",
@@ -169,7 +168,6 @@ public static partial class TweakCatalog
                       "или в Параметрах → Игры → Записи."),
             Category = TweakCategory.Gaming,
             Risk = TweakRisk.Optional,
-            DefaultIn = ProfileSet.Streaming,
             Values =
             [
                 Cu(GameDvrKey, "AppCaptureEnabled", 0),
@@ -210,14 +208,20 @@ public static partial class TweakCatalog
         return value == 0 || value is null && SystemProfile.Current.IsWindows11;
     }
 
-    private static TweakState DetectHags()
+    internal static bool HagsSupported(GpuSchedulingCaps? caps) => caps?.Supported == true;
+
+    private static TweakState DetectHags() => DetectHags(LmInt(GraphicsDrivers, "HwSchMode"), GpuScheduling);
+
+    internal static TweakState DetectHags(int? mode, GpuSchedulingCaps? caps)
     {
-        switch (LmInt(GraphicsDrivers, "HwSchMode"))
+        if (caps is null) return TweakState.Unknown;
+        if (!HagsSupported(caps)) return TweakState.NotApplicable;
+        return mode switch
         {
-            case 2: return TweakState.Applied;
-            case 1: return TweakState.NotApplied;
-        }
-        return GpuScheduling?.Enabled == true ? TweakState.Applied : TweakState.NotApplied;
+            2 => TweakState.Applied,
+            1 => TweakState.NotApplied,
+            _ => caps.Value.Enabled ? TweakState.Applied : TweakState.NotApplied,
+        };
     }
 
     public const string HagsOffId = "hags-off";
@@ -237,14 +241,17 @@ public static partial class TweakCatalog
         SetDword(ctx, RegHive.HKLM, GraphicsDrivers, "HwSchMode", 1);
     }
 
-    private static void ApplyHags(TweakContext ctx)
+    private static void ApplyHags(TweakContext ctx) =>
+        ApplyHags(LmInt(GraphicsDrivers, "HwSchMode"), GpuScheduling,
+            () => SetDword(ctx, RegHive.HKLM, GraphicsDrivers, "HwSchMode", 2));
+
+    internal static void ApplyHags(int? mode, GpuSchedulingCaps? caps, Action enable)
     {
-        var mode = LmInt(GraphicsDrivers, "HwSchMode");
         if (mode == 2) return;
-        if (mode is null && GpuScheduling?.Enabled == true) return; // already on by the driver's default
-        if (GpuScheduling?.Supported == false)
-            throw new InvalidOperationException(Loc.T("драйвер видеокарты не поддерживает аппаратное планирование GPU"));
-        SetDword(ctx, RegHive.HKLM, GraphicsDrivers, "HwSchMode", 2);
+        if (!HagsSupported(caps))
+            throw new InvalidOperationException(Loc.T("Windows не подтвердила поддержку аппаратного планирования GPU"));
+        if (mode is null && caps?.Enabled == true) return; // already on by the driver's default
+        enable();
     }
 
     /// <summary>A tweak that owns one "Key=1;" token of DirectXUserGlobalSettings and edits only that token.</summary>
