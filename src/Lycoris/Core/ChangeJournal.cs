@@ -266,6 +266,11 @@ public sealed class ChangeJournal
     private static readonly Lazy<ChangeJournal> Default = new(() => new ChangeJournal(Path.Combine(AppPaths.MachineReadDir, "journal.json"), true));
     public static ChangeJournal Instance => Default.Value;
 
+    internal static void SaveIfLoaded()
+    {
+        if (JournalWriterLease.Current is not null && Default.IsValueCreated) Default.Value.Save();
+    }
+
     private readonly object _lock = new();
 
     /// <summary>
@@ -285,8 +290,9 @@ public sealed class ChangeJournal
 
     /// <summary>Null: an in-memory journal (tests).</summary>
     private readonly string? _path;
-    /// <summary>The real journal in %ProgramData%: only an elevated process may write it.</summary>
+    /// <summary>The real journal in %ProgramData%: only its elevated writer may change it.</summary>
     private readonly bool _protected;
+    private readonly JournalWriterLease? _writer;
     private JournalFile _data = new();
 
     public event Action? Changed;
@@ -315,17 +321,21 @@ public sealed class ChangeJournal
     {
         _path = path;
         _protected = isProtected;
+        _writer = isProtected ? JournalWriterLease.Current : null;
         if (path is not null) Load();
     }
 
     /// <summary>TESTS ONLY: a journal outside %ProgramData% (no folder ACL checks); a null path keeps it in memory.</summary>
     internal static ChangeJournal ForTests(string? path = null) => new(path, false);
 
-    /// <summary>
-    /// This process may write the journal: it is available and, for the real one in %ProgramData%, elevated. A process that
-    /// cannot write it never reverts anything either (an undo it could not record would come back after a restart).
-    /// </summary>
-    public bool CanWrite => !IsUnavailable && !(_protected && AppPaths.MachineMigrationFailed) && (!_protected || Elevation.IsElevated || ChangeSession.BypassElevationForTests);
+    internal static ChangeJournal ProtectedReaderForTests(string path) => new(path, true);
+
+    // A journal read as an observer cannot be promoted after another process has written a newer version.
+    private bool OwnsStorage => !_protected ||
+        (_writer is not null && ReferenceEquals(_writer, JournalWriterLease.Current) && Elevation.IsElevated);
+
+    /// <summary>Whether changes and rollbacks can be recorded in this journal.</summary>
+    public bool CanWrite => OwnsStorage && !IsUnavailable && !(_protected && AppPaths.MachineMigrationFailed);
 
     private static readonly string CannotWriteRevert =
         Loc.T("журнал изменений нельзя записать (нужны права администратора) — откат не выполнен, система не изменена");
@@ -404,9 +414,9 @@ public sealed class ChangeJournal
     {
         lock (_lock)
         {
+            if (!OwnsStorage || (_protected && AppPaths.MachineMigrationFailed)) return false;
             if (!IsUnavailable) return true;
-            if (_protected && !Elevation.IsElevated && !ChangeSession.BypassElevationForTests) return false;
-            if (_protected && Elevation.IsElevated)
+            if (_protected)
             {
                 AppPaths.SecureMachineDir();
                 if (!AppPaths.MachineDirSecured) return false;
@@ -650,6 +660,9 @@ public sealed class ChangeJournal
         bool isNew;
         lock (_lock)
         {
+            if (UnavailableReason is { } reason) throw new InvalidOperationException($"{UnavailableMessage} {reason}");
+            if (!CanWrite)
+                throw new InvalidOperationException(Loc.T("Не удалось записать журнал изменений на диск — изменение не выполнено."));
             var scope = ScopeOf(record);
             var top = record.Target.Length == 0 ? null
                 : _data.Records.LastOrDefault(r => !r.Reverted && SameTarget(r.Target, record.Target) && ScopeOf(r) == scope);
@@ -660,7 +673,6 @@ public sealed class ChangeJournal
             }
             else
             {
-                if (UnavailableReason is { } reason) throw new InvalidOperationException($"{UnavailableMessage} {reason}");
                 _data.Records.Add(record);
                 if (!SaveLocked())
                 {
@@ -1185,7 +1197,7 @@ public sealed class ChangeJournal
     private void Load()
     {
         var path = _path!;
-        if (_protected && Elevation.IsElevated)
+        if (_protected && OwnsStorage)
         {
             AppPaths.SecureMachineDir();
             if (!AppPaths.MachineDirSecured)
@@ -1234,8 +1246,11 @@ public sealed class ChangeJournal
             return;
         }
 
-        // Damaged: keep a copy, then fall back to the last good version.
-        try { File.Copy(path, path + $".broken-{DateTime.Now:yyyyMMddHHmmss}", true); } catch { }
+        // A reader can use the last good version without repairing or quarantining files.
+        if (CanWrite)
+        {
+            try { File.Copy(path, path + $".broken-{DateTime.Now:yyyyMMddHHmmss}", true); } catch { }
+        }
         if (TryRead(backupPath, out var backup, out _))
         {
             _data = backup;
@@ -1281,7 +1296,7 @@ public sealed class ChangeJournal
 
     private bool SaveLocked()
     {
-        // A non-elevated Lycoris never creates or touches the machine journal; an unavailable one is never overwritten.
+        // The protected journal is saved only by the process that owns its writer lease.
         if (!CanWrite) return false;
         if (_path is null) return true; // in-memory (tests)
         try
@@ -1835,7 +1850,8 @@ internal static class JournalTrust
 
     /// <summary>Services that older builds could change in ВСЕ СЛУЖБЫ and that are hard-blocked now.</summary>
     private static readonly HashSet<string> LegacyRevertibleServices =
-        new(["Eaphost", "dot3svc", "NcaSvc", "RmSvc", "W32Time", "tzautoupdate"], StringComparer.OrdinalIgnoreCase);
+        new(["Eaphost", "dot3svc", "NcaSvc", "RmSvc", "W32Time", "tzautoupdate",
+             "XblAuthManager", "XblGameSave", "XboxNetApiSvc", "XboxGipSvc", "EABackgroundService", "EAAntiCheatService"], StringComparer.OrdinalIgnoreCase);
 
     private static string Quoted(string exe) => "\"" + ProcessRunner.Sys(exe) + "\"";
     private static bool SameFile(string? a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

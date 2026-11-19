@@ -19,6 +19,70 @@ public sealed class RemovalBatchViewModelCollection { }
 [Collection(nameof(RemovalBatchViewModelTests))]
 public sealed class RemovalBatchViewModelTests
 {
+    [Fact]
+    public async Task Windows_apps_preview_requires_individual_selection_and_confirms_exact_package()
+    {
+        using var language = Loc.UseLanguage("en");
+        const string fullName = "ThirdParty.App_2.1.0.0_x64__publisher";
+        const string bundle = "ThirdParty.App_2.1.0.0_neutral_~_publisher";
+        var packaged = new FakeAction(RemovalBatchKind.UninstallWindowsApps)
+        {
+            Plan = new TestPlan([
+                new RemovalBatchItem(fullName, "Third-party app", "Desktop account", "")
+                {
+                    NativeInstallerId = fullName,
+                    RelatedPackageIds = [bundle],
+                },
+                new RemovalBatchItem("other", "Another app", "Desktop account", ""),
+            ]),
+            Result = new(0, 0, []) { Pending = 1 },
+        };
+        var confirmations = 0;
+        var page = Page(confirm: (kind, details) =>
+        {
+            confirmations++;
+            Assert.Equal(RemovalBatchKind.UninstallWindowsApps, kind);
+            Assert.Contains(fullName, Assert.Single(details));
+            Assert.Contains(bundle, details[0]);
+            Assert.False(OperationCoordinator.InsideOperation);
+            return Task.FromResult(true);
+        }, windowsAppsBatch: packaged, desktopSid: () => "desktop-user");
+
+        await page.PrepareWindowsAppsUninstallCommand.ExecuteAsync(null);
+
+        Assert.True(page.IsUninstallPreview);
+        Assert.Equal("Windows apps to uninstall", page.BatchPreviewTitle);
+        Assert.Equal(0, page.BatchSelectedCount);
+        Assert.False(page.SelectAllBatchCommand.CanExecute(null));
+        Assert.False(page.ExecuteBatchCommand.CanExecute(null));
+        page.BatchRows[0].IsSelected = true;
+        await page.ExecuteBatchCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, confirmations);
+        Assert.Equal(fullName, Assert.Single(packaged.ExecutedKeys!));
+        Assert.True(packaged.ExecutedWithLease);
+        Assert.Contains("Windows accepted the request and the app is still registered.", page.BatchMessage);
+    }
+
+    [Fact]
+    public async Task Windows_apps_abort_after_confirm_if_desktop_account_changes()
+    {
+        var packaged = new FakeAction(RemovalBatchKind.UninstallWindowsApps, "optional");
+        string? desktop = "desktop-user";
+        var page = Page(confirm: (_, _) =>
+        {
+            desktop = null;
+            return Task.FromResult(true);
+        }, windowsAppsBatch: packaged, desktopSid: () => desktop);
+
+        await page.PrepareWindowsAppsUninstallCommand.ExecuteAsync(null);
+        page.BatchRows[0].IsSelected = true;
+        await page.ExecuteBatchCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, packaged.ExecuteCalls);
+        Assert.False(page.HasBatchPreview);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -537,9 +601,10 @@ public sealed class RemovalBatchViewModelTests
 
     private static RemovalViewModel Page(FakeAction? uninstall = null, FakeAction? disable = null,
         Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>>? confirm = null,
-        Func<string, string?, bool>? requireAdmin = null, TimeProvider? clock = null, Func<string?>? userSid = null) =>
+        Func<string, string?, bool>? requireAdmin = null, TimeProvider? clock = null, Func<string?>? userSid = null,
+        FakeAction? windowsAppsBatch = null, Func<string?>? desktopSid = null) =>
         new(uninstall ?? new FakeAction(RemovalBatchKind.Uninstall), disable ?? new FakeAction(RemovalBatchKind.DisableStartup),
-            requireAdmin ?? ((_, _) => true), confirm, clock, userSid ?? (() => "desktop-user"))
+            requireAdmin ?? ((_, _) => true), confirm, clock, userSid ?? (() => "desktop-user"), windowsAppsBatch, desktopSid)
         {
             Coordinator = new OperationCoordinator(),
         };

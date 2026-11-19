@@ -74,7 +74,7 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
         ? Loc.Tf("Задача автозапуска приложения MSIX\n{0} = {1} ({2})", StartupLocations.DescribeMark(Entry), Entry.PackageState?.ToString() ?? "?", PackagedStartup.StateText(Entry.PackageState))
         : Loc.Tf("{0}\nОтметка: {1}\\{2}", StartupLocations.Describe(Entry.Source), IsMachine ? "HKLM" : "HKCU", StartupLocations.ApprovedKey(Entry.Source));
 
-    public bool CanDisable => StartupClassifier.CanDisable(Entry.Risk);
+    public bool CanDisable => !StartupDisableGuard.IsProtected(Entry);
 
     /// <summary>False for packaged tasks under policy, in an unknown state or with names the journal could not undo.</summary>
     public bool CanChange => Entry.CanChange;
@@ -132,14 +132,14 @@ public sealed partial class StartupItem : ObservableObject, IStartupRow
     public string? LockNote =>
         IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState) ? Loc.T("управляет политика — не меняется")
         : !CanChange ? Loc.T("состояние не распознано — не меняется")
-        : IsEnabled && !CanDisable ? Loc.T("защита Windows — не отключается")
+        : IsEnabled && !CanDisable ? Loc.T("защищённая запись — не отключается")
         : null;
 
     public string ToggleTooltip =>
         IsPackaged && PackagedStartup.IsPolicy(Entry.PackageState)
             ? Loc.T("Состоянием этой задачи управляет администратор или групповая политика — Lycoris его не меняет.")
         : !CanChange ? Loc.T("Состояние задачи не распознано или имя пакета нестандартное — Lycoris её не меняет.")
-        : IsEnabled && !CanDisable ? Loc.T("Значок защиты Windows или антивируса — Lycoris его не отключает.")
+        : IsEnabled && !CanDisable ? StartupDisableGuard.Protected
         : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — Lycoris запросит права, перезапустится и продолжит это действие.")
         : IsPackaged ? PackagedToggleTooltip(!IsEnabled, PackagedStartup.StateAfterSwitch(!IsEnabled, PackageStateBefore))
         : IsEnabled ? Loc.T("Отключить: программа не будет запускаться при входе. Ничего не удаляется.")
@@ -214,7 +214,7 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
         (Info.RunAs is { } r ? Loc.Tf("\nЗапуск от: {0}", r) + (Info.RunsElevated ? Loc.T(" (с наивысшими правами)") : "") : "") +
         (Info.LastRun is { } lr ? Loc.Tf("\nПоследний запуск: {0:dd.MM.yyyy HH:mm}", lr) : Loc.T("\nЕщё не запускалась"));
 
-    public bool CanDisable => StartupClassifier.CanDisable(Info.Risk);
+    public bool CanDisable => !StartupDisableGuard.IsProtected(Info);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText), nameof(CanToggle), nameof(ToggleTooltip), nameof(ShowBootDelay), nameof(LockNote))]
@@ -249,13 +249,13 @@ public sealed partial class LogonTaskItem : ObservableObject, IStartupRow
 
     /// <summary>Why the switch is locked, as text next to it; null when it works.</summary>
     public string? LockNote =>
-        IsEnabled && !CanDisable ? (Info.Risk == StartupRisk.Updater ? Loc.T("обновление программы — не отключается") : Loc.T("защитное ПО — не отключается")) : null;
+        IsEnabled && !CanDisable ? (Info.Risk == StartupRisk.Updater ? Loc.T("обновление программы — не отключается") : Loc.T("защищённая запись — не отключается")) : null;
 
     public string ToggleTooltip =>
         IsEnabled && !CanDisable
             ? Info.Risk == StartupRisk.Updater
                 ? Loc.T("Задача обновляет программу и закрывает уязвимости — Lycoris её не отключает.")
-                : Loc.T("Задача защитного ПО — Lycoris её не отключает.")
+                : StartupDisableGuard.Protected
         : !Elevation.IsElevated ? Loc.T("Без прав администратора: нажмите — Lycoris запросит права, перезапустится и продолжит это действие.")
         : IsEnabled ? Loc.T("Отключить задачу в планировщике. Задача не удаляется.")
         : Loc.T("Включить задачу снова.");

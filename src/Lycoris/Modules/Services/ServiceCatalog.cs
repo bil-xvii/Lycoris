@@ -98,40 +98,6 @@ public static class ServiceCatalog
             Target = ServiceStartMode.Disabled, Profiles = RG, Conditional = true,
         },
 
-        // ───────────── XBOX И ИГРЫ ─────────────
-        new()
-        {
-            Name = "XblAuthManager", Title = Loc.Key("Вход в Xbox Live"), Group = ServiceGroup.Xbox,
-            Description = Loc.T("Проверяет вход в учётную запись Xbox для игр, Game Pass и приложения Xbox."),
-            Condition = Loc.T("Вы не пользуетесь приложением Xbox, Game Pass и играми из Microsoft Store."),
-            Impact = Loc.T("Не получится войти в Xbox в играх Game Pass и в приложении Xbox."),
-            Target = ServiceStartMode.Disabled, Conditional = true, Risk = TweakRisk.Advanced,
-        },
-        new()
-        {
-            Name = "XblGameSave", Title = Loc.Key("Облачные сохранения Xbox"), Group = ServiceGroup.Xbox,
-            Description = Loc.T("Синхронизирует сохранения игр Xbox и Game Pass с облаком."),
-            Condition = Loc.T("Вы не играете в игры Xbox, Game Pass и Microsoft Store."),
-            Impact = Loc.T("Сохранения перестанут синхронизироваться — прогресс на другом ПК или консоли будет потерян."),
-            Target = ServiceStartMode.Disabled, Conditional = true, Risk = TweakRisk.Advanced,
-        },
-        new()
-        {
-            Name = "XboxNetApiSvc", Title = Loc.Key("Сеть Xbox Live"), Group = ServiceGroup.Xbox,
-            Description = Loc.T("Сетевые функции Xbox: подключение к сетевым играм, проверка типа NAT, чат группы."),
-            Condition = Loc.T("Вы не играете по сети через сервисы Xbox и не пользуетесь чатом группы."),
-            Impact = Loc.T("Сетевая игра и чат группы Xbox могут перестать работать."),
-            Target = ServiceStartMode.Disabled, Conditional = true, Risk = TweakRisk.Advanced,
-        },
-        new()
-        {
-            Name = "XboxGipSvc", Title = Loc.Key("Аксессуары Xbox"), Group = ServiceGroup.Xbox,
-            Description = Loc.T("Обновляет прошивку и хранит настройки геймпадов и аксессуаров Xbox."),
-            Condition = Loc.T("Вы не подключаете к ПК геймпад или аксессуары Xbox."),
-            Impact = Loc.T("Перестанут обновляться прошивка и настройки геймпадов Xbox."),
-            Target = ServiceStartMode.Disabled, Conditional = true, Risk = TweakRisk.Advanced,
-        },
-
         // ───────────── ПЕЧАТЬ И ФАКС ─────────────
         new()
         {

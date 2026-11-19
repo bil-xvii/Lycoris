@@ -117,7 +117,7 @@ public sealed class DriftDetectorTests
     };
 
     [Fact]
-    public void Packaged_startup_task_drift_is_reported_and_reapplied_as_a_dword()
+    public void Packaged_startup_task_drift_shows_the_live_state_and_cannot_repeat_an_unbound_disable()
     {
         var r = Packaged("DWord: 1"); // Lycoris turned it off
         Assert.True(DriftDetector.IsPackagedMark(r));
@@ -126,6 +126,8 @@ public sealed class DriftDetectorTests
         Assert.Equal(DriftFix.StartupEntry, d.Fix);
         Assert.Equal("автозапуск отключён", d.Applied);
         Assert.Equal("автозапуск включён", d.Live);
+        Assert.False(DriftReapply.CanReapply(d));
+        Assert.NotNull(DriftReapply.RefusalReason(d));
 
         var policy = Assert.Single(Detect([r], _ => new("DWord: 4", true))); // a policy turned it on: never written
         Assert.Equal(DriftFix.None, policy.Fix);
@@ -143,6 +145,35 @@ public sealed class DriftDetectorTests
         var d = Assert.Single(Detect([r], _ => new("Binary: 02 00 00 00 00 00 00 00 00 00 00 00", true)));
         Assert.Equal("автозапуск отключён", d.Applied);
         Assert.Equal("автозапуск включён", d.Live);
+    }
+
+    [Theory]
+    [InlineData(ChangeKind.Registry, "startup", "Binary: 03 00 00 00", DriftFix.StartupEntry)]
+    [InlineData(ChangeKind.ScheduledTask, "startup-tasks", "Отключена", DriftFix.Task)]
+    public async Task Applying_legacy_startup_disable_requires_a_fresh_review(ChangeKind kind, string source, string destination, DriftFix fix)
+    {
+        var record = Rec(kind, source, destination);
+        var drift = new DriftItem(record, "disabled", "enabled", fix, null, "startup");
+
+        Assert.False(DriftReapply.CanReapply(drift));
+        Assert.Empty(DriftReapply.FilterForMode([drift], expertMode: true, servicesExpertMode: true));
+        var result = await DriftReapply.ApplyAsync([drift]);
+
+        Assert.Equal(0, result.Applied);
+        Assert.Contains(DriftReapply.RefusalReason(drift)!, Assert.Single(result.Errors));
+    }
+
+    [Theory]
+    [InlineData(ChangeKind.Registry, "startup", "Binary: 02 00 00 00", DriftFix.StartupEntry)]
+    [InlineData(ChangeKind.Registry, "startup", "DWord: 2", DriftFix.StartupEntry)]
+    [InlineData(ChangeKind.ScheduledTask, "startup-tasks", "Включена", DriftFix.Task)]
+    public void A_legacy_startup_enable_remains_available(ChangeKind kind, string source, string destination, DriftFix fix)
+    {
+        var drift = new DriftItem(Rec(kind, source, destination), "enabled", "disabled", fix, null, "startup");
+
+        Assert.True(DriftReapply.CanReapply(drift));
+        Assert.Null(DriftReapply.RefusalReason(drift));
+        Assert.Same(drift, Assert.Single(DriftReapply.FilterForMode([drift], false, false)));
     }
 
     [Fact]

@@ -17,10 +17,14 @@ namespace Lycoris.Modules.Restore;
 /// </summary>
 public sealed partial class RestoreViewModel : PageViewModel
 {
+    private const string DriftSection = "drift";
+    private readonly Func<ChangeJournal, Task<IReadOnlyList<DriftItem>>> _readDrift;
+    private readonly Func<Task> _readProtection;
     private ChangeJournal? _journal;
     private bool _rebuildQueued;
     private IReadOnlyDictionary<Guid, DriftItem> _drift = new Dictionary<Guid, DriftItem>();
     private bool _driftRunning, _driftPending;
+    private bool _focusDriftAfterRead, _driftReadFailed;
     private bool _confirmingRestorePoints;
 
     public override string Key => "restore";
@@ -68,14 +72,22 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     public string BackupsPath => AppPaths.BackupsReadDir;
 
-    public RestoreViewModel()
+    public RestoreViewModel() : this(null, ReadDriftAsync)
     {
-        PropertyChanged += OnSelfPropertyChanged;
         AppSettings.Current.PropertyChanged += OnSettingsChanged;
         Ui.FocusRequested += r =>
         {
-            if (r.PageKey == Key && IsLoaded) ApplyFocus(Ui.TakeFocusRequest(Key));
+            if (r.PageKey == Key && _journal is not null) _ = ApplyFocusAsync(Ui.TakeFocusRequest(Key));
         };
+    }
+
+    internal RestoreViewModel(ChangeJournal? journal, Func<ChangeJournal, Task<IReadOnlyList<DriftItem>>> readDrift,
+        Func<Task>? readProtection = null)
+    {
+        _journal = journal;
+        _readDrift = readDrift;
+        _readProtection = readProtection ?? RefreshProtectionAsync;
+        PropertyChanged += OnSelfPropertyChanged;
     }
 
     /// <summary>Batches the user opened («ПОКАЗАТЬ ЗАПИСИ»): kept across rebuilds of the list.</summary>
@@ -83,22 +95,21 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     protected override async Task LoadAsync()
     {
-        _journal = await Task.Run(() => ChangeJournal.Instance);
+        _journal ??= await Task.Run(() => ChangeJournal.Instance);
         _journal.Changed += OnJournalChanged;
-        Rebuild();
-        _ = RefreshDriftAsync();
-        await RefreshProtectionAsync();
-        MarkChecked();
-        ApplyFocus(Ui.TakeFocusRequest(Key));
+        await RefreshVisitAsync();
     }
 
-    protected override async Task OnReturnAsync()
+    protected override Task OnReturnAsync() => RefreshVisitAsync();
+
+    private async Task RefreshVisitAsync()
     {
         Rebuild();
-        _ = RefreshDriftAsync();
-        await RefreshProtectionAsync();
+        var focus = Ui.TakeFocusRequest(Key);
+        _ = ApplyFocusAsync(focus);
+        if (focus != CommandPaletteIndex.RestoreSectionPrefix + DriftSection) _ = RefreshDriftAsync();
+        await _readProtection();
         MarkChecked();
-        ApplyFocus(Ui.TakeFocusRequest(Key));
     }
 
     /// <summary>«ОБНОВИТЬ» in the header: re-reads the journal, the drift check and the System Restore state.</summary>
@@ -118,11 +129,22 @@ public sealed partial class RestoreViewModel : PageViewModel
     [ObservableProperty] private string? _focusedRecordId;
 
     /// <summary>«section:&lt;name&gt;»: opens the part of the page (last batch expanded, drift filter) and asks the view to scroll to it.</summary>
-    private void ApplyFocus(string? focusId)
+    internal Task ApplyFocusAsync(string? focusId)
     {
         const string prefix = CommandPaletteIndex.RestoreSectionPrefix;
-        if (focusId is null || !focusId.StartsWith(prefix, StringComparison.Ordinal)) return;
+        if (focusId is null || !focusId.StartsWith(prefix, StringComparison.Ordinal)) return Task.CompletedTask;
         var section = focusId[prefix.Length..];
+        _focusDriftAfterRead = false;
+        FocusedSection = null; // re-raise even for the same section
+        if (section == DriftSection)
+        {
+            FocusedRecordId = null;
+            _focusDriftAfterRead = true;
+            SetDrift([]);
+            if (Filter == JournalFilter.Drifted) Rebuild();
+            else Filter = JournalFilter.Drifted; // rebuilds
+            return RefreshDriftAsync();
+        }
         if (section.StartsWith("record:", StringComparison.Ordinal) && Guid.TryParse(section[7..], out var recordId))
         {
             if (Filter != JournalFilter.All) Filter = JournalFilter.All;
@@ -130,18 +152,16 @@ public sealed partial class RestoreViewModel : PageViewModel
             var batch = Batches.FirstOrDefault(b => b.Records.Any(r => r.Record.Id == recordId));
             if (batch is not null) batch.IsExpanded = true;
             FocusedRecordId = recordId.ToString();
-            FocusedSection = null;
             FocusedSection = "journal";
-            return;
+            return Task.CompletedTask;
         }
-        if (section == "drift" && HasDrift) Filter = JournalFilter.Drifted;
-        else if (section == "last-batch")
+        if (section == "last-batch")
         {
             if (Filter == JournalFilter.Drifted || Filter == JournalFilter.Reverted) Filter = JournalFilter.Active;
             if (Batches.FirstOrDefault(b => b.CanRevert) is { } b) b.IsExpanded = true;
         }
-        FocusedSection = null; // re-raise even for the same section
         FocusedSection = section;
+        return Task.CompletedTask;
     }
 
     private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -175,6 +195,11 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     partial void OnFilterChanged(JournalFilter value)
     {
+        if (value != JournalFilter.Drifted)
+        {
+            _focusDriftAfterRead = false;
+            if (FocusedSection == DriftSection) FocusedSection = null;
+        }
         _shownBatches = BatchPage;
         Rebuild();
     }
@@ -220,10 +245,15 @@ public sealed partial class RestoreViewModel : PageViewModel
         var covered = RestoreFormat.CoveredBy(records, sid);
         var titles = new Dictionary<Guid, string>();
         foreach (var r in records) titles.TryAdd(r.Id, r.Title);
-        RecordItem Item(ChangeRecord r) => new(r, _drift.GetValueOrDefault(r.Id),
-            RestoreFormat.RecordNote(r, sid, covered.GetValueOrDefault(r.Id), r.HandedTo is { } h ? titles.GetValueOrDefault(h) : null,
-                UserScope.CachedAccountName),
-            ChangeJournal.IsOtherUser(r, sid));
+        RecordItem Item(ChangeRecord r)
+        {
+            var drift = _drift.GetValueOrDefault(r.Id);
+            var note = RestoreFormat.RecordNote(r, sid, covered.GetValueOrDefault(r.Id),
+                r.HandedTo is { } h ? titles.GetValueOrDefault(h) : null, UserScope.CachedAccountName);
+            if (drift is not null && DriftReapply.RefusalReason(drift) is { } reason)
+                note = note.Length == 0 ? reason : note + Environment.NewLine + reason;
+            return new RecordItem(r, drift, note, ChangeJournal.IsOtherUser(r, sid));
+        }
 
         var groups = RestoreFormat.Group(batches, records, Filter, _drift.Keys.ToHashSet(), ChangeJournal.IsBulkRevertible);
         // A long history (hundreds of batches) is drawn page by page: rendering it all at once froze the window for a second.
@@ -246,10 +276,13 @@ public sealed partial class RestoreViewModel : PageViewModel
 
         var journalEmpty = batches.Count == 0 && records.Count == 0;
         IsFilterEmpty = Batches.Count == 0;
-        FilterEmptyText = journalEmpty ? Loc.T("Журнал пуст — Lycoris ещё ничего не менял в системе.") : Filter switch
+        FilterEmptyText = Filter switch
         {
-            JournalFilter.Active => Loc.T("Активных изменений нет — система в исходном состоянии относительно Lycoris."),
+            JournalFilter.Drifted when _focusDriftAfterRead => Loc.T("Проверка…"),
+            JournalFilter.Drifted when _driftReadFailed => Loc.T("Не удалось проверить изменения вне Lycoris. Нажмите «ОБНОВИТЬ», чтобы повторить проверку."),
             JournalFilter.Drifted => Loc.T("Все настройки Lycoris на месте — вне Lycoris ничего не изменено."),
+            _ when journalEmpty => Loc.T("Журнал пуст — Lycoris ещё ничего не менял в системе."),
+            JournalFilter.Active => Loc.T("Активных изменений нет — система в исходном состоянии относительно Lycoris."),
             _ => Loc.T("Откаченных изменений пока нет."),
         };
         NotifyCommands();
@@ -268,10 +301,31 @@ public sealed partial class RestoreViewModel : PageViewModel
 
     // ═════════════════════════════ Drift ═════════════════════════════
 
+    private static Task<IReadOnlyList<DriftItem>> ReadDriftAsync(ChangeJournal journal)
+    {
+        var accepted = AppSettings.Current.DriftAccepted.ToList();
+        return Task.Run(() =>
+        {
+            if (journal.UnavailableReason is { } reason) throw new InvalidOperationException(reason);
+            ResolveAccountNames(journal.ActiveRecords);
+            return DriftDetector.DetectLive(accepted);
+        });
+    }
+
+    private void SetDrift(IReadOnlyList<DriftItem> list)
+    {
+        _drift = list.ToDictionary(d => d.Record.Id);
+        DriftCount = list.Count;
+        HasDrift = list.Count > 0;
+        HasReapplicableDrift = DriftReapply.FilterForMode(list.Where(DriftReapply.CanReapply), ExpertMode, AppSettings.Current.ServicesExpertMode).Count > 0;
+        DriftLine = list.Count == 0 ? "" : Loc.T("Windows или другая программа изменила эти настройки после Lycoris.");
+    }
+
     /// <summary>Live read of every active record off the UI thread; bursts of journal changes coalesce into one more run.</summary>
     private async Task RefreshDriftAsync()
     {
-        if (_journal is null) return;
+        var journal = _journal;
+        if (journal is null) return;
         if (_driftRunning)
         {
             _driftPending = true;
@@ -283,26 +337,26 @@ public sealed partial class RestoreViewModel : PageViewModel
             do
             {
                 _driftPending = false;
-                var accepted = AppSettings.Current.DriftAccepted.ToList();
-                var journal = _journal!;
-                var list = await Task.Run(() =>
+                try
                 {
-                    ResolveAccountNames(journal.ActiveRecords);
-                    return DriftDetector.DetectLive(accepted);
-                });
-                _drift = list.ToDictionary(d => d.Record.Id);
-                DriftCount = list.Count;
-                HasDrift = list.Count > 0;
-                HasReapplicableDrift = DriftReapply.FilterForMode(list.Where(DriftReapply.CanReapply), ExpertMode, AppSettings.Current.ServicesExpertMode).Count > 0;
-                DriftLine = list.Count == 0 ? "" :
-                    Loc.T("Windows или другая программа изменила эти настройки после Lycoris.");
-                if (!HasDrift && Filter == JournalFilter.Drifted) Filter = JournalFilter.All; // rebuilds
-                else Rebuild();
+                    var list = await _readDrift(journal);
+                    // Another read was requested while this one ran. Only publish the current result.
+                    if (_driftPending) continue;
+                    SetDrift(list);
+                    _driftReadFailed = false;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("Проверка изменений вне Lycoris не выполнена: {0}", ex.Message);
+                    if (_driftPending) continue;
+                    SetDrift([]);
+                    _driftReadFailed = true;
+                }
+                var focus = _focusDriftAfterRead;
+                _focusDriftAfterRead = false;
+                Rebuild();
+                if (focus) FocusedSection = DriftSection;
             } while (_driftPending);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Проверка изменений вне Lycoris не выполнена: {0}", ex.Message);
         }
         finally
         {

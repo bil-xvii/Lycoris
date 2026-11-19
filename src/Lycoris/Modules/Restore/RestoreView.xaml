@@ -298,10 +298,10 @@
                 <StackPanel x:Name="Sec_last_batch">
                     <!-- Empty journal / filter matched nothing: one line -->
                     <Border Style="{StaticResource Card}" Visibility="{Binding IsFilterEmpty, Converter={StaticResource BoolToVis}}">
-                        <StackPanel Orientation="Horizontal">
-                            <Rectangle Width="10" Height="10" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" Stroke="{StaticResource B.Text3}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,9,0" />
-                            <TextBlock Text="{Binding FilterEmptyText}" Style="{StaticResource T.Body}" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <DockPanel>
+                            <Rectangle DockPanel.Dock="Left" Width="10" Height="10" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" Stroke="{StaticResource B.Text3}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,9,0" />
+                            <TextBlock Text="{Binding FilterEmptyText}" Style="{StaticResource T.Body}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </DockPanel>
                     </Border>
 
                     <!-- Batches: collapsed by default — header + revert button visible, records behind «ПОКАЗАТЬ ЗАПИСИ ▾» -->

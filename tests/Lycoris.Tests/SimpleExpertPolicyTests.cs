@@ -69,9 +69,9 @@ public sealed class SimpleExpertPolicyTests : IDisposable
     public async Task Full_service_commands_and_network_reset_replay_refuse_without_prompts_in_simple()
     {
         var vm = new ServicesViewModel();
-        await vm.ApplyStartTypeCommand.ExecuteAsync("XblGameSave|Disabled|0");
-        await vm.StartServiceCommand.ExecuteAsync("XblGameSave");
-        await vm.StopServiceCommand.ExecuteAsync("XblGameSave");
+        await vm.ApplyStartTypeCommand.ExecuteAsync("Spooler|Disabled|0");
+        await vm.StartServiceCommand.ExecuteAsync("Spooler");
+        await vm.StopServiceCommand.ExecuteAsync("Spooler");
         var tools = new ToolsViewModel();
         await tools.RunToolCommand.ExecuteAsync("NetworkReset");
         Assert.False(ToolsViewModel.CanRunInMode(ToolOp.NetworkReset, false));
@@ -92,7 +92,7 @@ public sealed class SimpleExpertPolicyTests : IDisposable
         devices.Cards.Add(new DeviceCard { Key = "test", Kind = DeviceKind.Network, Title = "Test", Settings = { row } });
         var services = new ServicesViewModel();
         services.SelectedTab = ServicesViewModel.TabAll;
-        var item = new RecommendationItem(ServiceCatalog.Services.First(s => s.Name == "XblGameSave")) { IsSelected = true };
+        var item = new RecommendationItem(ServiceCatalog.Services.First(s => s.Name == "Spooler")) { IsSelected = true };
         var map = (Dictionary<string, RecommendationItem>)typeof(ServicesViewModel)
             .GetField("_recByName", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(services)!;
         map.Add(item.Name, item);
@@ -135,7 +135,7 @@ public sealed class SimpleExpertPolicyTests : IDisposable
     public async Task Advanced_catalog_recommendation_and_task_replays_refuse_before_admin_or_system_calls()
     {
         var vm = new ServicesViewModel();
-        var service = new RecommendationItem(ServiceCatalog.Services.Single(s => s.Name == "XblGameSave"))
+        var service = new RecommendationItem(ServiceCatalog.Services.Single(s => s.Name == "Spooler"))
         {
             IsSelected = true, CanModify = true,
             State = new ServiceLiveState(ServiceStartMode.Automatic, false, false, ServiceControllerStatus.Running, "Fake"),

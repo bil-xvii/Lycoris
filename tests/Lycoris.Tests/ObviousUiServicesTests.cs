@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Lycoris.Tests;
 
-/// <summary>«Obvious UI» for Автозапуск и службы: the extra-autostart rule, intent parameters, the replay targets.</summary>
+/// <summary>«Obvious UI» for Автозапуск и службы: startup switch protection, intent parameters and replay targets.</summary>
 public class ObviousUiServicesTests
 {
     private static StartupItem Item(string name, bool enabled = true, bool exists = true, StartupRisk risk = StartupRisk.Normal, bool slow = false)
@@ -29,20 +29,21 @@ public class ObviousUiServicesTests
         return item;
     }
 
-    [Fact]
-    public void Extra_autostart_is_enabled_allowed_and_slow_or_missing()
+    [Theory]
+    [InlineData(StartupRisk.Microsoft)]
+    [InlineData(StartupRisk.Driver)]
+    [InlineData(StartupRisk.Security)]
+    [InlineData(StartupRisk.Updater)]
+    public void Protected_entries_cannot_be_disabled_and_can_still_be_enabled(StartupRisk risk)
     {
-        Assert.True(StartupViewModel.IsExtra(Item("a", slow: true)));
-        Assert.True(StartupViewModel.IsExtra(Item("b", exists: false)));
-        Assert.False(StartupViewModel.IsExtra(Item("c")));
-    }
+        var on = Item("protected", risk: risk, slow: true);
+        Assert.True(on.ShowBootDelay);
+        Assert.False(on.CanToggle);
+        Assert.NotNull(on.LockNote);
 
-    [Fact]
-    public void Extra_autostart_never_includes_disabled_or_protected_entries()
-    {
-        Assert.False(StartupViewModel.IsExtra(Item("d", enabled: false, slow: true)));
-        Assert.False(StartupViewModel.IsExtra(Item("e", risk: StartupRisk.Security, slow: true)));
-        Assert.False(StartupViewModel.IsExtra(Item("f", risk: StartupRisk.Security, exists: false)));
+        var off = Item("protected", enabled: false, risk: risk);
+        Assert.True(off.CanToggle);
+        Assert.Null(off.LockNote);
     }
 
     [Fact]

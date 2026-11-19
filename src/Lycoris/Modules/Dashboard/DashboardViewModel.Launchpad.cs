@@ -187,7 +187,7 @@ public sealed partial class DashboardViewModel
 
     /// <summary>Live button text of a problem row: the cleanup row says how much it will clean.</summary>
     private string? ActionLabel(CheckAction action) =>
-        action is { Kind: CheckActionKind.Navigate, Target: "cleaner" } && CleanSize is { } size ? Loc.Tf("ОЧИСТИТЬ {0}", size) : null;
+        action.Kind == CheckActionKind.Clean && CleanSize is { } size ? Loc.Tf("ОЧИСТИТЬ {0}", size) : null;
 
     private void UpdateUndoTile()
     {
@@ -257,7 +257,9 @@ public sealed partial class DashboardViewModel
 
     /// <summary>ОЧИСТКА: the analysis (read-only) when nothing is known yet, otherwise the Cleaner's own «ОЧИСТИТЬ» with its confirmation.</summary>
     [RelayCommand]
-    private async Task CleanJunkAsync()
+    private Task CleanJunkAsync() => CleanJunkAsync(cleanOnly: false);
+
+    private async Task CleanJunkAsync(bool cleanOnly)
     {
         if (CleanerPage is not { } cleaner)
         {
@@ -267,7 +269,8 @@ public sealed partial class DashboardViewModel
         await cleaner.EnsureLoadedAsync();
         if (CleanSize is null)
         {
-            if (cleaner.AnalyzeCommand.CanExecute(null)) await cleaner.AnalyzeCommand.ExecuteAsync(null);
+            if (cleanOnly) Ui.Navigate("cleaner");
+            else if (cleaner.AnalyzeCommand.CanExecute(null)) await cleaner.AnalyzeCommand.ExecuteAsync(null);
             return;
         }
         if (cleaner.CleanCommand.CanExecute(null)) await cleaner.CleanCommand.ExecuteAsync(null);

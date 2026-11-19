@@ -71,6 +71,19 @@ public partial class MainWindow : Window
         };
 
         StateChanged += (_, _) => ApplyWindowState();
+        var inventoryTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher) { Interval = TimeSpan.FromSeconds(30) };
+        inventoryTimer.Tick += OnForegroundInventoryTick;
+        Activated += (_, _) =>
+        {
+            inventoryTimer.Start();
+            QueueForegroundInventoryRefresh();
+        };
+        Deactivated += (_, _) => inventoryTimer.Stop();
+        Closed += (_, _) =>
+        {
+            inventoryTimer.Stop();
+            inventoryTimer.Tick -= OnForegroundInventoryTick;
+        };
         SourceInitialized += (_, _) => ApplyDwmStyle();
         vm.PropertyChanged += (_, e) =>
         {
@@ -96,6 +109,7 @@ public partial class MainWindow : Window
     private bool _closed;
     private bool _hiddenInBackground;
     private bool _startupTray;
+    private bool _inventoryRefreshQueued;
     private PageViewModel? _suspendedPage;
     private BackgroundTray? _tray;
 
@@ -104,6 +118,24 @@ public partial class MainWindow : Window
 
     private bool HasOpenDialog => _vm.Dialog is not null || Wizard.IsOpen || !IsEnabled
         || OwnedWindows.Cast<Window>().Any(window => window.IsVisible);
+
+    internal bool IsForegroundInventoryPage(PageViewModel page) => ReferenceEquals(_vm.CurrentPage, page)
+        && IsActive && IsVisible && WindowState != WindowState.Minimized && !HasOpenDialog
+        && !_hiddenInBackground && !_closed && !_confirmingExit && !_exitConfirmed && !_explicitExit
+        && !Dispatcher.HasShutdownStarted;
+
+    private void OnForegroundInventoryTick(object? sender, EventArgs e) => QueueForegroundInventoryRefresh();
+
+    private void QueueForegroundInventoryRefresh()
+    {
+        if (_inventoryRefreshQueued || _vm.CurrentPage is not { } page || !IsForegroundInventoryPage(page)) return;
+        _inventoryRefreshQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            _inventoryRefreshQueued = false;
+            _ = page.RefreshStaleInventoryAsync(() => IsForegroundInventoryPage(page));
+        }));
+    }
 
     internal bool InitializeBackgroundMode(BackgroundWindowActivation activation, bool logonLaunch)
     {
@@ -170,6 +202,7 @@ public partial class MainWindow : Window
         _suspendedPage?.ResumeFromMinimize();
         _suspendedPage = null;
         Activate();
+        QueueForegroundInventoryRefresh();
         if (!_startupTray) return;
         _startupTray = false;
         if (!AppSettings.Current.CloseToTray) _tray?.RemoveIcon();
@@ -260,7 +293,11 @@ public partial class MainWindow : Window
     {
         // Minimized: stop live polling of the current page; restored: start it again.
         if (WindowState == WindowState.Minimized) _vm.CurrentPage?.SuspendForMinimize();
-        else if (_wasMinimized) _vm.CurrentPage?.ResumeFromMinimize();
+        else if (_wasMinimized)
+        {
+            _vm.CurrentPage?.ResumeFromMinimize();
+            QueueForegroundInventoryRefresh();
+        }
         _wasMinimized = WindowState == WindowState.Minimized;
         if (WindowState == WindowState.Maximized)
         {

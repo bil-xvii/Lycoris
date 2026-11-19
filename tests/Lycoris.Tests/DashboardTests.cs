@@ -420,7 +420,8 @@ public sealed class DashboardRulesTests
     {
         var many = HealthRules.CheckStartup(new SystemSnapshot { StartupCount = 14 })!;
         Assert.Equal(CheckSeverity.Warning, many.Severity);
-        Assert.Equal("startup", many.Action!.Target);
+        Assert.Equal("services", many.Action!.Target);
+        Assert.Equal("tab:startup", many.Action.Focus);
         Assert.Contains("14 программ", many.Detail);
         Assert.Equal(CheckSeverity.Ok, HealthRules.CheckStartup(new SystemSnapshot { StartupCount = 10 })!.Severity);
         Assert.Null(HealthRules.CheckStartup(new SystemSnapshot()));
@@ -506,7 +507,7 @@ public sealed class DashboardRulesTests
         var low = HealthRules.CheckDiskSpace(new SystemSnapshot { SystemDriveFree = 60 * gb, SystemDriveTotal = 500 * gb })!; // 12 %
         Assert.Equal(CheckSeverity.Warning, low.Severity);
         Assert.Equal(15, low.Weight);
-        Assert.Equal("cleaner", low.Action!.Target);
+        Assert.Equal(CheckActionKind.Clean, low.Action!.Kind);
         Assert.Equal(25, HealthRules.CheckDiskSpace(new SystemSnapshot { SystemDriveFree = 3 * gb, SystemDriveTotal = 500 * gb })!.Weight);
         Assert.Equal(CheckSeverity.Ok, HealthRules.CheckDiskSpace(new SystemSnapshot { SystemDriveFree = 200 * gb, SystemDriveTotal = 500 * gb })!.Severity);
     }
@@ -722,7 +723,7 @@ public sealed class DashboardRulesTests
             SystemDriveFree = 12 * gb, SystemDriveTotal = 238 * gb, HiberfilBytes = 13 * gb, PagefileBytes = 9 * gb, PagefileSystemManaged = true,
         })!;
         Assert.Equal(CheckSeverity.Warning, desktop.Severity);
-        Assert.Equal("cleaner", desktop.Action!.Target); // the primary stays «К ОЧИСТКЕ»
+        Assert.Equal(CheckActionKind.Clean, desktop.Action!.Kind);
         Assert.Contains("hiberfil.sys — 13,0 ГБ", desktop.Detail);
         Assert.Contains("«Отключить гибернацию» (ЭКСПЕРТ)", desktop.Detail);
         Assert.Contains("pagefile.sys — 9,0 ГБ: размером управляет Windows", desktop.Detail);
@@ -836,14 +837,15 @@ public sealed class DashboardRulesTests
     {
         var r = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.MemoryIntegrity })!;
         Assert.Equal(CheckSeverity.Info, r.Severity);
-        Assert.Null(r.Action); // never offered to switch off
+        Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
+        Assert.False(r.Action.RequiresAdmin);
         Assert.Equal(0, r.Weight);
         Assert.Contains("«Оптимизации»", r.Detail); // the only way to turn it off stays the expert item
         // Memory integrity off is reported too (information only, no score penalty), but only when the state is known.
         var off = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Off })!;
         Assert.Equal(CheckSeverity.Info, off.Severity);
         Assert.Equal(0, off.Weight);
-        Assert.Null(off.Action);
+        Assert.Equal(HealthRules.WindowsSecurityUri, off.Action!.Target);
         Assert.Null(HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.Unknown }));
     }
 
@@ -1088,7 +1090,7 @@ public sealed class DashboardKernelProtectionTests
         Assert.Equal(CheckSeverity.Warning, r.Severity);
         Assert.Equal("vbs", r.Id);
         Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
-        Assert.Equal("ms-settings:windowsdefender", r.Action.Target);
+        Assert.Equal("windowsdefender://coreisolation/", r.Action.Target);
         Assert.False(r.Action.RequiresAdmin);
         Assert.Contains("Lycoris эту защиту не меняет", r.Detail);
 
@@ -1102,7 +1104,7 @@ public sealed class DashboardKernelProtectionTests
         // Documented: HVCI on enforces the blocklist, whatever an unreadable or odd CiTool answer says.
         var r = HealthRules.CheckVbs(new SystemSnapshot { Vbs = VbsState.MemoryIntegrity, DriverBlocklistEnforced = false })!;
         Assert.Equal(CheckSeverity.Info, r.Severity);
-        Assert.Null(r.Action);
+        Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
         Assert.Contains("действует всегда", r.Detail);
     }
 
@@ -1115,7 +1117,7 @@ public sealed class DashboardKernelProtectionTests
             Vbs = VbsState.Off, SmartAppControl = SmartAppControlState.On, DriverBlocklistEnforced = false,
         })!;
         Assert.Equal(CheckSeverity.Info, r.Severity);
-        Assert.Null(r.Action);
+        Assert.Equal(CheckActionKind.OpenUri, r.Action!.Kind);
         Assert.Contains("список блокировки уязвимых драйверов Microsoft действует", r.Detail);
 
         // Evaluation mode does not enforce anything yet: the warning stays.
@@ -1441,8 +1443,8 @@ public sealed class DashboardStabilityTests
         var r = HealthRules.CheckStability(Log(null, Whea(47, 3), Whea(47, 3, 5), Whea(47, 3, 6)))!;
         Assert.Equal(CheckSeverity.Info, r.Severity);
         Assert.Contains("3 исправленные ошибки памяти (WHEA)", r.Detail);
-        Assert.Equal("tools", r.Action!.Target);
-        Assert.False(r.Action.RequiresAdmin);
+        Assert.Equal(CheckActionKind.MemoryDiagnostic, r.Action!.Kind);
+        Assert.Equal("tools", DashboardAdvice.For(r)!.PageKey);
     }
 
     [Fact]
@@ -1452,7 +1454,7 @@ public sealed class DashboardStabilityTests
         Assert.Equal(CheckSeverity.Info, r.Severity);
         Assert.Contains("Диагностика памяти такие ошибки не находит", r.Detail);
         Assert.Contains("Lycoris настройки BIOS не меняет", r.Detail);
-        Assert.Null(r.Action);
+        Assert.Equal(CheckActionKind.OpenReliabilityMonitor, r.Action!.Kind);
 
         var fatal = HealthRules.CheckStability(Log(null, Whea(18, 2)))!;
         Assert.Equal(CheckSeverity.Warning, fatal.Severity);
@@ -1472,13 +1474,13 @@ public sealed class DashboardStabilityTests
     }
 
     [Fact]
-    public void Restarts_without_a_code_explain_the_three_causes()
+    public void Restarts_without_a_code_show_the_event_time_and_open_reliability_history()
     {
         var one = HealthRules.CheckStability(Log(null, new StabilityEvent(Now.AddDays(-3), StabilityEventKind.KernelPower41, 41, 1)))!;
         Assert.Equal(CheckSeverity.Info, one.Severity);
-        Assert.Contains("пропадание питания", one.Detail);
-        Assert.Contains("после зависания", one.Detail);
-        Assert.Contains("не успела записать код", one.Detail);
+        Assert.Contains("Эта запись не указывает причину", one.Detail);
+        Assert.Contains(Loc.DateTimeText(Now.AddDays(-3)), one.Detail);
+        Assert.Equal(CheckActionKind.OpenReliabilityMonitor, one.Action!.Kind);
 
         var two = HealthRules.CheckStability(Log(null,
             new StabilityEvent(Now.AddDays(-3), StabilityEventKind.KernelPower41, 41, 1),
@@ -1533,7 +1535,8 @@ public sealed class DashboardGpuLinkTests
         Assert.Equal("RESIZABLE BAR НЕ АКТИВЕН", uefi.Title);
         Assert.True(uefi.Weight <= 3);
         Assert.Contains("Above 4G Decoding", uefi.Detail);
-        Assert.Contains("выключите его", uefi.Detail);
+        Assert.Contains("по руководству платы", uefi.Detail);
+        Assert.DoesNotContain("выключите его", uefi.Detail);
         Assert.DoesNotContain("выключен в BIOS", uefi.Detail); // a cause, not a claim
         Assert.Null(uefi.Action);
 
@@ -1582,7 +1585,7 @@ public sealed class DashboardGpuLinkTests
         {
             GpuLink = new GpuLinkFacts("NVIDIA GeForce RTX 3070", 256 * MiB, 8192 * MiB), Firmware = FirmwareKind.Uefi,
         })!;
-        Assert.Contains("Above 4G Decoding", rtx30.Detail);
+        Assert.Contains("по руководству платы", rtx30.Detail);
         Assert.Contains("только RTX 30 и новее", rtx30.Detail); // unknown names still hear that the card may be the cause
     }
 
@@ -1689,7 +1692,7 @@ public sealed class DashboardReadinessEvaluateTests
     }
 
     [Fact]
-    public void New_checks_never_offer_a_button_that_changes_the_system()
+    public void Readiness_checks_offer_read_only_destinations_and_the_owned_memory_test()
     {
         var now = new DateTime(2026, 10, 27);
         var bad = new SystemSnapshot
@@ -1710,17 +1713,31 @@ public sealed class DashboardReadinessEvaluateTests
             DriverBlocklistEnforced = false,
             GpuLink = new GpuLinkFacts("RTX", 256UL << 20, 8192UL << 20, 4, 4, 4, 16, 4, true),
         };
-        var results = HealthRules.Evaluate(bad).Where(r => r.Id is "boot-security" or "disk-health" or "stability" or "rebar" or "pcie-link" or "vbs").ToList();
+        var results = HealthRules.Evaluate(bad).Where(r => r.Id is "boot-security" or "disk-health" or "stability" or "rebar" or "pcie-link" or "vbs")
+            .ToDictionary(r => r.Id);
         Assert.Equal(6, results.Count);
-        Assert.All(results, r =>
+        Assert.All(results.Values, r =>
         {
             Assert.NotEqual(CheckSeverity.Ok, r.Severity);
-            if (r.Action is { } a)
-            {
-                Assert.False(a.RequiresAdmin);
-                Assert.True(a.Kind == CheckActionKind.Navigate || (a.Kind == CheckActionKind.OpenUri && a.Target!.StartsWith("ms-settings:", StringComparison.Ordinal)));
-            }
+            var open = DashboardAdvice.For(r)?.OpenAction;
+            Assert.NotNull(open);
+            Assert.False(open.RequiresAdmin);
         });
+
+        foreach (var id in new[] { "boot-security", "disk-health", "rebar", "pcie-link" })
+        {
+            Assert.Null(results[id].Action);
+            Assert.Equal(CheckActionKind.OpenSystemInformation, DashboardAdvice.For(results[id])!.OpenAction!.Kind);
+        }
+        var stability = results["stability"];
+        Assert.Equal(CheckActionKind.MemoryDiagnostic, stability.Action!.Kind);
+        Assert.True(stability.Action.RequiresAdmin); // the existing Tools command owns elevation and confirmation
+        Assert.Equal(CheckActionKind.Navigate, DashboardAdvice.For(stability)!.OpenAction!.Kind);
+        Assert.Equal("tools", DashboardAdvice.For(stability)!.PageKey);
+        var security = results["vbs"];
+        Assert.Equal(security.Action, DashboardAdvice.For(security)!.OpenAction);
+        Assert.Equal(CheckActionKind.OpenUri, security.Action!.Kind);
+        Assert.Equal("windowsdefender://coreisolation/", security.Action.Target);
     }
 }
 
@@ -1890,7 +1907,7 @@ public sealed class DriftCheckTests
         Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckSeverity.Info, drifted.Severity);
         Assert.Equal(Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate, drifted.Action!.Kind);   // never re-applies by itself
         Assert.Equal("restore", drifted.Action.Target);
-        Assert.Equal("drift", drifted.Action.Focus);   // RestoreViewModel turns this focus key into the «изменено вне Lycoris» filter
+        Assert.Equal("section:drift", drifted.Action.Focus);
         Assert.False(drifted.Action.RequiresAdmin);
         Assert.Contains("3", drifted.Detail);
 

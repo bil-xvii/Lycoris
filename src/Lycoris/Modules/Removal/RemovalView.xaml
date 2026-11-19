@@ -114,6 +114,7 @@
                             <TextBlock Text="{Binding BatchSelectionText}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center"
                                        Margin="0,0,12,4" AutomationProperties.AutomationId="RemovalBatchSelectionCount" />
                             <Button Content="{loc:T ВЫБРАТЬ ВСЕ}" Style="{StaticResource Btn.Ghost}"
+                                    Visibility="{Binding CanSelectAllBatchRows, Converter={StaticResource BoolToVis}}"
                                     Command="{Binding SelectAllBatchCommand}" Margin="0,0,6,4" />
                             <Button Content="{loc:T СНЯТЬ ВЫБОР}" Style="{StaticResource Btn.Ghost}"
                                     Command="{Binding ClearBatchSelectionCommand}" Margin="0,0,0,4" />
@@ -179,6 +180,9 @@
                 <WrapPanel Margin="0,0,0,4">
                     <Button Content="{loc:T ПРЕДПРОСМОТР УДАЛЕНИЯ}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding PrepareUninstallCommand}" Margin="0,0,6,4" AutomationProperties.AutomationId="RemovalPrepareUninstall" />
+                    <Button Content="{loc:T ВЫБРАТЬ ПРИЛОЖЕНИЯ STORE}" Style="{StaticResource Btn.Ghost}"
+                            Command="{Binding PrepareWindowsAppsUninstallCommand}" Margin="0,0,6,4"
+                            AutomationProperties.AutomationId="RemovalPrepareWindowsAppsUninstall" />
                     <Button Content="{loc:T ПРЕДПРОСМОТР ОТКЛЮЧЕНИЯ}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding PrepareDisableStartupCommand}" Margin="0,0,0,4" AutomationProperties.AutomationId="RemovalPrepareDisableStartup" />
                 </WrapPanel>

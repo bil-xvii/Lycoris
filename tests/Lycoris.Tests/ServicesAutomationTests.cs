@@ -30,6 +30,34 @@ public sealed class ServicesAutomationTests
         Assert.Equal(new[] { "confirm", "queue", "begin", "exclusive", "write", "readback", "complete" }, backend.Events);
     }
 
+    [Theory]
+    [InlineData("EABackgroundService")]
+    [InlineData("EAAntiCheatService")]
+    [InlineData("XblAuthManager")]
+    [InlineData("XblGameSave")]
+    [InlineData("XboxNetApiSvc")]
+    [InlineData("XboxGipSvc")]
+    public async Task GamingServiceCannotBeDisabledOrStoppedEvenInExpertModeWithoutDependents(string name)
+    {
+        var backend = new FakeBackend(name);
+        backend.Settings = backend.Settings with { Expert = true, ServicesExpert = true };
+        backend.Facts = backend.Facts with
+        {
+            Type = 0x10, Status = ServiceControllerStatus.Running, DependentCount = 0,
+            ImagePath = @"C:\Program Files\Publisher\Service.exe",
+        };
+
+        foreach (var action in new[] { ServiceAction.Disable, ServiceAction.Stop })
+        {
+            var result = await Execute(backend, action, name, exactOnly: true);
+            Assert.Equal(ServiceActionOutcome.Blocked, result.Outcome);
+            Assert.Equal(name, result.CanonicalName);
+            Assert.Equal(ServiceGuard.HardBlockReason(name), result.Message);
+        }
+        Assert.Empty(backend.Events);
+        Assert.Empty(backend.Journal);
+    }
+
     [Fact]
     public async Task EnableUsesDemandStartAndLeavesStoppedServiceStopped()
     {

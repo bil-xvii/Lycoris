@@ -9,8 +9,7 @@
              xmlns:shell="clr-namespace:Lycoris.Shell"
              xmlns:local="clr-namespace:Lycoris.Modules.Assistant"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:AssistantViewModel}">
-    <!-- Verified checks are the default workflow. The optional chat uses the same bounded
-         viewport, so both scroll areas have a finite height and never nest. -->
+    <!-- Chat and diagnostics share a bounded viewport. -->
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -124,13 +123,13 @@
                                                             CornerRadius="{StaticResource R.Md}" Height="30" Padding="12,0">
                                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                             <TextBlock Text="{x:Static ui:Glyphs.Assistant}" FontFamily="{StaticResource F.Icons}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                                            <TextBlock x:Name="ChatLabel" Text="{loc:T 'Чат и команды служб'}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center" />
+                                                            <TextBlock x:Name="ChatLabel" Text="{loc:T 'Открыть чат'}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center" />
                                                             <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" /></Trigger>
-                                                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="ChatLabel" Property="Text" Value="{loc:T 'Скрыть чат и вернуться к проверке'}" /></Trigger>
+                                                        <Trigger Property="IsChecked" Value="True"><Setter TargetName="ChatLabel" Property="Text" Value="{loc:T 'Показать результаты диагностики'}" /></Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
                                             </ToggleButton.Template>
@@ -178,7 +177,7 @@
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsReady, Converter={StaticResource BoolToVis}}">
                         <TextBlock Style="{StaticResource T.Caption}" Text="{loc:T Модель}" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" MinWidth="170" IsEnabled="{Binding IsAnswering, Converter={StaticResource InverseBool}}"
-                                  ToolTip="{loc:T 'Модели, скачанные в Ollama. Побольше — умнее, поменьше — быстрее.'}" />
+                                  AutomationProperties.Name="{loc:T 'Локальная модель'}" />
                     </StackPanel>
                     <Button Style="{StaticResource Btn}" Command="{Binding InstallOllamaCommand}" Visibility="{Binding NeedsOllama, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
@@ -277,7 +276,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.ColumnSpan="2" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" Margin="0,0,0,6"
                            Text="{loc:T '«Включи службу Spooler» разрешает запуск, «запусти службу Spooler» запускает её. Модель для этих команд не нужна.'}" />
-                <TextBox Grid.Row="1" x:Name="Input" Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" MinHeight="30" MaxLength="1000"
+                <TextBox Grid.Row="1" x:Name="Input" Text="{Binding Question, UpdateSourceTrigger=PropertyChanged}" Tag="{loc:T 'Вопрос или команда'}" VerticalContentAlignment="Center" MinHeight="30" MaxLength="1000"
                          AutomationProperties.Name="{loc:T 'Вопрос или команда'}" ToolTip="{loc:T 'Enter — спросить'}">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Enter" Command="{Binding AskCommand}" />

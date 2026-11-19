@@ -48,11 +48,16 @@ public partial class RestoreView : UserControl
     {
         if (_vm?.FocusedSection is not { } section) return;
         _vm.FocusedSection = null; // one-shot
+        if (section == "drift")
+        {
+            MainScroll.ScrollToTop(); // the changed records (or their empty state) start here
+            if (Sec_drift.IsVisible) Sec_drift.BringIntoView();
+            return;
+        }
         FrameworkElement? target = section switch
         {
             "last-batch" => Sec_last_batch,
             "restore-points" => Sec_restore_points,
-            "drift" => Sec_last_batch,
             _ => null, // "journal": the toolbar above the list is always visible
         };
         if (target is null) return;

@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using Lycoris.Core;
+using Lycoris.Modules.Removal;
 
 namespace Lycoris.Modules.Startup;
 
@@ -39,11 +40,16 @@ public static class StartupChanges
         var errors = new List<string>();
         var applied = 0;
 
-        var revert = new List<ChangeRecord>();
+        var revert = new List<(IReadOnlyList<ChangeRecord> Layers, Func<string?>? Refusal)>();
         var write = new List<StartupEntry>();
         foreach (var e in entries)
         {
             var packaged = StartupLocations.IsPackaged(e.Source);
+            if (!enable && EntryDisableRefusal(e) is { } refused)
+            {
+                errors.Add($"{e.DisplayName}: {refused}");
+                continue;
+            }
             // Packaged tasks are checked against the live value right before anything is written (undo included): the
             // package may have been removed or put under policy since the scan. Nothing is written then — no key is created.
             if (packaged && PackagedWriteRefusal(e) is { } refusal)
@@ -55,7 +61,7 @@ public static class StartupChanges
             var layers = journal.ActiveLayers(StartupLocations.JournalTarget(e));
             if (UndoesLayers(e, enable, layers))
             {
-                revert.AddRange(layers);
+                revert.Add((layers, enable ? null : () => EntryDisableRefusal(e)));
                 continue;
             }
             if (packaged && PackagedStartup.IsEnabled(PackagedStartup.ReadState(e.PackageFamilyName!, e.Name)) == enable) continue;
@@ -69,7 +75,9 @@ public static class StartupChanges
             foreach (var e in write)
             {
                 progress?.Report(enable ? Loc.Tf("Включение: {0}", e.DisplayName) : Loc.Tf("Отключение: {0}", e.DisplayName));
-                if (StartupLocations.IsPackaged(e.Source))
+                if (!enable)
+                    DisableEntry(session, e, errors);
+                else if (StartupLocations.IsPackaged(e.Source))
                     // Re-check the live state inside the journal gate: the app may have been removed or put under policy.
                     session.Exclusive(() =>
                     {
@@ -89,9 +97,7 @@ public static class StartupChanges
         if (revert.Count > 0)
         {
             progress?.Report(Loc.T("Возврат исходного состояния…"));
-            var r = await journal.RevertAsync(revert).ConfigureAwait(false);
-            applied += r.Reverted;
-            errors.AddRange(r.Errors);
+            applied += await ApplyRevertsAsync(journal, revert, errors).ConfigureAwait(false);
         }
 
         return new StartupChangeOutcome(applied, errors);
@@ -104,12 +110,18 @@ public static class StartupChanges
         var errors = new List<string>();
         var applied = 0;
 
-        var revert = new List<ChangeRecord>();
+        var revert = new List<(IReadOnlyList<ChangeRecord> Layers, Func<string?>? Refusal)>();
         var write = new List<LogonTask>();
         foreach (var t in tasks)
         {
+            if (!enable && TaskDisableRefusal(t) is { } refused)
+            {
+                errors.Add($"{t.Name}: {refused}");
+                continue;
+            }
             var layers = journal.ActiveLayers($"task:{t.Path}");
-            if (layers.Count > 0 && layers[0].TaskWasEnabled is { } wasEnabled && wasEnabled == enable) revert.AddRange(layers);
+            if (layers.Count > 0 && layers[0].TaskWasEnabled is { } wasEnabled && wasEnabled == enable)
+                revert.Add((layers, enable ? null : () => TaskDisableRefusal(t)));
             else write.Add(t);
         }
 
@@ -120,7 +132,11 @@ public static class StartupChanges
             foreach (var t in write)
             {
                 progress?.Report(enable ? Loc.Tf("Включение задачи: {0}", t.Name) : Loc.Tf("Отключение задачи: {0}", t.Name));
-                session.SetTaskEnabled(t.Path, enable, TaskSource, TaskRecordTitle(t));
+                session.Exclusive(() =>
+                {
+                    if (!enable && TaskDisableRefusal(t) is { } late) { errors.Add($"{t.Name}: {late}"); return; }
+                    session.SetTaskEnabled(t.Path, enable, TaskSource, TaskRecordTitle(t));
+                });
             }
             session.Complete();
             applied += session.Applied;
@@ -130,12 +146,100 @@ public static class StartupChanges
         if (revert.Count > 0)
         {
             progress?.Report(Loc.T("Возврат исходного состояния…"));
-            var r = await journal.RevertAsync(revert).ConfigureAwait(false);
-            applied += r.Reverted;
-            errors.AddRange(r.Errors);
+            applied += await ApplyRevertsAsync(journal, revert, errors).ConfigureAwait(false);
         }
 
         return new StartupChangeOutcome(applied, errors);
+    }
+
+    private static void DisableEntry(ChangeSession session, StartupEntry entry, List<string> errors)
+    {
+        bool Check(RegistryValueSnapshot snapshot)
+        {
+            var refusal = EntryDisableRefusal(entry);
+            if (refusal is null)
+            {
+                var markMatches = StartupLocations.IsPackaged(entry.Source)
+                    ? PackagedStartup.OriginalState(snapshot) == entry.PackageState
+                    : StartupDisableObservation.ReadApproval(entry) is { IsEnabled: true } mark && mark.Matches(snapshot);
+                if (markMatches) return true;
+            }
+            errors.Add($"{entry.DisplayName}: {refusal ?? StartupDisableGuard.Changed}");
+            return false;
+        }
+
+        if (StartupLocations.IsPackaged(entry.Source))
+            session.SetRegistry(RegHive.HKCU, PackagedStartup.KeyPath(entry.PackageFamilyName!, entry.Name), PackagedStartup.StateValue,
+                RegistryValueKind.DWord, PackagedStartup.TargetState(false), EntrySource, EntryRecordTitle(entry), Check);
+        else
+            session.SetRegistry(StartupLocations.ApprovedHive(entry.Source), StartupLocations.ApprovedKey(entry.Source), entry.Name,
+                RegistryValueKind.Binary, StartupApproved.Build(false), EntrySource, EntryRecordTitle(entry), Check);
+    }
+
+    private static string? EntryDisableRefusal(StartupEntry entry)
+    {
+        if (StartupDisableGuard.IsProtected(entry)) return StartupDisableGuard.Protected;
+        try
+        {
+            var current = StartupLocations.IsFolder(entry.Source) || StartupLocations.IsPackaged(entry.Source)
+                ? StaWorker.Run(() => StartupScanner.ReadEntry(entry), "Lycoris startup entry check").GetAwaiter().GetResult()
+                : StartupScanner.ReadEntry(entry);
+            if (StartupDisableGuard.EntryRefusal(entry, current, StartupSignatures.ReadUncached) is { } refusal) return refusal;
+            if (StartupLocations.IsPackaged(entry.Source)) return PackagedWriteRefusal(entry);
+
+            return StartupDisableObservation.ReadApproval(entry).IsEnabled
+                && RegistryHelper.ReadDwordOrMissing(RegHive.HKCU, StartupDisableObservation.ExplorerPolicy, StartupDisableObservation.UserRunPolicy) is not > 0
+                && RegistryHelper.ReadDwordOrMissing(RegHive.HKLM, StartupDisableObservation.ExplorerPolicy, StartupDisableObservation.MachineRunPolicy) is not > 0
+                ? null : StartupDisableGuard.Changed;
+        }
+        catch (Exception ex) when (RemovalSoftwareEvidence.ReadFailed(ex))
+        {
+            return StartupDisableGuard.Changed;
+        }
+    }
+
+    private static string? TaskDisableRefusal(LogonTask task)
+    {
+        if (StartupDisableGuard.IsProtected(task)) return StartupDisableGuard.Protected;
+        try
+        {
+            return StartupDisableGuard.TaskRefusal(task, LogonTaskScanner.ReadCurrent(task.Path), StartupSignatures.ReadUncached);
+        }
+        catch (Exception ex) when (RemovalSoftwareEvidence.ReadFailed(ex))
+        {
+            return StartupDisableGuard.Changed;
+        }
+    }
+
+    private static async Task<int> ApplyRevertsAsync(ChangeJournal journal,
+        IReadOnlyList<(IReadOnlyList<ChangeRecord> Layers, Func<string?>? Refusal)> revert, List<string> errors)
+    {
+        if (revert[0].Refusal is null)
+        {
+            var result = await journal.RevertAsync(revert.SelectMany(target => target.Layers)).ConfigureAwait(false);
+            errors.AddRange(result.Errors);
+            return result.Reverted;
+        }
+
+        var applied = 0;
+        foreach (var (layers, refusal) in revert)
+        {
+            applied += await journal.ExclusiveAsync(async () =>
+            {
+                var reason = refusal!();
+                if (reason is null && !journal.ActiveLayers(layers[0].Target).SequenceEqual(layers))
+                    reason = StartupDisableGuard.Changed;
+                if (reason is not null)
+                {
+                    errors.Add($"{Loc.Sink(layers[0].Title)}: {reason}");
+                    return 0;
+                }
+                var result = await journal.RevertAsync(layers).ConfigureAwait(false);
+                errors.AddRange(result.Errors);
+                return result.Reverted;
+            }).ConfigureAwait(false);
+        }
+        return applied;
     }
 
     /// <summary>Why a packaged task must not be written now (live State re-read), or null.</summary>

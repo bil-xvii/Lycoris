@@ -75,6 +75,10 @@ work, system slowed; **L** = cosmetic.
 | 17 | Two installers started from the same page by double click | page flags | L | kept; `_installWaiting` stops queuing the same click twice |
 | 18 | Cancelling the wrong thing | Apps: «ПРЕРВАТЬ СЕЙЧАС» kills winget and the installer. | M | the «ЗАДАЧИ» list only offers the safe stop (finish the current package, drop the rest); DISM/SFC/network reset show «прервать нельзя»; nothing in the coordinator kills a process |
 
+### Current-user Store app removal (2026-11-19)
+
+Native package deployment can conflict with another writer or leave an uncertain outcome after cancellation. Preview uses `Measure`; explicitly confirmed removal uses `Install`. Each dispatch revalidates desktop identity and the complete native/Appx graph, saves a durable attempt first and defers open apps. Cancellation stops at the next safe boundary; an unobserved native result is not retried automatically. No real package is removed by unit tests or selftest.
+
 ## 4. Design (as implemented)
 
 `Core/OperationCoordinator.cs`:

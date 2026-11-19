@@ -7,6 +7,7 @@ using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
+using Lycoris.Modules.Removal;
 using Lycoris.Shell;
 using Lycoris.UI;
 
@@ -45,8 +46,6 @@ public sealed partial class StartupViewModel : PageViewModel
     [ObservableProperty] private int _visibleCount;
     /// <summary>Enabled entries Windows measured as slowing boot (the sidebar badge and the «ЗАМЕДЛЯЕТ ЗАГРУЗКУ» chip).</summary>
     [ObservableProperty] private int _slowCount;
-    /// <summary>The N of «ОТКЛЮЧИТЬ ЛИШНЕЕ · N»: slowing boot or pointing to a missing file, and allowed to switch off.</summary>
-    [ObservableProperty] private int _extraCount;
     [ObservableProperty] private int _taskCount;
     [ObservableProperty] private int _selectedCount;
     [ObservableProperty] private bool _allSelected;
@@ -225,11 +224,12 @@ public sealed partial class StartupViewModel : PageViewModel
             }
             if (!enable && !item.CanDisable)
             {
-                Ui.Toast(Loc.Tf("«{0}» — значок защиты системы. Lycoris его не отключает.", item.DisplayName), ToastKind.Warning);
+                Ui.Toast(item.ToggleTooltip, ToastKind.Warning);
                 return;
             }
+            var entry = item.Entry;
             if (!enable && !await ConfirmEntriesAsync([item], enable: false)) return;
-            await ApplyEntriesAsync([item], enable, createRestorePoint: false);
+            await ApplyEntriesAsync([item], [entry], enable, createRestorePoint: false);
         }
         finally
         {
@@ -250,8 +250,9 @@ public sealed partial class StartupViewModel : PageViewModel
                 Ui.Toast(item.ToggleTooltip, ToastKind.Warning);
                 return;
             }
+            var task = item.Info;
             if (!enable && !await ConfirmTaskAsync(item)) return;
-            await ApplyTaskAsync(item, enable);
+            await ApplyTaskAsync(item, task, enable);
         }
         finally
         {
@@ -316,30 +317,45 @@ public sealed partial class StartupViewModel : PageViewModel
 
     private string? SelectedKeys() => IntentList.Pack(Items.Where(i => i.IsSelected).Select(i => i.Key));
 
-    /// <summary>
-    /// The page's one main button: switches off what is only extra — entries Windows measured as slowing boot and entries
-    /// whose file is gone. Nothing outside that list is touched; the confirmation lists every entry.
-    /// </summary>
     [RelayCommand]
     private async Task DisableExtraAsync()
     {
-        if (!EnsureIdle() || !RequireAdmin(Loc.T("отключение лишнего автозапуска"), "DisableExtraStartup")) return;
-        var targets = Items.Where(IsExtra).ToList();
-        if (targets.Count == 0)
+        if (!EnsureIdle()) return;
+
+        var action = new StartupDisableBatchAction();
+        RemovalBatchPlan? plan = null;
+        await RunBusyAsync(OperationClass.Measure, Loc.T("Сканирование автозапуска…"),
+            async lease => { plan = await action.PrepareAsync(lease.Token); });
+        if (plan is null) return;
+        if (plan.Items.Count == 0)
         {
-            Ui.Toast("Лишнего в автозапуске не найдено: нет записей, которые замедляют загрузку или указывают на удалённые файлы.", ToastKind.Info);
+            Ui.Toast(plan.UnavailableReason ?? Loc.T("Не найдено записей автозапуска, для которых подтверждён безопасный ручной запуск."), ToastKind.Info);
             return;
         }
-        if (!await ConfirmEntriesAsync(targets, enable: false)) return;
-        await ApplyEntriesAsync(targets, enable: false, createRestorePoint: targets.Count > 1);
-    }
 
-    /// <summary>
-    /// Extra = enabled, allowed to switch off, and either slows boot (Windows measured it), points to a missing file, or is an
-    /// ordinary program that is just as usable without starting at logon (StartupClassifier.IsOptionalAtLogon).
-    /// </summary>
-    internal static bool IsExtra(StartupItem i) => i.IsEnabled && i.CanDisable && i.CanChange
-        && (i.ShowBootDelay || !i.TargetExists || StartupClassifier.IsOptionalAtLogon(i.TargetPath, i.Command, i.Risk));
+        if (!EnsureIdle() || !RequireAdmin(Loc.T("отключение лишнего автозапуска"), "DisableExtraStartup")) return;
+
+        var approved = plan;
+        var keys = approved.Items.Select(item => item.Key).ToHashSet(StringComparer.Ordinal);
+        var details = approved.Items.Select(item => $"{item.Name} · {item.Scope}").ToArray();
+        var confirmed = await Ui.ConfirmAsync(Loc.T("Пакетное отключение автозапуска"),
+            Loc.T("Выбранные программы перестанут запускаться при входе. Их файлы сохранятся. Изменения можно отменить в разделе «Восстановление»."),
+            details, Loc.Tf("Отключить выбранные · {0}", keys.Count), Loc.T("ОТМЕНА"));
+        if (!confirmed || !EnsureIdle()) return;
+
+        await RunBusyAsync(OperationClass.JournalChange, Loc.T("Отключение автозапуска…"), async lease =>
+        {
+            var result = await action.ExecuteAsync(approved, keys, new Progress<string>(lease.Report), lease.Token);
+            await ScanAsync();
+            var errors = result.Errors.ToList();
+            if (result.UnknownOutcome && errors.Count == 0)
+                errors.Add(Loc.T("Не удалось подтвердить результат. Оставшиеся действия остановлены."));
+            if (result.Skipped > 0 && errors.Count == 0)
+                errors.Add(Loc.T("Записи пропущены во время проверки. Подготовьте новый список для отключения."));
+            ReportOutcome(new StartupChangeOutcome(result.Applied, errors), approved.Items.Select(item => item.Name).ToList(),
+                enable: false, Loc.T("Изменение вступит в силу при следующем входе в Windows."));
+        });
+    }
 
     [RelayCommand]
     private async Task DisableSelectedAsync(string? keys)
@@ -352,12 +368,13 @@ public sealed partial class StartupViewModel : PageViewModel
         if (targets.Count == 0)
         {
             Ui.Toast(locked.Count > 0
-                ? Loc.T("Среди выбранных только защитные записи или задачи под управлением политики — их Lycoris не отключает.")
+                ? Loc.T("Выбранные записи защищены или управляются политикой Windows.")
                 : Loc.T("Все выбранные записи уже отключены."), ToastKind.Info);
             return;
         }
+        var entries = targets.Select(i => i.Entry).ToArray();
         if (!await ConfirmEntriesAsync(targets, enable: false, skippedLocked: locked.Count)) return;
-        await ApplyEntriesAsync(targets, enable: false, createRestorePoint: targets.Count > 1);
+        await ApplyEntriesAsync(targets, entries, enable: false, createRestorePoint: targets.Count > 1);
     }
 
     [RelayCommand]
@@ -373,8 +390,9 @@ public sealed partial class StartupViewModel : PageViewModel
                 : Loc.T("Все выбранные записи уже включены."), ToastKind.Info);
             return;
         }
+        var entries = targets.Select(i => i.Entry).ToArray();
         if (targets.Count > 1 && !await ConfirmEntriesAsync(targets, enable: true)) return;
-        await ApplyEntriesAsync(targets, enable: true, createRestorePoint: targets.Count > 1);
+        await ApplyEntriesAsync(targets, entries, enable: true, createRestorePoint: targets.Count > 1);
     }
 
     [RelayCommand]
@@ -393,12 +411,12 @@ public sealed partial class StartupViewModel : PageViewModel
         UpdateSelection();
     }
 
-    private async Task ApplyEntriesAsync(IReadOnlyList<StartupItem> items, bool enable, bool createRestorePoint)
+    private async Task ApplyEntriesAsync(IReadOnlyList<StartupItem> items, IReadOnlyList<StartupEntry> entries, bool enable, bool createRestorePoint)
     {
+        if (!EnsureIdle()) return;
         await RunBusyAsync(OperationClass.JournalChange, enable ? Loc.T("Включение автозапуска…") : Loc.T("Отключение автозапуска…"), async () =>
         {
             var progress = new Progress<string>(t => BusyText = t);
-            var entries = items.Select(i => i.Entry).ToList();
             var outcome = await Task.Run(() => StartupChanges.SetEntriesAsync(entries, enable, createRestorePoint, progress));
 
             foreach (var item in items)
@@ -413,14 +431,17 @@ public sealed partial class StartupViewModel : PageViewModel
         });
     }
 
-    private async Task ApplyTaskAsync(LogonTaskItem item, bool enable)
+    private async Task ApplyTaskAsync(LogonTaskItem item, LogonTask task, bool enable)
     {
+        if (!EnsureIdle()) return;
         await RunBusyAsync(OperationClass.JournalChange, enable ? Loc.T("Включение задачи…") : Loc.T("Отключение задачи…"), async () =>
         {
             var progress = new Progress<string>(t => BusyText = t);
-            var outcome = await Task.Run(() => StartupChanges.SetTasksAsync([item.Info], enable, false, progress));
-            var state = await Task.Run(() => LogonTaskScanner.ReadEnabled(item.Path));
-            if (state is { } on) item.Update(on);
+            var outcome = await Task.Run(() => StartupChanges.SetTasksAsync([task], enable, false, progress));
+            var fresh = await Task.Run(() => LogonTaskScanner.ReadCurrent(item.Path));
+            var index = Tasks.IndexOf(item);
+            if (index >= 0 && fresh is not null)
+                Tasks[index] = new LogonTaskItem(fresh) { BootDelay = item.BootDelay };
             UpdateJournalState();
             Recount();
             ReportOutcome(outcome, [item.DisplayName], enable, Loc.T("Планировщик применяет изменение сразу."));
@@ -482,21 +503,12 @@ public sealed partial class StartupViewModel : PageViewModel
                             (state is { } restored && restored != PackagedStartup.TargetState(enable) ? $", State = {PackagedStartup.SwitchText(enable, restored)}" : ""));
             }
 
-            switch (i.Risk)
-            {
-                case StartupRisk.Microsoft when !enable:
-                    details.Add(Loc.Tf("Внимание ({0}): компонент Microsoft — может пропасть значок в трее или фоновая функция (синхронизация, уведомления).", i.DisplayName));
-                    break;
-                case StartupRisk.Driver when !enable:
-                    details.Add(Loc.Tf("Внимание ({0}): помощник драйвера — могут пропасть панель звука/тачпада/видеокарты, горячие клавиши или эффекты.", i.DisplayName));
-                    break;
-            }
         }
         if (stateNote is not null) details.Add(stateNote);
         if (enable && items.Any(i => i.IsPackaged))
             details.Add(Loc.T("Приложение MSIX Windows запускает при входе, только если его хотя бы раз открывали."));
         if (skippedLocked > 0)
-            details.Add(Loc.Tf("Пропущено записей: {0} (Безопасность Windows, антивирусы и задачи под управлением политики Lycoris не отключает).", skippedLocked));
+            details.Add(Loc.Tf("Пропущено защищённых записей и записей под управлением политики Windows: {0}.", skippedLocked));
         if (items.Count > 1)
             details.Add(Loc.T("Перед изменением Lycoris создаст точку восстановления (если это включено в разделе «Восстановление»)."));
 
@@ -527,11 +539,6 @@ public sealed partial class StartupViewModel : PageViewModel
         };
         if (item.Info.OtherTriggers > 0)
             details.Add(Loc.Tf("У задачи есть ещё триггеры ({0}: по расписанию, при простое и т. п.) — задача отключается целиком, они тоже перестанут срабатывать.", item.Info.OtherTriggers));
-        if (item.Risk == StartupRisk.Driver)
-            details.Add(Loc.T("Внимание: задача производителя оборудования — могут пропасть функции драйвера (панель, горячие клавиши)."));
-        if (item.Risk == StartupRisk.Microsoft)
-            details.Add(Loc.T("Внимание: исполняемый файл подписан Microsoft — проверьте, что задача вам не нужна."));
-
         return Ui.ConfirmAsync("ОТКЛЮЧИТЬ ЗАДАЧУ?",
             Loc.Tf("Задача «{0}» больше не будет запускаться планировщиком Windows. Сама задача не удаляется.", item.DisplayName),
             details,
@@ -678,7 +685,6 @@ public sealed partial class StartupViewModel : PageViewModel
         DisabledCount = TotalCount - EnabledCount;
         MissingCount = Items.Count(i => !i.TargetExists);
         SlowCount = Items.Count(i => i.ShowBootDelay);
-        ExtraCount = Items.Count(IsExtra);
         BadgeText = SlowCount > 0 ? SlowCount.ToString() : null;
         TaskCount = Tasks.Count;
         UpdateSelection();

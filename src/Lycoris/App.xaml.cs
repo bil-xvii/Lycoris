@@ -136,9 +136,15 @@ public partial class App : Application
         var selfTestDir = ArgValue(args, "--selftest");
         var e2eDir = ArgValue(args, "--e2e");
         var snapshot = snapshotDir is not null || selfTestDir is not null;
-        if (snapshot && e2eDir is null) AppSettings.SaveSuspended = true;
 
         if (ArgValue(e.Args, "--startup-timing") is { } timingFile) { StartupTiming.Enable(timingFile); StartupTiming.Mark("OnStartup"); }
+        var timingRun = StartupTiming.Enabled;
+        if ((snapshot || timingRun) && e2eDir is null)
+        {
+            AppSettings.SaveSuspended = true;
+            ChangeSession.Locked = true;
+        }
+        if (selfTestDir is not null) Ui.AutoAnswer = false;
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("Необработанная ошибка: {0}", ex.ExceptionObject);
@@ -162,16 +168,8 @@ public partial class App : Application
             RunEndToEnd(args, e2eDir);
             return;
         }
-        var timingRun = StartupTiming.Enabled; // QA: a read-only extra copy that ignores the instance lock
         var logonLaunch = BackgroundModePolicy.IsLogonLaunch(args, snapshot || timingRun, Elevation.IsElevated);
         var noElevate = snapshot || timingRun || logonLaunch || HasArg(args, "--no-elevate") || HasArg(args, "--elevated");
-        if (selfTestDir is not null)
-        {
-            // Lock every system-changing API before anything else runs.
-            ChangeSession.Locked = true;
-            Ui.AutoAnswer = false;
-        }
-
         // Settings first: the interface language is fixed for the whole run, before any window, dialog or view-model exists
         // ("--lang en|ru" overrides it for this run only: QA / screenshots).
         AppSettings.Load();
@@ -241,10 +239,14 @@ public partial class App : Application
         StartupTiming.Mark("settings+loc+instance lock done");
         Log.PruneOldLogs();
         Lycoris.Core.Security.SelfIntegrity.Start(); // background: exe SHA-256, signature, location, unpacked libraries (diagnostics + elevation gate)
-        if (Elevation.IsElevated && !snapshot)
+        if (Elevation.IsElevated && !snapshot && !timingRun)
         {
-            // Lock down %ProgramData%\Lycoris before the journal is read, then repair an interrupted restore point.
-            AppPaths.SecureMachineDir();
+            if (TryLockJournalWriter() is { } refusal)
+            {
+                MessageBox.Show(refusal, "Lycoris", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Shutdown(4);
+                return;
+            }
             Lycoris.Modules.Drivers.DriverBackupService.QuarantineIfInsecure();
             RestorePointService.RecoverPendingFrequency();
         }
@@ -280,12 +282,12 @@ public partial class App : Application
         vm.NavigateTo(startPage);
         // «--replay-page … --replay-command …»: the action the user clicked before the relaunch with admin rights.
         // Only an elevated copy started by Lycoris itself replays it, once, after the startup checks.
-        if (!snapshot && HasArg(args, "--elevated") && Elevation.IsElevated && AdminIntent.Parse(args) is { } intent)
+        if (!snapshot && !timingRun && HasArg(args, "--elevated") && Elevation.IsElevated && AdminIntent.Parse(args) is { } intent)
             vm.PendingIntent = intent;
 
         if (WizardStartupPolicy.ShouldAutoShow(AppSettings.Current.FirstRunCompleted, AppSettings.Current.FirstRunWizardInProgress, File.Exists(AppPaths.SettingsReadFile), ChangeJournal.Instance.Records.Count > 0,
                 AppSettings.Current.ExpertMode, AppSettings.Current.LastProfile, vm.PendingIntent is not null || HasArg(args, "--replay-page"),
-                snapshot || selfTestDir is not null, snapshotDir is not null && HasArg(args, "--demo-wizard")))
+                snapshot || timingRun, snapshotDir is not null && HasArg(args, "--demo-wizard")))
             window.Wizard.Open();
 
         if (snapshot)
@@ -356,11 +358,17 @@ public partial class App : Application
         StartupTiming.Mark("before window.Show");
         window.ContentRendered += (_, _) => { StartupTiming.Mark("first frame rendered"); };
         if (timingRun || !window.InitializeBackgroundMode(WindowActivation.Value, logonLaunch)) window.Show();
-        _ = vm.RunStartupChecksAsync();
-        if (StartupTiming.Enabled && int.TryParse(ArgValue(args, "--cycle-pages"), out var cycles) && cycles > 0)
-            window.Dispatcher.InvokeAsync(() => StartupTiming.CyclePagesAsync(vm, cycles), DispatcherPriority.ApplicationIdle);
-        UpdateController.Instance.ScheduleStartupCheck();
-        UpdateController.Instance.ScheduleCleanup();
+        if (timingRun)
+        {
+            if (int.TryParse(ArgValue(args, "--cycle-pages"), out var cycles) && cycles > 0)
+                window.Dispatcher.InvokeAsync(() => StartupTiming.CyclePagesAsync(vm, cycles), DispatcherPriority.ApplicationIdle);
+        }
+        else
+        {
+            _ = vm.RunStartupChecksAsync();
+            UpdateController.Instance.ScheduleStartupCheck();
+            UpdateController.Instance.ScheduleCleanup();
+        }
     }
 
     /// <summary>True in a Debug build, or when the environment variable LYCORIS_E2E=1 is set for this run.</summary>
@@ -394,12 +402,19 @@ public partial class App : Application
             }
         }
         AppSettings.Load();
+        Loc.Initialize(ArgValue(args, "--lang") ?? AppSettings.Current.Language);
+        var full = Path.GetFullPath(dir);
         if (Elevation.IsElevated)
         {
-            AppPaths.SecureMachineDir();
+            if (TryLockJournalWriter() is { } refusal)
+            {
+                Directory.CreateDirectory(full);
+                File.WriteAllText(Path.Combine(full, "report.md"), refusal);
+                Shutdown(4);
+                return;
+            }
             RestorePointService.RecoverPendingFrequency();
         }
-        var full = Path.GetFullPath(dir);
         Dispatcher.InvokeAsync(async () =>
         {
             var failures = 99;
@@ -421,12 +436,15 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        // Only an elevated Lycoris writes the machine journal (Save is a no-op otherwise).
+        // Restore only a frequency change made by this process. Shared startup recovery requires the writer lease.
         if (Elevation.IsElevated)
         {
-            // Closed while a restore point was being created: put the lifted 24-hour limit back now.
             try { RestorePointService.RestoreThrottleIfPending(); } catch { }
-            try { ChangeJournal.Instance.Save(); } catch { }
+        }
+        // A journal operation can still be completing after WPF exits. The process owns the lease until it terminates.
+        if (JournalWriterLease.Current is not null)
+        {
+            try { ChangeJournal.SaveIfLoaded(); } catch { }
         }
         if (_ownsMutex)
         {
@@ -626,7 +644,7 @@ public partial class App : Application
         var console = CliConsole.Open();
         var output = console ?? new StringWriter();
         var code = await Lycoris.Modules.Optimize.ProfileCommandLine.RunSafeAsync(args,
-            new Lycoris.Modules.Optimize.ProfileCommandLineHost(TryLockInstanceForCommandLine), output);
+            new Lycoris.Modules.Optimize.ProfileCommandLineHost(TryLockInstanceForCommandLine, TryLockJournalWriter), output);
         if (console is null)
             MessageBox.Show(output.ToString(), "Lycoris", MessageBoxButton.OK, code == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
         else
@@ -634,7 +652,19 @@ public partial class App : Application
         return code;
     }
 
-    /// <summary>The single-instance lock for a command-line apply: a running Lycoris (or a second apply) must not write the journal meanwhile.</summary>
+    private static string? TryLockJournalWriter()
+    {
+        if (JournalWriterLease.TryAcquire(out var busy) is null)
+            return busy
+                ? Loc.T("Журнал изменений уже используется другой копией Lycoris. Закройте её и повторите попытку.")
+                : Loc.T("Не удалось получить защищённый доступ к журналу изменений Lycoris.");
+
+        AppPaths.SecureMachineDir();
+        return AppPaths.MachineDirSecured ? null :
+            Loc.T("Не удалось защитить папку данных Lycoris от записи обычными пользователями.");
+    }
+
+    /// <summary>The interactive session's single-instance lock for a command-line apply.</summary>
     private bool TryLockInstanceForCommandLine()
     {
         try

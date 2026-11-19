@@ -414,12 +414,12 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header: проверено · ОБНОВИТЬ · the ONE main button («ОТКЛЮЧИТЬ ЛИШНЕЕ · N» on АВТОЗАПУСК) -->
+        <!-- Header: refresh and the startup check action -->
         <c:PageHeader Title="{Binding Title}" Subtitle="{Binding Subtitle}" Checked="{Binding CheckedText}" RefreshCommand="{Binding RefreshCommand}">
             <c:PageHeader.Primary>
                 <Button Style="{StaticResource Btn.Primary}" Command="{Binding DisableExtraStartupCommand}"
                         Visibility="{Binding HasPrimary, Converter={StaticResource BoolToVis}}"
-                        ToolTip="{loc:T 'Отключит записи, которые Windows отметила как замедляющие загрузку, и записи с удалёнными файлами. Перед отключением — подтверждение со списком.'}">
+                        ToolTip="{loc:T 'Проверит, какие программы можно запускать вручную. Перед отключением покажет точный список.'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Power}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />

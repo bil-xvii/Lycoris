@@ -300,13 +300,14 @@ public sealed partial class AppsViewModel : PageViewModel
         ApplyFocus(Ui.TakeFocusRequest(Key));
         // The profile may have been incomplete on the first visit (slow WMI after a cold boot): read it again (cheap: cached).
         if (!_gpuKnown || _osUbr == 0) _ = LoadProfileAsync();
-        if (IsQueueRunning || _detecting || WingetState == WingetState.Checking) return;
-        if (DateTime.Now - _lastCheck > TimeSpan.FromMinutes(3))
-        {
-            _ = ScanPeripheralsAsync();
-            await CheckWingetAndDetectAsync();
-        }
+        await RefreshStaleInventoryAsync(IsCurrentInventoryPage);
     }
+
+    protected override bool ForegroundInventoryIsStale =>
+        CanRefresh() && WingetState != WingetState.Checking && InventoryIsStale(_lastCheck);
+
+    protected override Task RefreshForegroundInventoryAsync(Func<bool> stillForeground) =>
+        Task.WhenAll(ScanPeripheralsAsync(), CheckWingetAndDetectAsync());
 
     // ─────────────────────────── install advice ───────────────────────────
 

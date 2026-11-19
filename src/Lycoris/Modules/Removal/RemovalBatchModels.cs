@@ -1,11 +1,12 @@
 namespace Lycoris.Modules.Removal;
 
-internal enum RemovalBatchKind { Uninstall, DisableStartup }
+internal enum RemovalBatchKind { Uninstall, DisableStartup, UninstallWindowsApps }
 
 internal sealed record RemovalBatchItem(string Key, string Name, string Scope, string Note)
 {
     public string? Version { get; init; }
     public string? NativeInstallerId { get; init; }
+    public IReadOnlyList<string> RelatedPackageIds { get; init; } = [];
 }
 
 internal abstract record RemovalBatchPlan(Guid Id, string? UserSid, DateTime ObservedUtc,
@@ -15,7 +16,10 @@ internal abstract record RemovalBatchPlan(Guid Id, string? UserSid, DateTime Obs
     public string? Summary { get; init; }
 }
 
-internal sealed record RemovalBatchResult(int Applied, int Skipped, IReadOnlyList<string> Errors, bool UnknownOutcome = false);
+internal sealed record RemovalBatchResult(int Applied, int Skipped, IReadOnlyList<string> Errors, bool UnknownOutcome = false)
+{
+    public int Pending { get; init; }
+}
 
 internal interface IRemovalBatchAction
 {

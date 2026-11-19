@@ -71,6 +71,7 @@ public sealed class UpdateService
     private readonly Func<SemVer> _current;
     private readonly Func<DateTime> _utcNow;
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _checkGate = new(1, 1);
     private DateTime _backoffUntil = DateTime.MinValue;
     private ReleaseInfo? _available;
 
@@ -136,6 +137,20 @@ public sealed class UpdateService
     /// <see cref="UpdateCheckStatus.Skipped"/> without any request when it is switched off or not due.
     /// </summary>
     public async Task<UpdateCheckResult> CheckAsync(bool manual, CancellationToken ct = default)
+    {
+        await _checkGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            return await CheckCoreAsync(manual, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _checkGate.Release();
+        }
+    }
+
+    private async Task<UpdateCheckResult> CheckCoreAsync(bool manual, CancellationToken ct)
     {
         if (!manual && !IsDue())
         {

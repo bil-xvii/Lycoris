@@ -11,19 +11,26 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 ## Возможности
 
 - **Состояние и тип ПК.** Мониторинг CPU, GPU, RAM, дисков и сети. Тип компьютера определяется по SMBIOS и данным корпуса; неизвестные и противоречивые сведения указаны явно.
+- **Советы с понятным действием.** Панель показывает путь, следующий шаг и кнопку открытия нужного раздела Lycoris или Windows. Поддерживаемое исправление выполняется после подтверждения и проверяется повторно; неизвестная причина сбоя направляет к журналу надёжности.
 - **Помощник.** Объясняет найденные проблемы и применяет поддерживаемые исправления. Без Ollama понимает «включи», «отключи», «запусти» и «останови службу…»: показывает точную цель и последствия, проверяет разрешения и результат. Для свободных вопросов доступен локальный чат через Ollama.
 - **Программы и драйверы.** Рекомендации по подтверждённой потребности: например, игровые службы для обнаруженного Xbox. Ошибка сканирования или старый кэш не считаются отсутствием программы; ручной выбор сохранён.
 - **Игры и профили.** Библиотека, избранное и GameBoost. Профили для игр, работы, стриминга и свой набор учитывают подтверждённую применимость аппаратных настроек.
 - **Обслуживание.** Автозапуск и службы, анализ и очистка временных файлов, системные инструменты.
 - **Удаление и отключение.** Две кнопки сканируют программы, автоматически выбирают подтверждённых кандидатов и после подтверждения точного списка выполняют действие. Подбор по данным установки, подписи и системным связям не ограничен перечнем названий; отдельный предпросмотр позволяет изменить выбор. Удаление идёт через штатный деинсталлятор WinGet и не отменяется журналом; отключение автозапуска сохраняет файлы и допускает откат. Классические программы и пакеты Store видны вместе. Системные компоненты и записи с недостаточными сведениями автоматически не выбираются.
 - **Разбор служб.** Возможные будущие функции сохраняются через обратимую настройку запуска. Удаление остатков ограничено проверенными сценариями: сейчас только простой остаток Everything после подтверждения удаления программы; неизвестные службы не удаляются автоматически.
+- **Приложения Store.** Отдельный список позволяет явно выбрать удаляемые приложения текущего пользователя. Перед удалением повторно проверяются регистрация и зависимости. Xbox, Game Bar, игровые службы, античит и системная инфраструктура защищены от автоматического удаления или отключения.
 - **Контроль изменений.** Проверка ПК без изменений системы, предпросмотр и повторная проверка плана перед установкой. Подтверждение действий с правами администратора, журнал и откат поддерживаемых настроек.
+- **Актуальные сведения.** Открытые списки программ, служб и автозапуска обновляются при возвращении в окно и по интервалу, когда нет игры или другой операции. Поиск новых версий продолжается при работе в трее; установка подтверждается и проверяет подпись релиза.
 
 ## Как выглядит
 
 **Главная — состояние системы и ближайшие действия.**
 
 <img src="docs/branding/screenshots/home.png" width="100%" alt="Lycoris 1.0.26: Главная со сводкой состояния ПК и рекомендуемыми действиями">
+
+**Панель — точный путь, следующий шаг и открытие нужного раздела.**
+
+<img src="docs/branding/screenshots/dashboard-guidance.png" width="100%" alt="Lycoris 1.0.32: советы с путями к журналу надёжности и изоляции ядра Windows, пояснениями и кнопками открытия">
 
 <details>
 <summary>Удаление, помощник, приложения и игровая библиотека</summary>
@@ -34,7 +41,7 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 
 **Помощник — объяснения проблем и доступные действия.**
 
-<img src="docs/branding/screenshots/assistant.png" width="100%" alt="Lycoris 1.0.26: Помощник с объяснением найденных проблем и доступными действиями">
+<img src="docs/branding/screenshots/assistant.png" width="100%" alt="Lycoris 1.0.32: демонстрационный диалог помощника, локальная модель, быстрые вопросы и переходы к действиям">
 
 **Приложения — рекомендации по подтверждённой потребности.**
 
@@ -46,7 +53,7 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 
 </details>
 
-Панель удаления показана в **1.0.28**, остальные скриншоты — из **1.0.26**. Показатели и рекомендации зависят от компьютера.
+Советы панели и помощник показаны в **1.0.32** (диалог демонстрационный), удаление — в **1.0.28**, остальные скриншоты — из **1.0.26**. Показатели и рекомендации зависят от компьютера.
 
 ## Перед запуском
 
@@ -93,6 +100,8 @@ The separate **Uninstall and disable** panel scans desktop registrations and Sto
 
 Windows 10 2004+ / Windows 11 x64; .NET included; RU/EN interface. Simple mode is available to everyone; Expert mode is currently limited to the author's PC. Review and confirm changes requiring administrator rights. Only supported settings can be rolled back; file cleanup is irreversible. Restore points require available and enabled Windows System Protection. Performance gains are not guaranteed.
 
-The uninstall panel screenshot shows **1.0.28**; the other screenshots show **1.0.26** on a specific PC. The app has no Authenticode certificate yet, so Windows may show “Unknown publisher”. Verify the release SHA-256; ECDSA update verification is separate from Windows publisher signing.
+Dashboard advice includes the exact destination, next step and an Open button. Supported fixes require confirmation and a fresh result check. Selected current-user Store applications can be removed after identity and dependency checks; Xbox and Game Bar infrastructure remain protected. Visible software and service lists refresh when idle, and release checks continue during long tray sessions. Update installation remains confirmed and signature-verified.
+
+Dashboard advice and Assistant screenshots show **1.0.32** (a demo conversation); the uninstall panel shows **1.0.28**, and the remaining screenshots show **1.0.26**. The app has no Authenticode certificate yet, so Windows may show “Unknown publisher”. Verify the release SHA-256; ECDSA update verification is separate from Windows publisher signing.
 
 [Лицензия / License](LICENSE.md)
