@@ -163,57 +163,95 @@ public static class InstallerNative
         throw new InvalidOperationException("Unreachable desktop creation state.");
     }
 
-    public static void RequirePrivateDesktop(string runName)
+    public static void RequirePrivateDesktop(string runName) => VerifiedDesktop(runName);
+
+    private static IntPtr VerifiedDesktop(string runName)
     {
         RequireHosted(runName);
+        var desktop = GetThreadDesktop(GetCurrentThreadId());
         if (ObjectName(GetProcessWindowStation()) != StationName(runName) ||
-            ObjectName(GetThreadDesktop(GetCurrentThreadId())) != DesktopName)
+            ObjectName(desktop) != DesktopName)
             throw new InvalidOperationException("The installer worker is outside its private window station or desktop.");
+        return desktop; // Borrowed from GetThreadDesktop. Never close this handle.
     }
 
-    public static int AnswerUninstallDialogs(string runName, uint rootPid, bool? deleteData, ISet<string> answered)
+    public static int AnswerUninstallDialogs(string runName, uint rootPid, bool? deleteData, ISet<string> answered,
+        ISet<string> observations, bool sampleThreads)
     {
-        RequirePrivateDesktop(runName);
+        var desktop = VerifiedDesktop(runName);
+        Observe(observations, $"worker pid={Environment.ProcessId} tid={GetCurrentThreadId()} station={StationName(runName)} desktop={DesktopName} original={rootPid}");
         var owners = new HashSet<uint> { rootPid };
         using var snapshot = CreateToolhelp32Snapshot(2, 0); // TH32CS_SNAPPROCESS
         Check(!snapshot.IsInvalid, "Snapshot owned process tree");
         var entry = new ProcessEntry { Size = (uint)Marshal.SizeOf<ProcessEntry>() };
-        var parents = new Dictionary<uint, uint>();
+        var processes = new Dictionary<uint, (uint Parent, string Image)>();
         Check(Process32FirstW(snapshot, ref entry), "Read process tree");
-        do { parents.Add(entry.ProcessId, entry.ParentProcessId); }
+        do { processes.Add(entry.ProcessId, (entry.ParentProcessId, entry.Executable)); }
         while (Process32NextW(snapshot, ref entry));
         Check(Marshal.GetLastWin32Error() == 18, "Complete process tree snapshot");
         bool expanded;
         do
         {
             expanded = false;
-            foreach (var pair in parents)
-                if (owners.Contains(pair.Value)) expanded |= owners.Add(pair.Key);
+            foreach (var pair in processes)
+                if (owners.Contains(pair.Value.Parent)) expanded |= owners.Add(pair.Key);
         } while (expanded);
 
-        var dialogs = new List<IntPtr>();
-        Check(EnumWindows((window, _) =>
+        int count = 0;
+        foreach (var owner in owners)
         {
-            GetWindowThreadProcessId(window, out var owner);
-            if (owners.Contains(owner) && IsWindowVisible(window) && ClassName(window) == "#32770") dialogs.Add(window);
+            if (!processes.TryGetValue(owner, out var process)) continue;
+            count++;
+            Observe(observations, $"owned pid={owner} parent={process.Parent} image={process.Image}");
+            if (sampleThreads) ObserveOwnedThreads(owner, observations);
+        }
+
+        var dialogs = new List<(IntPtr Handle, uint Pid, uint Tid)>();
+        int ownedWindows = 0;
+        Check(EnumDesktopWindows(desktop, (window, _) =>
+        {
+            var tid = GetWindowThreadProcessId(window, out var pid);
+            if (tid == 0 || !owners.Contains(pid)) return true;
+            ownedWindows++;
+            var windowClass = ClassName(window);
+            Observe(observations, $"private window pid={pid} tid={tid} hwnd={window.ToInt64():X} class={windowClass} visible={IsWindowVisible(window)}");
+            // The private desktop is inactive and a hidden owner can affect IsWindowVisible.
+            // Act only on the same owned native dialog and its exact enabled choice below.
+            if (windowClass == "#32770") dialogs.Add((window, pid, tid));
             return true;
-        }, IntPtr.Zero), "Enumerate owned dialogs");
-        foreach (var dialog in dialogs)
+        }, IntPtr.Zero), "Enumerate verified private desktop");
+        Observe(observations, $"private scan ownedProcesses={count} ownedWindows={ownedWindows} nativeDialogs={dialogs.Count}");
+        foreach (var (dialog, owner, tid) in dialogs)
         {
-            GetWindowThreadProcessId(dialog, out var owner);
-            if (!owners.Contains(owner)) continue;
+            if (GetWindowThreadProcessId(dialog, out var currentOwner) != tid || currentOwner != owner) continue;
             var labels = new List<string>();
+            var childCount = 0;
+            var staticCount = 0;
             EnumChildWindows(dialog, (child, unused) =>
             {
-                if (ClassName(child) == "Static")
+                childCount++;
+                var childClass = ClassName(child);
+                Observe(observations, $"private control pid={owner} tid={tid} hwnd={child.ToInt64():X} class={childClass}");
+                if (childClass == "Static")
                 {
+                    staticCount++;
                     var label = new StringBuilder(1024);
                     // Cross-process GetWindowText does not read controls. Bound WM_GETTEXT on the private desktop.
-                    if (SendMessageTimeoutW(child, 13, new UIntPtr(1024), label, 2, 500, out _) != IntPtr.Zero && label.Length > 0)
+                    var result = SendMessageTimeoutW(child, 13, new UIntPtr(1024), label, 2, 250, out var copied);
+                    if (result == IntPtr.Zero)
+                    {
+                        var error = Marshal.GetLastWin32Error();
+                        Observe(observations, $"WM_GETTEXT pid={owner} tid={tid} hwnd={child.ToInt64():X} win32={error}");
+                    }
+                    else if (label.Length > 0)
+                    {
+                        Observe(observations, $"WM_GETTEXT pid={owner} tid={tid} hwnd={child.ToInt64():X} chars={copied}");
                         labels.Add(Regex.Replace(label.ToString(), @"\s+", " ").Trim());
+                    }
                 }
                 return true;
             }, IntPtr.Zero);
+            Observe(observations, $"private dialog pid={owner} tid={tid} hwnd={dialog.ToInt64():X} children={childCount} statics={staticCount} labels={labels.Count}");
             if (labels.Count == 0) continue;
             const string dataPrompt = "Удалить настройки, логи и кэш Lycoris из %LocalAppData%? Защищённый журнал в %ProgramData% останется. / Delete Lycoris settings, logs, and cache from %LocalAppData%? The protected journal in %ProgramData% will remain.";
             string kind;
@@ -228,17 +266,47 @@ public static class InstallerNative
                 throw new InvalidOperationException("Unexpected Lycoris uninstaller dialog: " + string.Join(" | ", labels));
             if (answered.Contains(kind)) continue; // Posted once. The dialog may still be processing it.
             var control = GetDlgItem(dialog, button);
-            GetWindowThreadProcessId(control, out var controlOwner);
-            if (control == IntPtr.Zero || controlOwner != owner || ClassName(control) != "Button" || !IsWindowEnabled(control))
+            var controlThread = GetWindowThreadProcessId(control, out var controlOwner);
+            if (control == IntPtr.Zero || controlThread != tid || controlOwner != owner ||
+                ClassName(control) != "Button" || !IsWindowEnabled(control))
                 throw new InvalidOperationException("The expected uninstaller button could not be verified.");
             // WM_COMMAND/BN_CLICKED to the verified dialog works on the non-input desktop.
             Check(PostMessageW(dialog, 0x0111, new UIntPtr((uint)button), control), "Answer verified uninstaller dialog");
             answered.Add(kind);
+            Observe(observations, $"posted pid={owner} tid={tid} kind={kind} nativeButton={button}");
         }
-        int count = 0;
-        foreach (var owner in owners)
-            if (parents.ContainsKey(owner)) count++;
         return count;
+    }
+
+    private static void ObserveOwnedThreads(uint pid, ISet<string> observations)
+    {
+        try
+        {
+            using var process = Process.GetProcessById((int)pid);
+            foreach (ProcessThread thread in process.Threads)
+            {
+                if (observations.Count >= 96) return;
+                var desktop = GetThreadDesktop((uint)thread.Id);
+                if (desktop == IntPtr.Zero)
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    Observe(observations, $"owned thread pid={pid} tid={thread.Id} GetThreadDesktopWin32={error}");
+                    continue;
+                }
+                try { Observe(observations, $"owned thread pid={pid} tid={thread.Id} desktop={ObjectName(desktop)}"); }
+                catch (Win32Exception ex) { Observe(observations, $"owned thread pid={pid} tid={thread.Id} ObjectNameWin32={ex.NativeErrorCode}"); }
+            }
+        }
+        catch (Win32Exception ex) { Observe(observations, $"owned pid={pid} threadSnapshotWin32={ex.NativeErrorCode}"); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            Observe(observations, $"owned pid={pid} threadSnapshot={ex.GetType().Name}");
+        }
+    }
+
+    private static void Observe(ISet<string> observations, string message)
+    {
+        if (observations.Count < 96) observations.Add(message);
     }
 
     private static string Quote(string path)
@@ -355,7 +423,8 @@ public static class InstallerNative
     [DllImport("user32.dll")] private static extern bool CloseWindowStation(IntPtr station);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
     private static extern bool GetUserObjectInformationW(IntPtr handle, int index, StringBuilder text, uint bytes, out uint needed);
-    [DllImport("user32.dll", SetLastError = true)] private static extern bool EnumWindows(WindowCallback callback, IntPtr parameter);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool EnumDesktopWindows(IntPtr desktop, WindowCallback callback, IntPtr parameter);
     [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, WindowCallback callback, IntPtr parameter);
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr window);
@@ -363,7 +432,7 @@ public static class InstallerNative
     [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int GetClassNameW(IntPtr window, StringBuilder buffer, int capacity);
     [DllImport("user32.dll")] private static extern IntPtr GetDlgItem(IntPtr dialog, int button);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, UIntPtr word, StringBuilder text,
         uint flags, uint milliseconds, out UIntPtr result);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]

@@ -135,11 +135,15 @@ function Invoke-TestUninstall {
     $decision = if ($Choice -eq 'Silent') { $null } else { $Choice -eq 'Yes' }
     $process = Start-InstallerProcess -Path $uninstaller -Arguments $arguments
     $answered = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $observations = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $emptyPasses = 0
+    $nextThreadSample = 0
     try {
         while ($timer.Elapsed.TotalSeconds -lt 65) {
-            $count = [InstallerNative]::AnswerUninstallDialogs($RunName, [uint32]$process.Id, $decision, $answered)
+            $sampleThreads = $timer.ElapsedMilliseconds -ge $nextThreadSample
+            if ($sampleThreads) { $nextThreadSample = $timer.ElapsedMilliseconds + 4000 }
+            $count = [InstallerNative]::AnswerUninstallDialogs($RunName, [uint32]$process.Id, $decision, $answered, $observations, $sampleThreads)
             if ($process.HasExited -and $count -eq 0) { $emptyPasses++ } else { $emptyPasses = 0 }
             if ($emptyPasses -ge 4) {
                 return [pscustomobject]@{ ExitCode = $process.ExitCode; Dialogs = @($answered) }
@@ -148,7 +152,13 @@ function Invoke-TestUninstall {
         }
         throw "Uninstaller timed out ($Choice). Answered dialogs: $($answered -join ', ')."
     }
-    finally { $process.Dispose() }
+    finally {
+        $process.Dispose()
+        try {
+            $observations | Sort-Object | Set-Content -LiteralPath (Join-Path $state "$CaseName-dialogs.log") -Encoding utf8
+        }
+        catch { Write-Warning 'Could not persist owned uninstaller window observations.' }
+    }
 }
 
 function Assert-TestUninstall {
