@@ -49,10 +49,9 @@ var DeleteData: Boolean;
 function InitializeUninstall(): Boolean;
 begin
   DeleteData := False;
-  if UninstallSilent then
-    Result := True
-  else
-    Result := MsgBox('Удалить настройки, логи и кэш Lycoris из %LocalAppData%? Защищённый журнал в %ProgramData% останется. / Delete Lycoris settings, logs, and cache from %LocalAppData%? The protected journal in %ProgramData% will remain.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+  if not UninstallSilent then
+    DeleteData := MsgBox('Удалить настройки, логи и кэш Lycoris из %LocalAppData%? Защищённый журнал в %ProgramData% останется. / Delete Lycoris settings, logs, and cache from %LocalAppData%? The protected journal in %ProgramData% will remain.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+  Result := True;
 end;
 
 function ShouldDeleteData(): Boolean;
