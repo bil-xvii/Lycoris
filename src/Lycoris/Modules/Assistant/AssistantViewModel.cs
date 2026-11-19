@@ -6,6 +6,7 @@ using Lycoris.Core;
 using Lycoris.Core.Assistant;
 using Lycoris.Core.Diagnostics;
 using Lycoris.Modules.Dashboard;
+using Lycoris.Modules.Devices.Network;
 using Lycoris.Modules.Services;
 using Lycoris.Shell;
 using Lycoris.UI;
@@ -28,12 +29,15 @@ public sealed partial class AssistantMessage : ObservableObject
 }
 
 /// <summary>
-/// «Помощник»: health checks with deterministic guidance, and optional questions answered by a local model.
+/// «Помощник»: health checks, maintenance navigation, and answers from a local model.
 /// The model can point to places in Lycoris. The diagnostic cards offer selected fixes through the dashboard's own workflow.
 /// </summary>
 public sealed partial class AssistantViewModel : PageViewModel
 {
     private readonly Func<Task<HealthReportData?>> _refreshContext;
+    private readonly Func<LocalModelClient> _createClient;
+    private readonly Func<string?> _runningGame;
+    private readonly Func<IReadOnlyList<PaletteEntry>> _getPlaces;
     private CancellationTokenSource? _cts;
 
     public AssistantViewModel(DashboardViewModel dashboard, ServicesViewModel services)
@@ -43,19 +47,24 @@ public sealed partial class AssistantViewModel : PageViewModel
     internal AssistantViewModel(Func<Task<AssistantDiagnosticSnapshot?>> refreshDiagnostics,
         Func<string, Func<string, bool>, Task<AssistantFixResult>> fixDiagnostic, Action<string, string?> open,
         Func<Task<HealthReportData?>> refreshContext,
-        Func<ServiceActionRequest, CancellationToken, Task<ServiceActionResult>>? executeServiceAction = null)
+        Func<ServiceActionRequest, CancellationToken, Task<ServiceActionResult>>? executeServiceAction = null,
+        Func<LocalModelClient>? createClient = null, Func<string?>? runningGame = null,
+        Func<IReadOnlyList<PaletteEntry>>? getPlaces = null)
     {
         _refreshDiagnostics = refreshDiagnostics;
         _fixDiagnostic = fixDiagnostic;
         _open = open;
         _refreshContext = refreshContext;
         _executeServiceAction = executeServiceAction;
+        _createClient = createClient ?? (() => new LocalModelClient());
+        _runningGame = runningGame ?? NetGames.RunningGame;
+        _getPlaces = getPlaces ?? GetShellPlaces;
     }
 
     public override string Key => "assistant";
     public override string Index => "12";
     public override string Title => Loc.T("Помощник");
-    public override string Subtitle => Loc.T("Проверьте компьютер и узнайте, что делать с результатами.");
+    public override string Subtitle => Loc.T("Задавайте вопросы о ПК, проверяйте результаты диагностики и открывайте разделы обслуживания.");
     public override string Glyph => Glyphs.Assistant;
 
     /// <summary>QA only: «--snapshot … --demo-assistant» fills a sample conversation (see <see cref="AssistantDemo"/>).</summary>
@@ -68,7 +77,7 @@ public sealed partial class AssistantViewModel : PageViewModel
     [ObservableProperty] private string _question = "";
     [ObservableProperty] private bool _isAnswering;
     [ObservableProperty] private string? _selectedModel;
-    [ObservableProperty] private bool _isChatOpen;
+    [ObservableProperty] private bool _isChatOpen = true;
 
     public bool IsReady => State == AssistantState.Ready;
     public bool NeedsOllama => State == AssistantState.NoOllama;
@@ -77,7 +86,7 @@ public sealed partial class AssistantViewModel : PageViewModel
 
     public string StateTag => State switch
     {
-        AssistantState.Ready => Loc.T("ГОТОВ"),
+        AssistantState.Ready => Loc.T("ЛОКАЛЬНО"),
         AssistantState.NoOllama => Loc.T("OLLAMA НЕ НАЙДЕН"),
         AssistantState.NoModels => Loc.T("НЕТ МОДЕЛИ"),
         _ => Loc.T("ПРОВЕРКА"),
@@ -85,9 +94,9 @@ public sealed partial class AssistantViewModel : PageViewModel
 
     public string StateText => State switch
     {
-        AssistantState.Ready => Loc.T("Чат работает на этом ПК. Модель объясняет результаты и может открыть раздел Lycoris."),
+        AssistantState.Ready => Loc.T("Ответы генерируются на этом ПК. Во время игры доступны подсказки Lycoris и диагностика."),
         AssistantState.NoOllama => Loc.T("Для чата установите Ollama в разделе «Приложения» и нажмите «Проверить модель»."),
-        AssistantState.NoModels => Loc.T("Для чата скачайте модель командой «ollama pull qwen3:8b» (около 5 ГБ), затем нажмите «Проверить модель»."),
+        AssistantState.NoModels => Loc.T("Ollama подключён. Скачайте локальную модель в Ollama и нажмите «Проверить модель»."),
         _ => Loc.T("Ищем Ollama на этом ПК…"),
     };
 
@@ -100,6 +109,10 @@ public sealed partial class AssistantViewModel : PageViewModel
         Loc.T("Что улучшить для игр?"),
         ExplainProblemsQuestion,
         Loc.T("Что Lycoris уже менял?"),
+        Loc.T("Какие программы и приложения Microsoft Store можно удалить?"),
+        Loc.T("Какие службы стоит проверить?"),
+        Loc.T("Что можно убрать из автозапуска?"),
+        Loc.T("Как проверить временные файлы?"),
     ];
 
     partial void OnStateChanged(AssistantState value)
@@ -111,7 +124,7 @@ public sealed partial class AssistantViewModel : PageViewModel
 
     partial void OnSelectedModelChanged(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || Demo || AppSettings.Current.AssistantModel == value) return;
+        if (value is null || !IsReady || !Models.Contains(value) || Demo || AppSettings.Current.AssistantModel == value) return;
         AppSettings.Current.AssistantModel = value;
         AppSettings.Current.Save();
     }
@@ -138,7 +151,7 @@ public sealed partial class AssistantViewModel : PageViewModel
     {
         if (Demo) return;
         State = AssistantState.Checking;
-        using var client = new LocalModelClient();
+        using var client = _createClient();
         var models = await client.ListModelsAsync();
         Models.Clear();
         if (models is null) { State = AssistantState.NoOllama; MarkChecked(); return; }
@@ -161,29 +174,38 @@ public sealed partial class AssistantViewModel : PageViewModel
 
     private static bool IsExplainProblemsPreset(string? preset) => string.Equals(preset, ExplainProblemsQuestion, StringComparison.Ordinal);
 
-    private bool CanAsk(string? preset) =>
-        !IsAnswering && (IsExplainProblemsPreset(preset) ||
-            (!string.IsNullOrWhiteSpace(preset ?? Question) &&
-             (IsReady || ServiceRequestParser.Parse(preset ?? Question).Kind != ServiceRequestKind.None)));
+    private bool CanAsk(string? preset)
+    {
+        var input = preset ?? Question;
+        return !IsAnswering && !string.IsNullOrWhiteSpace(input) &&
+            (IsReady || IsExplainProblemsPreset(preset) || ServiceRequestParser.Parse(input).Kind != ServiceRequestKind.None ||
+             AssistantMaintenanceIntent.Match(input).Count > 0);
+    }
 
     [RelayCommand(CanExecute = nameof(CanAsk))]
     private async Task AskAsync(string? preset)
     {
         var input = preset ?? Question;
-        if (IsAnswering || string.IsNullOrWhiteSpace(input)) return;
+        if (!CanAsk(preset)) return;
         var explainProblems = IsExplainProblemsPreset(preset);
         var service = ServiceRequestParser.Parse(input);
-        var model = SelectedModel;
-        if (!explainProblems && service.Kind == ServiceRequestKind.None && (!IsReady || model is null)) return;
+        var model = IsReady && SelectedModel is { } selected && Models.Contains(selected) ? selected : null;
         var question = input.Trim();
         if (question.Length > 1000) question = question[..1000];
         Question = "";
         if (explainProblems)
             await AnswerAsync(question, ExplainProblemsAsync);
-        else if (service.Kind != ServiceRequestKind.None)
+        else if (service.Kind == ServiceRequestKind.MissingTarget ||
+            (service.Kind == ServiceRequestKind.Ready && !AssistantMaintenanceIntent.IsBareStartupRequest(input)))
             await AnswerAsync(question, (answer, ct) => AnswerServiceRequestAsync(answer, service, ct));
         else
-            await AnswerAsync(question, (answer, ct) => AnswerWithModelAsync(answer, question, model!, ct));
+        {
+            var maintenance = AssistantMaintenanceIntent.Match(question);
+            if (maintenance.Count == 0 && service.Kind == ServiceRequestKind.Invalid)
+                await AnswerAsync(question, (answer, ct) => AnswerServiceRequestAsync(answer, service, ct));
+            else
+                await AnswerAsync(question, (answer, ct) => AnswerQuestionAsync(answer, question, model, maintenance, ct));
+        }
     }
 
     private async Task AnswerAsync(string question, Func<AssistantMessage, CancellationToken, Task> respond)
@@ -203,11 +225,10 @@ public sealed partial class AssistantViewModel : PageViewModel
             if (answer.Text == Loc.T("Думаю…")) answer.Text = "";
             answer.Note = Loc.T("Ответ остановлен.");
         }
-        catch (HttpRequestException ex)
+        catch (HttpRequestException)
         {
-            Log.Warn("Помощник: Ollama не ответил: {0}", ex.Message);
+            Log.Warn("Помощник: Ollama не ответил.");
             answer.Text = Loc.T("Ollama не ответил. Проверьте, что он запущен, и нажмите «Проверить модель».");
-            answer.Note = ex.Message;
         }
         finally
         {
@@ -217,33 +238,63 @@ public sealed partial class AssistantViewModel : PageViewModel
         }
     }
 
-    private async Task AnswerWithModelAsync(AssistantMessage answer, string question, string model, CancellationToken ct)
+    private static IReadOnlyList<PaletteEntry> GetShellPlaces() =>
+        Ui.Host is MainViewModel shell ? CommandPaletteIndex.Build(shell.Pages) : [];
+
+    private async Task AnswerQuestionAsync(AssistantMessage answer, string question, string? model,
+        IReadOnlyList<(string Page, string Guidance)> maintenance, CancellationToken ct)
+    {
+        var index = maintenance.Count > 0 ? _getPlaces() : [];
+        foreach (var (page, _) in maintenance)
+            if (index.FirstOrDefault(entry => entry.Kind == PaletteKind.Page && entry.PageKey == page && entry.FocusId is null) is { } place)
+                answer.Actions.Add(place);
+
+        var guidance = maintenance.Count == 0 ? null : string.Join("\n\n", maintenance.Select(intent => intent.Guidance));
+        if (model is null)
+        {
+            answer.Text = guidance ?? (IsReady ? Loc.T("Выберите доступную локальную модель или нажмите «Проверить модель».") : StateText);
+            return;
+        }
+
+        answer.Note = guidance;
+        if (await PauseForGameAsync(answer, ct)) return;
+        await AnswerWithModelAsync(answer, question, model, maintenance.Count > 0, ct);
+    }
+
+    private async Task<bool> PauseForGameAsync(AssistantMessage answer, CancellationToken ct)
+    {
+        if (await Task.Run(_runningGame, ct) is null) return false;
+        answer.Text = Loc.T("Идёт игра. Помощник продолжит отвечать через локальную модель после завершения игры. Диагностика и подсказки по обслуживанию доступны сейчас.");
+        return true;
+    }
+
+    private async Task AnswerWithModelAsync(AssistantMessage answer, string question, string model, bool isMaintenance, CancellationToken ct)
     {
         var pc = await _refreshContext().WaitAsync(ct);
-        var index = Ui.Host is MainViewModel shell ? CommandPaletteIndex.Build(shell.Pages) : [];
         var issueTitles = pc?.Checks.Where(c => c.Status == "warn").Select(c => c.Title).Take(3) ?? [];
-        var places = AssistantBrain.SelectPlaces(index, question, issueTitles);
+        var places = AssistantBrain.SelectPlaces(isMaintenance ? answer.Actions.ToArray() : _getPlaces(), question, issueTitles);
         var changes = ChangeJournal.Instance.Records.Where(r => !r.Reverted).OrderByDescending(r => r.TimestampUtc).Select(r => Loc.Sink(r.Title)).Distinct().Take(6).ToList();
 
         var turns = new List<ChatTurn> { new("system", AssistantBrain.SystemPrompt(Loc.IsEnglish) + "\n\n" + AssistantBrain.Context(pc, places, changes)) };
         // A short memory of the conversation (the last two exchanges), so «а подробнее?» works.
-        if (pc is not null)
-            foreach (var m in Messages.Take(Messages.Count - 2).TakeLast(4))
-                turns.Add(new ChatTurn(m.IsUser ? "user" : "assistant", m.Text));
+        foreach (var m in Messages.Take(Messages.Count - 2).TakeLast(4))
+            turns.Add(new ChatTurn(m.IsUser ? "user" : "assistant", m.Text.Length <= 1600 ? m.Text : m.Text[..1600]));
         turns.Add(new ChatTurn("user", question));
 
+        if (await PauseForGameAsync(answer, ct)) return;
         var raw = new System.Text.StringBuilder();
-        using var client = new LocalModelClient();
+        using var client = _createClient();
         var full = await Task.Run(() => client.ChatAsync(model, turns, piece =>
         {
             string text;
             lock (raw) { raw.Append(piece); text = AssistantBrain.ParseReply(raw.ToString(), places).Text; }
-            Ui.Post(() => { if (text.Length > 0) answer.Text = text; });
+            Ui.Post(() => { if (answer.IsStreaming && !ct.IsCancellationRequested && text.Length > 0) answer.Text = text; });
         }, ct), ct);
 
         var reply = AssistantBrain.ParseReply(full, places);
         answer.Text = reply.Text.Length > 0 ? reply.Text : Loc.T("Модель не дала ответа. Попробуйте спросить иначе или выбрать другую модель.");
-        foreach (var a in reply.Actions) answer.Actions.Add(a);
+        if (!isMaintenance)
+            foreach (var a in reply.Actions) answer.Actions.Add(a);
     }
 
     private bool CanStop() => IsAnswering;

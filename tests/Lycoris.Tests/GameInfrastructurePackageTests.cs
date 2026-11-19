@@ -17,6 +17,7 @@ public sealed class GameInfrastructurePackageTests
     public void Exact_game_infrastructure_identity_protects_removal_and_startup(string family)
     {
         Assert.True(PackagedRemovalInventory.IsGamingInfrastructureFamily(family));
+        Assert.True(PackagedRemovalInventory.IsProtectedFamily(family, null));
         Assert.Equal(StartupRisk.Microsoft, StartupClassifier.ClassifyPackagedTask(family, "Startup", null, null));
     }
 
