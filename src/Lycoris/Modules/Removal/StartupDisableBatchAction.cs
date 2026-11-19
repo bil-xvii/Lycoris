@@ -55,13 +55,22 @@ internal sealed class StartupDisableBatchAction : IRemovalBatchAction
         if (problem is not null) return new Plan(this, sid, time, stamp, [], [], problem);
 
         var confirmed = new List<StartupDisableObservation.Entry>();
+        var assessments = new List<RemovalRow>();
+        var facts = _observe.Capture(ct);
         foreach (var group in _scan().GroupBy(entry => entry.Key, Keys))
         {
             ct.ThrowIfCancellationRequested();
-            if (group.Skip(1).Any()) continue;
-            if (_observe.Read(group.First()) is { } observation) confirmed.Add(observation);
-        }
+            if (group.Skip(1).Any())
+            {
+                var rows = group.Select(entry => RemovalPolicy.Startup(entry, unique: false)).ToArray();
+                assessments.Add(rows.FirstOrDefault(row => row.Decision == RemovalDecision.Keep) ?? rows[0]);
+                continue;
+            }
 
+            var assessment = _observe.Read(group.First(), facts, ct);
+            assessments.Add(assessment.Row);
+            if (assessment is { Row.Decision: RemovalDecision.DisableStartup, Proof: { } observation }) confirmed.Add(observation);
+        }
         problem = AccountProblem(sid);
         if (problem is not null) return new Plan(this, sid, time, stamp, [], [], problem);
         if (_time.GetElapsedTime(stamp) >= MaximumAge) return new Plan(this, sid, time, stamp, [], [], Expired);
@@ -69,12 +78,16 @@ internal sealed class StartupDisableBatchAction : IRemovalBatchAction
         var preview = confirmed.Select(observation =>
         {
             var entry = observation.Startup;
-            var row = RemovalPolicy.Startup(entry, unique: true);
+            var row = RemovalPolicy.Startup(entry, unique: true, confirmed: true);
             var scope = StartupLocations.IsMachine(entry.Source) ? Loc.T("ДЛЯ ВСЕХ") : Loc.T("ДЛЯ МЕНЯ");
             return new RemovalBatchItem(row.Key, row.Name, $"{scope} · {StartupLocations.DescribeMark(entry)}",
-                $"{entry.Command}\n{row.Reason}");
+                row.Reason);
         }).ToArray();
-        return new Plan(this, sid, time, stamp, confirmed.AsReadOnly(), Array.AsReadOnly(preview), null);
+        return new Plan(this, sid, time, stamp, confirmed.AsReadOnly(), Array.AsReadOnly(preview), null)
+        {
+            AssessedRows = assessments.AsReadOnly(),
+            Summary = Loc.Tf("Можно отключить {0} из {1} проверенных записей автозапуска.", preview.Length, assessments.Count),
+        };
     }
 
     public async Task<RemovalBatchResult> ExecuteAsync(RemovalBatchPlan plan, IReadOnlySet<string> selectedKeys,
@@ -102,13 +115,21 @@ internal sealed class StartupDisableBatchAction : IRemovalBatchAction
         {
             return Failure(requested.Length, ex.Message);
         }
-        return await StaWorker.Run(() =>
+        try
         {
-            // Starting the session can wait for a restore point. Use the original approved identities again.
-            var afterBegin = Revalidate(approved, beforeBegin.Entries, ct);
-            if (afterBegin.Error is { } afterError) return Failure(requested.Length, afterError);
-            return Apply(session, approved, afterBegin.Entries, requested.Length, ct);
-        }, "Lycoris startup batch write").ConfigureAwait(false);
+            return await StaWorker.Run(() =>
+            {
+                // Starting the session can wait for a restore point. Use the original approved identities again.
+                var afterBegin = Revalidate(approved, beforeBegin.Entries, ct);
+                if (afterBegin.Error is { } afterError) return Failure(requested.Length, afterError);
+                return Apply(session, approved, afterBegin.Entries, requested.Length, ct);
+            }, "Lycoris startup batch write").ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return new RemovalBatchResult(0, requested.Length, []);
+        }
+        finally { session.Complete(); }
     }
 
     private (StartupDisableObservation.Entry[] Entries, string? Error) Revalidate(Plan plan,
@@ -116,10 +137,11 @@ internal sealed class StartupDisableBatchAction : IRemovalBatchAction
     {
         ct.ThrowIfCancellationRequested();
         if (ExecutionProblem(plan) is { } problem) return ([], problem);
+        var facts = _observe.Capture(ct);
         var current = candidates.Where(entry =>
         {
             ct.ThrowIfCancellationRequested();
-            return _observe.Read(entry.Startup) == entry;
+            return _observe.Read(entry.Startup, facts, ct).Proof == entry;
         }).ToArray();
         return (current, ExecutionProblem(plan));
     }
@@ -140,36 +162,39 @@ internal sealed class StartupDisableBatchAction : IRemovalBatchAction
             }
 
             string? blocked = null;
+            RemovalSoftwareSnapshot facts;
+            try { facts = _observe.Capture(ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             session.Exclusive(() =>
             {
                 var entry = observation.Startup;
                 var name = RemovalPolicy.Startup(entry, unique: true).Name;
-                var bytes = StartupApproved.Build(false, _time.GetUtcNow().UtcDateTime);
-                var desired = new StartupDisableObservation.Approval(StartupDisableObservation.ApprovalState.Disabled,
-                    Convert.ToBase64String(bytes));
+                var write = WriteFor(observation);
                 var rejected = false;
-                var wrote = session.SetRegistry(StartupLocations.ApprovedHive(entry.Source), StartupLocations.ApprovedKey(entry.Source),
-                    entry.Name, RegistryValueKind.Binary, bytes, JournalSource, name, snapshot =>
+                var wrote = session.SetRegistry(write.Hive, write.Key, write.Name, write.Kind, write.Value, JournalSource, name, snapshot =>
+                {
+                    try
                     {
                         rejected = ct.IsCancellationRequested
                             || (blocked = ExecutionProblem(plan)) is not null
-                            || !observation.Mark.Matches(snapshot)
-                            || _observe.Read(entry) != observation
+                            || !write.MatchesOriginal(snapshot)
+                            || _observe.Read(entry, facts, ct).Proof != observation
+                            || ct.IsCancellationRequested
                             || (blocked = ExecutionProblem(plan)) is not null;
-                        return !rejected;
-                    });
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested) { rejected = true; }
+                    return !rejected;
+                });
                 if (rejected) return;
 
-                var live = AccountProblem(plan.PreparedSid) is null
-                    ? StartupDisableObservation.ReadApproval(entry)
-                    : new StartupDisableObservation.Approval(StartupDisableObservation.ApprovalState.Unknown);
-                if (wrote && live == desired)
+                var live = AccountProblem(plan.PreparedSid) is null ? write.ReadBack() : ReadBack.Uncertain;
+                if (wrote && live == ReadBack.Changed)
                 {
                     applied++;
                     return;
                 }
 
-                if (wrote || live != observation.Mark)
+                if (wrote || live != ReadBack.Unchanged)
                 {
                     unknown = true;
                     errors.Add(Loc.Tf("Не удалось подтвердить состояние автозапуска после изменения: {0}", name));
@@ -182,11 +207,44 @@ internal sealed class StartupDisableBatchAction : IRemovalBatchAction
             }
             if (unknown) break;
         }
-        session.Complete();
         errors.AddRange(session.Errors);
         return new RemovalBatchResult(applied, requested - applied - (unknown ? 1 : 0), errors.AsReadOnly(), unknown);
     }
 
+    private enum ReadBack { Unchanged, Changed, Uncertain }
+
+    private sealed record MarkWrite(RegHive Hive, string Key, string Name, RegistryValueKind Kind, object Value,
+        Func<RegistryValueSnapshot, bool> MatchesOriginal, Func<ReadBack> ReadBack);
+
+    private MarkWrite WriteFor(StartupDisableObservation.Entry observation)
+    {
+        var entry = observation.Startup;
+        if (observation is StartupDisableObservation.PackagedEntry packaged)
+        {
+            var disabled = (int)PackagedTaskState.DisabledByUser;
+            return new MarkWrite(RegHive.HKCU, PackagedStartup.KeyPath(entry.PackageFamilyName!, entry.Name),
+                PackagedStartup.StateValue, RegistryValueKind.DWord, disabled,
+                snapshot => PackagedStartup.OriginalState(snapshot) == packaged.State, () =>
+                {
+                    try
+                    {
+                        var state = StartupDisableObservation.ReadPackageState(entry);
+                        return state == disabled ? ReadBack.Changed : state == packaged.State ? ReadBack.Unchanged : ReadBack.Uncertain;
+                    }
+                    catch (Exception ex) when (RemovalSoftwareEvidence.ReadFailed(ex)) { return ReadBack.Uncertain; }
+                });
+        }
+
+        var classic = (StartupDisableObservation.ClassicEntry)observation;
+        var bytes = StartupApproved.Build(false, _time.GetUtcNow().UtcDateTime);
+        var desired = new StartupDisableObservation.Approval(StartupDisableObservation.ApprovalState.Disabled, Convert.ToBase64String(bytes));
+        return new MarkWrite(StartupLocations.ApprovedHive(entry.Source), StartupLocations.ApprovedKey(entry.Source),
+            entry.Name, RegistryValueKind.Binary, bytes, classic.Mark.Matches, () =>
+            {
+                var live = StartupDisableObservation.ReadApproval(entry);
+                return live == desired ? ReadBack.Changed : live == classic.Mark ? ReadBack.Unchanged : ReadBack.Uncertain;
+            });
+    }
     private string? ExecutionProblem(Plan plan)
     {
         if (SafetyLock.IsLocked) return Locked;

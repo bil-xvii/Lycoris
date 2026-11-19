@@ -36,9 +36,11 @@ public sealed partial class RemovalViewModel : PageViewModel
     private UninstallReadState? _lastProgramRead;
     private IReadOnlyList<RemovalRow> _programRows = [];
     private IReadOnlyList<RemovalRow> _startupRows = [];
+    private DateTime? _programCheckedAt;
     private DateTime? _startupCheckedAt;
     private bool _programsCurrent;
     private bool _startupCurrent;
+    private bool _programAssessmentShown;
 
     [ObservableProperty] private int _tabIndex;
     [ObservableProperty] private string _searchText = "";
@@ -49,13 +51,17 @@ public sealed partial class RemovalViewModel : PageViewModel
     public RemovalViewModel() : this(new ProgramRemovalBatchAction(), new StartupDisableBatchAction()) { }
 
     internal RemovalViewModel(IRemovalBatchAction uninstallBatch, IRemovalBatchAction disableBatch,
-        Func<string, bool>? requireAdmin = null,
-        Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>>? confirm = null)
+        Func<string, string?, bool>? requireAdmin = null,
+        Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>>? confirm = null,
+        TimeProvider? time = null, Func<string?>? userSid = null)
     {
         _uninstallBatch = uninstallBatch;
         _disableBatch = disableBatch;
-        _requireBatchAdmin = requireAdmin ?? RequireAdmin;
+        _requireBatchAdmin = requireAdmin ?? ((title, command) =>
+            command is null ? RequireAdmin(title) : RequireAdmin(title, command));
         _confirmBatch = confirm ?? ConfirmBatchAsync;
+        _time = time ?? TimeProvider.System;
+        _userSid = userSid ?? (() => UserScope.CurrentSid);
         PropertyChanged += (_, change) =>
         {
             if (change.PropertyName == nameof(IsBusy)) RefreshCommands();
@@ -73,7 +79,9 @@ public sealed partial class RemovalViewModel : PageViewModel
         ? _startupCurrent
             ? Loc.T("Показаны прочитанные записи автозапуска. В списке нет служб и задач планировщика.")
             : Loc.T("Автозапуск недоступен или ещё не проверен для пользователя рабочего стола.")
-        : _lastProgramRead switch
+        : _programAssessmentShown
+            ? Loc.T("Для каждой проверенной записи указана причина решения.")
+            : _lastProgramRead switch
         {
             UninstallReadState.Complete when _programsCurrent =>
                 Loc.T("Показаны программы, зарегистрированные в реестре удаления. Для приложений Microsoft Store откройте список Windows."),
@@ -123,12 +131,17 @@ public sealed partial class RemovalViewModel : PageViewModel
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()
     {
-        InvalidateBatchPreview();
-        if (IsBusy) return;
-        MarkInventoryStale();
+        if (IsBusy)
+        {
+            InvalidateBatchPreview();
+            return;
+        }
 
         await RunBusyAsync(OperationClass.Measure, Loc.T("Проверка программ и автозапуска…"), async () =>
         {
+            InvalidateBatchPreview();
+            BatchMessage = null;
+            MarkInventoryStale();
             var programScan = Task.Run(UninstallEntries.ReadInventory);
             var startupScan = ReadStartupAsync();
             var latest = await programScan;
@@ -136,6 +149,7 @@ public sealed partial class RemovalViewModel : PageViewModel
             _programsCurrent = latest.State == UninstallReadState.Complete;
             if (_programsCurrent || (_programInventory?.State != UninstallReadState.Complete && latest.State != UninstallReadState.Failed))
                 _programInventory = latest;
+            _programCheckedAt = _programInventory?.CheckedAt;
             _programRows = _programInventory is null ? [] : RemovalPolicy.Programs(_programInventory, _programsCurrent);
 
             var startup = await startupScan;
@@ -149,13 +163,37 @@ public sealed partial class RemovalViewModel : PageViewModel
         });
     }
 
+    private void ShowAssessedRows(RemovalBatchKind kind, RemovalBatchPlan plan)
+    {
+        if (plan.AssessedRows.Count == 0 && plan.Summary is null) return;
+        var current = plan.UnavailableReason is null;
+        var checkedAt = plan.ObservedUtc.ToLocalTime();
+        if (kind == RemovalBatchKind.Uninstall)
+        {
+            _programRows = plan.AssessedRows.ToArray();
+            _programsCurrent = current;
+            _programAssessmentShown = true;
+            _programCheckedAt = checkedAt;
+        }
+        else
+        {
+            _startupRows = plan.AssessedRows.ToArray();
+            _startupCurrent = current;
+            _startupCheckedAt = checkedAt;
+        }
+        UpdatePageStatus();
+        UpdateRows();
+    }
+
     private void MarkInventoryStale()
     {
         _programsCurrent = false;
+        _programAssessmentShown = false;
         _startupCurrent = false;
         _startupRows = [];
         _startupCheckedAt = null;
-        if (_programInventory is not null) _programRows = RemovalPolicy.Programs(_programInventory, current: false);
+        _programRows = _programInventory is null ? [] : RemovalPolicy.Programs(_programInventory, current: false);
+        _programCheckedAt = _programInventory?.CheckedAt;
         UpdatePageStatus();
         UpdateRows();
     }
@@ -177,7 +215,7 @@ public sealed partial class RemovalViewModel : PageViewModel
 
     private void UpdatePageStatus()
     {
-        CheckedAt = IsStartupTab ? _startupCheckedAt : _programInventory?.CheckedAt;
+        CheckedAt = IsStartupTab ? _startupCheckedAt : _programCheckedAt;
         OnPropertyChanged(nameof(InventoryMessage));
     }
 
@@ -206,6 +244,8 @@ public sealed partial class RemovalViewModel : PageViewModel
         RefreshCommand.NotifyCanExecuteChanged();
         PrepareUninstallCommand.NotifyCanExecuteChanged();
         PrepareDisableStartupCommand.NotifyCanExecuteChanged();
+        AutoUninstallCommand.NotifyCanExecuteChanged();
+        AutoDisableStartupCommand.NotifyCanExecuteChanged();
         RefreshBatchCommands();
     }
 

@@ -127,7 +127,7 @@
                                                   VerticalContentAlignment="Top">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" />
-                                                <TextBlock Text="{Binding Scope}" Style="{StaticResource T.Caption}" />
+                                                <TextBlock Text="{Binding Metadata}" Style="{StaticResource T.Caption}" />
                                                 <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" />
                                             </StackPanel>
                                         </CheckBox>
@@ -169,13 +169,19 @@
         <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,10,0,10" Padding="12,8">
             <StackPanel>
                 <WrapPanel Margin="0,0,0,4">
-                    <Button Content="{loc:T ПОДОБРАТЬ ПРОГРАММЫ ДЛЯ УДАЛЕНИЯ}" Style="{StaticResource Btn.Primary}"
+                    <Button Content="{loc:T ПРОВЕРИТЬ И УДАЛИТЬ}" Style="{StaticResource Btn.Primary}"
+                            Command="{Binding AutoUninstallCommand}" Margin="0,0,6,4" AutomationProperties.AutomationId="RemovalAutoUninstall" />
+                    <Button Content="{loc:T ПРОВЕРИТЬ И ОТКЛЮЧИТЬ АВТОЗАПУСК}" Style="{StaticResource Btn.Primary}"
+                            Command="{Binding AutoDisableStartupCommand}" Margin="0,0,0,4" AutomationProperties.AutomationId="RemovalAutoDisableStartup" />
+                </WrapPanel>
+                <TextBlock Text="{loc:T 'Lycoris подберёт подходящие записи и попросит подтвердить список. Чтобы сначала изменить выбор, откройте предпросмотр.'}"
+                           Style="{StaticResource T.Caption}" Margin="1,0,0,5" />
+                <WrapPanel Margin="0,0,0,4">
+                    <Button Content="{loc:T ПРЕДПРОСМОТР УДАЛЕНИЯ}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding PrepareUninstallCommand}" Margin="0,0,6,4" AutomationProperties.AutomationId="RemovalPrepareUninstall" />
-                    <Button Content="{loc:T ПОДОБРАТЬ ОТКЛЮЧЕНИЕ АВТОЗАПУСКА}" Style="{StaticResource Btn.Primary}"
+                    <Button Content="{loc:T ПРЕДПРОСМОТР ОТКЛЮЧЕНИЯ}" Style="{StaticResource Btn.Ghost}"
                             Command="{Binding PrepareDisableStartupCommand}" Margin="0,0,0,4" AutomationProperties.AutomationId="RemovalPrepareDisableStartup" />
                 </WrapPanel>
-                <TextBlock Text="{loc:T 'Все подтверждённые кандидаты будут отмечены в списке. Перед выполнением можно снять любые отметки.'}"
-                           Style="{StaticResource T.Caption}" Margin="1,0,0,8" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                               MaxHeight="94" Margin="1,0,0,8" Visibility="{Binding HasBatchMessage, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding BatchMessage}" Style="{StaticResource T.Caption}"

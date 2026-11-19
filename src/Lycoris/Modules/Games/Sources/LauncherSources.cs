@@ -21,10 +21,18 @@ public sealed record UninstallEntry(
 internal enum UninstallScope { Machine64, Machine32, DesktopUser }
 internal enum UninstallReadState { Complete, Partial, Failed }
 
-/// <summary>Read-only identity and installer metadata. Command text, paths and icons are not retained.</summary>
+/// <summary>Read-only identity and installer metadata. Uninstall command text is never retained.</summary>
 internal sealed record UninstallRegistration(
     UninstallScope Scope, string KeyName, string DisplayName, string? Publisher, string? Version,
-    bool? NoRemove, bool? SystemComponent, bool ParentOrUpdate, bool HasUninstallRegistration, string? UninstallFingerprint = null);
+    bool? NoRemove, bool? SystemComponent, bool ParentOrUpdate, bool HasUninstallRegistration, string? UninstallFingerprint = null)
+{
+    public string? InstallLocation { get; init; }
+    public string? DisplayIcon { get; init; }
+    public string? UninstallExecutable { get; init; }
+    public bool? WindowsInstaller { get; init; }
+    public bool IsStandardMsiHook { get; init; }
+    public bool HasDisplayIdentity { get; init; } = true;
+}
 
 internal sealed record UninstallInventory(
     IReadOnlyList<UninstallRegistration> Entries, UninstallReadState State, DateTime CheckedAt);
@@ -34,7 +42,11 @@ public static class UninstallEntries
 {
     private const string UninstallPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
     private static readonly string[] FingerprintValues =
-        ["DisplayName", "Publisher", "DisplayVersion", "UninstallString", "QuietUninstallString", "WindowsInstaller", "WinGetInstallerType"];
+        [
+            "DisplayName", "Publisher", "DisplayVersion", "UninstallString", "QuietUninstallString", "WindowsInstaller",
+            "WinGetInstallerType", "InstallLocation", "DisplayIcon", "NoRemove", "SystemComponent", "ParentKeyName",
+            "ParentDisplayName", "ReleaseType",
+        ];
 
     public static IReadOnlyList<UninstallEntry> ReadAll()
     {
@@ -122,20 +134,88 @@ public static class UninstallEntries
         return state;
     }
 
-    private static UninstallRegistration? ReadRegistration(RegistryKey key, string name, UninstallScope scope)
+    internal static UninstallRegistration? ReadRegistration(RegistryKey key, string name, UninstallScope scope)
     {
         object? ReadValue(string value) => key.GetValue(value, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
 
-        if (ReadValue("DisplayName") is not string display || string.IsNullOrWhiteSpace(display)) return null;
-        var hasHook = ReadValue("UninstallString") is string hook && !string.IsNullOrWhiteSpace(hook);
-        return new UninstallRegistration(scope, name, InventoryText(display) ?? "—",
+        var display = InventoryText(ReadValue("DisplayName"));
+        // WinGet runs at the desktop token and may inherit a different environment. Interpret only the literal hook.
+        var hook = ReadValue("UninstallString") is string rawHook && rawHook.Length <= 32_767
+            && !rawHook.Any(char.IsControl) && key.GetValueKind("UninstallString") is RegistryValueKind.String or RegistryValueKind.ExpandString
+                ? rawHook : null;
+        var hasHook = !string.IsNullOrWhiteSpace(hook);
+        var installLocation = ReadSourcePath("InstallLocation");
+        var displayIcon = ReadSourcePath("DisplayIcon");
+        var uninstallExecutable = InstallerExecutable(hook);
+        if (display is null && installLocation is null && displayIcon is null && uninstallExecutable is null) return null;
+        return new UninstallRegistration(scope, name, display ?? "—",
             InventoryText(ReadValue("Publisher")), InventoryText(ReadValue("DisplayVersion")),
             InstallerFlag(ReadValue("NoRemove")), InstallerFlag(ReadValue("SystemComponent")),
-            ReadValue("ParentKeyName") is not null || ReadValue("ReleaseType") is not null,
-            hasHook, hasHook ? ReadUninstallFingerprint(key) : null);
+            ReadValue("ParentKeyName") is not null || ReadValue("ParentDisplayName") is not null || ReadValue("ReleaseType") is not null,
+            hasHook, hasHook && display is not null ? ReadUninstallFingerprint(key) : null)
+        {
+            InstallLocation = installLocation,
+            DisplayIcon = displayIcon,
+            UninstallExecutable = uninstallExecutable,
+            WindowsInstaller = InstallerFlag(ReadValue("WindowsInstaller")),
+            IsStandardMsiHook = StandardMsiHook(hook, name),
+            HasDisplayIdentity = display is not null,
+        };
+
+        string? ReadSourcePath(string value)
+        {
+            if (ReadValue(value) is not string path || path.Length > 32_767 || path.Any(char.IsControl)) return null;
+            return key.GetValueKind(value) switch
+            {
+                RegistryValueKind.String => path,
+                RegistryValueKind.ExpandString => Environment.ExpandEnvironmentVariables(path),
+                _ => null,
+            };
+        }
     }
 
-    /// <summary>Captures exact kinds and original values without retaining path or command text in the inventory.</summary>
+    // Retain only the declared local executable, never installer arguments or a URI. No file/search-path probe.
+    private static readonly Regex UninstallExecutablePath = new(
+        @"\A\s*(?:""(?<p>[a-z]:\\[^""]+\.exe)""|(?<p>[a-z]:\\[^""]+?\.exe))(?=\s|\z)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
+
+    private static string? InstallerExecutable(string? command)
+    {
+        if (command is null || command.Contains('%') || UninstallExecutablePath.Match(command) is not { Success: true } match) return null;
+        var path = match.Groups["p"].Value;
+        if (!command.TrimStart().StartsWith('"') && path.Any(char.IsWhiteSpace)) return null;
+        var argument = command[match.Length..].Trim().ToUpperInvariant();
+        return argument is "" or "/UNINSTALL" or "--UNINSTALL" or "-UNINSTALL" or "/REMOVE" or "--REMOVE" ? path : null;
+    }
+
+    private static bool StandardMsiHook(string? command, string keyName)
+    {
+        if (command is null || !Guid.TryParseExact(keyName, "B", out var expected)) return false;
+        var text = command.Trim();
+        string exe;
+        string arguments;
+        if (text.StartsWith('"'))
+        {
+            var end = text.IndexOf('"', 1);
+            if (end < 0) return false;
+            exe = text[1..end];
+            arguments = text[(end + 1)..].TrimStart();
+        }
+        else
+        {
+            var end = text.IndexOf(' ');
+            if (end < 0) return false;
+            exe = text[..end];
+            arguments = text[end..].TrimStart();
+        }
+        if (!exe.Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase)
+            && !exe.Equals(Path.Join(Environment.SystemDirectory, "msiexec.exe"), StringComparison.OrdinalIgnoreCase))
+            return false;
+        return arguments.Length > 2 && arguments[0] == '/' && char.ToUpperInvariant(arguments[1]) is 'I' or 'X'
+            && Guid.TryParseExact(arguments[2..].TrimStart(), "B", out var actual) && actual == expected;
+    }
+
+    /// <summary>Captures exact kinds and original values without retaining the uninstall command.</summary>
     internal static string? ReadUninstallFingerprint(RegistryKey key)
     {
         try
@@ -153,7 +233,7 @@ public static class UninstallEntries
                 }
                 var kind = key.GetValueKind(name);
                 data.Write((int)kind);
-                if (name == "WindowsInstaller")
+                if (name is "WindowsInstaller" or "NoRemove" or "SystemComponent")
                 {
                     if (kind != RegistryValueKind.DWord || value is not int flag || flag is not (0 or 1)) return null;
                     data.Write(flag);

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Lycoris.Core;
 using Lycoris.Modules.Apps;
@@ -10,9 +11,12 @@ namespace Lycoris.Tests;
 [Collection("Registry")]
 public sealed class ProgramRemovalBatchTests : IDisposable
 {
-    private const string Vlc = "VideoLAN.VLC";
-    private const string Obs = "OBSProject.OBSStudio";
-    private const string SevenZip = "7zip.7zip";
+    private const string Photo = "Lumen Photo Editor";
+    private const string Editor = "{12345678-1234-1234-1234-123456789ABC}_is1";
+    private const string Notes = "BridgeNotes";
+    private const string PhotoId = @"ARP\Machine\X64\" + Photo;
+    private const string EditorId = @"ARP\User\X64\" + Editor;
+    private const string NotesId = @"ARP\Machine\X86\" + Notes;
     private const string OfficialSource = "https://cdn.winget.microsoft.com/cache";
     private const string SourceIdentifier = "Microsoft.Winget.Source_8wekyb3d8bbwe";
     private const string SourceType = "Microsoft.PreIndexed.Package";
@@ -32,91 +36,207 @@ public sealed class ProgramRemovalBatchTests : IDisposable
     }
 
     [Fact]
-    public async Task Preview_requires_allow_list_and_strictly_unique_source_and_registration()
+    public async Task Preview_assesses_arbitrary_desktop_apps_with_one_inspection_and_two_cli_calls()
     {
         var h = Create();
-        h.Add(Obs, "OBS Studio", "OBS Project", UninstallScope.DesktopUser);
-        h.Add(SevenZip, "7-Zip 25.01 (x64)", "Igor Pavlov");
-        h.Add("Valve.Steam", "Steam", "Valve Corporation");
-        h.Add("EpicGames.EpicGamesLauncher", "Epic Games Launcher", "Epic Games, Inc.");
-        h.Add("Test.Runtime", "Microsoft Visual C++ Runtime", "Microsoft Corporation");
-        h.Add("Test.Driver", "Device Driver", "Contoso");
-        h.ExtraExports.Add((SevenZip, "25.01", "machine"));
-        h.Entries.Add(h.Entries[0] with { Scope = UninstallScope.Machine32, Publisher = "Another publisher", Version = "different" });
+        for (var i = 0; i < 64; i++) h.Add($"DeskTool_{i}");
+        h.OnSource = () => h.Clock.Now += TimeSpan.FromMinutes(6);
 
         var plan = await h.Action.PrepareAsync(default);
 
-        Assert.Equal(Obs, Assert.Single(plan.Items).Key);
+        Assert.Equal(65, plan.Items.Count);
+        Assert.Equal(65, plan.AssessedRows.Count);
+        var photo = Assert.Single(plan.Items, item => item.Key == PhotoId);
+        Assert.Equal(PhotoId, photo.NativeInstallerId);
+        Assert.Equal("25.01", photo.Version);
+        Assert.Equal(h.Clock.Now.UtcDateTime, plan.ObservedUtc);
+        Assert.Equal(1, h.InspectionCount);
+        Assert.Equal(2, h.Calls.Count);
+        Assert.Equal(new[] { "--version" }, h.Calls[0]);
+        Assert.Equal(new[] { "source", "export", "--name", "winget", "--disable-interactivity" }, h.Calls[1]);
         Assert.Empty(h.Dispatches);
-        Assert.Empty(h.Journal.ProgramRemovals);
-    }
-
-    [Fact]
-    public async Task Preview_refuses_same_product_code_in_other_machine_view_even_with_a_different_display_name()
-    {
-        var h = Create();
-        h.Entries.Add(h.Entries[0] with { Scope = UninstallScope.Machine32, DisplayName = "Unrelated product" });
-
-        Assert.Empty((await h.Action.PrepareAsync(default)).Items);
-    }
-
-    [Fact]
-    public void Official_source_uses_live_command_shape_and_export_scope_is_optional()
-    {
-        const string liveSource = """
-            {"Arg":"https://cdn.winget.microsoft.com/cache","Data":"Microsoft.Winget.Source_8wekyb3d8bbwe","Explicit":false,"Identifier":"Microsoft.Winget.Source_8wekyb3d8bbwe","Name":"winget","TrustLevel":["Trusted","StoreOrigin"],"Type":"Microsoft.PreIndexed.Package"}
-            """;
-        const string installedExport = """
-            {"Sources":[{"SourceDetails":{"Argument":"https://cdn.winget.microsoft.com/cache","Identifier":"Microsoft.Winget.Source_8wekyb3d8bbwe","Name":"winget","Type":"Microsoft.PreIndexed.Package"},"Packages":[{"PackageIdentifier":"VideoLAN.VLC","Version":"3.0.21"}]}]}
-            """;
-
-        Assert.True(ProgramRemovalExport.IsOfficialSource(liveSource));
-        Assert.False(ProgramRemovalExport.IsOfficialSource(liveSource.Replace("\"Arg\":", "\"Argument\":")));
-        var export = Assert.IsType<ProgramRemovalExport>(ProgramRemovalExport.Parse(installedExport));
-        var match = Assert.IsType<ProgramRemovalPackage>(export.Match(Vlc, "3.0.21", ProgramRemovalScope.Machine));
-        Assert.Null(match.ExportedScope);
-        Assert.Null(export.Match(Vlc, "3.0.22", ProgramRemovalScope.Machine));
     }
 
     [Theory]
-    [InlineData("VLC media player", true)]
-    [InlineData("7-Zip", true)]
-    [InlineData("{12345678-1234-1234-1234-123456789ABC}", true)]
-    [InlineData("--force", false)]
-    [InlineData("VLC&echo", false)]
-    [InlineData("%TEMP%", false)]
-    [InlineData("empty\"argument", false)]
-    public void Only_bounded_product_codes_can_enter_the_strict_command(string code, bool expected) =>
-        Assert.Equal(expected, UnelevatedWinget.IsSafeProductCode(code));
-
-    [Fact]
-    public async Task Preview_fails_closed_for_partial_inventory_wrong_source_and_inconsistent_scope()
+    [InlineData("Machine32")]
+    [InlineData("DesktopUser")]
+    public async Task Preview_refuses_same_product_code_in_another_view_or_scope_even_with_different_labels(string otherScope)
     {
         var h = Create();
-        h.State = UninstallReadState.Partial;
-        Assert.NotNull((await h.Action.PrepareAsync(default)).UnavailableReason);
-        h.State = UninstallReadState.Complete;
-        h.SourceArgument = "https://other.example/cache";
-        Assert.NotNull((await h.Action.PrepareAsync(default)).UnavailableReason);
-        h.SourceArgument = OfficialSource;
-        h.ListOverride = (_, _) => 0; // Same exact ID in both scopes.
-        Assert.Empty((await h.Action.PrepareAsync(default)).Items);
-        h.ListOverride = (_, scope) => scope == "machine" ? 0 : WingetClient.InternalError;
-        Assert.Empty((await h.Action.PrepareAsync(default)).Items);
+        h.Entries.Add(h.Entries[0] with
+        {
+            Scope = Enum.Parse<UninstallScope>(otherScope),
+            KeyName = Photo.ToUpperInvariant(),
+            DisplayName = "Unrelated Product",
+        });
+
+        var plan = await h.Action.PrepareAsync(default);
+
+        Assert.Empty(plan.Items);
+        Assert.Equal(2, plan.AssessedRows.Count);
+        Assert.All(plan.AssessedRows, row => Assert.Equal(RemovalDecision.Review, row.Decision));
+        Assert.Empty(h.Calls);
     }
 
     [Fact]
-    public async Task Uninstall_only_dispatches_selected_subset_after_durable_audit_and_never_creates_restore_records()
+    public async Task Preview_preserves_assessments_and_requires_both_proof_and_positive_decision()
     {
         var h = Create();
-        h.Add(Obs, "OBS Studio", "OBS Project", UninstallScope.DesktopUser);
+        h.Add(Editor, UninstallScope.DesktopUser);
+        h.Add(Notes, UninstallScope.Machine32);
+        h.Add("--force");
+        h.Decisions[Photo] = (RemovalDecision.ConsiderRemoval, false);
+        h.Decisions[Notes] = (RemovalDecision.Keep, true);
+
+        var plan = await h.Action.PrepareAsync(default);
+
+        Assert.Equal(EditorId, Assert.Single(plan.Items).Key);
+        Assert.Equal(4, plan.AssessedRows.Count);
+        Assert.Equal(RemovalDecision.Review, Assert.Single(plan.AssessedRows, row => row.Name == Photo).Decision);
+        Assert.Equal(RemovalDecision.Keep, Assert.Single(plan.AssessedRows, row => row.Name == Notes).Decision);
+        Assert.Equal(RemovalDecision.Review, Assert.Single(plan.AssessedRows, row => row.Name == "--force").Decision);
+    }
+
+    [Fact]
+    public async Task Partial_inventory_and_source_failure_keep_assessments_with_explicit_unavailable_reason()
+    {
+        var h = Create();
+        h.State = UninstallReadState.Partial;
+        var partial = await h.Action.PrepareAsync(default);
+        Assert.NotNull(partial.UnavailableReason);
+        Assert.Empty(partial.Items);
+        Assert.Equal(RemovalDecision.Review, Assert.Single(partial.AssessedRows).Decision);
+        Assert.Empty(h.Calls);
+
+        h.State = UninstallReadState.Complete;
+        h.SourceArgument = "https://other.example/cache";
+        var unavailable = await h.Action.PrepareAsync(default);
+        Assert.NotNull(unavailable.UnavailableReason);
+        Assert.Empty(unavailable.Items);
+        Assert.Equal(RemovalDecision.Review, Assert.Single(unavailable.AssessedRows).Decision);
+        Assert.Equal(new[] { "--version", "source" }, h.Calls.Select(call => call[0]));
+    }
+
+    [Theory]
+    [InlineData("v1.6.3482", true)]
+    [InlineData("v1.8.1762", true)]
+    [InlineData("v1.8.1791 bad suffix", false)]
+    [InlineData("", false)]
+    public async Task Unverified_or_older_client_leaves_desktop_rows_for_review(string version, bool tooOld)
+    {
+        var h = Create();
+        h.ClientVersion = version;
+
+        var plan = await h.Action.PrepareAsync(default);
+
+        Assert.Empty(plan.Items);
+        Assert.Equal(RemovalDecision.Review, Assert.Single(plan.AssessedRows).Decision);
+        Assert.Equal(tooOld
+            ? Loc.Tf("Для пакетного удаления требуется WinGet версии {0} или новее.", "1.8.1791")
+            : Loc.T("Не удалось подтвердить версию WinGet для пакетного удаления."), plan.UnavailableReason);
+        Assert.Equal(new[] { "--version" }, Assert.Single(h.Calls));
+    }
+
+    [Fact]
+    public async Task Version_is_rechecked_after_consent_and_older_client_never_dispatches()
+    {
+        var h = Create();
+        h.ClientVersion = "v1.8.1791";
+        var plan = await h.Action.PrepareAsync(default);
+        Assert.Equal(PhotoId, Assert.Single(plan.Items).Key);
+        h.ClientVersion = "v1.8.1762";
+        h.Calls.Clear();
+
+        var result = await h.Action.ExecuteAsync(plan, Keys(PhotoId), null, default);
+
+        Assert.Equal(0, result.Applied);
+        Assert.Equal(1, result.Skipped);
+        Assert.False(result.UnknownOutcome);
+        Assert.Empty(h.Dispatches);
+        Assert.Empty(h.Journal.ProgramRemovals);
+        Assert.Equal(new[] { "--version" }, Assert.Single(h.Calls));
+        Assert.Contains(Loc.Tf("Для пакетного удаления требуется WinGet версии {0} или новее.", "1.8.1791"), result.Errors);
+    }
+
+    [Fact]
+    public async Task Changed_or_new_arp_after_analysis_cannot_enter_the_preview()
+    {
+        var h = Create();
+        h.Add(Editor, UninstallScope.DesktopUser);
+        h.OnSource = () =>
+        {
+            h.Entries[0] = h.Entries[0] with { UninstallFingerprint = "changed" };
+            h.Add(Notes);
+        };
+
+        var plan = await h.Action.PrepareAsync(default);
+
+        Assert.Equal(EditorId, Assert.Single(plan.Items).Key);
+        Assert.Equal(2, plan.AssessedRows.Count);
+        Assert.DoesNotContain(plan.AssessedRows, row => row.Name == Notes);
+        Assert.Equal(RemovalDecision.Review, Assert.Single(plan.AssessedRows, row => row.Name == Photo).Decision);
+    }
+
+    [Fact]
+    public async Task Packaged_assessments_are_retained_when_WinGet_source_is_unavailable()
+    {
+        var h = Create();
+        h.SourceArgument = "https://other.example/cache";
+        h.Packaged = new([PackagedRow("Contoso.DigitalSketch", RemovalDecision.Review),
+            PackagedRow("Contoso.SharedSupport", RemovalDecision.Keep)], true);
+
+        var plan = await h.Action.PrepareAsync(default);
+
+        Assert.NotNull(plan.UnavailableReason);
+        Assert.Empty(plan.Items);
+        Assert.Equal(3, plan.AssessedRows.Count);
+        Assert.Contains(plan.AssessedRows, row => row is { Key: "msix:Contoso.DigitalSketch", Decision: RemovalDecision.Review });
+        Assert.Contains(plan.AssessedRows, row => row is { Key: "msix:Contoso.SharedSupport", Decision: RemovalDecision.Keep });
+    }
+
+    [Fact]
+    public async Task Package_query_problem_is_explicit_and_does_not_hide_an_eligible_desktop_entry()
+    {
+        var h = Create();
+        h.Packaged = new([PackagedRow("Contoso.DigitalSketch", RemovalDecision.Review)], false);
+
+        var plan = await h.Action.PrepareAsync(default);
+
+        Assert.Null(plan.UnavailableReason);
+        Assert.Equal(PhotoId, Assert.Single(plan.Items).Key);
+        Assert.Equal(2, plan.AssessedRows.Count);
+        Assert.NotNull(plan.Summary);
+        Assert.Contains(Loc.T("Не удалось проверить пакеты Microsoft Store для пользователя рабочего стола."), plan.Summary);
+    }
+
+    [Fact]
+    public async Task Packaged_inventory_does_not_need_WinGet_when_no_desktop_candidate_is_found()
+    {
+        var h = Create();
+        h.Entries.Clear();
+        h.Packaged = new([PackagedRow("Contoso.DigitalSketch", RemovalDecision.Review)], true);
+
+        var plan = await h.Action.PrepareAsync(default);
+
+        Assert.Null(plan.UnavailableReason);
+        Assert.Empty(plan.Items);
+        Assert.Equal("msix:Contoso.DigitalSketch", Assert.Single(plan.AssessedRows).Key);
+        Assert.Empty(h.Calls);
+    }
+
+    [Fact]
+    public async Task Uninstall_launches_only_the_approved_native_id_after_durable_audit_without_creating_revert_records()
+    {
+        var h = Create();
+        h.Add(Editor, UninstallScope.DesktopUser);
         var plan = await h.Action.PrepareAsync(default);
         h.DispatchOverride = id =>
         {
-            Assert.Equal(Obs, id);
+            Assert.Equal(EditorId, id);
             var before = ChangeJournal.ForTests(h.Path);
             var audit = Assert.Single(before.ProgramRemovals);
             Assert.Equal(plan.Id, audit.BatchId);
+            Assert.Equal(EditorId, audit.PackageId);
             Assert.Equal(ProgramRemovalAuditOutcome.Attempted, audit.Outcome);
             Assert.Equal(ProgramRemovalScope.User, audit.Scope);
             Assert.Null(audit.ExitCode);
@@ -126,20 +246,40 @@ public sealed class ProgramRemovalBatchTests : IDisposable
             return Done(0);
         };
 
-        var result = await h.Action.ExecuteAsync(plan, Keys(Obs), null, default);
+        var result = await h.Action.ExecuteAsync(plan, Keys(EditorId), null, default);
 
         Assert.Equal(1, result.Applied);
         Assert.Equal(0, result.Skipped);
-        var args = Assert.Single(h.Dispatches);
-        Assert.Equal(new[] { "uninstall", "--id", Obs, "--exact", "--source", "winget", "--scope", "user",
-            "--disable-interactivity", "--version", "25.01", "--product-code", Obs, "--silent" }, args);
+        Assert.Equal(new[] { "uninstall", "--id", EditorId, "--exact", "--source", "winget", "--scope", "user",
+            "--disable-interactivity", "--version", "25.01", "--product-code", Editor, "--interactive" }, Assert.Single(h.Dispatches));
         var saved = ChangeJournal.ForTests(h.Path);
         var final = Assert.Single(saved.ProgramRemovals);
         Assert.Equal(ProgramRemovalAuditOutcome.Removed, final.Outcome);
         Assert.True(final.FreshVerified);
         Assert.Empty(saved.Records);
         Assert.Empty(saved.Batches);
-        Assert.Equal("VLC media player", Assert.Single(h.Entries).DisplayName);
+        Assert.Equal(Photo, Assert.Single(h.Entries).KeyName);
+    }
+
+    [Fact]
+    public async Task Confirmed_batch_keeps_revalidating_later_items_after_vendor_window_outlasts_plan_age()
+    {
+        var h = Create();
+        h.Add(Editor, UninstallScope.DesktopUser);
+        var plan = await h.Action.PrepareAsync(default);
+        h.DispatchOverride = id =>
+        {
+            if (id == PhotoId) h.Clock.Now += TimeSpan.FromMinutes(12);
+            h.Remove(id);
+            return Done(0);
+        };
+
+        var result = await h.Action.ExecuteAsync(plan, Keys(PhotoId, EditorId), null, default);
+
+        Assert.Equal(2, result.Applied);
+        Assert.Equal(0, result.Skipped);
+        Assert.Equal(2, h.RevalidationCount);
+        Assert.Equal(new[] { PhotoId, EditorId }, h.Dispatches.Select(args => args[2]));
     }
 
     [Theory]
@@ -153,14 +293,17 @@ public sealed class ProgramRemovalBatchTests : IDisposable
     {
         var h = Create();
         var plan = await h.Action.PrepareAsync(default);
-        var keys = Keys(Vlc);
+        var keys = Keys(PhotoId);
         using var cancel = new CancellationTokenSource();
         switch (change)
         {
             case "stale": h.Clock.Now += TimeSpan.FromMinutes(6); break;
             case "sid": h.Sid = "S-1-5-21-200"; break;
             case "elevation": h.Elevated = false; break;
-            case "unknown-selection": keys.Add(Obs); break;
+            case "unknown-selection":
+                h.Add(Editor, UninstallScope.DesktopUser);
+                keys.Add(EditorId);
+                break;
             case "cloned-plan": plan = plan with { ObservedUtc = h.Clock.Now.UtcDateTime }; break;
             case "cancel": cancel.Cancel(); break;
         }
@@ -176,32 +319,43 @@ public sealed class ProgramRemovalBatchTests : IDisposable
     [Theory]
     [InlineData("version")]
     [InlineData("duplicate")]
-    [InlineData("uninstall-command")]
-    [InlineData("source")]
+    [InlineData("key-case")]
     [InlineData("scope")]
+    [InlineData("command")]
+    [InlineData("source")]
+    [InlineData("native-list")]
+    [InlineData("native-list-error")]
+    [InlineData("proof")]
     [InlineData("after-save")]
-    public async Task Changed_identity_source_scope_or_last_guard_refuses_dispatch(string change)
+    public async Task Drift_or_incomplete_exact_probe_cannot_dispatch(string change)
     {
         var h = Create();
         var plan = await h.Action.PrepareAsync(default);
         switch (change)
         {
             case "version": h.Entries[0] = h.Entries[0] with { Version = "26.0" }; break;
-            case "duplicate": h.Entries.Add(h.Entries[0] with { Scope = UninstallScope.DesktopUser, KeyName = "second" }); break;
-            case "uninstall-command": h.Entries[0] = h.Entries[0] with { UninstallFingerprint = "new-uninstall-command-fingerprint" }; break;
+            case "duplicate": h.Entries.Add(h.Entries[0] with { Scope = UninstallScope.DesktopUser }); break;
+            case "key-case": h.Entries[0] = h.Entries[0] with { KeyName = Photo.ToLowerInvariant() }; break;
+            case "scope": h.Entries[0] = h.Entries[0] with { Scope = UninstallScope.Machine32 }; break;
+            case "command": h.Entries[0] = h.Entries[0] with { UninstallFingerprint = "changed" }; break;
             case "source": h.SourceArgument = "https://other.example/cache"; break;
-            case "scope": h.ListOverride = (_, scope) => scope == "user" ? 0 : WingetClient.NoApplicationsFound; break;
-            case "after-save": h.BeforeTransportGuard = () => h.Entries[0] = h.Entries[0] with { Version = "changed" }; break;
+            case "native-list":
+                // WinGet may know a catalog match for this name. Only the exact local record can authorize removal.
+                h.ListOverride = (id, _) => id == "Contoso.Unrelated" ? 0 : WingetClient.NoApplicationsFound;
+                break;
+            case "native-list-error": h.ListOverride = (_, _) => WingetClient.InternalError; break;
+            case "proof": h.OnlyProof = false; break;
+            case "after-save": h.BeforeTransportGuard = () => h.Entries[0] = h.Entries[0] with { UninstallFingerprint = "changed" }; break;
         }
 
-        var result = await h.Action.ExecuteAsync(plan, Keys(Vlc), null, default);
+        var result = await h.Action.ExecuteAsync(plan, Keys(PhotoId), null, default);
 
         Assert.Equal(0, result.Applied);
         Assert.Equal(1, result.Skipped);
         Assert.NotEmpty(result.Errors);
         Assert.False(result.UnknownOutcome);
         Assert.Empty(h.Dispatches);
-        if (change == "after-save")
+        if (change is "proof" or "after-save")
             Assert.Equal(ProgramRemovalAuditOutcome.NotStarted, Assert.Single(h.Journal.ProgramRemovals).Outcome);
         else Assert.Empty(h.Journal.ProgramRemovals);
     }
@@ -214,7 +368,7 @@ public sealed class ProgramRemovalBatchTests : IDisposable
         var h = Create(Path.Combine(blocked, "journal.json"));
         var plan = await h.Action.PrepareAsync(default);
 
-        var result = await h.Action.ExecuteAsync(plan, Keys(Vlc), null, default);
+        var result = await h.Action.ExecuteAsync(plan, Keys(PhotoId), null, default);
 
         Assert.Equal(0, result.Applied);
         Assert.NotEmpty(result.Errors);
@@ -227,7 +381,7 @@ public sealed class ProgramRemovalBatchTests : IDisposable
     public async Task Successful_process_and_failed_final_save_leaves_attempted_and_stops_queue()
     {
         var h = Create();
-        h.Add(Obs, "OBS Studio", "OBS Project");
+        h.Add(Editor, UninstallScope.DesktopUser);
         var plan = await h.Action.PrepareAsync(default);
         FileStream? held = null;
         h.DispatchOverride = id =>
@@ -238,7 +392,7 @@ public sealed class ProgramRemovalBatchTests : IDisposable
         };
 
         RemovalBatchResult result;
-        try { result = await h.Action.ExecuteAsync(plan, Keys(Vlc, Obs), null, default); }
+        try { result = await h.Action.ExecuteAsync(plan, Keys(PhotoId, EditorId), null, default); }
         finally { held?.Dispose(); }
 
         Assert.True(result.UnknownOutcome);
@@ -258,14 +412,14 @@ public sealed class ProgramRemovalBatchTests : IDisposable
     public async Task Unknown_after_first_success_stops_queue_and_cannot_replay_plan(string change)
     {
         var h = Create();
-        h.Add(Obs, "OBS Studio", "OBS Project");
-        h.Add(SevenZip, "7-Zip 25.01 (x64)", "Igor Pavlov");
+        h.Add(Editor, UninstallScope.DesktopUser);
+        h.Add(Notes, UninstallScope.Machine32);
         var plan = await h.Action.PrepareAsync(default);
         using var cancel = new CancellationTokenSource();
         h.DispatchOverride = id =>
         {
-            if (id == Vlc) { h.Remove(id); return Done(0); }
-            Assert.Equal(Obs, id);
+            if (id == PhotoId) { h.Remove(id); return Done(0); }
+            Assert.Equal(EditorId, id);
             switch (change)
             {
                 case "untracked": return new(UnelevatedOutcome.Untracked, -1, "");
@@ -279,7 +433,7 @@ public sealed class ProgramRemovalBatchTests : IDisposable
             return Done(0);
         };
 
-        var result = await h.Action.ExecuteAsync(plan, Keys(Vlc, Obs, SevenZip), null, cancel.Token);
+        var result = await h.Action.ExecuteAsync(plan, Keys(PhotoId, EditorId, NotesId), null, cancel.Token);
 
         Assert.True(result.UnknownOutcome);
         Assert.Equal(1, result.Applied);
@@ -287,19 +441,23 @@ public sealed class ProgramRemovalBatchTests : IDisposable
         Assert.Equal(2, h.Dispatches.Count);
         Assert.Equal(new[] { ProgramRemovalAuditOutcome.Removed, ProgramRemovalAuditOutcome.Attempted },
             ChangeJournal.ForTests(h.Path).ProgramRemovals.Select(audit => audit.Outcome));
-        await h.Action.ExecuteAsync(plan, Keys(SevenZip), null, default);
+        await h.Action.ExecuteAsync(plan, Keys(NotesId), null, default);
         Assert.Equal(2, h.Dispatches.Count);
     }
 
     private Harness Create(string? path = null)
     {
         var h = new Harness(path ?? Path.Combine(_dir, "journal.json"));
-        h.Add(Vlc, "VLC media player", "VideoLAN");
+        h.Add(Photo);
         return h;
     }
 
+    private static RemovalRow PackagedRow(string name, RemovalDecision decision) =>
+        new($"msix:{name}", name, "Contoso", "1.0", "Store", decision, "Package evidence");
     private static HashSet<string> Keys(params string[] values) => new(values, StringComparer.Ordinal);
     private static UnelevatedResult Done(int exit, string output = "") => new(UnelevatedOutcome.Completed, exit, output);
+
+    private sealed record TestProof(string Fingerprint) : ProgramRemovalProof;
 
     private sealed class ManualClock : TimeProvider
     {
@@ -307,14 +465,14 @@ public sealed class ProgramRemovalBatchTests : IDisposable
         public override DateTimeOffset GetUtcNow() => Now;
     }
 
-    private sealed class Harness
+    private sealed class Harness : IProgramRemovalInspector
     {
         public Harness(string path)
         {
             Path = path;
             Journal = ChangeJournal.ForTests(path);
             Action = new ProgramRemovalBatchAction(() => new UninstallInventory(Entries.ToArray(), State, Clock.Now.UtcDateTime),
-                () => Sid, () => Elevated, RunAsync, Clock, Journal);
+                () => Sid, () => Elevated, this, RunAsync, Clock, Journal, (_, _) => Task.FromResult(Packaged));
         }
 
         public string Path { get; }
@@ -323,49 +481,67 @@ public sealed class ProgramRemovalBatchTests : IDisposable
         public ManualClock Clock { get; } = new();
         public string? Sid { get; set; } = "S-1-5-21-100";
         public bool Elevated { get; set; } = true;
+        public bool OnlyProof { get; set; } = true;
+        public int InspectionCount { get; private set; }
+        public int RevalidationCount { get; private set; }
         public UninstallReadState State { get; set; } = UninstallReadState.Complete;
         public List<UninstallRegistration> Entries { get; } = [];
-        public List<(string Id, string Version, string Scope)> ExtraExports { get; } = [];
+        public Dictionary<string, (RemovalDecision Decision, bool Proof)> Decisions { get; } = new(StringComparer.Ordinal);
+        public List<string[]> Calls { get; } = [];
         public List<string[]> Dispatches { get; } = [];
         public string SourceArgument { get; set; } = OfficialSource;
+        public string ClientVersion { get; set; } = "v1.29.380";
+        public PackagedRemovalSnapshot Packaged { get; set; } = new([], true);
+        public Action? OnSource { get; set; }
         public Func<string, string, int>? ListOverride { get; set; }
         public Func<string, UnelevatedResult>? DispatchOverride { get; set; }
         public Action? BeforeTransportGuard { get; set; }
 
-        public void Add(string id, string name, string publisher, UninstallScope scope = UninstallScope.Machine64) =>
-            Entries.Add(new(scope, id, name, publisher, "25.01", false, false, false, true, "uninstall-command-fingerprint"));
+        public void Add(string id, UninstallScope scope = UninstallScope.Machine64) =>
+            Entries.Add(new(scope, id, id, "Contoso", "25.01", false, false, false, true, $"fingerprint:{id}"));
 
-        public void Remove(string id) => Entries.RemoveAll(entry => entry.KeyName == id);
+        public void Remove(string id) => Entries.RemoveAll(entry => ToNative(entry)?.Id == id);
+
+        public Task<IReadOnlyList<ProgramRemovalAssessment>> InspectAsync(UninstallInventory inventory, CancellationToken ct)
+        {
+            InspectionCount++;
+            return Task.FromResult<IReadOnlyList<ProgramRemovalAssessment>>(inventory.Entries.Select(entry =>
+            {
+                var (decision, proof) = Decisions.GetValueOrDefault(entry.KeyName, (RemovalDecision.ConsiderRemoval, true));
+                var row = new RemovalRow(entry.KeyName, entry.DisplayName, entry.Publisher, entry.Version, entry.Scope.ToString(), decision, "Test evidence");
+                return new ProgramRemovalAssessment(entry, row, proof ? new TestProof(entry.UninstallFingerprint!) : null);
+            }).ToArray());
+        }
+
+        public bool Revalidate(UninstallRegistration registration, ProgramRemovalProof proof, CancellationToken ct)
+        {
+            RevalidationCount++;
+            return OnlyProof && proof is TestProof expected && expected.Fingerprint == registration.UninstallFingerprint;
+        }
 
         private Task<UnelevatedResult> RunAsync(string sid, IReadOnlyList<string> args, Func<bool>? validate, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
+            Assert.True(UnelevatedWinget.IsStrictRemovalCommand(args));
+            Calls.Add(args.ToArray());
+            if (args[0] == "source") OnSource?.Invoke();
             var result = args[0] switch
             {
+                "--version" => Done(0, ClientVersion),
                 "source" => Done(0, JsonSerializer.Serialize(new
                     { Name = "winget", Identifier = SourceIdentifier, Arg = SourceArgument, Type = SourceType })),
-                "export" => Done(0, Export()),
                 "list" => Done(ListOverride?.Invoke(args[2], args[7]) ??
-                    (Entries.Any(entry => entry.KeyName == args[2] && Scope(entry) == args[7]) ? 0 : WingetClient.NoApplicationsFound)),
+                    (Entries.Select(ToNative).Any(entry => entry is not null && entry.Id == args[2] && Scope(entry.Scope) == args[7])
+                        ? 0 : WingetClient.NoApplicationsFound)),
                 "uninstall" => Dispatch(args, validate),
                 _ => throw new InvalidOperationException(),
             };
             return Task.FromResult(result);
         }
 
-        private string Export() => JsonSerializer.Serialize(new
-        {
-            Sources = new[]
-            {
-                new
-                {
-                    SourceDetails = new { Name = "winget", Identifier = SourceIdentifier, Argument = SourceArgument, Type = SourceType },
-                    Packages = Entries.Select(entry => (Id: entry.KeyName, Version: entry.Version!, Scope: Scope(entry)))
-                        .Concat(ExtraExports).Select(item => new { PackageIdentifier = item.Id, Version = item.Version, Scope = item.Scope }),
-                },
-            },
-        });
-
-        private static string Scope(UninstallRegistration entry) => entry.Scope == UninstallScope.DesktopUser ? "user" : "machine";
+        private static NativeArpIdentity? ToNative(UninstallRegistration entry) =>
+            NativeArpIdentity.TryCreate(entry, Architecture.X64);
+        private static string Scope(ProgramRemovalScope scope) => scope == ProgramRemovalScope.User ? "user" : "machine";
 
         private UnelevatedResult Dispatch(IReadOnlyList<string> args, Func<bool>? validate)
         {

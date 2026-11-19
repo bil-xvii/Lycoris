@@ -24,6 +24,8 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     public const string ParameterArg = "--replay-param";
     internal const string RunServiceAction = "RunServiceAction";
     internal const string RemoveServiceResidue = "RemoveServiceResidue";
+    internal const string AutoUninstall = "AutoUninstall";
+    internal const string AutoDisableStartup = "AutoDisableStartup";
 
     /// <summary>Launch arguments for the elevated copy.</summary>
     public IReadOnlyList<string> ToArgs()
@@ -61,8 +63,9 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         // parameter a short line without control characters — nothing else is ever handed to a command.
         if (!IsPageKey(page.Trim())) return null;
         if (!string.IsNullOrEmpty(parameter) && !IsParameter(parameter)) return null;
-        if (!IsValidServiceReplay(page, command, parameter) ||
-            (command is RunServiceAction or RemoveServiceResidue && (repeated || IsReplayFlag(args[^1])))) return null;
+        if (!IsValidRestrictedReplay(page, command, parameter) ||
+            (command is RunServiceAction or RemoveServiceResidue or AutoUninstall or AutoDisableStartup
+                && (repeated || IsReplayFlag(args[^1])))) return null;
         return new AdminIntent(page.Trim(), command.Trim(), string.IsNullOrEmpty(parameter) ? null : parameter);
     }
 
@@ -95,15 +98,17 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         "EnableProtection", "EnableSelectedStartup", "ExportBackup", "FixSafe", "GpuDownload", "InstallHardware", "InstallUpdates",
         "AddPriorityRule", "MeasureFps", "PlayBoostedGame", "ReapplyAllDrift", "ReapplyDrift", "RepairWindows", "RestoreBackup", "RestoreStale", "RevertAll", "RevertBatch",
         "RevertItem", "RevertLastBatch", "RevertRecord", "RevertService", "RevertSetting", "RemovePriorityRule", "RevertTask", "RunCheck", "RunTool", "ScheduleMaintenance", "ShowPoints",
-        RunServiceAction, RemoveServiceResidue, "SetBackgroundStartup", "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
+        RunServiceAction, RemoveServiceResidue, AutoUninstall, AutoDisableStartup, "SetBackgroundStartup",
+        "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
     };
 
     public static bool IsReplayable(string name) => Replayable.Contains(name.Trim());
 
-    private static bool IsValidServiceReplay(string page, string command, string? parameter) => command switch
+    private static bool IsValidRestrictedReplay(string page, string command, string? parameter) => command switch
     {
         RunServiceAction => page == "assistant" && ServiceRequestParser.ParseReplay(parameter) is not null,
         RemoveServiceResidue => page == "services" && ServiceRemoval.IsSupportedName(parameter),
+        AutoUninstall or AutoDisableStartup => page == "removal" && parameter is null,
         _ => true,
     };
 
@@ -130,7 +135,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     /// <summary>The ICommand property «{Command}Command» of <paramref name="target"/>, or null.</summary>
     public ICommand? FindCommand(object target)
     {
-        if (!IsCommandName(Command) || !IsValidServiceReplay(PageKey, Command, Parameter)) return null;
+        if (!IsCommandName(Command) || !IsValidRestrictedReplay(PageKey, Command, Parameter)) return null;
         var property = target.GetType().GetProperty(Command + "Command", BindingFlags.Public | BindingFlags.Instance);
         return property is not null && typeof(ICommand).IsAssignableFrom(property.PropertyType) ? property.GetValue(target) as ICommand : null;
     }

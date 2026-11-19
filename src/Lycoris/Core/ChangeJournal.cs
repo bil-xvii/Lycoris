@@ -1367,7 +1367,7 @@ internal sealed class WindowsJournalSystem : IJournalSystem
             case ChangeKind.Registry when r.Registry is not null:
                 if (ChangeJournal.IsForbiddenRestoreTarget(r.Registry))
                     throw new InvalidOperationException(Loc.Tf("Отказано: {0} — защищённое место реестра. Такую запись Lycoris создать не мог.", r.Registry.FullName));
-                if (r.Source == "startup" && JournalTrust.IsPackagedStartupMark(r.Registry))
+                if ((r.Source is "startup" or StartupDisableBatchAction.JournalSource) && JournalTrust.IsPackagedStartupMark(r.Registry))
                 {
                     // Never recreate the key of an uninstalled app, and never override a state set by policy.
                     if (!RegistryHelper.KeyExists(r.Registry.Hive, r.Registry.Path))
@@ -1775,6 +1775,8 @@ internal static class JournalTrust
 
     private static bool IsBatchStartupMark(ChangeRecord record, RegistryValueSnapshot reg)
     {
+        if (IsPackagedStartupMark(reg))
+            return record.UserSid is not null && reg.KeyExisted && !reg.Path.EndsWith('\\') && record.NewValue == "DWord: 1";
         if (reg.Hive is not (RegHive.HKCU or RegHive.HKLM) || string.IsNullOrWhiteSpace(reg.Name)
             || reg.Name.Any(char.IsControl) || reg.Name.Contains('\\') || !IsClassicStartupMark(reg.Path))
             return false;
