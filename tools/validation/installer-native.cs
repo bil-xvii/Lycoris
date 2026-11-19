@@ -260,12 +260,19 @@ public static class InstallerNative
             var labels = new List<string>();
             var childCount = 0;
             var staticCount = 0;
+            var buttonCount = 0;
+            var lastButton = IntPtr.Zero;
             EnumChildWindows(dialog, (child, unused) =>
             {
                 childCount++;
                 var childThread = GetWindowThreadProcessId(child, out var childOwner);
                 var childClass = ClassName(child);
                 Observe(observations, $"private control pid={childOwner} tid={childThread} dialog={dialog.ToInt64():X} hwnd={child.ToInt64():X} class={childClass} id={GetDlgCtrlID(child)} enabled={IsWindowEnabled(child)}");
+                if (childClass == "Button")
+                {
+                    buttonCount++;
+                    lastButton = child;
+                }
                 if (childOwner != owner || childThread != tid) return true;
                 if (childClass == "Static")
                 {
@@ -290,37 +297,45 @@ public static class InstallerNative
             if (labels.Count == 0) continue;
             const string dataPrompt = "Удалить настройки, логи и кэш Lycoris из %LocalAppData%? Защищённый журнал в %ProgramData% останется. / Delete Lycoris settings, logs, and cache from %LocalAppData%? The protected journal in %ProgramData% will remain.";
             string kind;
-            int button;
+            int button = 0;
             if (deleteData.HasValue && labels.Contains(dataPrompt))
                 (kind, button) = ("data", deleteData.Value ? 6 : 7); // IDYES, IDNO
             else if (deleteData.HasValue && labels.Contains("Are you sure you want to completely remove Lycoris and all of its components?"))
                 (kind, button) = ("confirm", 6);
             else if (deleteData.HasValue && labels.Contains("Lycoris was successfully removed from your computer."))
-                (kind, button) = ("complete", 1); // IDOK
+                kind = "complete";
             else
                 throw new InvalidOperationException("Unexpected Lycoris uninstaller dialog: " + string.Join(" | ", labels));
             if (answered.Contains(kind)) continue; // Posted once. The dialog may still be processing it.
-            var control = GetDlgItem(dialog, button);
+            // MessageBox returns logical IDOK for MB_OK. The single native button in the
+            // hosted completion dialog has control ID 2. WM_COMMAND needs the actual control ID.
+            var completion = kind == "complete";
+            if (completion && buttonCount > 1)
+                throw new InvalidOperationException($"Unexpected completion dialog button count: {buttonCount}.");
+            var expectedId = completion ? "1-or-2" : button.ToString();
+            var control = completion ? lastButton : GetDlgItem(dialog, button);
             if (control == IntPtr.Zero)
             {
-                var error = Marshal.GetLastWin32Error();
-                Observe(observations, $"button pending kind={kind} dialog={dialog.ToInt64():X} expectedId={button} hwnd=0 win32={error}");
+                var error = completion ? 0 : Marshal.GetLastWin32Error();
+                Observe(observations, $"button pending kind={kind} dialog={dialog.ToInt64():X} expectedId={expectedId} hwnd=0 win32={error}");
                 continue;
             }
             var controlThread = GetWindowThreadProcessId(control, out var controlOwner);
             var controlClass = ClassName(control);
             var controlId = GetDlgCtrlID(control);
             var enabled = IsWindowEnabled(control);
-            var description = $"kind={kind} expectedPid={owner} expectedTid={tid} dialog={dialog.ToInt64():X} expectedId={button} hwnd={control.ToInt64():X} pid={controlOwner} tid={controlThread} class={controlClass} id={controlId} enabled={enabled}";
+            var attached = GetAncestor(control, 1) == dialog; // GA_PARENT, excludes owner windows.
+            var description = $"kind={kind} expectedPid={owner} expectedTid={tid} dialog={dialog.ToInt64():X} expectedId={expectedId} hwnd={control.ToInt64():X} pid={controlOwner} tid={controlThread} class={controlClass} id={controlId} attached={attached} enabled={enabled}";
             Observe(observations, "button lookup " + description);
             if (controlThread == 0) continue; // The control disappeared between lookup and identity read.
-            if (controlThread != tid || controlOwner != owner || controlClass != "Button" || controlId != button)
+            var allowedId = completion ? controlId is 1 or 2 : controlId == button;
+            if (controlThread != tid || controlOwner != owner || controlClass != "Button" || !attached || !allowedId)
                 throw new InvalidOperationException("The expected uninstaller button could not be verified: " + description);
             if (!enabled) continue; // The native dialog has not enabled its expected button yet.
             // WM_COMMAND/BN_CLICKED to the verified dialog works on the non-input desktop.
-            Check(PostMessageW(dialog, 0x0111, new UIntPtr((uint)button), control), "Answer verified uninstaller dialog");
+            Check(PostMessageW(dialog, 0x0111, new UIntPtr((uint)controlId), control), "Answer verified uninstaller dialog");
             answered.Add(kind);
-            Observe(observations, $"posted pid={owner} tid={tid} kind={kind} nativeButton={button}");
+            Observe(observations, $"posted pid={owner} tid={tid} kind={kind} nativeButton={controlId}");
         }
         return count;
     }
@@ -480,6 +495,7 @@ public static class InstallerNative
     private static extern int GetClassNameW(IntPtr window, StringBuilder buffer, int capacity);
     [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr GetDlgItem(IntPtr dialog, int button);
     [DllImport("user32.dll")] private static extern int GetDlgCtrlID(IntPtr control);
+    [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, UIntPtr word, StringBuilder text,
         uint flags, uint milliseconds, out UIntPtr result);
