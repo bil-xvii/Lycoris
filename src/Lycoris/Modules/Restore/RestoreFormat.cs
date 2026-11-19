@@ -1,6 +1,7 @@
 using System.Globalization;
 using Lycoris.Core;
 using Lycoris.Core.Services;
+using Lycoris.Modules.Removal;
 
 namespace Lycoris.Modules.Restore;
 
@@ -185,7 +186,12 @@ public static class RestoreFormat
         const string prefix = "tweak:";
         if (source.StartsWith(prefix, StringComparison.Ordinal))
             return Tweaks.TweakCatalog.Find(source[prefix.Length..])?.Title is { } t ? $"«{t}»" : $"«{source[prefix.Length..]}»";
-        var label = source == ServiceRemoval.Source ? Loc.T("Остатки удалённых программ") : Optimize.OptimizeLogic.SourceLabel(source);
+        var label = source switch
+        {
+            ServiceRemoval.Source => Loc.T("Остатки удалённых программ"),
+            StartupDisableBatchAction.JournalSource => Loc.T("УДАЛЕНИЕ И ОТКЛЮЧЕНИЕ"),
+            _ => Optimize.OptimizeLogic.SourceLabel(source),
+        };
         return Loc.Tf("изменение раздела «{0}»", label);
     }
 

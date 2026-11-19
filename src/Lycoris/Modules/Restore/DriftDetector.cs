@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.ServiceProcess;
 using Lycoris.Core;
+using Lycoris.Modules.Removal;
 using Lycoris.Modules.Startup;
 
 namespace Lycoris.Modules.Restore;
@@ -93,11 +94,13 @@ public static class DriftDetector
         return s.StartsWith(TweakPrefix, StringComparison.Ordinal) && s.Length > TweakPrefix.Length ? s[TweakPrefix.Length..] : null;
     }
 
-    public static bool IsStartupEntry(ChangeRecord r) => r.Kind == ChangeKind.Registry && LatestSource(r) == StartupSource;
+    public static bool IsStartupEntry(ChangeRecord r) =>
+        r.Kind == ChangeKind.Registry && LatestSource(r) is StartupSource or StartupDisableBatchAction.JournalSource;
 
     /// <summary>A packaged (MSIX) app's startup task: DWORD State, not a StartupApproved mark.</summary>
     public static bool IsPackagedMark(ChangeRecord r) =>
-        IsStartupEntry(r) && r.Registry is { } reg && JournalTrust.IsPackagedStartupMark(reg);
+        r.Kind == ChangeKind.Registry && LatestSource(r) == StartupSource
+        && r.Registry is { } reg && JournalTrust.IsPackagedStartupMark(reg);
 
     public static DriftFix ClassifyFix(ChangeRecord r, bool tweakFound)
     {
@@ -118,6 +121,7 @@ public static class DriftDetector
         _ when source.StartsWith(TweakPrefix, StringComparison.Ordinal) => "optimize",
         ServicesSource or ServicesTaskSource => "services",
         StartupSource or StartupTaskSource => "startup",
+        StartupDisableBatchAction.JournalSource => "removal",
         "drivers" => "drivers",
         GamesSource => "games",
         DevicesSource => "devices",

@@ -23,12 +23,13 @@ public static class StartupSignatures
         FileInfo fi;
         try { fi = new FileInfo(path); if (!fi.Exists) return (null, null); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return (null, null); }
-        return Cache.GetOrAdd((fi.FullName.ToLowerInvariant(), fi.Length, fi.LastWriteTimeUtc), _ =>
-        {
-            // embedded signature, else the Windows catalogs (Windows' own programs are catalog-signed — not «unsigned»)
-            var (state, signer) = Authenticode.CheckWithCatalog(path);
-            if (state == SignatureState.Error) return (null, null);   // locked / unreadable: say nothing rather than guess
-            return (state, state == SignatureState.Valid ? signer : null);
-        });
+        return Cache.GetOrAdd((fi.FullName.ToLowerInvariant(), fi.Length, fi.LastWriteTimeUtc), _ => ReadUncached(path));
+    }
+
+    internal static (SignatureState? State, string? SignedBy) ReadUncached(string path)
+    {
+        // Windows' catalog signatures count too. Mutating actions must not reuse a path/size/timestamp cache entry.
+        var (state, signer) = Authenticode.CheckWithCatalog(path);
+        return state == SignatureState.Error ? (null, null) : (state, state == SignatureState.Valid ? signer : null);
     }
 }

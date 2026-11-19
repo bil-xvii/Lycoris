@@ -1,4 +1,6 @@
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using Lycoris.Core;
@@ -22,7 +24,7 @@ internal enum UninstallReadState { Complete, Partial, Failed }
 /// <summary>Read-only identity and installer metadata. Command text, paths and icons are not retained.</summary>
 internal sealed record UninstallRegistration(
     UninstallScope Scope, string KeyName, string DisplayName, string? Publisher, string? Version,
-    bool? NoRemove, bool? SystemComponent, bool ParentOrUpdate, bool HasUninstallRegistration);
+    bool? NoRemove, bool? SystemComponent, bool ParentOrUpdate, bool HasUninstallRegistration, string? UninstallFingerprint = null);
 
 internal sealed record UninstallInventory(
     IReadOnlyList<UninstallRegistration> Entries, UninstallReadState State, DateTime CheckedAt);
@@ -31,6 +33,8 @@ internal sealed record UninstallInventory(
 public static class UninstallEntries
 {
     private const string UninstallPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
+    private static readonly string[] FingerprintValues =
+        ["DisplayName", "Publisher", "DisplayVersion", "UninstallString", "QuietUninstallString", "WindowsInstaller", "WinGetInstallerType"];
 
     public static IReadOnlyList<UninstallEntry> ReadAll()
     {
@@ -123,11 +127,51 @@ public static class UninstallEntries
         object? ReadValue(string value) => key.GetValue(value, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
 
         if (ReadValue("DisplayName") is not string display || string.IsNullOrWhiteSpace(display)) return null;
+        var hasHook = ReadValue("UninstallString") is string hook && !string.IsNullOrWhiteSpace(hook);
         return new UninstallRegistration(scope, name, InventoryText(display) ?? "—",
             InventoryText(ReadValue("Publisher")), InventoryText(ReadValue("DisplayVersion")),
             InstallerFlag(ReadValue("NoRemove")), InstallerFlag(ReadValue("SystemComponent")),
             ReadValue("ParentKeyName") is not null || ReadValue("ReleaseType") is not null,
-            ReadValue("UninstallString") is string hook && !string.IsNullOrWhiteSpace(hook));
+            hasHook, hasHook ? ReadUninstallFingerprint(key) : null);
+    }
+
+    /// <summary>Captures exact kinds and original values without retaining path or command text in the inventory.</summary>
+    internal static string? ReadUninstallFingerprint(RegistryKey key)
+    {
+        try
+        {
+            using var bytes = new MemoryStream();
+            using var data = new BinaryWriter(bytes, Encoding.Unicode, leaveOpen: true);
+            foreach (var name in FingerprintValues)
+            {
+                var value = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+                data.Write(value is not null);
+                if (value is null)
+                {
+                    if (name is "DisplayName" or "DisplayVersion" or "Publisher" or "UninstallString") return null;
+                    continue;
+                }
+                var kind = key.GetValueKind(name);
+                data.Write((int)kind);
+                if (name == "WindowsInstaller")
+                {
+                    if (kind != RegistryValueKind.DWord || value is not int flag || flag is not (0 or 1)) return null;
+                    data.Write(flag);
+                }
+                else
+                {
+                    if (kind is not (RegistryValueKind.String or RegistryValueKind.ExpandString) || value is not string text ||
+                        text.Length > 32_767 || name == "WinGetInstallerType" && text.Equals("portable", StringComparison.OrdinalIgnoreCase))
+                        return null;
+                    data.Write(text);
+                }
+            }
+            return Convert.ToHexString(SHA256.HashData(bytes.GetBuffer().AsSpan(0, (int)bytes.Length)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+        {
+            return null;
+        }
     }
 
     internal static bool? InstallerFlag(object? value) => value switch { null or 0 => false, 1 => true, _ => null };
