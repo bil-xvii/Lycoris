@@ -9,7 +9,7 @@ namespace Lycoris.Modules.Optimize;
 /// .reg backups, restore point) under the <see cref="OperationClass.JournalChange"/> lease — no second write path.
 /// Create and call on the dispatcher thread (the page view-model owns DispatcherTimers).
 /// </summary>
-internal sealed class ProfileCommandLineHost(Func<bool> tryLockInstance) : IProfileCliHost
+internal sealed class ProfileCommandLineHost(Func<bool> tryLockInstance, Func<string?> tryLockJournal) : IProfileCliHost
 {
     private PowerPlanIntent? _powerPlan;
 
@@ -56,6 +56,8 @@ internal sealed class ProfileCommandLineHost(Func<bool> tryLockInstance) : IProf
 
     public bool TryLockInstance() => tryLockInstance();
 
+    public string? TryLockJournal() => tryLockJournal();
+
     public async Task<TweakRunResult> ApplyAsync(IReadOnlyList<Tweak> tweaks, string batchTitle, IProgress<string> progress)
     {
         var powerPlan = _powerPlan;
@@ -66,8 +68,7 @@ internal sealed class ProfileCommandLineHost(Func<bool> tryLockInstance) : IProf
 
     private static void PrepareJournal()
     {
-        // Match elevated startup setup after the captured plan has been validated.
-        AppPaths.SecureMachineDir();
+        // The machine writer lease is held. Recover after the captured plan has been validated.
         RestorePointService.RecoverPendingFrequency();
     }
 

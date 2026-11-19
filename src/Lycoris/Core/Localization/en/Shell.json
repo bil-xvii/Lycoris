@@ -19,6 +19,8 @@
   ],
   "ignore": [],
   "en": {
+    "Журнал изменений уже используется другой копией Lycoris. Закройте её и повторите попытку.": "Another copy of Lycoris is using the change journal. Close it and try again.",
+    "Не удалось получить защищённый доступ к журналу изменений Lycoris.": "Could not get secure access to the Lycoris change journal.",
     "Открыть Lycoris": "Open Lycoris",
     "Выйти из Lycoris": "Exit Lycoris",
     "Значок Lycoris недоступен. Окно останется на экране.": "The Lycoris notification icon is unavailable. The window will stay visible.",

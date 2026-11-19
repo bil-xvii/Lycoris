@@ -180,6 +180,8 @@ public sealed class OperationCoordinator
     private readonly int _lowCap;
     private long _nextId;
     private volatile bool _closing;
+    private bool _windowClosing;
+    private object? _closingScope;
 
     private static readonly AsyncLocal<OperationLease?> CurrentLease = new();
 
@@ -618,14 +620,48 @@ public sealed class OperationCoordinator
     /// <summary>The window is closing: no new user operation starts (queued ones are cancelled by <see cref="CancelAllSafe"/>).</summary>
     public void BeginClosing()
     {
-        _closing = true;
+        lock (_lock)
+        {
+            _windowClosing = true;
+            _closing = true;
+        }
         RaiseChanged();
     }
 
-    /// <summary>Takes the closing flag back (the user chose to wait).</summary>
+    /// <summary>Takes the window's closing flag back (the user chose to wait).</summary>
     public void CancelClosing()
     {
-        _closing = false;
+        lock (_lock)
+        {
+            _windowClosing = false;
+            _closing = _closingScope is not null;
+        }
+        RaiseChanged();
+    }
+
+    /// <summary>Claims the closing gate for an updater handover unless a close is already in progress.</summary>
+    internal object? TryBeginClosingScope()
+    {
+        object scope;
+        lock (_lock)
+        {
+            if (_closing) return null;
+            _closingScope = scope = new object();
+            _closing = true;
+        }
+        RaiseChanged();
+        return scope;
+    }
+
+    /// <summary>Releases only the matching handover claim, preserving any request to close the window.</summary>
+    internal void CancelClosing(object scope)
+    {
+        lock (_lock)
+        {
+            if (!ReferenceEquals(_closingScope, scope)) return;
+            _closingScope = null;
+            _closing = _windowClosing;
+        }
         RaiseChanged();
     }
 

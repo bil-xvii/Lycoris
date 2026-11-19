@@ -38,8 +38,11 @@ public interface IProfileCliHost
     /// <summary>The restore-point line shown before an apply (same text as the page's confirmation).</summary>
     Task<string> RestorePointNoteAsync();
 
-    /// <summary>Takes Lycoris's single-instance lock: false = Lycoris is already open (two copies must not write one journal).</summary>
+    /// <summary>Acquires the single-instance lock for the current desktop session.</summary>
     bool TryLockInstance();
+
+    /// <summary>Acquires the machine journal before selection. Returns a reason if the lock cannot be acquired.</summary>
+    string? TryLockJournal() => null;
 
     /// <summary>Applies through the one engine of the page (<see cref="TweakEngine.ApplyAsync"/>: journal, restore point, undo).</summary>
     Task<TweakRunResult> ApplyAsync(IReadOnlyList<Tweak> tweaks, string batchTitle, IProgress<string> progress);
@@ -204,6 +207,20 @@ public static class ProfileCommandLine
             return Exit.NeedsAdmin;
         }
 
+        if (options.Apply)
+        {
+            if (!host.TryLockInstance())
+            {
+                output.WriteLine(Loc.T("Lycoris уже открыт: закройте его окно и повторите команду. Ничего не изменено."));
+                return Exit.Busy;
+            }
+            if (host.TryLockJournal() is { } refusal)
+            {
+                output.WriteLine(refusal);
+                return Exit.Busy;
+            }
+        }
+
         var selection = await host.SelectAsync(options.Profile).ConfigureAwait(true);
         var scenario = OptimizeLogic.ScenarioName(options.Profile, selection.Laptop);
         output.WriteLine(options.Apply
@@ -229,12 +246,6 @@ public static class ProfileCommandLine
         {
             output.WriteLine(Loc.Tf("Пробный запуск: ничего не изменено. Применить: Lycoris.exe --apply-profile {0} --yes (в консоли администратора).", options.ProfileName));
             return Exit.Ok;
-        }
-
-        if (!host.TryLockInstance())
-        {
-            output.WriteLine(Loc.T("Lycoris уже открыт: закройте его окно и повторите команду. Ничего не изменено."));
-            return Exit.Busy;
         }
 
         output.WriteLine(await host.RestorePointNoteAsync().ConfigureAwait(true));

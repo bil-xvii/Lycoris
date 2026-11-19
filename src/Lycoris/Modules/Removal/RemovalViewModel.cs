@@ -126,7 +126,10 @@ public sealed partial class RemovalViewModel : PageViewModel
     partial void OnSelectedRowChanged(RemovalRow? value) => RefreshCommands();
 
     protected override Task LoadAsync() => RefreshAsync();
-    protected override Task OnReturnAsync() => RefreshAsync();
+    protected override Task OnReturnAsync() => RefreshStaleInventoryAsync(IsCurrentInventoryPage);
+    protected override bool ForegroundInventoryIsStale => !HasBatchPreview
+        && (InventoryIsStale(_programCheckedAt) || InventoryIsStale(_startupCheckedAt));
+    protected override Task RefreshForegroundInventoryAsync(Func<bool> stillForeground) => RefreshAsync();
     public override void Deactivate() => InvalidateBatchPreview();
 
     private bool CanRefresh() => !IsBusy;

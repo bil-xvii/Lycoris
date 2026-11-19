@@ -37,6 +37,7 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     private bool _journalHooked;
     private readonly Func<Task> _activateStartup;
+    private DateTime? _serviceInventoryCheckedAt;
 
     public ServicesViewModel() : this(new StartupViewModel())
     {
@@ -114,13 +115,31 @@ public sealed partial class ServicesViewModel : PageViewModel
     /// <summary>Changes made elsewhere (Restore center, other pages) show up when the user comes back.</summary>
     protected override async Task OnReturnAsync()
     {
-        var focus = ApplyFocusAsync(Ui.TakeFocusRequest(Key));
-        if (StartupTabShown) await EnsureStartupAsync();
-        await focus;
-        if (IsBusy) return;
+        await ApplyFocusAsync(Ui.TakeFocusRequest(Key));
+        if (IsBusy || !IsCurrentInventoryPage()) return;
         // Expert mode was toggled elsewhere: re-apply the locks to the last scan (no rescan needed).
         if (_builtExpertMode != ServicesExpertMode) BuildAllServices(_scannedServices);
+        if (ForegroundInventoryIsStale)
+        {
+            await RefreshStaleInventoryAsync(IsCurrentInventoryPage);
+            return;
+        }
+        if (IsReviewingCleanup) return;
         await RefreshStatesAsync();
+    }
+
+    private bool StartupInventoryIsStale => StartupTabShown && InventoryIsStale(Startup.CheckedAt);
+
+    protected override bool ForegroundInventoryIsStale => !IsReviewingCleanup
+        && (InventoryIsStale(_serviceInventoryCheckedAt) || StartupInventoryIsStale);
+
+    protected override async Task RefreshForegroundInventoryAsync(Func<bool> stillForeground)
+    {
+        if (InventoryIsStale(_serviceInventoryCheckedAt)) await ReloadAsync();
+        if (!stillForeground() || IsBusy || GameBoostState.IsActive
+            || Coordinator.Snapshot().Any(operation => operation.IsListed) || !StartupInventoryIsStale) return;
+        _startupStale = true;
+        await EnsureStartupAsync();
     }
 
     public override void Deactivate()
@@ -168,7 +187,9 @@ public sealed partial class ServicesViewModel : PageViewModel
         if (value == TabAll && !ExpertMode) { SelectedTab = TabStartup; return; }
         if (value != TabStartup) ClearStartupFocus();
         RaisePrimary();
-        if (StartupTabShown) _ = EnsureStartupAsync();
+        if (!StartupTabShown) return;
+        if (!IsLoaded || Startup.CheckedAt is null || _pendingStartupFocus is not null) _ = EnsureStartupAsync();
+        else _ = RefreshStaleInventoryAsync(IsCurrentInventoryPage);
     }
 
     private void OnStartupPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -425,21 +446,32 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     // ───────────────────────────── Loading ─────────────────────────────
 
+    internal sealed record ServiceInventory(ServiceEnvironment Environment, IReadOnlyDictionary<string, ServiceLiveState> Recommendations,
+        List<ResolvedTask> Tasks, List<ServiceInfo> Services);
+
+    internal Func<bool, Task<ServiceInventory>> ScanInventoryAsync { get; set; } = ReadInventoryAsync;
+
+    private static async Task<ServiceInventory> ReadInventoryAsync(bool elevated)
+    {
+        var machine = Task.Run(ServiceScanner.ReadEnvironment);
+        var curated = Task.Run(() => ServiceCatalog.Services.ToDictionary(
+            service => service.Name, service => ServiceScanner.ReadLiveState(service.Name), StringComparer.OrdinalIgnoreCase));
+        var tasks = Task.Run(() => TaskScanner.Read(ServiceCatalog.Tasks));
+        var all = Task.Run(() => ServiceScanner.ScanAll(elevated));
+        return new(await machine, await curated, await tasks, await all);
+    }
+
     private Task ReloadAsync() => RunBusyAsync(OperationClass.Measure, Loc.T("Чтение служб и задач…"), async () =>
     {
-        var elevated = Elevation.IsElevated;
-        var machineTask = Task.Run(ServiceScanner.ReadEnvironment);
-        var curatedTask = Task.Run(() => ServiceCatalog.Services.ToDictionary(s => s.Name, s => ServiceScanner.ReadLiveState(s.Name), StringComparer.OrdinalIgnoreCase));
-        var tasksTask = Task.Run(() => TaskScanner.Read(ServiceCatalog.Tasks));
-        var allTask = Task.Run(() => ServiceScanner.ScanAll(elevated));
-
         IsServicesLoading = true;
         try
         {
-            Machine = await machineTask;
-            BuildRecommendations(await curatedTask);
-            BuildTasks(await tasksTask);
-            BuildAllServices(await allTask);
+            var inventory = await ScanInventoryAsync(Elevation.IsElevated);
+            Machine = inventory.Environment;
+            BuildRecommendations(inventory.Recommendations);
+            BuildTasks(inventory.Tasks);
+            BuildAllServices(inventory.Services);
+            _serviceInventoryCheckedAt = ForegroundClock.GetUtcNow().UtcDateTime;
         }
         finally
         {

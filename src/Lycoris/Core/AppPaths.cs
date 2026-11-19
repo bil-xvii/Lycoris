@@ -204,7 +204,7 @@ public static class AppPaths
     /// </summary>
     public static void SecureMachineDir()
     {
-        if (!Elevation.IsElevated) return;
+        if (!Elevation.IsElevated || JournalWriterLease.Current is null) return;
         lock (SecureLock)
         {
             if (_secured) return;

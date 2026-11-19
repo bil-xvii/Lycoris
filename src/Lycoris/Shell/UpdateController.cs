@@ -21,6 +21,7 @@ public sealed partial class UpdateController : ObservableObject
     private readonly Func<UpdateDownloader> _downloaderFactory;
     private ReleaseInfo? _demo;
     private CancellationTokenSource? _download;
+    private int _backgroundChecksScheduled;
 
     internal UpdateController(UpdateService service, Func<UpdateDownloader>? downloader = null)
     {
@@ -118,26 +119,71 @@ public sealed partial class UpdateController : ObservableObject
 
     // ───────────────────────────── Checks ─────────────────────────────
 
-    /// <summary>Called once from the main window: after ~15 s one low-priority background check (if due).</summary>
+    /// <summary>Checks after startup and while the app stays open, including in the tray.</summary>
     public void ScheduleStartupCheck()
     {
-        if (_demo is not null) return;
-        _ = Task.Run(async () =>
+        if (_demo is not null || Application.Current is not { } app ||
+            Interlocked.Exchange(ref _backgroundChecksScheduled, 1) != 0) return;
+
+        var stop = new CancellationTokenSource();
+        var checks = RunBackgroundChecksAsync(TimeProvider.System, OperationCoordinator.Instance, stop.Token);
+        app.Exit += OnExit;
+
+        void OnExit(object sender, ExitEventArgs e)
         {
-            try
+            app.Exit -= OnExit;
+            _ = StopBackgroundChecksAsync(stop, checks);
+        }
+    }
+
+    private static async Task StopBackgroundChecksAsync(CancellationTokenSource stop, Task checks)
+    {
+        using (stop)
+        {
+            await stop.CancelAsync().ConfigureAwait(false);
+            await checks.ConfigureAwait(false);
+        }
+    }
+
+    internal async Task RunBackgroundChecksAsync(TimeProvider time, OperationCoordinator coordinator, CancellationToken ct)
+    {
+        var delay = TimeSpan.FromSeconds(15);
+        try
+        {
+            while (true)
             {
-                await Task.Delay(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
-                if (!_service.IsDue()) { _service.Reevaluate(); Ui.Post(RaiseAll); return; }
-                await OperationCoordinator.Instance.RunAsync(
-                    new OperationRequest(OperationClass.Background, Loc.T("Проверка обновлений")) { Owner = "updates" },
-                    async lease => await _service.CheckAsync(manual: false, lease.Token).ConfigureAwait(false)).ConfigureAwait(false);
-                Ui.Post(RaiseAll);
+                await Task.Delay(delay, time, ct).ConfigureAwait(false);
+                // Only the due policy in UpdateService decides when to contact the release server.
+                delay = TimeSpan.FromMinutes(15);
+                try
+                {
+                    UpdateCheckResult? result = null;
+                    if (_service.IsDue())
+                    {
+                        result = await coordinator.RunAsync(
+                            new OperationRequest(OperationClass.Background, Loc.T("Проверка обновлений")) { Owner = "updates" },
+                            async lease =>
+                            {
+                                using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, lease.Token);
+                                return await _service.CheckAsync(manual: false, linked.Token).ConfigureAwait(false);
+                            }, ct).ConfigureAwait(false);
+                    }
+                    else _service.Reevaluate();
+
+                    ct.ThrowIfCancellationRequested();
+                    Ui.Post(() =>
+                    {
+                        if (result?.Status is UpdateCheckStatus.Available or UpdateCheckStatus.UpToDate) _lastFailure = null;
+                        RaiseAll();
+                    });
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+                {
+                    Log.Info("Проверка обновлений не выполнена: {0}", ex.GetType().Name);
+                }
             }
-            catch (Exception ex)
-            {
-                Log.Info("Проверка обновлений не выполнена: {0}", ex.GetType().Name);
-            }
-        });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
     }
 
     /// <summary>A minute after the start: remove what an earlier update left behind (the .old copy, staged downloads).</summary>
@@ -231,6 +277,27 @@ public sealed partial class UpdateController : ObservableObject
     private static string? CurrentBlocker() =>
         BlockerText(OperationCoordinator.Instance.Snapshot(), GameBoostState.IsActive);
 
+    internal static async Task<(string? Blocker, UpdateLauncher.LaunchResult? Launch)> TryHandoverAsync(
+        OperationCoordinator coordinator, Func<bool> gameSessionActive, Func<Task<UpdateLauncher.LaunchResult>> start)
+    {
+        // Fence admissions first. The snapshot then sees any listed operation admitted before the fence.
+        if (coordinator.TryBeginClosingScope() is not { } scope) return default;
+        var handedOver = false;
+        try
+        {
+            var blocker = BlockerText(coordinator.Snapshot(), gameSessionActive());
+            if (blocker is not null) return (blocker, null);
+
+            var launch = await start().ConfigureAwait(false);
+            handedOver = launch.Started;
+            return (null, launch);
+        }
+        finally
+        {
+            if (!handedOver) coordinator.CancelClosing(scope);
+        }
+    }
+
     [RelayCommand]
     private async Task UpdateNowAsync()
     {
@@ -321,23 +388,29 @@ public sealed partial class UpdateController : ObservableObject
             }
         }
 
-        // 5. Something may have started meanwhile: the same rule, once more, right before the restart.
-        while (CurrentBlocker() is { } reason)
+        // 5. Hold off new operations from the final idle check through launching the updater and shutdown.
+        while (true)
         {
-            BlockedReason = reason;
-            var retry = await Ui.ConfirmAsync("ОБНОВЛЕНИЕ СКАЧАНО, НО ЖДЁТ", reason + "\n\n" + Loc.T("Файл уже проверен и сохранён."), confirmText: "ПОВТОРИТЬ", cancelText: "ПОЗЖЕ");
-            if (!retry) return;
-        }
-        BlockedReason = null;
+            var handover = await TryHandoverAsync(OperationCoordinator.Instance, () => GameBoostState.IsActive,
+                () => UpdateLauncher.StartAsync(plan, staged, Environment.ProcessId));
+            if (handover.Blocker is { } reason)
+            {
+                BlockedReason = reason;
+                var retry = await Ui.ConfirmAsync("ОБНОВЛЕНИЕ СКАЧАНО, НО ЖДЁТ", reason + "\n\n" + Loc.T("Файл уже проверен и сохранён."), confirmText: "ПОВТОРИТЬ", cancelText: "ПОЗЖЕ");
+                if (!retry) return;
+                continue;
+            }
 
-        // 6. Hand over to the new exe and close this copy normally (journal saved in App.OnExit).
-        var launch = await UpdateLauncher.StartAsync(plan, staged, Environment.ProcessId);
-        if (!launch.Started)
-        {
-            await Ui.AlertAsync("ОБНОВЛЕНИЕ НЕ ЗАПУЩЕНО", (launch.Error ?? "") + "\n\n" + Loc.T("Установленная версия не затронута."));
+            BlockedReason = null;
+            if (handover.Launch is not { } launch) return;
+            if (!launch.Started)
+            {
+                await Ui.AlertAsync("ОБНОВЛЕНИЕ НЕ ЗАПУЩЕНО", (launch.Error ?? "") + "\n\n" + Loc.T("Установленная версия не затронута."));
+                return;
+            }
+            Log.Info("Обновление до {0}: прежняя копия закрывается.", release.VersionText);
+            Application.Current.Shutdown();
             return;
         }
-        Log.Info("Обновление до {0}: прежняя копия закрывается.", release.VersionText);
-        Application.Current.Shutdown();
     }
 }

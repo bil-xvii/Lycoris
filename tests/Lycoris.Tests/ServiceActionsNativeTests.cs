@@ -4,6 +4,7 @@ using System.ServiceProcess;
 using Lycoris.Core;
 using Lycoris.Core.Security;
 using Lycoris.Modules.Services;
+using Lycoris.Modules.Startup;
 using Lycoris.UI;
 using Microsoft.Win32;
 
@@ -18,9 +19,20 @@ public sealed class ServiceActionsNativeTests
     private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(15);
 
     [HostedServiceActionsFact]
-    public async Task Assistant_actions_change_live_scm_state_and_persist_only_start_type_undo()
+    public Task Assistant_actions_change_live_scm_state_and_persist_only_start_type_undo() =>
+        StaWorker.Run(() =>
+        {
+            Assert.True(HostedServiceActionsFactAttribute.CanRun);
+            using var writer = JournalWriterLease.TryAcquire(out var busy);
+            Assert.False(busy);
+            Assert.NotNull(writer);
+            Assert.Same(writer, JournalWriterLease.Current);
+            RunServiceLifecycleAsync().GetAwaiter().GetResult();
+            return true;
+        }, "Lycoris hosted SCM writer fixture");
+
+    private async Task RunServiceLifecycleAsync()
     {
-        Assert.True(HostedServiceActionsFactAttribute.CanRun);
         var runnerTemp = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!));
         var testRoot = Path.GetFullPath(Environment.GetEnvironmentVariable("LYCORIS_TEST_ROOT")!);
         Assert.Equal(runnerTemp, Path.GetDirectoryName(testRoot), ignoreCase: true);

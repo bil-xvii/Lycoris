@@ -105,6 +105,8 @@ public sealed class ProfileCommandLineTests
     {
         public bool IsElevated { get; set; } = true;
         public bool LockFree { get; set; } = true;
+        public string? JournalRefusal { get; set; }
+        public List<string> GateOrder { get; } = [];
         public List<ProfileCliTarget> Targets { get; } = [];
         public Dictionary<string, TweakState> After { get; } = [];
         public List<string> Errors { get; } = [];
@@ -115,6 +117,7 @@ public sealed class ProfileCommandLineTests
         public Task<ProfileCliSelection> SelectAsync(OptimizeProfile profile)
         {
             Selects++;
+            GateOrder.Add("select");
             if (Throw is not null) throw Throw;
             return Task.FromResult(new ProfileCliSelection(Targets, AlreadyApplied: 7, NotApplicable: 2, Laptop: false));
         }
@@ -128,7 +131,14 @@ public sealed class ProfileCommandLineTests
         public bool TryLockInstance()
         {
             Locks++;
+            GateOrder.Add("instance");
             return LockFree;
+        }
+
+        public string? TryLockJournal()
+        {
+            GateOrder.Add("journal");
+            return JournalRefusal;
         }
 
         public Task<TweakRunResult> ApplyAsync(IReadOnlyList<Tweak> tweaks, string batchTitle, IProgress<string> progress)
@@ -172,6 +182,7 @@ public sealed class ProfileCommandLineTests
         Assert.Contains("--apply-profile gaming --yes", text);
         Assert.Empty(host.Applies);
         Assert.Equal(0, host.Locks);
+        Assert.Equal(new[] { "select" }, host.GateOrder);
     }
 
     [Fact]
@@ -216,6 +227,21 @@ public sealed class ProfileCommandLineTests
         Assert.Equal(ProfileCommandLine.Exit.Busy, code);
         Assert.Contains("Lycoris уже открыт", text);
         Assert.Empty(host.Applies);
+        Assert.Equal(new[] { "instance" }, host.GateOrder);
+    }
+
+    [Fact]
+    public async Task Occupied_machine_journal_refuses_before_select_even_with_a_free_desktop_instance()
+    {
+        var host = HostWith("reg");
+        host.JournalRefusal = "Machine journal is held in another session.";
+
+        var (code, text) = await Run(host, "--apply-profile", "gaming", "--yes");
+
+        Assert.Equal(ProfileCommandLine.Exit.Busy, code);
+        Assert.Equal(host.JournalRefusal + Environment.NewLine, text);
+        Assert.Equal(new[] { "instance", "journal" }, host.GateOrder);
+        Assert.Empty(host.Applies);
     }
 
     [Fact]
@@ -259,7 +285,7 @@ public sealed class ProfileCommandLineTests
         Assert.Equal(ProfileCommandLine.Exit.Ok, code);
         Assert.Contains("Менять нечего", text);
         Assert.Empty(host.Applies);
-        Assert.Equal(0, host.Locks);
+        Assert.Equal(new[] { "instance", "journal", "select" }, host.GateOrder);
     }
 
     [Theory]

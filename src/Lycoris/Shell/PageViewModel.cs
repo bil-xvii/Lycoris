@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lycoris.Core;
+using Lycoris.Modules.Devices.Network;
 using Lycoris.UI;
 
 namespace Lycoris.Shell;
@@ -126,6 +127,66 @@ public abstract partial class PageViewModel : ObservableObject
 
     protected virtual Task LoadAsync() => Task.CompletedTask;
     protected virtual Task OnReturnAsync() => Task.CompletedTask;
+
+    private static readonly TimeSpan InventoryRefreshInterval = TimeSpan.FromMinutes(3);
+    private long? _lastForegroundInventoryAttempt;
+    private bool _foregroundInventoryRunning;
+    internal TimeProvider ForegroundClock { get; set; } = TimeProvider.System;
+
+    protected virtual bool ForegroundInventoryIsStale => false;
+    protected virtual Task RefreshForegroundInventoryAsync(Func<bool> stillForeground) => Task.CompletedTask;
+
+    protected bool InventoryIsStale(DateTime? readAt)
+    {
+        if (readAt is not { } last) return true;
+        var age = ForegroundClock.GetUtcNow().UtcDateTime - last.ToUniversalTime();
+        return age < TimeSpan.Zero || age >= InventoryRefreshInterval;
+    }
+
+    protected bool IsCurrentInventoryPage() =>
+        System.Windows.Application.Current?.MainWindow is MainWindow window
+            ? window.IsForegroundInventoryPage(this)
+            : Ui.Host is not MainViewModel shell || ReferenceEquals(shell.CurrentPage, this);
+
+    /// <summary>Only opted-in, loaded pages refresh stale inventory when the user returns to them.</summary>
+    internal async Task<bool> RefreshStaleInventoryAsync(Func<bool> stillForeground, Func<Task<bool>>? gameRunning = null)
+    {
+        bool CanRefresh() => IsLoaded && !IsBusy && stillForeground() && ForegroundInventoryIsStale
+            && !GameBoostState.IsActive && !Coordinator.Snapshot().Any(operation => operation.IsListed)
+            && (_lastForegroundInventoryAttempt is not { } attempt ||
+                ForegroundClock.GetElapsedTime(attempt) >= InventoryRefreshInterval);
+
+        if (_foregroundInventoryRunning || !CanRefresh()) return false;
+        var request = new OperationRequest(OperationClass.Measure, Title) { Owner = Key, QueueTimeout = TimeSpan.Zero };
+        if (Coordinator.Check(request).Verdict != OperationVerdict.Start) return false;
+        _foregroundInventoryRunning = true;
+        try
+        {
+            var playing = gameRunning is null ? await Task.Run(NetGames.RunningGame) is not null : await gameRunning();
+            if (playing || !CanRefresh() || Coordinator.Check(request).Verdict != OperationVerdict.Start) return false;
+
+            using var lease = await Coordinator.AcquireAsync(request);
+            if (!CanRefresh()) return false;
+
+            using var scope = lease.Scope();
+            _lastForegroundInventoryAttempt = ForegroundClock.GetTimestamp();
+            await RefreshForegroundInventoryAsync(stillForeground);
+            return true;
+        }
+        catch (Exception ex) when (ex is OperationRefusedException or OperationCanceledException or OperationTimeoutException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(Title, ex);
+            return false;
+        }
+        finally
+        {
+            _foregroundInventoryRunning = false;
+        }
+    }
 
     /// <summary>The coordinator this page asks before it runs anything long (tests may replace it).</summary>
     internal OperationCoordinator Coordinator { get; set; } = OperationCoordinator.Instance;
