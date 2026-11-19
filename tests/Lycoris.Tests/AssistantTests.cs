@@ -23,17 +23,26 @@ public class AssistantTests
 
     // ───────── model choice ─────────
 
-    [Fact]
-    public void The_saved_model_wins_while_it_is_installed() =>
-        Assert.Equal("llama3.2:3b", AssistantBrain.PickModel([new("qwen3:8b", 5 * Gb, null), new("llama3.2:3b", 2 * Gb, null)], "llama3.2:3b"));
+    private static LocalModel Installed(string name, long size, string? parameters = null) =>
+        new(name, size, parameters, new string('a', 64), "gguf");
 
     [Fact]
-    public void A_removed_saved_model_falls_back_to_the_best_chat_model() =>
-        Assert.Equal("qwen3:8b", AssistantBrain.PickModel([new("nomic-embed-text", Gb / 4, null), new("qwen3:30b", 18 * Gb, null), new("qwen3:8b", 5 * Gb, null), new("mystery:7b", 4 * Gb, null)], "gone:1b"));
+    public void An_eligible_saved_model_wins_even_with_a_smaller_default() =>
+        Assert.Equal("qwen3:8b", AssistantBrain.PickModel([Installed("qwen3:8b", 5 * Gb), Installed("llama3.2:3b", 2 * Gb)], "qwen3:8b"));
+
+    [Theory]
+    [InlineData("gone:1b")]
+    [InlineData("qwen3:cloud")]
+    [InlineData("unproven:4b")]
+    public void Invalid_saved_models_fall_back_to_a_modest_local_chat_model(string saved) =>
+        Assert.Equal("llama3.2:3b", AssistantBrain.PickModel([
+            Installed("qwen3:8b", 5 * Gb, "8.2B"), Installed("llama3.2:3b", 2 * Gb, "3.2B"),
+            Installed("qwen3:cloud", 2 * Gb), new("unproven:4b", 2 * Gb, "4B"),
+        ], saved));
 
     [Fact]
     public void Embedding_models_only_means_no_model() =>
-        Assert.Null(AssistantBrain.PickModel([new("nomic-embed-text", Gb / 4, null), new("bge-m3", Gb, null)], null));
+        Assert.Null(AssistantBrain.PickModel([Installed("nomic-embed-text:latest", Gb / 4), Installed("bge-m3:latest", Gb)], "bge-m3:latest"));
 
     // ───────── places ─────────
 
@@ -61,6 +70,8 @@ public class AssistantTests
         Assert.Contains("ничего не меняешь", AssistantBrain.SystemPrompt(english: false));
         Assert.Contains("Defender", AssistantBrain.SystemPrompt(english: true));
         Assert.Contains("cannot change anything", AssistantBrain.SystemPrompt(english: true));
+        Assert.Contains("Повторная установка не гарантирует", AssistantBrain.SystemPrompt(english: false));
+        Assert.Contains("Reinstalling does not guarantee data recovery", AssistantBrain.SystemPrompt(english: true));
     }
 
     [Fact]
@@ -147,8 +158,8 @@ public class AssistantTests
     [Fact]
     public void Model_list_is_read_from_the_tags_answer()
     {
-        var models = LocalModelClient.ParseModels("""{"models":[{"name":"qwen3:8b","size":5200000000,"details":{"parameter_size":"8.2B"}},{"model":"llama3.2:3b"},{"name":""}]}""");
-        Assert.Equal(["qwen3:8b", "llama3.2:3b"], models.Select(m => m.Name));
+        var models = LocalModelClient.ParseModels("""{"models":[{"name":"qwen3:8b","size":5200000000,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","details":{"format":"gguf","parameter_size":"8.2B"}},{"model":"llama3.2:3b"},{"name":""}]}""");
+        Assert.Equal(["qwen3:8b"], models.Select(m => m.Name));
         Assert.Equal("8.2B", models[0].ParameterSize);
     }
 
@@ -157,8 +168,8 @@ public class AssistantTests
     {
         Assert.Equal(("При", false, (string?)null), LocalModelClient.ParseChunk("""{"message":{"role":"assistant","content":"При"},"done":false}"""));
         Assert.True(LocalModelClient.ParseChunk("""{"message":{"content":""},"done":true}""").Done);
-        Assert.Equal("model not found", LocalModelClient.ParseChunk("""{"error":"model not found"}""").Error);
-        Assert.Equal(("", false, (string?)null), LocalModelClient.ParseChunk("not json"));
+        Assert.Equal("ollama_chat_failed", LocalModelClient.ParseChunk("""{"error":"model not found"}""").Error);
+        Assert.Equal(("", false, "ollama_invalid_response"), LocalModelClient.ParseChunk("not json"));
     }
 
     [Fact]

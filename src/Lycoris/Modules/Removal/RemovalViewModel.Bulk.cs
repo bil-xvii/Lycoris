@@ -10,25 +10,31 @@ namespace Lycoris.Modules.Removal;
 
 public sealed partial class RemovalBatchPreviewRow : ObservableObject
 {
-    internal RemovalBatchPreviewRow(RemovalBatchItem item) => Item = item;
+    internal RemovalBatchPreviewRow(RemovalBatchItem item, bool selected)
+    {
+        Item = item;
+        _isSelected = selected;
+    }
 
     internal RemovalBatchItem Item { get; }
     public string Name => Item.Name;
     public string Metadata => string.Join(" · ", new[] { Item.Version, Item.Scope, Item.NativeInstallerId }
         .Where(value => !string.IsNullOrWhiteSpace(value)));
     public string Note => Item.Note;
-    [ObservableProperty] private bool _isSelected = true;
+    [ObservableProperty] private bool _isSelected;
 }
 
 public sealed partial class RemovalViewModel
 {
     private readonly IRemovalBatchAction _uninstallBatch;
     private readonly IRemovalBatchAction _disableBatch;
+    private readonly IRemovalBatchAction _windowsAppsBatch;
     private static readonly TimeSpan MaximumPreviewAge = TimeSpan.FromMinutes(5);
     private readonly Func<string, string?, bool> _requireBatchAdmin;
     private readonly Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>> _confirmBatch;
     private readonly TimeProvider _time;
     private readonly Func<string?> _userSid;
+    private readonly Func<string?> _desktopSid;
     private (IRemovalBatchAction Action, RemovalBatchPlan Plan)? _batchPreview;
     private int _batchGeneration;
 
@@ -38,16 +44,20 @@ public sealed partial class RemovalViewModel
 
     public IReadOnlyList<RemovalBatchPreviewRow> BatchRows { get; private set; } = [];
     public bool HasBatchPreview => _batchPreview is not null;
-    public bool IsUninstallPreview => _batchPreview?.Action.Kind == RemovalBatchKind.Uninstall;
+    public bool IsUninstallPreview => _batchPreview?.Action.Kind is RemovalBatchKind.Uninstall or RemovalBatchKind.UninstallWindowsApps;
+    public bool CanSelectAllBatchRows => HasBatchPreview && PreviewKind != RemovalBatchKind.UninstallWindowsApps;
     public bool CanEditBatchPreview => HasBatchPreview && !IsBusy;
     public int BatchSelectedCount => BatchRows.Count(row => row.IsSelected);
     public string BatchSelectionText => Loc.Tf("Выбрано {0} из {1}", BatchSelectedCount, BatchRows.Count);
-    public string BatchPreviewTitle => IsUninstallPreview
-        ? Loc.T("Программы для удаления")
-        : Loc.T("Записи для отключения автозапуска");
-    public string BatchPreviewDescription => BatchEffect(IsUninstallPreview ? RemovalBatchKind.Uninstall : RemovalBatchKind.DisableStartup);
-    public string BatchExecuteText => BatchActionText(IsUninstallPreview ? RemovalBatchKind.Uninstall : RemovalBatchKind.DisableStartup,
-        BatchSelectedCount);
+    private RemovalBatchKind PreviewKind => _batchPreview?.Action.Kind ?? RemovalBatchKind.DisableStartup;
+    public string BatchPreviewTitle => PreviewKind switch
+    {
+        RemovalBatchKind.UninstallWindowsApps => Loc.T("Приложения Windows для удаления"),
+        RemovalBatchKind.Uninstall => Loc.T("Программы для удаления"),
+        _ => Loc.T("Записи для отключения автозапуска"),
+    };
+    public string BatchPreviewDescription => BatchEffect(PreviewKind);
+    public string BatchExecuteText => BatchActionText(PreviewKind, BatchSelectedCount);
     public string? BatchRightsNotice => SafetyLock.IsLocked
         ? Loc.T("В режиме самопроверки доступен просмотр списка.")
         : IsReadOnly
@@ -64,6 +74,9 @@ public sealed partial class RemovalViewModel
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private Task PrepareUninstallAsync() => StartBatchAsync(_uninstallBatch);
+
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
+    private Task PrepareWindowsAppsUninstallAsync() => StartBatchAsync(_windowsAppsBatch);
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private Task PrepareDisableStartupAsync() => StartBatchAsync(_disableBatch);
@@ -83,19 +96,23 @@ public sealed partial class RemovalViewModel
             if (plan is null) return;
             if (!BatchContextMatches(action.Kind, generation, mode)) { ShowStaleBatch(); return; }
 
-            ShowAssessedRows(action.Kind, plan);
+            if (action.Kind != RemovalBatchKind.UninstallWindowsApps) ShowAssessedRows(action.Kind, plan);
             BatchMessage = plan.Summary;
             if (!BatchContextMatches(action.Kind, generation, mode)) { ShowStaleBatch(); return; }
             if (plan.UnavailableReason is not null || plan.Items.Count == 0)
             {
-                AppendBatchMessage(plan.UnavailableReason ?? (action.Kind == RemovalBatchKind.Uninstall
-                    ? Loc.T("Программ, подходящих для пакетного удаления, не найдено.")
-                    : Loc.T("Записей, подходящих для пакетного отключения, не найдено.")));
+                AppendBatchMessage(plan.UnavailableReason ?? (action.Kind switch
+                {
+                    RemovalBatchKind.UninstallWindowsApps => Loc.T("Приложений Windows, подходящих для удаления, не найдено."),
+                    RemovalBatchKind.Uninstall => Loc.T("Программ, подходящих для пакетного удаления, не найдено."),
+                    _ => Loc.T("Записей, подходящих для пакетного отключения, не найдено."),
+                }));
                 return;
             }
 
             _batchPreview = (action, plan);
-            BatchRows = Array.AsReadOnly(plan.Items.Select(item => new RemovalBatchPreviewRow(item)).ToArray());
+            BatchRows = Array.AsReadOnly(plan.Items.Select(item =>
+                new RemovalBatchPreviewRow(item, action.Kind != RemovalBatchKind.UninstallWindowsApps)).ToArray());
             foreach (var row in BatchRows) row.PropertyChanged += OnBatchRowChanged;
             NotifyBatchPreviewChanged();
             if (automaticCommand is null) return;
@@ -147,6 +164,7 @@ public sealed partial class RemovalViewModel
         OnPropertyChanged(nameof(BatchRows));
         OnPropertyChanged(nameof(HasBatchPreview));
         OnPropertyChanged(nameof(IsUninstallPreview));
+        OnPropertyChanged(nameof(CanSelectAllBatchRows));
         OnPropertyChanged(nameof(BatchPreviewTitle));
         OnPropertyChanged(nameof(BatchPreviewDescription));
         RefreshBatchCommands();
@@ -171,7 +189,7 @@ public sealed partial class RemovalViewModel
         ExecuteBatchCommand.NotifyCanExecuteChanged();
     }
 
-    private bool CanSelectAllBatch() => CanEditBatchPreview && BatchRows.Any(row => !row.IsSelected);
+    private bool CanSelectAllBatch() => CanSelectAllBatchRows && CanEditBatchPreview && BatchRows.Any(row => !row.IsSelected);
     private bool CanClearBatchSelection() => CanEditBatchPreview && BatchRows.Any(row => row.IsSelected);
 
     [RelayCommand(CanExecute = nameof(CanSelectAllBatch))]
@@ -232,32 +250,34 @@ public sealed partial class RemovalViewModel
     {
         var generation = _batchGeneration;
         var mode = ExpertMode;
-        bool Current()
+        async Task<bool> CurrentAsync()
         {
+            var sid = action.Kind == RemovalBatchKind.UninstallWindowsApps ? await Task.Run(_desktopSid) : _userSid();
             var age = _time.GetUtcNow().UtcDateTime - plan.ObservedUtc;
             return ReferenceEquals(_batchPreview?.Plan, plan) && BatchContextMatches(action.Kind, generation, mode)
                 && age >= TimeSpan.Zero && age < MaximumPreviewAge
-                && plan.UserSid is not null && UserScope.Same(plan.UserSid, _userSid()) && !SafetyLock.IsLocked;
+                && plan.UserSid is not null && UserScope.Same(plan.UserSid, sid) && !SafetyLock.IsLocked;
         }
 
-        if (!Current()) { ShowStaleBatch(); return; }
+        if (!await CurrentAsync()) { ShowStaleBatch(); return; }
         var selected = BatchRows.Where(row => row.IsSelected).ToArray();
         var selectedKeys = selected.Select(row => row.Item.Key).ToFrozenSet(StringComparer.Ordinal);
         if (selectedKeys.Count == 0 || selectedKeys.Count != selected.Length) { ShowStaleBatch(); return; }
-        var details = selected.Select(row => Loc.Tf("{0} · {1}", row.Name, row.Metadata)).ToArray();
+        var details = selected.Select(row => string.Join("\n", new[] { Loc.Tf("{0} · {1}", row.Name, row.Metadata) }
+            .Concat(row.Item.RelatedPackageIds))).ToArray();
         var title = BatchOperationTitle(action.Kind);
-        var kind = action.Kind == RemovalBatchKind.Uninstall ? OperationClass.Install : OperationClass.JournalChange;
+        var kind = action.Kind == RemovalBatchKind.DisableStartup ? OperationClass.JournalChange : OperationClass.Install;
         if (!CanStartNow(kind, title)) return;
         BusyText = title;
 
         var confirmed = await _confirmBatch(action.Kind, details);
-        if (!Current()) { ShowStaleBatch(); return; }
+        if (!await CurrentAsync()) { ShowStaleBatch(); return; }
         if (!confirmed) return;
 
         using var lease = await AcquireLeaseAsync(kind, title);
         if (lease is null) return;
         using var scope = lease.Scope();
-        if (!Current()) { ShowStaleBatch(); return; }
+        if (!await CurrentAsync()) { ShowStaleBatch(); return; }
 
         try
         {
@@ -265,6 +285,8 @@ public sealed partial class RemovalViewModel
             BatchMessage = Loc.Tf("Выполнено: {0} · Пропущено: {1} · Сообщений об ошибках: {2}",
                 result.Applied, result.Skipped, result.Errors.Count);
             if (result.UnknownOutcome) BatchMessage += "\n" + UnknownBatchOutcome();
+            if (result.Pending > 0)
+                BatchMessage += "\n" + Loc.T("Windows приняла запрос, и приложение ещё зарегистрировано. Если оно открыто, закройте его. Остальные действия остановлены.");
             if (result.Errors.Count > 0) BatchMessage += "\n" + string.Join("\n", result.Errors);
         }
         catch (Exception ex)
@@ -298,17 +320,23 @@ public sealed partial class RemovalViewModel
 
     private static Task<bool> ConfirmBatchAsync(RemovalBatchKind kind, IReadOnlyList<string> details) =>
         Ui.ConfirmAsync(BatchOperationTitle(kind), BatchEffect(kind), details,
-            BatchActionText(kind, details.Count), Loc.T("ОТМЕНА"), danger: kind == RemovalBatchKind.Uninstall);
+            BatchActionText(kind, details.Count), Loc.T("ОТМЕНА"), danger: kind != RemovalBatchKind.DisableStartup);
 
-    private static string BatchOperationTitle(RemovalBatchKind kind) => kind == RemovalBatchKind.Uninstall
-        ? Loc.T("Пакетное удаление программ")
-        : Loc.T("Пакетное отключение автозапуска");
+    private static string BatchOperationTitle(RemovalBatchKind kind) => kind switch
+    {
+        RemovalBatchKind.UninstallWindowsApps => Loc.T("Удаление приложений Windows"),
+        RemovalBatchKind.Uninstall => Loc.T("Пакетное удаление программ"),
+        _ => Loc.T("Пакетное отключение автозапуска"),
+    };
 
-    private static string BatchActionText(RemovalBatchKind kind, int count) => kind == RemovalBatchKind.Uninstall
-        ? Loc.Tf("Удалить выбранные · {0}", count)
-        : Loc.Tf("Отключить выбранные · {0}", count);
+    private static string BatchActionText(RemovalBatchKind kind, int count) => kind == RemovalBatchKind.DisableStartup
+        ? Loc.Tf("Отключить выбранные · {0}", count)
+        : Loc.Tf("Удалить выбранные · {0}", count);
 
-    private static string BatchEffect(RemovalBatchKind kind) => kind == RemovalBatchKind.Uninstall
-        ? Loc.T("Штатные деинсталляторы удалят выбранные программы. Некоторые откроют окно и предложат выбрать, какие данные сохранить. Сохраните нужные данные заранее. Отката через журнал Lycoris нет.")
-        : Loc.T("Выбранные программы перестанут запускаться при входе. Их файлы сохранятся. Изменения можно отменить в разделе «Восстановление».");
+    private static string BatchEffect(RemovalBatchKind kind) => kind switch
+    {
+        RemovalBatchKind.UninstallWindowsApps => Loc.T("Windows удалит выбранные приложения, их локальные данные и связанные пакеты ресурсов для вашей учётной записи. Сохраните нужные данные заранее. Если приложение открыто, Windows отложит удаление. Отката через Lycoris нет. Повторная установка возможна через Microsoft Store, если приложение там доступно."),
+        RemovalBatchKind.Uninstall => Loc.T("Штатные деинсталляторы удалят выбранные программы. Некоторые откроют окно и предложат выбрать, какие данные сохранить. Сохраните нужные данные заранее. Отката через журнал Lycoris нет."),
+        _ => Loc.T("Выбранные программы перестанут запускаться при входе. Их файлы сохранятся. Изменения можно отменить в разделе «Восстановление»."),
+    };
 }

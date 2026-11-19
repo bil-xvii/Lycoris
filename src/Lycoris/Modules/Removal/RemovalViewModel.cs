@@ -53,10 +53,13 @@ public sealed partial class RemovalViewModel : PageViewModel
     internal RemovalViewModel(IRemovalBatchAction uninstallBatch, IRemovalBatchAction disableBatch,
         Func<string, string?, bool>? requireAdmin = null,
         Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>>? confirm = null,
-        TimeProvider? time = null, Func<string?>? userSid = null)
+        TimeProvider? time = null, Func<string?>? userSid = null,
+        IRemovalBatchAction? windowsAppsBatch = null, Func<string?>? desktopSid = null)
     {
         _uninstallBatch = uninstallBatch;
         _disableBatch = disableBatch;
+        _windowsAppsBatch = windowsAppsBatch ?? new PackagedProgramRemovalBatchAction();
+        _desktopSid = desktopSid ?? PackagedProgramRemovalBatchAction.DesktopSid;
         _requireBatchAdmin = requireAdmin ?? ((title, command) =>
             command is null ? RequireAdmin(title) : RequireAdmin(title, command));
         _confirmBatch = confirm ?? ConfirmBatchAsync;
@@ -243,6 +246,7 @@ public sealed partial class RemovalViewModel : PageViewModel
         OpenSelectedStartupCommand.NotifyCanExecuteChanged();
         RefreshCommand.NotifyCanExecuteChanged();
         PrepareUninstallCommand.NotifyCanExecuteChanged();
+        PrepareWindowsAppsUninstallCommand.NotifyCanExecuteChanged();
         PrepareDisableStartupCommand.NotifyCanExecuteChanged();
         AutoUninstallCommand.NotifyCanExecuteChanged();
         AutoDisableStartupCommand.NotifyCanExecuteChanged();

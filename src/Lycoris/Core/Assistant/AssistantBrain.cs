@@ -22,23 +22,46 @@ public static partial class AssistantBrain
 
     // Families that answer well in Russian and English; embedding models cannot chat.
     private static readonly string[] PreferredFamilies = ["qwen", "llama", "gemma", "mistral", "phi", "deepseek"];
-    private const long SweetSpotBytes = 5L * 1024 * 1024 * 1024; // ~7–8B at 4 bits: good answers, still quick on a gaming GPU
+    private const long SweetSpotBytes = 2L * 1024 * 1024 * 1024;
 
-    /// <summary>The model to use: the saved one if it is still installed, else the best chat model by family and size.</summary>
+    /// <summary>Keep an eligible saved choice. Otherwise prefer a modest chat model.</summary>
     public static string? PickModel(IReadOnlyList<LocalModel> models, string? saved)
     {
-        if (!string.IsNullOrWhiteSpace(saved) && models.Any(m => m.Name == saved)) return saved;
         var chat = models.Where(IsChatModel).ToList();
-        if (chat.Count == 0) return null;
+        if (chat.Any(m => m.Name == saved)) return saved;
         return chat
-            .OrderBy(m => FamilyRank(m.Name))
-            .ThenBy(m => m.SizeBytes > 0 ? Math.Abs(m.SizeBytes - SweetSpotBytes) : long.MaxValue)
+            .OrderByDescending(IsModestModel)
+            .ThenBy(m => FamilyRank(m.Name))
+            .ThenBy(m => Math.Abs(m.SizeBytes - SweetSpotBytes))
             .ThenBy(m => m.Name, StringComparer.Ordinal)
-            .First().Name;
+            .FirstOrDefault()?.Name;
     }
 
     public static bool IsChatModel(LocalModel m) =>
+        IsLocalTag(m.Name) && m.SizeBytes > 0 &&
+        string.Equals(m.Format, "gguf", StringComparison.OrdinalIgnoreCase) &&
+        m.Digest is { Length: 64 } digest && digest.All(Uri.IsHexDigit) &&
         !m.Name.Contains("embed", StringComparison.OrdinalIgnoreCase) && !m.Name.Contains("bge-", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsLocalTag(string name) =>
+        name is { Length: > 0 and <= 593 } && InstalledTag().IsMatch(name) && !CloudName().IsMatch(name) &&
+        !name.EndsWith(":local", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsModestModel(LocalModel model)
+    {
+        var size = model.ParameterSize;
+        if (size is { Length: > 1 } && size.EndsWith("B", StringComparison.OrdinalIgnoreCase) &&
+            double.TryParse(size.AsSpan(0, size.Length - 1), System.Globalization.NumberStyles.AllowDecimalPoint,
+                System.Globalization.CultureInfo.InvariantCulture, out var billions))
+            return billions is >= 2 and <= 4.5;
+        return model.SizeBytes is >= 1024L * 1024 * 1024 and <= 3L * 1024 * 1024 * 1024;
+    }
+
+    [GeneratedRegex(@"\A(?:(?:[A-Za-z0-9_][A-Za-z0-9_.:-]{0,349}/)?[A-Za-z0-9_][A-Za-z0-9_-]{0,79}/)?[A-Za-z0-9_][A-Za-z0-9_.-]{0,79}:[A-Za-z0-9_][A-Za-z0-9_.-]{0,79}\z")]
+    private static partial Regex InstalledTag();
+
+    [GeneratedRegex(@"(?:^|[-/.:_])cloud(?:$|[-/.:_])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CloudName();
 
     private static int FamilyRank(string name)
     {
@@ -82,9 +105,12 @@ public static partial class AssistantBrain
     private static readonly string[] PromptRu =
     [
         "Ты — помощник внутри Lycoris, безопасного оптимизатора Windows. Отвечай по-русски, коротко (до 8 предложений), простыми словами, для неспециалиста.", // loc:ignore
-        "Опирайся ТОЛЬКО на актуальные сведения о ПК ниже. Если данных нет, скажи об этом. Советы не означают, что обнаружена неисправность.", // loc:ignore
+        "О состоянии этого ПК суди только по актуальным сведениям ниже. Если данных нет, скажи об этом. Советы не означают, что обнаружена неисправность.", // loc:ignore
         "Сам ты ничего не меняешь. Чтобы показать место в Lycoris, пиши его номер в квадратных скобках, например [2].", // loc:ignore
-        "Используй только номера из списка МЕСТА. Изменения пользователь делает кнопками Lycoris — с подтверждением и возможностью отката.", // loc:ignore
+        "Используй только номера из списка МЕСТА. Пользователь подтверждает изменения в Lycoris, где видна доступность отката.", // loc:ignore
+        "В «Удаление и отключение» можно выбрать необязательные приложения Microsoft Store для удаления из текущей учётной записи. Допустимые службы можно отключить на странице служб.", // loc:ignore
+        "Критические компоненты и зависимости защищены. Издатель Microsoft сам по себе не определяет важность приложения. По названию нельзя узнать, пользуется ли им человек.", // loc:ignore
+        "Удаление приложения может удалить его данные. Повторная установка не гарантирует их восстановление.", // loc:ignore
         "Никогда не советуй: отключать Защитник Windows, брандмауэр, UAC, SmartScreen или Центр обновления; чистить реестр; удалять системные файлы;", // loc:ignore
         "отключать файл подкачки; скачивать утилиты с неизвестных сайтов. Если об этом спросят — объясни, чем это опасно.", // loc:ignore
     ];
@@ -92,9 +118,12 @@ public static partial class AssistantBrain
     private static readonly string[] PromptEn =
     [
         "You are the assistant inside Lycoris, a safe Windows PC optimizer. Answer in English, briefly (up to 8 sentences), plainly, for a non-expert.",
-        "Use ONLY the current PC facts below. If data is missing, say so. Recommendations do not indicate a fault.",
+        "For this PC, rely only on the current facts below. If data is missing, say so. Recommendations do not indicate a fault.",
         "You cannot change anything yourself. To point the user to a place in Lycoris, write its number in square brackets, e.g. [2].",
-        "Use only numbers from the PLACES list. The user then changes things with Lycoris buttons, which ask for confirmation and can be undone.",
+        "Use only numbers from the PLACES list. Lycoris asks the user to confirm changes and shows whether undo is available.",
+        "In Remove & Disable, users can select optional Microsoft Store apps to uninstall from their current account. Eligible services can be disabled on the services page.",
+        "Critical components and dependencies are protected. A Microsoft publisher label alone does not determine whether an app is essential. Its name does not reveal whether the user needs it.",
+        "Uninstalling an app may remove its data. Reinstalling does not guarantee data recovery.",
         "Never advise: turning off Windows Defender, the firewall, UAC, SmartScreen or Windows Update; registry cleaners; deleting system files;",
         "turning off the page file; downloading tools from unknown sites. If asked, explain why it is risky.",
     ];
@@ -138,7 +167,7 @@ public static partial class AssistantBrain
         var changes = (recentChanges ?? []).Take(6).ToList();
         if (changes.Count > 0)
         {
-            sb.AppendLine(Loc.T("Последние изменения Lycoris (всё можно откатить в «Восстановлении»):"));
+            sb.AppendLine(Loc.T("Последние изменения Lycoris (проверьте доступность отката в «Восстановлении»):"));
             foreach (var c in changes) sb.Append("- ").AppendLine(Flat(c, 120));
         }
         sb.AppendLine(Loc.T("МЕСТА (ссылайся только на эти номера):"));
