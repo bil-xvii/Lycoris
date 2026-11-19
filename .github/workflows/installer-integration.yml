@@ -47,7 +47,7 @@ jobs:
     needs: installer-fixture
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: ${{ matrix.mode == 'Candidate' && 40 || 25 }}
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +80,7 @@ jobs:
           $payloadHash = '2EFE931FB33C1637AE047B1D3B89A4F7E68472D1E269F81040D81C1A36A0176F'
           ./tools/validation/installer-integration.ps1 -Mode Baseline -Version '1.0.27' -SetupPath $setup -SetupSha256 $setupHash -PayloadSha256 $payloadHash
 
-      - name: Build the candidate setup and validate per-user install and uninstall
+      - name: Build and validate per-user install, Russian and English self-tests, and uninstall
         id: validate-candidate
         if: matrix.mode == 'Candidate'
         shell: pwsh

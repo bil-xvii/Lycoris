@@ -75,16 +75,23 @@ function Copy-InstallerEvidence {
         if ($file.Length -gt 8MB) { throw 'Unexpected installer evidence size.' }
         Copy-Item -LiteralPath $file.FullName -Destination $evidence
     }
-    $snapshots = Join-Path $state 'selftest'
-    if (-not [IO.Directory]::Exists($snapshots)) { return }
-    Assert-DirectPath -Path $snapshots
-    $out = Join-Path $evidence 'selftest'
-    $null = New-Item -Path $out -ItemType Directory
-    foreach ($file in Get-ChildItem -LiteralPath $snapshots -File) {
-        if ($file.Extension -ne '.png' -and $file.Name -notin @('report.md', 'report.json', 'missing-keys.txt')) { continue }
-        Assert-DirectPath -Path $file.FullName
-        if ($file.Length -gt 8MB) { throw 'Unexpected snapshot evidence size.' }
-        Copy-Item -LiteralPath $file.FullName -Destination $out
+    $selfTests = Join-Path $state 'selftest'
+    if (-not [IO.Directory]::Exists($selfTests)) { return }
+    Assert-DirectPath -Path $selfTests
+    $output = Join-Path $evidence 'selftest'
+    $null = New-Item -Path $output -ItemType Directory
+    foreach ($language in 'ru', 'en') {
+        $snapshots = Join-Path $selfTests $language
+        if (-not [IO.Directory]::Exists($snapshots)) { continue }
+        Assert-DirectPath -Path $snapshots
+        $destination = Join-Path $output $language
+        $null = New-Item -Path $destination -ItemType Directory
+        foreach ($file in Get-ChildItem -LiteralPath $snapshots -File) {
+            if ($file.Extension -ne '.png' -and $file.Name -notin @('report.md', 'report.json', 'missing-keys.txt')) { continue }
+            Assert-DirectPath -Path $file.FullName
+            if ($file.Length -gt 8MB) { throw 'Unexpected snapshot evidence size.' }
+            Copy-Item -LiteralPath $file.FullName -Destination $destination
+        }
     }
 }
 
@@ -173,7 +180,11 @@ try {
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $scratch 'fixture.json') -Encoding utf8
 
     $pwsh = Join-Path $PSHOME 'pwsh.exe'
-    $workerTimeout = if ($FixtureOnly) { 45000 } else { 1200000 }
+    $workerTimeout = switch ($scenario) {
+        'Fixture' { 45000 }
+        'Candidate' { 1800000 }
+        default { 1200000 }
+    }
     $workerExit = [InstallerNative]::RunWorker($runName, $accountName, $account.SID.Value, $password, $pwsh, $worker, $scratch, $workerTimeout)
     $resultPath = Join-Path $state 'result.json'
     if (-not [IO.File]::Exists($resultPath)) { throw "Standard worker returned $workerExit without an evidence report." }
@@ -185,8 +196,13 @@ try {
     $expectedStatus = switch ($scenario) { 'Fixture' { 'Fixture ready' } 'Baseline' { 'Expected release defects reproduced' } default { 'Passed' } }
     $expectedCases = switch ($scenario) { 'Fixture' { 0 } 'Baseline' { 2 } default { 5 } }
     if ($workerExit -ne 0 -or $result.Status -cne $expectedStatus -or -not $result.StandardUser -or -not $result.PrivateDesktop -or
-        $result.Cases.Count -ne $expectedCases -or ($scenario -eq 'Candidate' -and $null -eq $result.SelfTest)) {
+        $result.Cases.Count -ne $expectedCases) {
         throw "Installer validation failed ($scenario, worker exit $workerExit). Review the above report."
+    }
+    if ($scenario -eq 'Candidate' -and ($result.SelfTests.Count -ne 2 -or $result.SelfTests[0].Language -cne 'ru' -or
+        $result.SelfTests[1].Language -cne 'en' -or
+        @($result.SelfTests | Where-Object { $_.Status -cnotin @('Passed', 'PassedWithWarnings') }).Count -ne 0)) {
+        throw 'The candidate did not complete both packaged self-tests successfully.'
     }
 }
 finally {

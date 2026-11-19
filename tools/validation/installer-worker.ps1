@@ -1,4 +1,4 @@
-#requires -Version 7.4
+﻿#requires -Version 7.4
 <#
 .SYNOPSIS
 Runs installer scenarios in the standard user's private CI desktop.
@@ -27,7 +27,7 @@ $report = [ordered]@{
     DesktopEnumeration = $null
     Status = 'Running'
     Phase = 'Verify private desktop and user'
-    SelfTest = $null
+    SelfTests = @()
     Cases = @()
     Error = $null
 }
@@ -61,6 +61,7 @@ function Assert-NoMachineInstall {
 
 function Start-InstallerProcess {
     [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([Diagnostics.Process])]
     param([string]$Path, [string[]]$Arguments)
     $start = [Diagnostics.ProcessStartInfo]::new($Path)
     $start.UseShellExecute = $false
@@ -77,13 +78,77 @@ function Start-InstallerProcess {
 }
 
 function Invoke-InstallerProcess {
-    param([string]$Path, [string[]]$Arguments, [int]$TimeoutSeconds, [string]$Label)
+    param([string]$Path, [string[]]$Arguments, [int]$TimeoutSeconds, [string]$Label, [switch]$PassThru)
     $process = Start-InstallerProcess -Path $Path -Arguments $Arguments
     try {
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) { throw "$Label timed out." }
+        if ($PassThru) { return $process.ExitCode }
         if ($process.ExitCode -ne 0) { throw "$Label exited with code $($process.ExitCode)." }
     }
     finally { $process.Dispose() }
+}
+
+function Get-InstalledSelfTestResult {
+    param([ValidateSet('ru', 'en')][string]$Language, [string]$Directory, [int]$ExitCode)
+    $result = [ordered]@{
+        Language = $Language
+        Status = 'Failed'
+        ExitCode = $ExitCode
+        WindowsWritesLocked = 'selftest'
+        PayloadSha256 = $fixture.PayloadSha256
+        ReportPath = "selftest/$Language/report.json"
+        MarkdownPath = "selftest/$Language/report.md"
+        MissingKeysPath = "selftest/$Language/missing-keys.txt"
+        SnapshotCount = 0
+        MissingKeys = $null
+        BindingDetectorVerified = $false
+        RowCounts = [ordered]@{ OK = 0; WARN = 0; FAIL = 0 }
+        Sections = @()
+        Error = $null
+    }
+    $json = Join-Path $Directory 'report.json'
+    $markdown = Join-Path $Directory 'report.md'
+    $missing = Join-Path $Directory 'missing-keys.txt'
+    if (-not [IO.File]::Exists($json) -or -not [IO.File]::Exists($markdown) -or -not [IO.File]::Exists($missing)) {
+        $result.Error = 'The installed self-test did not produce all report files.'
+        return $result
+    }
+    try {
+        $sections = Get-Content -LiteralPath $json -Raw | ConvertFrom-Json -AsHashtable -NoEnumerate
+        if ($sections -isnot [array]) { throw 'Expected an array of self-test sections.' }
+        $keys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($section in $sections) {
+            if ($section -isnot [Collections.IDictionary] -or [string]::IsNullOrWhiteSpace($section['Key']) -or
+                -not $keys.Add($section['Key']) -or $section['Status'] -cnotin @('OK', 'WARN', 'FAIL')) {
+                throw 'The self-test report contains an invalid or duplicate section.'
+            }
+            $row = [ordered]@{ Key = $section['Key']; Title = $section['Title']; Status = $section['Status'] }
+            foreach ($field in @('Errors', 'Warnings', 'BindingErrors', 'Unhandled', 'Dialogs')) {
+                if ($section[$field] -isnot [array]) { throw "The self-test section lacks a $field array." }
+                $row["${field}Count"] = $section[$field].Count
+            }
+            $row.Warnings = $section['Warnings']
+            $result.Sections += $row
+            $result.RowCounts[$row.Status]++
+        }
+        $result.SnapshotCount = @(Get-ChildItem -LiteralPath $Directory -Filter '*.png' -File).Count
+        $result.MissingKeys = @(Get-Content -LiteralPath $missing).Count
+        $result.BindingDetectorVerified = Select-String -LiteralPath $markdown -SimpleMatch -Quiet -Pattern 'Детектор ошибок привязок: работает (контрольная ошибка поймана)'
+        $standardUser = Select-String -LiteralPath $markdown -Quiet -Pattern '^Время: .* · права администратора: нет$'
+        $homeTitle = if ($Language -eq 'ru') { 'Главная' } else { 'Home' }
+        $localizedHome = @($result.Sections | Where-Object { $_.Key -ceq 'home' -and $_.Title -ceq $homeTitle }).Count -eq 1
+        $critical = @($result.Sections | Where-Object { $_.ErrorsCount -or $_.BindingErrorsCount -or $_.UnhandledCount })
+        if ($ExitCode -ne 0 -or $result.Sections.Count -ne 19 -or $result.RowCounts.FAIL -ne 0 -or $critical.Count -ne 0) {
+            throw 'Expected 19 sections with no failed section, logged error, binding error or unhandled exception.'
+        }
+        if (-not $standardUser -or -not $localizedHome -or -not $result.BindingDetectorVerified -or $result.SnapshotCount -lt 1) {
+            throw 'The self-test did not verify its standard-user context, language, binding detector and snapshots.'
+        }
+        if ($Language -eq 'en' -and $result.MissingKeys -ne 0) { throw 'English translations are missing.' }
+        $result.Status = if ($result.RowCounts.WARN -gt 0) { 'PassedWithWarnings' } else { 'Passed' }
+    }
+    catch { $result.Error = $_.Exception.Message }
+    return $result
 }
 
 function Invoke-TestInstall {
@@ -318,17 +383,16 @@ try {
         }
         Invoke-TestInstall -CaseName $route -DesktopShortcut $desktopShortcut
         if ($fixture.Mode -eq 'Candidate' -and $route -eq 'Silent') {
-            $report.Phase = 'Installed executable locked startup and snapshots'
-            $snapshots = Join-Path $state 'selftest'
-            $testArguments = @('--selftest', $snapshots, '--lang', 'en', '--no-elevate')
-            Invoke-InstallerProcess -Path $installedApp -Arguments $testArguments -TimeoutSeconds 600 -Label 'Installed self-test'
-            $count = @(Get-ChildItem -LiteralPath $snapshots -Filter '*.png' -File).Count
-            $missing = Join-Path $snapshots 'missing-keys.txt'
-            if (-not [IO.File]::Exists((Join-Path $snapshots 'report.md')) -or $count -lt 1 -or
-                ([IO.File]::Exists($missing) -and (Get-Item -LiteralPath $missing).Length -gt 0)) {
-                throw 'The installed self-test did not produce its expected report, snapshots and English UI.'
+            foreach ($language in 'ru', 'en') {
+                $report.Phase = "Installed executable locked self-test ($language)"
+                $snapshots = Join-Path $state "selftest/$language"
+                $testArguments = @('--selftest', $snapshots, '--lang', $language, '--no-elevate')
+                Assert-Hash -Path $installedApp -Expected $fixture.PayloadSha256 -Label 'Payload before self-test'
+                $testExit = Invoke-InstallerProcess -Path $installedApp -Arguments $testArguments -TimeoutSeconds 600 -Label "Installed self-test ($language)" -PassThru
+                Assert-Hash -Path $installedApp -Expected $fixture.PayloadSha256 -Label 'Payload after self-test'
+                Assert-Hash -Path $machineMarker -Expected $fixture.JournalSha256 -Label 'Machine journal after self-test'
+                $report.SelfTests += Get-InstalledSelfTestResult -Language $language -Directory $snapshots -ExitCode $testExit
             }
-            $report.SelfTest = [ordered]@{ ExitCode = 0; Snapshots = $count; WindowsWritesLocked = 'selftest' }
         }
         if ($route -ne 'YesRootJunction') {
             $null = [IO.Directory]::CreateDirectory($dataFolder)
@@ -388,6 +452,12 @@ try {
             Case = $route; Choice = $choice; Result = $result; Dialogs = $uninstall.Dialogs; ExitCode = $uninstall.ExitCode
             AppRemoved = $true; UserDataRemoved = $deleteExpected; MachineJournalPreserved = $true
             JunctionTargetPreserved = if ($null -ne $junctionLink) { $true } else { $null }
+        }
+    }
+    if ($fixture.Mode -eq 'Candidate') {
+        $report.Phase = 'Validate packaged self-tests'
+        if ($report.SelfTests.Count -ne 2 -or @($report.SelfTests | Where-Object Status -eq 'Failed').Count -ne 0) {
+            throw 'One or more packaged self-tests failed. See SelfTests and the per-language reports.'
         }
     }
     $report.Phase = 'Done'
