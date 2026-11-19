@@ -39,7 +39,6 @@ public sealed partial class GameBoostService : ObservableObject
     private static readonly string SessionTitle = Loc.Key("Игровой сеанс");
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan DetectTimeout = TimeSpan.FromMinutes(3);
-    private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(8);
 
     /// <summary>Raised game processes. Guarded by <see cref="_raisedLock"/>: filled on a pool thread, emptied by every stop path.</summary>
     private readonly Dictionary<int, (SafeProcessHandle Handle, uint Original)> _raised = new();
@@ -225,19 +224,31 @@ public sealed partial class GameBoostService : ObservableObject
         {
             var (action, text) = DecidePower(sp, powerEnabled);
             var apps = new List<RunningApp>();
-            var procs = UserProcesses.FindClosable(closeList, game?.InstallDir);
-            try
+            BackgroundClosePlan? closurePlan = null;
+            if (closeMode == BoostCloseMode.Close)
             {
-                foreach (var g in procs.GroupBy(SafeName, StringComparer.OrdinalIgnoreCase))
-                    apps.Add(new RunningApp(g.Key, "", g.Count(), 0, true));
+                closurePlan = BackgroundAppClosure.Capture(closeList, game?.InstallDir);
+                foreach (var g in closurePlan.Targets.GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+                    apps.Add(new RunningApp(g.Key, "", g.Count(), g.Sum(t => t.MemoryBytes), true));
             }
-            finally
+            else
             {
-                foreach (var p in procs) p.Dispose();
+                var procs = UserProcesses.FindClosable(closeList, game?.InstallDir);
+                try
+                {
+                    foreach (var g in procs.GroupBy(SafeName, StringComparer.OrdinalIgnoreCase))
+                        apps.Add(new RunningApp(g.Key, "", g.Count(), 0, true));
+                }
+                finally
+                {
+                    foreach (var p in procs) p.Dispose();
+                }
             }
             var running = new HashSet<string>(apps.Select(a => a.Name), StringComparer.OrdinalIgnoreCase);
+            if (closurePlan is not null) running.UnionWith(closurePlan.Unavailable.Select(t => t.Name));
             var notRunning = closeList.Select(UserProcesses.NormalizeName).Where(n => n.Length > 0 && !running.Contains(n)).ToList();
-            return new BoostPlan(action, text, apps, notRunning, priority && game is not null, purge, closeMode);
+            return new BoostPlan(action, text, apps, notRunning, priority && game is not null, purge, closeMode)
+                { ClosePlan = closurePlan };
         });
     }
 
@@ -251,7 +262,7 @@ public sealed partial class GameBoostService : ObservableObject
         {
             return await OperationCoordinator.Instance.RunAsync(
                 new OperationRequest(OperationClass.Disruptive, game is null ? Loc.T("Запуск игрового сеанса") : Loc.Tf("Запуск игрового сеанса: {0}", game.Name)) { Owner = "games" },
-                _ => StartCoreAsync(game, plan));
+                lease => StartCoreAsync(game, plan, lease));
         }
         catch (Exception ex) when (ex is OperationRefusedException or OperationTimeoutException)
         {
@@ -261,7 +272,7 @@ public sealed partial class GameBoostService : ObservableObject
         }
     }
 
-    private async Task<bool> StartCoreAsync(GameEntry? game, BoostPlan plan)
+    private async Task<bool> StartCoreAsync(GameEntry? game, BoostPlan plan, OperationLease lease)
     {
         if (IsActive || IsTransitioning) return false;
         Elevation.Demand(Loc.Key("Игровой сеанс"));
@@ -277,15 +288,16 @@ public sealed partial class GameBoostService : ObservableObject
         PhaseText = Loc.T("ЗАПУСК");
         try
         {
+            // Finish close confirmations before changing any journaled setting in this session.
+            if (plan.CloseMode == BoostCloseMode.Close && (plan.ClosePlan is not null || plan.AppsToClose.Count > 0))
+                await CloseAppsAsync(plan.ClosePlan, lease);
+
             if (plan.PowerAction == PowerPlanAction.Switch) await SwitchPowerPlanAsync();
             else if (plan.PowerAction == PowerPlanAction.SwitchPowerMode) await SwitchPowerModeAsync();
             else Changes.Add(new BoostChange(Loc.T("План питания не изменён"), plan.PowerText.Replace(BoostPolicy.SkipPrefix, ""), BoostChangeKind.Skipped));
 
-            if (plan.AppsToClose.Count > 0)
-            {
-                if (plan.CloseMode == BoostCloseMode.EcoQos) await ThrottleAppsAsync(plan, game);
-                else await CloseAppsAsync(plan, game);
-            }
+            if (plan.CloseMode == BoostCloseMode.EcoQos && plan.AppsToClose.Count > 0)
+                await ThrottleAppsAsync(plan, game);
 
             if (plan.PurgeStandby) await PurgeStandbyAsync();
 
@@ -386,75 +398,48 @@ public sealed partial class GameBoostService : ObservableObject
 
     private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
-    private async Task CloseAppsAsync(BoostPlan plan, GameEntry? game)
+    private async Task CloseAppsAsync(BackgroundClosePlan? plan, OperationLease lease)
     {
-        var names = plan.AppsToClose.Select(a => a.Name).ToList();
-        var targets = await Task.Run(() => UserProcesses.FindClosable(names, game?.InstallDir)
-            .Select(p => (Process: p, Name: SafeName(p))).ToList());
-        try
+        if (plan is null || !plan.HasFullSelection)
         {
-            if (targets.Count == 0)
-            {
-                Changes.Add(new BoostChange(Loc.T("Приложения"), Loc.T("Приложения из списка уже закрыты."), BoostChangeKind.Info));
-                return;
-            }
-
-            // 1) Polite: the same as clicking the window's close button.
-            await Task.Run(() =>
-            {
-                foreach (var (p, _) in targets)
-                {
-                    try { if (!p.HasExited && p.MainWindowHandle != IntPtr.Zero) p.CloseMainWindow(); }
-                    catch { /* exited */ }
-                }
-            });
-            var deadline = DateTime.UtcNow + CloseTimeout;
-            while (DateTime.UtcNow < deadline && targets.Any(t => IsAlive(t.Process)))
-                await Task.Delay(500);
-
-            // 2) Force only with explicit consent.
-            var remaining = targets.Where(t => IsAlive(t.Process)).ToList();
-            if (remaining.Count > 0)
-            {
-                var details = remaining.GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.Count() > 1 ? Loc.Tf("{0} — процессов: {1}", g.Key, g.Count()) : g.Key).ToList();
-                var kill = await Ui.ConfirmAsync("ЗАВЕРШИТЬ ПРИНУДИТЕЛЬНО?",
-                    "Эти приложения не закрылись за 8 секунд — многие программы при закрытии окна сворачиваются в трей. " +
-                    "Завершить их принудительно? Несохранённые данные в них будут потеряны.",
-                    details, "ЗАВЕРШИТЬ", "ОСТАВИТЬ ОТКРЫТЫМИ", danger: true,
-                    footnote: "Игровой сеанс продолжится при любом выборе.");
-                if (kill)
-                {
-                    await Task.Run(() =>
-                    {
-                        foreach (var (p, name) in remaining)
-                        {
-                            try { if (!p.HasExited) p.Kill(); }
-                            catch (Exception ex) { Log.Warn("Не удалось завершить {0}: {1}", name, ex.Message); }
-                        }
-                    });
-                    var killDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
-                    while (DateTime.UtcNow < killDeadline && remaining.Any(t => IsAlive(t.Process)))
-                        await Task.Delay(250);
-                }
-            }
-
-            var byName = targets.GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
-            var closed = byName.Where(g => g.All(t => !IsAlive(t.Process))).Select(g => g.Key).ToList();
-            var open = byName.Where(g => g.Any(t => IsAlive(t.Process))).Select(g => g.Key).ToList();
-            _closedApps.AddRange(closed);
-            if (closed.Count > 0)
-            {
-                Changes.Add(new BoostChange(Loc.Tf("Закрыто приложений: {0}", closed.Count), Loc.Tf("{0}. После игры Lycoris их не открывает.", string.Join(", ", closed)), BoostChangeKind.Changed));
-                Log.Info("Игровой сеанс: закрыты {0}", string.Join(", ", closed));
-            }
-            if (open.Count > 0)
-                Changes.Add(new BoostChange(Loc.T("Остались открыты"), string.Join(", ", open), BoostChangeKind.Skipped));
+            Changes.Add(new BoostChange(Loc.T("Приложения"), Loc.T("Не удалось проверить список процессов."), BoostChangeKind.Skipped));
+            return;
         }
-        finally
+        if (plan.Unavailable.Count > 0)
+            Changes.Add(new BoostChange(Loc.T("Некоторые процессы недоступны для закрытия"),
+                string.Join(", ", plan.Unavailable.Select(t => Loc.Sink(t.Name)).Distinct(StringComparer.OrdinalIgnoreCase)), BoostChangeKind.Skipped));
+        if (plan.Targets.Count == 0) return;
+
+        var outcome = await BackgroundAppClosure.CloseWithinAsync(BackgroundAppClosure.Engine, lease, plan,
+            remaining => Ui.ConfirmAsync("ЗАВЕРШИТЬ ПРИНУДИТЕЛЬНО?",
+                "Эти приложения ещё работают. Завершить их принудительно? Несохранённые данные в них будут потеряны.",
+                remaining.Select(BoostPlan.DescribeCloseTarget),
+                "ЗАВЕРШИТЬ", "ОСТАВИТЬ ОТКРЫТЫМИ", danger: true,
+                footnote: "Игровой сеанс продолжится при любом выборе."));
+
+        if (outcome.PreflightAborted)
         {
-            foreach (var (p, _) in targets) p.Dispose();
+            Changes.Add(new BoostChange(Loc.T("Закрытие не выполнено"), Loc.T("Список процессов изменился после подтверждения."), BoostChangeKind.Skipped));
+            return;
         }
+        if (!outcome.SelectionVerified)
+            Changes.Add(new BoostChange(Loc.T("Не удалось проверить список процессов после закрытия."), "", BoostChangeKind.Skipped));
+
+        var unavailableNames = plan.Unavailable.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var byName = outcome.Results.GroupBy(r => r.Target.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        var closed = byName.Where(g => !unavailableNames.Contains(g.Key) && g.All(ConfirmedClosed))
+            .Select(g => Loc.Sink(g.Key)).ToList();
+        var unconfirmed = byName.Where(g => !g.All(ConfirmedClosed)).Select(g => Loc.Sink(g.Key)).ToList();
+        _closedApps.AddRange(closed);
+        if (closed.Count > 0)
+        {
+            Changes.Add(new BoostChange(Loc.Tf("Закрыто приложений: {0}", closed.Count), Loc.Tf("{0}. После игры Lycoris их не открывает.", string.Join(", ", closed)), BoostChangeKind.Changed));
+            Log.Info("Игровой сеанс: закрыты {0}", string.Join(", ", closed));
+        }
+        if (unconfirmed.Count > 0)
+            Changes.Add(new BoostChange(Loc.T("Закрытие не подтверждено"), string.Join(", ", unconfirmed), BoostChangeKind.Skipped));
+
+        static bool ConfirmedClosed(BackgroundCloseResult result) => result.Status is BackgroundCloseStatus.Closed or BackgroundCloseStatus.Forced;
     }
 
     /// <summary>
@@ -1106,25 +1091,5 @@ public sealed partial class GameBoostService : ObservableObject
     private static string SafeName(Process p)
     {
         try { return p.ProcessName; } catch { return "?"; }
-    }
-
-    private static bool IsAlive(Process p)
-    {
-        try
-        {
-            return !p.HasExited;
-        }
-        catch
-        {
-            try
-            {
-                using var again = Process.GetProcessById(p.Id);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
     }
 }

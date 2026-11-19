@@ -40,7 +40,11 @@ public sealed partial class GamesViewModel : PageViewModel
             _ = RefreshPowerNoteAsync();
         };
         Settings.PropertyChanged += OnSettingsChanged;
-        EditorList.CollectionChanged += (_, _) => OnPropertyChanged(nameof(EditorListEmpty));
+        EditorList.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(EditorListEmpty));
+            CloseSelectedNowCommand.NotifyCanExecuteChanged();
+        };
         if (Application.Current is { } app) app.Exit += (_, _) => Boost.StopOnExit();
         UpdateCloseList();
     }
@@ -155,11 +159,24 @@ public sealed partial class GamesViewModel : PageViewModel
 
     public ObservableCollection<string> EditorList { get; } = [];
     public ObservableCollection<RunningAppItem> RunningApps { get; } = [];
-    [ObservableProperty] private bool _isEditorOpen;
-    [ObservableProperty] private bool _isLoadingRunning;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CloseSelectedNowCommand))]
+    private bool _isEditorOpen;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CloseSelectedNowCommand))]
+    private bool _isLoadingRunning;
     [ObservableProperty] private string _newProcessName = "";
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CloseSelectedNowCommand))]
+    private bool _isClosingNow;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CloseNowNote))]
+    private string _closeNowStatus = "";
 
     public bool EditorListEmpty => EditorList.Count == 0;
+    public string CloseNowNote => CloseNowStatus.Length > 0 ? CloseNowStatus
+        : IsReadOnly ? Loc.T("Для закрытия Lycoris предложит перезапуск с правами администратора.")
+        : Loc.T("Перед закрытием Lycoris покажет список процессов и спросит подтверждение.");
 
     // ───────────────────────────── Lifecycle ─────────────────────────────
 
@@ -901,14 +918,153 @@ public sealed partial class GamesViewModel : PageViewModel
     [RelayCommand]
     private async Task OpenEditor()
     {
-        EditorList.Clear();
-        foreach (var n in (Settings.GameBoostCloseList ?? []).Select(UserProcesses.NormalizeName).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase))
-            EditorList.Add(n);
-        OnPropertyChanged(nameof(EditorListEmpty));
-        NewProcessName = "";
-        IsEditorOpen = true;
+        ShowEditor((Settings.GameBoostCloseList ?? []).Select(UserProcesses.NormalizeName)
+            .Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
         await LoadRunningAsync();
     }
+
+    private void ShowEditor(IEnumerable<string> names)
+    {
+        EditorList.Clear();
+        foreach (var name in names) EditorList.Add(name);
+        NewProcessName = "";
+        CloseNowStatus = "";
+        IsEditorOpen = true;
+    }
+
+    private bool CanCloseSelectedNow(string? replayNames) => !IsClosingNow && !IsLoadingRunning && !SafetyLock.IsLocked
+        && (replayNames is null ? IsEditorOpen && !EditorListEmpty : AdminIntent.TryParseBackgroundApps(replayNames, out _));
+
+    internal bool TryGetCloseSelection(string? replayNames, out IReadOnlyList<string> names) => replayNames is not null
+        ? AdminIntent.TryParseBackgroundApps(replayNames, out names)
+        : BackgroundAppCloseCommandLine.TryParseNames(string.Join(',', EditorList), out names)
+            && names.SequenceEqual(EditorList, StringComparer.OrdinalIgnoreCase);
+
+    [RelayCommand(CanExecute = nameof(CanCloseSelectedNow))]
+    private async Task CloseSelectedNow(string? replayNames)
+    {
+        if (!CanCloseSelectedNow(replayNames)) return;
+
+        if (!TryGetCloseSelection(replayNames, out var names))
+        {
+            CloseNowStatus = Loc.T("Выберите до 32 программ с обычными именами исполняемых файлов.");
+            return;
+        }
+
+        var action = Loc.T("Закрытие выбранных программ");
+        if (!RequireAdmin(action, AdminIntent.CloseSelectedNow, string.Join(',', names))) return;
+
+        if (replayNames is not null) ShowEditor(names);
+        IsClosingNow = true;
+        try
+        {
+            if (!CanStartNow(OperationClass.Disruptive, action))
+            {
+                CloseNowStatus = OperationNote ?? "";
+                return;
+            }
+            OperationNote = null;
+
+            CloseNowStatus = Loc.T("Проверяем выбранные программы…");
+            var plan = await Task.Run(() => BackgroundAppClosure.Capture(names));
+            if (!plan.HasFullSelection)
+            {
+                CloseNowStatus = Loc.T("Не удалось проверить запущенные процессы. Обновите список и повторите действие.");
+                return;
+            }
+            if (plan.Unavailable.Count > 0)
+            {
+                CloseNowStatus = Loc.T("Часть выбранных процессов недоступна. Обновите список или снимите отметки с указанных программ.");
+                await Ui.AlertAsync("Закрытие выбранных программ", CloseNowStatus, plan.Unavailable.Select(DescribeUnavailable));
+                return;
+            }
+
+            var foundNames = plan.Targets.Select(target => target.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missing = names.Where(name => !foundNames.Contains(name))
+                .Select(name => Loc.Tf("{0} · нет совпадений в списке процессов", name))
+                .ToArray();
+            if (plan.Targets.Count == 0)
+            {
+                CloseNowStatus = Loc.T("Среди выбранных программ нет процессов, доступных для закрытия.");
+                await Ui.AlertAsync("Закрытие выбранных программ", CloseNowStatus, missing);
+                return;
+            }
+
+            var approved = await Ui.ConfirmAsync("Закрыть выбранные программы сейчас?",
+                Loc.Tf("Выбрано программ {0}, процессов к закрытию {1}, пропущено записей {2}. Сохраните работу. Закрытые программы потребуется открыть вручную.",
+                    names.Count, plan.Targets.Count, missing.Length),
+                plan.Targets.Select(DescribeCloseTarget).Concat(missing),
+                confirmText: "Закрыть программы", danger: true,
+                footnote: "Сначала обычное закрытие окна. Принудительное завершение требует отдельного подтверждения.");
+            if (!approved)
+            {
+                CloseNowStatus = Loc.T("Закрытие отменено.");
+                return;
+            }
+
+            CloseNowStatus = Loc.T("Закрываем выбранные программы…");
+            var outcome = await BackgroundAppClosure.CloseAsync(plan, ConfirmForceCloseAsync);
+            var summary = DescribeCloseResults(outcome.Results, missing.Length);
+            CloseNowStatus = outcome.PreflightAborted
+                ? Loc.T("Закрытие отменено при повторной проверке. Обновите список и повторите действие.")
+                : !outcome.SelectionVerified
+                    ? Loc.Tf("{0} Не удалось проверить текущий список процессов.", summary)
+                    : summary;
+            if (outcome.PreflightAborted || !outcome.SelectionVerified ||
+                outcome.Results.Any(result => result.Status is not (BackgroundCloseStatus.Closed or BackgroundCloseStatus.Forced)))
+            {
+                await Ui.AlertAsync("Закрытие выбранных программ", CloseNowStatus, outcome.Results.Select(result =>
+                    Loc.Tf("{0} · {1}", DescribeCloseTarget(result.Target), CloseStatusText(result.Status))));
+            }
+        }
+        catch (OperationRefusedException ex)
+        {
+            OperationNote = CloseNowStatus = ex.Message;
+            Ui.Toast(ex.Message, ToastKind.Warning, action);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Закрытие выбранных программ", ex);
+            CloseNowStatus = Loc.T("Не удалось завершить операцию. Проверьте обновлённый список запущенных программ.");
+            Ui.Toast(ex.Message, ToastKind.Error, action);
+        }
+        finally
+        {
+            await LoadRunningAsync();
+            IsClosingNow = false;
+        }
+    }
+
+    private static Task<bool> ConfirmForceCloseAsync(IReadOnlyList<BackgroundCloseTarget> remaining) =>
+        Ui.ConfirmAsync("Принудительно завершить процессы?",
+            Loc.Tf("Продолжают работу {0}. Принудительное завершение может привести к потере несохранённых данных.",
+                Loc.N(remaining.Count, "{0} процесс", "{0} процесса", "{0} процессов")),
+            remaining.Select(DescribeCloseTarget), confirmText: "Завершить принудительно", cancelText: "Оставить запущенными", danger: true);
+
+    internal static string DescribeCloseTarget(BackgroundCloseTarget target) =>
+        Loc.Tf("{0} · PID {1}\nЗапуск {2:yyyy-MM-dd HH:mm:ss.fffffff} UTC\n{3}",
+            target.Name, target.Pid, target.StartedUtc, target.ImagePath);
+
+    private static string DescribeUnavailable(BackgroundCloseUnavailable item) =>
+        item.Pid is { } pid ? Loc.Tf("{0} · PID {1} · {2}", item.Name, pid, CloseStatusText(item.Status))
+            : Loc.Tf("{0} · {1}", item.Name, CloseStatusText(item.Status));
+
+    private static string CloseStatusText(BackgroundCloseStatus status) => status switch
+    {
+        BackgroundCloseStatus.Closed => Loc.T("Закрыто"),
+        BackgroundCloseStatus.Forced => Loc.T("Завершено принудительно"),
+        BackgroundCloseStatus.Stale => Loc.T("Пропущен после проверки процессов"),
+        BackgroundCloseStatus.Denied => Loc.T("Закрытие недоступно"),
+        BackgroundCloseStatus.StillRunning => Loc.T("Продолжает работать"),
+        _ => Loc.T("Ошибка закрытия"),
+    };
+
+    internal static string DescribeCloseResults(IReadOnlyList<BackgroundCloseResult> results, int unavailable) =>
+        Loc.Tf("Закрыто {0} · продолжают работу {1} · пропущено {2} · ошибок {3}.",
+            results.Count(result => result.Status is BackgroundCloseStatus.Closed or BackgroundCloseStatus.Forced),
+            results.Count(result => result.Status == BackgroundCloseStatus.StillRunning),
+            unavailable + results.Count(result => result.Status == BackgroundCloseStatus.Stale),
+            results.Count(result => result.Status is BackgroundCloseStatus.Denied or BackgroundCloseStatus.Error));
 
     [RelayCommand]
     private Task RefreshRunning() => LoadRunningAsync();
@@ -988,6 +1144,7 @@ public sealed partial class GamesViewModel : PageViewModel
     [RelayCommand]
     private void SaveEditor()
     {
+        if (IsClosingNow) return;
         Settings.GameBoostCloseList = EditorList.ToList();
         Settings.Save();
         UpdateCloseList();
@@ -998,5 +1155,8 @@ public sealed partial class GamesViewModel : PageViewModel
     }
 
     [RelayCommand]
-    private void CancelEditor() => IsEditorOpen = false;
+    private void CancelEditor()
+    {
+        if (!IsClosingNow) IsEditorOpen = false;
+    }
 }

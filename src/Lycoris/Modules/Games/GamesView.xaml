@@ -883,12 +883,12 @@
                     </Grid.RowDefinitions>
                     <Rectangle Height="6" VerticalAlignment="Top" Fill="{StaticResource B.White}" />
                     <StackPanel Margin="17,17,17,0">
-                        <TextBlock Text="{loc:T 'Закрывать перед игрой'}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{loc:T 'Выбор программ'}" Style="{StaticResource T.H1}" />
                         <TextBlock Style="{StaticResource T.Body}" Margin="0,8,0,0" MaxWidth="760" HorizontalAlignment="Left"
-                                   Text="{loc:T 'Отметьте программы, которые Lycoris закроет перед запуском игры в игровом сеансе: браузеры, мессенджеры, облачные клиенты. Системные процессы, драйверы, античиты и лаунчеры сюда не попадают. Закрытые программы после игры сами не откроются.'}" />
+                                   Text="{loc:T 'Отметьте программы слева или добавьте их по имени. Закрытие сейчас действует разово. Кнопка «Сохранить» задаёт список для игрового сеанса.'}" />
                     </StackPanel>
 
-                    <Grid Grid.Row="1" Margin="17,12,17,0" Height="330">
+                    <Grid Grid.Row="1" Margin="17,12,17,0" Height="330" IsEnabled="{Binding IsClosingNow, Converter={StaticResource InverseBool}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="20" />
@@ -997,7 +997,7 @@
                                     </ScrollViewer>
                                     <StackPanel VerticalAlignment="Center" Margin="12,0" Visibility="{Binding EditorListEmpty, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{loc:T 'СПИСОК ПУСТ'}" Style="{StaticResource T.Label}" HorizontalAlignment="Center" />
-                                        <TextBlock Text="{loc:T 'Перед игрой ничего не закрывается. Отметьте программы слева или впишите имя процесса.'}" Style="{StaticResource T.Caption}"
+                                        <TextBlock Text="{loc:T 'Отметьте программы слева или впишите имя процесса.'}" Style="{StaticResource T.Caption}"
                                                    TextAlignment="Center" Margin="0,6,0,0" />
                                     </StackPanel>
                                 </Grid>
@@ -1006,12 +1006,18 @@
                     </Grid>
 
                     <Grid Grid.Row="2" Margin="17,14,17,16">
-                        <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center" MaxWidth="460" HorizontalAlignment="Left" LineHeight="16"
-                                   Text="{loc:T 'Перед закрытием Lycoris покажет список и спросит подтверждение. Принудительное завершение — только после отдельного вопроса.'}" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Button Content="{loc:T 'Закрыть выбранные сейчас'}" Command="{Binding CloseSelectedNowCommand}"
+                                HorizontalAlignment="Left" MinWidth="190" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                    IsEnabled="{Binding IsClosingNow, Converter={StaticResource InverseBool}}">
                             <Button Content="{loc:T 'ОТМЕНА'}" Command="{Binding CancelEditorCommand}" MinWidth="110" Margin="0,0,10,0" />
                             <Button Style="{StaticResource Btn.Primary}" Content="{loc:T 'СОХРАНИТЬ'}" Command="{Binding SaveEditorCommand}" MinWidth="140" />
                         </StackPanel>
+                        <TextBlock Grid.Row="1" Text="{Binding CloseNowNote}" Style="{StaticResource T.Caption}" Margin="0,8,0,0" LineHeight="16" />
                     </Grid>
                 </Grid>
             </Border>

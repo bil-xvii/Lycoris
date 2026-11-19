@@ -34,9 +34,7 @@ internal static class GamesNative
         {
             using var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
             if (h.IsInvalid) return null;
-            var sb = new StringBuilder(1024);
-            var size = sb.Capacity;
-            return QueryFullProcessImageNameW(h, 0, sb, ref size) ? sb.ToString(0, size) : null;
+            return GetImagePath(h);
         }
         catch
         {
@@ -51,28 +49,61 @@ internal static class GamesNative
         {
             using var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
             if (h.IsInvalid) return null;
-            if (!OpenProcessToken(h.DangerousGetHandle(), TOKEN_QUERY, out var token)) return null;
-            using (token)
-            {
-                GetTokenInformation(token, TokenUser, IntPtr.Zero, 0, out var len);
-                if (len <= 0) return null;
-                var buf = Marshal.AllocHGlobal(len);
-                try
-                {
-                    if (!GetTokenInformation(token, TokenUser, buf, len, out _)) return null;
-                    var sid = Marshal.ReadIntPtr(buf); // TOKEN_USER.User.Sid
-                    return new SecurityIdentifier(sid).Value;
-                }
-                finally
-                {
-                    Marshal.FreeHGlobal(buf);
-                }
-            }
+            if (!OpenProcessToken(h, TOKEN_QUERY, out var token)) return null;
+            using (token) return ReadTokenSid(token);
         }
         catch
         {
             return null;
         }
+    }
+
+    private static string? GetImagePath(SafeProcessHandle process)
+    {
+        var path = new StringBuilder(1024);
+        var size = path.Capacity;
+        return QueryFullProcessImageNameW(process, 0, path, ref size) && size > 0 && size < path.Capacity
+            ? path.ToString(0, size) : null;
+    }
+
+    private static string? ReadTokenSid(SafeAccessTokenHandle token)
+    {
+        GetTokenInformation(token, TokenUser, IntPtr.Zero, 0, out var length);
+        if (length < IntPtr.Size || length > 1024) return null;
+        var buffer = Marshal.AllocHGlobal(length);
+        try
+        {
+            if (!GetTokenInformation(token, TokenUser, buffer, length, out _)) return null;
+            var sid = Marshal.ReadIntPtr(buffer); // TOKEN_USER.User.Sid
+            return sid != IntPtr.Zero ? new SecurityIdentifier(sid).Value : null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    /// <summary>Read the user and Windows session from one primary token attached to this process handle.</summary>
+    internal static (string Sid, int Session)? ReadCloseToken(SafeProcessHandle process)
+    {
+        if (!OpenProcessToken(process, TOKEN_QUERY, out var token)) return null;
+        using (token)
+        {
+            const int tokenSessionId = 12;
+            if (!GetTokenSessionId(token, tokenSessionId, out var session, sizeof(uint), out var length) ||
+                length != sizeof(uint) || session == 0 || session > int.MaxValue || ReadTokenSid(token) is not { } sid)
+                return null;
+            return (sid, (int)session);
+        }
+    }
+
+    internal static BackgroundCloseIdentity? ReadCloseIdentity(SafeProcessHandle process)
+    {
+        var pid = GetProcessId(process);
+        if (pid == 0 || pid > int.MaxValue || EcoQos.StartTimeUtc(process) is not { } started ||
+            GetImagePath(process) is not { } image || !IsProcessCritical(process, out var critical) ||
+            ReadCloseToken(process) is not { } token) return null;
+        return new((int)pid, started, image, token.Sid, token.Session, critical);
     }
 
     /// <summary>True when Windows marks the process as critical (killing it bug-checks the system). Unknown → true (treat as critical).</summary>
@@ -296,6 +327,9 @@ internal static class GamesNative
     private static extern bool IsProcessCritical(SafeProcessHandle process, [MarshalAs(UnmanagedType.Bool)] out bool critical);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetProcessId(SafeProcessHandle process);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     public static extern uint GetPriorityClass(SafeProcessHandle process);
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -313,6 +347,14 @@ internal static class GamesNative
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeAccessTokenHandle token);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool OpenProcessToken(SafeProcessHandle process, uint access, out SafeAccessTokenHandle token);
+
+    [DllImport("advapi32.dll", EntryPoint = "GetTokenInformation", SetLastError = true, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetTokenSessionId(SafeAccessTokenHandle token, int infoClass, out uint info, uint length, out uint returnLength);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool GetTokenInformation(SafeAccessTokenHandle token, int infoClass, IntPtr info, int length, out int returnLength);

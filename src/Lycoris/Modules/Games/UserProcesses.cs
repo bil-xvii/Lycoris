@@ -100,6 +100,89 @@ public static class UserProcesses
         return ProtectedPrefixes.Any(p => n.StartsWith(p, StringComparison.OrdinalIgnoreCase));
     }
 
+    // The close-only list also protects shells, developer tools, AI applications, and shared runtimes.
+    // Do not apply these exclusions to reversible EcoQoS.
+    private static readonly HashSet<string> ProtectedCloseNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cmd", "powershell", "powershell_ise", "pwsh", "wt", "windowsterminal", "bash", "sh", "dash", "zsh", "fish",
+        "wsl", "wslhost", "wslservice", "mintty", "msys2", "git-bash", "wezterm-gui", "alacritty", "nu",
+        "python", "pythonw", "py", "pypy", "node", "nodejs", "deno", "bun", "dotnet", "mono", "java", "javaw", "javaws",
+        "jre", "ruby", "perl", "php", "electron", "nw", "uv", "uvx", "rscript", "rterm", "cscript", "wscript", "mshta",
+        "rundll32", "regsvr32", "msiexec", "winget", "appinstaller", "installutil", "setuphost", "ngen", "trustedinstaller",
+        "code", "code - insiders", "devenv", "msbuild", "vstest.console", "servicehub.host.dotnet",
+        "rider", "idea64", "pycharm64", "webstorm64", "clion64", "goland64", "datagrip64", "studio64", "eclipse", "zed",
+        "git", "git-lfs", "git-credential-manager", "ssh", "sshd", "docker", "podman", "vmmem", "vmmemwsl",
+        "cursor", "windsurf", "antigravity", "copilot", "lm studio", "ollama", "llama-server", "llama-cli",
+        "aider", "gemini", "opencode", "hermes", "jan", "gpt4all", "cherry studio", "msty",
+    };
+
+    private static readonly string[] ProtectedClosePrefixes =
+    [
+        "codex", "claude", "chatgpt", "openai", "ollama", "anthropic", "gemini-", "githubcopilot", "github-copilot", "llama-",
+        "python", "pypy", "windowsterminal", "vscode", "servicehub.", "com.docker", "ssh-agent",
+    ];
+
+    private static readonly string[] ProtectedImageFolders =
+    [
+        "microsoft defender", "windows defender", "windows security", "nvidia", "amd", "intel", "realtek",
+        "steam", "epic games", "epicgames", "origin games", "ea desktop", "ubisoft", "battle.net", "riot games",
+        "easyanticheat", "battleye", "faceit", "vgc", "malwarebytes", "bitdefender", "kaspersky", "crowdstrike",
+        "avast", "avira", "eset", "mcafee", "norton", "sophos", "sentinelone", "carbonblack",
+        "visual studio", "microsoft vs code", "jetbrains", "powershell", "git", "msys2", "cygwin",
+        "python", "nodejs", "dotnet", "java", "jdk", "electron", "docker", "windows terminal",
+        "copilot", "github copilot", "cursor", "windsurf", "antigravity", "gpt4all", "lm studio",
+        "cherry studio", "hermes", "codex", "claude", "chatgpt", "openai", "anthropic", "ollama", "lycoris",
+    ];
+
+    private static readonly string[] ProtectedImageFolderPrefixes =
+    [
+        "microsoft.windows.", "microsoftwindows.client.", "microsoft.windowsterminal",
+        "openai.", "anthropic.", "claude.", "codex.", "github.copilot", "copilot-",
+    ];
+
+    /// <summary>Canonical process-name exclusions for operations that may close the process.</summary>
+    public static bool IsProtectedCloseName(string? name)
+    {
+        var normalized = NormalizeName(name);
+        return IsProtectedName(normalized) || ProtectedCloseNames.Contains(normalized) ||
+            ProtectedClosePrefixes.Any(prefix => normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool TryGetClosableImage(string imagePath, string windowsDir, string gameDir, out string name, out string path)
+    {
+        name = path = "";
+        // Win32 reported local DOS paths only; ambiguity in the path is a refusal.
+        if (imagePath.Length < 4 || !char.IsAsciiLetter(imagePath[0]) || imagePath[1] != ':' ||
+            imagePath[2] != '\\' || imagePath.AsSpan(2).Contains(':') || imagePath.Any(char.IsControl)) return false;
+        try { path = Path.GetFullPath(imagePath); }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException) { return false; }
+
+        if (windowsDir.Length == 0 || GamePaths.IsUnder(path, windowsDir) || GamePaths.IsUnder(path, gameDir) ||
+            !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return false;
+
+        name = Path.GetFileNameWithoutExtension(path);
+        if (IsProtectedCloseName(name)) return false;
+
+        var relativePath = path[3..];
+        var folders = relativePath.Split('\\');
+        // The optional desktop Copilot is distinct from the protected GitHub Copilot CLI.
+        var desktopCopilot = (name.Equals("copilotapp", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("copilotapphost", StringComparison.OrdinalIgnoreCase)) &&
+            (relativePath.StartsWith(@"Program Files (x86)\Microsoft\Copilot\Application\", StringComparison.OrdinalIgnoreCase) ||
+             relativePath.StartsWith(@"Program Files\Microsoft\Copilot\Application\", StringComparison.OrdinalIgnoreCase));
+        for (var index = 0; index < folders.Length - 1; index++)
+        {
+            var folder = folders[index];
+            if (desktopCopilot && index == 2) continue; // The fixed "Copilot" directory in the recognized desktop path.
+            if (index == 1 && folders[0].Equals("Users", StringComparison.OrdinalIgnoreCase)) continue;
+            folder = folder.TrimStart('.');
+            if (ProtectedImageFolders.Any(protectedFolder => folder.Equals(protectedFolder, StringComparison.OrdinalIgnoreCase) ||
+                    folder.StartsWith(protectedFolder + " ", StringComparison.OrdinalIgnoreCase)) ||
+                ProtectedImageFolderPrefixes.Any(prefix => folder.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))) return false;
+        }
+        return true;
+    }
+
     /// <summary>Running closable apps grouped by name, biggest memory first. Blocking — call from a background thread.</summary>
     public static IReadOnlyList<RunningApp> ListClosable()
     {

@@ -34,9 +34,9 @@ public static class GameLibrary
 
     private sealed class CacheFile
     {
-        public int Version { get; set; } = 1;
+        [JsonRequired] public int Version { get; set; } = 1;
         public DateTime ScannedAt { get; set; }
-        public List<GameEntry> Games { get; set; } = [];
+        [JsonRequired] public List<GameEntry> Games { get; set; } = [];
         public List<SourceStatus> Sources { get; set; } = [];
     }
 
@@ -144,18 +144,18 @@ public static class GameLibrary
         };
     }
 
-    internal static LibraryScan? LoadCache(string path)
+    internal static LibraryScan? LoadCache(string path, bool logError = true)
     {
         try
         {
             if (!File.Exists(path)) return null;
             var data = JsonSerializer.Deserialize<CacheFile>(Lycoris.Core.Security.SafeIo.ReadText(path), JsonOptions);
-            if (data is null || data.Version != 1) return null;
+            if (data is null || data.Version != 1 || data.Games is null || data.Sources is null) return null;
             return new LibraryScan(data.Games, data.Sources, data.ScannedAt);
         }
         catch (Exception ex)
         {
-            Log.Warn("Кэш библиотеки игр повреждён и будет пересоздан: {0}", ex.Message);
+            if (logError) Log.Warn("Кэш библиотеки игр повреждён и будет пересоздан: {0}", ex.Message);
             return null;
         }
     }
