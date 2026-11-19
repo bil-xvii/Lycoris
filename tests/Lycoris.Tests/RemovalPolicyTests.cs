@@ -12,20 +12,17 @@ public sealed class RemovalPolicyTests
     [InlineData("VLC media player", "VideoLAN")]
     [InlineData("7-Zip 25.01 (x64)", "Igor Pavlov")]
     [InlineData("Steam", "Valve Corporation")]
-    public void Known_desktop_app_with_current_complete_uninstall_evidence_is_a_conditional_candidate(string name, string publisher)
+    public void Installer_labels_alone_never_confirm_a_candidate(string name, string publisher)
     {
         var result = RemovalPolicy.Program(Entry(name, publisher), current: true);
-        Assert.Equal(RemovalDecision.ConsiderRemoval, result.Decision);
+        Assert.Equal(RemovalDecision.Review, result.Decision);
         Assert.Equal(name, result.Name);
         Assert.Equal(publisher, result.Publisher);
     }
 
     [Theory]
-    [InlineData("VLC media player codec", "VideoLAN")]
     [InlineData("VLC media player", "someone else")]
-    [InlineData("7-Zip 25.01 (x64) runtime", "Igor Pavlov")]
     [InlineData("Ordinary unknown program", "Contoso")]
-    [InlineData("Some driver", "Contoso")]
     public void Unrecognized_or_lookalike_installer_details_require_review(string name, string publisher)
     {
         Assert.Equal(RemovalDecision.Review, RemovalPolicy.Program(Entry(name, publisher), current: true).Decision);
@@ -37,7 +34,12 @@ public sealed class RemovalPolicyTests
     [InlineData("Microsoft Edge WebView2 Runtime", "Microsoft Corporation")]
     [InlineData("NVIDIA Graphics Driver 555.55", "NVIDIA Corporation")]
     [InlineData("ESET Endpoint Security", "ESET, spol. s r.o.")]
-    public void Shared_runtimes_known_drivers_and_security_stay_out_of_removal(string name, string publisher)
+    [InlineData("7-Zip 25.01 (x64) runtime", "Igor Pavlov")]
+    [InlineData("Some driver", "Contoso")]
+    [InlineData("Unknown SDK", "Contoso")]
+    [InlineData("VLC media player codec", "VideoLAN")]
+    [InlineData("Known Product", "IDRIX")]
+    public void Shared_runtimes_codecs_drivers_and_security_stay_out_of_removal(string name, string publisher)
     {
         Assert.Equal(RemovalDecision.Keep, RemovalPolicy.Program(Entry(name, publisher), current: true).Decision);
     }
@@ -103,11 +105,11 @@ public sealed class RemovalPolicyTests
     }
 
     [Fact]
-    public void Actual_signed_optional_startup_entry_gets_a_reversible_disable_decision()
+    public void Startup_signature_without_manual_launch_proof_stays_for_review()
     {
         var item = SteamStartup();
         var result = RemovalPolicy.Startup(item, unique: true);
-        Assert.Equal(RemovalDecision.DisableStartup, result.Decision);
+        Assert.Equal(RemovalDecision.Review, result.Decision);
         Assert.Equal(item.Key, result.Key);
         Assert.Equal("Valve Corp.", result.Publisher);
     }
@@ -141,6 +143,27 @@ public sealed class RemovalPolicyTests
         Assert.Equal(RemovalDecision.Review, RemovalPolicy.Startup(policy with { PackageState = null }, true).Decision);
     }
 
+    [Theory]
+    [InlineData("INZONEHub.exe", SignatureState.Valid, "Sony Corporation", RemovalDecision.Keep)]
+    [InlineData("UnrelatedSonyApp.exe", SignatureState.Valid, "Sony Corporation", RemovalDecision.Review)]
+    [InlineData("INZONEHub.exe", SignatureState.Valid, "Other Publisher", RemovalDecision.Review)]
+    [InlineData("INZONEHub.exe", SignatureState.Untrusted, "Sony Corporation", RemovalDecision.Review)]
+    public void Hardware_utility_role_requires_the_catalog_executable_and_verified_signer(
+        string executable, SignatureState signature, string signer, RemovalDecision expected)
+    {
+        var entry = SteamStartup() with
+        {
+            Name = "INZONE Hub", DisplayName = "INZONE Hub",
+            TargetPath = $@"C:\Program Files\Sony\INZONE Hub\{executable}",
+            Signature = signature, SignedBy = signer, Publisher = "Sony Corporation",
+        };
+
+        var expectedRole = expected == RemovalDecision.Keep ? RemovalSoftwareRole.Protected : RemovalSoftwareRole.Ordinary;
+        Assert.Equal(expectedRole, RemovalSoftwareEvidence.Role(entry.TargetPath,
+            signature == SignatureState.Valid ? signer : null, entry.Name, entry.Publisher));
+        Assert.Equal(expected, RemovalPolicy.Startup(entry, unique: true).Decision);
+    }
+
     [Fact]
     public void Filter_selection_text_exposes_the_display_title()
     {
@@ -161,7 +184,7 @@ public sealed class RemovalPolicyTests
     }
 
     private static UninstallRegistration Entry(string name = "VLC media player", string publisher = "VideoLAN") =>
-        new(UninstallScope.Machine64, "ExampleProduct", name, publisher, "3.0.24", false, false, false, true);
+        new(UninstallScope.Machine64, "ExampleProduct", name, publisher, "3.0.24", false, false, false, true, "fingerprint");
 
     private static UninstallInventory Snapshot(IReadOnlyList<UninstallRegistration> items) =>
         new(items, UninstallReadState.Complete, new DateTime(2026, 11, 19, 10, 0, 0));

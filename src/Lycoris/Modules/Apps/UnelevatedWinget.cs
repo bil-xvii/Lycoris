@@ -48,9 +48,11 @@ public static partial class UnelevatedWinget
     internal static async Task<UnelevatedResult> RunForRemovalAsync(string sid, IReadOnlyList<string> args,
         Func<bool>? validateBeforeLaunch, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(sid)) return new(UnelevatedOutcome.LaunchFailed, -1, "");
+        var command = args.ToArray();
         try
         {
-            return await WingetClient.RunExclusiveAsync(token => RunCoreAsync(args, null, token, sid, validateBeforeLaunch), ct)
+            return await WingetClient.RunExclusiveAsync(token => RunCoreAsync(command, null, token, sid, validateBeforeLaunch), ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -78,15 +80,15 @@ public static partial class UnelevatedWinget
     {
         var strict = verifiedSid is not null;
         var command = wingetArgs.FirstOrDefault();
-        var sourceProbe = strict && wingetArgs.SequenceEqual(new[] { "source", "export", "--name", "winget", "--disable-interactivity" });
-        if (strict && !sourceProbe && command is not ("export" or "list" or "uninstall"))
+        var sourceProbe = strict && IsRemovalSourceProbe(wingetArgs);
+        var versionProbe = strict && IsRemovalVersionProbe(wingetArgs);
+        if (strict && !IsStrictRemovalCommand(wingetArgs))
             return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, "");
         if (SafetyLock.IsLocked && !sourceProbe && WingetClient.IsModifying(wingetArgs))
             return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, Loc.T("Установка программ заблокирована: режим самопроверки."));
         var token = Guid.NewGuid().ToString("N");
         var logName = $"{FilePrefix}{token}.log";
         var exitName = $"{FilePrefix}{token}.exit";
-        var exportName = strict && command == "export" ? $"{FilePrefix}{token}.json" : null;
         var temp = Environment.GetEnvironmentVariable("TEMP") is { Length: > 0 } t ? t : Path.GetTempPath();
         var logPath = Path.Combine(temp, logName);
         var exitPath = Path.Combine(temp, exitName);
@@ -98,7 +100,7 @@ public static partial class UnelevatedWinget
         {
             var exe = strict ? RegisteredWingetExe(verifiedSid!) : WingetExeForShell();
             if (exe is null) return new UnelevatedResult(UnelevatedOutcome.LaunchFailed, -1, "");
-            cmdLine = BuildCommandLine(exe, wingetArgs, logName, exitName, exportName, strict);
+            cmdLine = BuildCommandLine(exe, wingetArgs, logName, exitName, strict);
         }
         catch (ArgumentException ex)
         {
@@ -171,8 +173,8 @@ public static partial class UnelevatedWinget
                 {
                     if (strict)
                     {
-                        var evidence = exportName is not null ? ReadEvidence(Path.Combine(temp, exportName), 16 * 1024 * 1024)
-                            : sourceProbe ? ReadEvidence(logPath, 64 * 1024) : "";
+                        var evidence = sourceProbe ? ReadEvidence(logPath, 64 * 1024)
+                            : versionProbe ? ReadEvidence(logPath, 256) : "";
                         return new UnelevatedResult(UnelevatedOutcome.Completed, code, evidence);
                     }
                     await Task.Delay(150, CancellationToken.None).ConfigureAwait(false);
@@ -210,7 +212,6 @@ public static partial class UnelevatedWinget
             {
                 TryDelete(logPath);
                 TryDelete(exitPath);
-                if (exportName is not null) TryDelete(Path.Combine(temp, exportName));
             }
         }
     }
@@ -223,34 +224,34 @@ public static partial class UnelevatedWinget
     /// plain folder names), is quoted, and the signed-in user's cmd expands the variable to that user's folders.
     /// </summary>
     public static string BuildCommandLine(string wingetExe, IReadOnlyList<string> wingetArgs, string logFileName, string exitFileName) =>
-        BuildCommandLine(wingetExe, wingetArgs, logFileName, exitFileName, null, strictRemoval: false);
+        BuildCommandLine(wingetExe, wingetArgs, logFileName, exitFileName, strictRemoval: false);
 
     private static string BuildCommandLine(string wingetExe, IReadOnlyList<string> wingetArgs, string logFileName,
-        string exitFileName, string? exportFileName, bool strictRemoval)
+        string exitFileName, bool strictRemoval)
     {
         if (string.IsNullOrWhiteSpace(wingetExe) || wingetExe.IndexOfAny(['"', '%', '!', '^', '\r', '\n']) >= 0)
             throw new ArgumentException(Loc.T("Недопустимый путь к winget."));
-        for (var i = 0; i < wingetArgs.Count; i++)
+        if (!strictRemoval)
         {
-            var a = wingetArgs[i];
-            var ok = IsProductCodeValue(wingetArgs, i, strictRemoval) ? IsSafeProductCode(a)
-                : IsLocationValue(wingetArgs, i) ? WingetClient.IsValidLocationTemplate(a) : IsSafeToken(a);
-            if (!ok) throw new ArgumentException(Loc.Tf("Недопустимый аргумент winget: «{0}»", a));
+            for (var i = 0; i < wingetArgs.Count; i++)
+            {
+                var a = wingetArgs[i];
+                var ok = IsLocationValue(wingetArgs, i) ? WingetClient.IsValidLocationTemplate(a) : IsSafeToken(a);
+                if (!ok) throw new ArgumentException(Loc.Tf("Недопустимый аргумент winget: «{0}»", a));
+            }
         }
         foreach (var f in new[] { logFileName, exitFileName })
             if (!IsSafeToken(f)) throw new ArgumentException(Loc.Tf("Недопустимое имя файла: «{0}»", f));
-        if (exportFileName is not null && !IsSafeToken(exportFileName)) throw new ArgumentException(nameof(exportFileName));
 
         var sb = new StringBuilder("/d /v:on /s /c \"");
         sb.Append('"').Append(wingetExe).Append('"');
         for (var i = 0; i < wingetArgs.Count; i++)
         {
             sb.Append(' ');
-            if (IsLocationValue(wingetArgs, i) || IsProductCodeValue(wingetArgs, i, strictRemoval))
+            if (strictRemoval ? IsRemovalValue(wingetArgs, i) : IsLocationValue(wingetArgs, i))
                 sb.Append('"').Append(wingetArgs[i]).Append('"');
             else sb.Append(wingetArgs[i]);
         }
-        if (exportFileName is not null) sb.Append(" --output \"%TEMP%\\").Append(exportFileName).Append('"');
         sb.Append(" >\"%TEMP%\\").Append(logFileName).Append("\" 2>&1");
         sb.Append(" & (echo !ERRORLEVEL!)>\"%TEMP%\\").Append(exitFileName).Append('"');
         sb.Append('"');
@@ -260,12 +261,47 @@ public static partial class UnelevatedWinget
     private static bool IsLocationValue(IReadOnlyList<string> args, int index) =>
         index > 0 && string.Equals(args[index - 1], "--location", StringComparison.Ordinal);
 
-    private static bool IsProductCodeValue(IReadOnlyList<string> args, int index, bool strictRemoval) =>
-        strictRemoval && index > 0 && args[0] == "uninstall" && args[index - 1] == "--product-code";
+    private static bool IsRemovalSourceProbe(IReadOnlyList<string> args) =>
+        args is ["source", "export", "--name", "winget", "--disable-interactivity"];
 
-    internal static bool IsSafeProductCode(string code) => Guid.TryParseExact(code, "B", out _) && code.Length == 38 ||
-        code.Length is > 0 and <= 128 && char.IsAsciiLetterOrDigit(code[0]) && char.IsAsciiLetterOrDigit(code[^1]) &&
-        code.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '+' or '_' or '-' or ' ');
+    private static bool IsRemovalVersionProbe(IReadOnlyList<string> args) => args is ["--version"];
+
+    private static bool IsRemovalValue(IReadOnlyList<string> args, int index) =>
+        (args[0] is "list" or "uninstall" && index == 2) || args[0] == "uninstall" && index is 10 or 12;
+
+    /// <summary>Only the exact read probes and interactive, fully pinned native ARP uninstall are allowed here.</summary>
+    internal static bool IsStrictRemovalCommand(IReadOnlyList<string> args)
+    {
+        if (IsRemovalSourceProbe(args) || IsRemovalVersionProbe(args)) return true;
+        if (args is not [("list" or "uninstall"), "--id", var id, "--exact", "--source", "winget", "--scope",
+            var scope, "--disable-interactivity", ..]) return false;
+        var parts = id.Split('\\');
+        if (parts.Length != 4 || parts[0] != "ARP" || !IsSafeProductCode(parts[3])) return false;
+        var scopeMatches = parts[1] switch
+        {
+            "Machine" => scope == "machine" && parts[2] is "X64" or "X86",
+            "User" => scope == "user" && parts[2] == "X64",
+            _ => false,
+        };
+        if (!scopeMatches) return false;
+        return args[0] == "list" ? args.Count == 9 :
+            args.Count == 14 && args[9] == "--version" && IsSafeRemovalVersion(args[10]) &&
+            args[11] == "--product-code" && args[12] == parts[3] && args[13] == "--interactive";
+    }
+
+    internal static bool IsSafeProductCode(string code)
+    {
+        if (IsSafeRemovalVersion(code)) return true;
+        if (code.Length is < 38 or > 128 || !Guid.TryParseExact(code.AsSpan(0, 38), "B", out _)) return false;
+        if (code.Length == 38) return true;
+        // Inno and some other installers append a subkey suffix such as _is1 to the braced GUID.
+        return code[38] == '_' && code.Length > 39 && char.IsAsciiLetterOrDigit(code[^1]) &&
+            code[39..].All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
+    }
+
+    internal static bool IsSafeRemovalVersion(string value) =>
+        value.Length is > 0 and <= 128 && char.IsAsciiLetterOrDigit(value[0]) && char.IsAsciiLetterOrDigit(value[^1]) &&
+        value.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '+' or '_' or '-' or ' ');
 
     /// <summary>Letters, digits and . + _ - (winget switches, package ids, sources, file names).</summary>
     public static bool IsSafeToken(string s) =>
@@ -302,11 +338,15 @@ public static partial class UnelevatedWinget
 
     private static string ReadEvidence(string path, int maxBytes)
     {
-        try { return Encoding.UTF8.GetString(SafeIo.ReadTailNoFollow(path, maxBytes)).TrimStart('\uFEFF'); }
+        try
+        {
+            var bytes = SafeIo.ReadTailNoFollow(path, maxBytes + 1);
+            return bytes.Length > maxBytes ? "" : Encoding.UTF8.GetString(bytes).TrimStart('\uFEFF');
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) { return ""; }
     }
 
-    private const string AppInstallerFamily = "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe";
+    internal const string AppInstallerFamily = "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe";
     private const uint AppExecutionLink = 0x8000001B;
 
     private static string? RegisteredWingetExe(string sid)

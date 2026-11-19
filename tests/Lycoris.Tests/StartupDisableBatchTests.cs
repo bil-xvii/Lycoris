@@ -25,6 +25,8 @@ public sealed class StartupDisableBatchTests : IDisposable
     private string? _sid = Sid;
     private bool? _interactive = true;
     private Func<string, (SignatureState?, string?)> _signature = TrustedSignature;
+    private Func<RemovalSoftwareSnapshot, RemovalSoftwareSnapshot> _adjustFacts = facts => facts;
+    private Func<StartupEntry, CancellationToken, RemovalPackagedStartup.Assessment> _package = (_, _) => default;
 
     public StartupDisableBatchTests()
     {
@@ -47,7 +49,7 @@ public sealed class StartupDisableBatchTests : IDisposable
     }
 
     [Fact]
-    public async Task Preview_requires_one_unambiguous_known_and_enabled_classic_entry()
+    public async Task Preview_requires_one_unambiguous_verified_and_enabled_classic_entry()
     {
         var confirmed = AddRun("Confirmed");
         var duplicate = AddRun("Duplicate", StartupSource.RunMachine);
@@ -70,7 +72,9 @@ public sealed class StartupDisableBatchTests : IDisposable
         var preview = Assert.Single(plan.Items);
         Assert.Equal(confirmed.Key, preview.Key);
         Assert.Contains(StartupLocations.DescribeMark(confirmed), preview.Scope);
-        Assert.Contains(confirmed.Command, preview.Note);
+        Assert.DoesNotContain(confirmed.Command, preview.Note);
+        Assert.Equal(RemovalDecision.DisableStartup, Assert.Single(plan.AssessedRows, row => row.Key == confirmed.Key).Decision);
+        Assert.Equal(RemovalDecision.Review, Assert.Single(plan.AssessedRows, row => row.Key == unfamiliar.Key).Decision);
         Assert.Empty(_journal.ActiveRecords);
     }
 
@@ -398,8 +402,168 @@ public sealed class StartupDisableBatchTests : IDisposable
         Assert.Empty(_journal.ActiveRecords);
     }
 
+    [Theory]
+    [InlineData("Microsoft Corporation")]
+    [InlineData("NVIDIA Corporation")]
+    [InlineData("IDRIX")]
+    public async Task Protected_signer_overrides_innocuous_version_info_and_is_never_journaled(string signer)
+    {
+        var candidate = AddRun("Indigo Notebook");
+        _signature = _ => (SignatureState.Valid, signer);
+        var action = Action((_, _) => throw new InvalidOperationException("Protected row must not open a session"));
+
+        var plan = await action.PrepareAsync(CancellationToken.None);
+
+        Assert.Empty(plan.Items);
+        Assert.Equal(RemovalDecision.Keep, Assert.Single(plan.AssessedRows).Decision);
+        Assert.Equal(0, (await Execute(action, plan, candidate.Key)).Applied);
+        Assert.Empty(_journal.ActiveRecords);
+        Assert.Null(Mark(candidate));
+    }
+
+    [Fact]
+    public async Task Running_app_and_adjacent_service_allow_optional_gui_startup_but_binding_drift_blocks_it()
+    {
+        var candidate = AddRun("Indigo Notebook");
+        _adjustFacts = facts =>
+        {
+            facts.Running.Add(candidate.TargetPath!);
+            facts.Services.Add(Path.Join(Path.GetDirectoryName(candidate.TargetPath), "Worker.exe"));
+            return facts;
+        };
+        var action = Action();
+        var plan = await action.PrepareAsync(CancellationToken.None);
+        Assert.Single(plan.Items);
+
+        _adjustFacts = _ => new RemovalSoftwareSnapshot();
+        Assert.Equal(0, (await Execute(action, plan, candidate.Key)).Applied);
+        Assert.Null(Mark(candidate));
+        Assert.Empty(_journal.ActiveRecords);
+    }
+
+    [Fact]
+    public async Task Packaged_gui_startup_writes_only_dword_state_and_undo_restores_exact_state()
+    {
+        var candidate = AddPackaged();
+        var action = Action();
+        var plan = await action.PrepareAsync(CancellationToken.None);
+        Assert.Equal(candidate.Key, Assert.Single(plan.Items).Key);
+        Assert.Equal(1, (await Execute(action, plan, candidate.Key)).Applied);
+
+        var record = Assert.Single(_journal.ActiveRecords);
+        Assert.Equal(StartupDisableBatchAction.JournalSource, record.Source);
+        Assert.Equal(Sid, record.UserSid);
+        Assert.Equal(StartupLocations.JournalTarget(candidate), record.Target);
+        Assert.Equal((int)PackagedTaskState.DisabledByUser, StartupDisableObservation.ReadPackageState(candidate));
+        Assert.Null(JournalTrust.Check(record));
+        Assert.Equal(1, (await _journal.RevertBatchAsync(record.BatchId)).Reverted);
+        Assert.Equal((int)PackagedTaskState.Enabled, StartupDisableObservation.ReadPackageState(candidate));
+    }
+
+    [Theory]
+    [InlineData("version")]
+    [InlineData("policy")]
+    [InlineData("type")]
+    public async Task Changed_package_version_or_approval_refuses_to_write(string change)
+    {
+        var candidate = AddPackaged();
+        var action = Action();
+        var plan = await action.PrepareAsync(CancellationToken.None);
+        Assert.Single(plan.Items);
+        switch (change)
+        {
+            case "version":
+                var original = _package(candidate, CancellationToken.None).Package!;
+                _package = (_, _) => new(original with { PackageFullName = "changed package" });
+                break;
+            case "policy":
+                SetPackagedState(candidate, RegistryValueKind.DWord, (int)PackagedTaskState.EnabledByPolicy);
+                break;
+            case "type":
+                SetPackagedState(candidate, RegistryValueKind.String, "2");
+                break;
+        }
+
+        Assert.Equal(0, (await Execute(action, plan, candidate.Key)).Applied);
+        Assert.Empty(_journal.ActiveRecords);
+    }
+
+    [Fact]
+    public async Task Cancellation_in_fact_capture_after_first_write_keeps_partial_result_and_exact_undo()
+    {
+        var first = AddRun("First");
+        var second = AddRun("Second");
+        var action = Action();
+        var plan = await action.PrepareAsync(CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        _adjustFacts = facts =>
+        {
+            if (Mark(first) is byte[] mark && !StartupApproved.IsEnabled(mark))
+            {
+                cancellation.Cancel();
+                cancellation.Token.ThrowIfCancellationRequested();
+            }
+            return facts;
+        };
+
+        var result = await action.ExecuteAsync(plan, new HashSet<string> { first.Key, second.Key }, null, cancellation.Token);
+
+        Assert.Equal(1, result.Applied);
+        Assert.Equal(1, result.Skipped);
+        Assert.Empty(result.Errors);
+        Assert.False(result.UnknownOutcome);
+        Assert.Null(Mark(second));
+        var record = Assert.Single(_journal.ActiveRecords);
+        Assert.Equal(StartupLocations.JournalTarget(first), record.Target);
+        Assert.Equal(1, (await _journal.RevertBatchAsync(record.BatchId)).Reverted);
+        Assert.Null(Mark(first));
+    }
+
+    private StartupEntry AddPackaged()
+    {
+        const string family = "Test.Indigo_abcdefghjkmnp";
+        const string package = "Test.Indigo_1.0.0.0_x64__abcdefghjkmnp";
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps", package, "Indigo.exe");
+        var entry = new StartupEntry
+        {
+            Source = StartupSource.PackagedTask, Name = "Logon", PackageFamilyName = family,
+            PackageState = (int)PackagedTaskState.Enabled, DisplayName = "Indigo Notebook", Command = $"\"{path}\"",
+            TargetPath = path, TargetExists = true, Enabled = true,
+        };
+        var proof = new RemovalPackagedStartup.Proof(package, family, "CN=Trillium Labs", "manifest hash", "App", path, "executable hash");
+        _package = (_, _) => new(proof);
+        _rows.Add(entry);
+        SetPackagedState(entry, RegistryValueKind.DWord, (int)PackagedTaskState.Enabled);
+        return entry;
+    }
+
+    private static void SetPackagedState(StartupEntry entry, RegistryValueKind kind, object value) =>
+        RegistryHelper.Write(RegHive.HKCU, PackagedStartup.KeyPath(entry.PackageFamilyName!, entry.Name),
+            PackagedStartup.StateValue, kind, value);
     private StartupDisableBatchAction Action(Func<string, IProgress<string>?, Task<ChangeSession>>? begin = null) =>
-        new(() => _rows, new(path => _signature(path), _ => _files), begin ?? Begin, _time);
+        new(() => _rows, new(path => _signature(path), _ => _files, _ => Capture(), ReadFixtureExecutable,
+            (entry, ct) => _package(entry, ct)), begin ?? Begin, _time);
+
+    private RemovalSoftwareSnapshot Capture()
+    {
+        var snapshot = new RemovalSoftwareSnapshot();
+        foreach (var entry in _rows.Where(entry => !StartupLocations.IsPackaged(entry.Source) && entry.TargetPath is not null))
+        {
+            var label = StartupLocations.IsFolder(entry.Source) ? Path.GetFileNameWithoutExtension(entry.Name) : entry.Name;
+            snapshot.AddLaunch(new(entry.TargetPath!, label, entry.TargetPath!, !StartupLocations.IsMachine(entry.Source)));
+        }
+        return _adjustFacts(snapshot);
+    }
+
+    private RemovalExecutable? ReadFixtureExecutable(string path, FileStream file, CancellationToken ct)
+    {
+        var (state, signer) = _signature(path);
+        if (state != SignatureState.Valid || signer is null) return null;
+        var entry = _rows.First(row => row.TargetPath == path);
+        var label = StartupLocations.IsFolder(entry.Source) ? Path.GetFileNameWithoutExtension(entry.Name) : entry.Name;
+        return new RemovalExecutable(path, signer, "Trillium Labs", label, label, Path.GetFileName(path),
+            RemovalSoftwareEvidence.Hash(file, ct));
+    }
 
     private Task<ChangeSession> Begin(string title, IProgress<string>? progress) =>
         ChangeSession.BeginAsync(title, createRestorePoint: false, progress: progress, journal: _journal);
@@ -409,7 +573,7 @@ public sealed class StartupDisableBatchTests : IDisposable
 
     private (RegHive Hive, string Path) Redirect(RegHive hive, string path) => (RegHive.HKCU, $@"{_root}\{hive}\{path}");
 
-    private StartupEntry AddRun(string name, StartupSource source = StartupSource.RunUser, string exe = "Steam.exe")
+    private StartupEntry AddRun(string name, StartupSource source = StartupSource.RunUser, string exe = "Indigo.exe")
     {
         var folder = Directory.CreateDirectory(Path.Combine(_files, name));
         var path = Path.Combine(folder.FullName, exe);
@@ -426,7 +590,7 @@ public sealed class StartupDisableBatchTests : IDisposable
 
     private StartupEntry AddFolder()
     {
-        const string name = "Steam.exe";
+        const string name = "Indigo.exe";
         var path = Path.Combine(_files, name);
         File.WriteAllText(path, "fixture executable");
         var entry = new StartupEntry
@@ -451,7 +615,7 @@ public sealed class StartupDisableBatchTests : IDisposable
     }
 
     private static (SignatureState?, string?) TrustedSignature(string path) =>
-        Path.GetFileName(path) == "Steam.exe" ? (SignatureState.Valid, "Valve Corporation") : (SignatureState.Unsigned, null);
+        Path.GetFileName(path) == "Indigo.exe" ? (SignatureState.Valid, "Trillium Labs") : (SignatureState.Unsigned, null);
 
     private static object? Mark(StartupEntry entry) =>
         RegistryHelper.Read(StartupLocations.ApprovedHive(entry.Source), StartupLocations.ApprovedKey(entry.Source), entry.Name);

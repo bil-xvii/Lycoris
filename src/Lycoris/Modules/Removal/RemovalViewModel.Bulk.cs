@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
+using Lycoris.Shell;
 using Lycoris.UI;
 
 namespace Lycoris.Modules.Removal;
@@ -13,7 +14,8 @@ public sealed partial class RemovalBatchPreviewRow : ObservableObject
 
     internal RemovalBatchItem Item { get; }
     public string Name => Item.Name;
-    public string Scope => Item.Scope;
+    public string Metadata => string.Join(" · ", new[] { Item.Version, Item.Scope, Item.NativeInstallerId }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
     public string Note => Item.Note;
     [ObservableProperty] private bool _isSelected = true;
 }
@@ -22,8 +24,11 @@ public sealed partial class RemovalViewModel
 {
     private readonly IRemovalBatchAction _uninstallBatch;
     private readonly IRemovalBatchAction _disableBatch;
-    private readonly Func<string, bool> _requireBatchAdmin;
+    private static readonly TimeSpan MaximumPreviewAge = TimeSpan.FromMinutes(5);
+    private readonly Func<string, string?, bool> _requireBatchAdmin;
     private readonly Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>> _confirmBatch;
+    private readonly TimeProvider _time;
+    private readonly Func<string?> _userSid;
     private (IRemovalBatchAction Action, RemovalBatchPlan Plan)? _batchPreview;
     private int _batchGeneration;
 
@@ -49,47 +54,43 @@ public sealed partial class RemovalViewModel
             ? Loc.T("Для выполнения потребуются права администратора. После перезапуска проверьте выбор заново.")
             : null;
 
-    private bool CanPrepareBatch() => !IsBusy;
+    private bool CanAutoBatch() => !IsBusy && !SafetyLock.IsLocked;
 
-    [RelayCommand(CanExecute = nameof(CanPrepareBatch))]
-    private Task PrepareUninstallAsync() => PrepareBatchAsync(_uninstallBatch);
+    [RelayCommand(CanExecute = nameof(CanAutoBatch))]
+    private Task AutoUninstallAsync() => StartBatchAsync(_uninstallBatch, AdminIntent.AutoUninstall);
 
-    [RelayCommand(CanExecute = nameof(CanPrepareBatch))]
-    private Task PrepareDisableStartupAsync() => PrepareBatchAsync(_disableBatch);
+    [RelayCommand(CanExecute = nameof(CanAutoBatch))]
+    private Task AutoDisableStartupAsync() => StartBatchAsync(_disableBatch, AdminIntent.AutoDisableStartup);
 
-    private Task PrepareBatchAsync(IRemovalBatchAction action)
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
+    private Task PrepareUninstallAsync() => StartBatchAsync(_uninstallBatch);
+
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
+    private Task PrepareDisableStartupAsync() => StartBatchAsync(_disableBatch);
+
+    private Task StartBatchAsync(IRemovalBatchAction action, string? automaticCommand = null)
     {
-        if (!CanPrepareBatch()) return Task.CompletedTask;
-        TabIndex = action.Kind == RemovalBatchKind.DisableStartup ? 1 : 0;
-        InvalidateBatchPreview();
-        BatchMessage = null;
-        var generation = _batchGeneration;
-
-        return RunBusyAsync(OperationClass.Measure, Loc.T("Подбор кандидатов…"), async lease =>
+        if (IsBusy || (automaticCommand is not null && !CanAutoBatch())) return Task.CompletedTask;
+        return RunBatchFlowAsync(async () =>
         {
-            RemovalBatchPlan plan;
-            try { plan = await action.PrepareAsync(lease.Token); }
-            catch (OperationCanceledException)
-            {
-                BatchMessage = Loc.T("Подбор кандидатов отменён.");
-                return;
-            }
-            catch (Exception ex)
-            {
-                Log.Error(Loc.T("Не удалось подобрать кандидатов. Повторите проверку."), ex);
-                BatchMessage = Loc.T("Не удалось подобрать кандидатов. Повторите проверку.");
-                return;
-            }
-            if (generation != _batchGeneration)
-            {
-                ShowStaleBatch();
-                return;
-            }
+            if (automaticCommand is not null && !_requireBatchAdmin(BatchOperationTitle(action.Kind), automaticCommand)) return;
+            TabIndex = action.Kind == RemovalBatchKind.DisableStartup ? 1 : 0;
+            InvalidateBatchPreview();
+            BatchMessage = null;
+            var generation = _batchGeneration;
+            var mode = ExpertMode;
+            var plan = await ReadBatchPlanAsync(action);
+            if (plan is null) return;
+            if (!BatchContextMatches(action.Kind, generation, mode)) { ShowStaleBatch(); return; }
+
+            ShowAssessedRows(action.Kind, plan);
+            BatchMessage = plan.Summary;
+            if (!BatchContextMatches(action.Kind, generation, mode)) { ShowStaleBatch(); return; }
             if (plan.UnavailableReason is not null || plan.Items.Count == 0)
             {
-                BatchMessage = plan.UnavailableReason ?? (action.Kind == RemovalBatchKind.Uninstall
+                AppendBatchMessage(plan.UnavailableReason ?? (action.Kind == RemovalBatchKind.Uninstall
                     ? Loc.T("Программ, подходящих для пакетного удаления, не найдено.")
-                    : Loc.T("Записей, подходящих для пакетного отключения, не найдено."));
+                    : Loc.T("Записей, подходящих для пакетного отключения, не найдено.")));
                 return;
             }
 
@@ -97,7 +98,38 @@ public sealed partial class RemovalViewModel
             BatchRows = Array.AsReadOnly(plan.Items.Select(item => new RemovalBatchPreviewRow(item)).ToArray());
             foreach (var row in BatchRows) row.PropertyChanged += OnBatchRowChanged;
             NotifyBatchPreviewChanged();
+            if (automaticCommand is null) return;
+            if (!BatchContextMatches(action.Kind, generation, mode)) { ShowStaleBatch(); return; }
+            await ConfirmAndExecuteBatchAsync(action, plan);
         });
+    }
+
+    private async Task<RemovalBatchPlan?> ReadBatchPlanAsync(IRemovalBatchAction action)
+    {
+        var title = Loc.T("Подбор кандидатов…");
+        BusyText = title;
+        try
+        {
+            using var lease = await AcquireLeaseAsync(OperationClass.Measure, title);
+            if (lease is null)
+            {
+                BatchMessage = OperationNote ?? Loc.T("Подбор кандидатов отменён.");
+                return null;
+            }
+            using var scope = lease.Scope();
+            return await action.PrepareAsync(lease.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            BatchMessage = Loc.T("Подбор кандидатов отменён.");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Не удалось подобрать кандидатов. Повторите проверку.", ex);
+            BatchMessage = Loc.T("Не удалось подобрать кандидатов. Повторите проверку.");
+            return null;
+        }
     }
 
     private void InvalidateBatchPreview()
@@ -166,39 +198,70 @@ public sealed partial class RemovalViewModel
     private bool CanExecuteBatch() => CanClearBatchSelection() && !SafetyLock.IsLocked;
 
     [RelayCommand(CanExecute = nameof(CanExecuteBatch))]
-    private async Task ExecuteBatchAsync()
+    private Task ExecuteBatchAsync()
     {
-        if (!CanExecuteBatch() || _batchPreview is not { } preview) return;
-        var action = preview.Action;
-        var selected = BatchRows.Where(row => row.IsSelected).Select(row => row.Item).ToArray();
-        var selectedKeys = selected.Select(item => item.Key).ToFrozenSet(StringComparer.Ordinal);
-        if (selectedKeys.Count != selected.Length) { ShowStaleBatch(); return; }
-        var details = selected.Select(item => Loc.Tf("{0} · {1}", item.Name, item.Scope)).ToArray();
-        var generation = _batchGeneration;
-        var mode = ExpertMode;
-        bool Current() => generation == _batchGeneration && mode == ExpertMode && !SafetyLock.IsLocked;
-        var title = BatchOperationTitle(action.Kind);
-        var kind = action.Kind == RemovalBatchKind.Uninstall ? OperationClass.Install : OperationClass.JournalChange;
-        var started = false;
+        if (!CanExecuteBatch() || _batchPreview is not { } preview) return Task.CompletedTask;
+        return RunBatchFlowAsync(async () =>
+        {
+            // An individually edited selection stays in this process.
+            if (_requireBatchAdmin(BatchOperationTitle(preview.Action.Kind), null))
+                await ConfirmAndExecuteBatchAsync(preview.Action, preview.Plan);
+        });
+    }
 
-        IsBusy = true;
+    private async Task RunBatchFlowAsync(Func<Task> work)
+    {
         try
         {
-            // Keep the preview local to this process. A relaunch starts on this page with a fresh selection.
-            if (!_requireBatchAdmin(title) || !CanStartNow(kind, title)) return;
-            if (!await _confirmBatch(action.Kind, details)) return;
-            if (!Current()) { ShowStaleBatch(); return; }
+            IsBusy = true;
+            await work();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Не удалось запустить пакетное действие.", ex);
+            BatchMessage = Loc.T("Не удалось запустить пакетное действие.");
+        }
+        finally
+        {
+            BusyText = null;
+            IsBusy = false;
+        }
+    }
 
-            BusyText = title;
-            using var lease = await AcquireLeaseAsync(kind, title);
-            if (lease is null) return;
-            if (!Current()) { ShowStaleBatch(); return; }
+    private async Task ConfirmAndExecuteBatchAsync(IRemovalBatchAction action, RemovalBatchPlan plan)
+    {
+        var generation = _batchGeneration;
+        var mode = ExpertMode;
+        bool Current()
+        {
+            var age = _time.GetUtcNow().UtcDateTime - plan.ObservedUtc;
+            return ReferenceEquals(_batchPreview?.Plan, plan) && BatchContextMatches(action.Kind, generation, mode)
+                && age >= TimeSpan.Zero && age < MaximumPreviewAge
+                && plan.UserSid is not null && UserScope.Same(plan.UserSid, _userSid()) && !SafetyLock.IsLocked;
+        }
 
-            using var scope = lease.Scope();
-            InvalidateBatchPreview();
-            MarkInventoryStale();
-            started = true;
-            var result = await action.ExecuteAsync(preview.Plan, selectedKeys, new Progress<string>(lease.Report), lease.Token);
+        if (!Current()) { ShowStaleBatch(); return; }
+        var selected = BatchRows.Where(row => row.IsSelected).ToArray();
+        var selectedKeys = selected.Select(row => row.Item.Key).ToFrozenSet(StringComparer.Ordinal);
+        if (selectedKeys.Count == 0 || selectedKeys.Count != selected.Length) { ShowStaleBatch(); return; }
+        var details = selected.Select(row => Loc.Tf("{0} · {1}", row.Name, row.Metadata)).ToArray();
+        var title = BatchOperationTitle(action.Kind);
+        var kind = action.Kind == RemovalBatchKind.Uninstall ? OperationClass.Install : OperationClass.JournalChange;
+        if (!CanStartNow(kind, title)) return;
+        BusyText = title;
+
+        var confirmed = await _confirmBatch(action.Kind, details);
+        if (!Current()) { ShowStaleBatch(); return; }
+        if (!confirmed) return;
+
+        using var lease = await AcquireLeaseAsync(kind, title);
+        if (lease is null) return;
+        using var scope = lease.Scope();
+        if (!Current()) { ShowStaleBatch(); return; }
+
+        try
+        {
+            var result = await action.ExecuteAsync(plan, selectedKeys, new Progress<string>(lease.Report), lease.Token);
             BatchMessage = Loc.Tf("Выполнено: {0} · Пропущено: {1} · Сообщений об ошибках: {2}",
                 result.Applied, result.Skipped, result.Errors.Count);
             if (result.UnknownOutcome) BatchMessage += "\n" + UnknownBatchOutcome();
@@ -207,13 +270,21 @@ public sealed partial class RemovalViewModel
         catch (Exception ex)
         {
             Log.Error(title, ex);
-            BatchMessage = started ? UnknownBatchOutcome() : Loc.T("Не удалось запустить пакетное действие.");
+            BatchMessage = UnknownBatchOutcome();
         }
         finally
         {
-            BusyText = null;
-            IsBusy = false;
+            InvalidateBatchPreview();
+            MarkInventoryStale();
         }
+    }
+
+    private bool BatchContextMatches(RemovalBatchKind kind, int generation, bool mode) =>
+        generation == _batchGeneration && mode == ExpertMode && IsStartupTab == (kind == RemovalBatchKind.DisableStartup);
+
+    private void AppendBatchMessage(string message)
+    {
+        if (BatchMessage != message) BatchMessage = BatchMessage is null ? message : BatchMessage + "\n" + message;
     }
 
     private void ShowStaleBatch()
@@ -238,6 +309,6 @@ public sealed partial class RemovalViewModel
         : Loc.Tf("Отключить выбранные · {0}", count);
 
     private static string BatchEffect(RemovalBatchKind kind) => kind == RemovalBatchKind.Uninstall
-        ? Loc.T("Штатные деинсталляторы удалят выбранные программы. Сохраните нужные данные перед удалением. Отката через журнал Lycoris нет.")
+        ? Loc.T("Штатные деинсталляторы удалят выбранные программы. Некоторые откроют окно и предложат выбрать, какие данные сохранить. Сохраните нужные данные заранее. Отката через журнал Lycoris нет.")
         : Loc.T("Выбранные программы перестанут запускаться при входе. Их файлы сохранятся. Изменения можно отменить в разделе «Восстановление».");
 }

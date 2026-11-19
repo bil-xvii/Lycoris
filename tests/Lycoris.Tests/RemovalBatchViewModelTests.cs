@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -6,6 +7,8 @@ using System.Windows.Threading;
 using Lycoris.Core;
 using Lycoris.Modules.Removal;
 using Lycoris.Modules.Startup;
+using Lycoris.Shell;
+using Lycoris.Tests.Concurrency;
 using Lycoris.UI;
 
 namespace Lycoris.Tests;
@@ -80,7 +83,7 @@ public sealed class RemovalBatchViewModelTests
         uninstall.Preparing = cancelled
             ? Task.FromCanceled<RemovalBatchPlan>(new CancellationToken(canceled: true))
             : Task.FromException<RemovalBatchPlan>(new InvalidOperationException("read failed"));
-        await page.PrepareUninstallCommand.ExecuteAsync(null);
+        await page.AutoUninstallCommand.ExecuteAsync(null);
 
         Assert.Empty(page.BatchRows);
         Assert.False(page.HasBatchPreview);
@@ -92,18 +95,32 @@ public sealed class RemovalBatchViewModelTests
     }
 
     [Fact]
-    public Task Wpf_preview_shows_prechecked_candidates_and_updates_execute_count() => StaWorker.Run(() =>
+    public Task Wpf_preview_and_primary_button_use_real_bindings_and_exact_confirmation() => StaWorker.Run(() =>
     {
         using var language = Loc.UseLanguage("en");
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        var previousHost = Ui.Host;
+        var previousAnswer = Ui.AutoAnswer;
+        var previousPreference = AppSettings.Current.ConfirmBeforeApply;
+        var previousContext = SynchronizationContext.Current;
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
         try
         {
+            var host = new DialogHost();
+            Ui.Host = host;
+            Ui.AutoAnswer = null;
+            AppSettings.Current.ConfirmBeforeApply = false;
             foreach (var theme in new[] { "Colors", "Brand", "Typography", "Converters", "Controls" })
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
                     Source = new Uri($"pack://application:,,,/Lycoris;component/Theme/{theme}.xaml"),
                 });
             var uninstall = new FakeAction(RemovalBatchKind.Uninstall, "vlc", "obs");
+            uninstall.Plan = new TestPlan([
+                new("vlc", "vlc", "Machine", "Eligible") { Version = "3.0", NativeInstallerId = @"ARP\Machine\X64\vlc" },
+                new("obs", "obs", "Machine", "Eligible") { Version = "32.0", NativeInstallerId = @"ARP\Machine\X64\obs" },
+            ]);
             var page = Page(uninstall);
             var view = new RemovalView { DataContext = page };
             var size = new Size(700, 570);
@@ -129,14 +146,158 @@ public sealed class RemovalBatchViewModelTests
             Assert.False(page.BatchRows[1].IsSelected);
             Assert.Equal("Uninstall selected · 1", execute.Content);
             Assert.Null(uninstall.ExecutedPlan);
+
+            var primary = FindButton(view, "RemovalAutoUninstall");
+            Assert.True(primary.IsEnabled);
+            primary.Command.Execute(primary.CommandParameter);
+            var dialog = Assert.IsType<DialogViewModel>(host.Dialog);
+            Assert.True(dialog.IsDanger);
+            Assert.Equal("Uninstall selected · 2", dialog.ConfirmText);
+            Assert.Equal([@"vlc · 3.0 · Machine · ARP\Machine\X64\vlc", @"obs · 32.0 · Machine · ARP\Machine\X64\obs"], dialog.Details);
+            Assert.Empty(page.Coordinator.Snapshot());
+            Assert.Null(uninstall.ExecutedPlan);
+            Assert.False(primary.IsEnabled);
+
+            dialog.ConfirmCommand.Execute(null);
+            dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.True(page.AutoUninstallCommand.ExecutionTask?.IsCompletedSuccessfully);
+            Assert.Equal(1, uninstall.ExecuteCalls);
+            Assert.Equal(["obs", "vlc"], uninstall.ExecutedKeys!.Order());
+            Assert.False(page.HasBatchPreview);
+            Assert.True(primary.IsEnabled);
             return true;
         }
         finally
         {
+            Ui.Host?.Dialog?.CancelCommand.Execute(null);
+            dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Ui.Host = previousHost;
+            Ui.AutoAnswer = previousAnswer;
+            AppSettings.Current.ConfirmBeforeApply = previousPreference;
+            SynchronizationContext.SetSynchronizationContext(previousContext);
             app.Shutdown();
-            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
         }
     }, "Removal preview binding test");
+
+    [Fact]
+    public async Task One_startup_click_checks_all_candidates_and_cancel_leaves_only_an_editable_preview()
+    {
+        var disable = new FakeAction(RemovalBatchKind.DisableStartup, "run:steam", "run:zoom");
+        var shown = new List<string[]>();
+        var page = Page(disable: disable, confirm: (kind, details) =>
+        {
+            Assert.Equal(RemovalBatchKind.DisableStartup, kind);
+            Assert.False(OperationCoordinator.InsideOperation);
+            shown.Add(details.ToArray());
+            return Task.FromResult(shown.Count > 1);
+        });
+        page.SearchText = "hidden by search";
+
+        await page.AutoDisableStartupCommand.ExecuteAsync(null);
+
+        Assert.True(page.IsStartupTab);
+        Assert.True(page.CanEditBatchPreview);
+        Assert.Equal(["run:steam · Machine", "run:zoom · Machine"], Assert.Single(shown));
+        Assert.All(page.BatchRows, row => Assert.True(row.IsSelected));
+        Assert.Null(disable.ExecutedPlan);
+        page.BatchRows[0].IsSelected = false;
+        Assert.Null(disable.ExecutedPlan);
+
+        await page.ExecuteBatchCommand.ExecuteAsync(null);
+
+        Assert.Equal(["run:zoom · Machine"], shown[1]);
+        Assert.Equal("run:zoom", Assert.Single(disable.ExecutedKeys!));
+        Assert.Equal(1, disable.PrepareCalls);
+        Assert.Equal(1, disable.ExecuteCalls);
+    }
+
+    [Fact]
+    public async Task Primary_with_zero_candidates_shows_excluded_rows_and_never_opens_confirmation()
+    {
+        using var language = Loc.UseLanguage("en");
+        var uninstall = new FakeAction(RemovalBatchKind.Uninstall)
+        {
+            Plan = new TestPlan([])
+            {
+                Summary = "Checked 1 program.",
+                AssessedRows = [new("protected", "Runtime", "Microsoft", "3.0", "Machine", RemovalDecision.Keep, "Shared runtime.")],
+            },
+        };
+        var dialogs = 0;
+        var page = Page(uninstall, confirm: (_, _) =>
+        {
+            dialogs++;
+            return Task.FromResult(true);
+        });
+
+        await page.AutoUninstallCommand.ExecuteAsync(null);
+
+        Assert.Equal("Shared runtime.", Assert.Single(page.VisibleRows).Reason);
+        Assert.Equal("Checked 1 program.\nNo programs qualify for batch uninstall.", page.BatchMessage);
+        Assert.False(page.HasBatchPreview);
+        Assert.Equal(0, dialogs);
+        Assert.Null(uninstall.ExecutedPlan);
+        Assert.False(page.IsBusy);
+    }
+
+    [Theory]
+    [InlineData(AdminIntent.AutoUninstall, false)]
+    [InlineData(AdminIntent.AutoDisableStartup, true)]
+    public async Task Elevation_replays_only_the_named_action_with_a_fresh_plan(string command, bool startup)
+    {
+        var action = new FakeAction(startup ? RemovalBatchKind.DisableStartup : RemovalBatchKind.Uninstall, "old");
+        AdminIntent? prompt = null;
+        var before = Page(startup ? null : action, startup ? action : null, requireAdmin: (_, replay) =>
+        {
+            Assert.Equal(command, replay);
+            prompt = new AdminIntent("removal", replay!);
+            return false;
+        });
+        await (startup ? before.AutoDisableStartupCommand : before.AutoUninstallCommand).ExecuteAsync(null);
+        Assert.Equal(0, action.PrepareCalls);
+        Assert.Null(action.ExecutedPlan);
+        var parsed = Assert.IsType<AdminIntent>(AdminIntent.Parse(prompt!.ToArgs()));
+        Assert.Null(parsed.Parameter);
+        Assert.Null(AdminIntent.Parse((parsed with { Parameter = "old" }).ToArgs()));
+        Assert.Null(AdminIntent.Parse((parsed with { PageKey = "apps" }).ToArgs()));
+
+        var fresh = new FakeAction(action.Kind, "fresh");
+        IReadOnlyList<string>? shown = null;
+        var after = Page(startup ? null : fresh, startup ? fresh : null, confirm: (_, rows) =>
+        {
+            shown = rows;
+            return Task.FromResult(true);
+        });
+        Assert.True(parsed.TryExecuteOn(after));
+        await ((startup ? after.AutoDisableStartupCommand : after.AutoUninstallCommand).ExecutionTask!);
+        Assert.Equal(["fresh · Machine"], shown);
+        Assert.Equal("fresh", Assert.Single(fresh.ExecutedKeys!));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Expired_observation_or_changed_account_rejects_the_approved_batch(bool accountChanged)
+    {
+        var clock = new ManualTimeProvider();
+        var sid = "desktop-user";
+        var uninstall = new FakeAction(RemovalBatchKind.Uninstall, "vlc");
+        uninstall.Plan = new TestPlan(uninstall.Plan.Items, Observed: clock.GetUtcNow().UtcDateTime);
+        var page = Page(uninstall, clock: clock, userSid: () => sid, confirm: (_, _) =>
+        {
+            if (accountChanged) sid = "another-user";
+            else clock.Advance(TimeSpan.FromMinutes(5));
+            return Task.FromResult(true);
+        });
+
+        await page.AutoUninstallCommand.ExecuteAsync(null);
+
+        Assert.Null(uninstall.ExecutedPlan);
+        Assert.False(page.HasBatchPreview);
+        Assert.False(page.IsBusy);
+        Assert.Empty(page.Coordinator.Snapshot());
+    }
 
     [Fact]
     public async Task Editing_and_confirming_submits_only_the_rows_shown_in_confirmation()
@@ -210,9 +371,8 @@ public sealed class RemovalBatchViewModelTests
         var uninstall = new FakeAction(RemovalBatchKind.Uninstall, "vlc", "obs");
         var answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var page = Page(uninstall, confirm: (_, _) => answer.Task);
-        await page.PrepareUninstallCommand.ExecuteAsync(null);
 
-        var applying = page.ExecuteBatchCommand.ExecuteAsync(null);
+        var applying = page.AutoUninstallCommand.ExecuteAsync(null);
 
         Assert.True(page.IsBusy);
         Assert.Empty(page.Coordinator.Snapshot());
@@ -276,16 +436,52 @@ public sealed class RemovalBatchViewModelTests
     }
 
     [Fact]
+    public async Task Primary_keeps_busy_through_publishing_the_preview_and_waiting_for_confirmation()
+    {
+        var uninstall = new FakeAction(RemovalBatchKind.Uninstall, "vlc");
+        var disable = new FakeAction(RemovalBatchKind.DisableStartup, "run:steam");
+        var answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var prepared = new TaskCompletionSource<RemovalBatchPlan>(TaskCreationOptions.RunContinuationsAsynchronously);
+        uninstall.Preparing = prepared.Task;
+        var page = Page(uninstall, disable, confirm: (_, _) => answer.Task);
+        var transition = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+        page.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName == nameof(RemovalViewModel.HasBatchPreview) && page.HasBatchPreview)
+                transition.TrySetResult(page.AutoDisableStartupCommand.ExecuteAsync(null));
+        };
+
+        var applying = page.AutoUninstallCommand.ExecuteAsync(null);
+        Assert.False(page.AutoDisableStartupCommand.CanExecute(null));
+        Assert.False(page.RefreshCommand.CanExecute(null));
+        prepared.SetResult(uninstall.Plan);
+        await (await transition.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        await page.PrepareDisableStartupCommand.ExecuteAsync(null);
+        await page.ExecuteBatchCommand.ExecuteAsync(null);
+        Assert.True(page.IsBusy);
+        Assert.Equal(0, disable.PrepareCalls);
+        Assert.Null(uninstall.ExecutedPlan);
+
+        answer.SetResult(true);
+        await applying;
+        Assert.Equal(1, uninstall.PrepareCalls);
+        Assert.Equal(1, uninstall.ExecuteCalls);
+        Assert.True(page.AutoDisableStartupCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task Changes_while_waiting_for_the_operation_lease_reject_the_confirmed_plan()
     {
         var uninstall = new FakeAction(RemovalBatchKind.Uninstall, "vlc");
         var page = Page(uninstall, confirm: (_, _) => Task.FromResult(true));
-        await page.PrepareUninstallCommand.ExecuteAsync(null);
         using var blocker = await page.Coordinator.AcquireAsync(new OperationRequest(OperationClass.Install, "Other installer"));
-        var applying = page.ExecuteBatchCommand.ExecuteAsync(null);
+        var applying = page.AutoUninstallCommand.ExecuteAsync(null);
         Assert.Contains(page.Coordinator.Snapshot(), operation => operation is
             { Class: OperationClass.Install, Owner: "removal", State: OperationState.Queued });
 
+        Assert.False(page.AutoDisableStartupCommand.CanExecute(null));
+        Assert.False(page.PrepareDisableStartupCommand.CanExecute(null));
+        Assert.False(page.RefreshCommand.CanExecute(null));
         page.TabIndex = 1;
         blocker.Dispose();
         await applying.WaitAsync(TimeSpan.FromSeconds(10));
@@ -306,6 +502,9 @@ public sealed class RemovalBatchViewModelTests
 
             await page.PrepareUninstallCommand.ExecuteAsync(null);
             Assert.True(Assert.Single(page.BatchRows).IsSelected);
+            Assert.False(page.AutoUninstallCommand.CanExecute(null));
+            await page.AutoUninstallCommand.ExecuteAsync(null);
+            Assert.Equal(1, uninstall.PrepareCalls);
             Assert.False(page.ExecuteBatchCommand.CanExecute(null));
             await page.ExecuteBatchCommand.ExecuteAsync(null);
             Assert.Null(uninstall.ExecutedPlan);
@@ -337,8 +536,10 @@ public sealed class RemovalBatchViewModelTests
     }
 
     private static RemovalViewModel Page(FakeAction? uninstall = null, FakeAction? disable = null,
-        Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>>? confirm = null) =>
-        new(uninstall ?? new FakeAction(RemovalBatchKind.Uninstall), disable ?? new FakeAction(RemovalBatchKind.DisableStartup), _ => true, confirm)
+        Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>>? confirm = null,
+        Func<string, string?, bool>? requireAdmin = null, TimeProvider? clock = null, Func<string?>? userSid = null) =>
+        new(uninstall ?? new FakeAction(RemovalBatchKind.Uninstall), disable ?? new FakeAction(RemovalBatchKind.DisableStartup),
+            requireAdmin ?? ((_, _) => true), confirm, clock, userSid ?? (() => "desktop-user"))
         {
             Coordinator = new OperationCoordinator(),
         };
@@ -356,8 +557,17 @@ public sealed class RemovalBatchViewModelTests
         }
     }
 
-    private sealed record TestPlan(IReadOnlyList<RemovalBatchItem> Candidates, string? Reason = null)
-        : RemovalBatchPlan(Guid.NewGuid(), "desktop-user", DateTime.UtcNow, Candidates, Reason);
+    private sealed record TestPlan(IReadOnlyList<RemovalBatchItem> Candidates, string? Reason = null, DateTime? Observed = null)
+        : RemovalBatchPlan(Guid.NewGuid(), "desktop-user", Observed ?? DateTime.UtcNow, Candidates, Reason);
+
+    private sealed class DialogHost : IUiHost
+    {
+        public DialogViewModel? Dialog { get; set; }
+        public ObservableCollection<ToastItem> Toasts { get; } = [];
+        public void NavigateTo(string pageKey) => throw new InvalidOperationException(pageKey);
+        public bool RestartElevated(AdminIntent? intent = null) => throw new InvalidOperationException();
+        public bool RestartSameRights() => throw new InvalidOperationException();
+    }
 
     private sealed class FakeAction(RemovalBatchKind kind, params string[] keys) : IRemovalBatchAction
     {
