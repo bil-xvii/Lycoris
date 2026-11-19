@@ -188,6 +188,9 @@ public sealed record BoostPlan(
     bool PurgeStandby,
     BoostCloseMode CloseMode = BoostCloseMode.Close)
 {
+    /// <summary>Exact instances selected for shutdown at preview time.</summary>
+    public BackgroundClosePlan? ClosePlan { get; init; }
+
     /// <summary>The close-list line of the confirmation: closing or efficiency mode, running or not, empty list.</summary>
     public string DescribeCloseList()
     {
@@ -206,10 +209,23 @@ public sealed record BoostPlan(
             : Loc.T("Приложения не закрываются (список закрытия пуст).");
     }
 
+    internal static string DescribeCloseTarget(BackgroundCloseTarget target) =>
+        Loc.Tf("{0} · PID {1} · {2} · {3}", Loc.Sink(target.Name), target.Pid,
+            target.StartedUtc.ToString("yyyy-MM-dd HH:mm:ss.fffffff 'UTC'", System.Globalization.CultureInfo.InvariantCulture),
+            Loc.Sink(target.ImagePath));
+
     /// <summary>The exact list shown in the confirmation dialog.</summary>
     public IReadOnlyList<string> Describe(GameEntry? game)
     {
         var lines = new List<string> { PowerText, DescribeCloseList() };
+        if (CloseMode == BoostCloseMode.Close && ClosePlan is { } close)
+        {
+            lines.AddRange(close.Targets.Select(DescribeCloseTarget));
+            if (close.Unavailable.Count > 0)
+                lines.Add(Loc.T("Некоторые процессы недоступны для закрытия"));
+            if (!close.HasFullSelection)
+                lines.Add(Loc.T("Не удалось проверить список процессов."));
+        }
 
         if (game is not null)
             lines.Add(RaisePriority

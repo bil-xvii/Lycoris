@@ -1,0 +1,22 @@
+{
+  "area": "BackgroundApps",
+  "translated": true,
+  "sources": [
+    "Modules/Games/BackgroundAppClosure*.cs",
+    "Modules/Games/BackgroundAppCloseCommandLine.cs",
+    "Modules/Games/GameBoostService.cs",
+    "Modules/Games/BoostPolicy.cs"
+  ],
+  "ignore": [],
+  "en": {
+    "Закрытие фоновых приложений": "Closing background apps",
+    "Запустите Lycoris из консоли или перенаправьте стандартный вывод.": "Run Lycoris from a console or redirect standard output.",
+    "Не удалось проверить список процессов.": "Could not verify the process list.",
+    "Некоторые процессы недоступны для закрытия": "Some processes are unavailable for closing",
+    "Эти приложения ещё работают. Завершить их принудительно? Несохранённые данные в них будут потеряны.": "These apps are still running. Force them to exit? Any unsaved data in them will be lost.",
+    "Закрытие не подтверждено": "Closure not confirmed",
+    "Закрытие не выполнено": "Apps not closed",
+    "Список процессов изменился после подтверждения.": "The process list changed after confirmation.",
+    "Не удалось проверить список процессов после закрытия.": "Could not verify the process list after closing."
+  }
+}

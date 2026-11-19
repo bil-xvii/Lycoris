@@ -284,7 +284,7 @@ public sealed class LocTests
     public void Elevation_prompt_text_is_identical_in_russian_to_before()
     {
         using var _ = Loc.UseLanguage("ru");
-        Assert.StartsWith("«Применение» меняет настройки Windows, поэтому нужны права администратора.", Lycoris.Shell.PageViewModel.ElevationPromptText("Применение"));
+        Assert.StartsWith("Для действия «Применение» нужны права администратора.", Lycoris.Shell.PageViewModel.ElevationPromptText("Применение"));
     }
 
     [Fact]

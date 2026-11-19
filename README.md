@@ -14,7 +14,7 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 - **Советы с понятным действием.** Панель показывает путь, следующий шаг и кнопку открытия нужного раздела Lycoris или Windows. Поддерживаемое исправление выполняется после подтверждения и проверяется повторно; неизвестная причина сбоя направляет к журналу надёжности.
 - **Помощник.** Объясняет найденные проблемы и применяет поддерживаемые исправления. Без Ollama понимает «включи», «отключи», «запусти» и «останови службу…»: показывает точную цель и последствия, проверяет разрешения и результат. Для свободных вопросов доступен локальный чат через Ollama.
 - **Программы и драйверы.** Рекомендации по подтверждённой потребности: например, игровые службы для обнаруженного Xbox. Ошибка сканирования или старый кэш не считаются отсутствием программы; ручной выбор сохранён.
-- **Игры и профили.** Библиотека, избранное и GameBoost. Профили для игр, работы, стриминга и свой набор учитывают подтверждённую применимость аппаратных настроек.
+- **Игры и профили.** Библиотека, избранное и GameBoost. Профили для игр, работы, стриминга и свой набор учитывают подтверждённую применимость аппаратных настроек. В разделе «Игры → Игровой сеанс → Закрытие программ → Настроить» можно разово закрыть выбранные программы. Перед этим Lycoris покажет процессы с PID и путями и попросит подтверждение.
 - **Обслуживание.** Автозапуск и службы, анализ и очистка временных файлов, системные инструменты.
 - **Удаление и отключение.** Две кнопки сканируют программы, автоматически выбирают подтверждённых кандидатов и после подтверждения точного списка выполняют действие. Подбор по данным установки, подписи и системным связям не ограничен перечнем названий; отдельный предпросмотр позволяет изменить выбор. Удаление идёт через штатный деинсталлятор WinGet и не отменяется журналом; отключение автозапуска сохраняет файлы и допускает откат. Классические программы и пакеты Store видны вместе. Системные компоненты и записи с недостаточными сведениями автоматически не выбираются.
 - **Разбор служб.** Возможные будущие функции сохраняются через обратимую настройку запуска. Удаление остатков ограничено проверенными сценариями: сейчас только простой остаток Everything после подтверждения удаления программы; неизвестные службы не удаляются автоматически.
@@ -78,6 +78,21 @@ echo %errorlevel%
 
 Сценарии: `normal` («Работа и учёба»), `gaming` («Игры»), `recommended` («Рекомендуемый»). `--dry-run` всегда только показывает план. В PowerShell: `Start-Process .\Lycoris.exe '--apply-profile gaming' -NoNewWindow -Wait -PassThru`. Коды выхода: 0 — готово (или менять нечего), 1 — ошибки при применении, 2 — неверные параметры, 3 — нужны права администратора, 4 — Lycoris уже открыт, 5 — применено не всё, 6 — сбой.
 
+Для разового закрытия программ укажите их имена через запятую, с расширением `.exe` или без него.
+
+```text
+Lycoris.exe --close-background-apps <имена> [--dry-run] [--force] [--yes --plan <64hex>] [--lang ru|en]
+```
+
+```bat
+start /wait "" Lycoris.exe --close-background-apps 7zFM,SumatraPDF
+start /wait "" Lycoris.exe --close-background-apps 7zFM,SumatraPDF --yes --plan PLAN_HASH
+```
+
+Замените имена в примере на выбранные программы и `PLAN_HASH` на значение поля `plan`. По умолчанию и с `--dry-run` команда пишет JSON предпросмотра в стандартный вывод. В нём есть PID, время запуска и полный путь каждого процесса. Поле `plan` содержит 64-символьный SHA-256 отпечаток набора процессов и режима закрытия.
+
+Для выполнения используйте консоль с правами администратора, повторите имена и передайте `--yes --plan` с отпечатком. Перед закрытием Lycoris сверяет весь набор процессов с подтверждённым планом. Если состав изменился, сформируйте новый план. Окно Lycoris может оставаться открытым. `--force` разрешает принудительное завершение процессов, оставшихся после обычного закрытия. Укажите его и в предпросмотре, и при выполнении плана. Объём памяти в предпросмотре указан для справки. Выбор процессов задаётся только переданными именами.
+
 ## Сборка из исходников (нужен .NET 10 SDK)
 
 ```
@@ -97,6 +112,8 @@ powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сбо�
 The Assistant also handles explicit enable, disable, start and stop service requests without Ollama, with an exact plan and verified outcome. Start policy and current running state are separate. Service residue removal currently supports only a constrained Everything remnant after you confirm the program was uninstalled; unknown services are not deleted. Supported removal records can be restored disabled, including from Simple mode.
 
 The separate **Uninstall and disable** panel scans desktop registrations and Store packages, explains its decisions, and automatically selects candidates supported by installation, signature and system evidence rather than a fixed list of app names. Its two main buttons scan, request confirmation of the exact selection and then execute. An editable preview is also available. Desktop removal uses the native WinGet uninstaller and cannot be undone through Lycoris; supported startup changes can be restored. Uncertain Store removals remain in Windows Settings. Gaming and streaming presets use an applicable Balanced plan, preserving compatible OEM plans. Automatic disk cleanup and other settings with trade-offs remain individual choices.
+
+In **Games → Game session → Closing programs → Set up**, use **Close selected now** for a one-time closure. Lycoris previews the process IDs and paths, then asks you to confirm. The list can be saved separately for game sessions.
 
 Windows 10 2004+ / Windows 11 x64; .NET included; RU/EN interface. Simple mode is available to everyone; Expert mode is currently limited to the author's PC. Review and confirm changes requiring administrator rights. Only supported settings can be rolled back; file cleanup is irreversible. Restore points require available and enabled Windows System Protection. Performance gains are not guaranteed.
 

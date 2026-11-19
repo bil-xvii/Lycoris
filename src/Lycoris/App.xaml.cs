@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Lycoris.Core;
 using Lycoris.Core.Background;
+using Lycoris.Modules.Games;
 using Lycoris.Shell;
 using Lycoris.UI;
 
@@ -59,6 +60,7 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
     private bool _ownsMutex;
+    private bool _backgroundCloseCli;
     // Read the DEBUG scope without triggering AppPaths' legacy-data migration at type initialization.
 #if DEBUG
     private static readonly string SingleInstanceName = BackgroundModePolicy.InstanceNameFor(Environment.GetEnvironmentVariable("LYCORIS_TEST_ROOT"));
@@ -71,6 +73,16 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Reserve this command before any other startup route can perform work on mixed arguments.
+        if (BackgroundAppCloseCommandLine.IsRequested(e.Args))
+        {
+            _backgroundCloseCli = true;
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Dispatcher.InvokeAsync(async () => Shutdown(await BackgroundAppCloseCommandLine.RunAsync(e.Args)));
+            return;
+        }
+
         // The display guard: before the instance lock, settings, UAC and logging setup. It only waits and, if needed,
         // puts the previous display mode back.
         if (e.Args.Length > 0 && e.Args[0] == Lycoris.Core.Devices.DisplayGuardProcess.Switch)
@@ -436,6 +448,12 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_backgroundCloseCli)
+        {
+            base.OnExit(e);
+            return;
+        }
+
         // Restore only a frequency change made by this process. Shared startup recovery requires the writer lease.
         if (Elevation.IsElevated)
         {

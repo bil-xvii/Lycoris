@@ -79,6 +79,34 @@ public static class SecurityCorpus
         });
         Expect("apply-profile: a valid command still parses", () => ProfileCommandLine.Parse(["--apply-profile", "recommended", "--dry-run"], out _) is { Apply: false });
 
+        Expect("background close rejects path, injection, control and unbound apply arguments", () =>
+        {
+            string[][] inputs =
+            [
+                ["--close-background-apps", @"..\demo.exe"],
+                ["--close-background-apps", "demo\u202E"],
+                ["--close-background-apps", "demo,DEMO.exe"],
+                ["--close-background-apps", "demo", "--yes"],
+                ["--close-background-apps", "demo", "--lang", "auto"],
+                ["--close-background-apps", new string('x', 5000)],
+            ];
+            return inputs.All(a => BackgroundAppCloseCommandLine.Parse(a) is null);
+        });
+        Expect("background close intercepts and rejects a mixed update or self-test", () =>
+        {
+            string[][] inputs =
+            [
+                ["--apply-update", @"C:\program.exe", "1234", "--close-background-apps", "demo"],
+                ["--selftest", @"C:\report", "--close-background-apps", "demo"],
+            ];
+            return inputs.All(a => BackgroundAppCloseCommandLine.IsRequested(a) && BackgroundAppCloseCommandLine.Parse(a) is null);
+        });
+
+        Expect("background close rejects malformed or unsafe game path settings", () =>
+            BackgroundCloseGameProtection.ParseCustomSettings("""{"CustomGameFolders": "C:\\"}""") is null &&
+            BackgroundCloseGameProtection.ParseCustomSettings("""{"CustomGameFolders":["C:\\games\\..\\evil.exe"]}""") is null &&
+            BackgroundCloseGameProtection.ParseCustomSettings("""{"CustomGameFolders":["\\\\server\\game.exe"]}""") is null);
+
         // ── Relaunch arguments never carry a remembered action, a language override or the parent id of another run ──
         Expect("relaunch strips replay args", () =>
         {

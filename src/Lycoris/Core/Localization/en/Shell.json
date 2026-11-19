@@ -240,7 +240,7 @@
     "НЕ СЕЙЧАС": "NOT NOW",
     "Запрос прав администратора": "Administrator rights request",
     "Всегда запускать Lycoris с правами администратора (без лишних перезапусков)": "Always start Lycoris with administrator rights (no extra relaunches)",
-    "«{0}» меняет настройки Windows, поэтому нужны права администратора. Lycoris перезапустится с ними и откроется на этой же странице — Windows покажет запрос контроля учётных записей (UAC). ": "“{0}” changes Windows settings, so administrator rights are needed. Lycoris will relaunch with them and reopen on this same page — Windows will show a User Account Control (UAC) prompt. ",
+    "Для действия «{0}» нужны права администратора. Windows покажет запрос контроля учётных записей (UAC), и Lycoris откроется на этой же странице с повышенными правами. ": "Administrator rights are required for “{0}”. Windows will show a User Account Control (UAC) prompt, and Lycoris will reopen on this page with elevated rights. ",
     "Действие продолжится само: перед изменением Lycoris покажет обычное подтверждение.": "The action will continue by itself: Lycoris shows the usual confirmation before changing anything.",
     "После перезапуска повторите действие.": "Repeat the action after the relaunch.",
     "Ничего не нажимать — тоже вернуть.": "Press nothing — it goes back too.",

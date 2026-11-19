@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Windows.Input;
 using Lycoris.Core.Assistant;
 using Lycoris.Core.Services;
+using Lycoris.Modules.Games;
 
 namespace Lycoris.Shell;
 
@@ -26,6 +27,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
     internal const string RemoveServiceResidue = "RemoveServiceResidue";
     internal const string AutoUninstall = "AutoUninstall";
     internal const string AutoDisableStartup = "AutoDisableStartup";
+    internal const string CloseSelectedNow = "CloseSelectedNow";
 
     /// <summary>Launch arguments for the elevated copy.</summary>
     public IReadOnlyList<string> ToArgs()
@@ -64,7 +66,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         if (!IsPageKey(page.Trim())) return null;
         if (!string.IsNullOrEmpty(parameter) && !IsParameter(parameter)) return null;
         if (!IsValidRestrictedReplay(page, command, parameter) ||
-            (command is RunServiceAction or RemoveServiceResidue or AutoUninstall or AutoDisableStartup
+            (command is RunServiceAction or RemoveServiceResidue or AutoUninstall or AutoDisableStartup or CloseSelectedNow
                 && (repeated || IsReplayFlag(args[^1])))) return null;
         return new AdminIntent(page.Trim(), command.Trim(), string.IsNullOrEmpty(parameter) ? null : parameter);
     }
@@ -98,7 +100,7 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         "EnableProtection", "EnableSelectedStartup", "ExportBackup", "FixSafe", "GpuDownload", "InstallHardware", "InstallUpdates",
         "AddPriorityRule", "MeasureFps", "PlayBoostedGame", "ReapplyAllDrift", "ReapplyDrift", "RepairWindows", "RestoreBackup", "RestoreStale", "RevertAll", "RevertBatch",
         "RevertItem", "RevertLastBatch", "RevertRecord", "RevertService", "RevertSetting", "RemovePriorityRule", "RevertTask", "RunCheck", "RunTool", "ScheduleMaintenance", "ShowPoints",
-        RunServiceAction, RemoveServiceResidue, AutoUninstall, AutoDisableStartup, "SetBackgroundStartup",
+        RunServiceAction, RemoveServiceResidue, AutoUninstall, AutoDisableStartup, CloseSelectedNow, "SetBackgroundStartup",
         "StartBoost", "StartService", "StopService", "ToggleGame", "ToggleGpuGame", "ToggleLogonTask", "ToggleStartup", "UseGpuTool", "UseIntelDsa",
     };
 
@@ -109,8 +111,16 @@ public sealed record AdminIntent(string PageKey, string Command, string? Paramet
         RunServiceAction => page == "assistant" && ServiceRequestParser.ParseReplay(parameter) is not null,
         RemoveServiceResidue => page == "services" && ServiceRemoval.IsSupportedName(parameter),
         AutoUninstall or AutoDisableStartup => page == "removal" && parameter is null,
+        CloseSelectedNow => page == "games" && TryParseBackgroundApps(parameter, out _),
         _ => true,
     };
+
+    internal static bool TryParseBackgroundApps(string? parameter, out IReadOnlyList<string> names)
+    {
+        names = [];
+        return IsParameter(parameter) && BackgroundAppCloseCommandLine.TryParseNames(parameter, out names)
+            && string.Equals(parameter, string.Join(',', names), StringComparison.Ordinal);
+    }
 
     private static bool IsReplayFlag(string arg) =>
         arg.Equals(PageArg, StringComparison.OrdinalIgnoreCase) ||

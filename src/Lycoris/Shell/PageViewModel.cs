@@ -388,8 +388,8 @@ public abstract partial class PageViewModel : ObservableObject
 
     /// <summary>Text of the «Нужны права администратора» dialog (pure; exposed for tests).</summary>
     public static string ElevationPromptText(string action, bool replays = false) =>
-        Loc.Tf("«{0}» меняет настройки Windows, поэтому нужны права администратора. Lycoris перезапустится с ними " +
-               "и откроется на этой же странице — Windows покажет запрос контроля учётных записей (UAC). ", Loc.Sink(action)) +
+        Loc.Tf("Для действия «{0}» нужны права администратора. Windows покажет запрос контроля учётных записей (UAC), " +
+               "и Lycoris откроется на этой же странице с повышенными правами. ", Loc.Sink(action)) +
         (replays ? Loc.T("Действие продолжится само: перед изменением Lycoris покажет обычное подтверждение.")
                  : Loc.T("После перезапуска повторите действие."));
 }
