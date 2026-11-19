@@ -85,6 +85,20 @@ jobs:
             Get-ChildItem $out -Filter *.png | ForEach-Object { $_.Name }
           }
 
+      - name: Snapshot Dashboard advice
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'src/Lycoris/bin/Release/net10.0-windows10.0.19041.0/win-x64/Lycoris.exe').Path
+          foreach ($lang in 'ru', 'en') {
+            $out = Join-Path $env:RUNNER_TEMP "lycoris-demo-dashboard-$lang"
+            $process = Start-Process -FilePath $exe -ArgumentList @('--snapshot', ('"{0}"' -f $out), '--pages', 'dashboard', '--full', '--wait', '5000', '--lang', $lang, '--no-elevate') -Wait -PassThru -WindowStyle Hidden
+            if ($process.ExitCode -ne 0) { throw "Dashboard snapshot ($lang) failed with exit code $($process.ExitCode)" }
+            $snapshot = Get-ChildItem -LiteralPath $out -Filter '*-dashboard.png' -File
+            if (-not $snapshot -or (Test-Path -LiteralPath (Join-Path $out 'snapshot-error.txt'))) { throw "Dashboard snapshot ($lang) was not rendered successfully" }
+            $snapshot.Name
+          }
+
       # screenshots of every page (ru + en) for visual review of UI changes — the owner's PC blocks unsigned dev builds (Smart App Control)
       - name: Upload self-test screenshots
         if: success() && matrix.os == 'windows-2025'
