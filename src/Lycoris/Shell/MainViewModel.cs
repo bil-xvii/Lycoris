@@ -32,7 +32,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     public ObservableCollection<PageViewModel> Pages { get; }
     /// <summary>Pages in the sidebar list: all but Settings, which opens from the gear in the sidebar footer.</summary>
     public IReadOnlyList<PageViewModel> NavPages { get; }
-    /// <summary>The sidebar list grouped by <see cref="PageViewModel.NavGroup"/> (ОБЗОР · УСКОРЕНИЕ · ОБСЛУЖИВАНИЕ · ЗАЩИТА).</summary>
+    /// <summary>The sidebar list grouped by <see cref="PageViewModel.NavGroup"/> in navigation order.</summary>
     public ICollectionView NavView { get; }
     public MaintenanceViewModel Maintenance { get; }
     public DevicesViewModel Devices { get; }
@@ -117,23 +117,31 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     /// <summary>Update state for the title-bar button «ОБНОВЛЕНИЕ x.y.z» (Shell/UpdateController).</summary>
     public UpdateController Updates => UpdateController.Instance;
 
-    /// <summary>
-    /// Sidebar groups in order; the key → group map is the single place that decides where a page lives. The values are
-    /// Russian IDS (grouping, tests); the sidebar header shows them through <c>LocConverter</c>.
-    /// </summary>
-    public const string GroupOverview = "ОБЗОР"; // loc:ignore
-    public const string GroupBoost = "УСКОРЕНИЕ"; // loc:ignore
-    public const string GroupMaintenance = "ОБСЛУЖИВАНИЕ"; // loc:ignore
-    public const string GroupProtection = "ЗАЩИТА"; // loc:ignore
+    // Group labels are Russian localization keys. The sidebar resolves them through LocConverter.
+    public const string GroupOverview = "Главное"; // loc:ignore
+    public const string GroupBoost = "Игры и производительность"; // loc:ignore
+    public const string GroupApps = "Программы"; // loc:ignore
+    public const string GroupMaintenance = "Windows и устройства"; // loc:ignore
+    public const string GroupProtection = "Восстановление"; // loc:ignore
 
-    /// <summary>Sidebar group of a page key (pure; tested).</summary>
-    public static string NavGroupOf(string pageKey) => pageKey switch
+    public static string NavGroupOf(string pageKey) => NavEntryOf(pageKey).Group;
+    public static int NavOrderOf(string pageKey) => NavEntryOf(pageKey).Order;
+
+    private static (string Group, int Order) NavEntryOf(string pageKey) => pageKey switch
     {
-        "home" or "dashboard" or "assistant" => GroupOverview,
-        "optimize" or "games" or "services" or "devices" => GroupBoost,
-        "maintenance" or "drivers" or "apps" or "removal" => GroupMaintenance,
-        "restore" => GroupProtection,
-        _ => "",
+        "home" => (GroupOverview, 0),
+        "dashboard" => (GroupOverview, 1),
+        "assistant" => (GroupOverview, 2),
+        "games" => (GroupBoost, 3),
+        "optimize" => (GroupBoost, 4),
+        "apps" => (GroupApps, 5),
+        "removal" => (GroupApps, 6),
+        "services" => (GroupMaintenance, 7),
+        "devices" => (GroupMaintenance, 8),
+        "drivers" => (GroupMaintenance, 9),
+        "maintenance" => (GroupMaintenance, 10),
+        "restore" => (GroupProtection, 11),
+        _ => ("", int.MaxValue),
     };
 
     public MainViewModel()
@@ -157,7 +165,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             new SettingsViewModel(),
         ];
         foreach (var p in Pages) p.NavGroup = NavGroupOf(p.Key);
-        NavPages = Pages.Where(p => p.Key != SettingsKey).ToList();
+        NavPages = Pages.Where(p => p.Key != SettingsKey).OrderBy(p => NavOrderOf(p.Key)).ToList();
         NavView = new ListCollectionView((System.Collections.IList)NavPages);
         NavView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(PageViewModel.NavGroup)));
 

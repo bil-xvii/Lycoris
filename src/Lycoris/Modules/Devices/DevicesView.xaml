@@ -26,7 +26,7 @@
             <Setter Property="Margin" Value="0,0,0,8" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource B.White}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource B.Accent}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -104,7 +104,7 @@
                             Command="{Binding DataContext.RunToolCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE9D9;" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                            <TextBlock Text="{Binding RunButtonText}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding RunButtonText, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </Grid>
@@ -221,7 +221,7 @@
                                         Visibility="{Binding ShowApply, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Применить только эту настройку (через журнал)'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                        <TextBlock Text="{loc:T 'ПРИМЕНИТЬ'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Применить'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button Margin="6,0,0,0"
@@ -229,13 +229,13 @@
                                         Visibility="{Binding CanRevert, Converter={StaticResource BoolToVis}}" ToolTip="{loc:T 'Вернуть значение, которое было до изменения в Lycoris'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Undo}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                        <TextBlock Text="{loc:T 'ОТКАТИТЬ'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Откатить'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource Btn.Link}" Margin="6,0,0,0" ToolTip="{loc:T 'Эта настройка — пункт раздела «Оптимизация»: откроется он, ничего не меняется'}"
                                         Command="{Binding DataContext.OpenTweakCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding TweakId}"
                                         Visibility="{Binding IsTweakRow, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="{loc:T 'В ОПТИМИЗАЦИИ →'}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'В оптимизации →'}" VerticalAlignment="Center" />
                                 </Button>
                                 <Button Style="{StaticResource Btn.Link}" Margin="6,0,0,0" Content="{Binding Link.Label}"
                                         Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Link}"
@@ -293,7 +293,7 @@
                             <TextBlock Text="{Binding KindLabel}" Style="{StaticResource T.Label}" Visibility="{Binding ShowKindLabel, Converter={StaticResource BoolToVis}}" />
                             <TextBlock Text="{Binding Title}" Style="{StaticResource T.H3}" FontSize="14" TextWrapping="Wrap" />
                             <TextBlock Text="{Binding Subtitle}" Style="{StaticResource Dev.Caption}" Visibility="{Binding Subtitle, Converter={StaticResource NullToVis}}" />
-                            <TextBlock Text="{Binding FactsText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" Margin="0,4,0,0"
+                            <TextBlock Text="{Binding FactsText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}" Margin="0,4,0,0"
                                        TextWrapping="Wrap" Visibility="{Binding FactsText, Converter={StaticResource NullToVis}}" />
                         </StackPanel>
                         <ItemsControl Grid.Column="2" ItemsSource="{Binding VendorApps}" VerticalAlignment="Top" Focusable="False">
@@ -349,10 +349,10 @@
 
         <!-- Plan button of a measurement row: «ЗАМЕРИТЬ» runs the tool in place, «ОТМЕНА» while it runs -->
         <Style x:Key="Dev.MeasureBtn" TargetType="Button" BasedOn="{StaticResource Btn}">
-            <Setter Property="Content" Value="{loc:T 'ЗАМЕРИТЬ'}" />
+            <Setter Property="Content" Value="{loc:T 'Замерить'}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding MeasureTool.IsRunning}" Value="True">
-                    <Setter Property="Content" Value="{loc:T 'ОТМЕНА'}" />
+                    <Setter Property="Content" Value="{loc:T 'Отмена'}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -446,14 +446,14 @@
                 <RadioButton Style="{StaticResource Segment}" GroupName="DevicesTabs"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=auto}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T 'АВТОНАСТРОЙКА'}" />
+                        <TextBlock Text="{loc:T 'Автонастройка'}" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding PlanCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource Segment}" GroupName="DevicesTabs"
                              IsChecked="{Binding SelectedTab, Converter={StaticResource Equals}, ConverterParameter=manual}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T 'ВРУЧНУЮ'}" />
+                        <TextBlock Text="{loc:T 'Вручную'}" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding Cards.Count}" /></Border>
                     </StackPanel>
                 </RadioButton>
@@ -478,7 +478,7 @@
                 <!-- What was found: each device is a button to its card in ВРУЧНУЮ -->
                 <Border Style="{StaticResource Card}" Padding="14,10" Margin="0,0,0,8" Visibility="{Binding HasCards, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
-                        <TextBlock Text="{Binding FoundHeader}" Style="{StaticResource T.Label}" />
+                        <TextBlock Text="{Binding FoundHeader, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" />
                         <ItemsControl ItemsSource="{Binding Cards}" Margin="0,8,0,0" Focusable="False">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -503,7 +503,7 @@
                 <!-- Findings: advice with a link, nothing to apply here -->
                 <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,8" Visibility="{Binding HasFindings, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
-                        <TextBlock Text="{Binding FindingsHeader}" Style="{StaticResource T.Label}" Margin="14,11,14,9" />
+                        <TextBlock Text="{Binding FindingsHeader, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" Margin="14,11,14,9" />
                         <ItemsControl ItemsSource="{Binding Findings}" ItemTemplate="{StaticResource PlanRow}" Focusable="False" />
                     </StackPanel>
                 </Border>
@@ -519,9 +519,9 @@
                 <!-- The plan -->
                 <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,8" Visibility="{Binding ShowPlan, Converter={StaticResource BoolToVis}}">
                     <StackPanel Grid.IsSharedSizeScope="True">
-                        <TextBlock Text="{Binding PlanHeader}" Style="{StaticResource T.Label}" Margin="14,11,14,9"
+                        <TextBlock Text="{Binding PlanHeader, Converter={StaticResource Sentence}}" Style="{StaticResource T.H3}" Margin="14,11,14,9"
                                    Visibility="{Binding ShowPlanHeader, Converter={StaticResource BoolToVis}}" />
-                        <TextBlock Text="{Binding MeasureHeader}" Style="{StaticResource T.Label}" Margin="14,11,14,9"
+                        <TextBlock Text="{Binding MeasureHeader, Converter={StaticResource Sentence}}" Style="{StaticResource T.Label}" Margin="14,11,14,9"
                                    Visibility="{Binding ShowMeasureHeaderInPlan, Converter={StaticResource BoolToVis}}" />
                         <ItemsControl ItemsSource="{Binding PlanItems}" ItemTemplate="{StaticResource PlanRow}" Focusable="False" />
                         <ItemsControl ItemsSource="{Binding MeasureItems}" ItemTemplate="{StaticResource PlanRow}" Focusable="False" />
@@ -535,7 +535,7 @@
                                         <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
                                                 CornerRadius="{StaticResource R.Md}" Height="30" Padding="12,0,10,0">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding OptionalHeader}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12.5"
+                                                <TextBlock Text="{Binding OptionalHeader, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontSize="12.5"
                                                            Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
                                                 <TextBlock x:Name="Chev" Text="&#xE70D;" FontFamily="{StaticResource F.Icons}" FontSize="12" Foreground="{StaticResource B.Text2}"
                                                            VerticalAlignment="Center" Margin="8,1,0,0" />
@@ -562,7 +562,7 @@
                 <!-- Nothing to apply, but measurements would tell more: only those rows (no apply bar) -->
                 <Border Style="{StaticResource Card.Flush}" Margin="0,0,0,8" Visibility="{Binding ShowMeasureOnly, Converter={StaticResource BoolToVis}}">
                     <StackPanel Grid.IsSharedSizeScope="True">
-                        <TextBlock Text="{Binding MeasureHeader}" Style="{StaticResource T.Label}" Margin="14,11,14,9" />
+                        <TextBlock Text="{Binding MeasureHeader, Converter={StaticResource Sentence}}" Style="{StaticResource T.Label}" Margin="14,11,14,9" />
                         <ItemsControl ItemsSource="{Binding MeasureItems}" ItemTemplate="{StaticResource PlanRow}" Focusable="False" />
                     </StackPanel>
                 </Border>

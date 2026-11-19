@@ -172,11 +172,11 @@ public sealed class RemovalPolicyTests
     }
 
     [Fact]
-    public void Removal_is_a_distinct_maintenance_page()
+    public void Removal_is_a_distinct_programs_page()
     {
         var page = new RemovalViewModel();
         Assert.Equal("removal", page.Key);
-        Assert.Equal(MainViewModel.GroupMaintenance, MainViewModel.NavGroupOf(page.Key));
+        Assert.Equal(MainViewModel.GroupApps, MainViewModel.NavGroupOf(page.Key));
         Assert.Empty(page.VisibleRows);
         Assert.Null(page.EmptyMessage);
         Assert.False(page.OpenSelectedStartupCommand.CanExecute(null));

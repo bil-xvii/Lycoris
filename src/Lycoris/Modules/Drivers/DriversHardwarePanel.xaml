@@ -185,22 +185,26 @@
 
                         <Grid Margin="0,11,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.3*" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="1.1*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="1.1*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="{Binding VersionLabel}" Style="{StaticResource T.Label}" />
-                                <TextBlock Text="{Binding VersionText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="{loc:T ДАТА ДРАЙВЕРА}" Style="{StaticResource T.Label}" />
-                                <TextBlock Text="{Binding DateText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" Foreground="{StaticResource B.Text2}" />
+                                <TextBlock Text="{Binding VersionLabel}" Style="{StaticResource T.Label}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding VersionText}" Style="{StaticResource T.Stat}" FontSize="19"
+                                           Margin="0,4,0,0" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="{loc:T ВОЗРАСТ}" Style="{StaticResource T.Label}" />
-                                <TextBlock Text="{Binding AgeText}" Style="{StaticResource T.Stat}" FontSize="21" Margin="0,4,0,0" Foreground="{StaticResource B.Text2}"
-                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{loc:T ДАТА ДРАЙВЕРА}" Style="{StaticResource T.Label}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding DateText}" Style="{StaticResource T.H2}" Margin="0,4,0,0"
+                                           Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="{loc:T ВОЗРАСТ}" Style="{StaticResource T.Label}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AgeText}" Style="{StaticResource T.H2}" Margin="0,4,0,0"
+                                           Foreground="{StaticResource B.Text2}" TextWrapping="Wrap" />
                             </StackPanel>
                         </Grid>
                         <TextBlock Text="{Binding TechLine}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"

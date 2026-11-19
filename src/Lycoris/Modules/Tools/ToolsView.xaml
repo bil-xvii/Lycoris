@@ -27,7 +27,7 @@
                                 <TextBlock x:Name="Ic" Text="{Binding Glyph}" Style="{StaticResource T.Icon}" FontSize="15" HorizontalAlignment="Left"
                                            VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{StaticResource B.Text2}" />
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold" FontStretch="SemiCondensed"
+                                    <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="SemiBold"
                                                FontSize="13" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" Margin="0,0,6,0" />
                                     <TextBlock Text="{Binding Command}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                                                Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
@@ -85,17 +85,17 @@
                     </Border>
 
                     <StackPanel Grid.Column="1" Margin="8,0,16,0">
-                        <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
+                        <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}"
                                    Foreground="{StaticResource B.Text}" TextWrapping="Wrap" />
                         <Expander Margin="0,4,0,0">
                             <Expander.Header>
-                                <TextBlock Text="{loc:T ПОДРОБНЕЕ}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T Подробнее}" Style="{StaticResource T.Label}" />
                             </Expander.Header>
                             <StackPanel Margin="0,4,0,0">
-                                <TextBlock Text="{loc:T КОМАНДА}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T Команда}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding Command}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}"
                                            TextWrapping="Wrap" Margin="0,2,0,6" />
-                                <TextBlock Text="{loc:T ОПИСАНИЕ}" Style="{StaticResource T.Label}" />
+                                <TextBlock Text="{loc:T Описание}" Style="{StaticResource T.Label}" />
                                 <TextBlock Text="{Binding Description}" Style="{StaticResource T.Body}" TextWrapping="Wrap" Margin="0,2,0,0" />
                             </StackPanel>
                         </Expander>
@@ -127,7 +127,7 @@
                             CornerRadius="{StaticResource R.Md}"
                             Visibility="{Binding HasBootCheck, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="{loc:T 'ПРОВЕРКА ПРИ ЗАГРУЗКЕ'}" Style="{StaticResource T.Label}" />
+                            <TextBlock Text="{loc:T 'Проверка при загрузке'}" Style="{StaticResource T.Label}" />
                             <TextBlock Text="{Binding DataContext.BootCheckText, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                        Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
@@ -175,7 +175,7 @@
                         ToolTip="{loc:T 'DISM восстановит хранилище компонентов, затем SFC проверит системные файлы. Перед запуском — подтверждение.'}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Repair}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{loc:T 'ПРОВЕРИТЬ И ВОССТАНОВИТЬ WINDOWS'}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T 'Проверить и восстановить Windows'}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </c:PageHeader.Primary>
@@ -210,7 +210,7 @@
                                     </Style>
                                 </Rectangle.Style>
                             </Rectangle>
-                            <TextBlock Text="{loc:T 'КОНСОЛЬ ИНСТРУМЕНТОВ'}" Style="{StaticResource T.Label}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T 'Консоль инструментов'}" Style="{StaticResource T.Label}" Margin="10,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                         <Grid HorizontalAlignment="Right">
                             <Border Style="{StaticResource Tag.Muted}" Visibility="{Binding RunStateIsPlain, Converter={StaticResource BoolToVis}}">
@@ -227,7 +227,7 @@
 
                     <!-- Current operation -->
                     <StackPanel Grid.Row="1" Margin="12,11,12,11">
-                        <TextBlock Text="{Binding RunTitle, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed" FontSize="17"
+                        <TextBlock Text="{Binding RunTitle, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}"
                                    Foreground="{StaticResource B.Text}" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding RunCommandText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
                                    Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -237,8 +237,8 @@
                                 <TextBlock Text="%" Style="{StaticResource T.StatUnit}" Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,6">
-                                <TextBlock Text="{loc:T ПРОШЛО}" Style="{StaticResource T.Label}" HorizontalAlignment="Right" />
-                                <TextBlock Text="{Binding ElapsedText}" Style="{StaticResource T.Mono}" FontSize="14" Foreground="{StaticResource B.Text}"
+                                <TextBlock Text="{loc:T Прошло}" Style="{StaticResource T.Label}" HorizontalAlignment="Right" />
+                                <TextBlock Text="{Binding ElapsedText}" Style="{StaticResource T.Stat}" FontSize="16" Foreground="{StaticResource B.Text}"
                                            HorizontalAlignment="Right" Margin="0,2,0,0" />
                             </StackPanel>
                         </Grid>
@@ -291,7 +291,7 @@
                             </Rectangle.Style>
                         </Rectangle>
                         <StackPanel Grid.Column="1" Margin="10,9,12,9">
-                            <TextBlock Text="{loc:T РЕЗУЛЬТАТ}" Style="{StaticResource T.Label}" />
+                            <TextBlock Text="{loc:T Результат}" Style="{StaticResource T.Label}" />
                             <TextBlock Text="{Binding ResultText}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text}" Margin="0,4,0,0" />
                         </StackPanel>
                     </Grid>
@@ -306,20 +306,20 @@
                                     Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="{loc:T ОТМЕНА}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T Отмена}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button Margin="3,0" Command="{Binding CopyOutputCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Copy}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="{loc:T КОПИРОВАТЬ}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T Копировать}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button Margin="6,0,0,0" Command="{Binding ClearConsoleCommand}"
                                     Visibility="{Binding IsRunning, Converter={StaticResource InverseBoolToVis}}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="{loc:T ЗАКРЫТЬ}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T Закрыть}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </UniformGrid>

@@ -198,7 +198,7 @@ public sealed class LocalizationCoverageTests
         foreach (var title in new[] { "ПАНЕЛЬ", "ОПТИМИЗАЦИЯ", "ИГРЫ", "АВТОЗАПУСК И СЛУЖБЫ", "ОБСЛУЖИВАНИЕ", "ДРАЙВЕРЫ", "УСТРОЙСТВА И СЕТЬ", "ПРИЛОЖЕНИЯ", "ВОССТАНОВЛЕНИЕ", "НАСТРОЙКИ" })
             Assert.Contains(title, all);
         Assert.Equal("СИСТЕМНЫЙ", "СИСТЕМНЫЙ"); // sanity: this file is UTF-8
-        Assert.All(new[] { MainViewModel.GroupOverview, MainViewModel.GroupBoost, MainViewModel.GroupMaintenance, MainViewModel.GroupProtection }, g => Assert.Contains(g, all));
+        Assert.All(new[] { MainViewModel.GroupOverview, MainViewModel.GroupBoost, MainViewModel.GroupApps, MainViewModel.GroupMaintenance, MainViewModel.GroupProtection }, g => Assert.Contains(g, all));
     }
 
     private static string Short(string s) => (s.Length > 70 ? s[..70] + "…" : s).Replace("\n", "\\n");

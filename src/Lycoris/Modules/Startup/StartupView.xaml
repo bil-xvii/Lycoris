@@ -19,7 +19,6 @@
         <Style x:Key="StateWord" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="FontStretch" Value="SemiCondensed" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
             <Style.Triggers>
@@ -63,7 +62,7 @@
                         Command="{Binding DataContext.SearchOnlineCommand, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
                         CommandParameter="{Binding}" ToolTip="{loc:T 'Найти в интернете, что это за программа (откроется браузер)'}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ЧТО ЭТО?}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T Что это?}" VerticalAlignment="Center" />
                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,0,0,0" />
                     </StackPanel>
                 </Button>
@@ -71,7 +70,7 @@
                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=local:StartupView}}"
                         ToolTip="{loc:T 'Открыть папку файла, скопировать команду запуска'}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ПАПКА · КОПИЯ}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T Папка · копия}" VerticalAlignment="Center" />
                         <TextBlock Text="{x:Static ui:Glyphs.ChevronDown}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="6,1,0,0" />
                     </StackPanel>
                 </Button>
@@ -84,19 +83,19 @@
                 <Button Style="{StaticResource Btn.Ghost}" Margin="0,0,8,0" Command="{Binding ClearSelectionCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                        <TextBlock Text="{loc:T СНЯТЬ ВЫБОР}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T Снять выбор}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Button Margin="0,0,8,0" Command="{Binding EnableSelectedCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Check}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                        <TextBlock Text="{loc:T ВКЛЮЧИТЬ ВЫБРАННЫЕ}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T Включить выбранные}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource Btn.Hero}" Command="{Binding DisableSelectedCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Power}" FontFamily="{StaticResource F.Icons}" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{loc:T ОТКЛЮЧИТЬ ВЫБРАННЫЕ}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T Отключить выбранные}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -123,7 +122,7 @@
                 <RadioButton Style="{StaticResource Chip}" GroupName="StartupFilter" Margin="0,0,6,6"
                              IsChecked="{Binding Filter, Converter={StaticResource Equals}, ConverterParameter=all}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{loc:T ВСЕ}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T Все}" VerticalAlignment="Center" />
                         <Border Style="{StaticResource TabBadge}"><TextBlock Text="{Binding TotalCount}" /></Border>
                     </StackPanel>
                 </RadioButton>
@@ -195,10 +194,10 @@
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="StartupActions" />
                                 </Grid.ColumnDefinitions>
                                 <CheckBox IsChecked="{Binding AllSelected}" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="{loc:T Выбрать все видимые записи}" />
-                                <TextBlock Grid.Column="1" Text="{loc:T ПРИЛОЖЕНИЕ И КОМАНДА}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,12,0" />
-                                <TextBlock Grid.Column="2" Text="{loc:T 'ИЗДАТЕЛЬ, ФАЙЛ, ОБЛАСТЬ'}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,10,0" />
-                                <TextBlock Grid.Column="3" Text="{loc:T СОСТОЯНИЕ}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,10,0" />
-                                <TextBlock Grid.Column="4" Text="{loc:T ДЕЙСТВИЯ}" Style="{StaticResource ColLabel}" HorizontalAlignment="Right" Margin="0,0,10,0" />
+                                <TextBlock Grid.Column="1" Text="{loc:T Приложение и команда}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,12,0" />
+                                <TextBlock Grid.Column="2" Text="{loc:T 'Издатель, файл, область'}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,10,0" />
+                                <TextBlock Grid.Column="3" Text="{loc:T Состояние}" Style="{StaticResource ColLabel}" TextWrapping="Wrap" Margin="0,0,10,0" />
+                                <TextBlock Grid.Column="4" Text="{loc:T Действия}" Style="{StaticResource ColLabel}" HorizontalAlignment="Right" Margin="0,0,10,0" />
                             </Grid>
                         </Border>
 
@@ -328,7 +327,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{loc:T Задачи при входе}" Style="{StaticResource T.H1}" FontSize="17" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="{Binding TasksCountText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}"
+                    <TextBlock Grid.Column="1" Text="{Binding TasksCountText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text3}"
                                Margin="9,3,0,0" VerticalAlignment="Center" />
                     <Rectangle Grid.Column="2" Height="1" Fill="{StaticResource B.Line2}" Margin="10,2,0,0" VerticalAlignment="Center" />
                 </Grid>

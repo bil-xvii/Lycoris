@@ -9,11 +9,11 @@
     -->
 
     <!-- ══════════════════════════════ Focus ══════════════════════════════ -->
-    <Style x:Key="FocusVisual.Mono">
+    <Style x:Key="FocusVisual.Mono" TargetType="Control">
         <Setter Property="Control.Template">
             <Setter.Value>
                 <ControlTemplate>
-                    <Rectangle Margin="-3" Stroke="{StaticResource B.Text}" StrokeThickness="1" StrokeDashArray="2 2" SnapsToDevicePixels="True"
+                    <Rectangle Margin="-3" Stroke="{StaticResource B.AccentHover}" StrokeThickness="1.5" StrokeDashArray="2 2" SnapsToDevicePixels="True"
                                RadiusX="{StaticResource R.Md.D}" RadiusY="{StaticResource R.Md.D}" />
                 </ControlTemplate>
             </Setter.Value>
@@ -21,18 +21,12 @@
     </Style>
 
     <!-- ══════════════════════════════ Buttons ══════════════════════════════ -->
-    <!--
-        Obvious UI (owner, 01.11): every action is a visible button — outline B.Outline (3:1), 30 px, icon + text.
-        Btn (outline) · Btn.Primary / Btn.Hero (white block = the ONE main action) · Btn.Ghost (outline, muted text; only
-        next to a labelled main button) · Btn.Danger (hatched at rest) · Btn.Link (outline, body font — navigation between
-        pages «ОТКРЫТЬ В …») · Btn.Icon (glyph only: the window caption and nothing else).
-        A disabled button never explains itself by a tooltip alone: the reason is a T.Caption line next to it.
-    -->
-    <!-- Default: outline button -->
+    <!-- Solid steel identifies the primary action. Secondary actions keep a visible outline. -->
+    <!-- Standard action -->
     <Style x:Key="Btn" TargetType="Button">
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{StaticResource B.Surface2}" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Outline}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,0" />
@@ -66,6 +60,7 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface}" />
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
                             <Setter Property="Cursor" Value="Arrow" />
                         </Trigger>
@@ -76,12 +71,12 @@
     </Style>
     <Style TargetType="Button" BasedOn="{StaticResource Btn}" />
 
-    <!-- Primary: inverted white block -->
+    <!-- Primary action -->
     <Style x:Key="Btn.Primary" TargetType="Button" BasedOn="{StaticResource Btn}">
         <Setter Property="Background" Value="{StaticResource B.Accent}" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Accent}" />
         <Setter Property="Foreground" Value="{StaticResource B.OnAccent}" />
-        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Height" Value="32" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -101,13 +96,12 @@
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.AccentPressed}" />
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.AccentPressed}" />
                         </Trigger>
-                        <!-- Disabled: a grey outlined block (Surface3 / Text2 / Outline) — still clearly a button, visibly off -->
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface3}" />
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Outline}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface2}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
                             <Setter TargetName="Bd" Property="BorderThickness" Value="1" />
                             <Setter TargetName="Bd" Property="Padding" Value="0" />
-                            <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+                            <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
                             <Setter Property="Cursor" Value="Arrow" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -116,14 +110,14 @@
         </Setter>
     </Style>
 
-    <!-- Big hero action (e.g. "ОПТИМИЗИРОВАТЬ") -->
+    <!-- Prominent action in the dashboard and action bars -->
     <Style x:Key="Btn.Hero" TargetType="Button" BasedOn="{StaticResource Btn.Primary}">
-        <Setter Property="Height" Value="38" />
+        <Setter Property="Height" Value="40" />
         <Setter Property="Padding" Value="20,0" />
         <Setter Property="FontSize" Value="13" />
     </Style>
 
-    <!-- Ghost: secondary action — same outline, muted text. Never the only button in a row and never for a main action. -->
+    <!-- Secondary action on an existing surface -->
     <Style x:Key="Btn.Ghost" TargetType="Button" BasedOn="{StaticResource Btn}">
         <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
         <Setter Property="Padding" Value="10,0" />
@@ -133,7 +127,7 @@
                     <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
                             CornerRadius="{StaticResource R.Md}" SnapsToDevicePixels="True">
                         <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True"
                                           TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -147,6 +141,7 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                            <Setter TargetName="Bd" Property="Background" Value="Transparent" />
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
                             <Setter Property="Cursor" Value="Arrow" />
                         </Trigger>
@@ -156,32 +151,33 @@
         </Setter>
     </Style>
 
-    <!-- Danger: outline, lightly hatched at rest (it IS destructive, not only on hover), full hatching on hover -->
+    <!-- Destructive action with a tinted surface and a visible risk border. -->
     <Style x:Key="Btn.Danger" TargetType="Button" BasedOn="{StaticResource Btn}">
+        <Setter Property="Background" Value="{StaticResource B.RedDeep}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Red}" />
         <Setter Property="Foreground" Value="{StaticResource B.RedText}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid>
-                        <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource B.Red}" BorderThickness="1" CornerRadius="{StaticResource R.Md}" />
-                        <Border x:Name="Hatch" Background="{StaticResource B.Hatch}" Opacity="0.2" Margin="1" CornerRadius="{StaticResource R.Md}" />
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource R.Md}" SnapsToDevicePixels="True">
                         <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True"
                                           TextElement.Foreground="{TemplateBinding Foreground}" />
-                    </Grid>
+                    </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Hatch" Property="Opacity" Value="1" />
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.RedHover}" />
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.RedDeep}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.RedDeep}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface3}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.RedText}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface}" />
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
-                            <Setter TargetName="Hatch" Property="Opacity" Value="0.15" />
+                            <Setter Property="Cursor" Value="Arrow" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -264,8 +260,8 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.White}" />
-                            <Setter Property="Foreground" Value="{StaticResource B.Ink}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.RedDeep}" />
+                            <Setter Property="Foreground" Value="{StaticResource B.RedText}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -294,10 +290,10 @@
                         <Grid Width="18" Height="18" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" SnapsToDevicePixels="True">
                             <Border x:Name="Fill" Background="Transparent" CornerRadius="{StaticResource R.Xs}" />
                             <Border x:Name="Box" BorderBrush="{StaticResource B.Outline}" BorderThickness="1.5" CornerRadius="{StaticResource R.Xs}" />
-                            <Path x:Name="Mark" Data="M2.5,7.5 L6,11 L12.5,3.5" Stroke="{StaticResource B.Ink}" StrokeThickness="2"
+                            <Path x:Name="Mark" Data="M2.5,7.5 L6,11 L12.5,3.5" Stroke="{StaticResource B.OnAccent}" StrokeThickness="2"
                                   Margin="0,0,0,0" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"
-                                  StrokeEndLineCap="Square" StrokeStartLineCap="Square" />
-                            <Rectangle x:Name="Indet" Width="8" Height="2" Fill="{StaticResource B.Ink}" Visibility="Collapsed" />
+                                  StrokeEndLineCap="Round" StrokeStartLineCap="Round" />
+                            <Rectangle x:Name="Indet" Width="8" Height="2" Fill="{StaticResource B.OnAccent}" Visibility="Collapsed" />
                         </Grid>
                         <ContentPresenter Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           RecognizesAccessKey="True" TextElement.Foreground="{TemplateBinding Foreground}" />
@@ -307,8 +303,8 @@
                             <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource B.Text2}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Fill" Property="Background" Value="{StaticResource B.White}" />
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource B.White}" />
+                            <Setter TargetName="Fill" Property="Background" Value="{StaticResource B.Accent}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource B.Accent}" />
                             <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="{x:Null}">
@@ -326,10 +322,12 @@
         </Setter>
     </Style>
 
-    <!-- Toggle switch (CheckBox with Style="{StaticResource Toggle}") — rounded-rect track (R.Md, not a pill), R.Xs knob. OFF: Outline track, Text2 knob -->
+    <!-- Toggle switch with a knob that moves when enabled. -->
     <Style x:Key="Toggle" TargetType="CheckBox">
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+        <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="MinHeight" Value="30" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -343,7 +341,7 @@
                         </Grid.ColumnDefinitions>
                         <!-- Fill under a separate outline (no antialiasing seam when on); knob sits 3 px inside the 1.5 px outline -->
                         <Grid Width="40" Height="20" VerticalAlignment="Center" SnapsToDevicePixels="True">
-                            <Border x:Name="Fill" Background="Transparent" CornerRadius="{StaticResource R.Md}" />
+                            <Border x:Name="Fill" Background="{StaticResource B.Surface2}" CornerRadius="{StaticResource R.Md}" />
                             <Border x:Name="Track" BorderThickness="1.5" BorderBrush="{StaticResource B.Outline}" CornerRadius="{StaticResource R.Md}" />
                             <Border x:Name="Knob" Width="12" Height="12" Background="{StaticResource B.Text2}" HorizontalAlignment="Left" Margin="4.5,0,0,0"
                                     CornerRadius="{StaticResource R.Xs}" />
@@ -357,7 +355,7 @@
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Fill" Property="Background" Value="{StaticResource B.Success}" />
                             <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource B.Success}" />
-                            <Setter TargetName="Knob" Property="Background" Value="{StaticResource B.White}" />
+                            <Setter TargetName="Knob" Property="Background" Value="{StaticResource B.Ink}" />
                             <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
                             <Setter TargetName="Knob" Property="Margin" Value="0,0,4.5,0" />
                         </Trigger>
@@ -372,15 +370,10 @@
     </Style>
 
     <!-- ══════════════════════════════ RadioButton: segmented tabs ══════════════════════════════ -->
-    <!--
-        Page tabs = a framed segmented control: a SegmentBar (Surface2 frame, R.Md, 2 px padding) holding Segment radio
-        buttons (28 px; the selected one is a white R.Sm block with ink text). Filters inside a tab are Chips, never Segments.
-            <Border Style="{StaticResource SegmentBar}"><StackPanel Orientation="Horizontal">
-                <RadioButton Style="{StaticResource Segment}" Content="ОЧИСТКА" IsChecked="…" /> …
-    -->
+    <!-- Page tabs share an inset track and a visible underline on the selected segment. -->
     <Style x:Key="SegmentBar" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource B.Surface2}" />
-        <Setter Property="BorderBrush" Value="{StaticResource B.Line2}" />
+        <Setter Property="Background" Value="{StaticResource B.Base}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource R.Md}" />
         <Setter Property="Padding" Value="2" />
@@ -404,17 +397,29 @@
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
                     <Border x:Name="Plate" Background="Transparent" CornerRadius="{StaticResource R.Sm}" SnapsToDevicePixels="True">
-                        <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                        <Grid>
+                            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                            <Rectangle x:Name="Marker" Height="2" Margin="8,0,8,1" VerticalAlignment="Bottom"
+                                       Fill="{StaticResource B.Accent}" Visibility="Hidden" IsHitTestVisible="False"
+                                       RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
-                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface4}" />
+                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource B.Ink}" />
-                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.White}" />
+                            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Selected}" />
+                            <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface}" />
+                            <Setter TargetName="Marker" Property="Fill" Value="{StaticResource B.Line3}" />
+                            <Setter Property="Cursor" Value="Arrow" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -422,10 +427,7 @@
         </Setter>
     </Style>
 
-    <!--
-        Chip: a filter next to the search box (RadioButton; Chip.Toggle = the same for a ToggleButton/CheckBox-like on/off
-        filter). Outline, 28 px, R.Sm; selected = Surface4 fill, white text, Text2 outline. Filters only — never a page tab.
-    -->
+    <!-- Filters sit beside search and use a tinted plate with an accent outline when active. -->
     <ControlTemplate x:Key="ChipTemplate" TargetType="ToggleButton">
         <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource B.Outline}" BorderThickness="1" CornerRadius="{StaticResource R.Sm}" SnapsToDevicePixels="True">
             <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -439,12 +441,14 @@
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Foreground" Value="{StaticResource B.Text}" />
-                <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface4}" />
-                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Selected}" />
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Accent}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface}" />
                 <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
+                <Setter Property="Cursor" Value="Arrow" />
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>
@@ -482,12 +486,12 @@
         <Setter Property="CornerRadius" Value="{StaticResource R.Xs}" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Background" Value="{StaticResource B.Surface4}" />
-        <Setter Property="TextElement.FontFamily" Value="{StaticResource F.Mono}" />
+        <Setter Property="TextElement.FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="TextElement.FontSize" Value="11" />
-        <Setter Property="TextElement.FontWeight" Value="Bold" />
+        <Setter Property="TextElement.FontWeight" Value="SemiBold" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
     </Style>
-    <!-- Alert = something needs attention: amber block with ink text (red is reserved for danger / failure) -->
+    <!-- Attention counter -->
     <Style x:Key="TabBadge.Alert" TargetType="Border" BasedOn="{StaticResource TabBadge}">
         <Setter Property="Background" Value="{StaticResource B.Warning}" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
@@ -521,20 +525,21 @@
     <Style x:Key="Tile" TargetType="RadioButton">
         <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
         <Setter Property="Padding" Value="12" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
                     <Grid>
-                        <Border x:Name="Bd" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Line2}" BorderThickness="1"
+                        <Border x:Name="Bd" Background="{StaticResource B.Surface}" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
                                 CornerRadius="{StaticResource R.Lg}" />
                         <Border x:Name="Corner" Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,10,0"
-                                BorderBrush="{StaticResource B.Line3}" BorderThickness="1.5" CornerRadius="{StaticResource R.Xs}" />
+                                BorderBrush="{StaticResource B.Outline}" BorderThickness="1.5" CornerRadius="{StaticResource R.Xs}" />
                         <ContentPresenter Margin="{TemplateBinding Padding}" TextElement.Foreground="{TemplateBinding Foreground}" />
                         <!-- The selected bar follows the tile's rounded top edge -->
                         <Border CornerRadius="{StaticResource R.Lg}" ui:RoundClip.Content="True" IsHitTestVisible="False">
                             <Grid>
-                                <Rectangle x:Name="Bar" Height="3" VerticalAlignment="Top" Fill="{StaticResource B.White}" Visibility="Hidden" />
+                                <Rectangle x:Name="Bar" Height="3" VerticalAlignment="Top" Fill="{StaticResource B.Accent}" Visibility="Hidden" />
                             </Grid>
                         </Border>
                     </Grid>
@@ -544,11 +549,11 @@
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface2}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text}" />
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface2}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Accent}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Selected}" />
                             <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
-                            <Setter TargetName="Corner" Property="Background" Value="{StaticResource B.White}" />
-                            <Setter TargetName="Corner" Property="BorderBrush" Value="{StaticResource B.White}" />
+                            <Setter TargetName="Corner" Property="Background" Value="{StaticResource B.Accent}" />
+                            <Setter TargetName="Corner" Property="BorderBrush" Value="{StaticResource B.Accent}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -561,7 +566,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="T" Background="{StaticResource B.Line3}" CornerRadius="{StaticResource R.Xs}" />
+                    <Border x:Name="T" Background="{StaticResource B.Outline}" CornerRadius="{StaticResource R.Xs}" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="T" Property="Background" Value="{StaticResource B.Text3}" />
@@ -647,8 +652,9 @@
         <Setter Property="Background" Value="{StaticResource B.Surface2}" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Outline}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CaretBrush" Value="{StaticResource B.White}" />
-        <Setter Property="SelectionBrush" Value="{StaticResource B.Text2}" />
+        <Setter Property="CaretBrush" Value="{StaticResource B.AccentHover}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource B.Selected}" />
+        <Setter Property="SelectionOpacity" Value="1" />
         <Setter Property="FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Padding" Value="10,0" />
@@ -670,7 +676,13 @@
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text3}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.AccentHover}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
+                            <Setter TargetName="Hint" Property="Foreground" Value="{StaticResource B.Text4}" />
                         </Trigger>
                         <Trigger Property="Text" Value="">
                             <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
@@ -696,7 +708,11 @@
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text3}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Accent}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Line3}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Surface}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -719,7 +735,7 @@
                         <ToggleButton Style="{StaticResource ComboToggle}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" />
                         <ContentPresenter Margin="12,0,32,0" VerticalAlignment="Center" IsHitTestVisible="False"
                                           Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
-                        <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                        <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
                             <!-- Items are inset by Padding so their R.Md highlight sits inside the R.Xl corners -->
                             <Border Background="{StaticResource B.Surface3}" BorderBrush="{StaticResource B.Line3}" BorderThickness="1"
                                     CornerRadius="{StaticResource R.Xl}" Padding="4" ui:RoundClip.Content="True"
@@ -730,6 +746,12 @@
                             </Border>
                         </Popup>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -753,6 +775,12 @@
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Selected}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Accent}" />
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="1,0,0,0" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -900,7 +928,7 @@
         </Setter>
     </Style>
 
-    <!-- Hover row container used inside item templates: Surface3 plus a 2 px white bar on the left edge (B.RowHover) -->
+    <!-- List rows use a flat hover plate and a divider. -->
     <Style x:Key="Row" TargetType="Border">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Line}" />
@@ -909,6 +937,7 @@
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource B.RowHover}" />
+                <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -917,7 +946,7 @@
     <!-- Cards round with R.Lg and clip whatever their content paints into the corners (bands, first/last rows) -->
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource B.Surface}" />
-        <Setter Property="BorderBrush" Value="{StaticResource B.Line}" />
+        <Setter Property="BorderBrush" Value="{StaticResource B.Line2}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource R.Lg}" />
         <Setter Property="ui:RoundClip.Content" Value="True" />
@@ -932,22 +961,22 @@
     <Style x:Key="Card.Hover" TargetType="Border" BasedOn="{StaticResource Card}">
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource B.Text2}" />
+                <Setter Property="BorderBrush" Value="{StaticResource B.Outline}" />
                 <Setter Property="Background" Value="{StaticResource B.Surface2}" />
             </Trigger>
         </Style.Triggers>
     </Style>
 
-    <!-- Inverted block: white panel, black text (key callouts) -->
+    <!-- Light callout plate with dark text. -->
     <Style x:Key="Card.Inverted" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource B.White}" />
+        <Setter Property="Background" Value="{StaticResource B.Accent}" />
         <Setter Property="CornerRadius" Value="{StaticResource R.Lg}" />
         <Setter Property="ui:RoundClip.Content" Value="True" />
         <Setter Property="Padding" Value="14" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Ink}" />
     </Style>
 
-    <!-- Warning callout: hatched band on the left -->
+    <!-- Neutral notice with a distinct surface. -->
     <Style x:Key="Callout" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource B.Surface2}" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
@@ -957,11 +986,7 @@
         <Setter Property="Padding" Value="12,8" />
     </Style>
 
-    <!--
-        Tags / badges: a STATUS, never an action. A filled R.Xs block without an outline-capsule, so it cannot be mistaken
-        for a button; never white (white = clickable). One state vocabulary: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО · ИЗМЕНЕНО Lycoris ·
-        НЕПРИМЕНИМО; risk: БЕЗОПАСНО (Tag) · ПО ЖЕЛАНИЮ (Tag.Muted) · ЭКСПЕРТ (Tag.Hatch). Tag.Solid = emphasised status.
-    -->
+    <!-- Compact status labels use a smaller radius and type scale than interactive controls. -->
     <Style x:Key="Tag" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource B.Surface3}" />
         <Setter Property="BorderBrush" Value="{StaticResource B.Line3}" />
@@ -970,7 +995,7 @@
         <Setter Property="Padding" Value="7,2,7,3" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="HorizontalAlignment" Value="Left" />
-        <Setter Property="TextElement.FontFamily" Value="{StaticResource F.Display}" />
+        <Setter Property="TextElement.FontFamily" Value="{StaticResource F.Body}" />
         <Setter Property="TextElement.FontWeight" Value="SemiBold" />
         <Setter Property="TextElement.FontSize" Value="11" />
         <Setter Property="TextElement.Foreground" Value="{StaticResource B.Text2}" />
@@ -1065,7 +1090,7 @@
                                 <Setter Property="Control.Template">
                                     <Setter.Value>
                                         <ControlTemplate>
-                                            <Rectangle Margin="10,1,8,1" Stroke="{StaticResource B.Text}" StrokeThickness="1" StrokeDashArray="2 2" SnapsToDevicePixels="True"
+                                            <Rectangle Margin="10,1,8,1" Stroke="{StaticResource B.AccentHover}" StrokeThickness="1.5" StrokeDashArray="2 2" SnapsToDevicePixels="True"
                                                        RadiusX="{StaticResource R.Md.D}" RadiusY="{StaticResource R.Md.D}" />
                                         </ControlTemplate>
                                     </Setter.Value>
@@ -1079,7 +1104,7 @@
                                 <!-- Inset R.Md plate; the selection marker is a short rounded bar on its left edge -->
                                 <Grid x:Name="Root" Background="Transparent" MinHeight="34">
                                     <Border x:Name="Plate" Margin="10,1,8,1" Background="Transparent" CornerRadius="{StaticResource R.Md}">
-                                        <Rectangle x:Name="Bar" Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.Red}"
+                                        <Rectangle x:Name="Bar" Width="3" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{StaticResource B.Accent}"
                                                    RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" Visibility="Hidden" />
                                     </Border>
                                     <ContentPresenter x:Name="Cp" Margin="20,0,16,0" VerticalAlignment="Center" TextElement.FontFamily="{StaticResource F.Body}" TextElement.FontWeight="SemiBold" TextElement.FontSize="12.5" TextElement.Foreground="{StaticResource B.Text2}" />
@@ -1089,13 +1114,12 @@
                                         <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" />
                                         <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
                                     </Trigger>
-                                    <!-- Keyboard focus = the hover look (selected keeps its Surface2 + red bar; the dashed ring above marks focus) -->
                                     <Trigger Property="IsKeyboardFocused" Value="True">
                                         <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" />
                                         <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface2}" />
+                                        <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Selected}" />
                                         <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
                                         <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource B.Text}" />
                                     </Trigger>
@@ -1142,16 +1166,28 @@
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
                     <Border x:Name="Plate" Background="Transparent" Height="30" CornerRadius="{StaticResource R.Sm}" SnapsToDevicePixels="True">
-                        <ContentPresenter ContentSource="Header" Margin="12,0" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
+                        <Grid>
+                            <ContentPresenter ContentSource="Header" Margin="12,0" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
+                            <Rectangle x:Name="Marker" Height="2" Margin="8,0,8,1" VerticalAlignment="Bottom"
+                                       Fill="{StaticResource B.Accent}" Visibility="Hidden" IsHitTestVisible="False"
+                                       RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
-                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface4}" />
+                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface3}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource B.Ink}" />
-                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.White}" />
+                            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Selected}" />
+                            <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource B.Text4}" />
+                            <Setter TargetName="Plate" Property="Background" Value="{StaticResource B.Surface}" />
+                            <Setter TargetName="Marker" Property="Fill" Value="{StaticResource B.Line3}" />
+                            <Setter Property="Cursor" Value="Arrow" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -1174,7 +1210,7 @@
                                       HorizontalAlignment="Left" FocusVisualStyle="{StaticResource FocusVisual.Mono}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
+                                    <Border x:Name="Bd" Background="{StaticResource B.Surface2}" BorderBrush="{StaticResource B.Outline}" BorderThickness="1"
                                             CornerRadius="{StaticResource R.Md}" Height="30" Padding="12,0,10,0" SnapsToDevicePixels="True">
                                         <StackPanel Orientation="Horizontal">
                                             <ContentPresenter Content="{Binding Header, RelativeSource={RelativeSource AncestorType=Expander}}" VerticalAlignment="Center"
@@ -1194,6 +1230,8 @@
                                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Text2}" />
                                         </Trigger>
                                         <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Accent}" />
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Selected}" />
                                             <Setter TargetName="Chev" Property="RenderTransform">
                                                 <Setter.Value>
                                                     <RotateTransform Angle="180" />
@@ -1218,17 +1256,18 @@
 
     <!-- ══════════════════════════════ Slider ══════════════════════════════ -->
     <Style TargetType="Slider">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Mono}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid Height="22">
-                        <Rectangle Height="2" Fill="{StaticResource B.Line3}" VerticalAlignment="Center" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
+                        <Rectangle Height="2" Fill="{StaticResource B.Outline}" VerticalAlignment="Center" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
                         <Track x:Name="PART_Track">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge">
                                     <RepeatButton.Template>
                                         <ControlTemplate TargetType="RepeatButton">
-                                            <Rectangle Height="2" Fill="{StaticResource B.White}" VerticalAlignment="Center" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
+                                            <Rectangle Height="2" Fill="{StaticResource B.Accent}" VerticalAlignment="Center" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
                                         </ControlTemplate>
                                     </RepeatButton.Template>
                                 </RepeatButton>
@@ -1246,7 +1285,15 @@
                                 <Thumb Width="10" Height="18" Cursor="Hand">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Rectangle Fill="{StaticResource B.White}" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
+                                            <Rectangle x:Name="Handle" Fill="{StaticResource B.Accent}" RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Handle" Property="Fill" Value="{StaticResource B.AccentHover}" />
+                                                </Trigger>
+                                                <Trigger Property="IsDragging" Value="True">
+                                                    <Setter TargetName="Handle" Property="Fill" Value="{StaticResource B.AccentPressed}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>

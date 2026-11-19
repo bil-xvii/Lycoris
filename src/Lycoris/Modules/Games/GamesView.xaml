@@ -10,7 +10,7 @@
              mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=local:GamesViewModel}">
 
     <UserControl.Resources>
-        <!-- Small square status marker: white = OK, hatched = needs attention, outline = info -->
+        <!-- Small status marker for change and launcher rows. -->
         <Style x:Key="Games.Marker" TargetType="Rectangle">
             <Setter Property="Width" Value="8" />
             <Setter Property="Height" Value="8" />
@@ -24,8 +24,8 @@
             <Setter Property="HorizontalAlignment" Value="Left" />
         </Style>
 
-        <!-- Section caption: LABEL ───────── meta -->
-        <Style x:Key="Games.SectionLabel" TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
+        <!-- Section heading alongside its summary. -->
+        <Style x:Key="Games.SectionLabel" TargetType="TextBlock" BasedOn="{StaticResource T.H3}">
             <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
@@ -34,7 +34,6 @@
         <Style x:Key="Games.OptionTitle" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource F.Display}" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontStretch" Value="SemiCondensed" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{StaticResource B.Text}" />
         </Style>
@@ -44,36 +43,44 @@
             <Border x:Name="Card" Margin="0,0,9,9" Padding="0" Style="{StaticResource Card.Hover}" ui:RoundClip.Content="True">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="112" />
+                        <RowDefinition Height="82" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!-- Typographic cover -->
                     <Grid x:Name="Cover" ClipToBounds="True" Background="{StaticResource B.Surface2}">
-                        <Border x:Name="Pattern" Background="{StaticResource B.DotGrid}" />
-                        <TextBlock x:Name="Monogram" Text="{Binding Initials, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold"
-                                   FontStretch="Condensed" FontSize="92" Foreground="{StaticResource B.Text}" TextOptions.TextFormattingMode="Ideal"
-                                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="9,0,0,-16" IsHitTestVisible="False" />
-                        <Grid VerticalAlignment="Top" Margin="9,9,10,0">
-                            <Border Style="{StaticResource Tag.Solid}" Padding="6,1,6,2">
-                                <TextBlock Text="{Binding PlatformLabel}" />
+                        <Grid Margin="12,10,12,0" VerticalAlignment="Top">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="Pattern" Width="46" Height="46" Background="{StaticResource B.Selected}"
+                                    BorderBrush="{StaticResource B.Line2}" BorderThickness="1" CornerRadius="{StaticResource R.Md}">
+                                <TextBlock x:Name="Monogram" Text="{Binding Initials}" Style="{StaticResource T.H1}"
+                                           Foreground="{StaticResource B.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           IsHitTestVisible="False" />
                             </Border>
-                            <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,2,0"
-                                       Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}"
-                                       Visibility="{Binding HasSize, Converter={StaticResource BoolToVis}}" />
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <Border Style="{StaticResource Tag.Solid}" Padding="6,1,6,2" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding PlatformLabel}" />
+                                </Border>
+                                <TextBlock Text="{Binding SizeText}" Style="{StaticResource T.Caption}" Margin="0,3,0,0"
+                                           HorizontalAlignment="Right" Foreground="{StaticResource B.Text2}"
+                                           Visibility="{Binding HasSize, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
                         </Grid>
                         <!-- Missing exe band -->
-                        <Border VerticalAlignment="Bottom" Height="26" Background="{StaticResource B.HatchStrong}"
+                        <Border VerticalAlignment="Bottom" Height="22" Background="{StaticResource B.WarningDeep}"
                                 Visibility="{Binding IsMissing, Converter={StaticResource BoolToVis}}">
-                            <Border Background="{StaticResource B.Ink}" HorizontalAlignment="Left" Margin="10,4" Padding="6,0" CornerRadius="{StaticResource R.Sm}">
-                                <TextBlock Text="{loc:T 'ФАЙЛ НЕ НАЙДЕН'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                            <Border HorizontalAlignment="Left" Padding="12,0">
+                                <TextBlock Text="{loc:T 'ФАЙЛ НЕ НАЙДЕН'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.WarningText}" VerticalAlignment="Center" />
                             </Border>
                         </Border>
                         <Rectangle Height="1" VerticalAlignment="Bottom" Fill="{StaticResource B.Line2}" />
                     </Grid>
 
                     <!-- Body -->
-                    <StackPanel Grid.Row="1" Margin="10,9,10,10">
+                    <StackPanel Grid.Row="1" Margin="12,10,12,11">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -111,7 +118,7 @@
                                     CommandParameter="{Binding}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="{loc:T 'ИГРАТЬ'}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'Играть'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <!-- White primary: the game starts together with a game session -->
@@ -126,7 +133,7 @@
                                 </Button.IsEnabled>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <TextBlock Text="{loc:T 'С УСКОРЕНИЕМ'}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'С ускорением'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </Grid>
@@ -141,7 +148,7 @@
                                     CommandParameter="{Binding}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Folder}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="{loc:T 'ПАПКА ИГРЫ'}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'Папка игры'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource Btn.Ghost}" Padding="10,0" Visibility="{Binding IsCustom, Converter={StaticResource BoolToVis}}"
@@ -149,7 +156,7 @@
                                     CommandParameter="{Binding}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{x:Static ui:Glyphs.Remove}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock Text="{loc:T 'УБРАТЬ'}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:T 'Убрать'}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -158,11 +165,11 @@
             </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding CoverVariant}" Value="1">
-                    <Setter TargetName="Pattern" Property="Background" Value="{StaticResource B.Hatch}" />
+                    <Setter TargetName="Pattern" Property="Background" Value="{StaticResource B.Surface3}" />
                     <Setter TargetName="Cover" Property="Background" Value="{StaticResource B.Surface}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding CoverVariant}" Value="2">
-                    <Setter TargetName="Pattern" Property="Background" Value="Transparent" />
+                    <Setter TargetName="Pattern" Property="Background" Value="{StaticResource B.Surface2}" />
                     <Setter TargetName="Cover" Property="Background" Value="{StaticResource B.Surface3}" />
                     <Setter TargetName="Monogram" Property="Foreground" Value="{StaticResource B.Text2}" />
                 </DataTrigger>
@@ -191,7 +198,7 @@
                     <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.White}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Kind}" Value="Skipped">
-                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.HatchStrong}" />
+                    <Setter TargetName="Mark" Property="Fill" Value="{StaticResource B.Surface3}" />
                     <Setter TargetName="Mark" Property="Stroke" Value="{StaticResource B.Text2}" />
                 </DataTrigger>
             </DataTemplate.Triggers>
@@ -208,7 +215,7 @@
                     </Grid.ColumnDefinitions>
                     <Rectangle x:Name="Mark" Style="{StaticResource Games.Marker}" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" FontSize="12.5" VerticalAlignment="Center" />
-                    <TextBlock x:Name="Status" Grid.Column="2" Text="{Binding StatusText}" Style="{StaticResource T.Mono}"
+                    <TextBlock x:Name="Status" Grid.Column="2" Text="{Binding StatusText}" Style="{StaticResource T.Caption}"
                                Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" Margin="9,0,0,0" />
                 </Grid>
             </Border>
@@ -238,7 +245,7 @@
                 <Button Command="{Binding AddGameCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Add}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{loc:T 'ДОБАВИТЬ ИГРУ'}" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:T 'Добавить игру'}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </c:PageHeader.Actions>
@@ -249,7 +256,7 @@
                             Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{loc:T 'ИГРОВОЙ СЕАНС · СТАРТ'}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T 'Игровой сеанс · старт'}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource Btn.Danger}" Command="{Binding StopBoostCommand}"
@@ -257,7 +264,7 @@
                         <StackPanel Orientation="Horizontal">
                             <Border Style="{StaticResource Dot.Red}" Margin="0,0,9,0" />
                             <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{loc:T 'СТОП СЕАНСА'}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T 'Стоп сеанса'}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </Grid>
@@ -285,9 +292,9 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{loc:T 'БИБЛИОТЕКА'}" Style="{StaticResource Games.SectionLabel}" />
+                        <TextBlock Text="{loc:T 'Библиотека'}" Style="{StaticResource Games.SectionLabel}" />
                         <Rectangle Grid.Column="1" Height="1" Fill="{StaticResource B.Line2}" Margin="9,0" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="2" Text="{Binding ScanText}" Style="{StaticResource T.Mono}"
+                        <TextBlock Grid.Column="2" Text="{Binding ScanText}" Style="{StaticResource T.Caption}"
                                    Foreground="{StaticResource B.Text3}" VerticalAlignment="Center" />
                     </Grid>
 
@@ -297,7 +304,7 @@
                         <WrapPanel>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                                 <TextBlock Text="{Binding TotalCount}" Style="{StaticResource T.Stat}" FontSize="26" />
-                                <TextBlock Text="{Binding CountUnit}" Style="{StaticResource T.StatUnit}" Margin="8,0,0,4" VerticalAlignment="Bottom" />
+                                <TextBlock Text="{Binding CountUnit, Converter={StaticResource Sentence}}" Style="{StaticResource T.StatUnit}" Margin="8,0,0,4" VerticalAlignment="Bottom" />
                             </StackPanel>
                             <Grid Width="230" VerticalAlignment="Center" Margin="0,0,8,0">
                                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="{loc:T 'Поиск по названию'}" Padding="10,0,21,0" />
@@ -305,9 +312,9 @@
                                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False"
                                            Visibility="{Binding SearchText, Converter={StaticResource NullToVis}, ConverterParameter=invert}" />
                             </Grid>
-                            <Button Content="{loc:T 'ОЧИСТИТЬ'}" Command="{Binding ClearSearchCommand}" Margin="0,0,8,0" VerticalAlignment="Center"
+                            <Button Content="{loc:T 'Очистить'}" Command="{Binding ClearSearchCommand}" Margin="0,0,8,0" VerticalAlignment="Center"
                                     Visibility="{Binding SearchText, Converter={StaticResource NullToVis}}" />
-                            <ToggleButton Content="{loc:T 'ИЗБРАННОЕ'}" Style="{StaticResource Chip.Toggle}" Height="30"
+                            <ToggleButton Content="{loc:T 'Избранное'}" Style="{StaticResource Chip.Toggle}" Height="30"
                                           IsChecked="{Binding FavoritesOnly, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <ItemsControl ItemsSource="{Binding Platforms}" Focusable="False" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
@@ -374,7 +381,7 @@
                                 <TextBlock Text="{loc:T 'Ничего не найдено'}" Style="{StaticResource T.H1}" FontSize="17" />
                                 <TextBlock Text="{loc:T 'Нет игр по выбранным фильтрам. Измените запрос, лаунчер или фильтр избранного.'}" Style="{StaticResource T.Body}" Margin="0,4,12,0" TextWrapping="Wrap" />
                             </StackPanel>
-                            <Button Grid.Column="1" Content="{loc:T 'СБРОСИТЬ ФИЛЬТРЫ'}" Command="{Binding ResetFiltersCommand}" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="{loc:T 'Сбросить фильтры'}" Command="{Binding ResetFiltersCommand}" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
 
@@ -394,7 +401,7 @@
                                     </StackPanel>
                                     <TextBlock Style="{StaticResource T.Body}" Margin="0,10,0,0" MaxWidth="540" HorizontalAlignment="Left"
                                                Text="{loc:T 'Lycoris проверил лаунчеры ниже и не нашёл установленных игр. Если игра стоит отдельно от лаунчера — добавьте её вручную: укажите .exe файл, и у неё появятся кнопки запуска и игрового сеанса.'}" />
-                                    <TextBlock Text="{loc:T 'ПРОВЕРЕННЫЕ ЛАУНЧЕРЫ'}" Style="{StaticResource T.Label}" Margin="0,14,0,8" />
+                                    <TextBlock Text="{loc:T 'Проверенные лаунчеры'}" Style="{StaticResource T.Label}" Margin="0,14,0,8" />
                                     <ItemsControl ItemsSource="{Binding Sources}" ItemTemplate="{StaticResource Games.SourceCell}"
                                                   MaxWidth="560" HorizontalAlignment="Left" Focusable="False">
                                         <ItemsControl.ItemsPanel>
@@ -404,13 +411,13 @@
                                         </ItemsControl.ItemsPanel>
                                     </ItemsControl>
                                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                                        <Button Style="{StaticResource Btn.Primary}" Command="{Binding AddGameCommand}" Margin="0,0,10,0">
+                                        <Button Style="{StaticResource Btn}" Command="{Binding AddGameCommand}" Margin="0,0,10,0">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{x:Static ui:Glyphs.Add}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                <TextBlock Text="{loc:T 'ДОБАВИТЬ ИГРУ'}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:T 'Добавить игру'}" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
-                                        <Button Content="{loc:T 'ИСКАТЬ СНОВА'}" Command="{Binding RefreshCommand}" />
+                                        <Button Content="{loc:T 'Искать снова'}" Command="{Binding RefreshCommand}" />
                                     </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
@@ -430,19 +437,18 @@
                     <!-- ─────────── GAME BOOST ─────────── -->
                     <Border Style="{StaticResource Card.Flush}" ui:RoundClip.Content="True">
                         <StackPanel>
-                            <Rectangle Height="4" Fill="{StaticResource B.HatchStrong}" />
                             <Grid Margin="12,11,12,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40" Height="40" Background="{StaticResource B.Surface4}" CornerRadius="{StaticResource R.Sm}" VerticalAlignment="Center">
+                                <Border Width="40" Height="40" Background="{StaticResource B.Selected}" CornerRadius="{StaticResource R.Md}" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Static ui:Glyphs.Bolt}" FontFamily="{StaticResource F.Icons}" FontSize="18"
                                                Foreground="{StaticResource B.Text}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="GAME BOOST" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="Game Boost" Style="{StaticResource T.Caption}" />
                                     <TextBlock Text="{loc:T 'Игровой сеанс'}" Style="{StaticResource T.H1}" FontSize="17" Margin="0,1,0,0" />
                                 </StackPanel>
                                 <Border Grid.Column="2" VerticalAlignment="Top" Margin="8,2,0,0">
@@ -467,18 +473,16 @@
                                     <StackPanel>
                                         <Grid>
                                             <TextBlock Text="{Binding Boost.PhaseText}" Style="{StaticResource T.Label}" FontWeight="Bold" Foreground="{StaticResource B.Text}" />
-                                            <TextBlock Text="{loc:T 'ВРЕМЯ СЕАНСА'}" Style="{StaticResource T.Label}" HorizontalAlignment="Right" />
+                                            <TextBlock Text="{loc:T 'Время сеанса'}" Style="{StaticResource T.Label}" HorizontalAlignment="Right" />
                                         </Grid>
-                                        <TextBlock Text="{Binding ElapsedText, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
-                                                   FontSize="36" Foreground="{StaticResource B.Text}" Typography.NumeralAlignment="Tabular" Margin="0,2,0,0" />
+                                        <TextBlock Text="{Binding ElapsedText}" Style="{StaticResource T.Stat}" FontSize="32" Margin="0,2,0,0" />
                                         <Rectangle Height="1" Fill="{StaticResource B.Line3}" Margin="0,8,0,10" />
-                                        <TextBlock Text="{Binding Boost.GameName, Converter={StaticResource Sentence}}" FontFamily="{StaticResource F.Display}" FontWeight="Bold" FontStretch="Condensed"
-                                                   FontSize="19" Foreground="{StaticResource B.Text}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Boost.GameName, Converter={StaticResource Sentence}}" Style="{StaticResource T.H2}" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{Binding Boost.ProcessText}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}"
                                                    Margin="0,3,0,0" Visibility="{Binding Boost.ProcessText, Converter={StaticResource NullToVis}}" />
                                     </StackPanel>
                                 </Border>
-                                <TextBlock Text="{loc:T 'ЧТО ИЗМЕНЕНО'}" Style="{StaticResource T.Label}" Margin="12,11,12,10" />
+                                <TextBlock Text="{loc:T 'Что изменено'}" Style="{StaticResource T.Label}" Margin="12,11,12,10" />
                                 <ItemsControl ItemsSource="{Binding Boost.Changes}" ItemTemplate="{StaticResource Games.ChangeRow}" Margin="12,0,12,0" Focusable="False" />
                             </StackPanel>
 
@@ -494,10 +498,10 @@
                                         </Grid.ColumnDefinitions>
                                         <Rectangle Fill="{StaticResource B.White}" />
                                         <StackPanel Grid.Column="1" Margin="10,11,10,9">
-                                            <TextBlock Text="{loc:T 'НЕЗАВЕРШЁННЫЙ СЕАНС'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
+                                            <TextBlock Text="{loc:T 'Незавершённый сеанс'}" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text}" />
                                             <TextBlock Text="{Binding StaleText}" Style="{StaticResource T.Caption}" Foreground="{StaticResource B.Text2}" Margin="0,4,0,10" LineHeight="16" />
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Style="{StaticResource Btn.Primary}" Padding="12,0" Content="{Binding StaleActionText}"
+                                                <Button Style="{StaticResource Btn}" Padding="12,0" Content="{Binding StaleActionText, Converter={StaticResource Sentence}}"
                                                         Command="{Binding RestoreStaleCommand}" />
                                             </StackPanel>
                                         </StackPanel>
@@ -570,7 +574,7 @@
                                         </StackPanel>
                                         <TextBlock Text="{Binding CloseListSummary}" Style="{StaticResource T.Caption}" Margin="0,3,0,0" LineHeight="16" />
                                     </StackPanel>
-                                    <Button Grid.Column="1" Content="{loc:T 'НАСТРОИТЬ'}" Padding="12,0" VerticalAlignment="Top" Margin="0,9,0,0"
+                                    <Button Grid.Column="1" Content="{loc:T 'Настроить'}" Padding="12,0" VerticalAlignment="Top" Margin="0,9,0,0"
                                             Command="{Binding OpenEditorCommand}" />
                                     <!-- Windows 11 only: close the listed apps, or keep them running in efficiency mode (EcoQoS).
                                          Own full-width row (under НАСТРОИТЬ too) with star columns, so «РЕЖИМ ЭФФЕКТИВНОСТИ» shows in full in RU and EN. -->
@@ -582,10 +586,10 @@
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <RadioButton Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
-                                                             Content="{loc:T 'ЗАКРЫТЬ'}" IsChecked="{Binding CloseModeIsClose}"
+                                                             Content="{loc:T 'Закрыть'}" IsChecked="{Binding CloseModeIsClose}"
                                                              ToolTip="{loc:T 'Программы из списка закрываются перед игрой: сначала обычная команда «закрыть окно», принудительно — только после отдельного вопроса.'}" />
                                                 <RadioButton Grid.Column="1" Style="{StaticResource Segment}" GroupName="GamesCloseMode" Height="26" FontSize="12" Padding="10,0"
-                                                             Content="{loc:T 'РЕЖИМ ЭФФЕКТИВНОСТИ'}" IsChecked="{Binding CloseModeIsEcoQos}"
+                                                             Content="{loc:T 'Режим эффективности'}" IsChecked="{Binding CloseModeIsEcoQos}"
                                                              ToolTip="{x:Static local:GamesViewModel.CloseModeEcoQosCaption}" />
                                             </Grid>
                                         </Border>
@@ -601,7 +605,7 @@
                                         Visibility="{Binding IsBoostIdle, Converter={StaticResource BoolToVis}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <TextBlock Text="{loc:T 'СТАРТ'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Старт'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource Btn.Danger}" Height="38" FontSize="15" HorizontalAlignment="Stretch" Command="{Binding StopBoostCommand}"
@@ -609,7 +613,7 @@
                                         Visibility="{Binding Boost.IsActive, Converter={StaticResource BoolToVis}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Stop}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <TextBlock Text="{loc:T 'СТОП И ВЕРНУТЬ НАСТРОЙКИ'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Стоп и вернуть настройки'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -645,7 +649,7 @@
                                                Foreground="{StaticResource B.Text}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:T 'ЗАМЕР FPS'}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{loc:T 'Замер FPS'}" Style="{StaticResource T.Label}" />
                                     <TextBlock Text="{loc:T 'До и после'}" Style="{StaticResource T.H1}" FontSize="17" Margin="0,1,0,0" />
                                 </StackPanel>
                                 <!-- One status tag: ready (green) · measuring (blue) · PresentMon needed (muted) -->
@@ -666,7 +670,7 @@
                             <StackPanel Visibility="{Binding ShowPresentMonInstall, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding PresentMonNote}" Style="{StaticResource T.Caption}" Margin="0,10,0,8" LineHeight="16" TextWrapping="Wrap" />
                                 <Button Style="{StaticResource Btn.Link}" HorizontalAlignment="Left" Command="{Binding InstallPresentMonCommand}"
-                                        Content="{loc:T 'УСТАНОВИТЬ В ПРИЛОЖЕНИЯХ →'}" />
+                                        Content="{loc:T 'Установить в приложениях →'}" />
                             </StackPanel>
 
                             <!-- What to measure -->
@@ -676,20 +680,20 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="{loc:T 'ЧТО ЗАМЕРЯТЬ'}" Style="{StaticResource T.Label}" Margin="0,0,0,4" />
+                                    <TextBlock Text="{loc:T 'Что замерять'}" Style="{StaticResource T.Label}" Margin="0,0,0,4" />
                                     <ComboBox ItemsSource="{Binding FpsTargets}" SelectedItem="{Binding FpsTarget}" IsEnabled="{Binding FpsIdle}" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom" Padding="10,0" Command="{Binding RefreshFpsTargetsCommand}"
                                         IsEnabled="{Binding FpsIdle}" ToolTip="{loc:T 'Перечитать список запущенных программ с окном'}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <TextBlock Text="{loc:T 'СПИСОК'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Список'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
                             <TextBlock Text="{loc:T 'Запустите игру — она появится в списке.'}" Style="{StaticResource T.Caption}" Margin="0,4,0,0"
                                        Visibility="{Binding HasFpsTargets, Converter={StaticResource InverseBoolToVis}}" />
-                            <TextBlock Text="{loc:T 'ДЛИТЕЛЬНОСТЬ'}" Style="{StaticResource T.Label}" Margin="0,10,0,4" />
+                            <TextBlock Text="{loc:T 'Длительность'}" Style="{StaticResource T.Label}" Margin="0,10,0,4" />
                             <Border Style="{StaticResource SegmentBar}" HorizontalAlignment="Stretch" IsEnabled="{Binding FpsIdle}">
                                 <UniformGrid Rows="1">
                                     <RadioButton Style="{StaticResource Segment}" GroupName="GamesFpsSeconds" Height="26" FontSize="12" Content="{loc:T '15 С'}" IsChecked="{Binding FpsIs15}" />
@@ -703,13 +707,13 @@
                                 <Button Margin="0,0,4,0" Command="{Binding MeasureFpsCommand}" CommandParameter="before">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="{loc:T 'ЗАМЕР «ДО»'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Замер «до»'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button Margin="4,0,0,0" Command="{Binding MeasureFpsCommand}" CommandParameter="after">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Play}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="{loc:T 'ЗАМЕР «ПОСЛЕ»'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Замер «после»'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </UniformGrid>
@@ -720,7 +724,7 @@
                                 <Button HorizontalAlignment="Left" Padding="12,0" Command="{Binding CancelFpsCommand}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="{loc:T 'ОТМЕНИТЬ ЗАМЕР'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Отменить замер'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </StackPanel>
@@ -853,7 +857,7 @@
                                         IsEnabled="{Binding IsPriorityChanging, Converter={StaticResource InverseBool}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Add}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                        <TextBlock Text="{loc:T 'ВЫБРАТЬ ПРОГРАММУ'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Выбрать программу'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -902,12 +906,12 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <Grid Margin="0,0,0,8">
-                                <TextBlock Text="{loc:T 'ЗАПУЩЕНО СЕЙЧАС'}" Style="{StaticResource Games.SectionLabel}" />
+                                <TextBlock Text="{loc:T 'Запущено сейчас'}" Style="{StaticResource Games.SectionLabel}" />
                                 <Button Style="{StaticResource Btn.Ghost}" Padding="10,0" HorizontalAlignment="Right"
                                         Command="{Binding RefreshRunningCommand}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Refresh}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <TextBlock Text="{loc:T 'ОБНОВИТЬ'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Обновить'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -951,7 +955,7 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <Grid Margin="0,0,0,8" Height="24">
-                                <TextBlock Text="{loc:T 'СПИСОК ЗАКРЫТИЯ'}" Style="{StaticResource Games.SectionLabel}" />
+                                <TextBlock Text="{loc:T 'Список закрытия'}" Style="{StaticResource Games.SectionLabel}" />
                                 <TextBlock Text="{Binding EditorList.Count}" Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text2}"
                                            HorizontalAlignment="Right" VerticalAlignment="Center" />
                             </Grid>
@@ -968,7 +972,7 @@
                                 <Button Grid.Column="1" Style="{StaticResource Btn.Primary}" Padding="12,0" Margin="6,0,0,0" Command="{Binding AddManualCommand}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{x:Static ui:Glyphs.Add}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                                        <TextBlock Text="{loc:T 'ДОБАВИТЬ'}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T 'Добавить'}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -986,7 +990,7 @@
                                                                            RadiusX="{StaticResource R.Xs.D}" RadiusY="{StaticResource R.Xs.D}" />
                                                                 <TextBlock Text="{Binding}" Style="{StaticResource T.Mono}" FontSize="12.5" Foreground="{StaticResource B.Text}" />
                                                             </StackPanel>
-                                                            <Button Style="{StaticResource Btn.Ghost}" HorizontalAlignment="Right" Content="{loc:T 'УБРАТЬ'}" Padding="10,0"
+                                                            <Button Style="{StaticResource Btn.Ghost}" HorizontalAlignment="Right" Content="{loc:T 'Убрать'}" Padding="10,0"
                                                                     Command="{Binding DataContext.RemoveFromListCommand, RelativeSource={RelativeSource AncestorType=local:GamesView}}"
                                                                     CommandParameter="{Binding}" />
                                                         </Grid>
@@ -1014,8 +1018,8 @@
                                 HorizontalAlignment="Left" MinWidth="190" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                     IsEnabled="{Binding IsClosingNow, Converter={StaticResource InverseBool}}">
-                            <Button Content="{loc:T 'ОТМЕНА'}" Command="{Binding CancelEditorCommand}" MinWidth="110" Margin="0,0,10,0" />
-                            <Button Style="{StaticResource Btn.Primary}" Content="{loc:T 'СОХРАНИТЬ'}" Command="{Binding SaveEditorCommand}" MinWidth="140" />
+                            <Button Content="{loc:T 'Отмена'}" Command="{Binding CancelEditorCommand}" MinWidth="110" Margin="0,0,10,0" />
+                            <Button Style="{StaticResource Btn.Primary}" Content="{loc:T 'Сохранить'}" Command="{Binding SaveEditorCommand}" MinWidth="140" />
                         </StackPanel>
                         <TextBlock Grid.Row="1" Text="{Binding CloseNowNote}" Style="{StaticResource T.Caption}" Margin="0,8,0,0" LineHeight="16" />
                     </Grid>

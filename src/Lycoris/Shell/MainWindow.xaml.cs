@@ -535,7 +535,7 @@ public partial class MainWindow : Window
         var dv = new DrawingVisual();
         using (var dc = dv.RenderOpen())
         {
-            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(9, 9, 9)), null, new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+            dc.DrawRectangle((Brush)element.FindResource("B.Base"), null, new Rect(0, 0, element.ActualWidth, element.ActualHeight));
             // 1:1, clipped to the element: a VisualBrush stretches the content's descendant bounds into the rectangle, so a child
             // that sticks out (negative margins, scroll overhang) used to shrink the whole picture by ~12 % with a black band.
             var area = new Rect(0, 0, element.ActualWidth, element.ActualHeight);

@@ -135,7 +135,7 @@
                                 </Button.Visibility>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{Binding ActionGlyph}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding ActionText, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource Btn}" MinWidth="128"
@@ -150,7 +150,7 @@
                                 </Button.Visibility>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{Binding ActionGlyph}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding ActionText, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <TextBlock Text="{Binding StateCaption}" Style="{StaticResource T.Label}" VerticalAlignment="Center"
@@ -175,7 +175,7 @@
                                   Visibility="{Binding HasVariantPicker, Converter={StaticResource BoolToVis}}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:AppVariant}">
-                                    <TextBlock Text="{Binding Label}" FontFamily="{StaticResource F.Mono}" FontSize="12" />
+                                    <TextBlock Text="{Binding Label}" FontSize="12" />
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
@@ -190,7 +190,7 @@
                                 Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 CommandParameter="{Binding}" Visibility="{Binding ShowSiteButton, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{loc:T САЙТ}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:T Сайт}" VerticalAlignment="Center" />
                                 <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12"
                                            Margin="7,1,0,0" VerticalAlignment="Center" />
                             </StackPanel>
@@ -303,18 +303,18 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Header: «ОБНОВИТЬ» = re-check; the ONE primary = update every installed catalog program -->
+        <!-- Catalog actions stay in the header. Installation is emphasized in the sticky bar. -->
         <c:PageHeader Index="{Binding Index}" Title="{Binding Title}" Subtitle="{Binding Subtitle}"
                       Checked="{Binding CheckedText}" RefreshCommand="{Binding RefreshCommand}">
-            <c:PageHeader.Primary>
-                <Button Style="{StaticResource Btn.Primary}" Command="{Binding UpdateAllCommand}"
+            <c:PageHeader.Actions>
+                <Button Style="{StaticResource Btn}" Command="{Binding UpdateAllCommand}"
                         ToolTip="{loc:T Обновить через winget все установленные программы из каталога (кроме обновляющихся самостоятельно)}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="{Binding UpdateAllText}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding UpdateAllText, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-            </c:PageHeader.Primary>
+            </c:PageHeader.Actions>
         </c:PageHeader>
 
         <!-- Search and category filters are secondary controls, explicitly labelled. -->
@@ -329,9 +329,9 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <TextBlock Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}"
-                       Text="{loc:T ПОИСК}" VerticalAlignment="Center" />
+                       Text="{loc:T Поиск}" VerticalAlignment="Center" />
             <TextBlock Grid.Column="2" Style="{StaticResource T.Label}" Foreground="{StaticResource B.Text2}"
-                       Text="{loc:T ФИЛЬТРЫ}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                       Text="{loc:T Фильтры}" VerticalAlignment="Center" Margin="12,0,0,0" />
             <Grid Grid.Row="1" VerticalAlignment="Top" Margin="0,4,0,0">
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}" Padding="10,0,10,0" Height="32"
                          Tag="{loc:T Поиск по названию или ID}" />
@@ -343,7 +343,7 @@
                     Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{x:Static ui:Glyphs.Close}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0" />
-                    <TextBlock Text="{loc:T СБРОСИТЬ}" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:T Сбросить}" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
             <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource SegmentBar}" Margin="12,4,0,0" VerticalAlignment="Top">
@@ -360,7 +360,7 @@
                                          Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                          CommandParameter="{Binding}">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                                     <Border Style="{StaticResource TabBadge}" Margin="6,0,0,0"><TextBlock Text="{Binding Count}" /></Border>
                                 </StackPanel>
                             </RadioButton>
@@ -376,8 +376,8 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <TextBlock Style="{StaticResource T.Mono}" Foreground="{StaticResource B.Text3}" VerticalAlignment="Center">
-                <Run Text="{Binding VisibleText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{loc:T 'УСТАНОВЛЕНО '}" /><Run Text="{Binding InstalledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
+            <TextBlock Style="{StaticResource T.Caption}" VerticalAlignment="Center">
+                <Run Text="{Binding VisibleText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{loc:T 'Установлено '}" /><Run Text="{Binding InstalledCount, Mode=OneWay}" Foreground="{StaticResource B.Text}" />
             </TextBlock>
             <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="{Binding ComputerSummary}" Style="{StaticResource T.Caption}"
@@ -413,7 +413,7 @@
                                 <TextBlock Style="{StaticResource T.Body}" FontSize="12.5" Margin="0,3,0,0"
                                            Text="{loc:T Эта версия «Установщика приложений» слишком старая: часть пакетов может не ставиться. Обновите его в Microsoft Store.}" />
                             </StackPanel>
-                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="{loc:T ОБНОВИТЬ В STORE}" Margin="0,0,10,0"
+                            <Button Grid.Column="3" Style="{StaticResource Btn}" Content="{loc:T Обновить в Store}" Margin="0,0,10,0"
                                     Command="{Binding OpenAppInstallerStoreCommand}" />
                         </Grid>
                     </Border>
@@ -435,13 +435,13 @@
                                            Text="{loc:T 'Lycoris ставит программы через winget — официальный менеджер пакетов Windows из «Установщика приложений» (App Installer). Установите или обновите его в Microsoft Store, затем нажмите «Обновить». Каталог ниже остаётся доступен: у каждой программы есть ссылка на официальный сайт.'}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Margin="0,0,15,0" VerticalAlignment="Center">
-                                <Button Style="{StaticResource Btn.Primary}" Command="{Binding OpenAppInstallerStoreCommand}">
+                                <Button Style="{StaticResource Btn}" Command="{Binding OpenAppInstallerStoreCommand}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{loc:T ОТКРЫТЬ MICROSOFT STORE}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{loc:T Открыть Microsoft Store}" VerticalAlignment="Center" />
                                         <TextBlock Text="{x:Static ui:Glyphs.OpenExternal}" FontFamily="{StaticResource F.Icons}" FontSize="12" Margin="8,1,0,0" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource Btn}" Content="{loc:T ПРОВЕРИТЬ СНОВА}" Margin="0,10,0,0" Command="{Binding RefreshCommand}" />
+                                <Button Style="{StaticResource Btn}" Content="{loc:T Проверить снова}" Margin="0,10,0,0" Command="{Binding RefreshCommand}" />
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -532,9 +532,9 @@
                                 <TextBlock Style="{StaticResource T.Body}" Margin="0,4,0,0" Text="{Binding NoResultsText}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0">
-                                <Button Style="{StaticResource Btn}" Content="{loc:T СБРОСИТЬ ПОИСК}"
+                                <Button Style="{StaticResource Btn}" Content="{loc:T Сбросить поиск}"
                                         Command="{Binding ClearSearchCommand}" Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}" />
-                                <Button Style="{StaticResource Btn.Primary}" Content="{loc:T ПОКАЗАТЬ ВСЕ ПРОГРАММЫ}" Margin="0,8,0,0"
+                                <Button Style="{StaticResource Btn}" Content="{loc:T Показать все программы}" Margin="0,8,0,0"
                                         Command="{Binding ShowAllCommand}" Visibility="{Binding ShowAllOffered, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>
                         </Grid>
@@ -590,7 +590,7 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <TextBlock Text="{Binding QueueCounter}" Style="{StaticResource T.Mono}" HorizontalAlignment="Right"
+                            <TextBlock Text="{Binding QueueCounter}" Style="{StaticResource T.Caption}" HorizontalAlignment="Right"
                                        Foreground="{StaticResource B.Text}" />
                         </Grid>
                         <TextBlock Text="{Binding QueueTitle, Converter={StaticResource Sentence}}" Style="{StaticResource T.H1}" FontSize="18" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
@@ -653,7 +653,7 @@
                             </StackPanel>
                         </Button>
                         <!-- finished -->
-                        <Button Style="{StaticResource Btn.Primary}" Content="{loc:T ЗАКРЫТЬ}" Command="{Binding CloseQueueCommand}"
+                        <Button Style="{StaticResource Btn.Primary}" Content="{loc:T Закрыть}" Command="{Binding CloseQueueCommand}"
                                 Visibility="{Binding IsQueueRunning, Converter={StaticResource InverseBoolToVis}}" />
                     </Grid>
                 </Grid>
@@ -668,14 +668,14 @@
                             Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Cancel}" FontFamily="{StaticResource F.Icons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{loc:T СНЯТЬ ВЫБОР}" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:T Снять выбор}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource Btn.Hero}" Command="{Binding InstallSelectedCommand}"
                             ToolTip="{loc:T 'Поставить в очередь все отмеченные программы: неустановленные — установить, установленные — обновить'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{x:Static ui:Glyphs.Download}" FontFamily="{StaticResource F.Icons}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{Binding InstallSelectedText}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding InstallSelectedText, Converter={StaticResource Sentence}}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
