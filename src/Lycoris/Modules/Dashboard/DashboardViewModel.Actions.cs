@@ -225,6 +225,38 @@ public sealed partial class DashboardViewModel
         return false;
     }
 
+    internal async Task<(string Message, ToastKind Kind)> VerifyDashboardFixAsync(
+        TweakRunResult result, IReadOnlyList<FixSelection> selected)
+    {
+        var fresh = await RefreshAfterBoundaryAsync();
+        var restart = result.Applied > 0 ? result.Restart : RestartRequirement.None;
+        var pending = selected.FirstOrDefault(pick => restart != RestartRequirement.None && pick.Tweak.Restart == restart);
+        var pendingMessage = pending is null
+            ? null
+            : Loc.Tf("Для части изменений нужен перезапуск. Повторите проверку {0}.", pending.Tweak.RestartWhen);
+        string IncludeRestart(string message) => pendingMessage is null ? message : message + " " + pendingMessage;
+
+        if (result.Errors.Count > 0)
+            return (IncludeRestart(string.Join(Environment.NewLine, result.Errors.Concat(result.SkippedReasons))), ToastKind.Error);
+        if (result.SkippedReasons.Count > 0)
+            return (IncludeRestart(string.Join(Environment.NewLine, result.SkippedReasons)), ToastKind.Warning);
+        if (result.Skipped > 0)
+            return (IncludeRestart(Loc.T("Часть настроек пропущена. Подробности — в журнале действий.")), ToastKind.Warning);
+
+        // An item needing a restart is still pending. Verify all other selected health checks independently.
+        var verified = selected.Count > 0 && selected.All(pick =>
+            (pending is not null && pick.Tweak.Restart != RestartRequirement.None && pick.Tweak.Restart <= restart)
+            || fresh?.Checks.Any(check => check.Id == pick.CheckId && check.Severity == CheckSeverity.Ok) == true);
+
+        if (!verified || (restart != RestartRequirement.None && pendingMessage is null))
+            return (IncludeRestart(Loc.T("Повторная проверка не подтвердила все выбранные настройки. Обновите проверку ещё раз.")), ToastKind.Warning);
+        if (pendingMessage is not null) return (pendingMessage, ToastKind.Info);
+
+        return result.Applied > 0
+            ? (Loc.T("Повторная проверка подтвердила исправление. Отменить можно в разделе «Восстановление»."), ToastKind.Success)
+            : (Loc.T("Повторная проверка подтвердила, что выбранные настройки уже действуют."), ToastKind.Info);
+    }
+
     private static List<string> ConfirmDetails(Tweak tweak)
     {
         var details = new List<string> { $"{tweak.Title}: {tweak.Description}" };
@@ -259,6 +291,7 @@ public sealed partial class DashboardViewModel
             return null;
         }
         tweak = resolved;
+        var selected = new FixSelection(checkId, id, tweak);
 
         var details = ConfirmDetails(tweak);
         details.Add(RestorePointLine());
@@ -270,21 +303,14 @@ public sealed partial class DashboardViewModel
                 Loc.Tf("Lycoris применит настройку «{0}» через журнал изменений. Будет сделано следующее:", tweak.Title),
                 details, footnote: "Изменение обратимо."),
             work => RunBusyAsync(OperationClass.JournalChange, Loc.Tf("Применение: {0}…", tweak.Title), work),
-            checkCurrent ?? (() => CheckDashboardFixesAsync([new(checkId, id, tweak)], safeOnly: false)),
+            checkCurrent ?? (() => CheckDashboardFixesAsync([selected], safeOnly: false)),
             async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
-        if (result is { } r)
+        // AssistantDiagnostics owns the follow-up check and status for requests from Assistant.
+        if (checkCurrent is null && result is { } r)
         {
-            if (r.Errors.Count > 0)
-                Ui.Toast(string.Join(Environment.NewLine, r.Errors), ToastKind.Error, "Не удалось применить");
-            else if (r.Applied > 0)
-                Ui.Toast(r.Restart == RestartRequirement.None
-                        ? Loc.T("Готово. Отменить можно в разделе «Восстановление».")
-                        : Loc.Tf("Готово. Изменение вступит в силу {0}.", tweak.RestartWhen),
-                    ToastKind.Success, tweak.Title);
-            else
-                Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
+            var notice = await VerifyDashboardFixAsync(r, [selected]);
+            Ui.Toast(notice.Message, notice.Kind, tweak.Title);
         }
-        if (checkCurrent is null && result is not null) await RefreshAsync(showBusy: false);
         return result;
     }
 
@@ -344,17 +370,9 @@ public sealed partial class DashboardViewModel
             async () => result = await TweakEngine.ApplyAsync(tweaks, Loc.Key("Панель: безопасные исправления")));
         if (result is { } r)
         {
-            if (r.Errors.Count > 0)
-                Ui.Toast(string.Join(Environment.NewLine, r.Errors), ToastKind.Error, "Не удалось применить");
-            else if (r.Applied > 0)
-                Ui.Toast(r.Restart == RestartRequirement.None
-                        ? Loc.T("Готово. Отменить можно кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ».")
-                        : Loc.T("Готово. Часть изменений вступит в силу после перезапуска. Отменить можно кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ»."),
-                    ToastKind.Success, "ПАНЕЛЬ");
-            else
-                Ui.Toast("Всё уже применено — менять нечего.", ToastKind.Info, "ПАНЕЛЬ");
+            var notice = await VerifyDashboardFixAsync(r, selections);
+            Ui.Toast(notice.Message, notice.Kind, "ПАНЕЛЬ");
         }
-        if (result is not null) await RefreshAsync(showBusy: false);
     }
 
     // ───────────────────────────── «ПЕРЕЗАГРУЗИТЬ» (pending reboot) ─────────────────────────────

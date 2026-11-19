@@ -10,6 +10,7 @@ using Lycoris.Modules.Maintenance;
 using Lycoris.Modules.Optimize;
 using Lycoris.Modules.Tools;
 using Lycoris.Tweaks;
+using Lycoris.UI;
 
 namespace Lycoris.Tests;
 
@@ -195,6 +196,81 @@ public sealed class DashboardAdviceActionTests
         Assert.Equal(expectedWrites, changes.Count);
         if (expectedWrites == 1) Assert.Equal("hags", Assert.Single(changes));
     }
+
+    [Theory]
+    [InlineData(true, ToastKind.Success)]
+    [InlineData(false, ToastKind.Warning)]
+    public async Task Fix_verification_waits_for_a_post_write_read_instead_of_using_an_older_refresh(
+        bool freshReadConfirms, ToastKind expected)
+    {
+        var olderRead = new TaskCompletionSource<SystemSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var dashboard = VerificationDashboard(() => ++calls == 1
+            ? olderRead.Task
+            : Task.FromResult(new SystemSnapshot { GameModeOn = freshReadConfirms ? true : null }));
+        var earlierRefresh = dashboard.RefreshForAssistantAsync();
+        Assert.Equal(1, calls);
+
+        var verify = dashboard.VerifyDashboardFixAsync(new(1, 0, [], null, RestartRequirement.None),
+            [FixFor("game-mode", HealthRules.TweakGameMode)]);
+        Assert.False(verify.IsCompleted);
+        Assert.Equal(1, calls);
+
+        olderRead.SetResult(new SystemSnapshot { GameModeOn = !freshReadConfirms });
+        Assert.NotNull(await earlierRefresh);
+        var notice = await verify;
+        Assert.Equal(2, calls);
+        Assert.Equal(expected, notice.Kind);
+    }
+
+    [Theory]
+    [InlineData(null, 2, ToastKind.Warning)]
+    [InlineData(true, 2, ToastKind.Warning)]
+    [InlineData(false, 2, ToastKind.Success)]
+    [InlineData(null, 0, ToastKind.Warning)]
+    [InlineData(false, 0, ToastKind.Info)]
+    public async Task Batch_verification_checks_every_setting_and_also_checks_no_ops(
+        bool? backgroundRecording, int applied, ToastKind expected)
+    {
+        var dashboard = VerificationDashboard(() =>
+            Task.FromResult(new SystemSnapshot { GameModeOn = true, BackgroundRecordingOn = backgroundRecording }));
+        var notice = await dashboard.VerifyDashboardFixAsync(new(applied, 0, [], null, RestartRequirement.None),
+            [FixFor("game-mode", HealthRules.TweakGameMode), FixFor("gamedvr", HealthRules.TweakGameDvr)]);
+        Assert.Equal(expected, notice.Kind);
+    }
+
+    [Theory]
+    [InlineData(true, ToastKind.Info)]
+    [InlineData(false, ToastKind.Warning)]
+    public async Task Pending_restart_does_not_bypass_verification_for_immediate_changes(
+        bool otherFixVerified, ToastKind expected)
+    {
+        var dashboard = VerificationDashboard(() =>
+            Task.FromResult(new SystemSnapshot { Hags = HagsState.Off, GameModeOn = otherFixVerified ? true : null }));
+        var notice = await dashboard.VerifyDashboardFixAsync(new(2, 0, [], null, RestartRequirement.Reboot),
+            [FixFor("game-mode", HealthRules.TweakGameMode), FixFor("hags", HealthRules.TweakHags)]);
+        Assert.Equal(expected, notice.Kind);
+        Assert.Contains("после перезагрузки", notice.Message);
+    }
+
+    [Fact]
+    public async Task A_skipped_fix_reports_the_engine_reason_even_when_a_check_now_passes()
+    {
+        var dashboard = VerificationDashboard(() => Task.FromResult(new SystemSnapshot { GameModeOn = true }));
+        var result = new TweakRunResult(0, 0, [], null, RestartRequirement.None)
+        {
+            SkippedReasons = ["A prerequisite changed."],
+        };
+        var notice = await dashboard.VerifyDashboardFixAsync(result, [FixFor("game-mode", HealthRules.TweakGameMode)]);
+        Assert.Equal(ToastKind.Warning, notice.Kind);
+        Assert.Equal("A prerequisite changed.", notice.Message);
+    }
+
+    private static DashboardViewModel VerificationDashboard(Func<Task<SystemSnapshot>> inspect) =>
+        new() { Coordinator = new(), InspectAsync = inspect };
+
+    private static DashboardViewModel.FixSelection FixFor(string checkId, string tweakId) =>
+        new(checkId, tweakId, TweakCatalog.Find(tweakId)!);
 
     [Fact]
     public void Optional_GPU_advice_stays_available_for_one_exact_confirmed_fix()

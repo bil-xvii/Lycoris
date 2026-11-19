@@ -6,6 +6,11 @@
   ],
   "ignore": [],
   "en": {
+    "Часть настроек пропущена. Подробности — в журнале действий.": "Some settings were skipped. See the action log for details.",
+    "Для части изменений нужен перезапуск. Повторите проверку {0}.": "Some changes are pending. Run the check again {0}.",
+    "Повторная проверка не подтвердила все выбранные настройки. Обновите проверку ещё раз.": "The follow-up check could not verify every selected setting. Run the check again.",
+    "Повторная проверка подтвердила исправление. Отменить можно в разделе «Восстановление».": "The follow-up check confirmed the fix. You can undo it in Restore.",
+    "Повторная проверка подтвердила, что выбранные настройки уже действуют.": "The follow-up check confirmed that the selected settings are already in effect.",
     "Windows зарегистрировала перезагрузку без кода ошибки. Эта запись не указывает причину": "Windows recorded a restart without an error code. The record does not identify the cause",
     "Последняя запись о перезагрузке в журнале: {0}.": "Latest restart event recorded at {0}.",
     "Открыть журнал надёжности": "Open Reliability Monitor",
