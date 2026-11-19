@@ -183,7 +183,7 @@ public sealed partial class ServicesViewModel : PageViewModel
         else if (e.PropertyName == nameof(StartupViewModel.TotalCount)) OnPropertyChanged(nameof(StartupTabCount));
         else if (e.PropertyName == nameof(BadgeText)) BadgeText = Startup.BadgeText;
         else if (e.PropertyName == nameof(CheckedAt)) CheckedAt = Startup.CheckedAt;
-        else if (e.PropertyName == nameof(StartupViewModel.ExtraCount)) RaisePrimary();
+        else if (e.PropertyName is nameof(StartupViewModel.EnabledCount) or nameof(StartupViewModel.IsLoaded)) RaisePrimary();
         else if (e.PropertyName is nameof(StartupViewModel.Search) or nameof(StartupViewModel.Filter)) _pendingStartupFocus = null;
     }
 
@@ -198,7 +198,7 @@ public sealed partial class ServicesViewModel : PageViewModel
     public ICommand DisableSelectedStartupCommand => Startup.DisableSelectedCommand;
     /// <summary>The checked autostart entries on («EnableSelectedStartup»).</summary>
     public ICommand EnableSelectedStartupCommand => Startup.EnableSelectedCommand;
-    /// <summary>«ОТКЛЮЧИТЬ ЛИШНЕЕ · N»: entries slowing boot or pointing to missing files, after a confirmation with the list.</summary>
+    /// <summary>Check current startup entries and offer to disable entries with proven manual launch.</summary>
     public ICommand DisableExtraStartupCommand => Startup.DisableExtraCommand;
 
     /// <summary>Autostart tab badge: entries plus third-party logon tasks (they live on that tab now).</summary>
@@ -206,9 +206,8 @@ public sealed partial class ServicesViewModel : PageViewModel
 
     // ───────────────────────────── Header primary (changes with the tab) ─────────────────────────────
 
-    /// <summary>The header's one main button: on АВТОЗАПУСК «ОТКЛЮЧИТЬ ЛИШНЕЕ · N» (hidden when there is nothing extra).</summary>
-    public string PrimaryText => Loc.Tf("ОТКЛЮЧИТЬ ЛИШНЕЕ · {0}", Startup.ExtraCount);
-    public bool HasPrimary => SelectedTab == TabStartup && Startup.ExtraCount > 0;
+    public string PrimaryText => Loc.T("ПРОВЕРИТЬ АВТОЗАПУСК");
+    public bool HasPrimary => SelectedTab == TabStartup && Startup.IsLoaded && Startup.EnabledCount > 0;
 
     private void RaisePrimary()
     {

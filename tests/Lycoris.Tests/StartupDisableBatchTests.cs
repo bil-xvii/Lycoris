@@ -79,6 +79,35 @@ public sealed class StartupDisableBatchTests : IDisposable
     }
 
     [Fact]
+    public async Task Extra_startup_plan_only_offers_verified_optional_entries()
+    {
+        var optional = AddRun("Indigo Notebook");
+        var microsoft = AddRun("Microsoft component");
+        var driver = AddRun("Driver helper");
+        var antiCheat = AddRun("Vanguard", exe: "vgtray.exe");
+        var missing = AddRun("Disconnected");
+        var unreadable = AddRun("Unreadable");
+        _rows[_rows.IndexOf(microsoft)] = microsoft with { Risk = StartupRisk.Microsoft };
+        _rows[_rows.IndexOf(driver)] = driver with { Risk = StartupRisk.Driver };
+        File.Delete(missing.TargetPath!);
+        _signature = target => target == unreadable.TargetPath ? (null, null) : TrustedSignature(target);
+        var action = Action();
+
+        var plan = await action.PrepareAsync(CancellationToken.None);
+
+        Assert.Equal(optional.Key, Assert.Single(plan.Items).Key);
+        foreach (var entry in new[] { microsoft, driver, antiCheat })
+            Assert.Equal(RemovalDecision.Keep, Assert.Single(plan.AssessedRows, row => row.Key == entry.Key).Decision);
+        foreach (var entry in new[] { missing, unreadable })
+            Assert.Equal(RemovalDecision.Review, Assert.Single(plan.AssessedRows, row => row.Key == entry.Key).Decision);
+
+        var result = await Execute(action, plan, optional.Key);
+        Assert.Equal(1, result.Applied);
+        Assert.False(StartupApproved.IsEnabled(Assert.IsType<byte[]>(Mark(optional))));
+        foreach (var entry in new[] { microsoft, driver, antiCheat, missing, unreadable }) Assert.Null(Mark(entry));
+    }
+
+    [Fact]
     public async Task Confirmed_subset_writes_only_the_two_marks_and_undo_restores_the_exact_prior_layers()
     {
         var absent = AddRun("Absent");

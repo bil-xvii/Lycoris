@@ -203,7 +203,7 @@ public static partial class HealthRules
             Loc.T("Windows не создаёт точки восстановления: после неудачного обновления или драйвера откатиться будет не к чему, " +
             "а Lycoris не сможет сделать точку перед своими изменениями. Защита займёт часть диска C: (старые точки удаляются " +
             "автоматически). Включить её можно в разделе «Восстановление»."),
-            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, Loc.T("ВКЛЮЧИТЬ ЗАЩИТУ"), "restore"));
+            CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, Loc.T("Открыть защиту системы"), "restore", "section:restore-points"));
     }
 
     // ───────────────────────────── Free space ─────────────────────────────
@@ -228,7 +228,7 @@ public static partial class HealthRules
             "Удалите временные файлы в разделе «Обслуживание» → «Очистка» — перед удалением Lycoris покажет, что именно будет удалено.") +
             (facts.Length > 0 ? " " + facts : ""),
             CheckSeverity.Warning, IsCriticalSpace(free, total) ? 25 : 15,
-            new CheckAction(CheckActionKind.Navigate, Loc.T("ОЧИСТИТЬ ДИСК"), "cleaner"), SystemFileLever(s));
+            new CheckAction(CheckActionKind.Clean, Loc.T("ОЧИСТИТЬ ДИСК"), "cleaner"), SystemFileLever(s));
     }
 
     /// <summary>
@@ -504,7 +504,8 @@ public static partial class HealthRules
         return new("uptime", Loc.Tf("БЕЗ ПЕРЕЗАГРУЗКИ {0}", Loc.N(days, "{0} ДЕНЬ", "{0} ДНЯ", "{0} ДНЕЙ")),
             Loc.T("За долгую работу копятся утечки памяти в драйверах и программах, а часть обновлений ждёт перезапуска. " +
             "Сохраните работу и выберите именно «Перезагрузка»: при включённом быстром запуске «Завершение работы» " +
-            "систему полностью не перезапускает."), CheckSeverity.Warning, 4);
+            "систему полностью не перезапускает."), CheckSeverity.Warning, 4,
+            new CheckAction(CheckActionKind.Restart, Loc.T("ПЕРЕЗАГРУЗИТЬ")));
     }
 
     public static HealthCheckResult? CheckPendingReboot(SystemSnapshot s)
@@ -634,8 +635,11 @@ public static partial class HealthRules
             Loc.Tf("{0}: версия {1} от {2} — ему {3}. " +
             "Новые драйверы исправляют ошибки и проблемы в новых играх. Проверьте обновление в разделе «Драйверы».",
             gpu.Name, version, DashFormat.Date(date), DashFormat.Age(date, s.Now)),
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ДРАЙВЕР"), "drivers", "tab:overview"));
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ДРАЙВЕР"), "drivers", GpuFocus(gpu)));
     }
+
+    internal static string GpuFocus(GpuInfo? gpu) =>
+        !string.IsNullOrWhiteSpace(gpu?.PnpDeviceId) ? "gpu:" + gpu.PnpDeviceId : "tab:hardware";
 
     // ───────────────────────────── Startup ─────────────────────────────
 
@@ -676,7 +680,7 @@ public static partial class HealthRules
         return new("drift", Loc.T("НАСТРОЙКИ ИЗМЕНЕНЫ ВНЕ LYCORIS"),
             Loc.Tf("Windows или другая программа вернула {0} (часто так бывает после крупного обновления Windows). В «Восстановлении» видно, " +
                    "что было и что стало: применить снова или оставить как есть — решаете вы.", Loc.N(n, "{0} настройку", "{0} настройки", "{0} настроек")),
-            CheckSeverity.Info, 3, new CheckAction(CheckActionKind.Navigate, Loc.T("ПОСМОТРЕТЬ ИЗМЕНЁННОЕ"), "restore", "drift"));
+            CheckSeverity.Info, 3, new CheckAction(CheckActionKind.Navigate, Loc.T("ПОСМОТРЕТЬ ИЗМЕНЁННОЕ"), "restore", "section:drift"));
     }
 
     public static HealthCheckResult? CheckStartup(SystemSnapshot s)
@@ -688,6 +692,6 @@ public static partial class HealthRules
         return new("startup", Loc.T("МНОГО ПРОГРАММ В АВТОЗАПУСКЕ"),
             Loc.Tf("Вместе с Windows запускается {0}. Каждая может удлинять вход в систему и работает в фоне. Отключите лишние " +
             "в разделе «Автозапуск и службы» — это обратимо, программы не удаляются.", count),
-            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("ОТКЛЮЧИТЬ ЛИШНЕЕ"), "startup"));
+            CheckSeverity.Warning, 6, new CheckAction(CheckActionKind.Navigate, Loc.T("Открыть автозапуск"), "services", "tab:startup"));
     }
 }

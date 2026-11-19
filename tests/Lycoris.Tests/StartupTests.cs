@@ -369,8 +369,8 @@ public sealed class StartupClassifierTests
         Assert.False(StartupClassifier.CanDisable(StartupRisk.Security));
         Assert.False(StartupClassifier.CanDisable(StartupRisk.Updater));
         Assert.True(StartupClassifier.CanDisable(StartupRisk.Normal));
-        Assert.True(StartupClassifier.CanDisable(StartupRisk.Microsoft));
-        Assert.True(StartupClassifier.CanDisable(StartupRisk.Driver));
+        Assert.False(StartupClassifier.CanDisable(StartupRisk.Microsoft));
+        Assert.False(StartupClassifier.CanDisable(StartupRisk.Driver));
     }
 }
 

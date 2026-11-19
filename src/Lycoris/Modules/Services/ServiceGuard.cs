@@ -13,8 +13,9 @@ public static class ServiceGuard
         Lycoris.Modules.Optimize.OptimizeLogic.CanApplyRisk(risk, expertMode);
 
     public static bool CanReapplyService(string name, bool expertMode, bool servicesExpertMode) =>
-        ServiceCatalog.Services.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase)) is { } entry
-            ? CanApplyRisk(entry.Risk, expertMode) : ExpertModeEnabled(expertMode, servicesExpertMode);
+        name.Length > 0 && !IsHardBlocked(name) && !ServiceControl.IsProtected(name) &&
+        (ServiceCatalog.Find(name) is { } entry
+            ? CanApplyRisk(entry.Risk, expertMode) : ExpertModeEnabled(expertMode, servicesExpertMode));
 
     public static bool CanReapplyTask(string path, bool expertMode) => ServiceCatalog.Tasks.FirstOrDefault(t =>
         t.IsPrefix ? path.StartsWith(t.Path, StringComparison.OrdinalIgnoreCase) : path.Equals(t.Path, StringComparison.OrdinalIgnoreCase))
@@ -31,6 +32,7 @@ public static class ServiceGuard
     private static readonly string Virtualization = Loc.T("Виртуализация и VBS: WSL2, песочница, защита памяти.");
     private static readonly string Diagnostics = Loc.T("Диагностика, нужная самой Windows (средства устранения неполадок).");
     private static readonly string ThirdParty = Loc.T("Античит, игровой лаунчер или служба драйвера: игры и функции драйвера перестанут работать.");
+    private static readonly string Xbox = Loc.T("Служба Xbox: нужна для входа, облачных сохранений, сетевой игры или аксессуаров.");
     private static readonly string Updater = Loc.T("Обновление браузера и WebView2: без него остаются незакрытые уязвимости.");
     private static readonly string Debated = Loc.T("Спорная настройка: отключение чаще вредит, чем помогает.");
     private static readonly string Identity = Loc.T("Смарт-карты, токены ЭЦП (Рутокен, JaCarta) и Windows Hello.");
@@ -57,8 +59,9 @@ public static class ServiceGuard
         (Media, ["Audiosrv", "AudioEndpointBuilder", "FrameServer", "FrameServerMonitor", "hidserv", "GameInputSvc"]),
         (Virtualization, ["HvHost", "vmcompute", "hns"]),
         (Diagnostics, ["DPS", "WdiServiceHost", "WdiSystemHost", "whesvc", "WSAIFabricSvc"]),
-        (ThirdParty, ["vgc", "vgk", "BEService", "Steam Client Service", "GamingServices", "GamingServicesNet",
+        (ThirdParty, ["vgc", "vgk", "BEService", "Steam Client Service", "GamingServices", "GamingServicesNet", "EABackgroundService", "EAAntiCheatService",
                       "NVDisplay.ContainerLocalSystem", "AMD External Events Utility", "amd3dvcacheSvc", "AMD Crash Defender Service"]),
+        (Xbox, ["XblAuthManager", "XblGameSave", "XboxNetApiSvc", "XboxGipSvc"]),
         (Updater, ["edgeupdate", "edgeupdatem", "gupdate", "gupdatem"]),
         (Debated, ["SysMain", "SharedAccess"]),
         (Identity, ["SCardSvr", "ScDeviceEnum", "SCPolicySvc", "CertPropSvc", "WbioSrvc"]),

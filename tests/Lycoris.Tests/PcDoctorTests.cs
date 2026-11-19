@@ -1,3 +1,4 @@
+using Lycoris.Modules.Dashboard;
 using Lycoris.Modules.Dashboard.Checks;
 using Lycoris.Modules.Dashboard.Doctor;
 using Xunit;
@@ -39,8 +40,10 @@ public class PcDoctorTests
         Assert.Contains("HandBrake — 62 %", r.Detail);
         Assert.Contains("chrome", r.Detail);
         Assert.DoesNotContain("Discord", r.Detail); // below 3 % is noise
-        Assert.EndsWith("Taskmgr.exe", r.Action!.Target, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(CheckActionKind.OpenTaskManager, r.Action.Kind);
+        var guidance = DashboardAdvice.For(r)!;
+        Assert.Equal("Диспетчер задач → Процессы → ЦП", guidance.PathText);
+        Assert.Equal(CheckActionKind.OpenTaskManager, guidance.OpenAction!.Kind);
+        Assert.False(guidance.OpenAction.RequiresAdmin);
     }
 
     [Fact]
@@ -74,7 +77,7 @@ public class PcDoctorTests
     }
 
     [Fact]
-    public void Every_button_is_an_existing_safe_command()
+    public void Doctor_opens_read_only_destinations_and_offers_confirmed_cleaning_and_restart()
     {
         var s = new SystemSnapshot
         {
@@ -82,10 +85,22 @@ public class PcDoctorTests
             OnAcPower = true, StartupCount = 30,
         };
         var rows = PcDoctor.Diagnose(Calm(cpu: 99, ram: 99, disk: 99, gpuTemp: 99, cpuTop: [new("x", 90, 0)], memTop: [new("x", 0, 1)]), s);
-        Assert.All(rows, r => Assert.False(r.Action?.RequiresAdmin ?? false)); // the doctor never applies a tweak by itself
-        Assert.Contains(rows, r => r.Action?.Kind == CheckActionKind.Restart);
-        Assert.Contains(rows, r => r.Action is { Kind: CheckActionKind.FocusTweak, Target: "power-plan-balanced" });
-        Assert.Contains(rows, r => r.Action is { Kind: CheckActionKind.Navigate, Target: "cleaner" });
+        Assert.All(rows, row =>
+        {
+            var open = DashboardAdvice.For(row)?.OpenAction;
+            Assert.NotNull(open);
+            Assert.False(open.RequiresAdmin);
+            Assert.True(open.Kind is CheckActionKind.Navigate or CheckActionKind.FocusTweak
+                or CheckActionKind.OpenUri or CheckActionKind.OpenTaskManager);
+            Assert.False(row.Action?.RequiresAdmin ?? false);
+        });
+        var restart = Assert.Single(rows, r => r.Id == "doctor-restart");
+        Assert.Equal(CheckActionKind.Restart, restart.Action!.Kind);
+        var power = Assert.Single(rows, r => r.Id == "doctor-power");
+        Assert.Equal("power-plan-balanced", DashboardAdvice.For(power)!.FocusId);
+        var space = Assert.Single(rows, r => r.Id == "doctor-space");
+        Assert.Equal(CheckActionKind.Clean, space.Action!.Kind);
+        Assert.Equal("cleaner", DashboardAdvice.For(space)!.PageKey);
         Assert.Equal(CheckSeverity.Warning, rows[0].Severity); // most serious first
         Assert.NotNull(Lycoris.Tweaks.TweakCatalog.Find("power-plan-balanced"));
     }
@@ -120,11 +135,11 @@ public class PcDoctorTests
     }
 
     [Fact]
-    public void Task_manager_button_has_its_own_kind_and_full_path()
+    public void Task_manager_button_uses_a_fixed_tool_kind()
     {
         var r = PcDoctor.Diagnose(Calm(cpu: 95, cpuTop: [new("x", 90, 0)]), Healthy()).Single(x => x.Id == "doctor-cpu");
         Assert.Equal(CheckActionKind.OpenTaskManager, r.Action!.Kind);
-        Assert.True(System.IO.Path.IsPathRooted(r.Action.Target));
+        Assert.Null(r.Action.Target);
     }
 
     [Fact]

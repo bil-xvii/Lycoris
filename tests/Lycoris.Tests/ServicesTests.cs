@@ -18,7 +18,7 @@ public sealed class ServicesTests
 
     [Theory]
     [InlineData("XblGameSave", false, false, false)]
-    [InlineData("XblGameSave", true, false, true)]
+    [InlineData("XblGameSave", true, true, false)]
     [InlineData("SomeWindowsService", false, true, false)]
     [InlineData("SomeWindowsService", true, true, true)]
     public void Reapplying_a_service_change_respects_its_access_level(string name, bool expertMode, bool servicesExpertMode, bool expected) =>
@@ -111,17 +111,18 @@ public sealed class ServicesTests
             Assert.True(s.Conditional, s.Name);
     }
 
-    [Fact]
-    public void Xbox_entries_are_opt_in_only()
+    [Theory]
+    [InlineData("XblAuthManager")]
+    [InlineData("XblGameSave")]
+    [InlineData("XboxNetApiSvc")]
+    [InlineData("XboxGipSvc")]
+    [InlineData("EABackgroundService")]
+    [InlineData("EAAntiCheatService")]
+    public void Gaming_services_are_protected_and_absent_from_disable_recommendations(string name)
     {
-        var xbox = ServiceCatalog.Services.Where(s => s.Group == ServiceGroup.Xbox).ToList();
-        Assert.NotEmpty(xbox);
-        foreach (var s in xbox)
-        {
-            Assert.True(s.Conditional, s.Name);
-            Assert.Equal(ProfileSet.None, s.Profiles);
-        }
-        Assert.NotNull(ServiceCatalog.GroupNote(ServiceGroup.Xbox));
+        Assert.Null(ServiceCatalog.Find(name));
+        Assert.NotNull(ServiceGuard.GetLockReason(name, 0x10, 3, 1, 0, @"C:\Games\service.exe"));
+        Assert.False(ServiceGuard.CanReapplyService(name, expertMode: true, servicesExpertMode: true));
     }
 
     [Theory]

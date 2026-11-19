@@ -90,36 +90,54 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="92" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Border Style="{StaticResource Dash.SeverityTag}">
                             <TextBlock Text="{Binding SeverityText}" />
                         </Border>
-                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <StackPanel Grid.Column="1">
                             <TextBlock Text="{Binding Title, Converter={StaticResource Sentence}}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
                             <TextBlock Text="{Binding Detail}" Style="{StaticResource T.Body}" Foreground="{StaticResource B.Text2}" FontSize="12.5"
                                        LineHeight="18" Margin="0,4,0,0" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Top" HorizontalAlignment="Right">
-                            <Button MinWidth="150" HorizontalAlignment="Stretch" Command="{Binding RunCommand}"
-                                    AutomationProperties.HelpText="{Binding Title}"
-                                    ToolTip="{Binding ActionTooltip}" Visibility="{Binding HasAction, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{x:Static ui:Glyphs.Lock}" FontFamily="{StaticResource F.Icons}" FontSize="12"
-                                               VerticalAlignment="Center" Margin="0,0,8,0"
-                                               Visibility="{Binding ShowAdminHint, Converter={StaticResource BoolToVis}}" />
-                                    <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <!-- Optional second lever (it only shows the setting; the change is made there) -->
-                            <Button Margin="0,6,0,0" MinWidth="150" HorizontalAlignment="Stretch"
-                                    Command="{Binding DataContext.RunSecondaryActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}"
-                                    AutomationProperties.HelpText="{Binding Title}"
-                                    ToolTip="{loc:T 'Показать настройку в разделе «Оптимизация» — сама по себе кнопка ничего не меняет'}"
-                                    Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
-                                <TextBlock Text="{Binding SecondaryActionText}" VerticalAlignment="Center" />
-                            </Button>
+                            <StackPanel Margin="0,6,0,0" Visibility="{Binding HasGuidance, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding PathText}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding NextStep}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Margin="0,6,0,0" Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
+                                <TextBlock Text="{Binding SecondaryPathText}" Style="{StaticResource T.BodyStrong}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SecondaryNextStep}" Style="{StaticResource T.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <WrapPanel>
+                                <Button Style="{StaticResource Btn.Link}" Margin="0,8,8,0"
+                                        Command="{Binding DataContext.OpenAdviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding OpenText}" AutomationProperties.HelpText="{Binding PathText}"
+                                        ToolTip="{Binding OpenTooltip}" Visibility="{Binding HasOpenAction, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding OpenText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource Btn.Link}" Margin="0,8,8,0"
+                                        Command="{Binding DataContext.RunSecondaryActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding SecondaryActionText}" AutomationProperties.HelpText="{Binding SecondaryPathText}"
+                                        ToolTip="{Binding SecondaryActionTooltip}"
+                                        Visibility="{Binding Result.SecondaryAction, Converter={StaticResource NullToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{x:Static ui:Glyphs.ChevronRight}" FontFamily="{StaticResource F.Icons}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding SecondaryActionText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource Btn}" Margin="0,8,0,0" Command="{Binding RunCommand}"
+                                        AutomationProperties.Name="{Binding ActionText}" AutomationProperties.HelpText="{Binding Title}"
+                                        ToolTip="{Binding ActionTooltip}" Visibility="{Binding ShowPrimaryAction, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ActionGlyph}" FontFamily="{StaticResource F.Icons}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding ActionText}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </WrapPanel>
                         </StackPanel>
                     </Grid>
                 </Border>

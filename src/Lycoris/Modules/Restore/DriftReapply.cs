@@ -19,10 +19,24 @@ public static class DriftReapply
 {
     public const string BatchTitle = "Повторное применение: изменено вне Lycoris"; // loc:ignore stored as the journal batch title (Russian on disk); shown through Loc.Sink
 
-    public static bool CanReapply(DriftItem d) => d.Fix != DriftFix.None;
+    public static bool CanReapply(DriftItem d) => d.Fix != DriftFix.None && RefusalReason(d) is null;
+
+    internal static string? RefusalReason(DriftItem d) => d.Fix switch
+    {
+        DriftFix.StartupEntry when DriftDetector.StartupEnabledOf(d.Record.NewValue) == false =>
+            UnboundStartupDisable(),
+        DriftFix.Task when DriftDetector.LatestSource(d.Record) == StartupChanges.TaskSource &&
+                           DriftDetector.TaskEnabledOf(d.Record.NewValue) == false =>
+            UnboundStartupDisable(),
+        DriftFix.Service => ServiceGuard.HardBlockReason(ServiceName(d.Record)),
+        _ => null,
+    };
+
+    private static string UnboundStartupDisable() =>
+        Loc.T("В журнале нет привязки к текущей программе или задаче. Откройте раздел «Автозапуск» и проверьте запись перед отключением.");
 
     public static IReadOnlyList<DriftItem> FilterForMode(IEnumerable<DriftItem> items, bool expertMode, bool servicesExpertMode) =>
-        items.Where(d => d.Fix switch
+        items.Where(CanReapply).Where(d => d.Fix switch
         {
             DriftFix.Tweak => d.TweakId is { } id && TweakCatalog.Find(id) is { } tweak && OptimizeLogic.CanApplyRisk(tweak.Risk, expertMode),
             DriftFix.Service => ServiceGuard.CanReapplyService(
@@ -51,8 +65,9 @@ public static class DriftReapply
 
     public static async Task<ReapplyResult> ApplyAsync(IReadOnlyList<DriftItem> items)
     {
+        var errors = items.Select(d => RefusalReason(d) is { } reason
+            ? $"{Loc.Sink(d.Record.Title)}: {reason}" : null).OfType<string>().ToList();
         items = FilterForMode(items, AppSettings.Current.ExpertMode, AppSettings.Current.ServicesExpertMode);
-        var errors = new List<string>();
         var applied = 0;
 
         var direct = items.Where(d => d.Fix is DriftFix.Service or DriftFix.Task or DriftFix.StartupEntry).ToList();

@@ -10,6 +10,7 @@ using Lycoris.Core;
 using Lycoris.Core.Measurements;
 using Lycoris.Modules.Cleaner;
 using Lycoris.Modules.Dashboard;
+using Lycoris.Modules.Dashboard.Checks;
 using Lycoris.Modules.Maintenance;
 using Lycoris.Modules.Restore;
 using Lycoris.Modules.Services;
@@ -268,7 +269,11 @@ public sealed partial class HomeViewModel : PageViewModel
         .Select(item => new DoctorIssue(item.Result.Id, item.Title, DoctorReason(item.Result.Id, item.Detail), item.Detail,
             item.Severity == Lycoris.Modules.Dashboard.Checks.CheckSeverity.Warning ? "Warning" : "Info",
             item.Result.Weight >= 20 && item.Severity == Lycoris.Modules.Dashboard.Checks.CheckSeverity.Warning ? "Dot.Red" : "Dot.Amber",
-            DoctorActionLabel(item.Result.Action), item.Result.Action?.Kind == Lycoris.Modules.Dashboard.Checks.CheckActionKind.ApplyTweak ? Loc.T("БЕЗОПАСНО") : Loc.T("ПО ЖЕЛАНИЮ"), Loc.Tf("Правило: {0}", item.Result.Id), item.Result.Action is not null))
+            DoctorActionLabel(item), DashboardViewModel.IsSafeFix(item) ? Loc.T("БЕЗОПАСНО") : Loc.T("ПО ЖЕЛАНИЮ"),
+            Loc.Tf("Правило: {0}", item.Result.Id), item.HasOpenAction || item.ShowPrimaryAction)
+        {
+            ActionTarget = item.Result.Action is { Kind: CheckActionKind.ApplyTweak, Target: { } target } ? target : null,
+        })
         .ToArray();
 
     internal static string DoctorReason(string ruleId, string detail) => ruleId switch
@@ -279,19 +284,10 @@ public sealed partial class HomeViewModel : PageViewModel
         _ => detail.Split('.', 2, StringSplitOptions.TrimEntries)[0] is { Length: > 0 } text ? text + "." : detail,
     };
 
-    private static string DoctorActionLabel(Lycoris.Modules.Dashboard.Checks.CheckAction? action) => action?.Kind switch
-    {
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.ApplyTweak => action.Label,
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.FocusTweak => Loc.T("ПОСМОТРЕТЬ НАСТРОЙКУ"),
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.FocusDevice => Loc.T("ОТКРЫТЬ МОНИТОР"),
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Restart => action.Label,
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "startup" => Loc.T("ОТКРЫТЬ АВТОЗАПУСК"),
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "restore" => Loc.T("ОТКРЫТЬ ВОССТАНОВЛЕНИЕ"),
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "cleaner" => action.Label,
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "drivers" => Loc.T("ОТКРЫТЬ ДРАЙВЕРЫ"),
-        Lycoris.Modules.Dashboard.Checks.CheckActionKind.Navigate when action.Target == "tools" => Loc.T("ОТКРЫТЬ ИНСТРУМЕНТЫ"),
-        _ => Loc.T("ОТКРЫТЬ ПАНЕЛЬ"),
-    };
+    private static string DoctorActionLabel(CheckItemViewModel item) =>
+        item.ShowPrimaryAction && item.Result.Action?.Kind != CheckActionKind.Clean
+            ? item.ActionText
+            : item.HasOpenAction ? item.OpenText : Loc.T("ОТКРЫТЬ ПАНЕЛЬ");
 
     [RelayCommand] private async Task RefreshDoctorAsync()
     {
@@ -309,7 +305,7 @@ public sealed partial class HomeViewModel : PageViewModel
             Ui.Navigate("dashboard");
             return;
         }
-        await _runDoctorCheck(issue.RuleId);
+        await _runDoctorCheck(issue.ActionTarget is { } target ? issue.RuleId + "|" + target : issue.RuleId);
     }
     [RelayCommand] private void OpenGoal(HomeGoal? goal)
     {
@@ -332,7 +328,10 @@ public sealed partial class HomeViewModel : PageViewModel
 
 public sealed record HomeGoal(string Id, string Glyph, string Title, string Description, string? Fact, string Risk, string Action, string ExpertDetail);
 
-public sealed record DoctorIssue(string RuleId, string Title, string Reason, string FullDetail, string Severity, string DotStyle, string Action, string Risk, string TechnicalDetail, bool HasAction = true);
+public sealed record DoctorIssue(string RuleId, string Title, string Reason, string FullDetail, string Severity, string DotStyle, string Action, string Risk, string TechnicalDetail, bool HasAction = true)
+{
+    internal string? ActionTarget { get; init; }
+}
 
 public sealed class HomeChangeItem(ChangeRecord record)
 {

@@ -57,7 +57,7 @@ public sealed class DashboardGamesLocalizationTests
         var many = HealthRules.CheckStartup(new SystemSnapshot { StartupCount = 14 })!;
         Assert.Equal("TOO MANY STARTUP PROGRAMS", many.Title);
         Assert.Contains("14 programs", many.Detail);
-        Assert.Equal("DISABLE THE EXTRAS", many.Action!.Label);
+        Assert.Equal("Open startup", many.Action!.Label);
         Assert.Equal("1 program", Loc.N(1, "{0} программа", "{0} программы", "{0} программ"));
         Assert.Equal("EXCELLENT", HealthScore.Verdict(95));
         Assert.Equal("NEEDS ATTENTION", HealthScore.Verdict(40));

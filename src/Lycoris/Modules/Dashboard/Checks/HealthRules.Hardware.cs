@@ -234,12 +234,11 @@ public static partial class HealthRules
             case RebarState.NotActive:
                 var bios = s.Firmware switch
                 {
-                    FirmwareKind.Uefi => " " + Loc.T("Включите в BIOS/UEFI «Above 4G Decoding» и «Re-Size BAR Support»; если там включён CSM, " +
-                                         "выключите его — Windows на этом ПК уже загружается в режиме UEFI."),
+                    FirmwareKind.Uefi => " " + Loc.T("Windows загружается в режиме UEFI. Сверьте требования к «Above 4G Decoding» и «Re-Size BAR Support» по руководству платы."),
                     FirmwareKind.LegacyBios => " " + Loc.T("Resizable BAR работает только при загрузке в режиме UEFI, а Windows сейчас загружается " +
                                                "в режиме Legacy (CSM). Не выключайте CSM, пока системный диск размечен как MBR, — " +
                                                "Windows перестанет загружаться."),
-                    _ => " " + Loc.T("Включите в BIOS/UEFI «Above 4G Decoding» и «Re-Size BAR Support»."),
+                    _ => " " + Loc.T("Сначала проверьте режим загрузки Windows и поддержку Resizable BAR по руководству платы."),
                 };
                 return new("rebar", Loc.T("RESIZABLE BAR НЕ АКТИВЕН"),
                     Loc.Tf("{0}: процессору доступно только окно 256 МБ видеопамяти. Resizable BAR ускоряет часть игр — " +
@@ -276,9 +275,8 @@ public static partial class HealthRules
             return new("pcie-link", Loc.T("ЛИНИЯ PCIE ВИДЕОКАРТЫ СУЖЕНА"),
                 Loc.Tf("{0} под нагрузкой работает на PCIe {1}×{2}, " +
                 "хотя карта и слот поддерживают {3}×{4}, — " +
-                "линия работает ниже возможностей карты. Частые причины: карта не до конца вставлена в слот или перекошена, " +
-                "загрязнены контакты, некачественный райзер-кабель. Выключите ПК, отключите питание и переустановите карту до " +
-                "щелчка фиксатора. Lycoris ничего не меняет.",
+                "линия работает ниже возможностей карты. Сверьте по руководству платы, поддерживает ли выбранный слот полную ширину линии при текущей конфигурации. " +
+                "Если используется райзер, сверьте его характеристики с требованиями платы и видеокарты.",
                 link.GpuName, genLowered ? $"{link.CurrentGen}.0 " : "", link.CurrentWidth, genLowered ? $"{maxGen}.0 " : "", maxWidth),
                 CheckSeverity.Warning, 6);
         if (genLowered)

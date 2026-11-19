@@ -218,6 +218,7 @@ public sealed class DashboardLaunchpadViewModelTests
 
         Assert.True(DashboardViewModel.IsSafeFix(Item(CheckSeverity.Warning, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", "game-mode"))));
         Assert.True(DashboardViewModel.IsSafeFix(Item(CheckSeverity.Info, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", "trim-on"))));
+        Assert.False(DashboardViewModel.IsSafeFix(Item(CheckSeverity.Info, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", "hags-other-gpu"))));
         Assert.False(DashboardViewModel.IsSafeFix(Item(CheckSeverity.Ok, new CheckAction(CheckActionKind.ApplyTweak, "ВКЛЮЧИТЬ", "trim-on"))));
         Assert.False(DashboardViewModel.IsSafeFix(Item(CheckSeverity.Warning, new CheckAction(CheckActionKind.Navigate, "ОЧИСТИТЬ ДИСК", "cleaner"))));
         Assert.False(DashboardViewModel.IsSafeFix(Item(CheckSeverity.Warning, new CheckAction(CheckActionKind.FocusTweak, "ПОКАЗАТЬ", "x"))));
@@ -239,15 +240,19 @@ public sealed class DashboardLaunchpadViewModelTests
     public void Cleanup_row_button_takes_the_live_size_text()
     {
         string? size = null;
-        var result = new HealthCheckResult("disk-space", "T", "D", CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Navigate, "ОЧИСТИТЬ ДИСК", "cleaner"));
-        var item = new CheckItemViewModel(result, _ => Task.CompletedTask, a => a.Target == "cleaner" && size is not null ? $"ОЧИСТИТЬ {size}" : null);
+        var result = new HealthCheckResult("disk-space", "T", "D", CheckSeverity.Warning, 15, new CheckAction(CheckActionKind.Clean, "ОЧИСТИТЬ ДИСК"));
+        var item = new CheckItemViewModel(result, _ => Task.CompletedTask, a => a.Kind == CheckActionKind.Clean && size is not null ? $"ОЧИСТИТЬ {size}" : null);
         Assert.Equal("ОЧИСТИТЬ ДИСК", item.ActionText);
+        Assert.False(item.ShowPrimaryAction);
         size = "654,8 МБ";
         var changed = new List<string?>();
         item.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
         item.RefreshLabels();
         Assert.Equal("ОЧИСТИТЬ 654,8 МБ", item.ActionText);
+        Assert.True(item.ShowPrimaryAction);
+        Assert.Equal("Открыть очистку", item.OpenText);
         Assert.Contains("ActionText", changed);
+        Assert.Contains("ShowPrimaryAction", changed);
     }
 
     [Fact]
@@ -255,13 +260,13 @@ public sealed class DashboardLaunchpadViewModelTests
     {
         var disk = HealthRules.CheckDiskSpace(new SystemSnapshot { SystemDriveTotal = 500UL << 30, SystemDriveFree = 20UL << 30 });
         Assert.Equal("ОЧИСТИТЬ ДИСК", disk!.Action!.Label);
-        Assert.Equal("cleaner", disk.Action.Target);
+        Assert.Equal("cleaner", DashboardAdvice.For(disk)!.PageKey);
 
         var devices = HealthRules.CheckDevices(new SystemSnapshot { ProblemDevices = [new ProblemDevice("Net", 28)] });
         Assert.Equal("drivers", devices!.Action!.Target);
         Assert.Equal("tab:problems", devices.Action.Focus);
         Assert.Equal("ИСПРАВИТЬ ДРАЙВЕРЫ", devices.Action.Label);
 
-        Assert.Equal("ВКЛЮЧИТЬ ЗАЩИТУ", HealthRules.CheckRestore(new SystemSnapshot { RestoreEnabled = false })!.Action!.Label);
+        Assert.Equal("section:restore-points", HealthRules.CheckRestore(new SystemSnapshot { RestoreEnabled = false })!.Action!.Focus);
     }
 }

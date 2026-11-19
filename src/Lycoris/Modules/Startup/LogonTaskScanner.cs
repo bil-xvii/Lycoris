@@ -1,5 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using Lycoris.Core;
 
 namespace Lycoris.Modules.Startup;
@@ -32,6 +34,7 @@ public sealed record LogonTask
     public string? Publisher { get; init; }
     public DateTime? LastRun { get; init; }
     public StartupRisk Risk { get; init; }
+    internal string? DefinitionHash { get; init; }
 }
 
 /// <summary>
@@ -66,6 +69,36 @@ public static class LogonTaskScanner
         }
         result.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase));
         return result;
+    }
+
+    internal static LogonTask? ReadCurrent(string taskPath)
+    {
+        var separator = taskPath.LastIndexOf('\\');
+        if (separator < 0 || separator == taskPath.Length - 1) return null;
+        var folderPath = separator == 0 ? "\\" : taskPath[..separator];
+        var type = Type.GetTypeFromProgID("Schedule.Service");
+        if (type is null) return null;
+
+        object? service = null;
+        try
+        {
+            service = Activator.CreateInstance(type);
+            if (service is null) return null;
+            dynamic svc = service;
+            svc.Connect();
+            dynamic folder = svc.GetFolder(folderPath);
+            object task = folder.GetTask(taskPath[(separator + 1)..]);
+            return Read(task, folderPath);
+        }
+        catch (Exception ex) when (ScheduledTasks.IsNotFound(ex) || ex is COMException or UnauthorizedAccessException
+                                   or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (service is not null && Marshal.IsComObject(service)) Marshal.FinalReleaseComObject(service);
+        }
     }
 
     private static void Walk(object comFolder, List<LogonTask> result, bool includeSystem, int depth)
@@ -121,6 +154,7 @@ public static class LogonTaskScanner
     private static LogonTask? Read(object comTask, string folderPath)
     {
         dynamic task = comTask;
+        string? xml = task.Xml;
         dynamic def = task.Definition;
 
         bool atLogon = false, atBoot = false;
@@ -226,6 +260,8 @@ public static class LogonTaskScanner
             Publisher = company,
             LastRun = lastRun,
             Risk = StartupClassifier.ClassifyTask(name, target, company),
+            DefinitionHash = xml is { Length: > 0 and <= 1024 * 1024 }
+                ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(xml))) : null,
         };
     }
 

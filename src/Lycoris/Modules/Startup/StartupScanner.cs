@@ -100,6 +100,8 @@ public sealed record StartupEntry
     public required string DisplayName { get; init; }
     /// <summary>Raw command line (registry) or "target arguments" of the shortcut.</summary>
     public required string Command { get; init; }
+    internal RegistryValueKind? RegistrationKind { get; init; }
+    internal string? WorkingDirectory { get; init; }
     /// <summary>The file that identifies the program (exe, or the DLL/script a host runs). Null when unknown.</summary>
     public string? TargetPath { get; init; }
     public bool TargetExists { get; init; }
@@ -143,6 +145,33 @@ public static class StartupScanner
         return list;
     }
 
+    /// <summary>Re-observes the registration and the target of a previously displayed entry.</summary>
+    internal static StartupEntry? ReadEntry(StartupEntry expected)
+    {
+        var entries = new List<StartupEntry>();
+        switch (expected.Source)
+        {
+            case StartupSource.RunUser:
+                ScanRegistry(entries, expected.Source, RegHive.HKCU, StartupLocations.RunKey, expected.Name);
+                break;
+            case StartupSource.RunMachine:
+                ScanRegistry(entries, expected.Source, RegHive.HKLM, StartupLocations.RunKeyMachine, expected.Name);
+                break;
+            case StartupSource.Run32Machine:
+                ScanRegistry(entries, expected.Source, RegHive.HKLM, StartupLocations.Run32Key, expected.Name);
+                break;
+            case StartupSource.FolderUser:
+            case StartupSource.FolderCommon:
+                ScanFolder(entries, expected.Source, expected.Name);
+                break;
+            case StartupSource.PackagedTask:
+                entries.AddRange(PackagedStartup.Scan());
+                break;
+        }
+        var matches = entries.Where(e => string.Equals(e.Key, expected.Key, StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
+
     /// <summary>The entry with its on/off state read again (StartupApproved mark, or a packaged task's State).</summary>
     public static StartupEntry Refresh(StartupEntry e)
     {
@@ -162,15 +191,16 @@ public static class StartupScanner
         return (StartupApproved.IsEnabled(raw), StartupApproved.DisabledAtUtc(raw));
     }
 
-    private static void ScanRegistry(List<StartupEntry> list, StartupSource source, RegHive hive, string path)
+    private static void ScanRegistry(List<StartupEntry> list, StartupSource source, RegHive hive, string path, string? onlyName = null)
     {
+        if (RegistryHelper.Redirect is { } redirect) (hive, path) = redirect(hive, path);
         try
         {
             using var root = RegistryHelper.OpenBase(hive);
             using var key = root.OpenSubKey(path, false);
             if (key is null) return;
 
-            foreach (var name in key.GetValueNames())
+            foreach (var name in onlyName is null ? key.GetValueNames() : [onlyName])
             {
                 if (string.IsNullOrEmpty(name)) continue; // (Default) is not an autostart entry Task Manager lists
                 try
@@ -181,7 +211,7 @@ public static class StartupScanner
                     if (string.IsNullOrWhiteSpace(command)) continue;
 
                     var parsed = CommandLineParser.Parse(command);
-                    list.Add(Build(source, name, command.Trim(), parsed?.Target, null, name));
+                    list.Add(Build(source, name, command.Trim(), parsed?.Target, null, name) with { RegistrationKind = kind });
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 {
@@ -195,7 +225,7 @@ public static class StartupScanner
         }
     }
 
-    private static void ScanFolder(List<StartupEntry> list, StartupSource source)
+    private static void ScanFolder(List<StartupEntry> list, StartupSource source, string? onlyName = null)
     {
         var dir = StartupLocations.FolderPath(source);
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
@@ -208,7 +238,8 @@ public static class StartupScanner
                 AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
                 IgnoreInaccessible = true,
                 RecurseSubdirectories = false,
-            }).ToList();
+            }).Where(file => onlyName is null || string.Equals(Path.GetFileName(file), onlyName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -234,7 +265,8 @@ public static class StartupScanner
                         {
                             var command = CommandLineParser.Join(target, link.Arguments);
                             var parsed = CommandLineParser.Parse(command);
-                            list.Add(Build(source, fileName, command, parsed?.Target ?? target, file, title));
+                            list.Add(Build(source, fileName, command, parsed?.Target ?? target, file, title)
+                                with { WorkingDirectory = link!.WorkingDirectory });
                         }
                         else
                         {

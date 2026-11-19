@@ -259,18 +259,18 @@ public static partial class HealthRules
         var warning = blue.Count > 0 || a.WheaFatal > 0 || unexpected.Count >= 2 || a.GpuResets >= 2;
         var advice = causes.Take(3).Select(CauseAdvice).Where(t => t.Length > 0).ToList();
         if (unexpected.Count > 0)
-            advice.Add(Loc.T("Перезагрузка без кода ошибки — это пропадание питания или слабый блок питания, принудительное выключение " +
-                       "после зависания либо сбой, при котором Windows не успела записать код (например, когда отключена запись " +
-                       "дампа памяти)"));
+            advice.Add(Loc.T("Windows зарегистрировала перезагрузку без кода ошибки. Эта запись не указывает причину"));
         var detail = Loc.Tf("{0}: {1}.", period, string.Join("; ", findings)) + (advice.Count > 0 ? " " + string.Join(". ", advice) + "." : "");
+        if (a.Crashes.Count > 0)
+            detail += " " + Loc.Tf("Последняя запись о перезагрузке в журнале: {0}.", Loc.DateTimeText(a.Crashes.Max(c => c.Time)));
         if (a.Truncated) detail += " " + Loc.T("Записей очень много — подсчитаны только самые свежие.");
         if (causes.Contains(CrashCause.Processor) || causes.Contains(CrashCause.Memory)) detail += " " + Loc.T("Lycoris настройки BIOS не меняет.");
 
         var action = causes.Contains(CrashCause.Memory)
-            ? new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ПАМЯТЬ"), "tools")
+            ? new CheckAction(CheckActionKind.MemoryDiagnostic, Loc.T("ПРОВЕРИТЬ ПАМЯТЬ"))
             : causes.Contains(CrashCause.Gpu) || causes.Contains(CrashCause.Driver)
                 ? new CheckAction(CheckActionKind.Navigate, Loc.T("ПРОВЕРИТЬ ДРАЙВЕРЫ"), "drivers", "tab:updates")
-                : null;
+                : new CheckAction(CheckActionKind.OpenReliabilityMonitor, Loc.T("Открыть журнал надёжности"));
         var days = Loc.N(a.Days, "{0} ДЕНЬ", "{0} ДНЯ", "{0} ДНЕЙ");
         return warning
             ? new("stability", Loc.Tf("СБОИ ЗА {0}", days), detail, CheckSeverity.Warning, blue.Count > 0 || a.WheaFatal > 0 ? 15 : 10, action)

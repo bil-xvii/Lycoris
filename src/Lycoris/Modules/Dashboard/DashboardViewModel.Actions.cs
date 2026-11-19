@@ -3,6 +3,10 @@ using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
 using Lycoris.Core;
 using Lycoris.Modules.Dashboard.Checks;
+using Lycoris.Modules.Dashboard.Doctor;
+using Lycoris.Modules.Maintenance;
+using Lycoris.Modules.Optimize;
+using Lycoris.Modules.Tools;
 using Lycoris.Tweaks;
 using Lycoris.UI;
 
@@ -11,23 +15,47 @@ namespace Lycoris.Modules.Dashboard;
 // The buttons of the problem rows and «ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ».
 public sealed partial class DashboardViewModel
 {
-    private Task RunActionAsync(CheckItemViewModel item) => RunActionAsync(item.Result.Action, item.Result.Id);
+    private Task RunActionAsync(CheckItemViewModel item) => item.Result.Action?.Kind switch
+    {
+        CheckActionKind.ApplyTweak or CheckActionKind.Restart or CheckActionKind.MemoryDiagnostic => RunPrimaryActionAsync(item),
+        CheckActionKind.Clean when item.ShowPrimaryAction => RunPrimaryActionAsync(item),
+        _ => OpenAdviceAsync(item),
+    };
 
-    /// <summary>The second button of a check (e.g. the hibernation item behind a low-space warning). Same handling as the first.</summary>
     [RelayCommand]
-    private Task RunSecondaryActionAsync(CheckItemViewModel? item) => RunActionAsync(item?.Result.SecondaryAction, item?.Result.Id ?? "");
+    private Task OpenAdviceAsync(CheckItemViewModel? item) =>
+        RunReadOnlyActionAsync(item?.Guidance?.OpenAction, OpenPage, OpenShellAsync, DiagnoseAsync);
+
+    [RelayCommand]
+    private Task RunSecondaryActionAsync(CheckItemViewModel? item) =>
+        RunReadOnlyActionAsync(item?.Result.SecondaryAction, OpenPage, OpenShellAsync, DiagnoseAsync);
 
     /// <summary>
     /// Presses the button of one check by its id — what the elevated copy repeats after «ПЕРЕЗАПУСТИТЬ С ПРАВАМИ»
     /// (the same command, so the same confirmation).
     /// </summary>
     [RelayCommand]
-    private Task RunCheckAsync(string? id) =>
-        _all.FirstOrDefault(i => i.Result.Id == id) is { } item ? RunActionAsync(item) : Task.CompletedTask;
-
-    private async Task RunActionAsync(CheckAction? action, string checkId)
+    private Task RunCheckAsync(string? parameter) => FindCheckForReplay(_all, parameter) switch
     {
-        if (action is null) return;
+        { Result.Action.Kind: CheckActionKind.Clean } item => OpenAdviceAsync(item),
+        { } item => RunActionAsync(item),
+        _ => Task.CompletedTask,
+    };
+
+    internal static CheckItemViewModel? FindCheckForReplay(IEnumerable<CheckItemViewModel> items, string? parameter)
+    {
+        if (string.IsNullOrEmpty(parameter)) return null;
+        var split = parameter.IndexOf('|');
+        if (split < 0) return items.FirstOrDefault(i => !i.IsOk && i.Result.Id == parameter);
+        var id = parameter[..split];
+        var target = parameter[(split + 1)..];
+        return items.FirstOrDefault(i => !i.IsOk && i.Result.Id == id &&
+            i.Result.Action is { Kind: CheckActionKind.ApplyTweak } action && action.Target == target);
+    }
+
+    private async Task RunPrimaryActionAsync(CheckItemViewModel item)
+    {
+        if (item.IsOk || item.Result.Action is not { } action) return;
         if (action.RequiresAdmin && IsBusy)
         {
             Ui.Toast("Дождитесь окончания текущей операции.", ToastKind.Info);
@@ -35,38 +63,67 @@ public sealed partial class DashboardViewModel
         }
         switch (action.Kind)
         {
-            // The disk-space check: when the dry run already knows what can go, the button cleans right here.
-            case CheckActionKind.Navigate when action.Target == "cleaner" && CleanSize is not null:
-                await CleanJunkAsync();
-                break;
-            case CheckActionKind.Navigate when action.Target is { } page:
-                _lastCheck = DateTime.MinValue; // the user may fix it there: re-check on return
-                if (action.Focus is { } focus) Ui.RequestFocus(page, focus);
-                Ui.Navigate(page);
-                break;
-            case CheckActionKind.OpenUri when action.Target is { } uri:
-                await OpenShellAsync(uri, null, Loc.T("параметры Windows"));
-                break;
-            case CheckActionKind.OpenTaskManager:
-                await OpenShellAsync(Doctor.PcDoctor.TaskManagerPath, null, Loc.T("диспетчер задач"));
-                break;
-            case CheckActionKind.FocusTweak when action.Target is { } tweakId:
-                _lastCheck = DateTime.MinValue;
-                Ui.RequestFocus("optimize", tweakId);
-                Ui.Navigate("optimize");
+            case CheckActionKind.Clean:
+                await CleanJunkAsync(cleanOnly: true);
                 break;
             case CheckActionKind.ApplyTweak when action.Target is { } id:
-                await ApplyTweakAsync(id, checkId);
+                await ApplyTweakAsync(id, item.Result.Id);
                 break;
             case CheckActionKind.Restart:
-                await ScheduleRestartAsync();
+                await ScheduleRestartAsync(item.Result.Id == "pending-reboot" || action.Focus == DashboardAdvice.WindowsUpdateUri);
                 break;
-            case CheckActionKind.FocusDevice when action.Target is { } target:
-                _lastCheck = DateTime.MinValue; // the user may fix it there: re-check on return
-                Ui.RequestFocus("devices", target);
-                Ui.Navigate("devices");
+            case CheckActionKind.MemoryDiagnostic:
+                if (!await RunMemoryDiagnosticAdviceAsync(Main?.Maintenance)) OpenPage("tools", null);
                 break;
         }
+    }
+
+    private void OpenPage(string page, string? focus)
+    {
+        _lastCheck = DateTime.MinValue; // re-check after the user returns from the destination
+        if (focus is not null) Ui.RequestFocus(page, focus);
+        Ui.Navigate(page);
+    }
+
+    internal static Task RunReadOnlyActionAsync(CheckAction? action, Action<string, string?> openPage,
+        Func<string, string?, string, Task> openShell, Func<Task> diagnose)
+    {
+        switch (action)
+        {
+            case { Kind: CheckActionKind.Navigate, Target: { } page }:
+                openPage(page, action.Focus);
+                break;
+            case { Kind: CheckActionKind.FocusTweak, Target: { } tweakId }:
+                openPage("optimize", tweakId);
+                break;
+            case { Kind: CheckActionKind.FocusDevice, Target: { } deviceId }:
+                openPage("devices", deviceId);
+                break;
+            case { Kind: CheckActionKind.OpenUri, Target: HealthRules.PowerSettingsUri or HealthRules.WindowsSecurityUri
+                or DashboardAdvice.WindowsUpdateUri or DashboardAdvice.DisplaySettingsUri }:
+                return openShell(action.Target!, null, Loc.T("параметры Windows"));
+            case { Kind: CheckActionKind.OpenTaskManager }:
+                return openShell(PcDoctor.TaskManagerPath, null, Loc.T("диспетчер задач"));
+            case { Kind: CheckActionKind.OpenReliabilityMonitor }:
+                return openShell(ProcessRunner.Sys("perfmon.exe"), "/rel", Loc.T("журнал надёжности"));
+            case { Kind: CheckActionKind.OpenSystemInformation }:
+                return openShell(ProcessRunner.Sys("msinfo32.exe"), null, Loc.T("сведения о системе"));
+            case { Kind: CheckActionKind.DiagnoseAgain }:
+                return diagnose();
+        }
+        return Task.CompletedTask;
+    }
+
+    internal static async Task<bool> RunMemoryDiagnosticAdviceAsync(MaintenanceViewModel? maintenance,
+        Func<ToolsViewModel, IAsyncRelayCommand<ToolCardAction?>>? commandFactory = null)
+    {
+        if (maintenance?.Tools is not { } tools) return false;
+        var action = tools.Sections.SelectMany(s => s.Cards).SelectMany(c => c.Actions)
+            .FirstOrDefault(a => a.Op == ToolOp.MemoryDiagnostic);
+        var command = commandFactory?.Invoke(tools) ?? tools.RunCommand;
+        if (action is null || !command.CanExecute(action)) return false;
+        await command.ExecuteAsync(action);
+        return true;
     }
 
     private static Task OpenShellAsync(string target, string? args, string what) => Task.Run(async () =>
@@ -96,32 +153,76 @@ public sealed partial class DashboardViewModel
 
     /// <summary>A row whose button applies a catalog tweak by itself («ВКЛЮЧИТЬ», «ВЫКЛЮЧИТЬ») — what «ИСПРАВИТЬ ВСЁ БЕЗОПАСНОЕ» collects.</summary>
     internal static bool IsSafeFix(CheckItemViewModel item) =>
-        !item.IsOk && item.Result.Action is { Kind: CheckActionKind.ApplyTweak, Target: not null };
+        FindFixTweak(item.Result, safeOnly: true) is not null;
+
+    private static Tweak? FindFixTweak(HealthCheckResult check, bool safeOnly) =>
+        check.Severity != CheckSeverity.Ok && check.Action is { Kind: CheckActionKind.ApplyTweak, Target: { } id }
+            && IsAllowedRisk(TweakCatalog.Find(id), safeOnly) is { } tweak ? tweak : null;
+
+    private static Tweak? IsAllowedRisk(Tweak? tweak, bool safeOnly) => tweak?.Risk switch
+    {
+        TweakRisk.Safe => tweak,
+        TweakRisk.Optional when !safeOnly => tweak,
+        _ => null,
+    };
 
     /// <summary>What a fix resolved to: the tweak to apply, or the reason there is none (shown as a toast).</summary>
-    private sealed record FixPlan(Tweak? Tweak, string? Message, ToastKind Kind, bool OpenOptimize);
+    internal sealed record FixPlan(Tweak? Tweak, string? Message, ToastKind Kind, bool OpenOptimize);
+
+    internal sealed record FixSelection(string CheckId, string Target, Tweak Tweak);
 
     /// <summary>
     /// The tweak behind a check button, matched to this PC: the check looks at the primary GPU, the catalog at every GPU,
     /// so HAGS falls back to the sibling item that fits. Never a dead button: no match = an explanation.
     /// </summary>
-    private static async Task<FixPlan> ResolveFixAsync(Tweak tweak, string id, bool allowSibling = true)
+    internal static FixPlan ResolveFix(Tweak tweak, bool safeOnly, Func<Tweak, bool?> applicability)
     {
-        var profile = await SystemProfile.LoadAsync();
-        var applies = TweakEngine.Applicability(tweak, profile);
+        if (IsAllowedRisk(tweak, safeOnly) is null)
+            return new(null, Loc.T("Эта настройка находится в разделе «Оптимизация»."), ToastKind.Info, true);
+        var applies = applicability(tweak);
         if (applies is null)
             return new(null, Loc.T("Не удалось определить характеристики компьютера — настройку пока нельзя проверить. Попробуйте позже."), ToastKind.Warning, false);
         if (applies is true) return new(tweak, null, ToastKind.Info, false);
 
-        var sibling = (allowSibling, id) switch
+        // Only the safe batch may consider a different catalog item, which will be named in its confirmation.
+        var sibling = (safeOnly, tweak.Id) switch
         {
             (true, HealthRules.TweakHags) => TweakCatalog.Find(HealthRules.TweakHagsOther),
             (true, HealthRules.TweakHagsOther) => TweakCatalog.Find(HealthRules.TweakHags),
             _ => null,
         };
-        if (sibling is not null && sibling.Risk != TweakRisk.Advanced && TweakEngine.Applicability(sibling, profile) == true)
-            return new(sibling, null, ToastKind.Info, false);
+        if (safeOnly && IsAllowedRisk(sibling, safeOnly: true) is { } alternate && applicability(alternate) == true)
+            return new(alternate, null, ToastKind.Info, false);
         return new(null, tweak.NotApplicableReason ?? Loc.T("Эта настройка не подходит для этого компьютера."), ToastKind.Warning, true);
+    }
+
+    internal static bool FixesStillMatch(IReadOnlyList<FixSelection> selected, IReadOnlyList<HealthCheckResult> current,
+        bool safeOnly, Func<Tweak, bool?> applicability) =>
+        selected.All(pick => current.FirstOrDefault(c => c.Id == pick.CheckId) is { } check
+            && FindFixTweak(check, safeOnly) is { } requested && requested.Id == pick.Target
+            && ResolveFix(requested, safeOnly, applicability).Tweak is { } found
+            && found.Id == pick.Tweak.Id && found.Risk == pick.Tweak.Risk);
+
+    internal static async Task RunConfirmedFixAsync(Func<Task<bool>> confirm, Func<Func<Task>, Task> queue,
+        Func<Task<bool>> stillMatches, Func<Task> apply)
+    {
+        if (!await confirm()) return;
+        await queue(async () =>
+        {
+            if (await stillMatches()) await apply();
+        });
+    }
+
+    private async Task<bool> CheckDashboardFixesAsync(IReadOnlyList<FixSelection> selected, bool safeOnly)
+    {
+        // Collect after confirmation and after gaining the lease. A snapshot from the previous Dashboard
+        // refresh may have started before either boundary (or before an earlier queued operation wrote).
+        var snapshot = await InspectAsync();
+        var checks = await Task.Run(() => HealthRules.Evaluate(snapshot));
+        if (FixesStillMatch(selected, checks, safeOnly, tweak => TweakEngine.Applicability(tweak, SystemProfile.Current)))
+            return true;
+        Ui.Toast(Loc.T("Условия исправления изменились. Обновите проверку и снова выберите нужное действие."), ToastKind.Info);
+        return false;
     }
 
     private static List<string> ConfirmDetails(Tweak tweak)
@@ -138,22 +239,23 @@ public sealed partial class DashboardViewModel
     private async Task<TweakRunResult?> ApplyTweakAsync(string id, string checkId, Func<Task<bool>>? checkCurrent = null,
         Func<string, bool>? requestAdmin = null)
     {
-        var tweak = TweakCatalog.Find(id);
-        if (checkCurrent is not null && tweak?.Risk != TweakRisk.Safe) return null;
-        if (tweak is null || tweak.Risk == TweakRisk.Advanced)
+        var safeOnly = checkCurrent is not null;
+        if (IsAllowedRisk(TweakCatalog.Find(id), safeOnly) is not { } tweak)
         {
             Ui.Toast("Эта настройка находится в разделе «Оптимизация».", ToastKind.Info);
             Ui.Navigate("optimize");
             return null;
         }
         // Read-only mode: relaunch with rights and press this same button again.
-        if (!(requestAdmin?.Invoke(tweak.Title) ?? RequireAdmin(tweak.Title, "RunCheck", checkId))) return null;
+        if (!(requestAdmin?.Invoke(tweak.Title) ?? RequireAdmin(tweak.Title, "RunCheck", checkId + "|" + id))) return null;
 
-        var plan = await ResolveFixAsync(tweak, id, allowSibling: checkCurrent is null);
+        var profile = await SystemProfile.LoadAsync();
+        // An individual action (including Assistant) is tied to the exact catalog setting shown in the row.
+        var plan = ResolveFix(tweak, safeOnly: false, t => TweakEngine.Applicability(t, profile));
         if (plan.Tweak is not { } resolved)
         {
             Ui.Toast(plan.Message!, plan.Kind, tweak.Title);
-            if (plan.OpenOptimize) Ui.Navigate("optimize");
+            if (plan.OpenOptimize) OpenPage("optimize", id);
             return null;
         }
         tweak = resolved;
@@ -162,17 +264,14 @@ public sealed partial class DashboardViewModel
         details.Add(RestorePointLine());
         details.Add(Loc.T("Исходное значение сохраняется в журнале — отменить можно в разделе «Восстановление»"));
 
-        var confirmed = await Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",
-            Loc.Tf("Lycoris применит настройку «{0}» через журнал изменений. Будет сделано следующее:", tweak.Title),
-            details, footnote: "Изменение обратимо.");
-        if (!confirmed) return null;
-
         TweakRunResult? result = null;
-        await RunBusyAsync(OperationClass.JournalChange, Loc.Tf("Применение: {0}…", tweak.Title), async () =>
-        {
-            if (checkCurrent is null || await checkCurrent())
-                result = await TweakEngine.ApplyAsync([tweak], tweak.Title);
-        });
+        await RunConfirmedFixAsync(
+            () => Ui.ConfirmAsync("ПРИМЕНИТЬ НАСТРОЙКУ?",
+                Loc.Tf("Lycoris применит настройку «{0}» через журнал изменений. Будет сделано следующее:", tweak.Title),
+                details, footnote: "Изменение обратимо."),
+            work => RunBusyAsync(OperationClass.JournalChange, Loc.Tf("Применение: {0}…", tweak.Title), work),
+            checkCurrent ?? (() => CheckDashboardFixesAsync([new(checkId, id, tweak)], safeOnly: false)),
+            async () => result = await TweakEngine.ApplyAsync([tweak], tweak.Title));
         if (result is { } r)
         {
             if (r.Errors.Count > 0)
@@ -185,7 +284,7 @@ public sealed partial class DashboardViewModel
             else
                 Ui.Toast("Настройка уже действует — менять нечего.", ToastKind.Info, tweak.Title);
         }
-        if (checkCurrent is null) await RefreshAsync(showBusy: false);
+        if (checkCurrent is null && result is not null) await RefreshAsync(showBusy: false);
         return result;
     }
 
@@ -209,25 +308,21 @@ public sealed partial class DashboardViewModel
         }
         if (!RequireAdmin(Loc.Key("Исправить всё безопасное"), "FixSafe")) return;
 
-        var tweaks = new List<Tweak>();
+        var selections = new List<FixSelection>();
         var skipped = new List<string>();
+        var profile = await SystemProfile.LoadAsync();
         foreach (var item in items)
         {
-            var id = item.Result.Action!.Target!;
-            var found = TweakCatalog.Find(id);
-            if (found is null || found.Risk == TweakRisk.Advanced)
-            {
-                skipped.Add(Loc.Tf("{0}: настройка находится в разделе «Оптимизация»", item.Title));
-                continue;
-            }
-            var plan = await ResolveFixAsync(found, id);
+            if (FindFixTweak(item.Result, safeOnly: true) is not { } found) continue;
+            var plan = ResolveFix(found, safeOnly: true, tweak => TweakEngine.Applicability(tweak, profile));
             if (plan.Tweak is not { } fix)
             {
                 skipped.Add(Loc.Tf("{0}: {1}", item.Title, plan.Message));
                 continue;
             }
-            if (tweaks.All(t => t.Id != fix.Id)) tweaks.Add(fix);
+            selections.Add(new(item.Result.Id, found.Id, fix));
         }
+        var tweaks = selections.Select(selection => selection.Tweak).DistinctBy(t => t.Id).ToList();
         if (tweaks.Count == 0)
         {
             Ui.Toast(string.Join(Environment.NewLine, skipped), ToastKind.Warning, "НЕЧЕГО ИСПРАВЛЯТЬ");
@@ -239,13 +334,14 @@ public sealed partial class DashboardViewModel
         details.Add(RestorePointLine());
         details.Add(Loc.T("Исходные значения сохраняются в журнале — отменить можно одной кнопкой «ОТКАТИТЬ ПОСЛЕДНЕЕ» или в разделе «Восстановление»"));
         var title = Loc.Tf("ПРИМЕНИТЬ {0}?", Loc.N(tweaks.Count, "{0} ИСПРАВЛЕНИЕ", "{0} ИСПРАВЛЕНИЯ", "{0} ИСПРАВЛЕНИЙ"));
-        var ok = await Ui.ConfirmAsync(title,
-            "Lycoris применит только перечисленные безопасные настройки через журнал изменений. Будет сделано следующее:",
-            details, footnote: "Изменения обратимы.");
-        if (!ok) return;
-
         TweakRunResult? result = null;
-        await RunBusyAsync(OperationClass.JournalChange, Loc.Key("Исправление безопасных пунктов…"), async () => result = await TweakEngine.ApplyAsync(tweaks, Loc.Key("Панель: безопасные исправления")));
+        await RunConfirmedFixAsync(
+            () => Ui.ConfirmAsync(title,
+                "Lycoris применит только перечисленные безопасные настройки через журнал изменений. Будет сделано следующее:",
+                details, footnote: "Изменения обратимы."),
+            work => RunBusyAsync(OperationClass.JournalChange, Loc.Key("Исправление безопасных пунктов…"), work),
+            () => CheckDashboardFixesAsync(selections, safeOnly: true),
+            async () => result = await TweakEngine.ApplyAsync(tweaks, Loc.Key("Панель: безопасные исправления")));
         if (result is { } r)
         {
             if (r.Errors.Count > 0)
@@ -258,7 +354,7 @@ public sealed partial class DashboardViewModel
             else
                 Ui.Toast("Всё уже применено — менять нечего.", ToastKind.Info, "ПАНЕЛЬ");
         }
-        await RefreshAsync(showBusy: false);
+        if (result is not null) await RefreshAsync(showBusy: false);
     }
 
     // ───────────────────────────── «ПЕРЕЗАГРУЗИТЬ» (pending reboot) ─────────────────────────────
@@ -270,27 +366,39 @@ public sealed partial class DashboardViewModel
     /// <summary>«Перезагрузка через 45 с» while a restart from Lycoris is scheduled; null otherwise.</summary>
     [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty] private string? _restartCountdown;
 
-    /// <summary>The same reboot as «Оптимизация» (SessionActions), with a longer delay so there is time to cancel it.</summary>
-    private async Task ScheduleRestartAsync()
+    internal static async Task<SessionActionResult?> ConfirmAndScheduleRestartAsync(Func<string?> blocker,
+        Func<Task<bool>> confirm, Func<Task<SessionActionResult>> schedule, Action<string> showBlocker)
     {
-        // A running install / DISM / cleaning or a game session would be cut off mid-way: refuse, as «Оптимизация» does.
-        if (Lycoris.Modules.Optimize.SessionActions.RebootBlockerText(OperationCoordinator.Instance.Snapshot(),
-                GameBoostState.IsActive) is { } blocked)
+        bool CanRestart()
         {
-            Ui.Toast(blocked, ToastKind.Warning);
-            return;
+            if (blocker() is not { } blocked) return true;
+            showBlocker(blocked);
+            return false;
         }
-        var confirmed = await Ui.ConfirmAsync(
-            Loc.T("ПЕРЕЗАГРУЗИТЬ КОМПЬЮТЕР?"),
-            Loc.T("Windows ждёт перезагрузки, чтобы завершить обновления и изменения."),
-            [
-                Loc.T("Сохраните открытые файлы и закройте игры"),
-                Loc.Tf("Перезагрузка начнётся через {0} секунд", RestartDelaySeconds),
-                Loc.T("До этого её можно отменить кнопкой «ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ» на «Панели»"),
-            ],
-            confirmText: Loc.T("ПЕРЕЗАГРУЗИТЬ"));
-        if (!confirmed) return;
-        var result = await Lycoris.Modules.Optimize.SessionActions.ScheduleRebootAsync(RestartDelaySeconds);
+
+        if (!CanRestart() || !await confirm() || !CanRestart()) return null;
+        return await schedule();
+    }
+
+    /// <summary>The same reboot as «Оптимизация» (SessionActions), with a longer delay so there is time to cancel it.</summary>
+    private async Task ScheduleRestartAsync(bool pending)
+    {
+        var outcome = await ConfirmAndScheduleRestartAsync(
+            () => SessionActions.RebootBlockerText(OperationCoordinator.Instance.Snapshot(), GameBoostState.IsActive),
+            () => Ui.ConfirmAsync(
+                Loc.T("ПЕРЕЗАГРУЗИТЬ КОМПЬЮТЕР?"),
+                pending
+                    ? Loc.T("Windows ждёт перезагрузки, чтобы завершить обновления и изменения.")
+                    : Loc.T("Windows завершит работу открытых программ и запустится заново."),
+                [
+                    Loc.T("Сохраните открытые файлы и закройте игры"),
+                    Loc.Tf("Перезагрузка начнётся через {0} секунд", RestartDelaySeconds),
+                    Loc.T("До этого её можно отменить кнопкой «ОТМЕНИТЬ ПЕРЕЗАГРУЗКУ» на «Панели»"),
+                ],
+                confirmText: Loc.T("ПЕРЕЗАГРУЗИТЬ")),
+            () => SessionActions.ScheduleRebootAsync(RestartDelaySeconds),
+            blocked => Ui.Toast(blocked, ToastKind.Warning));
+        if (outcome is not { } result) return;
         if (!result.Success)
         {
             Ui.Toast(result.Message, ToastKind.Error);

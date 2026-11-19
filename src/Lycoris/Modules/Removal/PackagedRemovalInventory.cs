@@ -67,7 +67,7 @@ internal static class PackagedRemovalInventory
             {
                 var id = package.Id;
                 var version = id.Version;
-                var keep = IsManagementPackage(id.FamilyName, current) || package.SignatureKind == PackageSignatureKind.System ||
+                var keep = IsManagementPackage(id.FamilyName, current) || IsGamingInfrastructureFamily(id.FamilyName) || package.SignatureKind == PackageSignatureKind.System ||
                     package.IsFramework || package.IsResourcePackage || package.IsBundle || package.IsOptional;
                 var name = DisplayText(() => package.DisplayName) ?? id.Name;
                 var publisher = DisplayText(() => package.PublisherDisplayName) ?? UninstallEntries.InventoryText(id.Publisher);
@@ -111,6 +111,17 @@ internal static class PackagedRemovalInventory
         try { return Package.Current.Id.FamilyName; }
         catch (SystemException) { return null; } // This application normally runs unpackaged.
     }
+
+    private static readonly HashSet<string> GamingInfrastructureFamilies = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Microsoft.GamingApp_8wekyb3d8bbwe", "Microsoft.GamingServices_8wekyb3d8bbwe",
+        "Microsoft.XboxApp_8wekyb3d8bbwe", "Microsoft.XboxGamingOverlay_8wekyb3d8bbwe",
+        "Microsoft.XboxGameOverlay_8wekyb3d8bbwe", "Microsoft.XboxIdentityProvider_8wekyb3d8bbwe",
+        "Microsoft.Xbox.TCUI_8wekyb3d8bbwe", "Microsoft.XboxSpeechToTextOverlay_8wekyb3d8bbwe",
+    };
+
+    internal static bool IsGamingInfrastructureFamily(string? family) =>
+        family is not null && GamingInfrastructureFamilies.Contains(family);
 
     private static bool IsManagementPackage(string family, string? current) =>
         string.Equals(family, current, StringComparison.OrdinalIgnoreCase) ||

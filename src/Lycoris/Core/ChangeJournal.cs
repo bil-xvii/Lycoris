@@ -1835,7 +1835,8 @@ internal static class JournalTrust
 
     /// <summary>Services that older builds could change in ВСЕ СЛУЖБЫ and that are hard-blocked now.</summary>
     private static readonly HashSet<string> LegacyRevertibleServices =
-        new(["Eaphost", "dot3svc", "NcaSvc", "RmSvc", "W32Time", "tzautoupdate"], StringComparer.OrdinalIgnoreCase);
+        new(["Eaphost", "dot3svc", "NcaSvc", "RmSvc", "W32Time", "tzautoupdate",
+             "XblAuthManager", "XblGameSave", "XboxNetApiSvc", "XboxGipSvc", "EABackgroundService", "EAAntiCheatService"], StringComparer.OrdinalIgnoreCase);
 
     private static string Quoted(string exe) => "\"" + ProcessRunner.Sys(exe) + "\"";
     private static bool SameFile(string? a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

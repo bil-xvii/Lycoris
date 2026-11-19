@@ -19,7 +19,7 @@ public static partial class HealthRules
     public const string DriverBlocklistPolicyId = "d2bda982-ccf6-4344-ac5b-0b44427b6816";
     public const string SacEnforcePolicyId = "0283ac0f-fff1-49ae-ada1-8a933130cad6";
     public const string SacEvaluationPolicyId = "1283ac0f-fff1-49ae-ada1-8a933130cad6";
-    public const string WindowsSecurityUri = "ms-settings:windowsdefender";
+    public const string WindowsSecurityUri = "windowsdefender://coreisolation/";
 
     // ───────────────────────────── Secure Boot / TPM (anti-cheat readiness) ─────────────────────────────
 
@@ -219,13 +219,13 @@ public static partial class HealthRules
                     "и FACEIT могут её требовать. Lycoris не отключает её сам; отключение есть только как экспертный пункт в " +
                     "«Оптимизации» с отдельным предупреждением — это снижает безопасность и ломает часть античитов. Настройка — " +
                     "«Безопасность Windows → Безопасность устройства → Изоляция ядра».") + sac,
-                    CheckSeverity.Info, 0);
+                    CheckSeverity.Info, 0, new CheckAction(CheckActionKind.OpenUri, Loc.T("ОТКРЫТЬ БЕЗОПАСНОСТЬ WINDOWS"), WindowsSecurityUri));
             case VbsState.VbsOnly:
                 return new("vbs", Loc.T("ВИРТУАЛИЗАЦИЯ БЕЗОПАСНОСТИ АКТИВНА"),
                     Loc.T("Windows изолирует часть ядра в защищённой виртуальной среде (VBS). Это защита от атак на учётные данные и ядро; " +
                     "влияние на игры обычно небольшое. Lycoris её не отключает.") +
                     (blocklist == true ? " " + Loc.T("Список блокировки уязвимых драйверов Microsoft действует.") : "") + sac,
-                    CheckSeverity.Info, 0);
+                    CheckSeverity.Info, 0, new CheckAction(CheckActionKind.OpenUri, Loc.T("ОТКРЫТЬ БЕЗОПАСНОСТЬ WINDOWS"), WindowsSecurityUri));
             default:
                 return new("vbs", Loc.T("ЦЕЛОСТНОСТЬ ПАМЯТИ ВЫКЛЮЧЕНА"),
                     Loc.T("Изоляция ядра не используется") +
@@ -235,7 +235,7 @@ public static partial class HealthRules
                     Loc.T("Целостность памяти дополнительно защищает ядро от вредоносных драйверов; античиты Riot Vanguard (режим по " +
                     "требованию) и FACEIT могут её требовать. Включается в «Безопасность Windows → Безопасность устройства → " +
                     "Изоляция ядра» (нужна перезагрузка; несовместимый старый драйвер может этому помешать).") + sac,
-                    CheckSeverity.Info, 0);
+                    CheckSeverity.Info, 0, new CheckAction(CheckActionKind.OpenUri, Loc.T("ОТКРЫТЬ БЕЗОПАСНОСТЬ WINDOWS"), WindowsSecurityUri));
         }
     }
 }

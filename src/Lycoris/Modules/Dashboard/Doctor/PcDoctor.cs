@@ -41,7 +41,7 @@ public static class PcDoctor
 
     public static string TaskManagerPath => System.IO.Path.Combine(Environment.SystemDirectory, "Taskmgr.exe");
 
-    private static CheckAction TaskManager => new(CheckActionKind.OpenTaskManager, Loc.T("ДИСПЕТЧЕР ЗАДАЧ"), TaskManagerPath);
+    private static CheckAction TaskManager => new(CheckActionKind.OpenTaskManager, Loc.T("ДИСПЕТЧЕР ЗАДАЧ"));
 
     public static IReadOnlyList<HealthCheckResult> Diagnose(DoctorSample m, SystemSnapshot s)
     {
@@ -51,7 +51,7 @@ public static class PcDoctor
         if (m.Samples < MinSamples)
             return [new("doctor-interrupted", Loc.T("ЗАМЕР ПРЕРВАН"),
                 Loc.T("Монитор нагрузки не успел собрать данные за время замера. Нажмите «ПОЧЕМУ ТОРМОЗИТ?» ещё раз."),
-                CheckSeverity.Info, 0)];
+                CheckSeverity.Info, 0, new(CheckActionKind.DiagnoseAgain, Loc.T("Повторить замер")))];
 
         // 1. Processor: who keeps it busy. Without admin rights the system services (Windows Update, antivirus, indexing)
         // cannot be read, so a busy processor with no visible culprit is still reported — and the text says why.
@@ -92,14 +92,14 @@ public static class PcDoctor
             if (free < s.SystemDriveTotal * LowSpaceFraction || free < LowSpaceGb * 1024d * 1024 * 1024)
                 list.Add(new("doctor-space", Loc.Tf("НА СИСТЕМНОМ ДИСКЕ СВОБОДНО {0}", DashFormat.Size(free)),
                     Loc.T("Windows нужно место для обновлений, файла подкачки и временных файлов; когда его мало, система работает медленнее."),
-                    CheckSeverity.Warning, 0, new(CheckActionKind.Navigate, Loc.T("К ОЧИСТКЕ"), "cleaner")));
+                CheckSeverity.Warning, 0, new(CheckActionKind.Clean, Loc.T("ОЧИСТИТЬ ДИСК"), "cleaner")));
         }
 
         // 5. Restart: pending updates or a long uptime.
         if (s.PendingReboot.Count > 0)
             list.Add(new("doctor-restart", Loc.T("WINDOWS ЖДЁТ ПЕРЕЗАГРУЗКИ"),
                 Loc.T("Обновления установлены не до конца; до перезагрузки часть служб работает в переходном состоянии."),
-                CheckSeverity.Warning, 0, new(CheckActionKind.Restart, Loc.T("ПЕРЕЗАГРУЗИТЬ"))));
+                CheckSeverity.Warning, 0, new(CheckActionKind.Restart, Loc.T("ПЕРЕЗАГРУЗИТЬ"), Focus: DashboardAdvice.WindowsUpdateUri)));
         else if (s.Uptime.TotalDays >= UptimeDays)
             list.Add(new("doctor-restart", Loc.Tf("БЕЗ ПЕРЕЗАГРУЗКИ {0}", Loc.N((int)s.Uptime.TotalDays, "{0} ДЕНЬ", "{0} ДНЯ", "{0} ДНЕЙ")),
                 Loc.T("Перезагрузка закрывает зависшие фоновые процессы и освобождает память — Microsoft советует её, если ПК стал медленным."),
@@ -122,13 +122,13 @@ public static class PcDoctor
         if (s.StartupCount is { } n && n > HealthRules.StartupLimit)
             list.Add(new("doctor-startup", Loc.Tf("В АВТОЗАПУСКЕ {0}", Loc.N(n, "{0} ПРОГРАММА", "{0} ПРОГРАММЫ", "{0} ПРОГРАММ")),
                 Loc.T("Каждая запускается при входе и работает в фоне. Отключите те, что не нужны сразу, — они не удаляются и включаются обратно."),
-                CheckSeverity.Warning, 0, new(CheckActionKind.Navigate, Loc.T("ОТКЛЮЧИТЬ ЛИШНЕЕ"), "startup")));
+                CheckSeverity.Warning, 0, new(CheckActionKind.Navigate, Loc.T("Открыть автозапуск"), "services", "tab:startup")));
 
         // 8. A hot graphics card lowers its clocks.
         if (m.GpuTemperature is { } t && t >= GpuHot)
             list.Add(new("doctor-gpu-hot", Loc.Tf("ВИДЕОКАРТА НАГРЕТА ДО {0} °C", Math.Round(t)),
                 Loc.T("При перегреве видеокарта снижает частоты. Проверьте, не забиты ли пылью радиаторы и свободен ли приток воздуха к корпусу."),
-                CheckSeverity.Warning, 0));
+                CheckSeverity.Warning, 0, new(CheckActionKind.Navigate, Loc.T("Показать видеокарты"), "drivers", HealthRules.GpuFocus(s.PrimaryGpu))));
 
         if (list.Count == 0)
             list.Add(new("doctor-none", Loc.T("ЯВНЫХ ПРИЧИН СЕЙЧАС НЕТ"),

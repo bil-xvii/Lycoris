@@ -32,6 +32,16 @@ public enum CheckActionKind
     Restart,
     /// <summary>Opens Windows Task Manager (System32, full path); reading only — it never ends a process by itself.</summary>
     OpenTaskManager,
+    /// <summary>Opens the Windows Reliability Monitor to view recorded events.</summary>
+    OpenReliabilityMonitor,
+    /// <summary>Opens Windows System Information to identify the system or hardware.</summary>
+    OpenSystemInformation,
+    /// <summary>Repeats the Dashboard's read-only performance measurement.</summary>
+    DiagnoseAgain,
+    /// <summary>Invokes the Cleaner's own command and confirmation for its current selection.</summary>
+    Clean,
+    /// <summary>Invokes the Tools page's own confirmed Windows Memory Diagnostic command.</summary>
+    MemoryDiagnostic,
 }
 
 /// <summary>What the button next to a check does. Nothing here touches the system by itself.</summary>
@@ -39,7 +49,7 @@ public enum CheckActionKind
 public sealed record CheckAction(CheckActionKind Kind, string Label, string? Target = null, string? Focus = null)
 {
     /// <summary>Actions that change the system need administrator rights (they go through ChangeSession).</summary>
-    public bool RequiresAdmin => Kind is CheckActionKind.ApplyTweak;
+    public bool RequiresAdmin => Kind is CheckActionKind.ApplyTweak or CheckActionKind.MemoryDiagnostic;
 }
 
 /// <summary>

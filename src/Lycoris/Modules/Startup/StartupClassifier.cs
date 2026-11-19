@@ -1,4 +1,5 @@
 using System.IO;
+using Lycoris.Modules.Removal;
 
 namespace Lycoris.Modules.Startup;
 
@@ -35,6 +36,13 @@ public static class StartupClassifier
         "SophosUI.exe", "uiSeAgnt.exe", "spideragent.exe",                  // Sophos / Trend Micro / Dr.Web
     };
 
+    private static readonly HashSet<string> GamingComponents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "vgtray.exe", "vgc.exe", "vgk.sys", "BEService.exe", "BEService_x64.exe", "BEDaisy.sys",
+        "EasyAntiCheat.exe", "EasyAntiCheat_EOS.exe", "EAAntiCheat.GameService.exe", "EAAntiCheat.GameServiceLauncher.exe",
+        "steamservice.exe", "EABackgroundService.exe", "GameInputSvc.exe", "GamingServices.exe", "GamingServicesNet.exe",
+    };
+
     /// <summary>Companies whose autostart entries are always security agents.</summary>
     private static readonly string[] SecurityVendors =
     [
@@ -53,8 +61,8 @@ public static class StartupClassifier
 
     /// <summary>
     /// Programs that work the same without starting at logon — they are simply opened from their shortcut when needed
-    /// (game launchers, chat and music apps, remote-help tools). «ОТКЛЮЧИТЬ ЛИШНЕЕ» offers them, always in the confirmation
-    /// list; only ordinary entries (StartupRisk.Normal), never Microsoft, drivers, security or updaters.
+    /// (game launchers, chat and music apps, remote-help tools). This labels known products;
+    /// an automatic disable also requires verified registration and independent manual-launch evidence.
     /// </summary>
     private static readonly HashSet<string> OptionalAtLogonExecutables = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -73,7 +81,7 @@ public static class StartupClassifier
     public static StartupRisk ClassifyEntry(string? targetPath, string? publisher)
     {
         var file = FileName(targetPath);
-        if (file is not null && SecurityExecutables.Contains(file)) return StartupRisk.Security;
+        if (file is not null && (SecurityExecutables.Contains(file) || GamingComponents.Contains(file))) return StartupRisk.Security;
         if (MatchesVendor(publisher, SecurityVendors)) return StartupRisk.Security;
         if (MatchesVendor(publisher, DriverVendors)) return StartupRisk.Driver;
         if (MatchesVendor(publisher, MicrosoftNames)) return StartupRisk.Microsoft;
@@ -88,6 +96,7 @@ public static class StartupClassifier
     {
         var risk = ClassifyEntry(targetPath, publisher);
         if (risk == StartupRisk.Security) return risk;
+        if (PackagedRemovalInventory.IsGamingInfrastructureFamily(familyName)) return StartupRisk.Microsoft;
         if (Mentions(familyName, "Defender") || Mentions(taskId, "Defender") || MatchesVendor(familyName?.Replace('.', ' '), SecurityVendors))
             return StartupRisk.Security;
         return risk;
@@ -119,8 +128,8 @@ public static class StartupClassifier
         return MicrosoftNames.Any(m => a.Contains(m, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>True when the security lock allows turning the entry OFF (turning on is always allowed).</summary>
-    public static bool CanDisable(StartupRisk risk) => risk is not (StartupRisk.Security or StartupRisk.Updater);
+    /// <summary>True when the classified role allows turning the entry off. Turning it on is independent of this check.</summary>
+    public static bool CanDisable(StartupRisk risk) => risk == StartupRisk.Normal;
 
     internal static bool MatchesVendor(string? publisher, IEnumerable<string> vendors)
     {
