@@ -1,7 +1,4 @@
 {
-    "ПРОВЕРИТЬ АВТОЗАПУСК": "CHECK STARTUP",
-    "Проверит, какие программы можно запускать вручную. Перед отключением покажет точный список.": "Checks which programs can be started manually. Shows the exact list before disabling startup.",
-    "Служба Xbox: нужна для входа, облачных сохранений, сетевой игры или аксессуаров.": "Xbox uses this service for sign-in, cloud saves, online play, or accessories.",
   "area": "Services",
   "translated": true,
   "sources": [
@@ -17,6 +14,9 @@
   ],
   "ignore": [],
   "en": {
+    "ПРОВЕРИТЬ АВТОЗАПУСК": "CHECK STARTUP",
+    "Проверит, какие программы можно запускать вручную. Перед отключением покажет точный список.": "Checks which programs can be started manually. Shows the exact list before disabling startup.",
+    "Служба Xbox: нужна для входа, облачных сохранений, сетевой игры или аксессуаров.": "Xbox uses this service for sign-in, cloud saves, online play, or accessories.",
     "Автозапуск и рекомендуемые настройки. Ручное управление службами — в режиме «Эксперт».": "Startup and recommended settings. Manual service management is available in Expert mode.",
     "ВКЛЮЧИТЬ РЕЖИМ ЭКСПЕРТ": "ENABLE EXPERT MODE",
     "Системное имя": "System name",

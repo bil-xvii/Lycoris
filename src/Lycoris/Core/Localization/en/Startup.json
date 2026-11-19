@@ -1,11 +1,4 @@
 {
-    "Не найдено записей автозапуска, для которых подтверждён безопасный ручной запуск.": "No startup entries passed the checks for disabling startup and launching the program manually.",
-    "Записи пропущены во время проверки. Подготовьте новый список для отключения.": "Some entries were skipped during verification. Prepare a fresh list before disabling them.",
-    "Выбранные записи защищены или управляются политикой Windows.": "The selected entries are protected or managed by Windows policy.",
-    "Пропущено защищённых записей и записей под управлением политики Windows: {0}.": "Skipped {0} protected or policy-managed entries.",
-    "Не удалось подтвердить текущую запись. Обновите список автозапуска и проверьте её перед отключением.": "The current entry could not be verified. Refresh Startup and review the entry before disabling it.",
-    "Запись нужна Windows, защите, играм, драйверу или обновлениям. Lycoris её не отключает.": "Windows, security, gaming, a driver, or updates rely on this entry. Lycoris keeps it enabled.",
-    "защищённая запись — не отключается": "protected entry",
   "area": "Startup",
   "translated": true,
   "sources": [
@@ -14,6 +7,13 @@
   ],
   "ignore": [],
   "en": {
+    "Не найдено записей автозапуска, для которых подтверждён безопасный ручной запуск.": "No startup entries passed the checks for disabling startup and launching the program manually.",
+    "Записи пропущены во время проверки. Подготовьте новый список для отключения.": "Some entries were skipped during verification. Prepare a fresh list before disabling them.",
+    "Выбранные записи защищены или управляются политикой Windows.": "The selected entries are protected or managed by Windows policy.",
+    "Пропущено защищённых записей и записей под управлением политики Windows: {0}.": "Skipped {0} protected or policy-managed entries.",
+    "Не удалось подтвердить текущую запись. Обновите список автозапуска и проверьте её перед отключением.": "The current entry could not be verified. Refresh Startup and review the entry before disabling it.",
+    "Запись нужна Windows, защите, играм, драйверу или обновлениям. Lycoris её не отключает.": "Windows, security, gaming, a driver, or updates rely on this entry. Lycoris keeps it enabled.",
+    "защищённая запись — не отключается": "protected entry",
     "недоступно": "unavailable",
     "Разная версия или сборка Windows": "Different Windows version or build",
     "Разная версия Lycoris": "Different Lycoris version",
