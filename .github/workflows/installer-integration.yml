@@ -1,0 +1,145 @@
+name: Installer integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/installer-integration.yml'
+      - 'packaging/installer/**'
+      - 'src/Lycoris/Lycoris.csproj'
+      - 'tools/build-installer.ps1'
+      - 'tools/validation/installer-*'
+
+permissions:
+  contents: read
+
+jobs:
+  installer-fixture:
+    name: Standard-user desktop fixture on ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 4
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify profile and private desktop without an installer
+        shell: pwsh
+        run: |
+          ./tools/validation/installer-integration.ps1 -FixtureOnly
+      - name: Upload the fixture observation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-fixture-${{ matrix.os }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lycoris-installer-evidence/result.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package:
+    name: ${{ matrix.mode }} installer on ${{ matrix.os }}
+    needs: installer-fixture
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.mode == 'Candidate' && 40 || 25 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            mode: Baseline
+          - os: windows-2022
+            mode: Candidate
+          - os: windows-2025
+            mode: Candidate
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-dotnet@v6
+        if: matrix.mode == 'Candidate'
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run published 1.0.27 and reproduce both uninstall defects
+        if: matrix.mode == 'Baseline'
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Hosted runner required.' }
+          $setup = Join-Path $env:RUNNER_TEMP 'Lycoris-Setup-1.0.27.exe'
+          Invoke-WebRequest -Uri 'https://github.com/bil-xvii/Lycoris-releases/releases/download/v1.0.27/Lycoris-Setup-1.0.27.exe' -OutFile $setup -TimeoutSec 120 -MaximumRetryCount 2
+          $setupHash = 'CACFA53642A47EFB42225290BD226E535DEB5BA213494EC297AEB4A5696ECCBF'
+          $payloadHash = '2EFE931FB33C1637AE047B1D3B89A4F7E68472D1E269F81040D81C1A36A0176F'
+          ./tools/validation/installer-integration.ps1 -Mode Baseline -Version '1.0.27' -SetupPath $setup -SetupSha256 $setupHash -PayloadSha256 $payloadHash
+
+      - name: Build and validate per-user install, Russian and English self-tests, and uninstall
+        id: validate-candidate
+        if: matrix.mode == 'Candidate'
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Hosted runner required.' }
+          $publish = Join-Path $env:RUNNER_TEMP 'lycoris-installer-publish'
+          if (Test-Path -LiteralPath $publish) { throw 'Installer publish fixture already exists.' }
+          dotnet publish src/Lycoris/Lycoris.csproj -c Release -r win-x64 --self-contained true -o $publish
+          if ($LASTEXITCODE -ne 0) { throw "Candidate publish failed ($LASTEXITCODE)." }
+          if (-not (Get-Command iscc.exe -ErrorAction SilentlyContinue)) {
+            $roots = ${env:ProgramFiles(x86)}, $env:ProgramFiles, (Join-Path $env:LOCALAPPDATA 'Programs')
+            $iscc = $roots | ForEach-Object { Join-Path $_ 'Inno Setup 6\ISCC.exe' } |
+              Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+            if (-not $iscc) { throw 'The hosted image does not have Inno Setup 6.' }
+            $env:PATH = "$(Split-Path -LiteralPath $iscc);$env:PATH"
+          }
+          ./tools/build-installer.ps1 -PublishDirectory $publish
+          [xml]$project = Get-Content -LiteralPath 'src/Lycoris/Lycoris.csproj' -Raw
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          $setup = Join-Path $publish "Lycoris-Setup-$version.exe"
+          $payload = Join-Path $publish 'Lycoris.exe'
+          $setupHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash
+          $payloadHash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash
+          ./tools/validation/installer-integration.ps1 -Mode Candidate -Version $version -SetupPath $setup -SetupSha256 $setupHash -PayloadSha256 $payloadHash
+          if ((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash -cne $setupHash -or
+              (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash -cne $payloadHash) {
+            throw 'A tested candidate file changed after validation.'
+          }
+          $revision = git rev-parse --verify HEAD
+          if ($LASTEXITCODE -ne 0 -or $revision -notmatch '\A[0-9a-f]{40}\z') { throw 'Could not identify the tested revision.' }
+          $setupFile = Get-Item -LiteralPath $setup
+          $payloadFile = Get-Item -LiteralPath $payload
+          [ordered]@{
+            SourceRevision = $revision
+            Version = $version
+            Files = @(
+              [ordered]@{ Name = $payloadFile.Name; Sha256 = $payloadHash; SizeBytes = $payloadFile.Length }
+              [ordered]@{ Name = $setupFile.Name; Sha256 = $setupHash; SizeBytes = $setupFile.Length }
+            )
+          } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $publish 'tested-manifest.json') -Encoding utf8
+          "setup_name=$($setupFile.Name)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+
+      - name: Upload installer observations
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-${{ matrix.mode }}-${{ matrix.os }}
+          path: ${{ runner.temp }}/lycoris-installer-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload the tested candidate executables
+        if: success() && matrix.mode == 'Candidate' && steps.validate-candidate.outputs.setup_name != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: tested-installer-${{ matrix.os }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lycoris-installer-publish/Lycoris.exe
+            ${{ runner.temp }}/lycoris-installer-publish/${{ steps.validate-candidate.outputs.setup_name }}
+            ${{ runner.temp }}/lycoris-installer-publish/tested-manifest.json
+          if-no-files-found: error
+          retention-days: 7

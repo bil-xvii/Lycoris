@@ -48,17 +48,19 @@ internal static class CustomSelectionStore
     internal static string Serialize(IEnumerable<string> ids) =>
         JsonSerializer.Serialize(ids.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToArray());
 
-    public static void Save(IEnumerable<string> ids)
+    public static void Save(IEnumerable<string> ids, string? path = null)
     {
+        if (AppSettings.SaveSuspended) return;
         var json = Serialize(ids);
         lock (Gate)
         {
             try
             {
-                if (!AppPaths.TryEnsureDir(AppPaths.UserDir)) return;
-                var tmp = FilePath + ".tmp";
+                path ??= FilePath;
+                if (Path.GetDirectoryName(path) is not { Length: > 0 } directory || !AppPaths.TryEnsureDir(directory)) return;
+                var tmp = path + ".tmp";
                 File.WriteAllText(tmp, json);
-                File.Move(tmp, FilePath, overwrite: true);
+                File.Move(tmp, path, overwrite: true);
             }
             catch (Exception ex)
             {

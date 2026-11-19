@@ -28,6 +28,7 @@ public sealed partial class StartupViewModel : PageViewModel
     public override string Glyph => Glyphs.Power;
 
     private bool _syncingSelection;
+    private string? _focusedEntryKey;
 
     public ObservableCollection<StartupItem> Items { get; } = [];
     public ObservableCollection<LogonTaskItem> Tasks { get; } = [];
@@ -73,8 +74,17 @@ public sealed partial class StartupViewModel : PageViewModel
     public bool ShowNoTasks => IsLoaded && TaskCount == 0;
     public bool HasSelection => SelectedCount > 0;
 
-    partial void OnFilterChanged(string value) => RefreshView();
-    partial void OnSearchChanged(string value) => RefreshView();
+    partial void OnFilterChanged(string value)
+    {
+        ClearEntryFocus();
+        RefreshView();
+    }
+
+    partial void OnSearchChanged(string value)
+    {
+        _focusedEntryKey = null;
+        RefreshView();
+    }
     partial void OnTotalCountChanged(int value)
     {
         OnPropertyChanged(nameof(HasItems));
@@ -152,6 +162,11 @@ public sealed partial class StartupViewModel : PageViewModel
                 item.PropertyChanged += OnItemPropertyChanged;
                 Items.Add(item);
             }
+        }
+        if (_focusedEntryKey is { } key && !HasUniqueEntry(key))
+        {
+            ClearEntryFocus();
+            NotifyFocusUnavailable();
         }
 
         if (!Tasks.Select(t => t.Info).SequenceEqual(tasks))
@@ -676,8 +691,36 @@ public sealed partial class StartupViewModel : PageViewModel
         UpdateSelection();
     }
 
+    internal bool FocusEntry(string key)
+    {
+        var matches = Items.Where(i => HasKey(i, key)).Take(2).ToArray();
+        if (matches.Length != 1) return false;
+
+        Filter = "all";
+        Search = matches[0].DisplayName;
+        _focusedEntryKey = matches[0].Key;
+        RefreshView();
+        return true;
+    }
+
+    internal void ClearEntryFocus()
+    {
+        if (_focusedEntryKey is null) return;
+        _focusedEntryKey = null;
+        Search = "";
+        RefreshView();
+    }
+
+    internal static void NotifyFocusUnavailable() => Ui.Toast(
+        Loc.T("Не удалось однозначно найти запись автозапуска. Обновите список и проверьте её ещё раз."), ToastKind.Warning);
+
+    private bool HasUniqueEntry(string key) => Items.Where(i => HasKey(i, key)).Take(2).Count() == 1;
+
+    private static bool HasKey(StartupItem item, string key) => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase);
+
     private bool Matches(StartupItem i)
     {
+        if (_focusedEntryKey is { } key) return HasKey(i, key);
         var passFilter = Filter switch
         {
             "enabled" => i.IsEnabled,

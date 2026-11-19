@@ -141,6 +141,7 @@
     "ОТКЛЮЧИТЬ ВЫБРАННЫЕ": "DISABLE SELECTED",
     "изменение типа запуска": "changing the start type",
     "Служба {0} не найдена — список устарел. Нажмите «Обновить».": "Service {0} not found — the list is out of date. Click “Refresh”.",
+    "Не удалось однозначно найти запись автозапуска. Обновите список и проверьте её ещё раз.": "Couldn't identify the startup entry. Refresh the list and check again.",
     "Перед изменением создаётся точка восстановления, исходный тип запуска сохраняется в журнале.": "A restore point is created before the change, and the original start type is saved in the change log.",
     "Служба сейчас не останавливается и не запускается — новый тип запуска сработает при следующем старте Windows.": "The service is not stopped or started now — the new start type takes effect at the next Windows start.",
     "Отключённую службу Windows не запустит даже по требованию: всё, что от неё зависит, перестанет работать.": "Windows won't start a disabled service even on demand: everything that depends on it will stop working.",

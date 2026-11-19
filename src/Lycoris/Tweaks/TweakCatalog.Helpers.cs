@@ -101,8 +101,11 @@ public static partial class TweakCatalog
 
     private static readonly Lazy<GpuSchedulingCaps?> GpuSchedulingLazy = new(QueryGpuScheduling);
 
+    // Tests can replace the driver probe; production uses the same cached native read.
+    internal static Func<GpuSchedulingCaps?> GpuSchedulingProbe { get; set; } = () => GpuSchedulingLazy.Value;
+
     /// <summary>What the WDDM drivers report about hardware-accelerated GPU scheduling (null = unknown).</summary>
-    internal static GpuSchedulingCaps? GpuScheduling => GpuSchedulingLazy.Value;
+    internal static GpuSchedulingCaps? GpuScheduling => GpuSchedulingProbe();
 
     /// <summary>
     /// Asks every display adapter for KMTQAITYPE_WDDM_2_7_CAPS (HwSchSupported / HwSchEnabled bits).
@@ -774,6 +777,7 @@ public static partial class TweakCatalog
         Category = category,
         Risk = risk,
         DefaultIn = defaults,
+        UsesActivePowerPlan = true,
         AppliesTo = appliesTo,
         NotApplicableReason = notApplicableReason,
         Warning = warning,
@@ -791,13 +795,10 @@ public static partial class TweakCatalog
             // recorded against that plan and silently stop applying when the session ends.
             if (SessionHoldsPlan())
                 throw new InvalidOperationException(Loc.T("сначала завершите игровой сеанс — сейчас действует его временная схема питания"));
-            var scheme = PowerSchemes.GetActive();
-            if (scheme == Guid.Empty) throw new InvalidOperationException(Loc.T("не удалось определить активную схему питания"));
+            var scheme = ctx.ConfirmedPowerScheme ?? PowerSchemes.GetActive();
             var satisfied = Satisfied(alsoSatisfied, onlyShorten, target);
-            var current = ReadIndex(dc, scheme, subgroup, setting)
-                          ?? throw new InvalidOperationException(Loc.T("параметр отсутствует в текущей схеме питания"));
-            if (PowerSettingState(current, target, satisfied) != TweakState.Applied)
-                WriteValue(ctx, dc, scheme, subgroup, setting, current, target, describe);
+            ApplyActivePowerSetting(scheme, target, satisfied, id => ReadIndex(dc, id, subgroup, setting),
+                current => WriteValue(ctx, dc, scheme, subgroup, setting, current, target, describe));
 
             // The plans a game session switches to: the same value, one record per plan, so the fix holds during the session.
             if (alsoSchemes is null) return;
@@ -809,6 +810,16 @@ public static partial class TweakCatalog
             }
         },
     };
+
+    /// <summary>Read the setting from the selected plan before writing, and keep the original for its journal record.</summary>
+    internal static void ApplyActivePowerSetting(Guid scheme, uint target, Func<uint, bool>? satisfied, Func<Guid, uint?> readValue,
+        Action<uint> writeWithOriginal)
+    {
+        if (scheme == Guid.Empty) throw new InvalidOperationException(Loc.T("не удалось определить активную схему питания"));
+        var current = readValue(scheme) ?? throw new InvalidOperationException(Loc.T("параметр отсутствует в текущей схеме питания"));
+        if (PowerSettingState(current, target, satisfied) != TweakState.Applied)
+            writeWithOriginal(current);
+    }
 
     /// <summary>The «already meets the goal» rule of a power setting item: the caller's own rule and/or «only shorten».</summary>
     internal static Func<uint, bool>? Satisfied(Func<uint, bool>? alsoSatisfied, bool onlyShorten, uint target)
@@ -832,6 +843,7 @@ public static partial class TweakCatalog
             var origin = HasOverride(dc, scheme, subgroup, setting) ? "" : Loc.T(" (по умолчанию схемы; при откате будет записано явно)");
             return (Loc.Tf("{0}, {1}: {2}{3}", plan, side, describe(current), origin), Loc.Tf("{0}, {1}: {2}", plan, side, describe(target)));
         });
+        ctx.RequireCurrentPowerScheme();
         RunJournaled(ctx, PowercfgTarget(dc, scheme, setting),
             CmdExe, CmdArgs(PowerSettingCommand(dc, scheme, subgroup, setting, target, rollbackTo: current)),
             CmdExe, CmdArgs(PowerSettingCommand(dc, scheme, subgroup, setting, current, rollbackTo: null)),

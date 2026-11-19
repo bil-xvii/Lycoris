@@ -16,6 +16,7 @@ using Lycoris.Modules.Games;
 using Lycoris.Modules.Home;
 using Lycoris.Modules.Maintenance;
 using Lycoris.Modules.Optimize;
+using Lycoris.Modules.Removal;
 using Lycoris.Modules.Restore;
 using Lycoris.Modules.Services;
 using Lycoris.Modules.Settings;
@@ -130,7 +131,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
     {
         "home" or "dashboard" or "assistant" => GroupOverview,
         "optimize" or "games" or "services" or "devices" => GroupBoost,
-        "maintenance" or "drivers" or "apps" => GroupMaintenance,
+        "maintenance" or "drivers" or "apps" or "removal" => GroupMaintenance,
         "restore" => GroupProtection,
         _ => "",
     };
@@ -151,6 +152,7 @@ public sealed partial class MainViewModel : ObservableObject, IUiHost
             new DriversViewModel(),
             Devices = new DevicesViewModel(),
             new AppsViewModel(),
+            new RemovalViewModel(),
             Restore = new RestoreViewModel(),
             new SettingsViewModel(),
         ];

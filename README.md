@@ -15,6 +15,7 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 - **Программы и драйверы.** Рекомендации по подтверждённой потребности: например, игровые службы для обнаруженного Xbox. Ошибка сканирования или старый кэш не считаются отсутствием программы; ручной выбор сохранён.
 - **Игры и профили.** Библиотека, избранное и GameBoost. Профили для игр, работы, стриминга и свой набор учитывают подтверждённую применимость аппаратных настроек.
 - **Обслуживание.** Автозапуск и службы, анализ и очистка временных файлов, системные инструменты.
+- **Удаление и отключение.** Отдельная панель с объяснениями: программу можно рассмотреть для удаления, её автозапуск можно отключить, компонент стоит оставить или нужны дополнительные сведения. Учитываются признаки установщика, системных компонентов и общих библиотек; неизвестная программа не объявляется ненужной. Удаление выполняется через штатный список Windows, отключение — через существующие проверки автозапуска.
 - **Разбор служб.** Возможные будущие функции сохраняются через обратимую настройку запуска. Удаление остатков ограничено проверенными сценариями: сейчас только простой остаток Everything после подтверждения удаления программы; неизвестные службы не удаляются автоматически.
 - **Контроль изменений.** Проверка ПК без изменений системы, предпросмотр и повторная проверка плана перед установкой. Подтверждение действий с правами администратора, журнал и откат поддерживаемых настроек.
 
@@ -25,7 +26,11 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 <img src="docs/branding/screenshots/home.png" width="100%" alt="Lycoris 1.0.26: Главная со сводкой состояния ПК и рекомендуемыми действиями">
 
 <details>
-<summary>Помощник, приложения и игровая библиотека</summary>
+<summary>Удаление, помощник, приложения и игровая библиотека</summary>
+
+**Удаление и отключение — решения с объяснениями и отдельный список автозапуска.**
+
+<img src="docs/branding/screenshots/removal.png" width="100%" alt="Lycoris 1.0.28: панель удаления и отключения со статусами программ, поиском и фильтром">
 
 **Помощник — объяснения проблем и доступные действия.**
 
@@ -41,7 +46,7 @@ Windows 10 2004+ / Windows 11, x64. .NET включён в загрузку. И�
 
 </details>
 
-Скриншоты версии **1.0.26**. Показатели и рекомендации зависят от компьютера.
+Панель удаления показана в **1.0.28**, остальные скриншоты — из **1.0.26**. Показатели и рекомендации зависят от компьютера.
 
 ## Перед запуском
 
@@ -84,8 +89,10 @@ powershell -ExecutionPolicy Bypass -File tools\publish.ps1     # Release-сбо�
 
 The Assistant also handles explicit enable, disable, start and stop service requests without Ollama, with an exact plan and verified outcome. Start policy and current running state are separate. Service residue removal currently supports only a constrained Everything remnant after you confirm the program was uninstalled; unknown services are not deleted. Supported removal records can be restored disabled, including from Simple mode.
 
+The separate **Uninstall and disable** panel explains which registered apps can be considered for removal, which startup entries are optional at sign-in, and which components should be kept or reviewed. Unknown apps are not labelled unnecessary. Uninstalling opens Windows Settings; startup actions use the existing guarded page. Gaming and streaming presets use an applicable Balanced plan, preserving compatible OEM plans. Automatic disk cleanup and other settings with trade-offs remain individual choices.
+
 Windows 10 2004+ / Windows 11 x64; .NET included; RU/EN interface. Simple mode is available to everyone; Expert mode is currently limited to the author's PC. Review and confirm changes requiring administrator rights. Only supported settings can be rolled back; file cleanup is irreversible. Restore points require available and enabled Windows System Protection. Performance gains are not guaranteed.
 
-Screenshots show the real **1.0.26** release on a specific PC. The app has no Authenticode certificate yet, so Windows may show “Unknown publisher”. Verify the release SHA-256; ECDSA update verification is separate from Windows publisher signing.
+The uninstall panel screenshot shows **1.0.28**; the other screenshots show **1.0.26** on a specific PC. The app has no Authenticode certificate yet, so Windows may show “Unknown publisher”. Verify the release SHA-256; ECDSA update verification is separate from Windows publisher signing.
 
 [Лицензия / License](LICENSE.md)

@@ -12,6 +12,7 @@
     "Режим оптимизации доставки задан групповой политикой.": "The Delivery Optimization mode is set by Group Policy.",
     "Wi-Fi без энергосбережения": "Wi-Fi without power saving",
     "При питании от сети адаптер Wi-Fi работает в режиме максимальной производительности.": "When plugged in, the Wi-Fi adapter runs in maximum performance mode.",
+    "Настройка для проверки скачков задержки Wi-Fi, если их вызывает энергосбережение адаптера. Меняется только значение «от сети» текущей схемы питания.": "Use this tweak to check whether adapter power saving is causing Wi-Fi latency spikes. It changes only the plugged-in setting of the current power plan.",
     "Убирает задержки и скачки пинга, когда адаптер «засыпает» между пакетами. Меняется только значение «от сети» текущей схемы питания; работа от батареи на ноутбуке не меняется.": "Removes delays and ping spikes when the adapter “falls asleep” between packets. Only the plugged-in value of the current power plan changes; battery operation on a laptop is not changed.",
     "низкое энергосбережение": "low power saving",
     "среднее энергосбережение": "medium power saving",

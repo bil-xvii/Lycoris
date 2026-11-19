@@ -36,6 +36,11 @@ public enum RestartRequirement { None, Explorer, SignOut, Reboot }
 
 public enum TweakState { Unknown, NotApplied, Applied, Partial, NotApplicable }
 
+/// <summary>The active scheme and the selected plan captured for one apply, before the user confirms it.</summary>
+internal sealed record PowerPlanIntent(Guid OriginalScheme, Tweak? SelectedPlan, bool SwitchPending);
+
+internal sealed class ActivePowerSchemeChangedException : Exception;
+
 /// <summary>Names of <see cref="Tweak.ExclusiveGroup"/>: one group = one system target.</summary>
 public static class TweakGroups
 {
@@ -65,7 +70,33 @@ public sealed class TweakContext
 
     public bool SetTask(string taskPath, bool enabled) => Session.SetTaskEnabled(taskPath, enabled, Source, Tweak.TitleRu);
 
-    public bool SetPowerScheme(Guid scheme, Guid? created = null) => Session.SetPowerScheme(scheme, Source, Tweak.TitleRu, created);
+    public bool SetPowerScheme(Guid scheme, Guid? created = null) =>
+        SetPowerScheme(scheme, created, (target, copy) => Session.SetPowerScheme(target, Source, Tweak.TitleRu, copy));
+
+    internal bool SetPowerScheme(Guid scheme, Guid? created, Func<Guid, Guid?, bool> activate)
+    {
+        if (IsPowerSchemeCurrent?.Invoke() == false)
+        {
+            // False lets a caller clean up a newly duplicated plan without switching to it.
+            PowerSchemeDrifted = true;
+            return false;
+        }
+        RequestedPowerScheme = scheme;
+        return activate(scheme, created);
+    }
+
+    internal bool PowerSchemeDrifted { get; private set; }
+    internal Guid? RequestedPowerScheme { get; private set; }
+
+    /// <summary>The confirmed target for a plan-scoped setting in this batch.</summary>
+    internal Guid? ConfirmedPowerScheme { get; init; }
+
+    internal Func<bool>? IsPowerSchemeCurrent { get; init; }
+
+    internal void RequireCurrentPowerScheme()
+    {
+        if (IsPowerSchemeCurrent?.Invoke() == false) throw new ActivePowerSchemeChangedException();
+    }
 }
 
 /// <summary>
@@ -102,6 +133,8 @@ public abstract class Tweak
     /// can be selected at a time: checking a member unchecks the others. Names in <see cref="TweakGroups"/>.
     /// </summary>
     public string? ExclusiveGroup { get; init; }
+    /// <summary>Detection and application depend on the active power plan, so a plan switch requires a fresh read.</summary>
+    internal bool UsesActivePowerPlan { get; init; }
     /// <summary>
     /// Ids of tweaks this one depends on (e.g. a power mode needs the Balanced plan). Satisfied when ANY of them is
     /// applied, or checked and pending in the same apply — then this row can be selected even while its own detection

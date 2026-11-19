@@ -1,4 +1,4 @@
-name: Service removal integration
+name: Services integration
 
 on:
   workflow_dispatch:
@@ -7,8 +7,14 @@ on:
     paths:
       - '.github/workflows/services-integration.yml'
       - 'src/Lycoris/Core/Services/ServiceRemoval*.cs'
+      - 'src/Lycoris/Core/AppPaths.cs'
       - 'src/Lycoris/Core/ChangeJournal.cs'
       - 'src/Lycoris/Core/ChangeSession.cs'
+      - 'src/Lycoris/Core/ServiceControl.cs'
+      - 'src/Lycoris/Lycoris.csproj'
+      - 'src/Lycoris/Modules/Services/**'
+      - 'tests/fixtures/ScmLifecycleService/**'
+      - 'tests/Lycoris.Tests/ServiceActionsNativeTests.cs'
       - 'tests/Lycoris.Tests/ServiceRemovalNativeTests.cs'
 
 permissions:
@@ -52,5 +58,58 @@ jobs:
         with:
           name: service-removal-native-results
           path: ${{ runner.temp }}/service-removal-native/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
+
+  scm-service-actions:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          architecture: x64
+      - name: Exercise Assistant service commands on the disposable Windows runner
+        shell: pwsh
+        env:
+          LYCORIS_SERVICE_ACTIONS_INTEGRATION: '1'
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+            throw 'A GitHub-hosted disposable runner is required.'
+          }
+
+          $runId = [guid]::NewGuid().ToString('N')
+          $fixture = Join-Path $env:RUNNER_TEMP "lycoris-service-actions-fixture-$runId"
+          $env:LYCORIS_TEST_ROOT = Join-Path $env:RUNNER_TEMP "lycoris-service-actions-data-$runId"
+          $env:LYCORIS_SCM_FIXTURE_EXE = Join-Path $fixture 'ScmLifecycleService.exe'
+          New-Item -ItemType Directory -Path $fixture | Out-Null
+          icacls.exe $fixture /grant '*S-1-5-19:(OI)(CI)(RX)'
+          if ($LASTEXITCODE -ne 0) { throw "Could not grant LocalService access to the fixture directory." }
+          dotnet publish tests/fixtures/ScmLifecycleService/ScmLifecycleService.cs -c Release -r win-x64 --self-contained true --output $fixture
+          if ($LASTEXITCODE -ne 0) { throw "SCM fixture publish failed with exit $LASTEXITCODE." }
+          if (-not (Test-Path -LiteralPath $env:LYCORIS_SCM_FIXTURE_EXE -PathType Leaf)) { throw 'The service fixture executable was not published.' }
+
+          $results = Join-Path $env:RUNNER_TEMP 'service-actions-native'
+          dotnet test tests/Lycoris.Tests/Lycoris.Tests.csproj -c Debug --filter 'FullyQualifiedName~ServiceActionsNativeTests' --results-directory $results --logger 'trx;LogFileName=service-actions.trx'
+          if ($LASTEXITCODE -ne 0) { throw "Native SCM actions test failed with exit $LASTEXITCODE." }
+
+          [xml] $trx = Get-Content -Raw -LiteralPath (Join-Path $results 'service-actions.trx')
+          $counters = $trx.TestRun.ResultSummary.Counters
+          if ([int] $counters.total -ne 1 -or [int] $counters.executed -ne 1 -or [int] $counters.passed -ne 1 -or [int] $counters.notExecuted -ne 0) {
+            throw 'Expected exactly one executed and passed SCM service actions test.'
+          }
+
+      - name: Upload native SCM actions diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: service-actions-native-results
+          path: |
+            ${{ runner.temp }}/service-actions-native/*.trx
+            ${{ runner.temp }}/lycoris-service-actions-data-*/user/Logs/*.log
           if-no-files-found: ignore
           retention-days: 7

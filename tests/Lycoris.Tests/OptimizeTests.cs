@@ -299,12 +299,19 @@ public sealed class OptimizeTests
             Assert.Equal(OptimizeLogic.ScenarioHint(p, false), OptimizeLogic.ScenarioHint(p, true));
             Assert.Matches("[А-Яа-я]", OptimizeLogic.ScenarioDescription(p, false));
         }
-        // The tooltips are honest about what a scenario does NOT touch.
-        Assert.Contains("Не трогает HAGS", OptimizeLogic.ScenarioHint(OptimizeProfile.Streaming, false));
-        Assert.Contains("Не трогает: телеметрию", OptimizeLogic.ScenarioHint(OptimizeProfile.Normal, false));
-        Assert.Contains("измерьте", OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, false));
-        Assert.Contains("дольше от батареи", OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, true));
-        Assert.DoesNotContain("батареи", OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, false));
+        Assert.Contains("Период активности Центра обновления задаётся в Параметрах Windows", OptimizeLogic.ScenarioHint(OptimizeProfile.Normal, false));
+        Assert.Contains("Windows подтверждает поддержку функции", OptimizeLogic.ScenarioHint(OptimizeProfile.Gaming, false));
+        var streamingHint = OptimizeLogic.ScenarioHint(OptimizeProfile.Streaming, false);
+        Assert.Contains("Отключает фоновую запись Game Bar", streamingHint);
+        Assert.Contains("Ручной захват зависит от настроек Game Bar", streamingHint);
+        var desktopEfficiencyHint = OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, false);
+        Assert.Contains("«Максимальная эффективность» от сети", desktopEfficiencyHint);
+        Assert.Contains("измерьте", desktopEfficiencyHint);
+        Assert.DoesNotContain("батареи", desktopEfficiencyHint);
+        var laptopEfficiencyHint = OptimizeLogic.ScenarioHint(OptimizeProfile.Efficiency, true);
+        Assert.Contains("«Максимальная эффективность» от батареи, если он доступен", laptopEfficiencyHint);
+        Assert.Contains("выключения экрана и сна, если сейчас оно больше", laptopEfficiencyHint);
+        Assert.Contains("Режим от сети настраивается отдельно", laptopEfficiencyHint);
     }
 
     [Fact]
@@ -322,19 +329,21 @@ public sealed class OptimizeTests
     public void Manual_steps_exist_only_for_the_scenario_applied_and_name_no_vendor()
     {
         Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Gaming, false));
-        Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Normal, false));
+        var work = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Normal, false));
+        Assert.Contains("Период активности", work);
         Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Recommended, false));
         Assert.Empty(OptimizeLogic.ManualSteps(OptimizeProfile.Custom, false));
-        var streaming = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Streaming, false));
-        Assert.Contains("Не беспокоить", streaming);
-        Assert.Contains("Lycoris не пишет", streaming);
+        var streaming = OptimizeLogic.ManualSteps(OptimizeProfile.Streaming, false);
+        Assert.Collection(streaming,
+            line => Assert.Contains("Не беспокоить", line),
+            line => Assert.Contains("клавишами ручного захвата Game Bar", line));
         var quiet = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Efficiency, false));
         Assert.Contains("FPS", quiet);
         Assert.Contains("вентиляторов", quiet);
         var battery = Assert.Single(OptimizeLogic.ManualSteps(OptimizeProfile.Efficiency, true));
         Assert.Contains("заряда", battery);
         Assert.Contains("динамическую частоту", battery);
-        foreach (var line in new[] { streaming, quiet, battery })
+        foreach (var line in streaming.Concat([work, quiet, battery]))
         {
             Assert.DoesNotContain("Armoury", line);
             Assert.DoesNotContain("Vantage", line);
@@ -342,6 +351,24 @@ public sealed class OptimizeTests
             Assert.True(line.Length <= 160, "one sentence per line");
         }
         Assert.Equal("ВРУЧНУЮ", OptimizeLogic.ManualStepsHeader);
+    }
+
+    [Fact]
+    public void Apply_report_does_not_verify_a_setting_skipped_after_a_failed_plan_switch()
+    {
+        var result = new TweakRunResult(0, 0, [], null, RestartRequirement.None)
+        {
+            SkippedIds = new HashSet<string> { "plan-setting" },
+            SkippedReasons = ["Настройка питания: смена схемы не подтверждена."],
+        };
+        ApplyReportRow[] rows = [new("plan-setting", "Настройка питания", TweakState.Applied, "")];
+
+        var report = OptimizeLogic.BuildApplyReport(result, rows, OptimizeProfile.Gaming, laptop: false);
+
+        Assert.Equal(0, report.Verified);
+        Assert.Equal("ГОТОВО ЧАСТИЧНО", report.Title);
+        Assert.Contains("ПРОПУЩЕНО — Настройка питания: смена схемы не подтверждена.", report.Lines);
+        Assert.DoesNotContain("ПРИМЕНЕНО — Настройка питания", report.Lines);
     }
 
     [Fact]

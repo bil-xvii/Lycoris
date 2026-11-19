@@ -89,35 +89,35 @@ internal static class OptimizeLogic
     /// <summary>One short line under the tile title (trimmed to the tile width; the full story is the tooltip).</summary>
     public static string ScenarioDescription(OptimizeProfile profile, bool laptop) => profile switch
     {
-        OptimizeProfile.Normal => Loc.T("Без рекламы, перезагрузки — ночью."),
+        OptimizeProfile.Normal => Loc.T("Меньше рекламы, поиск без Bing."),
         OptimizeProfile.Gaming => Loc.T("Приоритет игре, без фоновой записи."),
         OptimizeProfile.Recommended => Loc.T("Безопасный баланс для любого ПК."),
-        OptimizeProfile.Streaming => Loc.T("Без второго кодировщика и утечек."),
-        OptimizeProfile.Efficiency => laptop ? Loc.T("Дольше от батареи, тише.") : Loc.T("Тише и холоднее без нагрузки."),
+        OptimizeProfile.Streaming => Loc.T("Без фоновой записи Game Bar."),
+        OptimizeProfile.Efficiency => laptop ? Loc.T("Экономия энергии от батареи.") : Loc.T("Экономия энергии от сети."),
         _ => Loc.T("Только то, что отметили сами."),
     };
 
-    /// <summary>The tile tooltip: what the scenario does and what it deliberately does NOT touch.</summary>
+    /// <summary>The tile tooltip describing the scenario's main settings.</summary>
     public static string ScenarioHint(OptimizeProfile profile, bool laptop) => profile switch
     {
         OptimizeProfile.Normal =>
-            Loc.T("Без рекламы и подсказок, без перезагрузок с 8:00 до 2:00, локальный поиск без Bing. " +
-            "Не трогает: телеметрию и удалённый помощник, игровые настройки."),
+            Loc.T("Скрывает рекламные предложения и подсказки, оставляет поиск в «Пуске» локальным. " +
+                  "Период активности Центра обновления задаётся в Параметрах Windows."),
         OptimizeProfile.Gaming =>
-            Loc.T("Windows отдаёт приоритет игре и меньше отвлекает во время игры: игровой режим, HAGS для DLSS на RTX 40/50, без фоновой " +
-            "записи Game Bar. Только проверенные пункты без компромиссов в безопасности."),
+            Loc.T("Включает игровой режим, отключает фоновую запись Game Bar и использует сбалансированную схему питания. " +
+                  "HAGS включается, если в ПК есть GeForce RTX 40/50 и Windows подтверждает поддержку функции."),
         OptimizeProfile.Recommended =>
             Loc.T("Проверенные настройки без компромиссов: подходят и для работы, и для игр. Выбран по умолчанию."),
         OptimizeProfile.Streaming =>
-            Loc.T("Нет второго кодировщика Game Bar рядом с OBS, нет конфликтов Win+Alt+R, недавние файлы не попадают в эфир. " +
-            "Звук других программ не приглушается при звонках (нужен повторный вход в Windows). Не трогает HAGS; при проблемах с захватом есть пункт «Отключить HAGS». По желанию: «Без отключения USB-устройств»."),
+            Loc.T("Отключает фоновую запись Game Bar и скрывает недавние файлы на главной странице Проводника. " +
+                  "Ручной захват зависит от настроек Game Bar. Звук других программ сохраняет громкость во время звонков " +
+                  "(нужен повторный вход в Windows). При сбоях захвата настройку HAGS можно проверить вручную."),
         OptimizeProfile.Efficiency => laptop
-            ? Loc.T("Ниже частоты и нагрев под лёгкой нагрузкой — тише; на ноутбуке дольше от батареи. Эффект зависит от производителя — измерьте. " +
-                    "Кривые вентиляторов, лимиты мощности и предел заряда Lycoris не трогает (утилита производителя). " +
-                    "Режим «Максимальная эффективность» от сети — по желанию, отдельным пунктом. По желанию: «Без турбобуста процессора от сети».")
-            : Loc.T("Ниже частоты и нагрев под лёгкой нагрузкой — тише. Эффект зависит от производителя — измерьте. " +
-                    "Кривые вентиляторов, лимиты мощности и предел заряда Lycoris не трогает (утилита производителя). " +
-                    "По желанию: «Без турбобуста процессора от сети»."),
+            ? Loc.T("В Windows 11 использует режим «Максимальная эффективность» от батареи, если он доступен. " +
+                    "От батареи сокращает время до выключения экрана и сна, если сейчас оно больше. " +
+                    "Режим от сети настраивается отдельно.")
+            : Loc.T("На сбалансированной схеме включает режим «Максимальная эффективность» от сети для экономии энергии под лёгкой нагрузкой. " +
+                    "Эффект зависит от модели ПК — измерьте."),
         _ => Loc.T("Ваш собственный набор: отметьте нужные пункты в списке ниже. Выбор запоминается между запусками."),
     };
 
@@ -135,14 +135,18 @@ internal static class OptimizeLogic
     }
 
     /// <summary>
-    /// What the scenario cannot do safely and the user does by hand (read-only text for the apply-result dialog). Only for
-    /// the scenario just applied; empty for the rest («Игры»: the X3D row's Details already name Win+G).
+    /// Relevant Windows or application settings the user can adjust after applying this scenario.
     /// </summary>
     public static IReadOnlyList<string> ManualSteps(OptimizeProfile profile, bool laptop) => profile switch
     {
+        OptimizeProfile.Normal =>
+        [
+            Loc.T("Период активности можно настроить в Параметрах → Центр обновления Windows → Дополнительные параметры."),
+        ],
         OptimizeProfile.Streaming =>
         [
-            Loc.T("Не беспокоить → «Во время игры» — проверьте в Параметрах → Уведомления (Lycoris не пишет эту настройку)."),
+            Loc.T("Режим «Не беспокоить» во время игры можно настроить в Параметрах → Уведомления."),
+            Loc.T("Если пишете видео в OBS, проверьте, что его горячие клавиши не совпадают с клавишами ручного захвата Game Bar."),
         ],
         OptimizeProfile.Efficiency when laptop =>
         [
@@ -188,7 +192,7 @@ internal static class OptimizeLogic
         // Each line carries the «ВРУЧНУЮ —» label, like the «ПРИМЕНЕНО —» lines above it (the dialog lists bullets, not headers).
         lines.AddRange(ManualSteps(scenario, laptop).Select(m => ManualStepsHeader + " — " + m));
 
-        var verified = rows.Count(t => t.State == TweakState.Applied);
+        var verified = rows.Count(t => t.State == TweakState.Applied && !result.SkippedIds.Contains(t.Id));
         var title = result.Errors.Count > 0 ? Loc.T("ГОТОВО С ОШИБКАМИ") : verified == rows.Count ? Loc.T("ГОТОВО") : Loc.T("ГОТОВО ЧАСТИЧНО");
         var message = Loc.Tf("Подтверждено {0} из {1}, изменено параметров системы: {2}.",
                           verified, Loc.N(rows.Count, "{0} пункта", "{0} пунктов", "{0} пунктов"), result.Applied) +
@@ -207,12 +211,15 @@ internal static class OptimizeLogic
         hardwareFactsKnown && members.Any(m => m.ExclusiveGroup != TweakGroups.PowerPlan);
 
     /// <summary>
-    /// Tweaks whose apply deletes user data that undo cannot bring back (local list: Tweak has no such property yet).
+    /// Tweaks that delete user data or enable cleanup that can delete it later.
     /// They are never bulk-selected and always get a danger confirmation, even with ConfirmBeforeApply off.
     /// </summary>
     private static readonly Dictionary<string, string> DataLossNotes = new(StringComparer.Ordinal)
     {
         ["recall-snapshots-off"] = Loc.T("Уже сохранённые снимки Recall будут удалены — откат их не вернёт, он только снова разрешит сохранение."),
+        ["storage-sense-on"] = Loc.T("Включение Контроля памяти разрешает Windows удалять временные файлы и содержимое корзины. " +
+                                   "Если очистка «Загрузок» уже настроена, Windows может удалить файлы и из этой папки. " +
+                                   "Откат вернёт прежние настройки, но не восстановит удалённые файлы."),
     };
 
     /// <summary>The irreversible data-loss note of a tweak, or null when everything it does can be undone.</summary>

@@ -26,19 +26,17 @@ public static partial class TweakCatalog
 
     private static IEnumerable<Tweak> SystemTweaks()
     {
-        // SAFE-DEFAULT (Normal, Recommended). Never enables Downloads cleanup; keeps any values the user already chose.
+        // SAFE-OPTIONAL. Preserves existing cleanup preferences, including any Downloads cleanup.
         yield return new CustomTweak
         {
             Id = "storage-sense-on",
             Title = Loc.Key("Контроль памяти"),
-            Description = Loc.T("Windows сама удаляет временные файлы и старое содержимое корзины, когда на системном диске заканчивается место."),
-            Details = Loc.T("Предустановка Lycoris: запуск при нехватке места, удаление временных файлов приложений, очистка корзины от файлов " +
-                      "старше 30 дней. Папка «Загрузки» автоматически не очищается никогда. Если вы уже настраивали Контроль памяти, ваши " +
-                      "значения сохраняются — Lycoris только включает его и заполняет пустые параметры. Отмена — откатом или в Параметрах → " +
-                      "Система → Память."),
+            Description = Loc.T("Включает автоматическую очистку системного диска по настройкам Контроля памяти."),
+            Details = Loc.T("Для незаданных параметров Lycoris выбирает запуск при нехватке места, удаление временных файлов приложений и " +
+                      "очистку корзины от файлов старше 30 дней. Ранее заданные параметры сохраняются, включая автоматическую очистку папки " +
+                      "«Загрузки», если она настроена. Просмотреть параметры можно в разделе Параметры → Система → Память."),
             Category = TweakCategory.System,
-            Risk = TweakRisk.Safe,
-            DefaultIn = ProfileSet.Normal | ProfileSet.Recommended,
+            Risk = TweakRisk.Optional,
             AppliesTo = _ => LmInt(@"SOFTWARE\Policies\Microsoft\Windows\StorageSense", "AllowStorageSenseGlobal") is null or 1,
             NotApplicableReason = Loc.T("Контроль памяти отключён групповой политикой."),
             DetectFunc = () => CuInt(StoragePolicy, "01") == 1 ? TweakState.Applied : TweakState.NotApplied,
@@ -190,7 +188,6 @@ public static partial class TweakCatalog
                       "Центр обновления Windows → Дополнительные параметры. Игровой режим и так не даёт перезагружаться во время игры."),
             Category = TweakCategory.System,
             Risk = TweakRisk.Optional,
-            DefaultIn = ProfileSet.Normal, // SAFE-OPTIONAL pre-check of «Работа и учёба»: no restarts during the working day
             Values =
             [
                 Lm(@"SOFTWARE\Microsoft\WindowsUpdate\UX\Settings", "SmartActiveHoursState", 0),

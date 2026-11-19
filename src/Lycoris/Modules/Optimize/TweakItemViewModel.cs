@@ -89,7 +89,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
     private IReadOnlyList<ChangeLineViewModel> _changes = [];
 
     /// <summary>The row would change something and the current value is known: the line «сейчас X → станет Y» is shown.</summary>
-    public bool HasPreview => WillChange && Changes.Count > 0 && Changes[0].Current != Loc.T("чтение…");
+    public bool HasPreview => WillChange && PendingPowerPlan is null && Changes.Count > 0 && Changes[0].Current != Loc.T("чтение…");
     public string PreviewCurrent => Changes.Count > 0 ? Changes[0].Current : "";
     public string PreviewNew => Changes.Count > 0 ? Changes[0].New : "";
     public bool HasPreviewMore => Changes.Count > 1;
@@ -111,12 +111,20 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// A row the PC's hardware/OS rules out (AppliesTo) never becomes applicable through a dependency.
     /// </summary>
     public bool IsApplicableNow => OptimizeLogic.CanApplyRisk(Tweak.Risk, _owner.ExpertMode)
-        && !_owner.IsHardwareExcluded(Id) && OptimizeLogic.IsApplicableNow(State, Tweak, _owner.IsPendingRow);
-    public bool WillChange => State is { } s && (OptimizeLogic.WillChange(s) || DependencySatisfiedByPending);
+        && !_owner.IsHardwareExcluded(Id) && (OptimizeLogic.IsApplicableNow(State, Tweak, _owner.IsPendingRow) || PendingPowerPlan is not null);
+    public bool WillChange => State is { } s && (OptimizeLogic.WillChange(s) || DependencySatisfiedByPending || PendingPowerPlan is not null);
     public bool IsPending => IsChecked && WillChange;
 
     /// <summary>The first required tweak that is checked and pending in this same apply, or null.</summary>
     internal TweakItemViewModel? PendingDependency => _owner.PendingDependencyOf(this);
+
+    internal TweakItemViewModel? PendingPowerPlan => Tweak.UsesActivePowerPlan && !_owner.IsHardwareExcluded(Id)
+        ? _owner.PendingPowerPlan
+        : null;
+
+    internal string? PowerPlanRecheckNote => PendingPowerPlan is { } plan
+        ? Loc.Tf("Значение проверится после переключения схемы «{0}».", plan.Title)
+        : null;
 
     public string? NotApplicableText => State == TweakState.NotApplicable ? OptimizeLogic.NotApplicableText(Tweak) : null;
 
@@ -124,7 +132,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
     /// The caption under the row: «Применится после «…»» while a dependency is pending, else the not-applicable reason,
     /// null when the row is applicable.
     /// </summary>
-    public string? StatusNote => OptimizeLogic.StatusNote(Tweak, State, PendingDependency?.Title);
+    public string? StatusNote => PowerPlanRecheckNote ?? OptimizeLogic.StatusNote(Tweak, State, PendingDependency?.Title);
 
     /// <summary>
     /// Bound two-way to the row's checkbox. Checking an expert tweak first shows its warning; until the user
@@ -162,6 +170,7 @@ public sealed partial class TweakItemViewModel : ObservableObject
         OnPropertyChanged(nameof(WillChange));
         OnPropertyChanged(nameof(IsPending));
         OnPropertyChanged(nameof(StatusNote));
+        OnPropertyChanged(nameof(HasPreview));
     }
 
     /// <summary>Programmatic selection (profiles, select-all, accepted warnings): no side effects.</summary>

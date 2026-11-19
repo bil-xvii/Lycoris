@@ -1,0 +1,218 @@
+#requires -Version 7.4
+<#
+.SYNOPSIS
+Validates a pinned Lycoris installer on a disposable GitHub-hosted Windows runner.
+.DESCRIPTION
+Creates a fresh local standard account, profile, private desktop and disposable machine journal
+fixture. The Windows runner tears down the fixture directories and profile at job completion.
+.EXAMPLE
+./tools/validation/installer-integration.ps1 -Mode Candidate -Version $version -SetupPath $setup -SetupSha256 $setupHash -PayloadSha256 $payloadHash
+.EXAMPLE
+./tools/validation/installer-integration.ps1 -FixtureOnly
+.OUTPUTS
+The worker result and bounded installer logs under RUNNER_TEMP\lycoris-installer-evidence.
+#>
+[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Package')]
+param(
+    [Parameter(Mandatory, ParameterSetName = 'Fixture')][switch]$FixtureOnly,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidateSet('Baseline', 'Candidate')][string]$Mode,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidatePattern('\A[0-9]+\.[0-9]+\.[0-9]+\z')][string]$Version,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][string]$SetupPath,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidatePattern('\A[0-9A-Fa-f]{64}\z')][string]$SetupSha256,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidatePattern('\A[0-9A-Fa-f]{64}\z')][string]$PayloadSha256
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+if (-not $IsWindows -or -not [Environment]::Is64BitProcess -or $env:GITHUB_ACTIONS -cne 'true' -or
+    $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:GITHUB_RUN_ID -notmatch '\A[0-9]+\z' -or
+    [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+    throw 'A disposable x64 GitHub-hosted Windows runner is required.'
+}
+
+function Assert-DirectPath {
+    param([string]$Path)
+    if (-not [IO.Path]::IsPathFullyQualified($Path) -or $Path.StartsWith('\\')) { throw 'Expected a local absolute path.' }
+    for ($cursor = [IO.Path]::GetFullPath($Path); $cursor; $cursor = [IO.Path]::GetDirectoryName($cursor)) {
+        if ((Test-Path -LiteralPath $cursor) -and
+            ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Unexpected reparse point in fixture path: $cursor"
+        }
+    }
+}
+
+function New-TestDirectory {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [string]$Path,
+        [Security.Principal.SecurityIdentifier]$UserSid,
+        [Security.AccessControl.FileSystemRights]$UserRights
+    )
+    Assert-DirectPath -Path $Path
+    if (Test-Path -LiteralPath $Path) { throw "Fixture directory already exists: $Path" }
+    if (-not $PSCmdlet.ShouldProcess($Path, 'Create a disposable fixture directory and its isolated ACL')) {
+        throw 'Fixture directory creation was declined.'
+    }
+    $null = New-Item -Path $Path -ItemType Directory
+    $acl = [Security.AccessControl.DirectorySecurity]::new()
+    $acl.SetAccessRuleProtection($true, $false)
+    $inherit = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
+    $admins = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+    $system = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+    foreach ($sid in $admins, $system, $runnerSid) {
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', $inherit, 'None', 'Allow'))
+    }
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($UserSid, $UserRights, $inherit, 'None', 'Allow'))
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Copy-InstallerEvidence {
+    if (-not [IO.Directory]::Exists($state)) { return }
+    Assert-DirectPath -Path $state
+    foreach ($file in Get-ChildItem -LiteralPath $state -File) {
+        if ($file.Name -ne 'result.json' -and $file.Extension -ne '.log') { continue }
+        Assert-DirectPath -Path $file.FullName
+        if ($file.Length -gt 8MB) { throw 'Unexpected installer evidence size.' }
+        Copy-Item -LiteralPath $file.FullName -Destination $evidence
+    }
+    $selfTests = Join-Path $state 'selftest'
+    if (-not [IO.Directory]::Exists($selfTests)) { return }
+    Assert-DirectPath -Path $selfTests
+    $output = Join-Path $evidence 'selftest'
+    $null = New-Item -Path $output -ItemType Directory
+    foreach ($language in 'ru', 'en') {
+        $snapshots = Join-Path $selfTests $language
+        if (-not [IO.Directory]::Exists($snapshots)) { continue }
+        Assert-DirectPath -Path $snapshots
+        $destination = Join-Path $output $language
+        $null = New-Item -Path $destination -ItemType Directory
+        foreach ($file in Get-ChildItem -LiteralPath $snapshots -File) {
+            if ($file.Extension -ne '.png' -and $file.Name -notin @('report.md', 'report.json', 'missing-keys.txt')) { continue }
+            Assert-DirectPath -Path $file.FullName
+            if ($file.Length -gt 8MB) { throw 'Unexpected snapshot evidence size.' }
+            Copy-Item -LiteralPath $file.FullName -Destination $destination
+        }
+    }
+}
+
+$scenario = if ($FixtureOnly) { 'Fixture' } else { $Mode }
+if ($FixtureOnly) {
+    $action = 'Validate the private desktop and standard-user profile'
+}
+else {
+    $action = "Run the $Mode installer scenarios"
+    $setup = (Resolve-Path -LiteralPath $SetupPath).ProviderPath
+    $SetupSha256 = $SetupSha256.ToUpperInvariant()
+    $PayloadSha256 = $PayloadSha256.ToUpperInvariant()
+    if ($Mode -eq 'Baseline' -and
+        ($Version -cne '1.0.27' -or $SetupSha256 -cne 'CACFA53642A47EFB42225290BD226E535DEB5BA213494EC297AEB4A5696ECCBF' -or
+         $PayloadSha256 -cne '2EFE931FB33C1637AE047B1D3B89A4F7E68472D1E269F81040D81C1A36A0176F')) {
+        throw 'The historical baseline requires the published 1.0.27 SHA-256 pins.'
+    }
+    if ($Mode -eq 'Candidate' -and [version]$Version -le [version]'1.0.27') { throw 'The candidate must be newer than the baseline.' }
+    Assert-DirectPath -Path $setup
+    if ((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash -cne $SetupSha256) { throw 'Installer SHA-256 mismatch.' }
+}
+if (-not $PSCmdlet.ShouldProcess('This disposable GitHub-hosted Windows runner', $action)) { return }
+
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+try {
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        throw 'The hosted fixture launcher must be able to create a standard local account.'
+    }
+    $runnerSid = $identity.User
+}
+finally { $identity.Dispose() }
+$runName = [guid]::NewGuid().ToString('N')
+$accountName = 'lyci_' + $runName.Substring(0, 12)
+$systemDrive = [IO.Path]::GetPathRoot([Environment]::SystemDirectory)
+$profilePath = Join-Path $systemDrive "Users\$accountName"
+$scratch = Join-Path $systemDrive "LycorisInstaller-$runName"
+$state = Join-Path $scratch 'state'
+$machineFixture = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'Lycoris'
+$evidence = Join-Path $env:RUNNER_TEMP 'lycoris-installer-evidence'
+$fixtures = @($profilePath, $scratch, $evidence)
+if (-not $FixtureOnly) { $fixtures += $machineFixture }
+foreach ($path in $fixtures) {
+    Assert-DirectPath -Path $path
+    if (Test-Path -LiteralPath $path) { throw "Fixture already exists: $path" }
+}
+if (Get-LocalUser -Name $accountName -ErrorAction SilentlyContinue) { throw 'Disposable account already exists.' }
+$null = New-Item -Path $evidence -ItemType Directory
+
+$password = [Security.SecureString]::new()
+$passwordChars = ('aA9!' + [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))).ToCharArray()
+try {
+    foreach ($character in $passwordChars) { $password.AppendChar($character) }
+    $password.MakeReadOnly()
+}
+finally { [Array]::Clear($passwordChars, 0, $passwordChars.Length) }
+
+$account = $null
+try {
+    Add-Type -LiteralPath (Join-Path $PSScriptRoot 'installer-native.cs')
+    $account = New-LocalUser -Name $accountName -Password $password -Description 'Disposable Lycoris installer validation account'
+    $users = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-545')
+    if (-not (Get-LocalGroupMember -SID $users | Where-Object SID -eq $account.SID)) {
+        Add-LocalGroupMember -SID $users -Member $account
+    }
+    New-TestDirectory -Path $scratch -UserSid $account.SID -UserRights ReadAndExecute
+    New-TestDirectory -Path $state -UserSid $account.SID -UserRights Modify
+    New-TestDirectory -Path (Join-Path $scratch 'temp') -UserSid $account.SID -UserRights Modify
+    $worker = Join-Path $scratch 'installer-worker.ps1'
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'installer-worker.ps1') -Destination $worker
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'installer-native.cs') -Destination $scratch
+    $journalSha = $null
+    if (-not $FixtureOnly) {
+        # The test user can write only this fresh machine fixture, so accidental deletion can be detected.
+        New-TestDirectory -Path $machineFixture -UserSid $account.SID -UserRights Modify
+        $journal = Join-Path $machineFixture 'journal.json'
+        @{ Batches = @(); Records = @(); InstallerValidation = $runName } | ConvertTo-Json -Compress |
+            Set-Content -LiteralPath $journal -Encoding utf8
+        $journalSha = (Get-FileHash -LiteralPath $journal -Algorithm SHA256).Hash
+        Copy-Item -LiteralPath $setup -Destination (Join-Path $scratch 'setup.exe')
+    }
+    [ordered]@{
+        Mode = $scenario; Version = $Version; SetupSha256 = $SetupSha256; PayloadSha256 = $PayloadSha256
+        AccountSid = $account.SID.Value; ProfilePath = $profilePath
+        JournalSha256 = $journalSha
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $scratch 'fixture.json') -Encoding utf8
+
+    $pwsh = Join-Path $PSHOME 'pwsh.exe'
+    $workerTimeout = switch ($scenario) {
+        'Fixture' { 45000 }
+        'Candidate' { 1800000 }
+        default { 1200000 }
+    }
+    $workerExit = [InstallerNative]::RunWorker($runName, $accountName, $account.SID.Value, $password, $pwsh, $worker, $scratch, $workerTimeout)
+    $resultPath = Join-Path $state 'result.json'
+    if (-not [IO.File]::Exists($resultPath)) { throw "Standard worker returned $workerExit without an evidence report." }
+    Assert-DirectPath -Path $resultPath
+    if ((Get-Item -LiteralPath $resultPath).Length -gt 64KB) { throw 'Unexpected worker report size.' }
+    $raw = Get-Content -LiteralPath $resultPath -Raw
+    Write-Output $raw
+    $result = $raw | ConvertFrom-Json
+    $expectedStatus = switch ($scenario) { 'Fixture' { 'Fixture ready' } 'Baseline' { 'Expected release defects reproduced' } default { 'Passed' } }
+    $expectedCases = switch ($scenario) { 'Fixture' { 0 } 'Baseline' { 2 } default { 5 } }
+    if ($workerExit -ne 0 -or $result.Status -cne $expectedStatus -or -not $result.StandardUser -or -not $result.PrivateDesktop -or
+        $result.Cases.Count -ne $expectedCases) {
+        throw "Installer validation failed ($scenario, worker exit $workerExit). Review the above report."
+    }
+    if ($scenario -eq 'Candidate' -and ($result.SelfTests.Count -ne 2 -or $result.SelfTests[0].Language -cne 'ru' -or
+        $result.SelfTests[1].Language -cne 'en' -or
+        @($result.SelfTests | Where-Object { $_.Status -cnotin @('Passed', 'PassedWithWarnings') }).Count -ne 0)) {
+        throw 'The candidate did not complete both packaged self-tests successfully.'
+    }
+}
+finally {
+    try {
+        Copy-InstallerEvidence
+    }
+    finally {
+        try {
+            if ($null -ne $account) { Remove-LocalUser -SID $account.SID -Confirm:$false }
+        }
+        finally { $password.Dispose() }
+    }
+}

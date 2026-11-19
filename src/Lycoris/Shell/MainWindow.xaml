@@ -15,6 +15,7 @@
         xmlns:drv="clr-namespace:Lycoris.Modules.Drivers"
         xmlns:svc="clr-namespace:Lycoris.Modules.Services"
         xmlns:apps="clr-namespace:Lycoris.Modules.Apps"
+        xmlns:removal="clr-namespace:Lycoris.Modules.Removal"
         xmlns:dev="clr-namespace:Lycoris.Modules.Devices"
         xmlns:rest="clr-namespace:Lycoris.Modules.Restore"
         xmlns:set="clr-namespace:Lycoris.Modules.Settings"
@@ -43,6 +44,7 @@
         <DataTemplate DataType="{x:Type svc:ServicesViewModel}"><svc:ServicesView /></DataTemplate>
         <DataTemplate DataType="{x:Type dev:DevicesViewModel}"><dev:DevicesView /></DataTemplate>
         <DataTemplate DataType="{x:Type apps:AppsViewModel}"><apps:AppsView /></DataTemplate>
+        <DataTemplate DataType="{x:Type removal:RemovalViewModel}"><removal:RemovalView /></DataTemplate>
         <DataTemplate DataType="{x:Type rest:RestoreViewModel}"><rest:RestoreView /></DataTemplate>
         <DataTemplate DataType="{x:Type set:SettingsViewModel}"><set:SettingsView /></DataTemplate>
 

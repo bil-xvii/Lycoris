@@ -182,11 +182,21 @@ public sealed partial class AppSettings : ObservableObject
         {
             Log.Warn("Настройки повреждены, используются значения по умолчанию: {0}", ex.Message);
             // The next change saves over the file: keep what was there (language, accepted drift, first-run flag) for the user.
-            try { if (File.Exists(AppPaths.SettingsFile)) File.Copy(AppPaths.SettingsFile, AppPaths.SettingsFile + ".bad", overwrite: true); }
-            catch { /* best effort */ }
+            BackupInvalidSettings();
             Current = new AppSettings();
         }
         Current.PropertyChanged += (_, _) => Current.Save();
+    }
+
+    internal static void BackupInvalidSettings(string? path = null)
+    {
+        if (SaveSuspended) return;
+        try
+        {
+            path ??= AppPaths.SettingsFile;
+            if (File.Exists(path)) File.Copy(path, path + ".bad", overwrite: true);
+        }
+        catch { /* best effort */ }
     }
 
     internal static void MigrateLegacyPreferences(AppSettings settings, bool hasExpertMode)
@@ -198,7 +208,7 @@ public sealed partial class AppSettings : ObservableObject
     /// <summary>Every property change saves, from the UI thread and from background tasks (update check): one writer at a time, they share one .tmp file.</summary>
     private static readonly object SaveLock = new();
 
-    /// <summary>QA only («--snapshot … --mode simple|expert»): settings changed in memory for the screenshot are never written.</summary>
+    /// <summary>Keep preference changes in memory for screenshots, self-tests and profile commands.</summary>
     public static bool SaveSuspended { get; set; }
 
     public void Save()

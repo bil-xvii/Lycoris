@@ -262,15 +262,20 @@ public sealed class ProfileCommandLineTests
         Assert.Equal(0, host.Locks);
     }
 
-    [Fact]
-    public async Task Irreversible_data_loss_is_never_applied_by_a_blanket_yes()
+    [Theory]
+    [InlineData("recall-snapshots-off", "снимки Recall будут удалены")]
+    [InlineData("storage-sense-on", "не восстановит удалённые файлы")]
+    public async Task Irreversible_data_loss_is_never_applied_by_a_blanket_yes(string id, string warning)
     {
-        var host = HostWith("recall-snapshots-off", "reg");
+        var tweak = TweakCatalog.Find(id)!;
+        var host = HostWith("reg");
+        host.Targets.Insert(0, new ProfileCliTarget(tweak, TweakState.NotApplied));
         var (code, text) = await Run(host, "--apply-profile", "gaming", "--yes");
 
         Assert.Equal(ProfileCommandLine.Exit.Ok, code);
         Assert.Equal(["reg"], Assert.Single(host.Applies).Tweaks.Select(t => t.Id));
-        Assert.Contains("Пропущено — Пункт recall-snapshots-off", text);
+        Assert.Contains($"Пропущено — {tweak.Title}", text);
+        Assert.Contains(warning, text);
     }
 
     [Fact]

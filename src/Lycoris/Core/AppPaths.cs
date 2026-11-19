@@ -49,7 +49,7 @@ public static class AppPaths
 
     internal static void MigrateDirectory(string legacy, string current, bool allowLegacy = true)
     {
-        if (!allowLegacy) return;
+        if (!allowLegacy || AppSettings.SaveSuspended) return;
         try
         {
             if (!Directory.Exists(legacy)) return;
