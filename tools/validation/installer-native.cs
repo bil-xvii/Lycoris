@@ -205,9 +205,15 @@ public static class InstallerNative
             Observe(observations, $"owned pid={owner} parent={process.Parent} image={process.Image}");
             if (sampleThreads) ObserveOwnedThreads(owner, observations);
         }
+        if (count == 0)
+        {
+            Observe(observations, "private scan ownedProcesses=0 enumerationSkippedEmpty");
+            return 0;
+        }
 
         var dialogs = new List<(IntPtr Handle, uint Pid, uint Tid)>();
         int ownedWindows = 0;
+        Observe(observations, $"private enumeration starting ownedProcesses={count}");
         Check(EnumDesktopWindows(desktop, (window, _) =>
         {
             var tid = GetWindowThreadProcessId(window, out var pid);
