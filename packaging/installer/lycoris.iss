@@ -40,11 +40,16 @@ Source: "{#PublishDirectory}\Lycoris.exe"; DestDir: "{app}"; Flags: ignoreversio
 Name: "{group}\Lycoris"; Filename: "{app}\Lycoris.exe"
 Name: "{autodesktop}\Lycoris"; Filename: "{app}\Lycoris.exe"; Tasks: desktopicon
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\Lycoris"; Check: ShouldDeleteData
-
 [Code]
+const
+  InvalidFileAttributes = $FFFFFFFF;
+  ErrorFileNotFound = 2;
+  ErrorPathNotFound = 3;
+
 var DeleteData: Boolean;
+
+function GetFileAttributesW(FileName: String): Cardinal;
+external 'GetFileAttributesW@kernel32.dll stdcall uninstallonly';
 
 function InitializeUninstall(): Boolean;
 begin
@@ -54,9 +59,31 @@ begin
   Result := True;
 end;
 
-function ShouldDeleteData(): Boolean;
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+  Attributes: Cardinal;
+  ErrorCode: LongInt;
 begin
-  Result := DeleteData;
+  // Inno evaluates [UninstallDelete] checks during installation.
+  if (CurUninstallStep <> usUninstall) or not DeleteData then
+    Exit;
+
+  DataDir := ExpandConstant('{localappdata}\Lycoris');
+  Attributes := GetFileAttributesW(DataDir);
+  if Attributes = Cardinal(InvalidFileAttributes) then begin
+    ErrorCode := DLLGetLastError;
+    if (ErrorCode = ErrorFileNotFound) or (ErrorCode = ErrorPathNotFound) then
+      Exit;
+    RaiseException('Не удалось проверить папку локальных данных Lycoris. / Could not inspect the local Lycoris data folder. Win32 ' + IntToStr(ErrorCode) + '.');
+  end;
+  if (Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
+    RaiseException('Путь к локальным данным Lycoris не является папкой. / The local Lycoris data path is not a folder.');
+
+  if not DelTree(DataDir, True, True, True) then begin
+    Log('Failed to remove local Lycoris data.');
+    RaiseException('Не удалось полностью удалить локальные данные Lycoris. Закройте программы, использующие эти файлы, и повторите удаление. / Could not completely remove local Lycoris data. Close programs using these files and retry uninstalling.');
+  end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
