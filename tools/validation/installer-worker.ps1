@@ -23,6 +23,7 @@ $report = [ordered]@{
     PayloadSha256 = $fixture.PayloadSha256
     Version = $fixture.Version
     StandardUser = $false
+    PrivateDesktop = $false
     Status = 'Running'
     Phase = 'Verify private desktop and user'
     SelfTest = $null
@@ -216,7 +217,9 @@ function New-TestJunction {
 try {
     Add-Type -LiteralPath (Join-Path $scratch 'installer-native.cs')
     [InstallerNative]::RequirePrivateDesktop($RunName)
-    if ($fixture.Mode -cnotin @('Baseline', 'Candidate') -or $fixture.Version -notmatch '\A[0-9]+\.[0-9]+\.[0-9]+\z' -or
+    $report.PrivateDesktop = $true
+    if ($fixture.Mode -cnotin @('Fixture', 'Baseline', 'Candidate') -or
+        ($fixture.Mode -ne 'Fixture' -and $fixture.Version -notmatch '\A[0-9]+\.[0-9]+\.[0-9]+\z') -or
         ($fixture.Mode -eq 'Baseline' -and $fixture.Version -cne '1.0.27') -or
         ($fixture.Mode -eq 'Candidate' -and [version]$fixture.Version -le [version]'1.0.27')) {
         throw 'Invalid package fixture.'
@@ -250,6 +253,12 @@ try {
     $localData = [Environment]::GetFolderPath('LocalApplicationData', 'Create')
     if ($localData -ine $env:LOCALAPPDATA) { throw 'The default local application folder is not the fixture profile.' }
     $report.StandardUser = $true
+    if ($fixture.Mode -eq 'Fixture') {
+        if ([IO.File]::Exists((Join-Path $scratch 'setup.exe'))) { throw 'The fixture-only worker received a package.' }
+        $report.Phase = 'Done'
+        $report.Status = 'Fixture ready'
+        exit 0
+    }
 
     $setup = Join-Path $scratch 'setup.exe'
     $appFolder = Join-Path $localData 'Programs\Lycoris'

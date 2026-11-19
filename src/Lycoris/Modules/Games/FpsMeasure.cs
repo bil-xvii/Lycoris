@@ -68,9 +68,9 @@ public static class FpsMeasure
     /// <summary>
     /// Reads PresentMon's CSV (v1 or v2 metrics: both have Application, ProcessID, SwapChainAddress, MsBetweenPresents) and keeps
     /// the swap chain with the most frames — a game may own a second, idle one (launcher overlay, a video). Lines starting with
-    /// «//» (PresentMon's error notes) and malformed rows are skipped. Null when the header lacks MsBetweenPresents.
+    /// «//» (PresentMon's error notes) and malformed rows are skipped. Live capture requires a PID and swap-chain column.
     /// </summary>
-    public static FpsStats? ParseCsv(TextReader reader)
+    public static FpsStats? ParseCsv(TextReader reader, int? expectedProcessId = null)
     {
         var header = reader.ReadLine();
         if (header is null) return null;
@@ -80,6 +80,8 @@ public static class FpsMeasure
         var iApp = Array.FindIndex(cols, c => c.Equals("Application", StringComparison.OrdinalIgnoreCase));
         var iPid = Array.FindIndex(cols, c => c.Equals("ProcessID", StringComparison.OrdinalIgnoreCase));
         var iChain = Array.FindIndex(cols, c => c.Equals("SwapChainAddress", StringComparison.OrdinalIgnoreCase));
+        if (expectedProcessId is not null && (expectedProcessId <= 0 || iPid < 0 || iChain < 0 ||
+            Array.FindLastIndex(cols, c => c.Equals("ProcessID", StringComparison.OrdinalIgnoreCase)) != iPid)) return null;
 
         var chains = new Dictionary<string, List<double>>(StringComparer.Ordinal);
         var rows = 0;
@@ -89,9 +91,18 @@ public static class FpsMeasure
             if (line.Length == 0 || line.StartsWith("//", StringComparison.Ordinal)) continue;
             var f = line.Split(',');
             if (f.Length <= iMs) continue;
-            if (!double.TryParse(f[iMs].Trim().Trim('"'), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)) continue;
             string Field(int i) => i >= 0 && i < f.Length ? f[i].Trim() : "";
-            var key = Field(iApp) + "|" + Field(iPid) + "|" + Field(iChain);
+            var chain = Field(iChain);
+            if (expectedProcessId is int expected)
+            {
+                var pid = Field(iPid).AsSpan();
+                if (pid.Length >= 2 && pid[0] == '"' && pid[^1] == '"') pid = pid[1..^1];
+                if (f.Length != cols.Length || chain.Length == 0 ||
+                    !int.TryParse(pid, NumberStyles.None, CultureInfo.InvariantCulture, out var actual) || actual != expected) continue;
+            }
+            if (!double.TryParse(f[iMs].Trim().Trim('"'), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ||
+                !double.IsFinite(v) || v <= 0 || v > MaxFrameMs) continue;
+            var key = expectedProcessId is null ? Field(iApp) + "|" + Field(iPid) + "|" + chain : chain;
             if (!chains.TryGetValue(key, out var list)) chains[key] = list = [];
             list.Add(v);
         }
@@ -112,15 +123,15 @@ public static class FpsMeasure
     }
 
     /// <summary>The PresentMon console command line (each item one argument; no shell involved).</summary>
-    public static IReadOnlyList<string> BuildArguments(string processExe, int seconds, string outputCsv) =>
+    internal static IReadOnlyList<string> BuildArguments(int processId, int seconds, string outputCsv, string sessionName) =>
     [
-        "--process_name", processExe,
+        "--process_id", processId.ToString(CultureInfo.InvariantCulture),
         "--output_file", outputCsv,
         "--timed", seconds.ToString(CultureInfo.InvariantCulture),
         "--terminate_after_timed",
         "--no_console_stats",
-        "--session_name", "LycorisFps",
-        "--stop_existing_session",
+        "--terminate_on_proc_exit",
+        "--session_name", sessionName,
     ];
 
     /// <summary>Before → after for the three numbers; a warning when the two captures are not of the same thing.</summary>

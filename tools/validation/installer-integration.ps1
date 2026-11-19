@@ -7,16 +7,19 @@ Creates a fresh local standard account, profile, private desktop and disposable 
 fixture. The Windows runner tears down the fixture directories and profile at job completion.
 .EXAMPLE
 ./tools/validation/installer-integration.ps1 -Mode Candidate -Version $version -SetupPath $setup -SetupSha256 $setupHash -PayloadSha256 $payloadHash
+.EXAMPLE
+./tools/validation/installer-integration.ps1 -FixtureOnly
 .OUTPUTS
 The worker result and bounded installer logs under RUNNER_TEMP\lycoris-installer-evidence.
 #>
-[CmdletBinding(SupportsShouldProcess)]
+[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Package')]
 param(
-    [Parameter(Mandatory)][ValidateSet('Baseline', 'Candidate')][string]$Mode,
-    [Parameter(Mandatory)][ValidatePattern('\A[0-9]+\.[0-9]+\.[0-9]+\z')][string]$Version,
-    [Parameter(Mandatory)][string]$SetupPath,
-    [Parameter(Mandatory)][ValidatePattern('\A[0-9A-Fa-f]{64}\z')][string]$SetupSha256,
-    [Parameter(Mandatory)][ValidatePattern('\A[0-9A-Fa-f]{64}\z')][string]$PayloadSha256
+    [Parameter(Mandatory, ParameterSetName = 'Fixture')][switch]$FixtureOnly,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidateSet('Baseline', 'Candidate')][string]$Mode,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidatePattern('\A[0-9]+\.[0-9]+\.[0-9]+\z')][string]$Version,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][string]$SetupPath,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidatePattern('\A[0-9A-Fa-f]{64}\z')][string]$SetupSha256,
+    [Parameter(Mandatory, ParameterSetName = 'Package')][ValidatePattern('\A[0-9A-Fa-f]{64}\z')][string]$PayloadSha256
 )
 
 Set-StrictMode -Version Latest
@@ -85,18 +88,25 @@ function Copy-InstallerEvidence {
     }
 }
 
-$setup = (Resolve-Path -LiteralPath $SetupPath).ProviderPath
-$SetupSha256 = $SetupSha256.ToUpperInvariant()
-$PayloadSha256 = $PayloadSha256.ToUpperInvariant()
-if ($Mode -eq 'Baseline' -and
-    ($Version -cne '1.0.27' -or $SetupSha256 -cne 'CACFA53642A47EFB42225290BD226E535DEB5BA213494EC297AEB4A5696ECCBF' -or
-     $PayloadSha256 -cne '2EFE931FB33C1637AE047B1D3B89A4F7E68472D1E269F81040D81C1A36A0176F')) {
-    throw 'The historical baseline requires the published 1.0.27 SHA-256 pins.'
+$scenario = if ($FixtureOnly) { 'Fixture' } else { $Mode }
+if ($FixtureOnly) {
+    $action = 'Validate the private desktop and standard-user profile'
 }
-if ($Mode -eq 'Candidate' -and [version]$Version -le [version]'1.0.27') { throw 'The candidate must be newer than the baseline.' }
-Assert-DirectPath -Path $setup
-if ((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash -cne $SetupSha256) { throw 'Installer SHA-256 mismatch.' }
-if (-not $PSCmdlet.ShouldProcess('This disposable GitHub-hosted Windows runner', "Run the $Mode installer scenarios")) { return }
+else {
+    $action = "Run the $Mode installer scenarios"
+    $setup = (Resolve-Path -LiteralPath $SetupPath).ProviderPath
+    $SetupSha256 = $SetupSha256.ToUpperInvariant()
+    $PayloadSha256 = $PayloadSha256.ToUpperInvariant()
+    if ($Mode -eq 'Baseline' -and
+        ($Version -cne '1.0.27' -or $SetupSha256 -cne 'CACFA53642A47EFB42225290BD226E535DEB5BA213494EC297AEB4A5696ECCBF' -or
+         $PayloadSha256 -cne '2EFE931FB33C1637AE047B1D3B89A4F7E68472D1E269F81040D81C1A36A0176F')) {
+        throw 'The historical baseline requires the published 1.0.27 SHA-256 pins.'
+    }
+    if ($Mode -eq 'Candidate' -and [version]$Version -le [version]'1.0.27') { throw 'The candidate must be newer than the baseline.' }
+    Assert-DirectPath -Path $setup
+    if ((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash -cne $SetupSha256) { throw 'Installer SHA-256 mismatch.' }
+}
+if (-not $PSCmdlet.ShouldProcess('This disposable GitHub-hosted Windows runner', $action)) { return }
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 try {
@@ -115,7 +125,9 @@ $scratch = Join-Path $systemDrive "LycorisInstaller-$runName"
 $state = Join-Path $scratch 'state'
 $machineFixture = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'Lycoris'
 $evidence = Join-Path $env:RUNNER_TEMP 'lycoris-installer-evidence'
-foreach ($path in $profilePath, $scratch, $machineFixture, $evidence) {
+$fixtures = @($profilePath, $scratch, $evidence)
+if (-not $FixtureOnly) { $fixtures += $machineFixture }
+foreach ($path in $fixtures) {
     Assert-DirectPath -Path $path
     if (Test-Path -LiteralPath $path) { throw "Fixture already exists: $path" }
 }
@@ -141,24 +153,28 @@ try {
     New-TestDirectory -Path $scratch -UserSid $account.SID -UserRights ReadAndExecute
     New-TestDirectory -Path $state -UserSid $account.SID -UserRights Modify
     New-TestDirectory -Path (Join-Path $scratch 'temp') -UserSid $account.SID -UserRights Modify
-    # Only this fresh fixture is writable by the test user, so accidental machine-data deletion can be detected.
-    New-TestDirectory -Path $machineFixture -UserSid $account.SID -UserRights Modify
-    $journal = Join-Path $machineFixture 'journal.json'
-    @{ Batches = @(); Records = @(); InstallerValidation = $runName } | ConvertTo-Json -Compress |
-        Set-Content -LiteralPath $journal -Encoding utf8
-
     $worker = Join-Path $scratch 'installer-worker.ps1'
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'installer-worker.ps1') -Destination $worker
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'installer-native.cs') -Destination $scratch
-    Copy-Item -LiteralPath $setup -Destination (Join-Path $scratch 'setup.exe')
+    $journalSha = $null
+    if (-not $FixtureOnly) {
+        # The test user can write only this fresh machine fixture, so accidental deletion can be detected.
+        New-TestDirectory -Path $machineFixture -UserSid $account.SID -UserRights Modify
+        $journal = Join-Path $machineFixture 'journal.json'
+        @{ Batches = @(); Records = @(); InstallerValidation = $runName } | ConvertTo-Json -Compress |
+            Set-Content -LiteralPath $journal -Encoding utf8
+        $journalSha = (Get-FileHash -LiteralPath $journal -Algorithm SHA256).Hash
+        Copy-Item -LiteralPath $setup -Destination (Join-Path $scratch 'setup.exe')
+    }
     [ordered]@{
-        Mode = $Mode; Version = $Version; SetupSha256 = $SetupSha256; PayloadSha256 = $PayloadSha256
+        Mode = $scenario; Version = $Version; SetupSha256 = $SetupSha256; PayloadSha256 = $PayloadSha256
         AccountSid = $account.SID.Value; ProfilePath = $profilePath
-        JournalSha256 = (Get-FileHash -LiteralPath $journal -Algorithm SHA256).Hash
+        JournalSha256 = $journalSha
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $scratch 'fixture.json') -Encoding utf8
 
     $pwsh = Join-Path $PSHOME 'pwsh.exe'
-    $workerExit = [InstallerNative]::RunWorker($runName, $accountName, $account.SID.Value, $password, $pwsh, $worker, $scratch, 1200000)
+    $workerTimeout = if ($FixtureOnly) { 45000 } else { 1200000 }
+    $workerExit = [InstallerNative]::RunWorker($runName, $accountName, $account.SID.Value, $password, $pwsh, $worker, $scratch, $workerTimeout)
     $resultPath = Join-Path $state 'result.json'
     if (-not [IO.File]::Exists($resultPath)) { throw "Standard worker returned $workerExit without an evidence report." }
     Assert-DirectPath -Path $resultPath
@@ -166,11 +182,11 @@ try {
     $raw = Get-Content -LiteralPath $resultPath -Raw
     Write-Output $raw
     $result = $raw | ConvertFrom-Json
-    $expectedStatus = if ($Mode -eq 'Baseline') { 'Expected release defects reproduced' } else { 'Passed' }
-    $expectedCases = if ($Mode -eq 'Baseline') { 2 } else { 5 }
-    if ($workerExit -ne 0 -or $result.Status -cne $expectedStatus -or -not $result.StandardUser -or
-        $result.Cases.Count -ne $expectedCases -or ($Mode -eq 'Candidate' -and $null -eq $result.SelfTest)) {
-        throw "Installer validation failed ($Mode, worker exit $workerExit). Review the above report."
+    $expectedStatus = switch ($scenario) { 'Fixture' { 'Fixture ready' } 'Baseline' { 'Expected release defects reproduced' } default { 'Passed' } }
+    $expectedCases = switch ($scenario) { 'Fixture' { 0 } 'Baseline' { 2 } default { 5 } }
+    if ($workerExit -ne 0 -or $result.Status -cne $expectedStatus -or -not $result.StandardUser -or -not $result.PrivateDesktop -or
+        $result.Cases.Count -ne $expectedCases -or ($scenario -eq 'Candidate' -and $null -eq $result.SelfTest)) {
+        throw "Installer validation failed ($scenario, worker exit $workerExit). Review the above report."
     }
 }
 finally {

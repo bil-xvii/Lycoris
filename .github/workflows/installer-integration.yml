@@ -15,8 +15,36 @@ permissions:
   contents: read
 
 jobs:
+  installer-fixture:
+    name: Standard-user desktop fixture on ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 4
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify profile and private desktop without an installer
+        shell: pwsh
+        run: |
+          ./tools/validation/installer-integration.ps1 -FixtureOnly
+      - name: Upload the fixture observation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-fixture-${{ matrix.os }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lycoris-installer-evidence/result.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   package:
     name: ${{ matrix.mode }} installer on ${{ matrix.os }}
+    needs: installer-fixture
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25

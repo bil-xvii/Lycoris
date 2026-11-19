@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Microsoft.Win32.SafeHandles;
 
 public static class InstallerNative
@@ -31,33 +33,10 @@ public static class InstallerNative
         if (user != "lyci_" + runName.Substring(0, 12) || !Regex.IsMatch(sid, @"\AS-1-5-21-(?:[0-9]+-){3}[0-9]+\z"))
             throw new ArgumentException("Unexpected disposable account identity.");
 
-        // The ACL is set at creation on fresh, private objects. The runner's desktop ACL stays intact.
-        Check(ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + sid + ")", 1, out var descriptor, IntPtr.Zero), "Create desktop ACL");
-        IntPtr station = IntPtr.Zero, desktop = IntPtr.Zero;
+        var stationName = StationName(runName);
+        var (station, desktop) = CreatePrivateDesktop(stationName, sid);
         try
         {
-            var security = new SecurityAttributes { Size = Marshal.SizeOf<SecurityAttributes>(), Descriptor = descriptor };
-            var previousStation = GetProcessWindowStation();
-            var previousDesktop = GetThreadDesktop(GetCurrentThreadId());
-            Check(previousStation != IntPtr.Zero && previousDesktop != IntPtr.Zero, "Read runner window station and desktop");
-            var stationName = StationName(runName);
-            station = CreateWindowStationW(stationName, 0, 0x000F037F, ref security);
-            Check(station != IntPtr.Zero, "Create private window station");
-            var stationAlreadyExisted = Marshal.GetLastWin32Error() == 183;
-            try
-            {
-                if (stationAlreadyExisted) throw new InvalidOperationException("Private window station already exists.");
-                Check(SetProcessWindowStation(station), "Attach to private window station");
-                desktop = CreateDesktopW(DesktopName, IntPtr.Zero, IntPtr.Zero, 0, 0x000F01FF, ref security);
-                Check(desktop != IntPtr.Zero, "Create private desktop");
-            }
-            finally
-            {
-                Check(SetProcessWindowStation(previousStation), "Restore runner window station");
-                Check(SetThreadDesktop(previousDesktop), "Restore runner thread desktop");
-            }
-
             using var job = CreateJobObjectW(IntPtr.Zero, null);
             Check(!job.IsInvalid, "Create disposable process job");
             var limits = new JobLimits { Flags = 0x2000 }; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
@@ -95,6 +74,8 @@ public static class InstallerNative
             using var process = new SafeFileHandle(worker.Process, true);
             using var thread = new SafeFileHandle(worker.Thread, true);
             var assigned = false;
+            uint exitCode = 0;
+            ExceptionDispatchInfo workerFailure = null;
             try
             {
                 Check(AssignProcessToJobObject(job, process), "Confine standard worker to process job");
@@ -103,23 +84,83 @@ public static class InstallerNative
                 var wait = WaitForSingleObject(process, (uint)timeoutMilliseconds);
                 if (wait == WaitTimeout) throw new TimeoutException("Standard installer worker timed out.");
                 Check(wait == 0, "Wait for standard installer worker");
-                Check(GetExitCodeProcess(process, out var exitCode), "Read standard worker exit code");
-                return exitCode;
+                Check(GetExitCodeProcess(process, out exitCode), "Read standard worker exit code");
             }
-            finally
+            catch (Exception ex) { workerFailure = ExceptionDispatchInfo.Capture(ex); }
+            try
             {
                 // This job is assigned only to the newly created suspended worker and its descendants.
                 if (assigned) Check(TerminateJobObject(job, 1), "Stop remaining disposable worker processes");
                 else Check(TerminateProcess(process, 1), "Stop unassigned suspended worker");
                 Check(WaitForSingleObject(process, 5000) == 0, "Wait for worker teardown");
             }
+            catch (Exception ex) when (workerFailure != null)
+            {
+                throw new AggregateException("Standard worker and its teardown failed.", workerFailure.SourceException, ex);
+            }
+            workerFailure?.Throw();
+            return exitCode;
         }
         finally
         {
-            if (desktop != IntPtr.Zero) CloseDesktop(desktop);
-            if (station != IntPtr.Zero) CloseWindowStation(station);
-            LocalFree(descriptor);
+            CloseDesktop(desktop);
+            CloseWindowStation(station);
         }
+    }
+
+    private static (IntPtr Station, IntPtr Desktop) CreatePrivateDesktop(string stationName, string sid)
+    {
+        var previousStation = GetProcessWindowStation();
+        Check(previousStation != IntPtr.Zero, "Read runner window station");
+        IntPtr station = IntPtr.Zero, desktop = IntPtr.Zero;
+        ExceptionDispatchInfo creationFailure = null;
+        // CreateDesktop binds the creating thread and may create a window on it. A dedicated
+        // thread exits with that binding, so the PowerShell caller never changes its desktop.
+        var creator = new Thread(() =>
+        {
+            try
+            {
+                // Apply the ACL only to the new private window station and desktop.
+                Check(ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + sid + ")", 1, out var descriptor, IntPtr.Zero), "Create desktop ACL");
+                try
+                {
+                    var security = new SecurityAttributes { Size = Marshal.SizeOf<SecurityAttributes>(), Descriptor = descriptor };
+                    station = CreateWindowStationW(stationName, 0, 0x000F037F, ref security);
+                    Check(station != IntPtr.Zero, "Create private window station");
+                    if (Marshal.GetLastWin32Error() == 183)
+                        throw new InvalidOperationException("Private window station already exists.");
+                    Check(SetProcessWindowStation(station), "Attach to private window station");
+                    desktop = CreateDesktopW(DesktopName, IntPtr.Zero, IntPtr.Zero, 0, 0x000F01FF, ref security);
+                    Check(desktop != IntPtr.Zero, "Create private desktop");
+                }
+                finally { LocalFree(descriptor); }
+            }
+            catch (Exception ex) { creationFailure = ExceptionDispatchInfo.Capture(ex); }
+        }) { IsBackground = true };
+        creator.Start();
+        // A timed-out creator belongs to this disposable launcher process. Process exit releases its handles.
+        if (!creator.Join(15000)) throw new TimeoutException("Create private desktop timed out.");
+
+        Exception restoreFailure = null;
+        try
+        {
+            if (GetProcessWindowStation() != previousStation)
+                Check(SetProcessWindowStation(previousStation), "Restore runner window station");
+        }
+        catch (Exception ex) { restoreFailure = ex; }
+
+        if (creationFailure == null && restoreFailure == null) return (station, desktop);
+        if (desktop != IntPtr.Zero) CloseDesktop(desktop);
+        if (station != IntPtr.Zero) CloseWindowStation(station);
+        if (restoreFailure != null)
+        {
+            if (creationFailure != null)
+                throw new AggregateException("Private desktop creation and window station restoration failed.", creationFailure.SourceException, restoreFailure);
+            throw restoreFailure;
+        }
+        creationFailure.Throw();
+        throw new InvalidOperationException("Unreachable desktop creation state.");
     }
 
     public static void RequirePrivateDesktop(string runName)
@@ -310,7 +351,6 @@ public static class InstallerNative
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr CreateDesktopW(string desktop, IntPtr device, IntPtr mode, uint flags, uint access,
         ref SecurityAttributes security);
-    [DllImport("user32.dll", SetLastError = true)] private static extern bool SetThreadDesktop(IntPtr desktop);
     [DllImport("user32.dll")] private static extern bool CloseDesktop(IntPtr desktop);
     [DllImport("user32.dll")] private static extern bool CloseWindowStation(IntPtr station);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]

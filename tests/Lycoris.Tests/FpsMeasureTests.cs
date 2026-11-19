@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using Lycoris.Core;
 using Lycoris.Core.Security;
 using Lycoris.Modules.Games;
 using Lycoris.Shell;
@@ -80,6 +81,31 @@ public class FpsMeasureTests
         Assert.Equal(16.5, FpsMeasure.ParseCsv(new StringReader(csv))!.AvgFrameMs, 6);
     }
 
+    [Fact]
+    public void ParseCsv_FiltersByPidBeforeChoosingTheBusiestSwapChain()
+    {
+        var csv = "Application,ProcessID,SwapChainAddress,MsBetweenPresents\n" +
+            string.Concat(Enumerable.Repeat("game.exe,200,0x1,2.0\n", 160)) +
+            string.Concat(Enumerable.Repeat("game.exe,100,0x2,25.0\n", 40)) +
+            string.Concat(Enumerable.Repeat("game.exe,\"100\",0x1,10.0\n", 60));
+        Assert.Equal(500, FpsMeasure.ParseCsv(new StringReader(csv))!.AvgFps, 6);
+        var own = FpsMeasure.ParseCsv(new StringReader(csv), 100);
+        Assert.NotNull(own);
+        Assert.Equal(60, own.Frames);
+        Assert.Equal(100, own.AvgFps, 6);
+        Assert.Null(FpsMeasure.ParseCsv(new StringReader(csv), 300));
+    }
+
+    [Theory]
+    [InlineData("Application,SwapChainAddress,MsBetweenPresents", "game.exe,0x1,10.0")]
+    [InlineData("Application,ProcessID,ProcessID,SwapChainAddress,MsBetweenPresents", "game.exe,100,200,0x1,10.0")]
+    [InlineData("Application,ProcessID,SwapChainAddress,MsBetweenPresents", "game.exe,,0x1,10.0")]
+    public void ParseCsv_RequiresAnUnambiguousPidInLiveCaptures(string columns, string frame)
+    {
+        var csv = columns + "\n" + string.Concat(Enumerable.Repeat(frame + "\n", 40));
+        Assert.Null(FpsMeasure.ParseCsv(new StringReader(csv), 100));
+    }
+
     [Theory]
     [InlineData("game", "game.exe")]
     [InlineData("Game.EXE", "Game.EXE")]
@@ -104,16 +130,155 @@ public class FpsMeasureTests
         Assert.Null(FpsMeasure.NormalizeProcess(input));
 
     [Fact]
-    public void BuildArguments_TimedCaptureThatEndsByItself()
+    public void BuildArguments_TimedExactPidCaptureWithUniqueSessionThatEndsByItself()
     {
-        var a = FpsMeasure.BuildArguments("game.exe", 30, @"C:\x\out.csv");
+        var session = new PresentMon.CaptureTrace((_, _) => throw new InvalidOperationException()).Name;
+        var second = new PresentMon.CaptureTrace((_, _) => throw new InvalidOperationException()).Name;
+        Assert.Matches("^LycorisFps-[0-9a-f]{32}$", session);
+        Assert.NotEqual(session, second);
+        var a = FpsMeasure.BuildArguments(456, 30, @"C:\x\out.csv", session);
         string After(string flag) => a[a.ToList().IndexOf(flag) + 1];
-        Assert.Equal("game.exe", After("--process_name"));
+        Assert.Equal("456", After("--process_id"));
+        Assert.Equal(session, After("--session_name"));
         Assert.Equal("30", After("--timed"));
         Assert.Equal(@"C:\x\out.csv", After("--output_file"));
         Assert.Contains("--terminate_after_timed", a);
-        Assert.Contains("--stop_existing_session", a);
+        Assert.Contains("--terminate_on_proc_exit", a);
+        Assert.DoesNotContain("--process_name", a);
+        Assert.DoesNotContain("--stop_existing_session", a);
+        Assert.DoesNotContain("--terminate_existing_session", a);
         Assert.Contains("--no_console_stats", a);
+    }
+
+    [Theory]
+    [InlineData(int.MinValue)]
+    [InlineData(0)]
+    [InlineData(16)]
+    [InlineData(61)]
+    [InlineData(int.MaxValue)]
+    public async Task Capture_RejectsUnsupportedDurationBeforePreparingTheCapture(int seconds)
+    {
+        var result = await PresentMon.CaptureAsync("game.exe", seconds, CancellationToken.None);
+        Assert.Null(result.Stats);
+        Assert.Equal(Loc.T("Длительность замера должна составлять 15, 30 или 60 секунд."), result.Error);
+    }
+
+    [Theory]
+    [InlineData(10, 456, true, false, true, true)]
+    [InlineData(11, 456, true, false, true, false)]
+    [InlineData(0, 456, true, false, false, false)]
+    [InlineData(10, 789, true, false, false, false)]
+    [InlineData(10, 456, false, false, false, false)]
+    [InlineData(10, 456, true, true, false, false)]
+    public void CaptureWindow_RequiresOriginalVisibleWindowOfTheTarget(int window, int ownerPid,
+        bool visible, bool minimized, bool canSelect, bool canContinue)
+    {
+        Assert.Equal(canSelect, PresentMon.CaptureWindowMatches(null, window, 456, ownerPid, visible, minimized));
+        Assert.Equal(canContinue, PresentMon.CaptureWindowMatches((nint)10, window, 456, ownerPid, visible, minimized));
+    }
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(5u)]
+    public async Task CaptureTrace_ExistingOrUnreadableSessionStopsBeforeLaunch(uint status)
+    {
+        var trace = new PresentMon.CaptureTrace((name, code) =>
+        {
+            Assert.NotNull(name);
+            Assert.Equal(PresentMon.TraceQuery, code);
+            return new(status);
+        });
+        var result = await trace.RunAsync(_ => throw new InvalidOperationException("Must not launch PresentMon."),
+            () => true, CancellationToken.None);
+        Assert.Null(result.Result);
+        Assert.False(result.TraceClean);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CaptureTrace_TargetChangeCancelsChildAndStopsOnlyObservedTrace(bool replaced)
+    {
+        var owned = new PresentMon.TraceState(0, Guid.NewGuid(), 10);
+        var foreign = new PresentMon.TraceState(0, Guid.NewGuid(), owned.Handle);
+        var absent = new PresentMon.TraceState(PresentMon.TraceNotFound);
+        var calls = new List<(string Name, uint Code)>();
+        var reads = 0;
+        var identityChecks = 0;
+        var trace = new PresentMon.CaptureTrace((name, code) =>
+        {
+            calls.Add((name, code));
+            if (code == PresentMon.TraceStop) return new(0);
+            return ++reads switch { 1 => absent, 2 => owned, 3 => replaced ? foreign : owned, _ => absent };
+        });
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var run = await trace.RunAsync(async token =>
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.Delay(Timeout.Infinite, token));
+            return new(-1, "", "", TimedOut: false, Cancelled: true);
+        }, () => ++identityChecks == 1, deadline.Token);
+        Assert.True(run.TargetChanged);
+        Assert.True(run.Result?.Cancelled);
+        Assert.Equal(!replaced, run.TraceClean);
+        Assert.All(calls, call => Assert.Equal(trace.Name, call.Name));
+        var stops = calls.Where(call => call.Code == PresentMon.TraceStop).ToList();
+        if (replaced) Assert.Empty(stops);
+        else Assert.Equal((trace.Name, PresentMon.TraceStop), Assert.Single(stops));
+    }
+
+    [Theory]
+    [InlineData(-1, false, true, true)]
+    [InlineData(-1, true, false, true)]
+    [InlineData(6, false, false, false)]
+    public async Task CaptureTrace_EarlyCancellationAndTimeoutCleanFreshSessionButCollisionDoesNot(int exit, bool timedOut,
+        bool cancelled, bool expectStop)
+    {
+        var active = new PresentMon.TraceState(0, Guid.NewGuid(), 10);
+        var absent = new PresentMon.TraceState(PresentMon.TraceNotFound);
+        var reads = 0;
+        var stops = new List<string>();
+        var trace = new PresentMon.CaptureTrace((name, code) =>
+        {
+            if (code == PresentMon.TraceQuery) return ++reads == 2 ? active : absent;
+            Assert.Equal(PresentMon.TraceStop, code);
+            stops.Add(name);
+            return new(0);
+        });
+        var result = await trace.RunAsync(_ => Task.FromResult(new ProcessResult(exit, "", "", timedOut, cancelled)),
+            () => true, CancellationToken.None);
+        Assert.Equal(expectStop, result.TraceClean);
+        if (expectStop) Assert.Equal(trace.Name, Assert.Single(stops));
+        else Assert.Empty(stops);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CaptureTrace_RecoversCleanupAfterQueryFailureOnlyForPreviouslyObservedIdentity(bool replaced)
+    {
+        var owned = new PresentMon.TraceState(0, Guid.NewGuid(), 10);
+        var replacement = new PresentMon.TraceState(0, Guid.NewGuid(), owned.Handle);
+        var absent = new PresentMon.TraceState(PresentMon.TraceNotFound);
+        var reads = 0;
+        var stops = new List<string>();
+        var trace = new PresentMon.CaptureTrace((name, code) =>
+        {
+            if (code == PresentMon.TraceQuery)
+                return ++reads switch { 1 => absent, 2 => owned, 3 => new(5), 4 => replaced ? replacement : owned, _ => absent };
+            Assert.Equal(PresentMon.TraceStop, code);
+            stops.Add(name);
+            return new(0);
+        });
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var result = await trace.RunAsync(async token =>
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.Delay(Timeout.Infinite, token));
+            return new(-1, "", "", TimedOut: false, Cancelled: true);
+        }, () => true, deadline.Token);
+        Assert.True(result.Result?.Cancelled);
+        Assert.False(result.TraceClean);
+        if (replaced) Assert.Empty(stops);
+        else Assert.Equal(trace.Name, Assert.Single(stops));
     }
 
     [Fact]
