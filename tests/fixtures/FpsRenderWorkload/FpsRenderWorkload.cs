@@ -36,10 +36,18 @@ sealed class RenderWindow : Form
         if (!window.InitializeGraphics()) return 1;
 
         int exitCode = 0;
+        bool closing = false;
         var elapsed = Stopwatch.StartNew();
         using var timer = new System.Windows.Forms.Timer { Interval = 17 };
+        window.FormClosing += (_, e) =>
+        {
+            if (e.Cancel) return;
+            closing = true;
+            timer.Stop();
+        };
         timer.Tick += (_, _) =>
         {
+            if (closing) return;
             if (elapsed.Elapsed >= TimeSpan.FromSeconds(180))
             {
                 window.Close();
@@ -47,7 +55,7 @@ sealed class RenderWindow : Form
             }
 
             if (window.WindowState == FormWindowState.Minimized) return;
-            if (window.Render((float)elapsed.Elapsed.TotalSeconds)) return;
+            if (window.Render((float)elapsed.Elapsed.TotalSeconds) || closing) return;
             exitCode = 2;
             window.Close();
         };

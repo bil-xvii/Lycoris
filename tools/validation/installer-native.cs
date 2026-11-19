@@ -263,8 +263,10 @@ public static class InstallerNative
             EnumChildWindows(dialog, (child, unused) =>
             {
                 childCount++;
+                var childThread = GetWindowThreadProcessId(child, out var childOwner);
                 var childClass = ClassName(child);
-                Observe(observations, $"private control pid={owner} tid={tid} hwnd={child.ToInt64():X} class={childClass}");
+                Observe(observations, $"private control pid={childOwner} tid={childThread} dialog={dialog.ToInt64():X} hwnd={child.ToInt64():X} class={childClass} id={GetDlgCtrlID(child)} enabled={IsWindowEnabled(child)}");
+                if (childOwner != owner || childThread != tid) return true;
                 if (childClass == "Static")
                 {
                     staticCount++;
@@ -299,10 +301,22 @@ public static class InstallerNative
                 throw new InvalidOperationException("Unexpected Lycoris uninstaller dialog: " + string.Join(" | ", labels));
             if (answered.Contains(kind)) continue; // Posted once. The dialog may still be processing it.
             var control = GetDlgItem(dialog, button);
+            if (control == IntPtr.Zero)
+            {
+                var error = Marshal.GetLastWin32Error();
+                Observe(observations, $"button pending kind={kind} dialog={dialog.ToInt64():X} expectedId={button} hwnd=0 win32={error}");
+                continue;
+            }
             var controlThread = GetWindowThreadProcessId(control, out var controlOwner);
-            if (control == IntPtr.Zero || controlThread != tid || controlOwner != owner ||
-                ClassName(control) != "Button" || !IsWindowEnabled(control))
-                throw new InvalidOperationException("The expected uninstaller button could not be verified.");
+            var controlClass = ClassName(control);
+            var controlId = GetDlgCtrlID(control);
+            var enabled = IsWindowEnabled(control);
+            var description = $"kind={kind} expectedPid={owner} expectedTid={tid} dialog={dialog.ToInt64():X} expectedId={button} hwnd={control.ToInt64():X} pid={controlOwner} tid={controlThread} class={controlClass} id={controlId} enabled={enabled}";
+            Observe(observations, "button lookup " + description);
+            if (controlThread == 0) continue; // The control disappeared between lookup and identity read.
+            if (controlThread != tid || controlOwner != owner || controlClass != "Button" || controlId != button)
+                throw new InvalidOperationException("The expected uninstaller button could not be verified: " + description);
+            if (!enabled) continue; // The native dialog has not enabled its expected button yet.
             // WM_COMMAND/BN_CLICKED to the verified dialog works on the non-input desktop.
             Check(PostMessageW(dialog, 0x0111, new UIntPtr((uint)button), control), "Answer verified uninstaller dialog");
             answered.Add(kind);
@@ -464,7 +478,8 @@ public static class InstallerNative
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int GetClassNameW(IntPtr window, StringBuilder buffer, int capacity);
-    [DllImport("user32.dll")] private static extern IntPtr GetDlgItem(IntPtr dialog, int button);
+    [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr GetDlgItem(IntPtr dialog, int button);
+    [DllImport("user32.dll")] private static extern int GetDlgCtrlID(IntPtr control);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, UIntPtr word, StringBuilder text,
         uint flags, uint milliseconds, out UIntPtr result);
