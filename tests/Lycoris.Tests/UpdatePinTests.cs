@@ -183,6 +183,8 @@ public sealed class UpdatePinRegistryTests : IDisposable
     private readonly string _root = $@"Software\Lycoris-Tests\Redirect-{Guid.NewGuid():N}";
     private readonly string _journalPath = Path.Combine(Path.GetTempPath(), $"lycoris-pintest-{Guid.NewGuid():N}.json");
 
+    private readonly Func<TweakCatalog.GpuSchedulingCaps?> _gpuSchedulingProbe = TweakCatalog.GpuSchedulingProbe;
+
     public UpdatePinRegistryTests()
     {
         RegistryHelper.Redirect = (hive, path) => (RegHive.HKCU, $@"{_root}\{hive}\{path}");
@@ -195,6 +197,7 @@ public sealed class UpdatePinRegistryTests : IDisposable
 
     public void Dispose()
     {
+        TweakCatalog.GpuSchedulingProbe = _gpuSchedulingProbe;
         RegistryHelper.Redirect = null;
         ChangeSession.BypassElevationForTests = false;
         TweakCatalog.UpdatePinToday = () => DateOnly.FromDateTime(DateTime.Now);
@@ -393,21 +396,63 @@ public sealed class UpdatePinRegistryTests : IDisposable
         Assert.False(RegistryHelper.KeyExists(RegHive.HKLM, Policy));
     }
 
-    [Fact]
-    public void Hags_off_detects_from_HwSchMode()
+    private static SystemProfile RtxProfile()
     {
+        var profile = new SystemProfile();
+        GpuInfo[] adapters = [new("NVIDIA GeForce RTX 5070 Ti", GpuVendor.Nvidia, "", null, 0, "")];
+        typeof(SystemProfile).GetProperty(nameof(SystemProfile.Gpus))!.SetValue(profile, adapters);
+        return profile;
+    }
+
+    [Theory]
+    [InlineData(false, TweakState.Applied, TweakState.NotApplied)]
+    [InlineData(true, TweakState.NotApplied, TweakState.Applied)]
+    public void Hags_off_detects_from_HwSchMode(bool driverEnabled, TweakState defaultOff, TweakState defaultOn)
+    {
+        TweakCatalog.GpuSchedulingProbe = () => new TweakCatalog.GpuSchedulingCaps(Supported: true, Enabled: driverEnabled);
         var off = TweakCatalog.Find(TweakCatalog.HagsOffId)!;
         var on = TweakCatalog.Find("hags")!;
+        var profile = RtxProfile();
+        Assert.True(off.IsApplicable(profile));
+        Assert.True(on.IsApplicable(profile));
+
         RegistryHelper.Write(RegHive.HKLM, GraphicsDrivers, "HwSchMode", RegistryValueKind.DWord, 1);
         Assert.Equal(TweakState.Applied, off.Detect());
         Assert.Equal(TweakState.NotApplied, on.Detect());
+
         RegistryHelper.Write(RegHive.HKLM, GraphicsDrivers, "HwSchMode", RegistryValueKind.DWord, 2);
         Assert.Equal(TweakState.NotApplied, off.Detect());
         Assert.Equal(TweakState.Applied, on.Detect());
+
         RegistryHelper.DeleteValue(RegHive.HKLM, GraphicsDrivers, "HwSchMode");
-        // No value: the driver's own default decides (the real D3DKMT answer of this machine).
-        var driverOff = TweakCatalog.GpuScheduling?.Enabled == false;
-        Assert.Equal(driverOff ? TweakState.Applied : TweakState.NotApplied, off.Detect());
+        Assert.Equal(defaultOff, off.Detect());
+        Assert.Equal(defaultOn, on.Detect());
+    }
+
+    [Theory]
+    [InlineData(false, TweakState.NotApplicable)]
+    [InlineData(null, TweakState.Unknown)]
+    public async Task Hags_catalog_requires_driver_support_even_with_a_registry_value(bool? supported, TweakState expected)
+    {
+        TweakCatalog.GpuSchedulingProbe = () => supported is { } value
+            ? new TweakCatalog.GpuSchedulingCaps(Supported: value, Enabled: false) : null;
+        RegistryHelper.Write(RegHive.HKLM, GraphicsDrivers, "HwSchMode", RegistryValueKind.DWord, 1);
+        var profile = RtxProfile();
+        var on = TweakCatalog.Find("hags")!;
+
+        Assert.False(on.IsApplicable(profile));
+        Assert.False(TweakCatalog.Find(TweakCatalog.HagsOffId)!.IsApplicable(profile));
+        Assert.Equal(expected, on.Detect());
+
+        var journal = new ChangeJournal(_journalPath);
+        var session = await ChangeSession.BeginAsync("test hags", createRestorePoint: false, journal: journal);
+        var error = Assert.Throws<InvalidOperationException>(
+            () => on.Apply(new TweakContext { Session = session, System = profile, Tweak = on }));
+        session.Complete();
+
+        Assert.Contains("Windows не подтвердила поддержку", error.Message);
+        Assert.Equal(1, RegistryHelper.ReadInt(RegHive.HKLM, GraphicsDrivers, "HwSchMode"));
+        Assert.Empty(journal.ActiveRecords);
     }
 
     [Theory]

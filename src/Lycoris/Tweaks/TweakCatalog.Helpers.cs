@@ -101,8 +101,11 @@ public static partial class TweakCatalog
 
     private static readonly Lazy<GpuSchedulingCaps?> GpuSchedulingLazy = new(QueryGpuScheduling);
 
+    // Tests can replace the driver probe; production uses the same cached native read.
+    internal static Func<GpuSchedulingCaps?> GpuSchedulingProbe { get; set; } = () => GpuSchedulingLazy.Value;
+
     /// <summary>What the WDDM drivers report about hardware-accelerated GPU scheduling (null = unknown).</summary>
-    internal static GpuSchedulingCaps? GpuScheduling => GpuSchedulingLazy.Value;
+    internal static GpuSchedulingCaps? GpuScheduling => GpuSchedulingProbe();
 
     /// <summary>
     /// Asks every display adapter for KMTQAITYPE_WDDM_2_7_CAPS (HwSchSupported / HwSchEnabled bits).
