@@ -7,10 +7,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 using Lycoris.Core.Background;
 using Lycoris.Core.Devices;
 using Lycoris.Core.Services;
+using Lycoris.Modules.Removal;
 using Lycoris.Modules.Services;
+using Lycoris.Modules.Startup;
 using Lycoris.Tweaks;
 
 namespace Lycoris.Core;
@@ -250,6 +253,7 @@ public sealed class ChangeJournal
         public int Version { get; set; } = 1;
         public List<ChangeBatch> Batches { get; set; } = [];
         public List<ChangeRecord> Records { get; set; } = [];
+        public List<ProgramRemovalAudit>? ProgramRemovals { get; set; }
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -329,6 +333,46 @@ public sealed class ChangeJournal
     public IReadOnlyList<ChangeRecord> Records { get { lock (_lock) return _data.Records.ToList(); } }
     public IReadOnlyList<ChangeBatch> Batches { get { lock (_lock) return _data.Batches.ToList(); } }
     public IReadOnlyList<ChangeRecord> ActiveRecords { get { lock (_lock) return _data.Records.Where(r => !r.Reverted).ToList(); } }
+
+    internal IReadOnlyList<ProgramRemovalAudit> ProgramRemovals
+    {
+        get { lock (_lock) return _data.ProgramRemovals?.ToArray() ?? []; }
+    }
+
+    internal bool TryStageProgramRemoval(ProgramRemovalAudit attempt)
+    {
+        lock (_lock)
+        {
+            if (_path is null || attempt.Outcome != ProgramRemovalAuditOutcome.Attempted) return false;
+            var audits = _data.ProgramRemovals ??= [];
+            if (audits.Any(audit => audit.OperationId == attempt.OperationId)) return false;
+            audits.Add(attempt);
+            if (SaveLocked()) return true;
+            audits.RemoveAt(audits.Count - 1);
+            if (audits.Count == 0) _data.ProgramRemovals = null;
+            return false;
+        }
+    }
+
+    internal bool TryFinishProgramRemoval(ProgramRemovalAudit attempt, ProgramRemovalAuditResult result)
+    {
+        lock (_lock)
+        {
+            if (_data.ProgramRemovals is not { } audits || !result.IsFinal) return false;
+            var index = audits.FindIndex(audit => audit == attempt);
+            if (index < 0) return false;
+            audits[index] = attempt with
+            {
+                Outcome = result.Outcome,
+                ExitCode = result.ExitCode,
+                FreshVerified = result.FreshVerified,
+                FinishedUtc = DateTime.UtcNow,
+            };
+            if (SaveLocked()) return true;
+            audits[index] = attempt;
+            return false;
+        }
+    }
 
     /// <summary>Starts a batch. Throws when the journal cannot be written: no change may be made without it.</summary>
     public ChangeBatch BeginBatch(string title)
@@ -598,7 +642,9 @@ public sealed class ChangeJournal
     /// Throws (and keeps nothing) when a new record could not be written to disk: the caller must then not make the
     /// change — no change without an on-disk undo record.
     /// </summary>
-    public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record)
+    public (ChangeRecord Record, bool IsNew) Add(ChangeRecord record) => Add(record, allowMerge: true);
+
+    internal (ChangeRecord Record, bool IsNew) Add(ChangeRecord record, bool allowMerge)
     {
         ChangeRecord result;
         bool isNew;
@@ -607,7 +653,7 @@ public sealed class ChangeJournal
             var scope = ScopeOf(record);
             var top = record.Target.Length == 0 ? null
                 : _data.Records.LastOrDefault(r => !r.Reverted && SameTarget(r.Target, record.Target) && ScopeOf(r) == scope);
-            if (top is not null && CanMerge(top, record))
+            if (allowMerge && top is not null && CanMerge(top, record))
             {
                 result = top;
                 isNew = false;
@@ -1462,6 +1508,7 @@ internal static class JournalTrust
     {
         "services", "services-tasks", "startup", "startup-tasks", "gameboost", "drivers", "games", DeviceTargets.Source,
         Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source, BackgroundStartupRegistration.Source, ServiceRemoval.Source,
+        StartupDisableBatchAction.JournalSource,
     };
 
     /// <summary>Kinds only the «Устройства и сеть» page writes (and the only kinds it writes).</summary>
@@ -1489,6 +1536,9 @@ internal static class JournalTrust
         if (!IsKnownSource(r.Source)) return Loc.Tf("неизвестный источник записи «{0}»", r.Source);
         foreach (var s in r.AlsoSources)
             if (!IsKnownSource(s)) return Loc.Tf("неизвестный источник записи «{0}»", s);
+        if (r.AlsoSources.Contains(StartupDisableBatchAction.JournalSource)
+            || (r.Source == StartupDisableBatchAction.JournalSource && r.AlsoSources.Count != 0))
+            return Loc.Tf("{0} — не отметка автозагрузки", r.Target);
         var isTweak = r.Source.StartsWith("tweak:", StringComparison.Ordinal);
 
         // Each module writes exactly one kind of record; tweaks may write any kind.
@@ -1497,7 +1547,7 @@ internal static class JournalTrust
             "services" => ChangeKind.Service,
             "services-tasks" or "startup-tasks" or Lycoris.Core.Maintenance.ScheduledMaintenanceTask.Source
                 or BackgroundStartupRegistration.Source => ChangeKind.ScheduledTask,
-            "startup" or "games" => ChangeKind.Registry,
+            "startup" or "games" or StartupDisableBatchAction.JournalSource => ChangeKind.Registry,
             // The game session switches the plan or, where no plan switch is possible, the Windows 11 AC power mode.
             "gameboost" => r.Kind == ChangeKind.Command ? ChangeKind.Command : ChangeKind.PowerScheme,
             "drivers" => ChangeKind.Command,
@@ -1539,6 +1589,8 @@ internal static class JournalTrust
                         return Loc.Tf("{0}\\{1} — защищённое место реестра", reg.Hive, root);
                 }
                 if (r.Source == "startup" && !IsStartupMark(reg)) return Loc.Tf("{0} — не отметка автозагрузки", reg.FullName);
+                if (r.Source == StartupDisableBatchAction.JournalSource && !IsBatchStartupMark(r, reg))
+                    return Loc.Tf("{0} — не отметка автозагрузки", reg.FullName);
                 if (r.Source == "games" && !IsGpuPreference(reg) && !Lycoris.Modules.Games.PriorityRules.IsRuleValue(reg))
                     return Loc.Tf("{0} — не выбор видеокарты и не приоритет программы", reg.FullName);
                 // A priority rule is written only by the Games page (a tweak or another page never touches IFEO).
@@ -1715,12 +1767,45 @@ internal static class JournalTrust
     private static readonly Regex ExePath = new(@"^[A-Za-z]:\\[^\x00-\x1F""<>|*?]+\.exe$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     /// <summary>The marks the startup page writes: StartupApproved (Run, Run32, StartupFolder) or a packaged app's startup task state.</summary>
-    private static bool IsStartupMark(RegistryValueSnapshot reg)
+    private static bool IsStartupMark(RegistryValueSnapshot reg) =>
+        IsClassicStartupMark(reg.Path.TrimEnd('\\')) || IsPackagedStartupMark(reg);
+
+    private static bool IsClassicStartupMark(string path) =>
+        new[] { "Run", "Run32", "StartupFolder" }.Any(sub => string.Equals(path, StartupApprovedRoot + sub, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsBatchStartupMark(ChangeRecord record, RegistryValueSnapshot reg)
     {
-        var p = reg.Path.TrimEnd('\\');
-        if (new[] { "Run", "Run32", "StartupFolder" }.Any(sub => string.Equals(p, StartupApprovedRoot + sub, StringComparison.OrdinalIgnoreCase)))
+        if (reg.Hive is not (RegHive.HKCU or RegHive.HKLM) || string.IsNullOrWhiteSpace(reg.Name)
+            || reg.Name.Any(char.IsControl) || reg.Name.Contains('\\') || !IsClassicStartupMark(reg.Path))
+            return false;
+        if (reg.Hive == RegHive.HKCU && (record.UserSid is null
+            || reg.Path.Equals(StartupApprovedRoot + "Run32", StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        const string prefix = "Binary: ";
+        if (record.NewValue is not { } newValue || !newValue.StartsWith(prefix, StringComparison.Ordinal)
+            || newValue.Length != prefix.Length + StartupApproved.Length * 3 - 1)
+            return false;
+        try
+        {
+            var written = Convert.FromHexString(newValue[prefix.Length..].Replace(" ", ""));
+            if (written is not [StartupApproved.DisabledFlag, 0, 0, 0, ..]
+                || written.Length != StartupApproved.Length || StartupApproved.DisabledAtUtc(written) is null
+                || newValue != prefix + StartupApproved.ToHex(written))
+                return false;
+
+            if (!reg.ValueExisted) return reg.Data is null && reg.Kind == RegistryValueKind.Unknown;
+            // Undoing an older layer can hand its original value to this record, including an older value kind.
+            if (!reg.KeyExisted || reg.Data is null || reg.Kind is not (RegistryValueKind.Binary or RegistryValueKind.DWord
+                or RegistryValueKind.QWord or RegistryValueKind.String or RegistryValueKind.ExpandString or RegistryValueKind.MultiString))
+                return false;
+            _ = RegistryHelper.Deserialize(reg.Kind, reg.Data);
             return true;
-        return IsPackagedStartupMark(reg);
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException or OverflowException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

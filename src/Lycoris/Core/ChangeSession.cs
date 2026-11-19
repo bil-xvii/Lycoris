@@ -85,12 +85,17 @@ public sealed class ChangeSession
         string source, string title) =>
         _journal.Exclusive(() => SetRegistryCore(hive, path, name, kind, value, source, title));
 
+    internal bool SetRegistry(RegHive hive, string path, string name, RegistryValueKind kind, object? value,
+        string source, string title, Func<RegistryValueSnapshot, bool> validateBeforeWrite) =>
+        _journal.Exclusive(() => SetRegistryCore(hive, path, name, kind, value, source, title, validateBeforeWrite));
+
     private bool SetRegistryCore(RegHive hive, string path, string name, RegistryValueKind kind, object? value,
-        string source, string title)
+        string source, string title, Func<RegistryValueSnapshot, bool>? validateBeforeWrite = null)
     {
         var target = $"reg:{hive}\\{path}\\{name}";
         ChangeRecord? rec = null;
         bool isNew = false;
+        bool writeAttempted = false;
         try
         {
             if (!_exportedKeys.Contains($"{hive}\\{path}"))
@@ -114,8 +119,15 @@ public sealed class ChangeSession
                 OldValue = snapshot.Describe(), NewValue = newText, Registry = snapshot, UserSid = userSid,
             };
             RefuseUntrusted(incoming); // never make a change the journal would refuse to undo
-            (rec, isNew) = _journal.Add(incoming);
+            // The opt-in guard needs the actual just-persisted original, including on a repeated write in one batch.
+            (rec, isNew) = _journal.Add(incoming, allowMerge: validateBeforeWrite is null);
+            if (validateBeforeWrite is not null && !validateBeforeWrite(snapshot))
+            {
+                _journal.Remove(rec);
+                return false;
+            }
 
+            writeAttempted = true;
             if (value is null) RegistryHelper.DeleteValue(hive, path, name);
             else RegistryHelper.Write(hive, path, name, kind, value);
 
@@ -126,7 +138,7 @@ public sealed class ChangeSession
         }
         catch (Exception ex)
         {
-            if (rec is not null && isNew) _journal.Remove(rec);
+            if (rec is not null && isNew && (validateBeforeWrite is null || !writeAttempted)) _journal.Remove(rec);
             Fail(title, ex);
             return false;
         }
@@ -369,6 +381,35 @@ public sealed class ChangeSession
     });
 
     // ───────────────────────────── Commands ─────────────────────────────
+
+    /// <summary>Records an irreversible uninstall without creating a Restore batch or recovery command.</summary>
+    internal static async Task<ProgramRemovalAuditOutcome> RunProgramRemovalAsync(ProgramRemovalAudit attempt,
+        Func<bool> canDispatch, Func<Task<ProgramRemovalAuditResult>> dispatchAndVerify, ChangeJournal? journal = null)
+    {
+        journal ??= ChangeJournal.Instance;
+        bool Allowed() => !SafetyLock.IsLocked && (BypassElevationForTests || Elevation.IsElevated) && canDispatch();
+        var staged = await journal.ExclusiveAsync(() =>
+        {
+            if (!Allowed()) return Task.FromResult(ProgramRemovalAuditOutcome.NotStarted);
+            return Task.FromResult(journal.TryStageProgramRemoval(attempt)
+                ? ProgramRemovalAuditOutcome.Attempted : ProgramRemovalAuditOutcome.JournalUnavailable);
+        }).ConfigureAwait(false);
+        if (staged != ProgramRemovalAuditOutcome.Attempted) return staged;
+
+        try
+        {
+            var result = Allowed() ? await dispatchAndVerify().ConfigureAwait(false)
+                : new ProgramRemovalAuditResult(ProgramRemovalAuditOutcome.NotStarted);
+            if (result.Outcome == ProgramRemovalAuditOutcome.Attempted) return result.Outcome;
+            return await journal.ExclusiveAsync(() => Task.FromResult(journal.TryFinishProgramRemoval(attempt, result)))
+                .ConfigureAwait(false) ? result.Outcome : ProgramRemovalAuditOutcome.Attempted;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Не удалось подтвердить результат удаления программы: {0}", ex.GetType().Name);
+            return ProgramRemovalAuditOutcome.Attempted;
+        }
+    }
 
     /// <summary>
     /// Runs a command whose effect is undone by another command (e.g. fsutil / bcdedit style settings).

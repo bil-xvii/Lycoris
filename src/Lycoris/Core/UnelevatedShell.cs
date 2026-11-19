@@ -30,6 +30,9 @@ public static class UnelevatedShell
     /// Explorer restarting) or the call failed — the caller then offers another way.
     /// </summary>
     public static Task<bool> ShellExecuteAsync(string file, string arguments, string directory, int show) =>
+        ShellExecuteAsync(file, arguments, directory, show, null);
+
+    internal static Task<bool> ShellExecuteAsync(string file, string arguments, string directory, int show, Func<bool>? beforeDispatch) =>
         RunStaAsync(() =>
         {
             object? shellWindows = null, desktop = null, browser = null, view = null, folderView = null, shellApp = null;
@@ -59,6 +62,7 @@ public static class UnelevatedShell
                 shellApp = folderView.GetType().InvokeMember("Application", BindingFlags.GetProperty, null, folderView, null);
                 if (shellApp is null) return false;
 
+                if (beforeDispatch is not null && !beforeDispatch()) return false;
                 shellApp.GetType().InvokeMember("ShellExecute", BindingFlags.InvokeMethod, null, shellApp,
                     [file, arguments, directory, "open", show]);
                 return true;

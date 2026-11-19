@@ -11,8 +11,10 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <TextBlock Text="{Binding InventoryMessage}" Style="{StaticResource T.Caption}" Margin="0,0,0,8" />
-                <Grid Grid.Row="1" Margin="0,0,0,10">
+                <TextBlock Text="{Binding InventoryMessage}" Style="{StaticResource T.Caption}" Margin="0,0,0,8"
+                           Visibility="{Binding HasBatchPreview, Converter={StaticResource InverseBoolToVis}}" />
+                <Grid Grid.Row="1" Margin="0,0,0,10"
+                      Visibility="{Binding HasBatchPreview, Converter={StaticResource InverseBoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -28,7 +30,7 @@
                               ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}" DisplayMemberPath="Title" />
                 </Grid>
 
-                <Grid Grid.Row="2">
+                <Grid Grid.Row="2" Visibility="{Binding HasBatchPreview, Converter={StaticResource InverseBoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="3*" />
                         <ColumnDefinition Width="2*" />
@@ -93,6 +95,64 @@
                         </ScrollViewer>
                     </Border>
                 </Grid>
+
+                <Border Grid.RowSpan="3" Style="{StaticResource Card}"
+                        Visibility="{Binding HasBatchPreview, Converter={StaticResource BoolToVis}}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding BatchPreviewTitle}" Style="{StaticResource T.H2}"
+                                       AutomationProperties.AutomationId="RemovalBatchPreviewTitle" />
+                            <TextBlock Text="{Binding BatchPreviewDescription}" Style="{StaticResource T.Caption}" Margin="0,5,0,8" />
+                        </StackPanel>
+                        <WrapPanel Grid.Row="1" Margin="0,0,0,4">
+                            <TextBlock Text="{Binding BatchSelectionText}" Style="{StaticResource T.BodyStrong}" VerticalAlignment="Center"
+                                       Margin="0,0,12,4" AutomationProperties.AutomationId="RemovalBatchSelectionCount" />
+                            <Button Content="{loc:T ВЫБРАТЬ ВСЕ}" Style="{StaticResource Btn.Ghost}"
+                                    Command="{Binding SelectAllBatchCommand}" Margin="0,0,6,4" />
+                            <Button Content="{loc:T СНЯТЬ ВЫБОР}" Style="{StaticResource Btn.Ghost}"
+                                    Command="{Binding ClearBatchSelectionCommand}" Margin="0,0,0,4" />
+                        </WrapPanel>
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding BatchRows}" IsEnabled="{Binding CanEditBatchPreview}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  AutomationProperties.Name="{Binding Name}" Margin="0,0,4,7"
+                                                  VerticalContentAlignment="Top">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource T.BodyStrong}" />
+                                                <TextBlock Text="{Binding Scope}" Style="{StaticResource T.Caption}" />
+                                                <TextBlock Text="{Binding Note}" Style="{StaticResource T.Caption}" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <StackPanel Grid.Row="3" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding BatchRightsNotice}" Style="{StaticResource T.Caption}" Margin="0,0,0,6"
+                                       Visibility="{Binding BatchRightsNotice, Converter={StaticResource NullToVis}}" />
+                            <WrapPanel>
+                                <Button Content="{Binding BatchExecuteText}" Command="{Binding ExecuteBatchCommand}" Margin="0,0,6,0"
+                                        AutomationProperties.AutomationId="RemovalExecuteBatch"
+                                        Visibility="{Binding IsUninstallPreview, Converter={StaticResource InverseBoolToVis}}"
+                                        Style="{StaticResource Btn.Primary}" />
+                                <Button Content="{Binding BatchExecuteText}" Command="{Binding ExecuteBatchCommand}" Margin="0,0,6,0"
+                                        AutomationProperties.AutomationId="RemovalExecuteBatch"
+                                        Visibility="{Binding IsUninstallPreview, Converter={StaticResource BoolToVis}}"
+                                        Style="{StaticResource Btn.Danger}" />
+                                <Button Content="{loc:T ОТМЕНА}" Style="{StaticResource Btn.Ghost}" Command="{Binding CancelBatchPreviewCommand}"
+                                        AutomationProperties.AutomationId="RemovalCancelBatchPreview" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -108,6 +168,19 @@
 
         <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,10,0,10" Padding="12,8">
             <StackPanel>
+                <WrapPanel Margin="0,0,0,4">
+                    <Button Content="{loc:T ПОДОБРАТЬ ПРОГРАММЫ ДЛЯ УДАЛЕНИЯ}" Style="{StaticResource Btn.Primary}"
+                            Command="{Binding PrepareUninstallCommand}" Margin="0,0,6,4" AutomationProperties.AutomationId="RemovalPrepareUninstall" />
+                    <Button Content="{loc:T ПОДОБРАТЬ ОТКЛЮЧЕНИЕ АВТОЗАПУСКА}" Style="{StaticResource Btn.Primary}"
+                            Command="{Binding PrepareDisableStartupCommand}" Margin="0,0,0,4" AutomationProperties.AutomationId="RemovalPrepareDisableStartup" />
+                </WrapPanel>
+                <TextBlock Text="{loc:T 'Все подтверждённые кандидаты будут отмечены в списке. Перед выполнением можно снять любые отметки.'}"
+                           Style="{StaticResource T.Caption}" Margin="1,0,0,8" />
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              MaxHeight="94" Margin="1,0,0,8" Visibility="{Binding HasBatchMessage, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding BatchMessage}" Style="{StaticResource T.Caption}"
+                               AutomationProperties.AutomationId="RemovalBatchMessage" />
+                </ScrollViewer>
                 <WrapPanel>
                     <Button Content="{loc:T ПРИЛОЖЕНИЯ WINDOWS}" Style="{StaticResource Btn.Ghost}" Command="{Binding OpenWindowsAppsCommand}"
                             Margin="0,0,6,4" />

@@ -46,11 +46,20 @@ public sealed partial class RemovalViewModel : PageViewModel
     [ObservableProperty] private IReadOnlyList<RemovalRow> _visibleRows = [];
     [ObservableProperty] private RemovalRow? _selectedRow;
 
-    public RemovalViewModel()
+    public RemovalViewModel() : this(new ProgramRemovalBatchAction(), new StartupDisableBatchAction()) { }
+
+    internal RemovalViewModel(IRemovalBatchAction uninstallBatch, IRemovalBatchAction disableBatch,
+        Func<string, bool>? requireAdmin = null,
+        Func<RemovalBatchKind, IReadOnlyList<string>, Task<bool>>? confirm = null)
     {
+        _uninstallBatch = uninstallBatch;
+        _disableBatch = disableBatch;
+        _requireBatchAdmin = requireAdmin ?? RequireAdmin;
+        _confirmBatch = confirm ?? ConfirmBatchAsync;
         PropertyChanged += (_, change) =>
         {
             if (change.PropertyName == nameof(IsBusy)) RefreshCommands();
+            if (change.PropertyName == nameof(ExpertMode)) InvalidateBatchPreview();
         };
     }
 
@@ -93,6 +102,7 @@ public sealed partial class RemovalViewModel : PageViewModel
 
     partial void OnTabIndexChanged(int value)
     {
+        InvalidateBatchPreview();
         OnPropertyChanged(nameof(IsStartupTab));
         OnPropertyChanged(nameof(Filters));
         SelectedFilter = All;
@@ -106,17 +116,16 @@ public sealed partial class RemovalViewModel : PageViewModel
 
     protected override Task LoadAsync() => RefreshAsync();
     protected override Task OnReturnAsync() => RefreshAsync();
+    public override void Deactivate() => InvalidateBatchPreview();
 
-    [RelayCommand]
+    private bool CanRefresh() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()
     {
+        InvalidateBatchPreview();
         if (IsBusy) return;
-        _programsCurrent = false;
-        _startupCurrent = false;
-        _startupRows = [];
-        if (_programInventory is not null) _programRows = RemovalPolicy.Programs(_programInventory, current: false);
-        UpdatePageStatus();
-        UpdateRows();
+        MarkInventoryStale();
 
         await RunBusyAsync(OperationClass.Measure, Loc.T("Проверка программ и автозапуска…"), async () =>
         {
@@ -138,6 +147,17 @@ public sealed partial class RemovalViewModel : PageViewModel
             UpdatePageStatus();
             UpdateRows();
         });
+    }
+
+    private void MarkInventoryStale()
+    {
+        _programsCurrent = false;
+        _startupCurrent = false;
+        _startupRows = [];
+        _startupCheckedAt = null;
+        if (_programInventory is not null) _programRows = RemovalPolicy.Programs(_programInventory, current: false);
+        UpdatePageStatus();
+        UpdateRows();
     }
 
     private static async Task<IReadOnlyList<StartupEntry>?> ReadStartupAsync()
@@ -183,6 +203,10 @@ public sealed partial class RemovalViewModel : PageViewModel
         OnPropertyChanged(nameof(HasSelection));
         OpenSelectedProgramCommand.NotifyCanExecuteChanged();
         OpenSelectedStartupCommand.NotifyCanExecuteChanged();
+        RefreshCommand.NotifyCanExecuteChanged();
+        PrepareUninstallCommand.NotifyCanExecuteChanged();
+        PrepareDisableStartupCommand.NotifyCanExecuteChanged();
+        RefreshBatchCommands();
     }
 
     private bool CanOpenProgram() => !IsBusy && _programsCurrent && ShowProgramAction && !SafetyLock.IsLocked;
