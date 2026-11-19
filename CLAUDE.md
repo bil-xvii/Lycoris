@@ -114,14 +114,15 @@ is replaced by this one. The audit with evidence: `docs/ux/ux-audit.md`; the app
    mode → ВСЕ СЛУЖБЫ…). Shortcuts to it (Dashboard tiles, the title-bar «ОТКАТ · N», toasts, «ОТКРЫТЬ В …» buttons) call
    that same command with the same confirmation — never a second implementation, never a second toggle.
 2. **Every action is a visible, labelled button**: icon + text, ≥ 30 px, outlined with `B.Outline` (`Btn`), or the ONE
-   white main button of the page (`Btn.Primary` / `Btn.Hero`). Never icon-only (`Btn.Icon` is for the window caption and
+   steel-filled main button of the page (`Btn.Primary` / `Btn.Hero`). Never icon-only (`Btn.Icon` is for the window caption and
    nothing else), never hover-only, never only in a ContextMenu, Ctrl+K or a tooltip. `Btn.Ghost` only next to a labelled
-   main button; `Btn.Link` = an outlined jump to another page («ОТКРЫТЬ В ОПТИМИЗАЦИИ →»); `Btn.Danger` = red outline + red text, lightly hatched at rest.
-3. **White fill = clickable, and only that.** Tags are status, never white and never an outlined capsule (`Tag`,
-   `Tag.Solid`, `Tag.Muted`, `Tag.Hatch`/`Tag.Risk` (red) — filled R.Xs blocks). One state vocabulary everywhere: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО ·
+   main button. `Btn.Link` is an outlined jump to another page («ОТКРЫТЬ В ОПТИМИЗАЦИИ →»).
+   `Btn.Danger` has a dark risk tint with a red outline and text.
+3. **Tags are status labels.** Use compact, filled R.Xs blocks (`Tag`, `Tag.Solid`, `Tag.Muted`, `Tag.Hatch`/`Tag.Risk` (red)).
+   One state vocabulary everywhere: ПРИМЕНЕНО · НЕ ПРИМЕНЕНО ·
    ИЗМЕНЕНО Lycoris (+ ОТКАТИТЬ) · НЕПРИМЕНИМО; risk БЕЗОПАСНО / ПО ЖЕЛАНИЮ / ЭКСПЕРТ. No local tag styles in modules.
-4. **Contrast and sizes.** Text ≥ 4.5:1 (`B.Text`, `B.Text2`, `B.Text3` #8A8A8A for captions), `B.Text4` #6B6B6B only
-   for disabled; outlines ≥ 3:1 (`B.Outline` #606060 for Btn / CheckBox / Toggle / Chip / TextBox borders, `Line*` only
+4. **Contrast and sizes.** Text ≥ 4.5:1 (`B.Text`, `B.Text2`, `B.Text3` for captions), `B.Text4` only
+   for disabled; outlines ≥ 3:1 (`B.Outline` for Btn / CheckBox / Toggle / Chip / TextBox borders, `Line*` only
    decorative). `T.Label` and `T.Caption` 12 px, tags 11, mono 11.5–12; no FontSize 9–10.5 anywhere; glyphs in buttons 12–13.
 5. **The reason for anything grey is text next to it** (`T.Caption`), never only a tooltip. A tooltip may repeat, never
    replace. Read-only mode: buttons are NOT disabled — a click calls `RequireAdmin(action, command, parameter)`, Lycoris
@@ -130,7 +131,7 @@ is replaced by this one. The audit with evidence: `docs/ux/ux-audit.md`; the app
 6. **Expanders hide only secondary text** — never an action and never «что изменится / риск / как откатить». The
    Expander header is an outlined «ПОКАЗАТЬ N ▾» / «ПОДРОБНЕЕ ▾» button; «сейчас X → станет Y» is always visible.
 7. **Tabs and filters look different.** Page tabs = a framed segmented control (`SegmentBar` + `Segment`, or TabControl;
-   selected = white block). Filters = `Chip` / `Chip.Toggle` in one row with the search box. Counters = the one `TabBadge`
+   selected = `B.Selected` with a steel underline). Filters = `Chip` / `Chip.Toggle` in one row with the search box. Counters = the one `TabBadge`
    style (`TabBadge.Alert` for attention), no Opacity, no «…».
 8. **One page anatomy** (`c:PageHeader` → tabs → optional summary strip → list panel → list → `c:StickyBar`):
    header = title, subtitle, «проверено HH:MM» (`Checked`), the one word «ОБНОВИТЬ» (`RefreshCommand`), secondary
@@ -140,10 +141,17 @@ is replaced by this one. The audit with evidence: `docs/ux/ux-audit.md`; the app
 9. **Search is visible**: the title-bar «ПОИСК Ctrl+K» button opens the command palette; the index
    (`Shell/CommandPaletteIndex`) covers pages, tweaks, tools, services, device settings, rejected tweaks, the Apps catalog,
    cleanup items, autostart entries (live scan), Settings rows, Drivers tabs and Restore sections. The palette only opens.
-10. **Sidebar** groups ОБЗОР · УСКОРЕНИЕ · ОБСЛУЖИВАНИЕ · ЗАЩИТА (`MainViewModel.NavGroupOf`) with a badge from
-    `PageViewModel.BadgeText` — set from values the page already has (last analysis, journal count); never start work
-    only for a badge.
-11. **Compact stays** (cards 14 px, rows 12/8, buttons 30 px, title 24 px) — but never by hiding actions.
+10. **Sidebar.** `MainViewModel.NavGroupOf` and `NavOrderOf` group and order these pages.
+
+    - **Главное** — Главная, Панель, Помощник.
+    - **Игры и производительность** — Игры, Оптимизация.
+    - **Программы** — Приложения, Удаление и отключение.
+    - **Windows и устройства** — Автозапуск и службы, Устройства и сеть, Драйверы, Обслуживание.
+    - **Восстановление** — Восстановление.
+
+    Settings («Настройки») sits in the sidebar footer. Set `PageViewModel.BadgeText` from values the page already has (last analysis,
+    journal count). Never start work only for a badge.
+11. **Compact stays** (cards 14 px, rows 12/8, buttons at least 30 px, title 28 px) — but never by hiding actions.
 Before adding UI: the logic goes to its one page; the shortcut goes where the user looks for it.
 
 ### Shared shell pieces (use them, do not re-implement)
@@ -154,7 +162,7 @@ Before adding UI: the logic goes to its one page; the shortcut goes where the us
 - `c:StickyBar` (`UI/Controls/StickyBar`): `Count`, `CountLabel` («ВЫБРАНО»), `Detail` («БУДЕТ ИЗМЕНЕНО 2»), `Text` (one
   muted line), `Actions` (last one = `Btn.Hero`). Place it in the last grid row, outside the page's ScrollViewer.
 - Theme: `Btn*`, `SegmentBar` + `Segment`, `Chip` (RadioButton) / `Chip.Toggle` (ToggleButton), `TabBadge(.Alert)`,
-  `Row` (hover = Surface3 + left bar), Expander (outlined header), `Tag*` (status only).
+  `Row` (hover uses `B.RowHover` and a `B.Line3` bottom hairline), Expander (outlined header), `Tag*` (status only).
 - `PageViewModel`: `BadgeText`, `CheckedAt`/`CheckedText`/`MarkChecked()`, `EnsureLoadedAsync()` (await the first load),
   `IsLoaded`, `RequireAdmin(action)` and `RequireAdmin(action, command, parameter)`.
 - Shell: `MainViewModel.OpenSearchCommand` (palette), `RevertLastBatchCommand` / `OpenRestoreCenterCommand` (the title-bar
@@ -253,52 +261,52 @@ XAML `{loc:T Применить}` with `xmlns:loc="clr-namespace:Lycoris.UI"`). 
   journal / settings / backups stay language-neutral (on-disk schema unchanged, texts are localized at display time); log FILES stay Russian, the console line is translated;
   tests keep Russian by default, English only inside `using var _ = Loc.UseLanguage("en");`.
 
-## Design system (black & white + red accent + three muted semantic hues)
+## Design system
 
-Black and white structure, adult, aggressive, modern. Hierarchy via luminance, weight, inversion (white blocks), hatching.
-Colour only MARKS MEANING (owner, 02.11.2026: «немножечко добавить цвета, но не терять профессионализм»; research and sources:
-`docs/ux/color-research.md`). Four hues, nothing else: **red** = brand, danger, failure, live (owner: «Красный акцент Dark»);
-**green (Success)** = applied / OK / done / safe / recommended / toggle ON; **amber (Warning)** = needs attention, partial, pending, busy
-(NOT danger); **steel blue (Info)** = information, optional, neutral progress and charts, measuring. Rules: colour is never the only carrier
-(a label, glyph or shape always sits next to it); at most ONE hue per component; hue lives in small things (dot, 1 px outline, text, thin top
-line, progress/meter fill) and in very dark tints (`*Deep`) with a hue outline — never a saturated large fill, never body text, never a theme
-recolour, never a gradient, no neon, no rainbow; white fill still = clickable only (primary button stays white, ordinary buttons neutral).
-Never put red, amber and green side by side at the same weight (traffic-light look): the risk vocabulary is БЕЗОПАСНО green · ПО ЖЕЛАНИЮ steel ·
-ЭКСПЕРТ red. `ThemeContrastTests` enforces ≥ 4.5:1 for every hue's text on Base/Surface/Surface2/Surface3/its Deep, ≥ 3:1 for fills, hue families,
-very dark Deep tints, muted (not neon) saturation, and pure-grey neutrals.
-- Semantic tokens (`Theme/Colors.xaml`, `C.*` + `B.*`), each hue = Fill / Text / Deep: `Success` #2F8F5B / `SuccessText` #58BE86 / `SuccessDeep` #0B2016;
-  `Warning` #B8893A / `WarningText` #E0AA4A / `WarningDeep` #2A1E08; `Info` #4F7FB0 / `InfoText` #78A6D6 / `InfoDeep` #0C1926. Styles: `Tag.Ok` / `Tag.Warn` /
-  `Tag.Info` (Deep + 1 px Fill outline + Text), `Callout.Ok/Warn/Info`, `Dot.Green/Amber/Info`, `TabBadge.Alert` (amber block, ink text; neutral at 0), `Toggle` ON = green
-  track + white knob, `ProgressBar` = steel blue, `c:Meter` = steel blue → amber (`WarnThreshold`) → red (`HotThreshold`; the value is printed beside it), toasts: Success green /
-  Info blue / Warning amber / Error red edge + glyph. Applied: Dashboard (score number + 10-segment bar by tier ≥90 green / ≥70 amber / <50 red, thin top lines on the six tiles:
-  game red, optimize+undo green, others blue; severity tags ВНИМАНИЕ amber / СОВЕТ blue / В НОРМЕ green), Optimize (state mark+text ПРИМЕНЕНО green, partial amber, ИЗМЕНИТСЯ blue,
-  profile tiles' top line green for «Рекомендуемый» / blue for scenarios), Services/Autostart ПРИМЕНЕНО, Cleaner risk tags and the servicing band, Restore (drift band amber, protection
-  on = green), Drivers status tags/glyphs, Devices safe tag. Deliberately NEUTRAL: ordinary buttons, segmented tabs (selected = white), nav (red marker only), chips, counters at 0,
-  НЕ ПРИМЕНЕНО / НЕПРИМЕНИМО text, hatched bands, body text, tags `Tag.Muted/Solid`.
-- Red tokens (`Theme/Colors.xaml`, `C.*` + `B.*`): `Red` #B3121F (borders, bars, dots, logo mark, small badge fill — white on it 6:1),
-  `RedHover` #D11A29 (hover edge of a danger outline), `RedText` #EA5B63 (red text/glyphs; ≥ 4.5:1 on Base, Surface, Surface2, Surface3 and RedDeep),
-  `RedDeep` #45080E (tint behind a risk tag/strip, always with a `Red` outline).
-- Where red goes: the logo mark and the selected sidebar marker; `Tag.Risk` (= `Tag.Hatch`: ЭКСПЕРТ / problem / ВНИМАНИЕ — RedDeep + Red outline + RedText);
-  `Callout.Risk`; `Btn.Danger` (red outline + RedText: ОТКАТИТЬ ВСЁ, СТОП, and the confirm button of
-  `Ui.ConfirmAsync(danger: true)` instead of the white main button); `Dot.Red` (LIVE, update button, active game session); warning bands in `B.Red`
-  (not the hatched band) only where the text is really bad (failed, blocked, risk); error toasts (red edge + glyph). Red is no longer used for progress bars,
-  «needs attention» counters or drift/outdated notices — those are amber/blue.
-- Brushes: `B.Base` (window), `B.Surface/2/3/4` (raised layers), `B.Line/2/3` (hairlines),
-  `B.Text/2/3/4` (text levels), `B.White`, `B.Ink` (text on white), `B.Hatch`, `B.HatchStrong`, `B.DotGrid`, `B.ChartFill`,
-  `B.Red`, `B.RedHover`, `B.RedText`, `B.RedDeep`, `B.Success/SuccessText/SuccessDeep`, `B.Warning/WarningText/WarningDeep`, `B.Info/InfoText/InfoDeep`.
-- Fonts: `F.Display` (Bahnschrift — use Bold + Condensed for headings), `F.Body` (Segoe UI Variable),
-  `F.Mono` (Cascadia Mono / Consolas — numbers, ids, logs), `F.Icons` (Segoe Fluent Icons; codes in `UI/Glyphs.cs`).
-- Text styles: `T.Display`, `T.H1`, `T.H2`, `T.H3`, `T.Label` (small caps-like labels), `T.Body`, `T.BodyStrong`,
-  `T.Caption`, `T.Mono`, `T.Stat` + `T.StatUnit` (big numbers), `T.Icon`.
-- Buttons (all outlined `B.Outline`, 30 px, icon + text): default `Btn`, `Btn.Primary` (white block — the ONE main
-  action), `Btn.Hero` (big primary, sticky bar), `Btn.Ghost` (outlined, muted text; secondary only), `Btn.Danger` (red outline, hatched
-  at rest), `Btn.Link` (outlined jump to another page), `Btn.Icon` (glyph only — window caption ONLY), `Btn.Caption`.
+The [professional redesign brief](docs/ux/professional-redesign.md) defines the current visual direction. The window uses a
+graphite base, layered slate surfaces and muted steel accents. Use surface contrast, spacing and type weight to establish
+hierarchy. Use the shared resources in `src/Lycoris/Theme/Colors.xaml`, `Typography.xaml` and `Controls.xaml` for actual
+values and states.
+
+- Surfaces and text use `B.Base` (window), `B.Surface/2/3/4` (raised layers), `B.Line/2/3` (decorative hairlines),
+  `B.Text/2/3/4` (text levels), `B.White`, `B.Ink` (dark foreground on light fills) and `B.ChartFill`. The retained
+  `B.Hatch`, `B.HatchStrong` and `B.DotGrid` keys now resolve to flat overlays or transparent fills.
+- Interactive states use `B.Outline` for control boundaries, `B.Accent` with `B.OnAccent` for primary actions,
+  and `B.AccentHover` / `B.AccentPressed` for their pointer states. Keyboard focus uses the shared `FocusVisual.Mono`.
+  Tabs and navigation use a `B.Selected` plate with a steel underline or side marker. Selected filters use the same plate
+  with an accent outline.
+- Semantic colors pair a label, glyph or shape with the color cue. Green (`Success`) marks applied, OK, done, safe,
+  recommended or on. Amber (`Warning`) marks attention, partial, pending or busy. Blue (`Info`) marks optional or
+  informational items, progress and measurements. Red marks risk, failure and destructive actions, and remains in the
+  logo mark and labeled live indicators. Keep semantic color cues small and use one hue per component. Use flat,
+  muted fills. The risk labels are БЕЗОПАСНО (green), ПО ЖЕЛАНИЮ (steel blue) and ЭКСПЕРТ (red).
+- Semantic `C.*` colors and `B.*` brushes use a fill, text and dark tint for each family (`Success/SuccessText/SuccessDeep`,
+  `Warning/WarningText/WarningDeep`, `Info/InfoText/InfoDeep`, `Red/RedText/RedDeep`). `B.RedHover` is the danger hover edge.
+  `Tag.Ok`, `Tag.Warn`, `Tag.Info`, `Callout.Ok/Warn/Info` and `Dot.Green/Amber/Info` share these tokens.
+  `TabBadge.Alert` is amber with dark text. Use the neutral `TabBadge` at zero. `Toggle` ON uses a green track with a dark knob.
+  `ProgressBar` uses `B.Info`.
+  `c:Meter` uses blue, amber at `WarnThreshold`, then red at `HotThreshold`, with its value printed beside it.
+  Toasts pair the semantic edge color with a glyph.
+- Risk uses `Tag.Risk` (`Tag.Hatch` is its existing alias), `Callout.Risk` and `Btn.Danger` with a dark red tint and a
+  red outline. `Btn.Danger` also styles the confirm button of `Ui.ConfirmAsync(danger: true)`. `Dot.Red` is used next
+  to a label for problem or live states. Use amber or blue for attention counts and drift or outdated notices.
+- Contrast targets are ≥ 4.5:1 for readable text and ≥ 3:1 for informative control boundaries and state indicators.
+  `ThemeContrastTests` covers these pairs, including primary pointer states, keyboard focus and selection, and checks
+  the muted semantic families and slate layers.
+- `F.Display`, `F.Body` and `F.Stat` use Segoe UI Variable with Segoe UI fallback. Headings are semibold. Use
+  `F.Mono` (Cascadia Mono / Consolas) for paths, identifiers and logs, and `F.Icons` (Segoe Fluent Icons with Segoe MDL2
+  Assets fallback) for icons from `UI/Glyphs.cs`.
+- Text styles include `T.Display`, `T.H1`, `T.H2`, `T.H3`, `T.Label` (section captions and table headers), `T.Body`,
+  `T.BodyStrong`, `T.Caption`, `T.Mono`, `T.Stat` + `T.StatUnit` (big numbers) and `T.Icon`.
+- Buttons use at least 30 px and icon + text (`Btn.Primary` is 32 px; `Btn.Hero` is 40 px). Use `Btn` (`B.Outline`), `Btn.Primary` (steel fill for the ONE main action),
+  `Btn.Hero` (big primary in the sticky bar), `Btn.Ghost` (outlined secondary), `Btn.Danger` (red text and outline
+  on a risk tint), `Btn.Link` (outlined jump to another page), `Btn.Icon` (glyph only for the window caption) and `Btn.Caption`.
 - Inputs: CheckBox (R.Xs box, Outline border), `Toggle` (CheckBox style, R.Md rounded-rect switch with R.Xs knob),
-  `SegmentBar` + `Segment` (framed segmented tabs, selected = white block), `Chip` / `Chip.Toggle` (filters next to the
+  `SegmentBar` + `Segment` (framed segmented tabs with an underlined selection), `Chip` / `Chip.Toggle` (filters next to the
   search box), `TabBadge` / `TabBadge.Alert` (counters), `Tile` (RadioButton card), TextBox (`Tag` = placeholder),
   ComboBox, Slider, ProgressBar (thin), TabControl/TabItem (segmented), Expander (outlined «ПОКАЗАТЬ ▾» header).
-- Surfaces: `Card`, `Card.Flush`, `Card.Hover`, `Card.Inverted`, `Callout`, `Row` (list row with Surface3 hover + white
-  left bar + bottom hairline), `Divider`, `DividerV`, tags `Tag`, `Tag.Solid` (Surface4, never white), `Tag.Hatch`
+- Surfaces: `Card`, `Card.Flush`, `Card.Hover`, `Card.Inverted`, `Callout`, `Row` (list row with `B.RowHover` and a
+  bottom hairline), `Divider`, `DividerV`, tags `Tag`, `Tag.Solid` (`B.Surface4`), `Tag.Hatch`
   (risk/expert), `Tag.Muted` — status only, never an action.
 - Lists: `List.Plain` (ListBox without selection chrome).
 - Converters: `BoolToVis`, `InverseBoolToVis`, `NullToVis` (param "invert"), `InverseBool`, `Bytes`, `Equals`,
@@ -320,15 +328,15 @@ very dark Deep tints, muted (not neon) saturation, and pure-grey neutrals.
   carry the selection marker as a short rounded bar on their left edge. No pills except toggles/badges.
   Hairlines stay straight: single-edge borders (`Row` bottom line, underline tabs, dividers, title/status bar lines) are
   never rounded; rows stacked in a card stay square — the card rounds and clips them.
-  Children painted to the edge of a rounded surface (bars, inverted headers, hatched bands, first/last rows) are clipped
+  Children painted to the edge of a rounded surface (bars, inverted headers, bands, first/last rows) are clipped
   with `ui:RoundClip.Content="True"` on the Border (UI/RoundClip.cs; `Card`, `Card.*` and `Callout` already set it). The clip
   is the border's inner area, so padded content is never cut. A filled rounded box with a same-colour outline must not be
   one Border with both (it shows a seam in the corners): CheckBox/Toggle draw fill and outline as two layers, Btn.Primary
   turns its border width into padding.
 - COMPACT spacing (owner: «слишком разбросано»): cards 14 px padding,
-  rows 12/8, 8–16 px gaps, buttons/inputs 30 px high, page title 24 px. The main list of a page must get most of the
+  rows 12/8, 8–16 px gaps, buttons/inputs at least 30 px high, page title 28 px. The main list of a page must get most of the
   screen — no big hero blocks above it.
-  Risk shown as tags: БЕЗОПАСНО (`Tag`), ПО ЖЕЛАНИЮ (`Tag.Muted`), ЭКСПЕРТ (`Tag.Hatch`).
+  Risk shown as tags: БЕЗОПАСНО (`Tag.Ok`), ПО ЖЕЛАНИЮ (`Tag.Info`), ЭКСПЕРТ (`Tag.Risk`).
 - Page root: `Grid` rows = `c:PageHeader` (Title/Subtitle/Checked/RefreshCommand/Primary; Index is no longer shown) →
   tabs (`SegmentBar`) → summary strip → list panel (search + `Chip` filters) → the list, the page's ONLY `ScrollViewer`
   (`*` row) → `c:StickyBar` (Auto row, outside the scroll). The shell already adds 24/16 px margins.
